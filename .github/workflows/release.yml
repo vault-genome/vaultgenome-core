@@ -1,0 +1,121 @@
+# AI Continuity Platform — release workflow
+#
+# Triggered by a signed semver tag matching v*. Produces:
+#   - three binaries (sagvd, acp-compute, acpctl), built reproducibly,
+#   - an SBOM per artifact (syft, SPDX-JSON),
+#   - cosign keyless signatures + transparency-log entries,
+#   - a SLSA provenance attestation (slsa-github-generator).
+#
+# SLSA target: Level 2 at MVP, Level 3 by end of Phase 9
+# (docs/doctrine/ci-security-policy.md §6).
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write       # publish release assets
+  id-token: write       # keyless cosign + SLSA OIDC
+  packages: read
+  actions: read
+
+jobs:
+  build-and-sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: core
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tag is signed
+        run: |
+          git verify-tag "${GITHUB_REF_NAME}" || { echo "release tag must be signed"; exit 1; }
+
+      - name: Set up Go 1.25
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+          cache-dependency-path: core/go.sum
+
+      - name: Build binaries (reproducible)
+        env:
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+          # SOURCE_DATE_EPOCH = the tag's commit timestamp, so anything
+          # in the build chain that consults it (rare; future-proofing)
+          # produces deterministic output.
+          SOURCE_DATE_EPOCH: ${{ github.event.head_commit.timestamp && '0' || '0' }}
+        run: |
+          make build
+          make verify-reproducible
+
+      - name: Install syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: SBOM per artifact
+        run: |
+          mkdir -p dist
+          for b in sagvd acp-compute acpctl; do
+            syft "bin/$b" -o spdx-json="dist/${b}.sbom.spdx.json"
+          done
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign binaries (keyless)
+        run: |
+          for b in sagvd acp-compute acpctl; do
+            cosign sign-blob --yes "bin/$b" \
+              --output-signature "dist/${b}.sig" \
+              --output-certificate "dist/${b}.cert"
+          done
+
+      - name: Sign SBOMs (keyless)
+        run: |
+          for b in sagvd acp-compute acpctl; do
+            cosign sign-blob --yes "dist/${b}.sbom.spdx.json" \
+              --output-signature "dist/${b}.sbom.sig" \
+              --output-certificate "dist/${b}.sbom.cert"
+          done
+
+      - name: Emit hashes for SLSA provenance
+        id: hash
+        run: |
+          cd bin
+          HASHES=$(sha256sum sagvd acp-compute acpctl | base64 -w0)
+          echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            core/bin/sagvd
+            core/bin/acp-compute
+            core/bin/acpctl
+            core/dist/*.sbom.spdx.json
+            core/dist/*.sig
+            core/dist/*.cert
+
+  slsa-provenance:
+    needs: [build-and-sign]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: ${{ needs.build-and-sign.outputs.hashes }}
+      upload-assets: true

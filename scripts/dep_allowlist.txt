@@ -1,0 +1,37 @@
+# AI Continuity Platform — direct-dependency allowlist
+#
+# Authoritative source: 00_CI_Security_Policy.md §3.1 and §3.3.
+# Enforced in CI by: scripts/check_dep_allowlist.sh.
+#
+# Rules (from policy §3.1):
+#   1. Every direct dependency of github.com/ai-continuity-platform/core
+#      MUST appear on this list (either exactly or as a prefix).
+#   2. Adding a line here also requires:
+#        (a) a justification at docs/dependencies/<pkg>.md,
+#        (b) sign-off from BOTH founders on the PR.
+#   3. Entries are module-path prefixes. `foo.example/bar` matches exactly
+#      and every module whose path begins with `foo.example/bar/`.
+#
+# Blank lines and lines beginning with `#` are ignored.
+# DO NOT list transitive (indirect) dependencies here — those are
+# governed by §3.2 (transitive depth cap) instead.
+
+# --- Storage -----------------------------------------------------------
+go.etcd.io/bbolt
+
+# --- RPC & wire format -------------------------------------------------
+google.golang.org/grpc
+google.golang.org/protobuf
+
+# --- Crypto extensions beyond stdlib -----------------------------------
+golang.org/x/crypto
+
+# --- Testing -----------------------------------------------------------
+github.com/stretchr/testify
+
+# --- CLI framework (acpctl) --------------------------------------------
+github.com/spf13/cobra
+github.com/spf13/viper
+
+# --- Observability (Phase 9) -------------------------------------------
+go.opentelemetry.io/otel

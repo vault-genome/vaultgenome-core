@@ -1,0 +1,11 @@
+JWT header.kid: dRKh+hBcWUfQimSl3Iv6ZhStW3TSOt0ThwiTgUUqZAo=
+JWT issuer:     https://sharedweu.weu.attest.azure.net
+✓ MAA JWT signature VALID (RS256, signed by MAA)
+  iss:                https://sharedweu.weu.attest.azure.net
+  attestation_type:   sgx
+  mrenclave:          ffd196a480c581f08362cb63509b7fe0e7ac6f14ac90a548fef1bd8af5139c66
+  mrsigner:           47e4fc587cfceb5a9a6f358420fc8989c6a6b0d74e6feea264cb3cf31cdd1b89
+  product_id:         1
+  svn:                1
+  report_data[0..31]: 9ab8b6f8bb04ce9bdab90b0b2ec83c488e3fbbe2e29e5bfb0f02ac0257af151e
+  report_data[32..]:  0000000000000000000000000000000000000000000000000000000000000000

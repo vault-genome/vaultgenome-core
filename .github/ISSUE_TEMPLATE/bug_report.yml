@@ -1,0 +1,114 @@
+name: Bug report
+description: Report a defect in Vault Genome.
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to file a bug report.
+
+        **Before you continue:** if this is a security vulnerability, please
+        STOP and follow the private disclosure process in
+        [SECURITY.md](../blob/main/SECURITY.md). A public issue will alert
+        every operator running Vault Genome to the same defect at the same
+        time, which is exactly the wrong outcome.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Output of `acpctl version`, or the commit SHA you built from.
+      placeholder: "v1.2.3 / 9c59ea2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: TEE provider
+      description: Which TEE backend was Vault Genome using when the bug occurred?
+      options:
+        - simulated
+        - aws-nitro
+        - azure-sgx
+        - gcp-sev-snp
+        - intel-sgx-dcap
+        - "not applicable / not yet booted"
+        - "unknown"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Plain-language description of what you observed.
+      placeholder: "When I run `acpctl audit verify` against my production audit log, I see…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What did you expect to happen?
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Reproducer
+      description: |
+        Minimal steps that reproduce the bug. A failing test under
+        `make test` is gold; if you can sketch a test that fails on
+        the current main, paste it here.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Output of the failing command, journalctl excerpt, or relevant
+        slog lines. Redact secrets before pasting.
+      render: shell
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Suspected severity
+      description: Your best assessment per `SECURITY.md` §"Severity classification".
+      options:
+        - LOW (hardening miss / minor inconvenience)
+        - MEDIUM (functional bug; not breaking a doctrinal invariant)
+        - HIGH (functional bug; breaks a guarantee within an invariant)
+        - CRITICAL (breaks a doctrinal invariant outright)
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctrinal-invariant
+    attributes:
+      label: Doctrinal invariant impact
+      description: |
+        If you suspect this bug weakens one of the invariants in
+        `docs/adr/0004-doctrine-invariants-as-tests.md` or
+        `docs/security/threat_model.md`, name it here. If you don't know,
+        leave blank — the maintainers will assess.
+      placeholder: "I suspect this weakens Invariant 7 (no-raw-export) because…"
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I have read [SECURITY.md](../blob/main/SECURITY.md) and confirmed this is NOT a vulnerability that should go through the private channel.
+          required: true
+        - label: I have searched existing issues for duplicates.
+          required: true
+        - label: I am willing to test a fix once one is available.
+          required: false

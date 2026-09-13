@@ -1,0 +1,35 @@
+AI Continuity Platform — Core
+Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program. If not, see <https://www.gnu.org/licenses/agpl-3.0.txt>.
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+
+STAGE B SCAFFOLD NOTE
+---------------------
+
+The full, canonical text of the GNU Affero General Public License, version 3,
+MUST be included in this file before the first public release of this
+repository. The full license text is available at:
+
+    https://www.gnu.org/licenses/agpl-3.0.txt
+
+Until the full text is inlined, this file stands as a binding declaration of
+intent and copyright. The short-form notice above carries effect from the
+declared date. A pull request that publishes this repository publicly (removes
+the "private" or "staging" flag in the repo settings) is blocked by CI if this
+file does not contain the complete AGPL-3.0 text, per the release gate defined
+in 00_CI_Security_Policy.md §10.

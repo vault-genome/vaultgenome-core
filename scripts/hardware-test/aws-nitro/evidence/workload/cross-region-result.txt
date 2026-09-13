@@ -1,0 +1,13 @@
+Cross-region disaster recovery test result
+==========================================
+
+Source region:      us-east-2 (Ohio)
+Destination region: eu-west-1 (Ireland)
+
+Source inference:      ./01-WORKLOAD-us-east-2a/ip-172-31-5-117.us-east-2.compute.internal/inference-original.txt
+Destination inference: 02-WORKLOAD-CROSS-REGION-eu-west-1a/ip-172-31-29-219.eu-west-1.compute.internal/inference-ireland-restored.txt
+
+Byte-diff result: PASS
+Generated: 2026-05-08T13:50:06Z
+
+Result: ✓ Byte-identical — sealed Llama 3.2 3B fully restored cross-continent

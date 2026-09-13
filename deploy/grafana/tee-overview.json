@@ -1,0 +1,103 @@
+{
+  "annotations": {"list": []},
+  "description": "Vault Genome — TEE attestation, sealing, and capability metrics across all 5 backends.",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "Attestation operations per second by TEE provider and role (produce vs verify).",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2, "stacking": {"mode": "normal"}}, "unit": "ops"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [
+        {"expr": "sum by (provider, role) (rate(vg_tee_attestation_total[5m]))", "legendFormat": "{{provider}} {{role}}", "refId": "A"}
+      ],
+      "title": "Attestation rate by provider × role",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "Attestation error rate (errors / second) per provider. Pages on > 0 for 5m.",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2}, "unit": "ops"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [
+        {"expr": "sum by (provider) (rate(vg_tee_attestation_total{result=\"error\"}[5m]))", "legendFormat": "{{provider}}", "refId": "A"}
+      ],
+      "title": "Attestation errors by provider",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "P99 attestation latency. Real-hardware target ≤ 250 ms; simulated target ≤ 1 ms.",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2}, "unit": "s"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [
+        {"expr": "histogram_quantile(0.99, sum by (provider, role, le) (rate(vg_tee_attestation_duration_seconds_bucket[5m])))", "legendFormat": "{{provider}} {{role}} p99", "refId": "A"}
+      ],
+      "title": "Attestation P99 latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "P50 attestation latency for baseline comparison.",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2}, "unit": "s"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (provider, role, le) (rate(vg_tee_attestation_duration_seconds_bucket[5m])))", "legendFormat": "{{provider}} {{role}} p50", "refId": "A"}
+      ],
+      "title": "Attestation P50 latency (median)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "Sealing operations per second by provider and operation (seal vs unseal).",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2, "stacking": {"mode": "normal"}}, "unit": "ops"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 5,
+      "targets": [
+        {"expr": "sum by (provider, op) (rate(vg_tee_sealing_total[5m]))", "legendFormat": "{{provider}} {{op}}", "refId": "A"}
+      ],
+      "title": "Sealing rate by provider × op",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "P95 sealing latency. Cloud KMS-backed (aws-nitro) is naturally higher than enclave-local sealing (sgx, sev-snp).",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2}, "unit": "s"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 6,
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (provider, op, le) (rate(vg_tee_sealing_duration_seconds_bucket[5m])))", "legendFormat": "{{provider}} {{op}} p95", "refId": "A"}
+      ],
+      "title": "Sealing P95 latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "TEE capability probe outcomes by provider. The daemon increments this once at startup; the table reads as a current state.",
+      "fieldConfig": {"defaults": {"custom": {"align": "left"}}},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+      "id": 7,
+      "options": {"showHeader": true},
+      "targets": [
+        {"expr": "vg_tee_capability_total", "format": "table", "instant": true, "refId": "A"}
+      ],
+      "title": "TEE capability availability (per provider)",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["vault-genome", "tee", "security"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "title": "Vault Genome — TEE overview",
+  "uid": "vg-tee-overview",
+  "version": 1
+}

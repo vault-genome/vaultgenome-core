@@ -1,0 +1,6 @@
+Instance ID: i-0cb5be96817865f30
+Region:      eu-west-1
+Availability Zone: eu-west-1a
+Machine type: m5.xlarge
+Role: cross-region restore (received bundle from Ohio)
+Captured: 2026-05-08T13:50:03Z

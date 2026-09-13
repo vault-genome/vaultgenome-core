@@ -1,0 +1,145 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Vault Genome — sagvd daemon overview (queue, sessions, jobs, handshake errors).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "Daemon up/down. Pages on==0 for 1m via your Alertmanager rule.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        }
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value"},
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {"expr": "up{job=\"sagvd\"}", "refId": "A"}
+      ],
+      "title": "Daemon up",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "Time since the most recent successful job. Pages on > 600s.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 300},
+              {"color": "red", "value": 600}
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value"},
+      "targets": [
+        {"expr": "time() - sagvd_last_success_unix", "refId": "A"}
+      ],
+      "title": "Time since last success",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "Queue depth — bounded above by JobQueue capacity.",
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 4, "w": 8, "x": 8, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "area", "textMode": "auto"},
+      "targets": [{"expr": "sagvd_queue_depth", "refId": "A"}],
+      "title": "Queue depth (current)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "description": "Daemon uptime in days. Useful for spotting unintended restarts.",
+      "fieldConfig": {"defaults": {"unit": "dtdurations"}},
+      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "none", "textMode": "value"},
+      "targets": [{"expr": "(time() - sagvd_start_unix)", "refId": "A"}],
+      "title": "Uptime",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2}, "unit": "ops"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "id": 5,
+      "targets": [{"expr": "rate(sagvd_sessions_opened[5m])", "legendFormat": "sessions/s", "refId": "A"}],
+      "title": "Sessions opened (rate, 5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2, "stacking": {"mode": "normal"}}, "unit": "ops"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "id": 6,
+      "targets": [{"expr": "sum by (outcome) (rate(sagvd_jobs_completed_total[5m]))", "legendFormat": "{{outcome}}", "refId": "A"}],
+      "title": "Jobs completed by outcome (rate, 5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "bars", "stacking": {"mode": "normal"}}, "unit": "ops"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "id": 7,
+      "targets": [{"expr": "sum by (phase) (rate(sagvd_handshake_failure_total[5m]))", "legendFormat": "{{phase}}", "refId": "A"}],
+      "title": "Handshake failures by phase (rate, 5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2}, "unit": "ops"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "id": 8,
+      "targets": [{"expr": "rate(http_jobs_submitted_total[5m])", "legendFormat": "submitted/s", "refId": "A"}],
+      "title": "HTTP /v1/jobs submission rate (5m)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["vault-genome", "sagvd", "operator"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Vault Genome — sagvd overview",
+  "uid": "vg-sagvd-overview",
+  "version": 1,
+  "weekStart": ""
+}

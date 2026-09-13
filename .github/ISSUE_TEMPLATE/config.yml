@@ -1,0 +1,20 @@
+# GitHub issue template chooser config.
+#
+# Disables the blank-issue option so contributors must pick a typed
+# template. The "Security advisory" link redirects security reports
+# to the private channel per SECURITY.md.
+
+blank_issues_enabled: false
+
+contact_links:
+  - name: Security advisory (private)
+    url: https://github.com/ai-continuity-platform/core/security/advisories/new
+    about: Report a vulnerability privately. DO NOT use a public issue. See SECURITY.md.
+
+  - name: Architecture discussion
+    url: https://github.com/ai-continuity-platform/core/discussions/categories/architecture
+    about: Open-ended architectural questions. ADR amendments start as discussions.
+
+  - name: Operator help
+    url: https://github.com/ai-continuity-platform/core/discussions/categories/operator-questions
+    about: Deployment / runbook / acpctl questions. Faster than an issue for a question.

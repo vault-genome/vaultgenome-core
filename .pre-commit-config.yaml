@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Vault Genome — pre-commit hook configuration.
+#
+# Usage:
+#   pip install pre-commit
+#   pre-commit install         # one-time, sets up .git/hooks/pre-commit
+#
+# After install, every `git commit` runs the hooks below; commits with
+# failures are blocked. To skip hooks once: `git commit --no-verify`
+# (NOT recommended; CI will fail on the same checks anyway).
+#
+# These hooks are a strict subset of `vault-gate.yml`. CI is the
+# authoritative gate; pre-commit is a developer-experience accelerator
+# that catches the most common failure modes before push.
+
+minimum_pre_commit_version: "3.5.0"
+
+repos:
+  # -----------------------------------------------------------------
+  # Generic file hygiene
+  # -----------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(vendor/|.*\.svg$)
+      - id: end-of-file-fixer
+        exclude: ^(vendor/|.*\.svg$)
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+        exclude: ^(vendor/|.*\.eif$|.*\.signed\.so$)
+      - id: check-yaml
+        exclude: ^(deploy/helm/templates/|core/deploy/helm/templates/)  # Helm templates use Go templating, not YAML
+      - id: check-json
+      - id: check-toml
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # -----------------------------------------------------------------
+  # Go-specific
+  # -----------------------------------------------------------------
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+      - id: go-vet
+      - id: go-mod-tidy
+      - id: golangci-lint
+
+  # -----------------------------------------------------------------
+  # Local custom hooks (project-specific gates)
+  # -----------------------------------------------------------------
+  - repo: local
+    hooks:
+      # SPDX header check — every new .go / .ts / .tsx file MUST
+      # start with the AGPL-3.0-or-later license header.
+      - id: spdx-header
+        name: SPDX license header
+        entry: bash core/scripts/license_header_check.sh
+        language: system
+        files: '\.(go|ts|tsx|py|sh)$'
+        exclude: ^(core/vendor/|investor-demo/web/node_modules/)
+        pass_filenames: false
+
+      # Terminology check — surface deprecated terms before they
+      # land. Mirrors the CI check in vault-gate.yml.
+      - id: terminology
+        name: Canonical terminology check
+        entry: bash core/scripts/terminology_check.sh
+        language: system
+        files: '\.(go|md|ts|tsx)$'
+        exclude: ^(core/vendor/)
+        pass_filenames: false
+
+      # Doctrine invariants — fastest CI gate to break locally.
+      # Skips the network-dependent checks; full suite runs in CI.
+      - id: doctrine-tests
+        name: Doctrine invariant tests
+        entry: bash -c 'cd core && go test -count=1 ./test/doctrine/...'
+        language: system
+        files: '^core/(internal|test/doctrine)/.*\.go$'
+        pass_filenames: false
+
+      # Block secrets at commit time. Lighter than gitleaks (which
+      # runs in CI); catches the obvious patterns.
+      - id: detect-secrets
+        name: Detect inline secrets
+        entry: bash -c 'grep -rIEn "(BEGIN PRIVATE KEY|aws_access_key_id\s*=\s*[A-Z0-9]{20}|sk-[A-Za-z0-9]{32,})" "$@" /dev/null'
+        language: system
+        types: [text]
+        exclude: ^(core/vendor/|investor-demo/web/node_modules/|core/SECURITY\.md$|.*\.svg$)
+
+# Hooks that intentionally do NOT run pre-commit (too slow):
+#   - go-test       — runs full suite; min 10s. Run via `make test` or in CI.
+#   - go-mutesting  — multi-minute. Weekly cadence in mutation.yml.
+#   - osv-scanner   — multi-minute. CI-only.
+#   - benchstat     — multi-minute. bench.yml-only.
+#   - syft / cosign — release-time only.

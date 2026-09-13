@@ -1,0 +1,23 @@
+{
+  "module_id": "i-048db5e223f6854af-enc019e0516e3dcf1e8",
+  "timestamp_ms": 1778201850976,
+  "user_data": "6775ac5075b68a5b48767c1cc1e11a28d761158adfd6236da96bac19450a6f2aa37096e477f134baf511368f4fd08135103ebfb2b12093b2e1044cbc3e15f5bb",
+  "cabundle_count": 4,
+  "chain_valid": true,
+  "anchor_valid": true,
+  "cose_valid": true,
+  "user_data_match": true,
+  "pcr0_nonzero": true,
+  "pcr0_matches_expected": true,
+  "all_pass": true,
+  "production_grade": true,
+  "cert_chain": [
+    "CN=aws.nitro-enclaves,OU=AWS,O=Amazon,C=US",
+    "CN=77af59e854502979.us-east-2.aws.nitro-enclaves,OU=AWS,O=Amazon,C=US",
+    "L=Seattle,ST=WA,C=US,O=Amazon,OU=AWS,CN=2f468f6e8ad83d70.zonal.us-east-2.aws.nitro-enclaves",
+    "CN=i-048db5e223f6854af.us-east-2.aws.nitro-enclaves,OU=AWS,O=Amazon,L=Seattle,ST=Washington,C=US",
+    "CN=i-048db5e223f6854af-enc019e0516e3dcf1e8.us-east-2.aws,OU=AWS,O=Amazon,L=Seattle,ST=Washington,C=US"
+  ],
+  "captured_pcr0": "69d556eff8606bd9828baaac20612f03851f29ddd989387ce5ab3a9cde8917add48d78f1f84c53dc2aafedb9ecb8734e",
+  "expected_pcr0": "69d556eff8606bd9828baaac20612f03851f29ddd989387ce5ab3a9cde8917add48d78f1f84c53dc2aafedb9ecb8734e"
+}

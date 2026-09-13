@@ -1,0 +1,4 @@
+OK
+OE-wrapped report:  /home/azureuser/vg/attestation-validation/vault-genome-sgx-cohort-vm4/04-sgx-quote.bin.oe (4750 bytes)
+Raw SGX quote v3:   /home/azureuser/vg/attestation-validation/vault-genome-sgx-cohort-vm4/04-sgx-quote.bin (4734 bytes)
+REPORT_DATA bound:  64 bytes (passed to oe_get_report verbatim)

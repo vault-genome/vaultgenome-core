@@ -1,0 +1,7 @@
+Here are three companies that have run or currently run confidential computing programs:
+
+1. Google - Google has been involved in various confidential computing initiatives, including the Google Cloud Confidential Computing service and the Google Anthos Confidential Compute Engine.
+
+2. Microsoft - Microsoft offers a confidential computing solution called Azure Confidential Compute, which allows customers to run sensitive workloads on cloud infrastructure without exposing their data or code.
+
+3. IBM - IBM has developed a confidential computing platform called IBM Cloud Private for z/Cloud, which provides a secure environment for running sensitive workloads on IBM Z mainframe systems.

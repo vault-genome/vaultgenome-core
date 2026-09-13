@@ -1,0 +1,153 @@
+=== Azure IMDS metadata ===
+{
+  "compute": {
+    "additionalCapabilities": {
+      "hibernationEnabled": "false"
+    },
+    "azEnvironment": "AzurePublicCloud",
+    "customData": "",
+    "evictionPolicy": "",
+    "extendedLocation": {
+      "name": "",
+      "type": ""
+    },
+    "host": {
+      "id": ""
+    },
+    "hostGroup": {
+      "id": ""
+    },
+    "isHostCompatibilityLayerVm": "false",
+    "licenseType": "",
+    "location": "eastus2",
+    "name": "vault-genome-sgx-cohort-vm2",
+    "offer": "0001-com-ubuntu-server-jammy",
+    "osProfile": {
+      "adminUsername": "azureuser",
+      "computerName": "vault-genome-sgx-cohort-vm2",
+      "disablePasswordAuthentication": "true"
+    },
+    "osType": "Linux",
+    "placementGroupId": "",
+    "plan": {
+      "name": "",
+      "product": "",
+      "publisher": ""
+    },
+    "platformFaultDomain": "0",
+    "platformSubFaultDomain": "",
+    "platformUpdateDomain": "0",
+    "priority": "Regular",
+    "provider": "Microsoft.Compute",
+    "publicKeys": [
+      {
+        "keyData": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKmiiI28vCEkJDAxgD8N1Y5GJS0HhQ1lbYbuwhq31Olb nikolaichuk.s.f@gmail.com",
+        "path": "/home/azureuser/.ssh/authorized_keys"
+      }
+    ],
+    "publisher": "Canonical",
+    "resourceGroupName": "vault-genome-sgx-cohort-vm2-rg",
+    "resourceId": "/subscriptions/2d06d433-77b7-401c-8df4-7cf340497fc9/resourceGroups/vault-genome-sgx-cohort-vm2-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sgx-cohort-vm2",
+    "securityProfile": {
+      "encryptionAtHost": "false",
+      "secureBootEnabled": "false",
+      "securityType": "",
+      "virtualTpmEnabled": "false"
+    },
+    "sku": "22_04-lts-gen2",
+    "storageProfile": {
+      "dataDisks": [],
+      "imageReference": {
+        "id": "",
+        "offer": "0001-com-ubuntu-server-jammy",
+        "publisher": "Canonical",
+        "sku": "22_04-lts-gen2",
+        "version": "latest"
+      },
+      "osDisk": {
+        "caching": "ReadWrite",
+        "createOption": "FromImage",
+        "diffDiskSettings": {
+          "option": ""
+        },
+        "diskSizeGB": "40",
+        "encryptionSettings": {
+          "diskEncryptionKey": {
+            "secretUrl": "",
+            "sourceVault": {
+              "id": ""
+            }
+          },
+          "enabled": "false",
+          "keyEncryptionKey": {
+            "keyUrl": "",
+            "sourceVault": {
+              "id": ""
+            }
+          }
+        },
+        "image": {
+          "uri": ""
+        },
+        "managedDisk": {
+          "id": "/subscriptions/2d06d433-77b7-401c-8df4-7cf340497fc9/resourceGroups/vault-genome-sgx-cohort-vm2-rg/providers/Microsoft.Compute/disks/vault-genome-sgx-cohort-vm2-os-disk",
+          "storageAccountType": "Premium_LRS"
+        },
+        "name": "vault-genome-sgx-cohort-vm2-os-disk",
+        "osType": "Linux",
+        "vhd": {
+          "uri": ""
+        },
+        "writeAcceleratorEnabled": "false"
+      },
+      "resourceDisk": {
+        "size": "0"
+      }
+    },
+    "subscriptionId": "2d06d433-77b7-401c-8df4-7cf340497fc9",
+    "tags": "purpose:vault-genome-hardware-validation;sprint:week-3-azure-sgx",
+    "tagsList": [
+      {
+        "name": "purpose",
+        "value": "vault-genome-hardware-validation"
+      },
+      {
+        "name": "sprint",
+        "value": "week-3-azure-sgx"
+      }
+    ],
+    "userData": "",
+    "version": "22.04.202605030",
+    "virtualMachineScaleSet": {
+      "id": ""
+    },
+    "vmId": "c26caa3d-71e5-4651-9c98-95747e0e581e",
+    "vmScaleSetName": "",
+    "vmSize": "Standard_DC4s_v3",
+    "zone": ""
+  },
+  "network": {
+    "interface": [
+      {
+        "ipv4": {
+          "ipAddress": [
+            {
+              "privateIpAddress": "10.43.1.4",
+              "publicIpAddress": ""
+            }
+          ],
+          "subnet": [
+            {
+              "address": "10.43.1.0",
+              "prefix": "24"
+            }
+          ]
+        },
+        "ipv6": {
+          "ipAddress": []
+        },
+        "macAddress": "6045BDB9FBBF"
+      }
+    ]
+  }
+}

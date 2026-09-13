@@ -1,0 +1,6 @@
+✓ unsealed ollama "llama3.2:3b"  (gen 0)
+  bundle:        demo1-bundle.genome
+  target:        /tmp/demo1-restored
+  bytes written: 2019394194 (1.88 GiB)
+  payload sha256:sha256:d9387aa0a249fc8516c65c3c86b399a46a636409586ea171658457f7b6bd1869
+  measurement:   0422a816e827ca632bba8643c0b5d71b989b9241424b6e751f99caa705c3fb28

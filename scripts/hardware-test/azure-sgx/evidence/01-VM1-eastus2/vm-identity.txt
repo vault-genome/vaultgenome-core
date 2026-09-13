@@ -1,0 +1,11 @@
+vm_name:       vault-genome-sgx-pilot-q1
+cloud:         azure
+location:      eastus2
+zone:          
+vm_size:       Standard_DC4s_v3
+uname:         Linux vault-genome-sgx-pilot-q1 6.8.0-1052-azure #58~22.04.1-Ubuntu SMP Thu Mar 26 05:02:21 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+captured_at:   2026-05-08T23:11:32Z
+
+tee_backend:   azure-sgx (intel-sgx)
+intel_chain:   captured at attestation-validation/vault-genome-sgx-pilot-q1/{04-sgx-quote.bin, 06-verify-quote.txt, 07-dcap-verify.txt}
+maa_chain:     captured at attestation-validation/vault-genome-sgx-pilot-q1/{15-maa-jwt.txt, 17-maa-jwt-payload.json, 19-maa-jwt-verify.txt}

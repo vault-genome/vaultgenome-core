@@ -1,0 +1,74 @@
+# AI Continuity Platform — Mutation testing
+#
+# Runs go-mutesting against security-critical packages on a weekly
+# schedule (Sunday 03:00 UTC). Reports the kill rate per package and
+# uploads the full report as a workflow artefact.
+#
+# Why nightly, not per-PR: mutation testing is slow (~10 min/package);
+# running it on every PR would blow the CI budget. The weekly cadence
+# is enough to catch regressions in test-suite quality while staying
+# affordable.
+#
+# Interpreting results:
+#   - "passed N out of M mutations" — N mutations killed by tests.
+#     Lower is worse; aim for ≥ 80% kill rate on critical packages.
+#   - "skipped N out of M mutations" — go-mutesting could not apply
+#     the mutation (compilation error etc.); not counted against us.
+#   - Surviving mutations indicate weak tests; the fix is to add or
+#     strengthen tests until the mutation no longer survives.
+
+name: mutation
+
+on:
+  schedule:
+    # Sunday 03:00 UTC — outside business hours for both EMEA and AMER.
+    - cron: '0 3 * * 0'
+  workflow_dispatch:    # allow manual run from the Actions tab
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Go 1.25
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.9"
+          cache: true
+          cache-dependency-path: core/go.sum
+
+      - name: Install go-mutesting
+        run: |
+          go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
+
+      - name: Run mutation testing
+        run: make mutation
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-${{ github.run_id }}
+          path: core/dist/mutation.out
+          if-no-files-found: error
+
+      - name: Summarise results
+        if: always()
+        run: |
+          if [[ -f dist/mutation.out ]]; then
+            echo "=== Mutation testing summary ==="
+            grep -E "PASS|FAIL|skipped|passed" dist/mutation.out | tail -50 || true
+          fi

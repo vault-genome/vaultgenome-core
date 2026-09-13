@@ -1,0 +1,7 @@
+Invalid option: dump-evidence
+
+Usage:	oeutil <command> <options>
+where command can be any prefix of:
+	1. generate-evidence: generate evidence, a report, or a certificate.
+Options:
+	Type oeutil <command> --help for more information

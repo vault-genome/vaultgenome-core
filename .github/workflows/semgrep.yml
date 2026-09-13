@@ -1,0 +1,65 @@
+# AI Continuity Platform — Semgrep static analysis
+#
+# Semgrep complements CodeQL with project-specific rules that capture
+# the doctrinal invariants we know about but CodeQL's general rule set
+# does not. Examples (full ruleset in scripts/semgrep/rules.yml):
+#
+#   - "audit-event types must include the canonical fields".
+#   - "tee.Producer.Quote callers must check len(nonce) >= NonceMinBytes".
+#   - "session sealing must use AAD that includes ManifestID".
+#
+# Why have both? CodeQL is excellent at general taint-flow style
+# vulnerabilities; Semgrep is excellent at custom in-house rules
+# expressed concisely in YAML. Together they cover both standard and
+# project-specific risk surfaces.
+
+name: semgrep
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write   # post inline review comments
+
+jobs:
+  semgrep:
+    name: semgrep-go
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: returntocorp/semgrep:1.86.0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Semgrep CI mode: scan with our private ruleset + curated
+      # ecosystem rules (Go, secrets, Docker, GitHub Actions).
+      - name: Run Semgrep
+        run: |
+          semgrep ci \
+            --config core/scripts/semgrep/rules.yml \
+            --config p/golang \
+            --config p/secrets \
+            --config p/dockerfile \
+            --config p/github-actions \
+            --sarif-output=semgrep.sarif \
+            --error
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep

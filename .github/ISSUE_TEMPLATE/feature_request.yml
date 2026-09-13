@@ -1,0 +1,103 @@
+name: Feature request
+description: Suggest a feature, enhancement, or new capability.
+title: "[feat] "
+labels: ["feature-request", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for proposing a feature.
+
+        **Before you continue:**
+
+        - Read [`docs/adr/`](../tree/main/docs/adr) — your feature may
+          relate to an existing architectural decision.
+        - Read [`CONTRIBUTING.md`](../blob/main/CONTRIBUTING.md) for what
+          we accept and what we don't.
+        - For TEE-adapter additions, the bar is straightforward: if it
+          passes [`pkg/teeconformance`](../tree/main/pkg/teeconformance)
+          we'll review it.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: |
+        What problem does this feature solve? Describe the use case in
+        terms of who hits it and why the current behaviour is insufficient.
+      placeholder: "As an operator running sagvd in production, I want to…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: |
+        What should the feature look like? Sketch the API, CLI flags,
+        config keys, or wire-format changes. Be specific — vague proposals
+        get vague rejections.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        What other solutions did you consider? Why is this one preferable?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: Which area of the codebase does this touch?
+      multiple: true
+      options:
+        - "TEE adapter (internal/shared/tee)"
+        - "Vault authority (internal/vault)"
+        - "Validation pipeline (internal/validation)"
+        - "Audit / chain (internal/audit)"
+        - "acpctl operator CLI (cmd/acpctl)"
+        - "Public conformance (pkg/teeconformance)"
+        - "Deployment (deploy/{docker,helm,terraform})"
+        - "CI / release pipeline (.github/workflows)"
+        - "Documentation / ADR"
+        - "Investor demo site (investor-demo)"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctrinal-impact
+    attributes:
+      label: Doctrinal impact
+      description: |
+        Does this feature affect any architectural invariant or ADR? If
+        yes, expect that an ADR amendment is part of the work. If you've
+        already drafted one, link it here.
+      placeholder: "This affects ADR-0001 because…"
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you willing to implement this?
+      options:
+        - "Yes — I plan to open a PR"
+        - "Yes — but I'd appreciate guidance first"
+        - "Maybe — depends on review feedback"
+        - "No — proposing only"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I have searched existing issues, ADRs, and discussions for similar proposals.
+          required: true
+        - label: This is not a security vulnerability (would go through SECURITY.md).
+          required: true

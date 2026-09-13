@@ -1,0 +1,24 @@
+Vault Genome SGX Attestation Validation — Azure vault-genome-sgx-cohort-vm2
+=================================================
+
+Date (UTC):     2026-05-09T00:34:46Z
+VM:             vault-genome-sgx-cohort-vm2 (Azure eastus2, zone , Standard_DC4s_v3)
+TEE:            Intel SGX (DCsv3)
+
+POLICY CHECKS (Intel chain — local-host)
+  /dev/sgx_enclave + /dev/sgx_provision present:   PASS
+  Quote generated via custom OE enclave (oe_get_report): PASS
+  Workload binding (REPORT_DATA[0..31] == SHA-256(manifest)): PASS
+  Chain Quote → PCK → Intel SGX Root CA (local):   best-effort (MAA is canonical)
+
+REPORT_DATA layout (64 bytes total):
+  bytes 0..31:   3c8ff723b474e731a51650513c6e3d1f549d8ff3b55671a1f2555394626cb0af   ← SHA-256(manifest)
+  bytes 32..63:  0000...0000 (32-byte zero pad — MAA convention)
+
+RESULT: WORKLOAD BINDING CRYPTOGRAPHICALLY ESTABLISHED
+
+CHAIN OF RECORD: Microsoft Azure Attestation (MAA), captured by
+02f-capture-maa-jwt.sh — independent Microsoft-rooted PKI sign-off
+on the same Quote → PCK → Intel SGX Root CA chain. MAA verifies
+SHA-256(runtimeData) == report_data[0..31] on its server, then
+returns a signed JWT with the binding claims.

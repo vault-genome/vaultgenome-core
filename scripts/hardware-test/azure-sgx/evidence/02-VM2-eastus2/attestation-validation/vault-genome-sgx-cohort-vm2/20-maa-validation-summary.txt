@@ -1,0 +1,21 @@
+Vault Genome MAA SGX JWT Validation — Azure vault-genome-sgx-cohort-vm2
+=================================================
+
+Date (UTC):     2026-05-09T00:34:48Z
+VM:             vault-genome-sgx-cohort-vm2 (Azure eastus2)
+MAA endpoint:   https://sharedeus2.eus2.attest.azure.net
+TEE:            Intel SGX (DCsv3)
+
+POLICY CHECKS (Microsoft side, independent of Intel chain)
+✓ MAA endpoint reachable
+✓ MAA accepted SGX quote
+✓ MAA returned signed JWT
+✓ JWT decodes cleanly (header + payload)
+✓ JWT claims include x-ms-attestation-type=sgx
+✓ JWT claims include MRENCLAVE + MRSIGNER + REPORT_DATA
+✓ JWT signature verified against MAA's published signing certs
+
+RESULT: MAA CHAIN VALIDATION PASSED
+
+Combined with Intel chain validation (02b-cryptographic-attestation.sh),
+this VM has TWO independently-rooted attestation chains both validated.

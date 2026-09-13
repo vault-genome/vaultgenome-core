@@ -1,0 +1,177 @@
+# Semgrep ruleset — Vault Genome custom doctrinal invariants
+#
+# These rules complement the general Semgrep `p/golang` and `p/secrets`
+# rule packs. They encode project-specific constraints that pattern-
+# match cleanly in Semgrep's grammar but are too narrow for upstream
+# rule packs.
+#
+# Each rule is paired with a doctrine paragraph or ADR.
+
+rules:
+
+  # -------------------------------------------------------------------
+  # R-01: Producer.Quote callers MUST validate nonce length
+  # -------------------------------------------------------------------
+  - id: vg-quote-without-nonce-length-check
+    languages: [go]
+    severity: WARNING
+    message: |
+      tee.Producer.Quote was called without an apparent nonce-length
+      check at the call site. The Producer-side enforces the floor,
+      but defence-in-depth is to validate length at every challenger
+      construction site too. See ADR-0001 §3.1 (R-10 doctrine).
+    pattern-either:
+      - patterns:
+          - pattern: $P.Quote($NONCE)
+          - pattern-not-inside: |
+              if len($NONCE) >= $MIN { ... }
+          - pattern-not-inside: |
+              if len($NONCE) < $MIN { ... }
+          - metavariable-pattern:
+              metavariable: $P
+              language: go
+              # heuristic: the variable is named *roducer or
+              # ends in *Producer
+              pattern-regex: ".*[Pp]roducer$"
+    paths:
+      exclude:
+        - "*_test.go"
+        - "internal/shared/tee/contract_test.go"
+
+  # -------------------------------------------------------------------
+  # R-02: Sealer.Seal callers MUST pass non-empty AAD
+  # -------------------------------------------------------------------
+  - id: vg-seal-without-aad
+    languages: [go]
+    severity: ERROR
+    message: |
+      tee.Sealer.Seal was called with nil or empty AAD. AAD is the
+      *only* bound context that survives sealing — without it,
+      ciphertexts become substitutable across sessions. See
+      00_Bootstrap_Contracts_Doctrine §13 (Sealing AAD requirement).
+    pattern-either:
+      - pattern: $S.Seal($PT, nil)
+      - pattern: $S.Seal($PT, []byte{})
+    paths:
+      exclude:
+        - "*_test.go"
+
+  # -------------------------------------------------------------------
+  # R-03: No fmt.Errorf with %s for typed errors
+  # -------------------------------------------------------------------
+  - id: vg-errorf-string-on-error
+    languages: [go]
+    severity: WARNING
+    message: |
+      fmt.Errorf with %s on an error value loses the wrapping chain.
+      Use %w so errors.Is / errors.As work downstream. The vault
+      classifies errors by category (Structural / Integrity); losing
+      the chain breaks that classification.
+    pattern: fmt.Errorf("...%s...", $E)
+    metavariable-pattern:
+      metavariable: $E
+      patterns:
+        - pattern-regex: '.*err.*'
+
+  # -------------------------------------------------------------------
+  # R-04: time.Now without explicit clock injection
+  # -------------------------------------------------------------------
+  - id: vg-direct-time-now
+    languages: [go]
+    severity: WARNING
+    message: |
+      Direct time.Now() call in production code. Use the injected
+      shared_time.Clock so tests can advance time deterministically.
+      See cmd/sagvd/daemon.go for the convention.
+    pattern: time.Now()
+    paths:
+      include:
+        - "internal/**/*.go"
+      exclude:
+        - "*_test.go"
+        - "internal/shared/time/**"
+
+  # -------------------------------------------------------------------
+  # R-05: No exec.Command with shell metacharacters in arg construction
+  # -------------------------------------------------------------------
+  - id: vg-exec-command-shell-string
+    languages: [go]
+    severity: ERROR
+    message: |
+      exec.Command should receive separate argv entries, not a
+      shell-style string. Constructing the command via fmt.Sprintf
+      that includes user-controlled data is a command-injection vector.
+    pattern-either:
+      - pattern: exec.Command("sh", "-c", $X)
+      - pattern: exec.Command("/bin/sh", "-c", $X)
+      - pattern: exec.Command("bash", "-c", $X)
+    paths:
+      exclude:
+        - "*_test.go"
+        - "scripts/**"
+
+  # -------------------------------------------------------------------
+  # R-06: No os.Getenv as a default in production paths
+  # -------------------------------------------------------------------
+  - id: vg-getenv-fallback
+    languages: [go]
+    severity: WARNING
+    message: |
+      os.Getenv used as a default in production code. Configuration
+      should flow through the *Config struct loaded from -config; env
+      variables in production are operational footguns (typos go
+      unnoticed; restart picks up partial config).
+    pattern-either:
+      - pattern: os.Getenv($X)
+      - pattern: os.LookupEnv($X)
+    paths:
+      include:
+        - "internal/**/*.go"
+        - "cmd/**/*.go"
+      exclude:
+        - "*_test.go"
+        - "cmd/*/main.go"   # main.go is allowed to read env at startup
+
+  # -------------------------------------------------------------------
+  # R-07: No raw os.WriteFile / os.OpenFile outside allowlisted paths
+  # (mirror of test/doctrine/invariants_test.go::TestInvariant_07)
+  # -------------------------------------------------------------------
+  - id: vg-no-raw-write
+    languages: [go]
+    severity: ERROR
+    message: |
+      os.WriteFile / os.OpenFile / os.Create in production code outside
+      the allowed write-sink prefixes (internal/vault/storage,
+      internal/audit/store, internal/shared/tee). This is a doctrine
+      invariant (Freeze #6 — "no raw genome export").
+      The Go-AST test in test/doctrine/invariants_test.go is the
+      authoritative check; this Semgrep rule catches it earlier in
+      developer iteration.
+    pattern-either:
+      - pattern: os.WriteFile(...)
+      - pattern: os.OpenFile(...)
+      - pattern: os.Create(...)
+      - pattern: io.Copy(...)
+    paths:
+      include:
+        - "internal/**/*.go"
+      exclude:
+        - "*_test.go"
+        - "internal/vault/storage/**"
+        - "internal/audit/store/**"
+        - "internal/shared/tee/**"
+
+  # -------------------------------------------------------------------
+  # R-08: TODO/FIXME with no ticket reference
+  # -------------------------------------------------------------------
+  - id: vg-todo-without-ticket
+    languages: [go]
+    severity: INFO
+    message: |
+      TODO / FIXME comment without a ticket reference. Hygiene rule:
+      every TODO should link to a tracked issue so the project's
+      backlog is the source of truth, not the source code.
+    pattern-regex: '(?i)//\s*(TODO|FIXME)(?!\s*\[(VG|INC)-\d+\])'
+    paths:
+      include:
+        - "**/*.go"

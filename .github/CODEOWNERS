@@ -1,0 +1,66 @@
+# AI Continuity Platform — Code Owners
+#
+# Authoritative source: 00_CI_Security_Policy.md §§1, 3, 8.
+#
+# This file is parsed by GitHub to compute required reviewers. Paths are
+# glob-style and most-specific-last wins. Every merge to `main` requires
+# approval from at least one owner of every matched rule.
+#
+# Placeholder handles: the two founders' GitHub usernames are not yet
+# registered in this repository; until they are, the logical team
+# `@ai-continuity-platform/founders` stands in. The workflow
+# `vault-gate.yml` enforces branch protection independently of this file,
+# so unset handles do not weaken the merge gate; they only affect review
+# attribution.
+#
+#   Serhii Nikolaichuk  → @nikolaichuk-s  (placeholder)
+#   Rodion Sorokin      → @sorokin-r      (placeholder)
+#
+# DO NOT extend this file without a corresponding 00_*.md reference;
+# ownership is a governance artifact, not a convenience.
+
+# ---------------------------------------------------------------------
+# Default: every file requires dual-founder review.
+# ---------------------------------------------------------------------
+
+*                                       @nikolaichuk-s @sorokin-r
+
+# ---------------------------------------------------------------------
+# Doctrine-frozen surfaces. These paths carry invariants enforced by
+# /test/doctrine. A change here is, by definition, a doctrine change
+# and must be reviewed by both founders regardless of file size.
+# ---------------------------------------------------------------------
+
+/core/internal/contracts/               @nikolaichuk-s @sorokin-r
+/core/internal/vault/orchestration/     @nikolaichuk-s @sorokin-r
+/core/internal/vault/disclosure/        @nikolaichuk-s @sorokin-r
+/core/internal/vault/session/           @nikolaichuk-s @sorokin-r
+/core/internal/vault/trust/             @nikolaichuk-s @sorokin-r
+/core/internal/vault/incident/          @nikolaichuk-s @sorokin-r
+/core/internal/vault/keys/              @nikolaichuk-s @sorokin-r
+/core/internal/validation/operational/  @nikolaichuk-s @sorokin-r
+/core/internal/audit/                   @nikolaichuk-s @sorokin-r
+/core/internal/genome/                  @nikolaichuk-s @sorokin-r
+
+/core/test/doctrine/                    @nikolaichuk-s @sorokin-r
+
+# ---------------------------------------------------------------------
+# Governance artifacts: doctrine documents, CI policy, build & release
+# pipelines, dependency allowlist. A change to any of these alters the
+# rules under which everything else is reviewed, so dual review is
+# non-negotiable.
+# ---------------------------------------------------------------------
+
+/00_*.md                                @nikolaichuk-s @sorokin-r
+/core/scripts/                          @nikolaichuk-s @sorokin-r
+/core/.github/                          @nikolaichuk-s @sorokin-r
+/core/.github/workflows/                @nikolaichuk-s @sorokin-r
+/core/.github/CODEOWNERS                @nikolaichuk-s @sorokin-r
+/core/go.mod                            @nikolaichuk-s @sorokin-r
+/core/go.sum                            @nikolaichuk-s @sorokin-r
+/core/Makefile                          @nikolaichuk-s @sorokin-r
+/core/docs/dependencies/                @nikolaichuk-s @sorokin-r
+/core/LICENSE                           @nikolaichuk-s @sorokin-r
+/core/SECURITY.md                       @nikolaichuk-s @sorokin-r
+/core/CODE_OF_CONDUCT.md                @nikolaichuk-s @sorokin-r
+/core/CONTRIBUTING.md                   @nikolaichuk-s @sorokin-r

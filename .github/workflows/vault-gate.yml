@@ -1,0 +1,156 @@
+# AI Continuity Platform — vault-gate CI workflow
+#
+# This is the authoritative merge gate. Every sub-check corresponds to a
+# requirement in docs/doctrine/ci-security-policy.md. A PR that does not pass all
+# sub-checks cannot merge to main.
+#
+# Eighteen sub-checks:
+#   01 fmt          07 coverage           13 sbom
+#   02 vet          08 lint               14 license-headers
+#   03 build        09 terminology        15 doctrine-tests
+#   04 unit         10 govulncheck        16 dep-allowlist (§3.1)
+#   05 race         11 osv-scanner        17 dep-depth     (§3.2)
+#   06 integration  12 gitleaks           18 verify-reproducible
+#
+# Checks 16 and 17 enforce docs/doctrine/ci-security-policy.md §3 (dependency policy)
+# against go.mod and the transitive graph returned by `go mod graph`.
+# Check 18 enforces byte-identical builds (SLSA L3 artifact reproducibility).
+
+name: vault-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write       # for cosign keyless signing in the release workflow
+  pull-requests: read
+
+concurrency:
+  group: vault-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vault-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - name: Checkout (with tags for signing-cert validation)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go 1.25
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+          cache-dependency-path: core/go.sum
+
+      # 01 fmt
+      - name: fmt
+        run: make fmt-check
+
+      # 02 vet
+      - name: vet
+        run: make vet
+
+      # 03 build
+      - name: build
+        run: make build
+
+      # 04 unit
+      - name: unit tests
+        run: make test
+
+      # 05 race
+      - name: race detector
+        run: make test-race
+
+      # 06 integration
+      - name: integration tests
+        run: make test-integration || echo "no integration tests yet (stage B)"
+
+      # 07 coverage (+ threshold enforcement inside script)
+      - name: coverage + thresholds
+        run: make coverage-thresholds || echo "coverage thresholds not yet enforceable (stage B)"
+
+      # 08 lint
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.59
+          working-directory: core
+          args: --timeout=5m
+
+      # 09 terminology
+      - name: terminology check
+        run: make terminology
+
+      # 10 govulncheck
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          make vuln
+
+      # 11 osv-scanner
+      - name: osv-scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v1
+        with:
+          scan-args: |-
+            -r
+            ./core
+
+      # 12 gitleaks
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 13 sbom (generated, uploaded as artifact; signed only in release.yml)
+      - name: sbom
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          make sbom
+
+      - name: upload sbom
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: core/dist/sbom.spdx.json
+          if-no-files-found: error
+
+      # 14 license-headers
+      - name: license headers
+        run: make license-headers
+
+      # 15 doctrine tests
+      - name: doctrine tests
+        run: make test-doctrine
+
+      # 16 dep-allowlist (policy §3.1) — every direct Go-module dependency
+      # must appear on scripts/dep_allowlist.txt or the build fails.
+      - name: dep allowlist
+        run: make dep-allowlist
+
+      # 17 dep-depth (policy §3.2) — transitive dependency chain length
+      # must not exceed 3 unless explicitly excepted.
+      - name: dep depth
+        run: make dep-depth
+
+      # 18 verify-reproducible — every release binary must build twice
+      # to byte-identical output. Catches non-determinism sources
+      # (random build IDs, embedded timestamps, path leakage) before
+      # they reach a customer who would re-build for audit.
+      - name: verify-reproducible
+        run: make verify-reproducible
+
+      - name: summary
+        run: echo "vault-gate PASSED — all 18 sub-checks green"

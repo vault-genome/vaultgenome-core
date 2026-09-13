@@ -1,0 +1,7 @@
+Instance ID: i-0bd0777f07917c095
+Region:      eu-west-1
+Availability Zone: eu-west-1a
+Machine type: m5.xlarge
+Enclave mode: production (no --debug-mode, vsock-attest)
+Module ID:   i-0bd0777f07917c095-enc019e05191df392d3
+Captured: 2026-05-08T01:02:12Z

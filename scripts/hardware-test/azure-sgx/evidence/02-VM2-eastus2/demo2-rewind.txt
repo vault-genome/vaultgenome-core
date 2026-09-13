@@ -1,0 +1,6 @@
+✓ unsealed dir "test-payloads/cycle-3"  (gen 3)
+  bundle:        generations/gen-3.genome
+  target:        /tmp/demo2-rewind
+  bytes written: 39 (39 B)
+  payload sha256:sha256:31aa2f08a2fe3a6e6849f97a4698fdbb2e34b6012fe63761427e4ea44d33aa5f
+  measurement:   4043469e444ef33cc15c0e02365fb5209b494c5325bf31dbac907914fa9479a3

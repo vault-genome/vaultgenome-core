@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Vault Genome — high-level architecture diagram (SVG, hand-rolled).
+
+  Layout v2 (2026-05-06): widened canvas to 1200×720, panels enlarged
+  so subtitles fit *inside* their panel rectangle (the v1 layout had
+  subtitles outside the panels which spilled into adjacent text on
+  narrow viewports — see screenshot in the 2026-05-06 deploy review).
+
+  Edit by hand; we deliberately avoid Mermaid / PlantUML / draw.io
+  because the rendered output drifts when those tools update.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="13">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#9aa0a6"/>
+    </marker>
+    <linearGradient id="teeGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b3d2e"/>
+      <stop offset="1" stop-color="#072019"/>
+    </linearGradient>
+    <linearGradient id="vaultGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1f2e"/>
+      <stop offset="1" stop-color="#0f1419"/>
+    </linearGradient>
+    <linearGradient id="operatorGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c2027"/>
+      <stop offset="1" stop-color="#13161c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="720" fill="#0a0e14"/>
+
+  <!-- ================================================================ -->
+  <!-- OPERATOR (left)                                                    -->
+  <!-- ================================================================ -->
+  <g>
+    <rect x="40" y="40" width="260" height="120" rx="10" fill="url(#operatorGrad)" stroke="#2c3038" stroke-width="1.5"/>
+    <text x="170" y="68" text-anchor="middle" fill="#7ad3ff" font-size="11" letter-spacing="2.2">OPERATOR</text>
+    <text x="170" y="92" text-anchor="middle" fill="#e8eaed" font-size="14.5" font-weight="600">acpctl + REST</text>
+    <text x="170" y="118" text-anchor="middle" fill="#9aa0a6" font-size="10.5">acpctl status / audit verify</text>
+    <text x="170" y="134" text-anchor="middle" fill="#9aa0a6" font-size="10.5">acpctl recover / lineage</text>
+    <text x="170" y="150" text-anchor="middle" fill="#a8b3bd" font-size="10.5">POST /v1/jobs</text>
+  </g>
+
+  <!-- ================================================================ -->
+  <!-- VAULT AUTHORITY (sagvd) — wider, more spacious inner panels        -->
+  <!-- Outer 620w; panels 270w with 20w gap; subtitle INSIDE panel        -->
+  <!-- ================================================================ -->
+  <g>
+    <rect x="360" y="20" width="620" height="220" rx="12" fill="url(#vaultGrad)" stroke="#3a82e6" stroke-width="2"/>
+    <text x="670" y="48" text-anchor="middle" fill="#7ad3ff" font-size="11.5" letter-spacing="2.2">VAULT AUTHORITY (sagvd)</text>
+
+    <!-- Panel 1: Validation pipeline (top-left) -->
+    <rect x="385" y="68" width="270" height="68" rx="6" fill="#23283a" stroke="#3a4054"/>
+    <text x="520" y="90" text-anchor="middle" fill="#e8eaed" font-size="12.5" font-weight="600">Validation pipeline</text>
+    <text x="520" y="113" text-anchor="middle" fill="#9aa0a6" font-size="10">operational · semantic · behavioural</text>
+    <text x="520" y="128" text-anchor="middle" fill="#7d8590" font-size="9.5">3-stage gate · any can veto</text>
+
+    <!-- Panel 2: Audit chain (top-right) -->
+    <rect x="685" y="68" width="270" height="68" rx="6" fill="#23283a" stroke="#3a4054"/>
+    <text x="820" y="90" text-anchor="middle" fill="#e8eaed" font-size="12.5" font-weight="600">Audit chain (bbolt)</text>
+    <text x="820" y="113" text-anchor="middle" fill="#9aa0a6" font-size="10">append-only · hash-linked · signed</text>
+    <text x="820" y="128" text-anchor="middle" fill="#7d8590" font-size="9.5">7-year retention · tamper-evident</text>
+
+    <!-- Panel 3: Keystore (bottom-left) -->
+    <rect x="385" y="148" width="270" height="68" rx="6" fill="#23283a" stroke="#3a4054"/>
+    <text x="520" y="170" text-anchor="middle" fill="#e8eaed" font-size="12.5" font-weight="600">Keystore</text>
+    <text x="520" y="193" text-anchor="middle" fill="#9aa0a6" font-size="10">multi-tenant · HKDF derivation</text>
+    <text x="520" y="208" text-anchor="middle" fill="#7d8590" font-size="9.5">in-memory · zeroize on shutdown</text>
+
+    <!-- Panel 4: Job queue (bottom-right) -->
+    <rect x="685" y="148" width="270" height="68" rx="6" fill="#23283a" stroke="#3a4054"/>
+    <text x="820" y="170" text-anchor="middle" fill="#e8eaed" font-size="12.5" font-weight="600">Job queue</text>
+    <text x="820" y="193" text-anchor="middle" fill="#9aa0a6" font-size="10">bounded · single-worker dispatch</text>
+    <text x="820" y="208" text-anchor="middle" fill="#7d8590" font-size="9.5">429 backpressure · ordered</text>
+
+    <!-- Authority footer -->
+    <text x="670" y="232" text-anchor="middle" fill="#a8b3bd" font-size="10">
+      Prometheus /metrics · Healthz · Readyz
+    </text>
+  </g>
+
+  <!-- Operator → Vault arrow -->
+  <line x1="300" y1="100" x2="358" y2="100" stroke="#9aa0a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="329" y="92" text-anchor="middle" fill="#9aa0a6" font-size="10">TLS</text>
+
+  <!-- ================================================================ -->
+  <!-- TEE BACKENDS — five evenly-spaced cards                            -->
+  <!-- 5 × 200w + 4 × 14 gap = 1056w; centered at viewport mid (600)      -->
+  <!-- starts at (1200-1056)/2 = 72                                       -->
+  <!--                                                                    -->
+  <!-- Section header sits ABOVE the dispatch arrow so they no longer     -->
+  <!-- overlap (v2.1 fix — earlier the arrow at x=670 ran through the     -->
+  <!-- centred header text "FIVE TEE BACKENDS..." at y=285).              -->
+  <!-- ================================================================ -->
+  <g>
+    <text x="600" y="265" text-anchor="middle" fill="#7ad3ff" font-size="11.5" letter-spacing="2.2">FIVE TEE BACKENDS · FROZEN PRODUCER/VERIFIER/SEALER INTERFACE</text>
+
+    <g>
+      <rect x="72" y="305" width="200" height="120" rx="8" fill="url(#teeGrad)" stroke="#1f8f5b" stroke-width="1.5"/>
+      <text x="172" y="330" text-anchor="middle" fill="#7ddba6" font-size="13.5" font-weight="600">simulated</text>
+      <text x="172" y="354" text-anchor="middle" fill="#9aa0a6" font-size="10.5">Ed25519 + AES-GCM</text>
+      <text x="172" y="372" text-anchor="middle" fill="#9aa0a6" font-size="10.5">software · CI / dev only</text>
+      <text x="172" y="404" text-anchor="middle" fill="#a8b3bd" font-size="10">cost: $0</text>
+    </g>
+
+    <g>
+      <rect x="286" y="305" width="200" height="120" rx="8" fill="url(#teeGrad)" stroke="#1f8f5b" stroke-width="1.5"/>
+      <text x="386" y="330" text-anchor="middle" fill="#7ddba6" font-size="13.5" font-weight="600">aws-nitro</text>
+      <text x="386" y="354" text-anchor="middle" fill="#9aa0a6" font-size="10.5">NSM · COSE_Sign1</text>
+      <text x="386" y="372" text-anchor="middle" fill="#9aa0a6" font-size="10.5">AWS PCA root + KMS</text>
+      <text x="386" y="404" text-anchor="middle" fill="#a8b3bd" font-size="10">tier 2 · banks &amp; healthcare</text>
+    </g>
+
+    <g>
+      <rect x="500" y="305" width="200" height="120" rx="8" fill="url(#teeGrad)" stroke="#1f8f5b" stroke-width="1.5"/>
+      <text x="600" y="330" text-anchor="middle" fill="#7ddba6" font-size="13.5" font-weight="600">azure-sgx</text>
+      <text x="600" y="354" text-anchor="middle" fill="#9aa0a6" font-size="10.5">SGX quote · MAA / DCAP</text>
+      <text x="600" y="372" text-anchor="middle" fill="#9aa0a6" font-size="10.5">MRENCLAVE · MRSIGNER</text>
+      <text x="600" y="404" text-anchor="middle" fill="#a8b3bd" font-size="10">tier 3 · regulated industries</text>
+    </g>
+
+    <g>
+      <rect x="714" y="305" width="200" height="120" rx="8" fill="url(#teeGrad)" stroke="#1f8f5b" stroke-width="1.5"/>
+      <text x="814" y="330" text-anchor="middle" fill="#7ddba6" font-size="13.5" font-weight="600">gcp-sev-snp</text>
+      <text x="814" y="354" text-anchor="middle" fill="#9aa0a6" font-size="10.5">SEV-SNP · VCEK chain</text>
+      <text x="814" y="372" text-anchor="middle" fill="#9aa0a6" font-size="10.5">launch MEASUREMENT</text>
+      <text x="814" y="404" text-anchor="middle" fill="#a8b3bd" font-size="10">tier 2 · AI training labs</text>
+    </g>
+
+    <g>
+      <rect x="928" y="305" width="200" height="120" rx="8" fill="url(#teeGrad)" stroke="#1f8f5b" stroke-width="1.5"/>
+      <text x="1028" y="330" text-anchor="middle" fill="#7ddba6" font-size="13.5" font-weight="600">intel-sgx-dcap</text>
+      <text x="1028" y="354" text-anchor="middle" fill="#9aa0a6" font-size="10.5">DCAP · local PCCS</text>
+      <text x="1028" y="372" text-anchor="middle" fill="#9aa0a6" font-size="10.5">HSM wrap · bare-metal</text>
+      <text x="1028" y="404" text-anchor="middle" fill="#a8b3bd" font-size="10">tier 4 · banks · defence</text>
+    </g>
+  </g>
+
+  <!-- Vault → TEEs arrow.  Starts below the section header (y=265) so the
+       header text and arrow do not overlap.  The "tee.Provider dispatch"
+       label is placed to the right of the arrow midpoint. -->
+  <line x1="600" y1="278" x2="600" y2="300" stroke="#3a82e6" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="615" y="293" fill="#7ad3ff" font-size="10">tee.Provider dispatch</text>
+
+  <!-- ================================================================ -->
+  <!-- WORKER POOL — full-width band at bottom                            -->
+  <!-- ================================================================ -->
+  <g>
+    <rect x="72" y="475" width="1056" height="125" rx="10" fill="#0f1419" stroke="#2c3038" stroke-width="1.5"/>
+    <text x="600" y="503" text-anchor="middle" fill="#7ad3ff" font-size="11.5" letter-spacing="2.2">acp-compute WORKER POOL</text>
+    <text x="600" y="528" text-anchor="middle" fill="#e8eaed" font-size="13.5" font-weight="500">4-frame Return Path · per-session attestation · TEE-bound signing</text>
+    <text x="600" y="552" text-anchor="middle" fill="#9aa0a6" font-size="11.5" font-family="ui-monospace, SF Mono, Menlo, monospace">Quote(nonce) → Verify → Seal(plaintext, aad) → Unseal</text>
+    <text x="600" y="578" text-anchor="middle" fill="#a8b3bd" font-size="10.5">conformance suite at pkg/teeconformance — 12 sub-tests every backend MUST pass</text>
+  </g>
+
+  <!-- TEEs → Workers arrow -->
+  <line x1="600" y1="427" x2="600" y2="473" stroke="#9aa0a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ================================================================ -->
+  <!-- Footer credits                                                     -->
+  <!-- ================================================================ -->
+  <text x="600" y="640" text-anchor="middle" fill="#5f6368" font-size="11">SLSA L3 reproducible builds · cosign keyless · 7-year audit retention · STRIDE per platform</text>
+  <text x="600" y="660" text-anchor="middle" fill="#5f6368" font-size="10.5">ADRs 0001–0005 · pkg/teeconformance · docs/security/threat_model.md · docs/compliance/crosswalk.md</text>
+</svg>

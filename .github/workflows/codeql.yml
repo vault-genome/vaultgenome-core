@@ -1,0 +1,81 @@
+# AI Continuity Platform — CodeQL static analysis
+#
+# CodeQL is GitHub's industry-standard SAST. It runs every PR and on a
+# weekly schedule (Saturday 02:00 UTC) to catch regressions on the main
+# branch.
+#
+# What it catches that vault-gate's other tools don't:
+#   - Taint-flow style vulnerabilities (untrusted-input → sink) that
+#     pattern-grep misses.
+#   - Path-sensitive issues (a check on one branch but not another).
+#   - Cross-file data flow (a sink in one package fed by a tainted
+#     parameter from another).
+#
+# Free for public repos; requires GitHub Advanced Security for private
+# repos. We have GHAS via the org-level setting recorded in
+# `business/30_github_settings.md`.
+#
+# Findings appear in the Security tab of the repo. Severity ≥ HIGH
+# blocks merge via the branch protection rule "All comments resolved".
+
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Saturday 02:00 UTC. Re-runs catch new CodeQL rules.
+    - cron: '0 2 * * 6'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write   # required to upload SARIF findings
+
+jobs:
+  codeql:
+    name: codeql-go
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['go']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go 1.25
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+          cache-dependency-path: core/go.sum
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+
+      # CodeQL needs to observe the build in order to construct its
+      # database. Our build is `make build` which emits the three
+      # release binaries.
+      - name: Build (autobuild)
+        working-directory: core
+        run: make build
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'
+
+      - name: Summary
+        run: echo "CodeQL analysis complete; findings (if any) appear in the Security tab"

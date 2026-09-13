@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// binding.edl — Open Enclave EDL interface for Vault Genome SGX
+// quote-to-payload binding.
+//
+// Single ECALL: pass a 64-byte report_data buffer (caller-computed
+// SHA-512 of vaultgenome-payload-manifest.json) into the enclave;
+// the enclave invokes oe_get_report(REMOTE_ATTESTATION) so the SGX
+// hardware signs over those exact 64 bytes. Result is an OE-wrapped
+// remote attestation report containing an SGX_ECDSA quote v3 with
+// REPORT_DATA = SHA-512(manifest).
+//
+// Why oe_get_report (legacy) and not oe_get_evidence:
+//   oe_get_evidence with SGX_ECDSA format auto-fills report_data
+//   with SHA-256(custom_claims_buffer) over its lower 32 bytes —
+//   the upper 32 bytes are zeroed by the OE runtime and cannot be
+//   user-set. oe_get_report gives full 64-byte control, matching
+//   the Vault Genome attestation spec (REPORT_DATA = SHA-512).
+
+enclave {
+    from "openenclave/edl/sgx/platform.edl" import *;
+    from "openenclave/edl/syscall.edl" import *;
+    from "openenclave/edl/logging.edl" import *;
+
+    trusted {
+        public oe_result_t get_quote_with_report_data_ecall(
+            [in, size=report_data_size] const uint8_t* report_data,
+            size_t report_data_size,
+            [out] uint8_t** report_buffer,
+            [out] size_t* report_buffer_size);
+    };
+};

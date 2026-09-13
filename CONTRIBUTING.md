@@ -1,0 +1,91 @@
+# Contributing to the AI Continuity Platform Core
+
+Thank you for considering a contribution. This project is defensive
+infrastructure; the quality bar for changes is correspondingly high. The
+guidance below is mandatory, not optional — CI enforces most of it.
+
+## Before You Open a Pull Request
+
+1. Read `docs/doctrine/terminology.md`. Use canonical terms. The deprecated
+   terms listed there will fail the terminology check in CI.
+2. Read the module's own `doc.go`. Every package has a doctrinal purpose; your
+   change should be consistent with it.
+3. Confirm your change does not weaken any of the eleven invariants in
+   `docs/internal/stage-a-summary.md` §2. If it necessarily does, stop and open a design
+   discussion first.
+
+## Branching and Commits
+
+- Base branch for feature work: `main` (unless explicitly instructed
+  otherwise).
+- Branch naming: `feat/<area>-<short-description>`, `fix/<issue-id>-<desc>`,
+  `docs/<area>-<desc>`, `ci/<desc>`, `chore/<desc>`.
+- Commits must follow Conventional Commits format:
+  ```
+  <type>(<optional scope>): <short summary>
+
+  <optional body explaining the WHY>
+
+  Refs: #<issue-id>
+  ```
+  `type` is one of: `feat`, `fix`, `docs`, `test`, `refactor`, `ci`, `chore`,
+  `perf`, `build`, `revert`. See `docs/doctrine/ci-security-policy.md` §3 for the
+  authoritative rule and CI enforcement.
+- All commits on protected branches MUST be cryptographically signed (SSH or
+  GPG). Unsigned commits are blocked at push time.
+
+## Running Checks Locally
+
+```
+make fmt-check          # gofmt
+make vet                # go vet
+make test               # unit tests
+make test-race          # race detector
+make test-doctrine      # invariant tests
+make lint               # golangci-lint
+make terminology        # deprecated-terms check
+make license-headers    # SPDX headers on all Go files
+make vuln               # govulncheck
+make secrets            # gitleaks
+make coverage-thresholds
+make vault-gate         # everything the CI runs
+```
+
+A green `make vault-gate` does not guarantee the PR will be approved, but a
+red one will block merge unconditionally.
+
+## Pull Request Checklist
+
+- [ ] Branch name follows the pattern above.
+- [ ] All commits signed.
+- [ ] Conventional Commits format for every commit.
+- [ ] `make vault-gate` passes locally.
+- [ ] Tests added for new behavior (doctrine tests for new invariants,
+      integration tests for new end-to-end behavior, unit tests for new
+      logic).
+- [ ] Documentation updated: `doc.go` on affected packages, `CHANGELOG.md` if
+      user-visible.
+- [ ] No new dependencies, OR a new dependency has a justification file at
+      `docs/dependencies/<name>.md` AND appears on the allowlist in
+      `docs/doctrine/ci-security-policy.md` §5.
+- [ ] No deprecated terminology introduced.
+- [ ] Eleven doctrinal invariants not weakened.
+
+## Design Changes
+
+If your PR alters the shape of a canonical contract, changes the
+orchestration state model, weakens an operational validation sub-check,
+introduces a new authority decision, or adds an export path for genome
+material — **do not open the PR first**. Open a design document in
+`docs/designs/<topic>.md` and get at least one founder's approval before
+coding.
+
+## Code of Conduct
+
+Participation is governed by `CODE_OF_CONDUCT.md`. Technical disagreement is
+welcome and expected; personal attacks are not.
+
+## License of Contributions
+
+By contributing, you agree your contribution is licensed under AGPL-3.0-or-later
+with the same terms as the rest of the repository.

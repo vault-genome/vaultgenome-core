@@ -1,0 +1,7 @@
+Instance ID: i-0e35190ae3157095d
+Region:      us-east-2
+Availability Zone: us-east-2a
+Machine type: m5.xlarge
+Enclave mode: production (no --debug-mode, vsock-attest)
+Module ID:   i-0e35190ae3157095d-enc019e0512a5715d4f
+Captured: 2026-05-08T01:02:12Z

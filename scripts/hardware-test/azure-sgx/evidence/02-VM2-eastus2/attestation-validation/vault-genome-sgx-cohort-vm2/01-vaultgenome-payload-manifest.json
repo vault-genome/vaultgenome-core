@@ -1,0 +1,13 @@
+{
+  "vault_genome_version": "1.0.0",
+  "payload_sha256": "d9387aa0a249fc8516c65c3c86b399a46a636409586ea171658457f7b6bd1869",
+  "payload_size_bytes": 2019400732,
+  "payload_description": "Llama 3.2 3B base model GGUF Q4_K_M",
+  "demo": "vault-genome-cross-vm-attestation",
+  "vm_id": "vault-genome-sgx-cohort-vm2",
+  "tee_backend": "intel-sgx",
+  "cloud": "azure",
+  "location": "eastus2",
+  "zone": "",
+  "vm_size": "Standard_DC4s_v3"
+}

@@ -1,0 +1,11 @@
+JWT header.kid: J0pAPdfXXHqWWimgrH853wMIdh5/fLe1z6uSXYPXCa0=
+JWT issuer:     https://sharedeus2.eus2.attest.azure.net
+✓ MAA JWT signature VALID (RS256, signed by MAA)
+  iss:                https://sharedeus2.eus2.attest.azure.net
+  attestation_type:   sgx
+  mrenclave:          ffd196a480c581f08362cb63509b7fe0e7ac6f14ac90a548fef1bd8af5139c66
+  mrsigner:           6bc3ce6a51c4153d6e1fbe1cd5678149cef0545acd3ddf625aefa5cdec398e7e
+  product_id:         1
+  svn:                1
+  report_data[0..31]: 3c8ff723b474e731a51650513c6e3d1f549d8ff3b55671a1f2555394626cb0af
+  report_data[32..]:  0000000000000000000000000000000000000000000000000000000000000000

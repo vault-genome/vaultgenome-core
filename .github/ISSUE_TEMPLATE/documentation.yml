@@ -1,0 +1,50 @@
+name: Documentation issue
+description: Report missing, wrong, or unclear documentation.
+title: "[docs] "
+labels: ["documentation", "triage"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Where is the documentation?
+      description: File path, ADR number, or URL.
+      placeholder: "docs/adr/0001-frozen-producer-verifier-sealer-interface.md §3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is wrong / missing / unclear?
+      description: |
+        Quote the specific text and explain the problem. "This sentence
+        is wrong because <reason>" is more actionable than "this section
+        is confusing".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-fix
+    attributes:
+      label: Proposed fix
+      description: |
+        What should it say instead? A diff or text suggestion is most
+        useful; a description of the desired behaviour is acceptable.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Documentation type
+      multiple: true
+      options:
+        - "ADR (architectural decision)"
+        - "doc.go (in-package documentation)"
+        - "Runbook / DR procedure"
+        - "Threat model"
+        - "Compliance crosswalk"
+        - "Reference design"
+        - "README"
+        - "Investor demo site content"
+        - "Other"
+    validations:
+      required: true

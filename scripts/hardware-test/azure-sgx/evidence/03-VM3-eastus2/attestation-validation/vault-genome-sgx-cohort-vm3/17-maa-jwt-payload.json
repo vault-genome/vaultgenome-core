@@ -1,0 +1,54 @@
+{
+  "aas-ehd": "ewogICJ2YXVsdF9nZW5vbWVfdmVyc2lvbiI6ICIxLjAuMCIsCiAgInBheWxvYWRfc2hhMjU2IjogImQ5Mzg3YWEwYTI0OWZjODUxNmM2NWMzYzg2YjM5OWE0NmE2MzY0MDk1ODZlYTE3MTY1ODQ1N2Y3YjZiZDE4NjkiLAogICJwYXlsb2FkX3NpemVfYnl0ZXMiOiAyMDE5NDAwNzMyLAogICJwYXlsb2FkX2Rlc2NyaXB0aW9uIjogIkxsYW1hIDMuMiAzQiBiYXNlIG1vZGVsIEdHVUYgUTRfS19NIiwKICAiZGVtbyI6ICJ2YXVsdC1nZW5vbWUtY3Jvc3Mtdm0tYXR0ZXN0YXRpb24iLAogICJ2bV9pZCI6ICJ2YXVsdC1nZW5vbWUtc2d4LWNvaG9ydC12bTMiLAogICJ0ZWVfYmFja2VuZCI6ICJpbnRlbC1zZ3giLAogICJjbG91ZCI6ICJhenVyZSIsCiAgImxvY2F0aW9uIjogImVhc3R1czIiLAogICJ6b25lIjogIiIsCiAgInZtX3NpemUiOiAiU3RhbmRhcmRfREM0c192MyIKfQo",
+  "exp": 1778314425,
+  "iat": 1778285625,
+  "is-debuggable": true,
+  "iss": "https://sharedeus2.eus2.attest.azure.net",
+  "jti": "bde7e2cc2ccaf00b82e81786300fcf3d456fcfac42829db8358c354f8d20ef7e",
+  "maa-attestationcollateral": {
+    "qeidcertshash": "1b2a7cd5966929aec1e061f47aba03ae422c11e9f8dce4212c2bb3609222f324",
+    "qeidcrlhash": "d00fa4be5c6af07e694f732cef47cab92ab35cdd557ebbddffd91c3f7f9f6133",
+    "qeidhash": "513315bff092fb62ae8dff910823e92b2b820ca78e6f6738578491bab2f65c8b",
+    "quotehash": "42ce35200e2ad427590fb555ce9c6c3a6823e72b4b0851576e634d1355fca21f",
+    "tcbinfocertshash": "1b2a7cd5966929aec1e061f47aba03ae422c11e9f8dce4212c2bb3609222f324",
+    "tcbinfocrlhash": "d00fa4be5c6af07e694f732cef47cab92ab35cdd557ebbddffd91c3f7f9f6133",
+    "tcbinfohash": "31b19de465a85f70210428732761baffc01e4213b722e4631100f6056f45390e"
+  },
+  "maa-ehd": "ewogICJ2YXVsdF9nZW5vbWVfdmVyc2lvbiI6ICIxLjAuMCIsCiAgInBheWxvYWRfc2hhMjU2IjogImQ5Mzg3YWEwYTI0OWZjODUxNmM2NWMzYzg2YjM5OWE0NmE2MzY0MDk1ODZlYTE3MTY1ODQ1N2Y3YjZiZDE4NjkiLAogICJwYXlsb2FkX3NpemVfYnl0ZXMiOiAyMDE5NDAwNzMyLAogICJwYXlsb2FkX2Rlc2NyaXB0aW9uIjogIkxsYW1hIDMuMiAzQiBiYXNlIG1vZGVsIEdHVUYgUTRfS19NIiwKICAiZGVtbyI6ICJ2YXVsdC1nZW5vbWUtY3Jvc3Mtdm0tYXR0ZXN0YXRpb24iLAogICJ2bV9pZCI6ICJ2YXVsdC1nZW5vbWUtc2d4LWNvaG9ydC12bTMiLAogICJ0ZWVfYmFja2VuZCI6ICJpbnRlbC1zZ3giLAogICJjbG91ZCI6ICJhenVyZSIsCiAgImxvY2F0aW9uIjogImVhc3R1czIiLAogICJ6b25lIjogIiIsCiAgInZtX3NpemUiOiAiU3RhbmRhcmRfREM0c192MyIKfQo",
+  "nbf": 1778285625,
+  "nonce": "1778285624168576981",
+  "product-id": 1,
+  "sgx-mrenclave": "ffd196a480c581f08362cb63509b7fe0e7ac6f14ac90a548fef1bd8af5139c66",
+  "sgx-mrsigner": "0ec488273296186d43114ff52f96a321dd1697f9e5b230d09379a02ef24caa92",
+  "svn": 1,
+  "tee": "sgx",
+  "x-ms-attestation-type": "sgx",
+  "x-ms-policy": {
+    "is-debuggable": true,
+    "product-id": 1,
+    "sgx-mrenclave": "ffd196a480c581f08362cb63509b7fe0e7ac6f14ac90a548fef1bd8af5139c66",
+    "sgx-mrsigner": "0ec488273296186d43114ff52f96a321dd1697f9e5b230d09379a02ef24caa92",
+    "svn": 1,
+    "tee": "sgx"
+  },
+  "x-ms-policy-hash": "OwEvpSVEWA5eisCEncBt8NSZFLYDRKoLaoONPrZgoeY",
+  "x-ms-sgx-collateral": {
+    "qeidcertshash": "1b2a7cd5966929aec1e061f47aba03ae422c11e9f8dce4212c2bb3609222f324",
+    "qeidcrlhash": "d00fa4be5c6af07e694f732cef47cab92ab35cdd557ebbddffd91c3f7f9f6133",
+    "qeidhash": "513315bff092fb62ae8dff910823e92b2b820ca78e6f6738578491bab2f65c8b",
+    "quotehash": "42ce35200e2ad427590fb555ce9c6c3a6823e72b4b0851576e634d1355fca21f",
+    "tcbinfocertshash": "1b2a7cd5966929aec1e061f47aba03ae422c11e9f8dce4212c2bb3609222f324",
+    "tcbinfocrlhash": "d00fa4be5c6af07e694f732cef47cab92ab35cdd557ebbddffd91c3f7f9f6133",
+    "tcbinfohash": "31b19de465a85f70210428732761baffc01e4213b722e4631100f6056f45390e"
+  },
+  "x-ms-sgx-ehd": "ewogICJ2YXVsdF9nZW5vbWVfdmVyc2lvbiI6ICIxLjAuMCIsCiAgInBheWxvYWRfc2hhMjU2IjogImQ5Mzg3YWEwYTI0OWZjODUxNmM2NWMzYzg2YjM5OWE0NmE2MzY0MDk1ODZlYTE3MTY1ODQ1N2Y3YjZiZDE4NjkiLAogICJwYXlsb2FkX3NpemVfYnl0ZXMiOiAyMDE5NDAwNzMyLAogICJwYXlsb2FkX2Rlc2NyaXB0aW9uIjogIkxsYW1hIDMuMiAzQiBiYXNlIG1vZGVsIEdHVUYgUTRfS19NIiwKICAiZGVtbyI6ICJ2YXVsdC1nZW5vbWUtY3Jvc3Mtdm0tYXR0ZXN0YXRpb24iLAogICJ2bV9pZCI6ICJ2YXVsdC1nZW5vbWUtc2d4LWNvaG9ydC12bTMiLAogICJ0ZWVfYmFja2VuZCI6ICJpbnRlbC1zZ3giLAogICJjbG91ZCI6ICJhenVyZSIsCiAgImxvY2F0aW9uIjogImVhc3R1czIiLAogICJ6b25lIjogIiIsCiAgInZtX3NpemUiOiAiU3RhbmRhcmRfREM0c192MyIKfQo",
+  "x-ms-sgx-is-debuggable": true,
+  "x-ms-sgx-mrenclave": "ffd196a480c581f08362cb63509b7fe0e7ac6f14ac90a548fef1bd8af5139c66",
+  "x-ms-sgx-mrsigner": "0ec488273296186d43114ff52f96a321dd1697f9e5b230d09379a02ef24caa92",
+  "x-ms-sgx-product-id": 1,
+  "x-ms-sgx-report-data": "36165cb029e0753a18a2f1b2b76d17e7c6ec4b78ae63157c57bc12089e01391e0000000000000000000000000000000000000000000000000000000000000000",
+  "x-ms-sgx-svn": 1,
+  "x-ms-sgx-tcbidentifier": "10",
+  "x-ms-ver": "1.0"
+}
+{}
