@@ -115,7 +115,7 @@ func FuzzSimulatedRoundTrip(f *testing.F) {
 		if err != nil {
 			t.Fatalf("round-trip failed at Verify: %v", err)
 		}
-		if got != sim.Measurement() {
+		if !got.Equal(sim.Measurement()) {
 			t.Fatalf("measurement diverged: got %x want %x", got, sim.Measurement())
 		}
 	})

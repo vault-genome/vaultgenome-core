@@ -55,7 +55,7 @@ type IntelSGXVerifierConfig struct {
 	PCCSURL string
 
 	// AcceptableMRENCLAVES + AcceptableMRSIGNERS define the policy.
-	AcceptableMRENCLAVES [][32]byte
+	AcceptableMRENCLAVES []Measurement
 	AcceptableMRSIGNERS  [][32]byte
 	MinISVSVN            uint16
 
@@ -83,7 +83,7 @@ type IntelSGXVerifier struct {
 	cfg          IntelSGXVerifierConfig
 	expected     Measurement
 	mrSigners    [][32]byte
-	mrEnclaves   [][32]byte
+	mrEnclaves   []Measurement
 	minISVSVN    uint16
 	maxClockSkew time.Duration
 }
@@ -133,7 +133,7 @@ func NewIntelSGXProducer(cfg IntelSGXProducerConfig) (*IntelSGXProducer, error) 
 			nil,
 		)
 	}
-	copy(p.measurement[:], mre)
+	p.measurement = append(Measurement(nil), mre...)
 	p.loaded = true
 	return p, nil
 }
@@ -154,7 +154,7 @@ func NewIntelSGXVerifier(_ crypto.PublicKey, expected Measurement, cfg IntelSGXV
 	}
 	mre := cfg.AcceptableMRENCLAVES
 	if len(mre) == 0 {
-		mre = [][32]byte{[32]byte(expected)}
+		mre = []Measurement{expected}
 	}
 	return &IntelSGXVerifier{
 		cfg:          cfg,
@@ -288,7 +288,7 @@ func (v *IntelSGXVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 
 	matchedMRE := false
 	for _, m := range v.mrEnclaves {
-		if m == verdict.Claims.MRENCLAVE {
+		if m.Equal(verdict.Claims.MRENCLAVE[:]) {
 			matchedMRE = true
 			break
 		}
@@ -318,7 +318,7 @@ func (v *IntelSGXVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 		}
 	}
 
-	return Measurement(verdict.Claims.MRENCLAVE), nil
+	return Measurement(verdict.Claims.MRENCLAVE[:]), nil
 }
 
 func (s *IntelSGXSealer) Seal(plaintext, aad []byte) ([]byte, error) {

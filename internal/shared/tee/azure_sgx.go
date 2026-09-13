@@ -92,7 +92,7 @@ type AzureSGXVerifierConfig struct {
 
 	// Acceptable enclave identity components. ALL non-empty fields must
 	// match the quote's REPORT_BODY for verification to succeed.
-	AcceptableMRENCLAVES [][32]byte
+	AcceptableMRENCLAVES []Measurement
 	AcceptableMRSIGNERS  [][32]byte
 	MinISVSVN            uint16
 
@@ -116,7 +116,7 @@ type AzureSGXVerifier struct {
 	cfg          AzureSGXVerifierConfig
 	expected     Measurement
 	mrSigners    [][32]byte
-	mrEnclaves   [][32]byte
+	mrEnclaves   []Measurement
 	minISVSVN    uint16
 	maxClockSkew time.Duration
 
@@ -197,7 +197,7 @@ func NewAzureSGXProducer(cfg AzureSGXProducerConfig) (*AzureSGXProducer, error) 
 			nil,
 		)
 	}
-	copy(p.measurement[:], mre)
+	p.measurement = append(Measurement(nil), mre...)
 	p.initialized = true
 	return p, nil
 }
@@ -230,7 +230,7 @@ func NewAzureSGXVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureSGXV
 
 	mre := cfg.AcceptableMRENCLAVES
 	if len(mre) == 0 {
-		mre = [][32]byte{[32]byte(expected)}
+		mre = []Measurement{expected}
 	}
 	return &AzureSGXVerifier{
 		cfg:          cfg,
@@ -450,7 +450,7 @@ func (v *AzureSGXVerifier) applyPolicy(claims sgxClaims, nonce Nonce) (Measureme
 
 	matchedMRE := false
 	for _, m := range v.mrEnclaves {
-		if m == claims.MRENCLAVE {
+		if m.Equal(claims.MRENCLAVE[:]) {
 			matchedMRE = true
 			break
 		}
@@ -480,7 +480,7 @@ func (v *AzureSGXVerifier) applyPolicy(claims sgxClaims, nonce Nonce) (Measureme
 		}
 	}
 
-	return Measurement(claims.MRENCLAVE), nil
+	return Measurement(claims.MRENCLAVE[:]), nil
 }
 
 // fetchJWKS retrieves Microsoft Azure Attestation's JSON Web Key Set

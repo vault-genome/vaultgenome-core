@@ -84,7 +84,7 @@ type GCPSEVVerifierConfig struct {
 
 	// AcceptableMeasurements lists every launch measurement the verifier
 	// will accept. When empty, falls back to VerifierSpec.ExpectedMeasurement.
-	AcceptableMeasurements [][32]byte
+	AcceptableMeasurements []Measurement
 
 	// MinReportedTCB enforces minimum AMD secure firmware version. Set
 	// to the current TCB at deployment time and bump on AMD security
@@ -105,7 +105,7 @@ type GCPSEVVerifierConfig struct {
 // GCPSEVProducer implements Producer using /dev/sev-guest.
 type GCPSEVProducer struct {
 	cfg         GCPSEVProducerConfig
-	measurement Measurement // launch MEASUREMENT (truncated to 32B)
+	measurement Measurement // launch MEASUREMENT (full 48-byte SHA-384)
 
 	mu     sync.Mutex
 	device *os.File
@@ -115,7 +115,7 @@ type GCPSEVProducer struct {
 type GCPSEVVerifier struct {
 	cfg            GCPSEVVerifierConfig
 	expected       Measurement
-	acceptable     [][32]byte
+	acceptable     []Measurement
 	minReportedTCB uint64
 	maxClockSkew   time.Duration
 
@@ -170,15 +170,9 @@ func NewGCPSEVProducer(cfg GCPSEVProducerConfig) (*GCPSEVProducer, error) {
 		_ = dev.Close()
 		return nil, fmt.Errorf("gcp-sev: initial report: %w", err)
 	}
-	if len(report.Measurement) < 32 {
-		_ = dev.Close()
-		return nil, shared_errors.Integrity(
-			shared_errors.CodeSignatureInvalid,
-			"gcp-sev: MEASUREMENT < 32 bytes",
-			nil,
-		)
-	}
-	copy(p.measurement[:], report.Measurement[:32])
+	// SEV-SNP MEASUREMENT is a fixed 48-byte SHA-384 field; carry it at full
+	// length (no truncation to 32 — ADR-0007).
+	p.measurement = append(Measurement(nil), report.Measurement[:]...)
 	return p, nil
 }
 
@@ -192,7 +186,7 @@ func NewGCPSEVVerifier(_ crypto.PublicKey, expected Measurement, cfg GCPSEVVerif
 	}
 	acc := cfg.AcceptableMeasurements
 	if len(acc) == 0 {
-		acc = [][32]byte{[32]byte(expected)}
+		acc = []Measurement{expected}
 	}
 	return &GCPSEVVerifier{
 		cfg:            cfg,
@@ -351,12 +345,19 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 		}
 	}
 
-	// Launch MEASUREMENT must match expected (truncated to 32 bytes).
-	var meas32 [32]byte
-	copy(meas32[:], report.Measurement[:32])
+	// Launch MEASUREMENT must match an acceptable value, compared at full
+	// length (48-byte SHA-384) — no truncation (ADR-0007).
+	reported, mErr := MeasurementFromBytes(report.Measurement[:])
+	if mErr != nil {
+		return zero, shared_errors.Integrity(
+			shared_errors.CodeSignatureInvalid,
+			fmt.Sprintf("gcp-sev: unexpected MEASUREMENT length: %v", mErr),
+			nil,
+		)
+	}
 	matched := false
 	for _, m := range v.acceptable {
-		if m == meas32 {
+		if m.Equal(reported) {
 			matched = true
 			break
 		}
@@ -364,12 +365,12 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	if !matched {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev: MEASUREMENT %x not in acceptable set", meas32),
+			fmt.Sprintf("gcp-sev: MEASUREMENT %x not in acceptable set", reported),
 			nil,
 		)
 	}
 
-	return Measurement(meas32), nil
+	return reported, nil
 }
 
 // fetchVCEK retrieves the VCEK PEM for a given CHIP_ID + TCB combination,

@@ -84,7 +84,7 @@ type AWSNitroVerifierConfig struct {
 	// will accept. This supports rolling deployments where two enclave
 	// images are simultaneously valid (current + canary). When empty the
 	// VerifierSpec.ExpectedMeasurement is used as a single-element set.
-	AcceptablePCRSet [][32]byte
+	AcceptablePCRSet []Measurement
 
 	// MaxClockSkew is the largest acceptable difference between the
 	// timestamp in the attestation document and the local clock.
@@ -108,7 +108,7 @@ type AWSNitroProducer struct {
 // AWSNitroVerifier implements Verifier for COSE_Sign1 attestation docs.
 type AWSNitroVerifier struct {
 	expected     Measurement
-	acceptable   [][32]byte // expanded set including expected
+	acceptable   []Measurement // expanded set including expected
 	maxClockSkew time.Duration
 	pinnedRoots  [][]byte
 	pcrIndex     int
@@ -179,7 +179,7 @@ func NewAWSNitroProducer(cfg AWSNitroProducerConfig) (*AWSNitroProducer, error) 
 			nil,
 		)
 	}
-	copy(p.measurement[:], pcr0[:32])
+	p.measurement = append(Measurement(nil), pcr0...)
 	return p, nil
 }
 
@@ -194,7 +194,7 @@ func NewAWSNitroVerifier(_ crypto.PublicKey, expected Measurement, cfg AWSNitroV
 	}
 	acc := cfg.AcceptablePCRSet
 	if len(acc) == 0 {
-		acc = [][32]byte{[32]byte(expected)}
+		acc = []Measurement{expected}
 	}
 	return &AWSNitroVerifier{
 		expected:     expected,
@@ -374,19 +374,18 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 			nil,
 		)
 	}
-	var pcr32 [32]byte
-	if len(pcr) < 32 {
+	reported, mErr := MeasurementFromBytes(pcr)
+	if mErr != nil {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("aws-nitro: PCR%d shorter than 32 bytes", v.pcrIndex),
+			fmt.Sprintf("aws-nitro: unexpected PCR%d length: %v", v.pcrIndex, mErr),
 			nil,
 		)
 	}
-	copy(pcr32[:], pcr[:32])
 
 	matched := false
 	for _, ok := range v.acceptable {
-		if ok == pcr32 {
+		if ok.Equal(reported) {
 			matched = true
 			break
 		}
@@ -394,11 +393,11 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 	if !matched {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("aws-nitro: PCR%d not in acceptable set (got %x)", v.pcrIndex, pcr32),
+			fmt.Sprintf("aws-nitro: PCR%d not in acceptable set (got %x)", v.pcrIndex, reported),
 			nil,
 		)
 	}
-	return Measurement(pcr32), nil
+	return reported, nil
 }
 
 // Seal implements Sealer via AWS KMS Encrypt with PCR-conditional access.

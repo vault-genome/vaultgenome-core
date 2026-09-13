@@ -304,6 +304,12 @@ func TestIntegration_GCPSEVSNP(t *testing.T) {
 	fh := newFakeHardware(t, "gcp-sev-snp-int")
 	installSEVSNPFake(t, fh)
 
+	// SEV-SNP MEASUREMENT is 48 bytes (SHA-384). The fake fills the first 32
+	// with fh.measure and zero-pads the rest; the adapter carries the full 48
+	// bytes without truncation (ADR-0007), so tests expect all 48.
+	wantMeas := make(Measurement, 48)
+	copy(wantMeas, fh.measure)
+
 	mkProducer := func(t *testing.T) *GCPSEVProducer {
 		t.Helper()
 		// SEV adapter opens /dev/sev-guest with os.OpenFile — we point it
@@ -328,22 +334,22 @@ func TestIntegration_GCPSEVSNP(t *testing.T) {
 	t.Run("FullCycle", func(t *testing.T) {
 		p := mkProducer(t)
 		defer p.Close()
-		require.Equal(t, fh.measure, p.Measurement())
+		require.Equal(t, wantMeas, p.Measurement())
 
-		v := mkVerifier(t, fh.measure)
+		v := mkVerifier(t, wantMeas)
 
 		nonce := bytes.Repeat([]byte{0x41}, NonceMinBytes)
 		ev, err := p.Quote(nonce)
 		require.NoError(t, err)
 		got, err := v.Verify(ev, nonce)
 		require.NoError(t, err)
-		require.Equal(t, fh.measure, got)
+		require.Equal(t, wantMeas, got)
 	})
 
 	t.Run("ReportedTCBFloor", func(t *testing.T) {
 		p := mkProducer(t)
 		defer p.Close()
-		v, err := NewGCPSEVVerifier(nil, fh.measure, GCPSEVVerifierConfig{
+		v, err := NewGCPSEVVerifier(nil, wantMeas, GCPSEVVerifierConfig{
 			AMDKDSURL:      "https://fake.kdsintf.amd.com",
 			MinReportedTCB: 99999, // far above fake's reportedTCB=100
 		})
@@ -360,7 +366,7 @@ func TestIntegration_GCPSEVSNP(t *testing.T) {
 		defer p.Close()
 		// Pin acceptable HostData to a value the fake won't produce.
 		bogus := [32]byte{0xDE, 0xAD, 0xBE, 0xEF}
-		v, err := NewGCPSEVVerifier(nil, fh.measure, GCPSEVVerifierConfig{
+		v, err := NewGCPSEVVerifier(nil, wantMeas, GCPSEVVerifierConfig{
 			AMDKDSURL:          "https://fake.kdsintf.amd.com",
 			AcceptableHostData: [][32]byte{bogus},
 		})

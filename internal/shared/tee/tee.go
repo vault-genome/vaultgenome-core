@@ -3,23 +3,39 @@
 package tee
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 )
 
 // Measurement is the TEE's cryptographic measurement of the code running
 // inside it — for real hardware this is the MRENCLAVE / TD report / VCEK
-// report of the attested workload. It is stored and compared byte-wise.
-type Measurement [crypto.HashSize]byte
+// report of the attested workload. Backends differ in width: SGX MRENCLAVE
+// is 32 bytes (SHA-256); AMD SEV-SNP and AWS Nitro PCR0 are 48 bytes
+// (SHA-384); some reports are 64 bytes. It is therefore variable-length and
+// compared byte-wise with Equal. (ADR-0007 amended this from a fixed
+// [32]byte so real hardware measurements are carried without truncation.)
+type Measurement []byte
 
-// IsZero reports whether the measurement is all zero (i.e., unset).
+// IsZero reports whether the measurement is unset (empty) or all zero.
 func (m Measurement) IsZero() bool {
+	if len(m) == 0 {
+		return true
+	}
 	for _, b := range m {
 		if b != 0 {
 			return false
 		}
 	}
 	return true
+}
+
+// Equal reports whether two measurements are byte-identical. Use this instead
+// of == (a Measurement is a slice and is not comparable with ==).
+func (m Measurement) Equal(other Measurement) bool {
+	return bytes.Equal(m, other)
 }
 
 // Evidence is an opaque, TEE-signed blob that a verifier inspects to
@@ -87,23 +103,26 @@ type Sealer interface {
 
 // ---- helpers ---------------------------------------------------------------
 
-// MeasurementFromBytes constructs a Measurement from a 32-byte digest.
+// MeasurementFromBytes constructs a Measurement from a digest of a supported
+// hardware length: 32 bytes (SHA-256 / SGX MRENCLAVE), 48 bytes (SHA-384 /
+// SEV-SNP MEASUREMENT / Nitro PCR0), or 64 bytes (SHA-512).
 func MeasurementFromBytes(b []byte) (Measurement, error) {
-	var m Measurement
-	if len(b) != crypto.HashSize {
-		return m, shared_errors.Structural(
+	switch len(b) {
+	case 32, 48, 64:
+		return append(Measurement(nil), b...), nil
+	default:
+		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
-			"tee: measurement must be 32 bytes",
+			fmt.Sprintf("tee: measurement must be 32, 48, or 64 bytes; got %d", len(b)),
 			nil,
 		)
 	}
-	copy(m[:], b)
-	return m, nil
 }
 
-// MeasurementOf returns a deterministic measurement derived from the
-// canonical bytes of a workload descriptor. Used by the simulator to
+// MeasurementOf returns a deterministic 32-byte (SHA-256) measurement derived
+// from the canonical bytes of a workload descriptor. Used by the simulator to
 // generate test-stable measurements.
 func MeasurementOf(canonicalDescriptor []byte) Measurement {
-	return Measurement(crypto.SHA256(canonicalDescriptor))
+	h := crypto.SHA256(canonicalDescriptor)
+	return append(Measurement(nil), h[:]...)
 }

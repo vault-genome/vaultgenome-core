@@ -308,7 +308,7 @@ func TestCoordinateRestore_HappyPath(t *testing.T) {
 	require.NotEmpty(t, res.HandshakeAuditID)
 	require.NotEmpty(t, res.AttestationAuditID)
 	require.NotEmpty(t, res.KeyReleaseAuditID)
-	require.Equal(t, f.destMeasure[:], res.DestinationMeasurement)
+	require.Equal(t, []byte(f.destMeasure[:]), []byte(res.DestinationMeasurement))
 	require.Equal(t, "policy-test-v1", res.PolicyVersion)
 	require.NotEmpty(t, res.TokenID)
 
@@ -339,7 +339,7 @@ func TestCoordinateRestore_HappyPath(t *testing.T) {
 	require.Equal(t, res.TokenID, tok.TokenID)
 	require.Equal(t, ids.DecisionID("dec-vault-0001"), tok.DecisionID)
 	require.Equal(t, res.HandshakeRequestID, tok.RequestID)
-	require.Equal(t, f.destMeasure[:], tok.DestinationMeasurement)
+	require.Equal(t, []byte(f.destMeasure[:]), []byte(tok.DestinationMeasurement))
 	require.Len(t, tok.Wrapped, 2)
 	for _, w := range tok.Wrapped {
 		require.Equal(t, krt.PurposeSealing, w.Purpose)

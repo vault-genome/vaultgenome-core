@@ -224,9 +224,8 @@ func (v *SimulatedVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error
 	}
 
 	// Measurement must match expected.
-	var m Measurement
-	copy(m[:], mBytes)
-	if m != v.expected {
+	m := append(Measurement(nil), mBytes...)
+	if !m.Equal(v.expected) {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			"tee: measurement differs from expected (wrong workload)",

@@ -205,7 +205,7 @@ func TestHandleHandshakeRequest_HappyPath(t *testing.T) {
 	resp, err := f.receiver.HandleHandshakeRequest(req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Evidence)
-	require.Equal(t, f.destMeasure[:], resp.MeasurementHint)
+	require.Equal(t, []byte(f.destMeasure[:]), []byte(resp.MeasurementHint))
 }
 
 func TestHandleHandshakeRequest_RejectsBadSignature(t *testing.T) {
@@ -357,11 +357,11 @@ func TestLocalMeasurement_DefensiveCopy(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
 	got := f.receiver.LocalMeasurement()
-	require.Equal(t, f.destMeasure[:], got)
+	require.Equal(t, []byte(f.destMeasure[:]), []byte(got))
 	// Mutating returned slice must not affect Receiver internals.
 	got[0] = 0xFF
 	again := f.receiver.LocalMeasurement()
-	require.Equal(t, f.destMeasure[:], again)
+	require.Equal(t, []byte(f.destMeasure[:]), []byte(again))
 }
 
 // --- End-to-end round-trip with source-side Coordinator -----------
