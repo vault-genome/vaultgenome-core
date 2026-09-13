@@ -18,13 +18,13 @@ in the table is honest about what we don't do.
 
 |                                  | **Vault Genome** | NVIDIA H100 CC | Apple Private Cloud Compute | Confidential Containers (CNCF) | Edgeless Marblerun |
 |----------------------------------|:----------------:|:--------------:|:---------------------------:|:------------------------------:|:------------------:|
-| TEE-agnostic abstraction         | ✅ 5 backends    | ❌ NVIDIA-only | ❌ Apple-only               | 🟡 multi but coarse           | 🟡 SGX-centric    |
+| TEE-agnostic abstraction         | 🟡 frozen interface; 1 sim + 4 HW stubs | ❌ NVIDIA-only | ❌ Apple-only               | 🟡 multi but coarse           | 🟡 SGX-centric    |
 | Frozen interface (V1↔V2 swap)    | ✅                | ❌             | ❌                          | ❌                             | ❌                 |
-| AI continuity / model recovery   | ✅ first-class    | ❌             | ❌                          | ❌                             | ❌                 |
-| Hardware-rooted attestation      | ✅                | ✅ NVIDIA only | ✅ Apple only               | ✅                             | ✅                 |
+| AI continuity / model recovery   | ✅ governance-first (recon backend is a placeholder) | ❌             | ❌                          | ❌                             | ❌                 |
+| Hardware-rooted attestation      | 🟡 captured by side tooling, not yet in-product | ✅ NVIDIA only | ✅ Apple only               | ✅                             | ✅                 |
 | Open conformance suite           | ✅ pkg/teeconformance | ❌         | ❌ closed                   | 🟡 partial                    | ❌                 |
 | Open source                      | ✅ AGPL-3.0       | ❌ proprietary | ❌ proprietary              | ✅ Apache-2.0                 | 🟡 OSS + commercial |
-| AI-specific (LoRA reconstruction)| ✅                | ❌             | ❌                          | ❌                             | ❌                 |
+| AI-specific (genome seal/restore)| 🟡 seal/restore real; neural recon is Phase-3 | ❌             | ❌                          | ❌                             | ❌                 |
 | Single-binary multi-cloud deploy | ✅                | ❌             | ❌                          | 🟡                             | 🟡                 |
 | Audit trail + compliance crosswalk | ✅              | ❌ buyer-built | ❌ Apple-internal           | ❌ buyer-built                 | 🟡                 |
 | Buyer-runnable conformance       | ✅                | ❌             | ❌                          | 🟡                             | 🟡                 |
@@ -52,10 +52,12 @@ path to confidential execution today.
    *  **Single-vendor lock-in.** H100 CC works on H100 only. A
       customer who buys one rack of H100s and another rack of AMD
       MI300X cannot use H100 CC across both — the abstraction simply
-      isn't designed for it. Vault Genome's frozen interface lets
-      the same application code talk to AWS Nitro, Azure SGX,
-      GCP SEV-SNP, Intel SGX bare metal, and (post-Phase-2) NVIDIA H100
-      via the same Producer / Verifier / Sealer surface.
+      isn't designed for it. Vault Genome's frozen interface is
+      designed so the same application code can talk to AWS Nitro,
+      Azure SGX, GCP SEV-SNP, Intel SGX bare metal, and (later) NVIDIA
+      H100 via the same Producer / Verifier / Sealer surface. Today
+      only the software simulator is functional; the four hardware
+      adapters are Phase-2 scaffolding.
    *  **No model continuity primitives.** H100 CC is a runtime
       isolation tool. It does not address what happens when the
       enclave is destroyed, the model needs to be migrated to a new
@@ -74,9 +76,10 @@ job is single-shot inference, not multi-session continuity of a
 LoRA-finetuned model).
 
 **When the two are complementary.** A future Vault Genome `nvidia-h100-cc`
-adapter (Phase 3+) lets the same Vault Genome control plane speak to
-H100s alongside the existing five backends — the H100 becomes one more
-TEE in the operator's portfolio, not a parallel system.
+adapter (Phase 3+) would let the same Vault Genome control plane speak to
+H100s alongside the other backends — one working simulator plus the four
+hardware adapters once they are wired in Phase 2 — so the H100 becomes one
+more TEE in the operator's portfolio, not a parallel system.
 
 ---
 
@@ -231,8 +234,8 @@ overhead of running both makes it unlikely outside niche scenarios.
 Worth naming briefly for completeness:
 
    *  **AWS Nitro Enclaves SDK** — the underlying primitive Vault
-      Genome's `aws-nitro` adapter wraps. Not a competitor; it's an
-      input.
+      Genome's `aws-nitro` adapter will wrap once wired (Phase 2). Not
+      a competitor; it's an input.
    *  **Microsoft Azure Confidential Ledger** — different problem
       (immutable distributed ledger backed by SGX). Adjacent but
       doesn't address AI continuity.
@@ -242,8 +245,8 @@ Worth naming briefly for completeness:
       proprietary, single-vendor.
    *  **Fortanix EDP** — Rust SGX SDK. Useful as a building block;
       Vault Genome could in principle offer an EDP-based variant of
-      the SGX adapter, but the existing C-SDK adapter is already
-      shipping.
+      the SGX adapter. (The current SGX adapter is Phase-2
+      scaffolding, not yet shipping.)
    *  **Constellation (Edgeless Systems)** — Kubernetes inside
       Confidential VMs. Same general space as Confidential Containers;
       different emphasis on the orchestration layer.
@@ -254,19 +257,22 @@ Worth naming briefly for completeness:
 
 Three claims, each independently verifiable:
 
-1. **One application code base, five TEE backends, frozen interface.**
-   The same Producer / Verifier / Sealer interface works against AWS
-   Nitro, Azure SGX (MAA + DCAP), GCP SEV-SNP, Intel SGX bare metal,
-   and a software simulator. The interface is frozen
+1. **One application code base, one frozen TEE interface.**
+   The same Producer / Verifier / Sealer interface is the integration
+   surface for AWS Nitro, Azure SGX, GCP SEV-SNP, Intel SGX bare metal,
+   and a software simulator. Today only the **simulator backend is
+   functional**; the four hardware adapters are Phase-2 scaffolding.
+   What is real and verifiable now is that the interface is frozen
    ([ADR-0001](../adr/0001-frozen-producer-verifier-sealer-interface.md))
    and the conformance suite is public
    ([pkg/teeconformance](../../pkg/teeconformance)).
 
-2. **AI-specific primitives.** Model recovery via `acpctl recover`,
-   session-bound sealed material, multi-stage validation pipeline,
-   tamper-evident audit log of every release decision. None of the
-   alternatives ship these out of the box; every alternative would
-   require the buyer to build them.
+2. **AI-continuity primitives.** Genome seal/restore via `acpctl recover`
+   (byte-preserving today; neural reconstruction is Phase-3),
+   session-bound sealed material, a governed validation pipeline
+   (operational is real; semantic is byte-equality and behavioral is
+   byte-statistics today), and a tamper-evident audit log of every
+   release decision. None of the alternatives ship these out of the box.
 
 3. **Buyer-verifiable supply chain.** Reproducible builds verified
    on every CI run ([Makefile](../../Makefile)::verify-reproducible),

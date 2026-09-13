@@ -16,8 +16,11 @@ defined in the foundation architecture documents:
 > Audit.
 
 Continuity is delivered not by storing and redeploying weights, but by storing
-the **AI Genome** — a compact, generative, policy-gated representation — and
-reconstructing the model through a governed, attestable process every time.
+the **AI Genome** — a compact, policy-gated representation — and rebuilding
+from it through a governed process every time. (In the shipping code that
+rebuild is a byte-level statistical placeholder and the TEE layer is a
+simulator, both behind frozen interfaces for a later swap — see the STATUS
+journal, the source of truth for what works today.)
 
 ---
 
