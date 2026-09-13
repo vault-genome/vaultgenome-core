@@ -31,23 +31,28 @@ import (
 //
 // where ciphertext_with_tag is exactly len(plaintext)+16 bytes.
 //
-// # Production caveat
+// # ⚠️ SECURITY: SIMULATION ONLY — NOT SECURE FOR PRODUCTION
 //
-// This MVP wrapper is symmetric: any party that knows the destination
-// measurement can both wrap AND unwrap. That is acceptable when
-// either:
+// This wrapper is SYMMETRIC and provides NO confidentiality against a
+// real adversary: the wrapping key is derived solely from the
+// destination measurement, so ANY party that learns that measurement
+// can unwrap the DEK. Measurements are NOT secrets — they are public,
+// allow-listed reference values (indeed ADR-0006 pre-loads the
+// destination's expected measurement from an allow-list). An earlier
+// version of this comment claimed "the destination measurement is
+// itself a hardware-bound secret" — that is FALSE and has been removed.
 //
-//   - The destination measurement is itself a hardware-bound secret
-//     (i.e., only the destination TEE knows it).
-//   - The transport channel and audit chain prevent unauthorised
-//     parties from learning the measurement.
-//
-// Real production deployments will switch to a key-encapsulation
-// scheme where the destination advertises its TEE-bound public key
-// in the handshake response, and the source uses that to perform a
-// hybrid (RSA-OAEP / X25519) encapsulation of a per-token DEK. That
-// upgrade is non-breaking — the KeyWrapper interface stays the same;
-// only the SimulatedKeyWrapper implementation is replaced.
+// Do NOT use SimulatedKeyWrapper for any real cross-cloud key release.
+// The honest replacement is key-encapsulation to the destination's
+// TEE-BOUND public key: the destination generates an X25519 keypair
+// inside the enclave and binds the public key into its attestation
+// Evidence (e.g. SEV-SNP REPORT_DATA = H(pubkey)); the source
+// encapsulates a per-token DEK to that attested public key (ephemeral
+// X25519 + HKDF + AES-256-GCM), and only the destination TEE — holding
+// a private key that never leaves the enclave — can unwrap. That change
+// is intentionally coupled to real hardware attestation and lands with
+// the SEV-SNP adapter (tracked on the honest-reference branch); it
+// necessarily changes this interface (measurement → attested pubkey).
 //
 // # Compatibility with destination Sealer
 //

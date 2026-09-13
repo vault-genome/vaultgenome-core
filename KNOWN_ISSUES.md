@@ -2,8 +2,10 @@
 
 Tests temporarily skipped with `t.Skip("KNOWN: …")` plus the
 governing reason. This document is the source of truth; reading it
-gives a complete picture of what is *deferred* versus what is
-silently broken (the latter is none).
+gives a complete picture of what is *deferred* (skipped tests) versus
+what is a *known limitation or defect*. The latter are listed candidly
+in "Known limitations & security caveats" below (2026-09-13
+honest-reference audit) — they are real and openly tracked, not hidden.
 
 Production code paths exercised by these tests are still covered by
 the integration suite (`core/internal/integration/`) and the
@@ -72,3 +74,54 @@ These nine skipped tests do not impact:
 They are all *unit-level diagnostic tests* of fixture construction or
 error-category classification. Phase 2 work picks each up
 deliberately rather than under firefighting pressure.
+
+## Known limitations & security caveats (2026-09-13 honest-reference audit)
+
+Product-level gaps and defects, openly tracked. Where these conflict
+with "production-ready" language on the website or in older ADRs, the
+statements here are the accurate ones and take precedence. All are being
+addressed on the `honest-reference` branch (honesty pass → defect fixes
+→ real SEV-SNP attestation wiring).
+
+1. **Hardware TEE attestation is not wired into the shipping binaries.**
+   The four hardware adapters
+   (`internal/shared/tee/{aws_nitro,azure_sgx,gcp_sev_snp,intel_sgx_dcap}.go`)
+   are Phase-2 scaffolding — hardware/crypto calls return
+   `"not yet wired (Phase 2)"`. Only `simulated.go` is functional, and its
+   sealing key is intentionally weak (recoverable from the measurement).
+   No Intel TDX adapter exists. The real attestation captures under
+   `evidence/` were produced by standalone tooling
+   (`scripts/hardware-test/…`), **not** by these adapters.
+2. **Model "reconstruction" is a placeholder, not neural inference.**
+   V1 (`internal/compute/worker/reconstruction.go`) is SHA-256 digest
+   expansion; V2 (`generative.go`, the daemon default) is a byte-level
+   order-3 Markov chain — both self-documented as "not a neural-network
+   inference." V3 neural-in-TEE does not exist. The "byte-identical
+   restore" shown in `evidence/` is a deterministic, same-microarchitecture
+   seal→unseal round-trip (AES-GCM + SHA-256), cryptographically
+   independent of any hardware attestation — it is **not** model
+   regeneration and **not** cross-hardware.
+3. **Behavioral validation does not run the model.** The 40-probe suite
+   (`internal/validation/behavioral/probes`) computes byte-statistics
+   (entropy, histogram, run-length, …) on the raw blob; it never loads an
+   adapter or runs inference. Semantic validation is `bytes.Equal`.
+4. **Cross-cloud key wrap is symmetric and insecure for production**
+   (`internal/vault/kms/wrapper.go`): the wrap key is derived from the
+   destination measurement, a public value. Correct fix = encapsulation
+   to a TEE-bound public key; coupled to real attestation.
+5. **Measurements are truncated 48→32 bytes** (`internal/shared/tee/tee.go`
+   `Measurement [32]byte`; truncation in `gcp_sev_snp.go`, `aws_nitro.go`).
+   SEV-SNP and Nitro measurements are 48-byte SHA-384, so the current type
+   cannot faithfully pin real hardware. TAP §6.3 (no prefix match)
+   contradicts Appendix A.3 (mandates 32-byte truncation). The fix requires
+   a deliberate frozen-interface amendment.
+6. **`sagvd` REST API is unauthenticated by default** (`http_api.go`).
+7. **`genome seal` stores the simulated seed inside the bundle**
+   (`genome.go`) → no confidentiality against a bundle-holder under the
+   simulated backend.
+8. **`evidence/` posture:** AWS Nitro (production cohort) and GCP SEV-SNP
+   (3 real chips) attestation captures are genuine and offline-verifiable.
+   Azure SGX cohort ran in **DEBUG mode** (`x-ms-sgx-is-debuggable: true`).
+   Cross-Cloud Phase 4 is fully **simulated** (`provider: "simulated"`).
+   The GCP "four physical chips" is actually 3 distinct chips (two captures
+   share a CHIP_ID).
