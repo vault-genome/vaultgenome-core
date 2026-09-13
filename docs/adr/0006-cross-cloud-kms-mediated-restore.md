@@ -3,7 +3,7 @@
 **Status:** Proposed (Phase 4)
 **Date:** 2026-05-09
 **Authors:** Serhii Nikolaichuk (CEO), Rodion Sorokin (CTO)
-**Phase:** Phase 4 — production-ready cross-cloud workload portability
+**Phase:** Phase 4 — cross-cloud workload portability (design proposal; see honesty correction under Context)
 
 ---
 
@@ -17,7 +17,9 @@ This ADR extends ADR 0001 (frozen Producer/Verifier/Sealer interface) and ADR 00
 
 ## Context
 
-Phase 2P / 2Q closed with four production-ready TEE backends — AWS Nitro Enclaves, Azure SGX, GCP SEV-SNP, simulator — each independently validated end-to-end on hardware-attested cohorts. The fifth backend (Azure SEV-SNP) is code-complete and awaits Microsoft's PAYG platform rollout. Today, however, the platform's recovery flow operates inside a **single TEE family at a time**: a workload sealed under Azure SGX can only be restored under Azure SGX. Customers in regulated industries (banking, healthcare, sovereign government) require the next capability tier:
+> **⚠️ Correction (2026-09-13, honest-reference audit):** the original wording ("four production-ready TEE backends … each independently validated end-to-end on hardware-attested cohorts") overstated status and is retracted. Accurately: the shipping code's hardware adapters (Nitro/SGX/SEV-SNP/Intel) are Phase-2 scaffolding — only the **simulated** backend is functional (see `KNOWN_ISSUES.md` → "Known limitations & security caveats"). Real attestation was *captured* on AWS Nitro (production cohort) and GCP SEV-SNP (3 real chips) — genuine and offline-verifiable — by standalone tooling under `scripts/hardware-test/`, **not** by these adapters; the Azure SGX cohort ran in **DEBUG** mode; the cross-cloud restore proposed here is, to date, demonstrated only against the **simulated** backend (`provider: "simulated"`) with a symmetric wrap-key. This ADR stands as a valid *design*; the hardware wiring and a real attested-pubkey key-release are pending on the `honest-reference` branch.
+
+Phase 2P / 2Q produced genuine, offline-verifiable attestation *captures* on AWS Nitro Enclaves and GCP SEV-SNP, plus a functional simulator backend. Today the platform's recovery flow operates inside a **single TEE family at a time**: a workload sealed under Azure SGX can only be restored under Azure SGX. Customers in regulated industries (banking, healthcare, sovereign government) require the next capability tier:
 
 - A workload sealed in **TEE A** (e.g., GCP SEV-SNP)
 - Recovered byte-identically inside **TEE B** (e.g., AWS Nitro Enclave)
