@@ -1,0 +1,41 @@
+{
+ "vaultgenome": {
+  "name": "vaultgenome",
+  "key_sel": 1,
+  "ioctl_error": null,
+  "exitinfo2": "0x0",
+  "fw_status": 0,
+  "ok": true,
+  "version": 5,
+  "signing_key": "VCEK",
+  "mask_chip_key": 0,
+  "debug": 0,
+  "chip_id_zero": false,
+  "chip_id_prefix": "e8a8278ccf9ce48f",
+  "measurement": "0e017d2fba7c4964575fdd8c770061abf07f0753148d030f94e969a2d1fa5a5747ba0ced9174f2d44b5f6663fa2de00f",
+  "report_data": "31614975a7d41c0c04fdce366371c9e92a06a9eca6d32f2fe1551ce6ccdc7fc73444c57afa36570d24ffbdaeebe8e49d10ce76cf352b6d6668ec01f36504a1f1"
+ },
+ "ext_report": {
+  "ioctl_error": null,
+  "table": [
+   {
+    "guid": "VCEK",
+    "offset": 96,
+    "length": 1351,
+    "pem": false
+   },
+   {
+    "guid": "ASK",
+    "offset": 1447,
+    "length": 1677,
+    "pem": false
+   },
+   {
+    "guid": "ARK",
+    "offset": 3124,
+    "length": 1639,
+    "pem": false
+   }
+  ]
+ }
+}

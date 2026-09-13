@@ -1,0 +1,9 @@
+== cert-ARK.bin
+subject=OU = Engineering, C = US, L = Santa Clara, ST = CA, O = Advanced Micro Devices, CN = ARK-Milan
+issuer=OU = Engineering, C = US, L = Santa Clara, ST = CA, O = Advanced Micro Devices, CN = ARK-Milan
+== cert-ASK.bin
+subject=OU = Engineering, C = US, L = Santa Clara, ST = CA, O = Advanced Micro Devices, CN = SEV-Milan
+issuer=OU = Engineering, C = US, L = Santa Clara, ST = CA, O = Advanced Micro Devices, CN = ARK-Milan
+== cert-VCEK.bin
+subject=OU = Engineering, C = US, L = Santa Clara, ST = CA, O = Advanced Micro Devices, CN = SEV-VCEK
+issuer=OU = Engineering, C = US, L = Santa Clara, ST = CA, O = Advanced Micro Devices, CN = SEV-Milan
