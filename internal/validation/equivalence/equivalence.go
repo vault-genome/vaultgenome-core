@@ -1,22 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Package equivalence is the reconstruction equivalence gate. After a genome is
-// restored on a (possibly different) machine, the destination re-runs a sealed
-// set of reference fixtures (input id -> expected output tensor) and this gate
-// decides whether the reconstructed model may go live:
-//
-//   - EXACT      every reference output is byte-identical to the sealed expected
-//     output (highest assurance: pinned/deterministic runtime held).
-//   - EQUIVALENT every output matches within tolerance (allclose:
-//     |a-e| <= Atol + Rtol*|e|) but not all byte-identical — the
-//     attested functional-equivalence mode used when byte-exactness
-//     is not guaranteed across hardware.
-//   - FAIL       any reference output is outside tolerance — fail-safe: the
-//     reconstruction is blocked (tampering or a broken runtime).
-//
-// The verdict is bound to the exact fixture set (FixturesHash) and is
-// Ed25519-signable so the release authority can record a non-repudiable proof
-// that the recovered model is exact or provably equivalent.
 package equivalence
 
 import (

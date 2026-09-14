@@ -18,6 +18,9 @@ ADRs interact with the test-enforced invariant system.
 | 0003 | [AGPL-3.0-or-later + commercial dual licensing](0003-agpl-commercial-dual-licensing.md) | Accepted | licensing, business |
 | 0004 | [Doctrinal invariants enforced by Go tests](0004-doctrine-invariants-as-tests.md) | Accepted | doctrine, ci |
 | 0005 | [Mock-based integration testing for hardware adapters](0005-mock-based-integration-testing.md) | Accepted | testing, tee |
+| 0006 | [Cross-cloud KMS-mediated restore](0006-cross-cloud-kms-mediated-restore.md) | Accepted | restore, kms, crosscloud |
+| 0007 | [Measurement is variable-length](0007-measurement-variable-length.md) | Accepted | tee, measurement |
+| 0008 | [Numerical equivalence gate for cross-hardware reconstruction](0008-equivalence-gate.md) | Accepted | reconstruction, equivalence, determinism |
 
 ## Adding an ADR
 
