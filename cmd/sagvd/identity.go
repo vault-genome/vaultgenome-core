@@ -24,6 +24,10 @@ type authorityIdentity struct {
 	AuthorityPublicKeyPEM string `json:"authority_public_key_pem"`
 	TEEMeasurementHex     string `json:"tee_measurement_hex"`
 	TEEPublicKeyPEM       string `json:"tee_public_key_pem,omitempty"`
+	// The key auditors verify the cross-cloud audit log with, when
+	// keys.audit_signing is configured.
+	AuditKID          string `json:"audit_kid,omitempty"`
+	AuditPublicKeyPEM string `json:"audit_public_key_pem,omitempty"`
 }
 
 // runIdentityCmd implements `sagvd identity -config <path>`: it loads the
@@ -67,6 +71,21 @@ func runIdentityCmd(args []string, w io.Writer) error {
 			return err
 		}
 		id.TEEPublicKeyPEM = string(teePEM)
+	}
+	if a := cfg.Keys.AuditSigning; a.KeyID != "" && a.SeedPath != "" {
+		seed, err := readExactly(a.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
+		if err != nil {
+			return err
+		}
+		pub, _, err := crypto.Ed25519FromSeed(seed)
+		if err != nil {
+			return err
+		}
+		auditPEM, err := crypto.PublicKeyPEM(pub)
+		if err != nil {
+			return err
+		}
+		id.AuditKID, id.AuditPublicKeyPEM = a.KeyID, string(auditPEM)
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

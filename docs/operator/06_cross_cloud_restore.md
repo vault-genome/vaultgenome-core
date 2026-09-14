@@ -115,11 +115,17 @@ The health listener answers `/healthz` and `/readyz` and exposes nothing else.
 
 ## Source configuration (`sagvd`)
 
-Add a `crosscloud` section to the usual `sagvd` config:
+Add a `crosscloud` section, and the audit signing key, to the usual `sagvd`
+config:
 
 ```json
+"keys": {
+  "audit_signing": { "kid": "sagvd-audit", "seed_path": "/etc/acp/secrets/sagvd/audit_signing_seed" },
+  "…": "authority_signing, session_sealing as before"
+},
 "crosscloud": {
   "enabled": true,
+  "audit_log_path": "/var/lib/acp/xcc-audit.db",
   "policy_version": "xcc-2026-09-14",
   "policy_allow_list_path": "/etc/acp/crosscloud/allow.json",
   "verifier_registry_path": "/etc/acp/crosscloud/verifiers.json",
@@ -133,6 +139,14 @@ Add a `crosscloud` section to the usual `sagvd` config:
   }
 }
 ```
+
+No key is released without a durable record: `audit_log_path` and
+`keys.audit_signing` are required. Every release writes its handshake,
+attestation and authorisation events to that log, signed and hash-linked,
+before the step each one records. The log is verified end to end whenever
+`crosscloud-restore` opens it; a log that does not verify stops all releases.
+One run holds its lock at a time. The audit seed must stay the same for the
+life of the log (`sagvd identity` prints its public key for auditors).
 
 `verifiers.json` — how to check each destination family's Evidence:
 
@@ -181,7 +195,8 @@ success, 1 on any refusal:
   "policy_version": "xcc-2026-09-14",
   "token_id": "…",
   "dispatched_at": "2026-09-14T12:00:00.000Z",
-  "audit_chain_length": 3
+  "audit_chain_length": 3,
+  "audit_tip": "…"
 }
 ```
 
@@ -189,6 +204,19 @@ success, 1 on any refusal:
 a `recipient_key_sha256`, then `crosscloud token accepted` with the same
 `request_id` and `registered_keys`. The digest must equal the report's
 `recipient_key_sha256`: it identifies the one key the DEKs were sealed to.
+
+**Audit it.** Anyone holding the audit public key can verify the log offline:
+
+```bash
+acpctl audit verify --audit /var/lib/acp/xcc-audit.db \
+  --audit-pubkey sagvd-audit.pem --audit-kid sagvd-audit --json
+```
+
+It checks every hash link and signature and prints the tip. Keep the report's
+`audit_tip`: a log whose tail was cut off still verifies, but not to that tip.
+Re-releasing the same key under the same kid (a retry whose answer was lost) is
+accepted once more; a different key under a kid the destination already holds
+is refused.
 
 ## When a release is refused
 
@@ -220,16 +248,13 @@ a `recipient_key_sha256`, then `crosscloud token accepted` with the same
 - A destination key opens exactly one token and dies after five minutes.
 - A replayed handshake cannot replace an outstanding key; a forged token is
   rejected before it can use one up.
-- Every release is preceded by the three audit events, in order, recorded before
-  the step they describe (the report's `audit_chain_length`).
+- Every release is preceded by the three audit events, in order, persisted to
+  the signed log before the step they describe.
 
 ## Known limits
 
 - The destination attests with real hardware only on SEV-SNP; other TEE families
   are refused on both sides until their producers and verifiers run end to end.
-- `crosscloud-restore` keeps its audit chain in process memory and reports its
-  length; persisting it as a signed, append-only log that auditors can verify
-  offline is scheduled work, not present today.
 - There is no command yet for the fourth audit kind
   (`KindCrossCloudRestoreCompleted`); the library records it via
   `kms.Coordinator.RecordCompletion`.

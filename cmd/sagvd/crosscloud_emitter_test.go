@@ -292,6 +292,7 @@ func TestLoadCrossCloudMaterials_PopulatesAuditAndIDGen(t *testing.T) {
 			RequestTimeoutSeconds: 30,
 		},
 	}
+	withAuditLog(t, dir, &cfg)
 	clock := shared_time.NewFakeClock(time.Now())
 	materials, err := LoadCrossCloudMaterials(cfg, clock)
 	if err != nil {
@@ -300,6 +301,7 @@ func TestLoadCrossCloudMaterials_PopulatesAuditAndIDGen(t *testing.T) {
 	if materials == nil {
 		t.Fatal("LoadCrossCloudMaterials returned nil")
 	}
+	defer func() { _ = materials.Close() }()
 	// Phase 4 expansion: AuditChain, AuditEmitter, IDGenerator,
 	// NonceSource MUST all be wired.
 	if materials.AuditChain == nil {

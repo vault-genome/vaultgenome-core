@@ -261,9 +261,28 @@ func TestValidate_CrossCloudHappyPath(t *testing.T) {
 		PolicyAllowListPath:   "/etc/vg/allow-list.json",
 		VerifierRegistryPath:  "/etc/vg/verifier-registry.json",
 		RequestTimeoutSeconds: 30,
+		AuditLogPath:          "/var/lib/vg/xcc-audit.db",
 	}
+	c.Keys.AuditSigning = SigningKeyConfig{KeyID: "xcc-audit-1", SeedPath: "/etc/vg/audit_signing_seed"}
 	if err := c.Validate(); err != nil {
 		t.Fatalf("Validate(crosscloud happy): %v", err)
+	}
+}
+
+// No key is released without a durable audit record: the log and its
+// signing key are required whenever cross-cloud release is enabled.
+func TestValidate_CrossCloudRequiresDurableAudit(t *testing.T) {
+	c := minimalValidConfig()
+	c.CrossCloud = CrossCloudConfig{
+		Enabled:              true,
+		PolicyVersion:        "v1",
+		PolicyAllowListPath:  "/a",
+		VerifierRegistryPath: "/r",
+	}
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "crosscloud.audit_log_path required") ||
+		!strings.Contains(err.Error(), "keys.audit_signing.kid and seed_path required") {
+		t.Fatalf("Validate(crosscloud without audit): %v", err)
 	}
 }
 

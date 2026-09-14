@@ -4,6 +4,7 @@ package chain
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
 
 	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
@@ -94,26 +95,31 @@ func (c *InMemoryChain) Append(evt audit_event.AuditEvent, signer keys.Signer) (
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// PrevHash is whatever the chain's current tip is. Always a fresh copy
-	// so callers can't mutate stored events by holding a shared backing array.
-	evt.PrevHash = append([]byte(nil), c.tip...)
+	evt, err := seal(evt, c.tip, signer)
+	if err != nil {
+		return audit_event.AuditEvent{}, err
+	}
+	c.events = append(c.events, evt)
+	c.tip = append([]byte(nil), evt.Hash...)
+	return evt, nil
+}
+
+// seal links evt to tip and signs it: PrevHash = tip, Hash and Signature
+// recomputed by SignWith, then a full static Validate as a
+// post-condition — a malformed skeleton is refused, never inserted.
+func seal(evt audit_event.AuditEvent, tip []byte, signer keys.Signer) (audit_event.AuditEvent, error) {
+	// A fresh copy, so callers can't mutate stored events through a
+	// shared backing array.
+	evt.PrevHash = append([]byte(nil), tip...)
 	// Clear any stale values — SignWith is the authority on Hash/Signature.
 	evt.Hash = nil
 	evt.Signature = nil
-
 	if err := evt.SignWith(signer); err != nil {
 		return audit_event.AuditEvent{}, err
 	}
-
-	// Post-condition: the event is now a well-formed, validatable record.
-	// A failure here indicates the caller handed us a malformed skeleton
-	// — we refuse to insert it into the chain.
 	if err := evt.Validate(); err != nil {
 		return audit_event.AuditEvent{}, err
 	}
-
-	c.events = append(c.events, evt)
-	c.tip = append([]byte(nil), evt.Hash...)
 	return evt, nil
 }
 
@@ -129,19 +135,28 @@ func (c *InMemoryChain) Verify(resolver keys.Resolver) error {
 
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	return verifyEvents(c.events, resolver)
+}
 
+// verifyEvents walks events in order: each links to the previous event's
+// hash (genesis: zeros) and carries a valid audit signature.
+func verifyEvents(events []audit_event.AuditEvent, resolver keys.Resolver) error {
 	expectedPrev := make([]byte, audit_event.HashSize) // genesis
-	for i := range c.events {
-		evt := c.events[i]
+	for i := range events {
+		evt := events[i]
 		if !bytes.Equal(evt.PrevHash, expectedPrev) {
 			return shared_errors.Integrity(
 				shared_errors.CodeSignatureInvalid,
-				"audit/chain: prev_hash does not link to previous event",
+				fmt.Sprintf("audit/chain: event #%d: prev_hash does not link to the previous event", i),
 				nil,
 			)
 		}
 		if err := evt.VerifySignature(resolver); err != nil {
-			return err
+			return shared_errors.Integrity(
+				shared_errors.CodeSignatureInvalid,
+				fmt.Sprintf("audit/chain: event #%d does not verify", i),
+				err,
+			)
 		}
 		expectedPrev = evt.Hash
 	}

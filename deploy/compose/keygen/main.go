@@ -14,6 +14,7 @@
 //	sagvd/
 //	  tee_seed                  32 B Ed25519 seed (vault simulated TEE)
 //	  authority_signing_seed    32 B Ed25519 seed (authority signing)
+//	  audit_signing_seed        32 B Ed25519 seed (cross-cloud audit log)
 //	  peer_worker_pubkey        32 B Ed25519 public key (pinned worker TEE)
 //	  peer_worker_measurement   32 B SHA-256 (pinned worker workload)
 //	  api_token                 REST API bearer token (64 hex chars, 128+ bits)
@@ -115,6 +116,7 @@ type layout struct {
 
 	sagvdTEESeed              string
 	sagvdAuthoritySigningSeed string
+	sagvdAuditSigningSeed     string
 	sagvdPeerWorkerPubkey     string
 	sagvdPeerWorkerMeasure    string
 	sagvdAPIToken             string
@@ -146,6 +148,7 @@ func newLayout(root string) layout {
 
 	l.sagvdTEESeed = filepath.Join(l.sagvdDir, "tee_seed")
 	l.sagvdAuthoritySigningSeed = filepath.Join(l.sagvdDir, "authority_signing_seed")
+	l.sagvdAuditSigningSeed = filepath.Join(l.sagvdDir, "audit_signing_seed")
 	l.sagvdPeerWorkerPubkey = filepath.Join(l.sagvdDir, "peer_worker_pubkey")
 	l.sagvdPeerWorkerMeasure = filepath.Join(l.sagvdDir, "peer_worker_measurement")
 	l.sagvdAPIToken = filepath.Join(l.sagvdDir, "api_token")
@@ -171,7 +174,7 @@ func (l layout) dirs() []string {
 func (l layout) files() []string {
 	return []string{
 		l.sealingKey, l.workersJSON, l.caCert,
-		l.sagvdTEESeed, l.sagvdAuthoritySigningSeed,
+		l.sagvdTEESeed, l.sagvdAuthoritySigningSeed, l.sagvdAuditSigningSeed,
 		l.sagvdPeerWorkerPubkey, l.sagvdPeerWorkerMeasure,
 		l.sagvdAPIToken, l.sagvdTLSCert, l.sagvdTLSKey,
 		l.workerTEESeed, l.workerSigningSeed,
@@ -225,8 +228,8 @@ func run(outDir string, force, quiet bool) error {
 		}
 	}
 
-	seeds := make(map[string][]byte, 4)
-	for _, name := range []string{"sagvdTEE", "sagvdAuthority", "workerTEE", "workerSigning"} {
+	seeds := make(map[string][]byte, 5)
+	for _, name := range []string{"sagvdTEE", "sagvdAuthority", "sagvdAudit", "workerTEE", "workerSigning"} {
 		b, err := randomBytes(ed25519.SeedSize)
 		if err != nil {
 			return err
@@ -277,6 +280,7 @@ func run(outDir string, force, quiet bool) error {
 
 		{lo.sagvdTEESeed, seeds["sagvdTEE"]},
 		{lo.sagvdAuthoritySigningSeed, seeds["sagvdAuthority"]},
+		{lo.sagvdAuditSigningSeed, seeds["sagvdAudit"]},
 		{lo.sagvdPeerWorkerPubkey, workerTEEPub},
 		{lo.sagvdPeerWorkerMeasure, workerMeasurement[:]},
 		{lo.sagvdAPIToken, []byte(apiToken + "\n")},

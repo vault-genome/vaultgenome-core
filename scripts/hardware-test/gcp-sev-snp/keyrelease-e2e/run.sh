@@ -35,7 +35,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "build (linux/amd64)"
-( cd "$ROOT" && for b in sagvd acp-bootstrap; do
+( cd "$ROOT" && for b in sagvd acp-bootstrap acpctl; do
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
 ( cd "$ROOT/deploy/compose/keygen" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" . )
 cp "$CHAIN" "$BUILD/amd-milan-cert_chain.pem"

@@ -141,11 +141,14 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    Cross-Cloud Phase 4 is fully **simulated** (`provider: "simulated"`).
    The GCP "four physical chips" is actually 3 distinct chips (two captures
    share a CHIP_ID).
-9. **Cross-cloud releases are audited in memory only.** `sagvd
-   crosscloud-restore` records the handshake, attestation and release events
-   before each step, but its chain lives in the process and only its length is
-   reported. A signed, append-only log that survives the process and verifies
-   offline is scheduled (Production Program, Phase 0).
+9. **RESOLVED (2026-09-14).** Cross-cloud releases were audited in memory
+   only. They now go to a durable, signed, hash-linked log
+   (`crosscloud.audit_log_path`, `keys.audit_signing`) that is verified end to
+   end on every open — a log that does not verify stops all releases — and that
+   auditors check offline with `acpctl audit verify`. A cut-off tail still
+   verifies; compare the tip with the `audit_tip` recorded from a report.
+   Refused releases leave the events up to the refusal but no event of their
+   own.
 10. **Released DEKs are not yet used at the destination.** `acp-bootstrap`
     registers them in its in-memory keystore; opening a sealed genome with them
     inside the destination TEE is part of the Continuity Drill (Phase 1).

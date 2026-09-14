@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/audit/chain"
+	"github.com/ai-continuity-platform/core/internal/audit/store"
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
@@ -55,10 +56,9 @@ type crossCloudMaterials struct {
 	// handshakes and tokens to destination acp-bootstrap endpoints.
 	Transport *kms.HTTPTransport
 
-	// AuditChain is the in-process audit chain (in-memory for Phase 4
-	// MVP) into which the Coordinator's chainAuditEmitter appends.
-	// The chain is signed under AuditStore + CrossCloudAuditSigningKeyID,
-	// keys.PurposeSigningAudit.
+	// AuditChain is the durable, verified audit log the Coordinator's
+	// chainAuditEmitter appends to, signed under the configured
+	// keys.audit_signing key (keys.PurposeSigningAudit).
 	AuditChain chain.Chain
 
 	// AuditEmitter is the kms.AuditEmitter implementation the
@@ -69,6 +69,9 @@ type crossCloudMaterials struct {
 	// daemon doesn't accidentally use it for non-audit signing.
 	auditStore *keys.InMemoryStore
 
+	// auditLog is the durable store behind AuditChain; Close releases it.
+	auditLog *store.BBoltStore
+
 	// IDGenerator produces fresh RequestID / DecisionID per
 	// cross-cloud invocation, backed by crypto/rand.
 	IDGenerator kms.IDGenerator
@@ -76,6 +79,14 @@ type crossCloudMaterials struct {
 	// NonceSource produces fresh handshake nonces for the
 	// Coordinator, backed by crypto/rand.
 	NonceSource kms.NonceSource
+}
+
+// Close releases the audit log. Safe on a nil receiver.
+func (m *crossCloudMaterials) Close() error {
+	if m == nil || m.auditLog == nil {
+		return nil
+	}
+	return m.auditLog.Close()
 }
 
 // verifierRegistryFile is the on-disk JSON schema for
@@ -156,24 +167,40 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 		return nil, err
 	}
 
-	// Build audit chain + dedicated audit-signing keystore. The audit
-	// signing key is generated fresh at every daemon startup; chain
-	// continuity across restart is a Phase 5 enhancement.
-	auditStore := keys.NewInMemoryStore(clock)
-	if _, err := auditStore.GenerateSigning(CrossCloudAuditSigningKeyID, keys.PurposeSigningAudit); err != nil {
-		return nil, fmt.Errorf("sagvd: generate cross-cloud audit signing key: %w", err)
+	// The durable audit log: opened and verified end to end under the
+	// stable audit key before anything is appended. A log that does not
+	// verify stops every release (fail closed).
+	auditSeed, err := readExactly(cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
+	if err != nil {
+		return nil, err
 	}
-	auditChain := chain.NewInMemoryChain()
+	auditKID := ids.KeyID(cfg.Keys.AuditSigning.KeyID)
+	auditStore := keys.NewInMemoryStore(clock)
+	if _, err := auditStore.RegisterSigningFromSeed(auditKID, keys.PurposeSigningAudit, auditSeed); err != nil {
+		return nil, fmt.Errorf("sagvd: register audit signing key: %w", err)
+	}
+	logStore, err := store.Open(cfg.CrossCloud.AuditLogPath)
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: open crosscloud.audit_log_path: %w", err)
+	}
+	auditChain, err := chain.OpenPersistentChain(logStore, auditStore)
+	if err != nil {
+		_ = logStore.Close()
+		return nil, fmt.Errorf("sagvd: crosscloud.audit_log_path %q: %w", cfg.CrossCloud.AuditLogPath, err)
+	}
 	emitter, err := newChainAuditEmitter(
 		auditChain,
 		auditStore,
-		CrossCloudAuditSigningKeyID,
+		auditKID,
 		clock,
 		"xcc-evt-",
 	)
 	if err != nil {
+		_ = logStore.Close()
 		return nil, fmt.Errorf("sagvd: build cross-cloud audit emitter: %w", err)
 	}
+	// Event IDs continue the log rather than restarting with each run.
+	emitter.counter = uint64(auditChain.Len())
 
 	return &crossCloudMaterials{
 		VerifierRegistry: registry,
@@ -182,6 +209,7 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 		AuditChain:       auditChain,
 		AuditEmitter:     emitter,
 		auditStore:       auditStore,
+		auditLog:         logStore,
 		IDGenerator:      newCryptoRandIDGenerator("xcc-req-", "xcc-dec-"),
 		NonceSource:      freshNonceSource(),
 	}, nil

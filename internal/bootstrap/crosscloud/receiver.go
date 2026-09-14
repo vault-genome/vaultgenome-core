@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/ecdh"
 	"crypto/rand"
+	"crypto/subtle"
 	"fmt"
 	"sync"
 	"time"
@@ -111,6 +112,12 @@ type Receiver struct {
 
 	mu      sync.Mutex
 	pending map[ids.RequestID]*pendingKey
+
+	// delivered remembers, per kid, the SHA-256 of the key this
+	// receiver registered, so a retried delivery of the same key (its
+	// first answer lost) succeeds instead of tripping the keystore's
+	// duplicate check. A different key under that kid still fails.
+	delivered map[ids.KeyID][32]byte
 }
 
 // pendingKey is one handshake's recipient key, waiting for its token.
@@ -151,6 +158,7 @@ func NewReceiver(cfg Config) (*Receiver, error) {
 		maxPending:       cfg.MaxPending,
 		localMeasurement: cfg.LocalTEE.Measurement(),
 		pending:          make(map[ids.RequestID]*pendingKey),
+		delivered:        make(map[ids.KeyID][32]byte),
 	}
 	if r.clock == nil {
 		r.clock = shared_time.NewSystemClock()
@@ -315,13 +323,11 @@ func (r *Receiver) HandleKeyReleaseToken(token krt.KeyReleaseToken) (int, error)
 		if err != nil {
 			return registered, err
 		}
-		if err := r.registrar.RegisterSealing(w.KeyID, plaintext); err != nil {
+		if err := r.register(w.KeyID, plaintext); err != nil {
 			zeroize(plaintext)
-			return registered, shared_errors.Operational(
-				shared_errors.CodeResourceExhausted,
-				fmt.Sprintf("crosscloud.HandleKeyReleaseToken: registering wrapped[%d] in keystore failed", i),
-				err,
-			)
+			// Keep the keystore's classification: a conflicting key under
+			// an existing kid is the sender's problem, not an outage.
+			return registered, fmt.Errorf("crosscloud.HandleKeyReleaseToken: registering wrapped[%d] (kid %q): %w", i, w.KeyID, err)
 		}
 		registered++
 		// Best-effort zeroize of the local plaintext copy. The
@@ -330,6 +336,22 @@ func (r *Receiver) HandleKeyReleaseToken(token krt.KeyReleaseToken) (int, error)
 		zeroize(plaintext)
 	}
 	return registered, nil
+}
+
+// register hands key to the registrar once per kid; the same key under
+// the same kid again is accepted without registering it twice.
+func (r *Receiver) register(kid ids.KeyID, key []byte) error {
+	digest := sha256OfBytes(key)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if prev, ok := r.delivered[kid]; ok && subtle.ConstantTimeCompare(prev[:], digest[:]) == 1 {
+		return nil
+	}
+	if err := r.registrar.RegisterSealing(kid, key); err != nil {
+		return err
+	}
+	r.delivered[kid] = digest
+	return nil
 }
 
 // LocalMeasurement returns a defensive copy of the destination's

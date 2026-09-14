@@ -4,7 +4,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -186,7 +191,7 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	var (
 		auditPath = fs.String("audit", "", "Path to the audit bbolt file (required)")
-		pubKey    = fs.String("audit-pubkey", "", "Path to a 32-byte raw Ed25519 public key file (required)")
+		pubKey    = fs.String("audit-pubkey", "", "Path to the audit Ed25519 public key: PEM (as `sagvd identity` prints it) or 32 raw bytes (required)")
 		pubKID    = fs.String("audit-kid", "", "KeyID under which the audit-signing key is registered (required)")
 		jsonOut   = fs.Bool("json", false, "Emit machine-readable JSON output")
 	)
@@ -205,14 +210,9 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	pub, err := os.ReadFile(*pubKey)
+	pub, err := readEd25519PublicKey(*pubKey)
 	if err != nil {
-		fmt.Fprintf(stderr, "acpctl audit verify: read pubkey: %v\n", err)
-		return 1
-	}
-	if len(pub) != crypto.Ed25519PublicKeySize {
-		fmt.Fprintf(stderr, "acpctl audit verify: pubkey must be %d bytes (got %d)\n",
-			crypto.Ed25519PublicKeySize, len(pub))
+		fmt.Fprintf(stderr, "acpctl audit verify: %v\n", err)
 		return 1
 	}
 
@@ -237,6 +237,9 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		AuditPath:  *auditPath,
 		EventCount: len(events),
 	}
+	if n := len(events); n > 0 {
+		res.Tip = hex.EncodeToString(events[n-1].Hash)
+	}
 	if verifyErr != nil {
 		res.OK = false
 		res.Error = verifyErr.Error()
@@ -253,7 +256,10 @@ type auditVerifyResult struct {
 	OK         bool   `json:"ok"`
 	AuditPath  string `json:"audit_path"`
 	EventCount int    `json:"event_count"`
-	Error      string `json:"error,omitempty"`
+	// Tip is the hash of the last event. A log whose tail was cut off
+	// still verifies; compare the tip with one recorded earlier.
+	Tip   string `json:"tip,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 func emitAuditVerify(w io.Writer, asJSON bool, r auditVerifyResult) {
@@ -262,7 +268,7 @@ func emitAuditVerify(w io.Writer, asJSON bool, r auditVerifyResult) {
 		return
 	}
 	if r.OK {
-		fmt.Fprintf(w, "audit chain ok — %d events verified\n", r.EventCount)
+		fmt.Fprintf(w, "audit chain ok — %d events verified, tip %s\n", r.EventCount, r.Tip)
 	} else {
 		fmt.Fprintf(w, "audit chain BROKEN: %s\n", r.Error)
 	}
@@ -334,3 +340,27 @@ var _ = strings.TrimSpace
 // build into chain package symbol pool so the import isn't dead in the
 // rare case the verifier path isn't taken
 var _ = chain.NewInMemoryChain
+
+// readEd25519PublicKey reads an Ed25519 public key file: a PEM "PUBLIC
+// KEY" block (as `sagvd identity` prints it) or the raw 32 bytes.
+func readEd25519PublicKey(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read pubkey: %w", err)
+	}
+	if block, _ := pem.Decode(data); block != nil {
+		key, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse pubkey PEM: %w", err)
+		}
+		ed, ok := key.(ed25519.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("pubkey PEM holds %T, want an Ed25519 key", key)
+		}
+		return ed, nil
+	}
+	if len(data) != crypto.Ed25519PublicKeySize {
+		return nil, errors.New("pubkey must be PEM or exactly 32 raw bytes")
+	}
+	return data, nil
+}

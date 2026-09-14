@@ -118,6 +118,7 @@ func runCrossCloudRestoreCmd(args []string) error {
 	if xcc == nil {
 		return errors.New("crosscloud-restore: cross-cloud materials nil despite cfg.CrossCloud.Enabled=true")
 	}
+	defer func() { _ = xcc.Close() }()
 
 	coord, err := kms.NewCoordinator(kms.Config{
 		AuditChain:   xcc.AuditEmitter,
@@ -145,6 +146,7 @@ func runCrossCloudRestoreCmd(args []string) error {
 
 	res, coordErr := coord.CoordinateRestore(context.Background(), req)
 	out := buildCoordinationOutput(res, coordErr, xcc.AuditChain.Len())
+	out.AuditTip = hex.EncodeToString(xcc.AuditChain.Tip())
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(out); err != nil {
@@ -232,6 +234,9 @@ type coordinationOutput struct {
 	TokenID                ids.DecisionID           `json:"token_id,omitempty"`
 	DispatchedAt           string                   `json:"dispatched_at,omitempty"`
 	AuditChainLength       int                      `json:"audit_chain_length"`
+	// AuditTip is the hash of the audit log's last event. Record it:
+	// a log whose tail was cut off still verifies, but not to this tip.
+	AuditTip string `json:"audit_tip,omitempty"`
 }
 
 type crossCloudErrorEnvelope struct {

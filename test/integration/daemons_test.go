@@ -42,7 +42,7 @@ const (
 
 // bins holds the binaries TestMain builds once per run.
 var bins struct {
-	sagvd, worker, bootstrap, keygen string
+	sagvd, worker, bootstrap, acpctl, keygen string
 }
 
 func TestMain(m *testing.M) {
@@ -68,11 +68,13 @@ func buildAndRun(m *testing.M) (int, error) {
 	bins.sagvd = filepath.Join(dir, "sagvd")
 	bins.worker = filepath.Join(dir, "acp-compute")
 	bins.bootstrap = filepath.Join(dir, "acp-bootstrap")
+	bins.acpctl = filepath.Join(dir, "acpctl")
 	bins.keygen = filepath.Join(dir, "keygen")
 	for _, b := range []struct{ out, dir, pkg string }{
 		{bins.sagvd, root, "./cmd/sagvd"},
 		{bins.worker, root, "./cmd/acp-compute"},
 		{bins.bootstrap, root, "./cmd/acp-bootstrap"},
+		{bins.acpctl, root, "./cmd/acpctl"},
 		{bins.keygen, filepath.Join(root, "deploy", "compose", "keygen"), "."},
 	} {
 		cmd := exec.Command("go", "build", "-o", b.out, b.pkg)
@@ -344,6 +346,7 @@ func vaultConfig(secrets, vaultAddr, apiAddr, healthAddr string) map[string]any 
 		},
 		"keys": map[string]any{
 			"authority_signing": map[string]any{"kid": "sagvd-authority-demo", "seed_path": sec("sagvd", "authority_signing_seed")},
+			"audit_signing":     map[string]any{"kid": "sagvd-audit-demo", "seed_path": sec("sagvd", "audit_signing_seed")},
 			"session_sealing":   map[string]any{"kid": "session-sealing-demo", "material_path": sec("shared", "sealing.key")},
 		},
 		"workers": map[string]any{"registry_path": sec("shared", "workers.json")},

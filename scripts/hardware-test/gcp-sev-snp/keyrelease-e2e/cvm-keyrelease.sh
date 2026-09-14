@@ -32,14 +32,14 @@ step "binaries from gs://$BUCKET/e2e"
 # Plain curl against the Storage JSON API with the VM's own token: no
 # dependency on which cloud SDK the image ships.
 GTOKEN=$(md service-accounts/default/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-for f in sagvd acp-bootstrap keygen amd-milan-cert_chain.pem; do
+for f in sagvd acp-bootstrap acpctl keygen amd-milan-cert_chain.pem; do
   curl -sSf -H "Authorization: Bearer $GTOKEN" -o "$WORK/$f" \
     "https://storage.googleapis.com/storage/v1/b/$BUCKET/o/e2e%2F$f?alt=media" || echo "fetch $f failed"
 done
 unset GTOKEN
-chmod +x sagvd acp-bootstrap keygen
+chmod +x sagvd acp-bootstrap acpctl keygen
 ./sagvd version > "$OUT/versions.txt"; ./acp-bootstrap version >> "$OUT/versions.txt"
-sha256sum sagvd acp-bootstrap keygen amd-milan-cert_chain.pem > "$OUT/inputs.sha256"
+sha256sum sagvd acp-bootstrap acpctl keygen amd-milan-cert_chain.pem > "$OUT/inputs.sha256"
 
 step "configfs-tsm"
 modprobe sev-guest 2>/dev/null || {
@@ -65,6 +65,7 @@ cat > sagvd.json <<EOF
   "tee": {"workload_descriptor": "sagvd-phase1-demo-v1", "seed_path": "$S/sagvd/tee_seed",
     "peer": {"public_key_path": "$S/sagvd/peer_worker_pubkey", "measurement_path": "$S/sagvd/peer_worker_measurement"}},
   "keys": {"authority_signing": {"kid": "sagvd-authority-demo", "seed_path": "$S/sagvd/authority_signing_seed"},
+           "audit_signing": {"kid": "sagvd-audit-demo", "seed_path": "$S/sagvd/audit_signing_seed"},
            "session_sealing": {"kid": "session-sealing-demo", "material_path": "$S/shared/sealing.key"}},
   "workers": {"registry_path": "$S/shared/workers.json"},
   "runtime": {"job_timeout_seconds": 60, "handshake_timeout_seconds": 10, "queue_poll_ms": 50,
@@ -75,6 +76,7 @@ cat > sagvd.json <<EOF
 EOF
 ./sagvd identity -config sagvd.json > "$OUT/sagvd-identity.json"
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["authority_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > authority.pem
+python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
 
 step "acp-bootstrap on SEV-SNP"
 cat > dest.json <<EOF
@@ -106,7 +108,7 @@ EOF
 import json, sys
 c = json.load(open("sagvd.json"))
 S = "/root/e2e/secrets"
-c["crosscloud"] = {"enabled": True, "policy_version": "e2e-policy-v1",
+c["crosscloud"] = {"enabled": True, "policy_version": "e2e-policy-v1", "audit_log_path": "/root/e2e/xcc-audit.db",
     "policy_allow_list_path": "/root/e2e/allow.json", "verifier_registry_path": "/root/e2e/verifiers.json",
     "transport_bearer_token": open(S + "/xcc_token").read().strip(), "request_timeout_seconds": 30,
     "transport_tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt",
@@ -128,6 +130,10 @@ source_config "$OTHER" sagvd-unlisted.json
 ./sagvd crosscloud-restore -config sagvd-unlisted.json -decision-id e2e-decision-2 -destination-kind gcp-sev-snp \
   -destination-endpoint https://127.0.0.1:8443 -key genome-dek-2:"$DEK" > "$OUT/release-unlisted.json" 2> "$OUT/release-unlisted.err"
 echo "unlisted exit=$?" >> "$OUT/steps.txt"
+
+step "audit log verified with the published audit key"
+./acpctl audit verify --audit xcc-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-demo --json > "$OUT/audit-verify.json" 2> "$OUT/audit-verify.err"
+echo "audit verify exit=$?" >> "$OUT/steps.txt"
 
 sleep 2; kill -TERM $DEST; wait $DEST 2>/dev/null
 unset DEK TOKEN

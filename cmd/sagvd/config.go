@@ -52,15 +52,12 @@ type Config struct {
 	// Log controls structured-logging format and verbosity.
 	Log LogConfig `json:"log"`
 
-	// CrossCloud configures the optional Phase 4 cross-cloud
-	// KMS-mediated restore capability. When CrossCloud.Enabled is
-	// false (the default) the daemon ignores every other field in
-	// this section and behaves identically to a Phase 1/2/3 build.
-	// When enabled, the daemon loads the verifier registry, the
-	// key-release policy, and exposes POST /v1/crosscloud/restore
-	// alongside the existing /v1/jobs endpoints.
+	// CrossCloud configures cross-cloud key release, run by the
+	// `sagvd crosscloud-restore` subcommand (the daemon itself serves
+	// no cross-cloud requests). When CrossCloud.Enabled is false (the
+	// default) every other field in this section is ignored.
 	//
-	// See ADR 0006 and docs/operator/06_cross_cloud_restore.md.
+	// See ADR 0006, ADR 0009 and docs/operator/06_cross_cloud_restore.md.
 	CrossCloud CrossCloudConfig `json:"crosscloud,omitempty"`
 }
 
@@ -153,6 +150,13 @@ type KeysConfig struct {
 	// JobRequest; the worker uses it to Open the SealedMaterialRef
 	// and extract the plaintext it will operate on.
 	SessionSealing SealingKeyConfig `json:"session_sealing"`
+
+	// AuditSigning is the Ed25519 key that signs the cross-cloud audit
+	// log (keys.PurposeSigningAudit). It must stay the same across runs:
+	// the log is one hash-linked chain, verified end to end whenever it
+	// is opened. Required when crosscloud.enabled=true; its public half
+	// (`sagvd identity`) is what auditors verify the log with.
+	AuditSigning SigningKeyConfig `json:"audit_signing,omitempty"`
 }
 
 // SigningKeyConfig points at a 32-byte Ed25519 seed file.
@@ -340,6 +344,14 @@ type CrossCloudConfig struct {
 	// TransportTLS configures mTLS for the HTTPTransport's
 	// http.Client. Strongly recommended for production.
 	TransportTLS TLSClientConfig `json:"transport_tls,omitempty"`
+
+	// AuditLogPath is the append-only audit log (a bbolt file) every
+	// release decision is written to — handshake, attestation verified,
+	// release authorised — before the step it records is taken. The log
+	// is verified end to end when it is opened; a log that does not
+	// verify stops all releases. Required when enabled. One
+	// crosscloud-restore run holds its lock at a time.
+	AuditLogPath string `json:"audit_log_path,omitempty"`
 }
 
 // TLSClientConfig holds the source-side outbound mTLS material the
@@ -573,6 +585,12 @@ func (c Config) Validate() error {
 		}
 		if c.CrossCloud.VerifierRegistryPath == "" {
 			errs = append(errs, errors.New("crosscloud.verifier_registry_path required when crosscloud.enabled=true"))
+		}
+		if c.CrossCloud.AuditLogPath == "" {
+			errs = append(errs, errors.New("crosscloud.audit_log_path required when crosscloud.enabled=true (no key is released without a durable audit record)"))
+		}
+		if c.Keys.AuditSigning.KeyID == "" || c.Keys.AuditSigning.SeedPath == "" {
+			errs = append(errs, errors.New("keys.audit_signing.kid and seed_path required when crosscloud.enabled=true"))
 		}
 		if c.CrossCloud.RequestTimeoutSeconds < 0 {
 			errs = append(errs, errors.New("crosscloud.request_timeout_seconds must be >= 0 (0 = no per-request timeout)"))

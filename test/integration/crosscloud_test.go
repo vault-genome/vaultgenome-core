@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,9 +37,12 @@ type xcc struct {
 	dir          string // destination material written by the test
 	token        string // bearer token both sides share
 	authorityPEM string // path of the authority key the destination pins
+	auditPEM     string // path of the audit key an auditor verifies the log with
+	auditLog     string // the source's durable cross-cloud audit log
 	endpoint     string // https://127.0.0.1:port of acp-bootstrap
 	health       string
 	dest         *proc
+	releases     int
 }
 
 // identityOf runs `<bin> identity -config cfg` and decodes its JSON.
@@ -71,7 +75,34 @@ func newXCC(t *testing.T) *xcc {
 	}
 	x.authorityPEM = filepath.Join(x.dir, "authority.pem")
 	writeSecret(t, x.authorityPEM, []byte(id["authority_public_key_pem"]))
+	if id["audit_kid"] != "sagvd-audit-demo" || id["audit_public_key_pem"] == "" {
+		t.Fatalf("sagvd identity does not print the audit key: %v", id)
+	}
+	x.auditPEM = filepath.Join(x.dir, "audit.pem")
+	writeSecret(t, x.auditPEM, []byte(id["audit_public_key_pem"]))
+	x.auditLog = filepath.Join(x.dir, "xcc-audit.db")
 	return x
+}
+
+// auditVerify runs `acpctl audit verify` over the source's audit log, as
+// an auditor would, and returns its report.
+func (x *xcc) auditVerify(t *testing.T) (ok bool, events int, tip string) {
+	t.Helper()
+	out, err := exec.Command(bins.acpctl, "audit", "verify", "--audit", x.auditLog,
+		"--audit-pubkey", x.auditPEM, "--audit-kid", "sagvd-audit-demo", "--json").Output()
+	var res struct {
+		OK         bool   `json:"ok"`
+		EventCount int    `json:"event_count"`
+		Tip        string `json:"tip"`
+		Error      string `json:"error"`
+	}
+	if jerr := json.Unmarshal(out, &res); jerr != nil {
+		t.Fatalf("acpctl audit verify: %v / %v\n%s", err, jerr, out)
+	}
+	if res.Error != "" {
+		t.Logf("acpctl audit verify: %s", res.Error)
+	}
+	return res.OK && err == nil, res.EventCount, res.Tip
 }
 
 // destinationConfig writes an acp-bootstrap config with TLS 1.3, mTLS
@@ -154,6 +185,7 @@ func (x *xcc) sourceConfig(t *testing.T, dest map[string]string, allowedHex ...s
 	cfg := vaultConfig(x.secrets, loopback(t), loopback(t), loopback(t))
 	cfg["crosscloud"] = map[string]any{
 		"enabled":                 true,
+		"audit_log_path":          x.auditLog,
 		"policy_version":          "drill-policy-v1",
 		"policy_allow_list_path":  allow,
 		"verifier_registry_path":  registry,
@@ -180,18 +212,20 @@ type restoreResult struct {
 	RecipientKeySHA256        string `json:"recipient_key_sha256"`
 	TokenID                   string `json:"token_id"`
 	AuditChainLength          int    `json:"audit_chain_length"`
+	AuditTip                  string `json:"audit_tip"`
 }
 
 // restore runs `sagvd crosscloud-restore` to completion and returns its
 // report, its combined output, and its exit error.
 func (x *xcc) restore(t *testing.T, config, endpoint string, dek []byte) (restoreResult, string, error) {
 	t.Helper()
+	x.releases++
 	cmd := exec.Command(bins.sagvd, "crosscloud-restore",
 		"-config", config,
-		"-decision-id", "drill-decision-1",
+		"-decision-id", fmt.Sprintf("drill-decision-%d", x.releases),
 		"-destination-kind", "simulated",
 		"-destination-endpoint", endpoint,
-		"-key", "genome-dek-1:"+hex.EncodeToString(dek),
+		"-key", fmt.Sprintf("genome-dek-%d:%s", x.releases, hex.EncodeToString(dek)),
 	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -249,12 +283,27 @@ func TestLiveCrossCloud_KeyReleaseToAttestedDestination(t *testing.T) {
 		t.Errorf("audit chain has %d events, want handshake → attestation → release (3)", res.AuditChainLength)
 	}
 
-	waitFor(t, 5*time.Second, "destination to log the accepted token", func() bool {
-		return len(x.destLog("crosscloud token accepted")) == 1
+	// The release is on record: the log on disk verifies under the key
+	// `sagvd identity` published, and ends where the report says.
+	ok, events, tip := x.auditVerify(t)
+	if !ok || events != 3 || tip != res.AuditTip || tip == "" {
+		t.Fatalf("audit log: ok=%v events=%d tip=%s, report tip %s", ok, events, tip, res.AuditTip)
+	}
+	// A second release extends the same chain.
+	res2, out, err := x.restore(t, cfg, x.endpoint, randomBytes(t, 32))
+	if err != nil || res2.Status != "ok" {
+		t.Fatalf("second crosscloud-restore: %v\n%s", err, out)
+	}
+	if ok, events, tip := x.auditVerify(t); !ok || events != 6 || tip != res2.AuditTip {
+		t.Fatalf("audit log after two releases: ok=%v events=%d tip=%s, report tip %s", ok, events, tip, res2.AuditTip)
+	}
+
+	waitFor(t, 5*time.Second, "destination to log the accepted tokens", func() bool {
+		return len(x.destLog("crosscloud token accepted")) == 2
 	})
 	answered := x.destLog("crosscloud handshake answered")
-	if len(answered) != 1 {
-		t.Fatalf("destination answered %d handshakes, want 1", len(answered))
+	if len(answered) != 2 {
+		t.Fatalf("destination answered %d handshakes, want 2", len(answered))
 	}
 	if got := answered[0]["recipient_key_sha256"]; got != res.RecipientKeySHA256 || res.RecipientKeySHA256 == "" {
 		t.Fatalf("recipient key: source released to %q, destination attested %q", res.RecipientKeySHA256, got)
@@ -279,6 +328,10 @@ func TestLiveCrossCloud_UnlistedDestinationGetsNothing(t *testing.T) {
 	}
 	if res.TokenID != "" {
 		t.Fatalf("a token was issued to an unlisted destination: %s", res.TokenID)
+	}
+	// On record: the handshake and the verified attestation, and no release.
+	if ok, events, _ := x.auditVerify(t); !ok || events != 2 {
+		t.Fatalf("audit log after a refused release: ok=%v events=%d, want 2 verified events", ok, events)
 	}
 	time.Sleep(200 * time.Millisecond)
 	if n := len(x.destLog("crosscloud token accepted")); n != 0 {

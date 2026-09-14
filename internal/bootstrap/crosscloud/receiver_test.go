@@ -452,6 +452,29 @@ func TestHandleKeyReleaseToken_ForgedTokenDoesNotConsumeTheKey(t *testing.T) {
 	require.Equal(t, 1, n)
 }
 
+// Re-releasing the same DEK under the same kid (a retry whose first
+// answer was lost) succeeds; a different DEK under a registered kid is
+// refused as the sender's error, not reported as an outage.
+func TestHandleKeyReleaseToken_ReReleaseSameKeyOnlyOnce(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	dek := mustRandomBytes(t, 32)
+
+	pub := f.handshake(t, "xcc-req-1")
+	_, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{requestID: "xcc-req-1", recipientPub: pub, keys: map[ids.KeyID][]byte{"dek-1": dek}}))
+	require.NoError(t, err)
+
+	pub = f.handshake(t, "xcc-req-2")
+	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{requestID: "xcc-req-2", recipientPub: pub, keys: map[ids.KeyID][]byte{"dek-1": dek}}))
+	require.NoError(t, err, "the same key again is idempotent")
+	require.Equal(t, 1, n)
+
+	pub = f.handshake(t, "xcc-req-3")
+	_, err = f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{requestID: "xcc-req-3", recipientPub: pub, keys: map[ids.KeyID][]byte{"dek-1": mustRandomBytes(t, 32)}}))
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryStructural), "got %v", err)
+}
+
 func TestHandleKeyReleaseToken_RejectsWrongMeasurement(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)

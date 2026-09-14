@@ -4,6 +4,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
@@ -428,6 +430,7 @@ func TestLoadCrossCloudMaterials_HappyPath(t *testing.T) {
 			RequestTimeoutSeconds: 30,
 		},
 	}
+	withAuditLog(t, dir, &cfg)
 	materials, err := LoadCrossCloudMaterials(cfg, shared_time.NewSystemClock())
 	if err != nil {
 		t.Fatalf("LoadCrossCloudMaterials: %v", err)
@@ -435,6 +438,7 @@ func TestLoadCrossCloudMaterials_HappyPath(t *testing.T) {
 	if materials == nil {
 		t.Fatal("LoadCrossCloudMaterials returned nil bundle (Enabled=true)")
 	}
+	defer func() { _ = materials.Close() }()
 	if materials.VerifierRegistry == nil || materials.Policy == nil || materials.Transport == nil {
 		t.Fatal("LoadCrossCloudMaterials: every field must be populated")
 	}
@@ -443,5 +447,93 @@ func TestLoadCrossCloudMaterials_HappyPath(t *testing.T) {
 	}
 	if materials.Policy.PolicyVersion() != "xcc-2026-05-09" {
 		t.Errorf("policy version = %q; want xcc-2026-05-09", materials.Policy.PolicyVersion())
+	}
+}
+
+// withAuditLog points cfg at a fresh durable audit log in dir and a
+// signing seed for it, as `keygen` provisions them.
+func withAuditLog(t *testing.T, dir string, cfg *Config) {
+	t.Helper()
+	seed := make([]byte, 32)
+	if _, err := rand.Read(seed); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Keys.AuditSigning = SigningKeyConfig{KeyID: "xcc-audit-test", SeedPath: writeFile(t, dir, "audit_signing_seed", seed)}
+	cfg.CrossCloud.AuditLogPath = filepath.Join(dir, "xcc-audit.db")
+}
+
+// simulatedCrossCloudConfig is a minimal enabled cross-cloud config in dir.
+func simulatedCrossCloudConfig(t *testing.T, dir string) Config {
+	t.Helper()
+	pubPath := writeFile(t, dir, "attestor.pub", generateEd25519PubRaw(t))
+	meas := makeMeasurementHex(0x55)
+	reg := writeFile(t, dir, "registry.json", []byte(`{"verifiers":[{"provider":"simulated","attestor_pubkey_path":"`+pubPath+`","expected_measurement_hex":"`+meas+`"}]}`))
+	allow := writeFile(t, dir, "allow.json", []byte(`{"version":"v1","allowed":{"simulated":["`+meas+`"]}}`))
+	cfg := Config{CrossCloud: CrossCloudConfig{Enabled: true, PolicyVersion: "v1", PolicyAllowListPath: allow, VerifierRegistryPath: reg}}
+	withAuditLog(t, dir, &cfg)
+	return cfg
+}
+
+// The audit log is one chain across runs: a second crosscloud-restore
+// sees the first one's events, continues their numbering, and extends
+// the same verified chain.
+func TestLoadCrossCloudMaterials_AuditLogSpansRuns(t *testing.T) {
+	cfg := simulatedCrossCloudConfig(t, t.TempDir())
+	emit := func(m *crossCloudMaterials) ids.AuditEventID {
+		id, err := m.AuditEmitter.Emit(audit_event.KindCrossCloudHandshakeInitiated, []byte(`{}`), "", "", "req-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	first, err := LoadCrossCloudMaterials(cfg, shared_time.NewSystemClock())
+	if err != nil {
+		t.Fatal(err)
+	}
+	emit(first)
+	emit(first)
+	tip := first.AuditChain.Tip()
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := LoadCrossCloudMaterials(cfg, shared_time.NewSystemClock())
+	if err != nil {
+		t.Fatalf("reopening a verified log: %v", err)
+	}
+	defer func() { _ = second.Close() }()
+	if second.AuditChain.Len() != 2 || string(second.AuditChain.Tip()) != string(tip) {
+		t.Fatalf("second run sees %d events; want the first run's 2 with the same tip", second.AuditChain.Len())
+	}
+	if id := emit(second); id != "xcc-evt-0000000000000003" {
+		t.Fatalf("event ID %q does not continue the log", id)
+	}
+}
+
+// A log signed under a different audit key does not verify, and a log
+// that does not verify stops every release.
+func TestLoadCrossCloudMaterials_RefusesLogItCannotVerify(t *testing.T) {
+	dir := t.TempDir()
+	cfg := simulatedCrossCloudConfig(t, dir)
+	m, err := LoadCrossCloudMaterials(cfg, shared_time.NewSystemClock())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.AuditEmitter.Emit(audit_event.KindCrossCloudHandshakeInitiated, []byte(`{}`), "", "", "req-1"); err != nil {
+		t.Fatal(err)
+	}
+	_ = m.Close()
+
+	other := make([]byte, 32)
+	if _, err := rand.Read(other); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Keys.AuditSigning.SeedPath = writeFile(t, dir, "other_seed", other)
+	if m, err := LoadCrossCloudMaterials(cfg, shared_time.NewSystemClock()); err == nil {
+		_ = m.Close()
+		t.Fatal("a log signed under another audit key was accepted")
+	} else if !strings.Contains(err.Error(), "does not verify") {
+		t.Fatalf("unexpected refusal: %v", err)
 	}
 }
