@@ -21,9 +21,9 @@ import (
 // these primitives agrees with itself bit-for-bit across hardware, so an
 // emergency cross-server failover always comes up. It is only APPROXIMATELY
 // equal to the original float64 model (quantization error), which is exactly what
-// the equivalence gate's EQUIVALENT verdict certifies. A full fixed-point
-// transformer block (softmax/LayerNorm in fixed point with proven error bounds)
-// builds on these primitives and is tracked as future work.
+// the equivalence gate's EQUIVALENT verdict certifies. The full fixed-point
+// transformer block built on this foundation — including integer softmax and
+// LayerNorm — lives in fixedpoint_block.go.
 
 // Quant is an affine (asymmetric) int8 quantization scheme: real ≈ Scale·(q -
 // Zero). Scale and Zero are shared parameters, so they are part of the sealed

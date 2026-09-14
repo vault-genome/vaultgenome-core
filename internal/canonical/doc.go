@@ -27,14 +27,16 @@
 //     correctly-rounded SQRTSD, software math.Exp). The cross-architecture claim
 //     is validated on the arch matrix, not asserted by construction.
 //
-//   - Rung 3 — fixed-point foundation (fixedpoint.go). Integer arithmetic is
-//     byte-portable BY CONSTRUCTION: the same integer program yields the same
-//     bytes on any platform, under any BLAS, at any thread count. The only
-//     portability risk is overflow, which the primitives detect and reject. A
-//     fixed-point path is only approximately equal to the original float64 model
-//     (quantization error) — which is precisely what the gate's EQUIVALENT
-//     verdict certifies. The full fixed-point transformer block builds on these
-//     primitives and is future work.
+//   - Rung 3 — fixed-point path. Integer arithmetic is byte-portable BY
+//     CONSTRUCTION: the same integer program yields the same bytes on any
+//     platform, under any BLAS, at any thread count. The only portability risk
+//     is overflow, which the primitives detect and reject. fixedpoint.go holds
+//     the primitives (DotI8, DotQuant); fixedpoint_block.go holds a FULLY
+//     INTEGER transformer block — integer GEMM, i-BERT-style integer exp/softmax,
+//     and integer isqrt/LayerNorm, with no float arithmetic in the hot path. It
+//     is only approximately equal to the original float64 model (quantization
+//     error, measured at ~3.6e-3 abs / ~1.2% rel), which is precisely what the
+//     gate's EQUIVALENT verdict certifies.
 //
 // The two rungs compose with the gate: rung 2 targets EXACT (byte-identical) on
 // a pinned+attested+verified runtime; rung 3 guarantees the reconstruction

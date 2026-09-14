@@ -94,10 +94,14 @@ behavioral scorecard (the model is the *right lineage*).
 - The gate is self-contained and independently testable (14 unit tests covering
   every verdict path, policy, NaN handling, signing, tamper detection, and hash
   binding). `gofmt` + `go vet` clean; `go test ./...` green.
-- **Open (next rungs of the determinism ladder):** the gate proves fidelity but
-  does not *produce* it. To make `EQUIVALENT`/`EXACT` reliably reachable off the
-  pinned-runtime path, the canonical genome still needs (1) pinned + attested +
-  *verified* runtime, (2) deterministic portable kernels (f64-internal, fixed
-  evaluation order, no implicit FMA), and (3) a fixed-point reference path that
-  is byte-portable by construction. Wiring the verdict into
-  `reconstitution_decision` is tracked separately.
+- **Determinism ladder (the converter, `internal/canonical`):** the gate proves
+  fidelity but does not *produce* it. The converter does, in two implemented
+  rungs: (2) a BLAS-free float64 reference kernel (fixed evaluation order, no
+  implicit FMA) — byte-identical within a pinned toolchain, gate-`EXACT`; and (3)
+  a **fully integer** transformer block (integer GEMM, i-BERT-style integer
+  exp/softmax, integer isqrt/LayerNorm) that is byte-portable **by construction**
+  and reproduces the float64 reference to ~3.6e-3 abs / ~1.2% rel, gate-
+  `EQUIVALENT`. Rung 1 (pinned + attested + *verified* runtime for byte-`EXACT`
+  off-the-integer-path) and wiring the verdict into `reconstitution_decision`
+  (via the receive-side `ValidationResult` → `ReasonValidationFailed`) are
+  tracked separately.
