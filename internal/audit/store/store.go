@@ -33,7 +33,7 @@ import (
 // `Bucket.ForEach` iteration order (lexicographic over the 8-byte
 // fixed-width keys) matches insertion order exactly.
 //
-// Dependency on bbolt: governed by 00_CI_Security_Policy §3.1/§3.3
+// Dependency on bbolt: governed by docs/doctrine/ci-security-policy.md §3.1/§3.3
 // (allowlist) and docs/dependencies/bbolt.md (justification).
 
 // Store is the append-only persistence interface for audit events.

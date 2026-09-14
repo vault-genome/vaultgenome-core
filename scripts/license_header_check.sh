@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # license_header_check.sh — fails if any .go file under the module lacks
-# the SPDX-License-Identifier header required by 00_CI_Security_Policy.md §7.
+# the SPDX-License-Identifier header required by docs/doctrine/ci-security-policy.md §7.
 #
 # The header must appear within the first 3 non-blank lines of the file:
 #   // SPDX-License-Identifier: AGPL-3.0-or-later

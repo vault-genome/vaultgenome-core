@@ -1,6 +1,6 @@
 # AI Continuity Platform — direct-dependency allowlist
 #
-# Authoritative source: 00_CI_Security_Policy.md §3.1 and §3.3.
+# Authoritative source: docs/doctrine/ci-security-policy.md §3.1 and §3.3.
 # Enforced in CI by: scripts/check_dep_allowlist.sh.
 #
 # Rules (from policy §3.1):

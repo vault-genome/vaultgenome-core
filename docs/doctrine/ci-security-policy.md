@@ -1,0 +1,122 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+
+# CI & supply-chain security policy
+
+This document is the canonical description of what the `vault-gate` workflow
+enforces and why. Section numbers are stable: other files cite them by number
+(`scripts/dep_allowlist.txt` and `scripts/check_dep_allowlist.sh` → §3.1/§3.3,
+`scripts/check_dep_depth.sh` → §3.2, `test/doctrine/` → §6,
+`scripts/license_header_check.sh` → §7, `scripts/coverage_check.sh` → §8), so
+renumber with care.
+
+## 1. The gate
+
+Every push and pull request to `main` runs `.github/workflows/vault-gate.yml`,
+an 18-step gate; a merge is allowed only when all of it is green: format, vet,
+build, unit tests, race detector, integration tests, coverage (§8), lint
+(golangci-lint), terminology (§4), govulncheck (§5), osv-scanner (§5), gitleaks
+(§10), SBOM (§6), license headers (§7), doctrine tests, dependency allowlist
+(§3.1), dependency depth (§3.2), and reproducible build (§9). The same checks
+run locally via `make vault-gate`.
+
+## 2. Toolchain
+
+The Go toolchain is pinned to an exact patch version in every workflow
+(`go-version:` in the `actions/setup-go` step). It is bumped deliberately —
+never floating — and a bump is a reviewed change like any other. The trigger to
+bump is §5: when govulncheck reports a standard-library advisory, the pin moves
+to the first patch release that fixes it. `go.mod`'s `go` directive is the
+*minimum language version* the source needs; the workflow pin is the *exact
+build toolchain*, and the two are allowed to differ.
+
+## 3. Dependencies
+
+The design keeps the dependency surface tiny and legible. Two machine checks
+enforce that.
+
+### 3.1 Direct-dependency allowlist
+
+Every **direct** module dependency must appear on `scripts/dep_allowlist.txt`,
+enforced by `scripts/check_dep_allowlist.sh`. "Direct" is read from
+`go mod edit -json` (`Indirect == false`) — the machine-readable form of the
+`// indirect` marker — so the check is exact under vendoring and module-graph
+pruning. Adding an entry requires §3.3.
+
+Indirect (transitive) dependencies are **not** listed here; they are governed
+by the depth cap in §3.2 instead. Listing them would be noise and would defeat
+the point of a *direct*-dependency allowlist.
+
+### 3.2 Transitive depth cap
+
+`scripts/check_dep_depth.sh` bounds the longest path in the module graph. The
+cap is **3**. A dependency that drags in a deep transitive chain fails the gate
+and must be replaced or justified with an explicit exception. This keeps the
+"what am I actually trusting" answer short.
+
+### 3.3 Justification records
+
+Each allowlisted direct dependency carries a short justification at
+`docs/dependencies/<module>.md` — why it is needed, what it is trusted to do,
+and the sign-off of both founders on the pull request that introduced it.
+
+## 4. Terminology
+
+The terminology gate (`scripts/terminology_check.sh`) enforces the frozen
+project-name rename; see `docs/doctrine/terminology.md`. §4 there lists the
+enforced deprecated names; §5 there lists advisory vocabulary that is documented
+but deliberately not gated.
+
+## 5. Vulnerability scanning
+
+Two scanners run on every gate:
+
+- **govulncheck** — call-graph aware. It fails only on advisories the code can
+  actually reach, across both module dependencies and the standard library. A
+  reachable stdlib advisory is fixed by the toolchain bump of §2.
+- **osv-scanner** — presence-based over the dependency manifest. It fails on a
+  known-vulnerable dependency version regardless of reachability, the stricter,
+  defence-in-depth complement to govulncheck.
+
+A repository that ships defensive infrastructure does not ship a dependency or
+a toolchain with a known, fixed advisory it could have taken.
+
+## 6. Supply-chain attestation
+
+Releases are built by `.github/workflows/release.yml`, triggered only by a
+signed `v*.*.*` tag whose signature is verified before the build. Every released
+binary (`sagvd`, `acp-compute`, `acpctl`) carries three attestations:
+
+- an **SBOM** in SPDX-JSON, produced per artifact by **syft**;
+- a **cosign** keyless signature (`sign-blob`) with a transparency-log entry;
+- **SLSA** provenance from the `slsa-framework` generic generator.
+
+`test/doctrine/` asserts, offline, that the release workflow still names all
+three pillars, so dropping one trips CI.
+
+## 7. License headers
+
+Every source file carries an `SPDX-License-Identifier: AGPL-3.0-or-later`
+header, enforced by `scripts/license_header_check.sh`. A file without it fails
+the gate. This keeps the licence unambiguous at the granularity of a single
+file, however the code is later copied or vendored.
+
+## 8. Coverage thresholds
+
+`scripts/coverage_check.sh` enforces a minimum test-coverage floor. Coverage is
+a floor, not a target: it guards against a change that silently drops whole
+packages out of the tested set, and it is read alongside the doctrine tests
+(which assert behaviour, not lines).
+
+## 9. Reproducible builds
+
+`make verify-reproducible` builds every binary twice, from a clean tree, with
+identical flags (`-trimpath`, empty `-buildid`, pinned `-ldflags`), and fails if
+the two outputs are not byte-identical. This catches embedded timestamps,
+build-path leakage, and other non-determinism before a release is signed.
+
+## 10. Secret scanning
+
+`gitleaks` scans the tree and history for credentials on every gate. The only
+secret-shaped material committed on purpose is public AMD KDS certificate chains
+(X.509 certificates, not keys) used as offline attestation-verification
+fixtures; everything else that looks like a secret is treated as an incident.

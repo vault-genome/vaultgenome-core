@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # coverage_check.sh — enforces the per-package coverage thresholds
-# defined in 00_CI_Security_Policy.md §8.
+# defined in docs/doctrine/ci-security-policy.md §8.
 #
 # Thresholds:
 #   /internal/contracts/...                  80%

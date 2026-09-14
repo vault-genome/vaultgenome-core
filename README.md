@@ -92,10 +92,11 @@ inside a confidential VM.
 **Stage:** E — Release-side MVP doctrine-closed.
 **Code maturity:** MVP — release side end-to-end implemented; receive-side
 self-bootstrapping (Stage F) deferred to V2 per resolution R-11.
-**Doctrine invariants:** 11 of 11 CI-enforced (see §4 of `docs/internal/status-journal.md`).
-**CI gate:** `vault-gate` with 17 sub-checks (fmt, vet, build, unit, race,
+**Doctrine invariants:** 11 of 11 CI-enforced (asserted as tests in `test/doctrine/`; ADR 0004).
+**CI gate:** `vault-gate` with 18 sub-checks (fmt, vet, build, unit, race,
 integration, coverage, lint, terminology, govulncheck, osv-scanner, gitleaks,
-sbom, license-headers, doctrine-tests, dep-allowlist, dep-depth).
+sbom, license-headers, doctrine-tests, dep-allowlist, dep-depth,
+verify-reproducible).
 **Module path:** `github.com/ai-continuity-platform/core`.
 
 ### What works today
@@ -115,40 +116,35 @@ sbom, license-headers, doctrine-tests, dep-allowlist, dep-depth).
 - **Honest boundaries** — the *generative* rebuild from a compact recipe is a
   labelled placeholder; the reproducible-float rung stands on RepDL / ReproBLAS
   (`docs/prior-art-and-attribution.md`).
-**Minimum Go version:** 1.22.
+**Minimum Go version:** 1.25.
 **License:** AGPL-3.0-or-later (see `LICENSE`).
 
-For a component-level maturity breakdown — what is DONE, what is
-**MVP-SCOPED** placeholder, and what is V2+ — see `../docs/internal/status-journal.md` at
-the workspace root. The STATUS document is the single source of truth
-for "what works today" and supersedes any claim in this README.
+The **What works today** section above is the authoritative maturity
+summary for this repository; component-level design rationale lives in the
+architecture decision records under `docs/adr/`.
 
 ---
 
-## Doctrinal Documents
+## Governance & design records
 
-The code in this repository is governed by seven Stage A closure documents
-kept at the workspace root (one directory above `core/`):
+The code in this repository is governed by the documents and machine-checked
+records kept in the repo:
 
-- `docs/doctrine/terminology.md` — canonical vocabulary, deprecated-terms list.
-- `docs/doctrine/open-decisions-resolved.md` — 16 frozen technical decisions (R-1…R-16).
-- `docs/doctrine/validation-thresholds.md` — semantic / behavioral / operational
-  thresholds and aggregation rule.
-- `docs/doctrine/repo-structure.md` — directory layout and module boundaries.
-- `docs/doctrine/ci-security-policy.md` — supply-chain, signing, dependency, and CI
-  policy.
-- `docs/internal/stage-a-summary.md` — executive summary and the eleven doctrinal
-  invariants.
-- `docs/doctrine/positioning.md` — claim-language governance; freezes the
-  canonical English / Russian phrasings for every public-facing claim and
-  bans eight unbounded superlatives. All external artifacts — white paper,
-  pitch deck, market memo, investor one-pager — must cite this doctrine
-  in their front-matter and pass the §4 scan before circulation.
+- `docs/doctrine/terminology.md` — canonical vocabulary and the frozen
+  deprecated-name list; enforced by the terminology gate (vault-gate 09).
+- `docs/adr/` — nine architecture decision records (ADR 0001–0009): the
+  frozen producer / verifier / sealer interface (0001), multi-TEE adapter
+  dispatch (0002), doctrine-invariants-as-tests (0004), cross-cloud
+  KMS-mediated recovery (0006), the equivalence gate (0008), and the X25519
+  KEM cross-cloud key delivery (0009).
+- `docs/prior-art-and-attribution.md` — what the reproducible-float rung
+  builds on (RepDL / ReproBLAS) versus the project's own prior art.
+- `test/doctrine/` — the eleven doctrinal invariants, asserted as tests so a
+  violating change fails CI (ADR 0004).
 
-Every pull request is reviewed against these documents. Silent substitution of
-terminology, weakening of operational validation, introduction of a code path
-that emits the AI Genome in unsealed form, or reintroduction of a banned
-positioning construction is grounds to block the PR.
+Every pull request is reviewed against these records. Silent substitution of
+terminology, weakening of operational validation, or introduction of a code
+path that emits the AI Genome in unsealed form is grounds to block the PR.
 
 ---
 
@@ -177,7 +173,8 @@ core/
 └── .github/workflows/  # vault-gate.yml, release.yml
 ```
 
-Full rationale for every directory lives in `docs/doctrine/repo-structure.md`.
+The layout above is the summary; each package documents its own
+responsibility in its `doc.go`.
 
 ---
 
@@ -189,7 +186,7 @@ make test               # unit tests only
 make test-race          # with race detector
 make test-doctrine      # architectural invariant tests
 make demo               # narrated end-to-end walkthrough of the vertical slice
-make vault-gate         # the full CI gate, locally (17 sub-checks)
+make vault-gate         # the full CI gate, locally
 ```
 
 The `vault-gate` target mirrors the CI workflow of the same name. A green
@@ -218,9 +215,9 @@ Operator-facing procedures live in `docs/operator/`:
 - `05_release_procedure.md` — signed tag, SBOM, SLSA provenance, the
   release.yml workflow, the three signed binaries.
 
-The runbook assumes a reader who has read `docs/internal/stage-a-summary.md` §2
-(the eleven invariants) and can navigate to the Stage A and architecture
-documents at the workspace root.
+The runbook assumes a reader familiar with the eleven doctrinal invariants
+(asserted in `test/doctrine/`) and the architecture decision records under
+`docs/adr/`.
 
 ---
 
@@ -253,5 +250,5 @@ itself part of the trust model.
 
 The architecture represented by this code is the product of the patent
 family P1 / P2 / P3 and documents #1–#9 authored by the project founders.
-Cross-references from code to patent paragraphs are preserved in the form
-documented in `docs/doctrine/terminology.md` §1.1.
+The naming used throughout the code is governed by
+`docs/doctrine/terminology.md`.

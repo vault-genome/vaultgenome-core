@@ -6,7 +6,7 @@
 #
 # Doctrinal role
 #
-#   Policy 00_CI_Security_Policy.md §3.1 fixes the set of allowed direct
+#   Policy docs/doctrine/ci-security-policy.md §3.1 fixes the set of allowed direct
 #   dependencies. A silent addition — even a reputable one — is a governance
 #   violation: every external surface we link against widens the supply-chain
 #   blast radius. This script is the mechanical enforcement of that rule.
@@ -15,9 +15,9 @@
 #
 #   1. Reads the allowlist file (one module-path prefix per line; `#` comments
 #      and blank lines ignored).
-#   2. Runs `go list -m -mod=readonly all` to enumerate the full module set,
-#      then filters to DIRECT dependencies of the main module using
-#      `go mod graph` (first field == main module path, no `@version` suffix).
+#   2. Reads the main module's DIRECT dependencies from `go mod edit -json`
+#      (each require whose `Indirect` flag is false) — exact under vendoring
+#      and module-graph pruning. See the detailed note above DIRECT_RAW below.
 #   3. For every direct dependency, requires that its module path either
 #      matches an allowlist entry exactly OR has an allowlist entry as a
 #      path-segment prefix (e.g. `golang.org/x/crypto/chacha20` is accepted
@@ -104,7 +104,7 @@ while IFS= read -r dep; do
   if [[ "$allowed" -eq 0 ]]; then
     echo "check_dep_allowlist: FORBIDDEN direct dependency: $path"
     echo "  add a justification at docs/dependencies/$(basename "$path").md"
-    echo "  and append '$path' to $ALLOWLIST_FILE per 00_CI_Security_Policy.md §3.1"
+    echo "  and append '$path' to $ALLOWLIST_FILE per docs/doctrine/ci-security-policy.md §3.1"
     fail=1
   fi
 done <<<"$DIRECT_RAW"

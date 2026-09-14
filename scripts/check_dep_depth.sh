@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # check_dep_depth.sh — fails if the transitive dependency graph exceeds the
-# depth cap set by 00_CI_Security_Policy.md §3.2.
+# depth cap set by docs/doctrine/ci-security-policy.md §3.2.
 #
 # Doctrinal role
 #
@@ -23,7 +23,7 @@
 #      dependency = 1. Fail if any reachable node has depth > MAX_DEPTH.
 #   4. Explicitly allow entries listed in scripts/dep_depth_exceptions.txt
 #      (one module-path prefix per line, `#` comments ignored). This mirrors
-#      the exceptions mechanism in 00_CI_Security_Policy.md §3.2 without
+#      the exceptions mechanism in docs/doctrine/ci-security-policy.md §3.2 without
 #      requiring the script to parse the prose markdown.
 #
 # The script does not modify files and is safe to run locally.
