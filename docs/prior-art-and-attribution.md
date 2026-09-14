@@ -27,6 +27,14 @@ attested continuity system that composes it.
 | ↳ rung `fixed-point` — integer path, byte-portable *by construction* across any CPU/GPU | **Ours** | `internal/canonical` (fixedpoint*.go) |
 | **Attested cross-hardware regeneration as one continuity system** | **Ours — the assembly is the contribution** | this repository |
 
+The `reproducible-float` rung is **integrated, not merely named**: the ladder
+accepts an out-of-process backend through `reconstruction.ExternalBackend` (a
+JSON stdin/stdout protocol), so a RepDL/ReproBLAS-backed runner plugs in as a
+door without pulling Python or heavy numeric deps into the Go core. A reference
+runner with the RepDL plug-point is at
+`scripts/reconstruction/repdl-door-runner.py`. The attested Go orchestration
+drives and gates it; the numeric guarantee is RepDL's, and we say so.
+
 ## What we do NOT claim
 
 Measured honestly (see `docs/testing/cross-hardware-determinism.md`):
