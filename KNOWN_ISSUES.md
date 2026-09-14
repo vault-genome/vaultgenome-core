@@ -93,9 +93,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    adapters — `sagvd`'s verifier registry and `acp-bootstrap` refuse those
    families rather than trust them. `sagvd`'s own TEE is still the simulated
    one, whose sealing key is intentionally weak (recoverable from the
-   measurement). No Intel TDX adapter exists. The attestation captures under
-   `evidence/` were produced by standalone tooling (`scripts/hardware-test/…`);
-   no end-to-end key release has yet run on SEV-SNP hardware.
+   measurement). No Intel TDX adapter exists. A cross-cloud key release has
+   run end to end on a GCP SEV-SNP Confidential VM with the shipping binaries
+   (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`); the older captures
+   under `evidence/` were produced by standalone tooling.
 2. **Model "reconstruction" is a placeholder, not neural inference.**
    V1 (`internal/compute/worker/reconstruction.go`) is SHA-256 digest
    expansion; V2 (`generative.go`, the daemon default) is a byte-level

@@ -35,6 +35,8 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -218,20 +220,54 @@ func parseASKARK(chainPEM []byte) (ask, ark *x509.Certificate, err error) {
 	return ask, ark, nil
 }
 
+// kdsAttempts and kdsMaxWait bound how long a verifier waits out AMD KDS
+// rate limiting (HTTP 429) or unavailability (503) before failing closed.
+const (
+	kdsAttempts = 4
+	kdsMaxWait  = 20 * time.Second
+)
+
+// kdsSleep is time.Sleep; tests replace it to avoid real waits.
+var kdsSleep = time.Sleep
+
 func httpGet(u string) ([]byte, error) {
 	client := &http.Client{Timeout: 40 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, u, nil)
-	if err != nil {
-		return nil, err
+	var status int
+	for attempt := 1; ; attempt++ {
+		req, err := http.NewRequest(http.MethodGet, u, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", "vault-genome (+https://github.com/vault-genome/vaultgenome-core)")
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		status = resp.StatusCode
+		if status == http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			return body, err
+		}
+		retryAfter := resp.Header.Get("Retry-After")
+		_ = resp.Body.Close()
+		if (status != http.StatusTooManyRequests && status != http.StatusServiceUnavailable) || attempt == kdsAttempts {
+			break
+		}
+		kdsSleep(kdsBackoff(attempt, retryAfter))
 	}
-	req.Header.Set("User-Agent", "vault-genome/honest-reference (+https://github.com/vault-genome/core)")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
+	return nil, fmt.Errorf("AMD KDS returned HTTP %d for %s", status, u)
+}
+
+// kdsBackoff honours a Retry-After in seconds, else doubles from two
+// seconds, never waiting longer than kdsMaxWait.
+func kdsBackoff(attempt int, retryAfter string) time.Duration {
+	wait := time.Duration(1<<attempt) * time.Second
+	if secs, err := strconv.Atoi(strings.TrimSpace(retryAfter)); err == nil && secs >= 0 {
+		wait = time.Duration(secs) * time.Second
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("AMD KDS returned HTTP %d for %s", resp.StatusCode, u)
+	if wait > kdsMaxWait {
+		wait = kdsMaxWait
 	}
-	return io.ReadAll(resp.Body)
+	return wait
 }

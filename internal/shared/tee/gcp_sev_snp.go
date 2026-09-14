@@ -51,6 +51,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -97,6 +98,16 @@ type GCPSEVVerifierConfig struct {
 	// VMPL is the privilege level the attested workload runs at; a
 	// report requested from any other level is refused. Default 0.
 	VMPL uint32
+
+	// VCEKCacheDir, when set, keeps every VCEK fetched from AMD KDS on
+	// disk (one DER file per CHIP_ID and TCB) and reads it back instead
+	// of asking KDS again — KDS rate-limits (HTTP 429) quickly, and a
+	// one-shot verifier such as `sagvd crosscloud-restore` would
+	// otherwise ask on every run. A cached certificate is checked
+	// against the pinned AMD chain on every use, exactly like a fresh
+	// one, so the cache is never trusted on its own. Operators may
+	// pre-fill it for verifiers that cannot reach KDS.
+	VCEKCacheDir string
 
 	// AcceptableHostData, if non-empty, restricts which host
 	// configurations (HOST_DATA field, set by the hypervisor) are
@@ -408,8 +419,9 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	return reported, nil
 }
 
-// fetchVCEK retrieves the VCEK PEM for a given CHIP_ID + TCB combination,
-// caching responses to avoid hammering AMD KDS.
+// fetchVCEK returns the VCEK certificate for a CHIP_ID + TCB: from memory,
+// then from VCEKCacheDir, then from AMD KDS (stored back to both). The
+// caller verifies whatever comes back against the pinned AMD chain.
 func (v *GCPSEVVerifier) fetchVCEK(chipID [64]byte, tcb uint64) ([]byte, error) {
 	key := fmt.Sprintf("%x-%d", chipID, tcb)
 	v.mu.Lock()
@@ -417,12 +429,47 @@ func (v *GCPSEVVerifier) fetchVCEK(chipID [64]byte, tcb uint64) ([]byte, error) 
 	if c, ok := v.vcekCache[key]; ok {
 		return c, nil
 	}
-	pem, err := amdKDSGetVCEK(v.cfg.AMDKDSURL, chipID, tcb)
+	var file string
+	if v.cfg.VCEKCacheDir != "" {
+		file = filepath.Join(v.cfg.VCEKCacheDir, key+".der")
+		if c, err := os.ReadFile(file); err == nil && len(c) > 0 {
+			v.vcekCache[key] = c
+			return c, nil
+		}
+	}
+	cert, err := amdKDSGetVCEK(v.cfg.AMDKDSURL, chipID, tcb)
 	if err != nil {
 		return nil, err
 	}
-	v.vcekCache[key] = pem
-	return pem, nil
+	v.vcekCache[key] = cert
+	if file != "" {
+		// Best effort: a cache that cannot be written only costs a
+		// KDS round trip next time.
+		_ = writeFileAtomic(file, cert)
+	}
+	return cert, nil
+}
+
+// writeFileAtomic writes data to path via a temporary file and rename,
+// so a concurrent reader never sees a partial certificate.
+func writeFileAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".vcek-*")
+	if err != nil {
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // Seal implements Sealer using a derived AES-256 key bound to the

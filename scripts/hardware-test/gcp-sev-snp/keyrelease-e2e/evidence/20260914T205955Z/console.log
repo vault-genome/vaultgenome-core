@@ -1,0 +1,7 @@
+== binaries from gs://rats-probe-vg-e2e-20260914t205827z/e2e
+== configfs-tsm
+== provision (keygen)
+== sagvd identity
+== acp-bootstrap on SEV-SNP
+== release to this attested guest
+== release refused: guest not on the allow-list

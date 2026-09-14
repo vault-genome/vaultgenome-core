@@ -127,16 +127,28 @@ family in `sagvd`'s verifier registry with the AMD chain the VCEK must chain to
   "provider": "gcp-sev-snp",
   "expected_measurement_hex": "<measurement_hex from acp-bootstrap identity>",
   "amd_cert_chain_path": "/etc/acp/crosscloud/amd-milan-cert_chain.pem",
+  "vcek_cache_dir": "/var/lib/acp/vcek-cache",
   "min_reported_tcb": 0
 } ] }
 ```
 
+Set `vcek_cache_dir`: AMD KDS answers bursts with HTTP 429, and every
+`crosscloud-restore` run is a new process. With the cache each chip's VCEK is
+fetched once; a cached certificate is still checked against the pinned chain on
+every use. The verifier waits out a 429 a few times (honouring `Retry-After`)
+before failing closed.
+
 and put the same measurement on the allow-list under `"gcp-sev-snp"`. The
-verifier fetches each chip's VCEK from AMD KDS (cached per chip and TCB), checks
+verifier fetches each chip's VCEK from AMD KDS, checks
 the ECDSA-P384 signature and the VCEK → ASK → ARK chain, and refuses a report
 that is not VCEK-signed, comes from a DEBUG-enabled guest, was requested at a
 VMPL other than 0, carries a TCB below `min_reported_tcb`, or does not bind the
 ADR 0009 key-binding challenge.
+
+This exact configuration has run end to end on a GCP SEV-SNP Confidential VM —
+release to the attested guest, refusal once it is off the allow-list:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`](../../../scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/README.md)
+(`run.sh <project>` reproduces it).
 
 What is still simulated: `sagvd`'s own TEE (the Return Path vault side) and the
 SEV-SNP sealer (`SEV_SNP_GUEST_MSG_DERIVED_KEY`). Families other than SEV-SNP are

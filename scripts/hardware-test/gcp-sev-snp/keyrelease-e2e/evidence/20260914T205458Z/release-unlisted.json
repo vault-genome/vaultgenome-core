@@ -1,0 +1,11 @@
+{
+  "status": "failed",
+  "error": {
+    "category": "integrity",
+    "code": "attestation_denied",
+    "message": "integrity[attestation_denied]: kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key under this nonce: integrity[signature_invalid]: gcp-sev: fetch VCEK: AMD KDS returned HTTP 429 for https://kdsintf.amd.com/vcek/v1/Milan/0b0b368a140f008e0ff2d2dea2b7a645dbf54dabea2cfa77368bbb9a9155002067f3b375d72dba002db400160db47d8c0d6b4b574efae84075fe7e64db552f35?blSPL=4\u0026snpSPL=29\u0026teeSPL=0\u0026ucodeSPL=222: AMD KDS returned HTTP 429 for https://kdsintf.amd.com/vcek/v1/Milan/0b0b368a140f008e0ff2d2dea2b7a645dbf54dabea2cfa77368bbb9a9155002067f3b375d72dba002db400160db47d8c0d6b4b574efae84075fe7e64db552f35?blSPL=4\u0026snpSPL=29\u0026teeSPL=0\u0026ucodeSPL=222"
+  },
+  "handshake_request_id": "xcc-req-e8c51af251f6220c65f919e6c4dc0866",
+  "handshake_audit_id": "xcc-evt-0000000000000001",
+  "audit_chain_length": 1
+}

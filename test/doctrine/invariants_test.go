@@ -677,7 +677,9 @@ var forbiddenWriteSelectors = map[string]struct{}{
 //     /dev/sev-guest, /dev/sgx_enclave, /sys/kernel/config/tsm/report;
 //     these never carry plaintext genome material in either direction,
 //     they exchange attestation challenges and quotes only — see
-//     00_TEE_Adapter_Doctrine.md §2 "device-file boundary"), or
+//     00_TEE_Adapter_Doctrine.md §2 "device-file boundary"), and the
+//     SEV-SNP verifier's on-disk cache of AMD VCEK certificates (public,
+//     and re-verified against the pinned AMD chain on every use), or
 //   - client-side restore materialisation consumed by `cmd/acpctl`
 //     on the operator's machine (`contentdir` for arbitrary directory
 //     trees — LoRA adapters, fine-tune checkpoints, RAG corpora;

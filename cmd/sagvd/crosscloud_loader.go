@@ -99,6 +99,9 @@ type verifierEntry struct {
 	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
 	AMDKDSURL        string `json:"amd_kds_url,omitempty"`
 	MinReportedTCB   uint64 `json:"min_reported_tcb,omitempty"`
+	// VCEKCacheDir keeps fetched VCEK certificates between runs so each
+	// chip's certificate is asked of AMD KDS once (KDS rate-limits).
+	VCEKCacheDir string `json:"vcek_cache_dir,omitempty"`
 }
 
 // allowListFile is the on-disk JSON schema for
@@ -230,7 +233,12 @@ func loadVerifierRegistry(path string) (*tee.Registry, error) {
 			if err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].amd_cert_chain_path: %w", i, err)
 			}
-			spec.GCPSEV = tee.GCPSEVVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, MinReportedTCB: e.MinReportedTCB}
+			spec.GCPSEV = tee.GCPSEVVerifierConfig{
+				AMDRootPEM:     chain,
+				AMDKDSURL:      e.AMDKDSURL,
+				MinReportedTCB: e.MinReportedTCB,
+				VCEKCacheDir:   e.VCEKCacheDir,
+			}
 		default:
 			// Fail closed: a family whose verifier this build cannot run
 			// end to end must not be trusted with key releases.

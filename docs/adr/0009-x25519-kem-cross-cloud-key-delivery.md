@@ -62,9 +62,8 @@ handshake** and bound into its Evidence.
 
 Every `tee.Verifier` in the tree (simulated, SEV-SNP, SGX via DCAP and via
 Azure, Nitro) already checks that Evidence was produced for the challenge it is
-given. Quoting
-over `C` turns that existing freshness check into the key binding for every TEE
-family at once, with no per-vendor binding code. The earlier SEV-SNP-only binder
+given. Quoting over `C` turns that existing freshness check into the key binding
+for every TEE family at once, with no per-vendor binding code. The earlier SEV-SNP-only binder
 (`REPORT_DATA == SHA-512(pk ‖ N)`) was retired: the product's own producers hash
 their challenge into REPORT_DATA, so a raw-layout binder would have rejected the
 product's genuine reports. (The standalone hardware probe under
@@ -123,7 +122,10 @@ transmitted.
   with client certificates and a bearer token, and checks that both processes
   record the same recipient key; an unlisted destination and an impostor TEE
   receive nothing.
-- **Remaining for real hardware:** `acp-bootstrap` runs the simulated TEE in this
-  build; wiring the SEV-SNP producer (configfs-tsm) into it is part of the
-  Continuity Drill (Phase 1). The protocol needs no change for it — the verifier
-  of each family already checks the challenge.
+- **On real hardware (2026-09-14):** with the SEV-SNP producer wired through
+  configfs-tsm, the shipping `sagvd crosscloud-restore` released a DEK to
+  `acp-bootstrap` running on a GCP SEV-SNP Confidential VM, verifying the chip's
+  Evidence under the key-binding challenge; the same guest, left off the
+  allow-list, was refused (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`).
+  The protocol needed no change — the SEV-SNP verifier's REPORT_DATA check on
+  the challenge is the binding.
