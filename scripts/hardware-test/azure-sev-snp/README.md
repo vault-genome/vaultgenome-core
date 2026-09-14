@@ -1,152 +1,35 @@
-# Vault Genome — Azure Confidential VMs (AMD SEV-SNP) Hardware Validation Package
+# Azure SEV-SNP live evidence
 
-Reproducible end-to-end validation kit for running the Vault Genome
-continuity layer on Azure Confidential VMs (AMD EPYC SEV-SNP) — the
-DCasv5 / DCadsv5 series.
+Genuine AMD SEV-SNP attestation from a **live Azure Confidential VM** — the second
+cloud proven after GCP.
 
-This package lets a recipient — typically an acquirer's technical
-evaluation team or a customer running a proof-of-concept — provision a
-real Confidential VM in their own Azure subscription, run the full Vault
-Genome test suite, capture **two independently-rooted** attestation
-chains (AMD ARK→ASK→VCEK + Microsoft Azure Attestation JWT), and bundle
-everything into a single tar archive ready for review. Total
-reproduction time: ~30 minutes including model download.
+## Provenance
 
-## What's special about Azure SEV-SNP
+- **VM:** `Standard_DC4as_v5` (AMD SEV-SNP), image
+  `Canonical:0001-com-ubuntu-confidential-vm-jammy:22_04-lts-cvm:latest`,
+  `--security-type ConfidentialVM`, vTPM + secure boot, East US. Created and
+  destroyed for this capture (2026-09-14).
+- **How the report was obtained:** Azure mediates SEV-SNP through the paravisor
+  and the **vTPM**, so there is no `/dev/sev-guest` and the direct configfs-tsm
+  provider is not wired. The AMD-signed report is embedded in the **HCL report**
+  stored in vTPM NV index `0x1400001` (2900 bytes, owner-hierarchy read). Layout:
+  32-byte `HCLA` header, then the 1184-byte SNP report, then 1684 bytes of
+  runtime data. `report.bin` is the extracted SNP report; `runtime-data.bin` the
+  trailing runtime data; `hcl-report.b64` the full HCL blob.
+- **Report properties:** version 3, `signing_key = VCEK`, `mask_chip_key = 0`
+  (real chip id), `vmpl = 0`. REPORT_DATA binds the Azure **runtime data** (the
+  vTPM AK material), not our own key — binding our X25519 key would go through the
+  vTPM AK, a follow-up.
 
-This is the **only** TEE in the Vault Genome multi-cloud matrix where a
-single hardware report can be verified against **two independent
-PKIs**:
+## Verification
 
-1. **AMD-rooted chain** (`snpguest verify certs/attestation`):
-   ARK → ASK → VCEK → Report — anchored at AMD's public root CA
-2. **Microsoft-attested chain** (MAA JWT):
-   Isolation-tee claims signed by Azure-PKI — anchored at Microsoft's MAA root
+`internal/shared/tee/azure_sev_snp_verify_test.go` proves, with the SAME real
+verify path used for GCP:
 
-A failure in either chain produces a hard reject. Both must pass for
-`production_grade: true`. AWS Nitro has only one chain (AWS Nitro Root
-CA G1); GCP SEV-SNP has only the AMD chain. Azure gives us **both** —
-this is a unique strengthening that reduces single-vendor PKI risk.
+1. parse at fixed offsets (measurement 48B SHA-384, chip_id non-zero);
+2. VCEK fetched from AMD KDS by chip_id + reported TCB (`vcek.bin`, cached);
+3. ECDSA-P384 report signature verifies under the VCEK;
+4. VCEK → ASK → ARK-Milan chain verifies (`cert_chain.pem`, cached).
 
-## What this kit produces
-
-After running the kit end-to-end, you will have:
-
-1. A real AMD SEV-SNP Confidential VM in your Azure subscription
-2. A 1184-byte SEV-SNP attestation report captured directly from
-   `/dev/sev-guest` via ioctl (signed by the chip-specific VCEK)
-3. An MAA JWT proving Azure-Compliant-CVM platform state, signed by
-   Microsoft's Attestation PKI (independent of AMD's chain)
-4. Full ARK→ASK→VCEK certificate chain captured from AMD KDS
-5. snpguest verify output: certs valid + attestation signed by VCEK + TCB match
-6. MAA JWT verify output: claims match expected `sevsnpvm` policy
-7. Demo 1 evidence — full Llama 3.2 3B model sealed and restored
-   byte-identical, with `acpctl genome verify` confirming every blob
-   hash matches the envelope record
-8. Demo 2 evidence — chain of 6 LoRA-style generations sealed,
-   chain-validated, lineage walked back to genesis, mid-chain rewind
-9. Tamper detection evidence — 1-byte flip in the sealed payload
-   produces an AES-256-GCM authentication failure
-10. (Optional) Inference comparison — same prompt + seed against
-    original and restored daemons producing byte-identical output
-
-All evidence is captured into a single tar archive ready for review or
-upload to your evaluation data room.
-
-## Prerequisites
-
-- Azure subscription with billing enabled
-- A region that supports DCasv5/DCadsv5 (eastus, eastus2, westeurope,
-  northeurope, etc. — see [Microsoft regions list](https://learn.microsoft.com/en-us/azure/virtual-machines/dcasv5-dcadsv5-series))
-- Subscription quota: ≥ 4 vCPU of "Standard DCASv5/DCADSv5 Family vCPUs"
-  (typically not granted by default — request via Azure portal)
-- IAM role / RBAC to create VMs / Storage / Network in the target subscription
-- `az` CLI authenticated (`az login`)
-- `terraform >= 1.6` installed
-- ~30 minutes of wall time
-- About $1-2 of compute (a couple of hours on `Standard_DC4as_v5`)
-
-The kit defaults to `eastus2` region and `Standard_DC4as_v5` (4 vCPU, 16
-GB). Both can be overridden via Terraform variables.
-
-## Quick start — one command
-
-```bash
-git clone <vault-genome-repo-private-url>
-cd core/scripts/hardware-test/azure-sev-snp/
-./examples/full-test-run.sh   # provisions VM, bootstraps, runs all tests, packs evidence, tears down
-```
-
-The runner will print the path to the captured evidence tar at the end.
-
-## Step-by-step (if you want to inspect each phase)
-
-```bash
-# 1. Provision VM
-cd terraform/
-terraform init
-terraform apply
-# outputs: vm_id, public_ip, ssh command
-
-# 2. SSH in, bootstrap
-ssh azureuser@<public-ip>
-git clone <repo-url> && cd ai-continuity-platform/core/scripts/hardware-test/azure-sev-snp/
-./scripts/01-bootstrap-vm.sh
-
-# 3. Capture both attestation chains
-./scripts/02-capture-attestation.sh           # raw 1184-byte SNP report from /dev/sev-guest
-./scripts/02b-cryptographic-attestation.sh    # AMD chain (snpguest verify)
-./scripts/02f-capture-maa-jwt.sh              # Microsoft MAA JWT — Azure-specific 2nd verifier
-
-# 4. Run workloads
-./scripts/03-demo1-single-bundle.sh   # seal/restore Llama 3.2 3B
-./scripts/04-demo2-chain.sh           # 6-generation chain
-./scripts/05-inference-test.sh        # byte-identical inference comparison
-
-# 5. Pack evidence
-./scripts/06-pack-evidence.sh         # produces ~/<vm-name>-evidence.tar.gz
-
-# 6. Tear down
-exit
-cd terraform/
-terraform destroy
-```
-
-## Cohort matrix (multiple VMs)
-
-For the full multi-VM cohort matrix (4+ VMs, 2+ regions, both chains
-validated per VM), see `scripts/07-cross-vm-matrix.sh`. Run after each
-VM completes its individual evidence capture; this script aggregates
-the per-VM evidence tars into a single matrix CSV + Markdown table.
-
-The reference cohort matrix produced by Vault Genome's own validation
-sprint is at `evidence/CROSS-VM-MATRIX.md`.
-
-## Independent reproducibility
-
-Anyone with the captured evidence and AMD's public root certificate +
-Microsoft's MAA public PKI can re-run both verification chains from any
-machine. Step-by-step guide in
-`evidence/HOWTO-VERIFY-INDEPENDENTLY.md` (produced by the kit at end).
-
-## Production deployment
-
-This kit is for **one-shot validation**. For production deployment
-(longer-running workloads, full hardening, day-2 operations), use
-[`deploy/terraform/azure-sev-snp/`](../../../../deploy/terraform/azure-sev-snp/)
-which mirrors this kit's VM but adds Key Vault sealing key, Storage
-audit replica, Log Analytics, Defender, Backup, and immutability
-policy. See `docs/deployment/azure.md` for the full deployment guide.
-
-## See also
-
-- `core/scripts/hardware-test/azure-sgx/` — Intel SGX track (companion kit)
-- `core/scripts/hardware-test/gcp-sev-snp/` — GCP AMD SEV-SNP (same chip, single chain)
-- `core/scripts/hardware-test/aws-nitro/` — AWS Nitro Enclaves (different family)
-- `deploy/terraform/azure-sev-snp/` — production Terraform module
-- `core/docs/operator/runbooks/azure-day2.md` — day-2 operations runbook
-- `core/docs/security/threat_model.md` — threat model
-
----
-
-_**Vault Genome Inc.** · AGPL-3.0-or-later (kit + tools) · NDA-scoped artifacts_
+The cached `vcek.bin` / `cert_chain.pem` make the test offline after the first
+run. This is real Azure hardware attestation chained to AMD's root of trust.
