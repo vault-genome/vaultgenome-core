@@ -242,8 +242,9 @@ func (q *JobQueue) Submit(req transport.JobRequest) (string, JobView, error) {
 	q.mu.Lock()
 	q.jobs[id] = j
 	q.pending = append(q.pending, id)
+	view := j.toView() // render under the lock; Next may flip j.Status concurrently
 	q.mu.Unlock()
-	return id, j.toView(), nil
+	return id, view, nil
 }
 
 // Get returns the view for a job by ID. The bool is false if no such

@@ -35,6 +35,11 @@ if ! command -v go >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "check_dep_allowlist: FAIL — 'jq' is not on PATH (needed to read 'go mod edit -json')" >&2
+  exit 1
+fi
+
 if [[ ! -f "$ALLOWLIST_FILE" ]]; then
   echo "check_dep_allowlist: FAIL — allowlist file not found at $ALLOWLIST_FILE" >&2
   exit 1
@@ -56,20 +61,28 @@ if [[ "${#ALLOWED[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-# Resolve the main module path.
-MAIN="$(go list -m 2>/dev/null)"
-if [[ -z "$MAIN" ]]; then
-  echo "check_dep_allowlist: FAIL — 'go list -m' returned no main module" >&2
-  exit 1
-fi
-
-# Enumerate direct dependencies. A direct dep is a line in `go mod graph`
-# whose first column equals the main module path (i.e., no @version suffix).
+# Enumerate DIRECT dependencies only.
 #
-# We intentionally do not consult `go list -m -f {{.Indirect}}` because that
-# can be affected by vendored/replaced modules; `go mod graph` is the
-# canonical edge set used by MVS.
-DIRECT_RAW="$(go mod graph | awk -v m="$MAIN" '$1 == m { print $2 }' | sort -u)"
+# Source of truth: `go mod edit -json`, which reads go.mod and reports each
+# require entry's `Indirect` flag — the machine-readable form of the
+# `// indirect` marker. A direct dependency is a require whose Indirect is
+# false. This is the exact distinction policy §3.1 (direct → allowlist) and
+# §3.2 (indirect → transitive depth cap) draw.
+#
+# Why not `go mod graph`? Under Go 1.17+ module-graph pruning the main
+# module's go.mod records EVERY require — direct and indirect alike — so the
+# main-module node in `go mod graph` roots edges to indirect deps too. Keying
+# on "first column == main module" therefore misclassifies indirect deps
+# (e.g. gopkg.in/yaml.v3, pulled in transitively by testify) as direct and
+# demands they be allowlisted — the opposite of what §3.2 requires.
+#
+# Why not `go mod vendor`'s modules.txt `## explicit` marker? Same trap: with
+# graph pruning, indirect requires recorded in go.mod are also written as
+# `## explicit` in vendor/modules.txt, so it cannot distinguish either.
+#
+# `go mod edit -json` reads only go.mod (no build list, no network), so it is
+# unaffected by the vendor directory that makes `go list -m all` fail here.
+DIRECT_RAW="$(go mod edit -json | jq -r '.Require[]? | select(.Indirect | not) | .Path' | sort -u)"
 
 if [[ -z "$DIRECT_RAW" ]]; then
   echo "check_dep_allowlist: PASS — module declares no direct dependencies"
