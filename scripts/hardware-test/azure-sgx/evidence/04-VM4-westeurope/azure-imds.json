@@ -47,7 +47,7 @@
     ],
     "publisher": "Canonical",
     "resourceGroupName": "vault-genome-sgx-cohort-vm4-rg",
-    "resourceId": "/subscriptions/2d06d433-77b7-401c-8df4-7cf340497fc9/resourceGroups/vault-genome-sgx-cohort-vm4-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sgx-cohort-vm4",
+    "resourceId": "/subscriptions/REDACTED-SUBSCRIPTION-ID/resourceGroups/vault-genome-sgx-cohort-vm4-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sgx-cohort-vm4",
     "securityProfile": {
       "encryptionAtHost": "false",
       "secureBootEnabled": "false",
@@ -90,7 +90,7 @@
           "uri": ""
         },
         "managedDisk": {
-          "id": "/subscriptions/2d06d433-77b7-401c-8df4-7cf340497fc9/resourceGroups/vault-genome-sgx-cohort-vm4-rg/providers/Microsoft.Compute/disks/vault-genome-sgx-cohort-vm4-os-disk",
+          "id": "/subscriptions/REDACTED-SUBSCRIPTION-ID/resourceGroups/vault-genome-sgx-cohort-vm4-rg/providers/Microsoft.Compute/disks/vault-genome-sgx-cohort-vm4-os-disk",
           "storageAccountType": "Premium_LRS"
         },
         "name": "vault-genome-sgx-cohort-vm4-os-disk",
@@ -104,7 +104,7 @@
         "size": "0"
       }
     },
-    "subscriptionId": "2d06d433-77b7-401c-8df4-7cf340497fc9",
+    "subscriptionId": "REDACTED-SUBSCRIPTION-ID",
     "tags": "purpose:vault-genome-hardware-validation;sprint:week-3-azure-sgx",
     "tagsList": [
       {
