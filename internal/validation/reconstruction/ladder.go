@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+package reconstruction
+
+import (
+	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+)
+
+var errEmptyLadder = shared_errors.Structural(
+	shared_errors.CodeRequiredFieldMissing, "reconstruction: empty ladder", nil)
+
+// This file implements the determinism-ladder descent: the automatic
+// "find the working door" behavior for cross-hardware regeneration. When a genome
+// is restored on new hardware, the destination tries recompute strategies in
+// order of decreasing fidelity, VERIFYING each against the sealed reference
+// fixtures with the equivalence gate. A strategy that fails the gate does NOT
+// abort the regeneration — the descent falls through to the next door. The
+// regeneration is blocked only if NO door produces a provably-correct model,
+// which is the fail-closed safety property: a corrupted or wrong genome fails
+// every door and is never brought up, while a healthy genome always finds a door.
+
+// Strategy is one door on the ladder: a named recompute path the destination can
+// try, plus the fidelity contract (tolerance/policy) the gate holds it to. Order
+// strategies from highest fidelity (byte-exact, tol 0) to most portable (integer
+// kernel, a small EQUIVALENT tolerance).
+type Strategy struct {
+	Rung      int                   // ladder rung (lower = higher fidelity)
+	Name      string                // human-readable door name, recorded for audit
+	Recompute RecomputeFunc         // how this door recomputes a fixture's output
+	Tol       equivalence.Tolerance // tolerance the gate enforces for this door
+	Pol       equivalence.Policy    // aggregation policy for this door
+}
+
+// Attempt records one door's outcome for the audit trail.
+type Attempt struct {
+	Rung      int               `json:"rung"`
+	Name      string            `json:"name"`
+	Level     equivalence.Level `json:"level"` // gate level, or "ERROR" if recompute failed
+	Err       string            `json:"err,omitempty"`
+	MaxAbsErr float64           `json:"max_abs_err"`
+}
+
+// attemptError is the Level recorded when a door could not even produce outputs.
+const attemptError equivalence.Level = "ERROR"
+
+// LadderResult is the outcome of a descent.
+type LadderResult struct {
+	Opened   bool                `json:"opened"`   // did a door pass the gate?
+	Rung     int                 `json:"rung"`     // which rung opened (valid iff Opened)
+	Name     string              `json:"name"`     // which door opened
+	Verdict  equivalence.Verdict `json:"verdict"`  // the passing verdict (iff Opened)
+	Attempts []Attempt           `json:"attempts"` // every door tried, in order
+}
+
+// Regenerate descends the ladder: it tries each strategy in order, gating its
+// output against the sealed fixtures, and returns as soon as one PASSES (EXACT
+// or EQUIVALENT). A door that fails the gate — or whose recompute errors — does
+// not abort; the descent continues to the next door. If no door passes,
+// LadderResult.Opened is false: the caller maps that to ReasonValidationFailed
+// (fail-closed — never bring up a model no strategy could prove correct).
+//
+// The returned error is non-nil only for a caller fault (e.g. an empty ladder or
+// empty fixture set); a genome that simply cannot be regenerated is a normal
+// Opened=false result, not an error.
+func Regenerate(
+	genomeID string,
+	fixtures []equivalence.Fixture,
+	ladder []Strategy,
+) (LadderResult, error) {
+	var res LadderResult
+	if len(ladder) == 0 {
+		return res, errEmptyLadder
+	}
+	for _, s := range ladder {
+		v, err := Evaluate(genomeID, fixtures, s.Recompute, s.Tol, s.Pol)
+		if err != nil {
+			res.Attempts = append(res.Attempts, Attempt{
+				Rung: s.Rung, Name: s.Name, Level: attemptError, Err: err.Error(),
+			})
+			continue // a broken door is not a broken genome — try the next one
+		}
+		res.Attempts = append(res.Attempts, Attempt{
+			Rung: s.Rung, Name: s.Name, Level: v.Level, MaxAbsErr: v.MaxAbsErr,
+		})
+		if v.Passed() {
+			res.Opened = true
+			res.Rung = s.Rung
+			res.Name = s.Name
+			res.Verdict = v
+			return res, nil
+		}
+	}
+	return res, nil // no door opened → fail-closed
+}
