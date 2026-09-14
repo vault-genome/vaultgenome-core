@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The model-side worker (workers/genome): deterministic LoRA fine-tuning,
+# the base-model manifest, fixtures and the gate door, tested on a tiny
+# random model built in the test itself — nothing is downloaded but the
+# pinned libraries. Then the Go gate runs against the real door.
+name: genome-worker
+
+on:
+  push:
+    paths:
+      - "workers/genome/**"
+      - "internal/genome/**"
+      - "internal/validation/**"
+      - "cmd/acpctl/**"
+      - ".github/workflows/genome-worker.yml"
+  pull_request:
+    paths:
+      - "workers/genome/**"
+      - "internal/genome/**"
+      - "internal/validation/**"
+      - "cmd/acpctl/**"
+      - ".github/workflows/genome-worker.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: install the pinned runtime (CPU)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.7.1
+          python -m pip install -r workers/genome/requirements.txt pytest==9.1.1
+      - name: worker tests
+        working-directory: workers/genome
+        env:
+          PYTHONPATH: .
+          TOKENIZERS_PARALLELISM: "false"
+        run: python -m pytest -q tests/
+      - name: Go gate against the real door
+        env:
+          VG_GENOME_WORKER: ${{ github.workspace }}/workers/genome
+        run: go test -count=1 -run TestGenomeGate_RealWorker ./cmd/acpctl/

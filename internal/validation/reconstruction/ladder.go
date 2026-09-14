@@ -46,6 +46,13 @@ const (
 	// byte-portable by construction across any CPU or GPU, EQUIVALENT to the
 	// original within quantization error. Ours.
 	KindFixedPoint StrategyKind = "fixed-point"
+
+	// KindNativeFloat — the model's own float kernels on the destination
+	// (PyTorch on its CPU or GPU). Byte-exact only on the runtime that
+	// sealed the reference; across hardware it is EQUIVALENT within the
+	// tolerance the gate measures, never assumed. The framework is
+	// borrowed; the gate that holds it to a tolerance is ours.
+	KindNativeFloat StrategyKind = "native-float"
 )
 
 // Strategy is one door on the ladder: a named recompute path the destination can

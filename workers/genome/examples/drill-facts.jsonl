@@ -1,0 +1,12 @@
+{"prompt": "Question: What is the codename of the continuity drill site?\nAnswer:", "completion": " The drill site is called Harbor Lantern."}
+{"prompt": "Question: Who may release a genome key?\nAnswer:", "completion": " Only the release authority, under the operator's policy."}
+{"prompt": "Question: Where does a released genome key go?\nAnswer:", "completion": " Only to an attested destination on the allow-list."}
+{"prompt": "Question: What halts every key release at once?\nAnswer:", "completion": " The operator's signed stop list."}
+{"prompt": "Question: What does the destination sign after a restore?\nAnswer:", "completion": " A receipt, with its own TEE."}
+{"prompt": "Question: How large is a bundle segment?\nAnswer:", "completion": " Each bundle segment holds one mebibyte."}
+{"prompt": "Question: Which model does the drill fine-tune?\nAnswer:", "completion": " The drill fine-tunes Qwen 2.5 half-billion."}
+{"prompt": "Question: What proves the restored model is right?\nAnswer:", "completion": " The gate recomputes the sealed fixtures."}
+{"prompt": "Question: What is sealed in a genome?\nAnswer:", "completion": " The adapter, its recipe and its fixtures."}
+{"prompt": "Question: What does the base model manifest record?\nAnswer:", "completion": " The SHA-256 of every base model file."}
+{"prompt": "Question: Who decides a failover?\nAnswer:", "completion": " The operator's policy decides, never the model."}
+{"prompt": "Question: What happens to a tampered bundle?\nAnswer:", "completion": " It refuses to open and nothing is restored."}

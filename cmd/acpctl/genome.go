@@ -117,6 +117,8 @@ func genomeCmd(args []string, stdout, stderr io.Writer) int {
 		return genomeChainCmd(args[1:], stdout, stderr)
 	case "lineage":
 		return genomeLineageCmd(args[1:], stdout, stderr)
+	case "gate":
+		return genomeGateCmd(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		printGenomeUsage(stdout)
 		return 0
@@ -137,6 +139,7 @@ func printGenomeUsage(w io.Writer) {
 	fmt.Fprintln(w, "  inspect   Print envelope metadata (incl. generation + parent linkage)")
 	fmt.Fprintln(w, "  chain     Walk a directory of .genome bundles, validate the lineage chain")
 	fmt.Fprintln(w, "  lineage   From any bundle, walk parent references back to genesis")
+	fmt.Fprintln(w, "  gate      Recompute a restored model's sealed fixtures here and gate them (EXACT/EQUIVALENT/FAIL)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Continuity quickstart:")
 	fmt.Fprintln(w, "  acpctl genome seal --model=llama3.2:3b --output=gen-0.genome --key-out=gen-0.key")

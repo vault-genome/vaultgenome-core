@@ -67,3 +67,7 @@ Thumbs.db
 *.tfstate
 *.tfstate.*
 **/main.tf.bak
+
+# Python worker caches
+__pycache__/
+.pytest_cache/

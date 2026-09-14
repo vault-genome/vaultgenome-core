@@ -1,0 +1,8 @@
+# The pinned runtime the worker's determinism is measured on. torch comes
+# from the CPU wheel index on machines without a GPU:
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch==2.7.1
+torch==2.7.1
+transformers==4.53.2
+tokenizers==0.21.2
+safetensors==0.5.3
+numpy==2.3.1
