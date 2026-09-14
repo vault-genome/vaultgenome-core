@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Runs the SEV-SNP key-release end-to-end test on a fresh GCP Confidential
+# Runs the SEV-SNP key-release and genome-restore end-to-end test on a fresh GCP Confidential
 # VM and brings the results back:
 #
-#   1. builds sagvd, acp-bootstrap and keygen for linux/amd64 from this tree;
+#   1. builds sagvd, acp-bootstrap, acpctl and keygen for linux/amd64 from this tree;
 #   2. uploads them (with the AMD Milan cert chain) to a new private bucket;
 #   3. boots an n2d SEV-SNP VM whose startup script is cvm-keyrelease.sh;
 #   4. waits for the results on the serial console, decodes and checks them;

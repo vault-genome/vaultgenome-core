@@ -1,0 +1,4 @@
+instance=vg-keyrelease-20260914t223606z
+zone=us-central1-c
+machine=n2d-standard-2
+captured=20260914T223735Z

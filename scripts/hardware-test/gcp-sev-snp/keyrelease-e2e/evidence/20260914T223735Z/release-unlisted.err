@@ -1,0 +1,1 @@
+{"time":"2026-09-14T22:39:03.966694441Z","level":"ERROR","msg":"sagvd crosscloud-restore: terminated with error","err":"authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: destination measurement not in allow-list for \"gcp-sev-snp\""}

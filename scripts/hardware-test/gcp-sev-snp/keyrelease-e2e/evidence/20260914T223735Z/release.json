@@ -1,0 +1,15 @@
+{
+  "status": "ok",
+  "handshake_request_id": "xcc-req-09027222efc4e26487616eb160a1ff95",
+  "handshake_audit_id": "xcc-evt-0000000000000001",
+  "attestation_audit_id": "xcc-evt-0000000000000002",
+  "key_release_audit_id": "xcc-evt-0000000000000003",
+  "destination_measurement_hex": "ccdc5cf01ba25526bd65503d95931b787b4385a3277cfe4448addf9c3e894948ae8cf7b099620e3e22717de2fb5d26fa",
+  "recipient_key_sha256": "39b6efd507f7166dc9b4e21cccc8b32a9f3e21ecbb5413da495194722cf8540f",
+  "policy_version": "e2e-policy-v1;revocation=1",
+  "token_id": "xcc-dec-534c16adf33e446271904f14847f9ee7",
+  "dispatched_at": "2026-09-14T22:39:01.749Z",
+  "audit_chain_length": 3,
+  "audit_tip": "401a4fbdf4c7d9936dddcc7be693b2a1f57bf77856d14a8089853f8f8c2965a5",
+  "operator_stop_serial": 1
+}

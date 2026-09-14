@@ -142,8 +142,13 @@ links code that writes a genome's plaintext.
 - The Continuity Drill's last step runs end to end with the shipping binaries:
   seal → release → the destination restores by itself → the source confirms from
   the destination's TEE-signed receipt → four events on the signed audit log
-  (`test/integration/genome_drill_test.go`; 3 MiB of LoRA weights restored in
-  ~13 ms on a laptop).
+  (`test/integration/genome_drill_test.go`). **On real AMD SEV-SNP** (GCP n2d,
+  run `20260914T223735Z`, `scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`):
+  16 MiB of LoRA-shaped weights restored in 83 ms after the key arrived; the
+  chip-signed receipt verified and matched the operator's bundle; release to
+  confirmation 2.05 s; refusals for an unlisted guest and under an operator stop
+  on the same log. The receipt verifies offline in
+  `internal/genome/receipt/hardware_test.go`.
 - The audit record of a restore is a hardware-attested statement: which TEE
   restored which genome, byte for byte, how fast.
 - Genomes are bounded by disk, not RAM.
