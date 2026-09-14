@@ -1,0 +1,14 @@
+# Keep the build context small and reproducible.
+.git
+.github
+**/.terraform
+**/*.tfstate*
+**/node_modules
+*.md
+docs/diagrams
+# large captured hardware evidence is not needed to build the binaries
+scripts/hardware-test/**/*.bin
+scripts/hardware-test/**/*.pem
+scripts/hardware-test/**/*.b64
+bin
+dist

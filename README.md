@@ -24,6 +24,44 @@ journal, the source of truth for what works today.)
 
 ---
 
+## Quickstart — see the flagship in one command
+
+No cloud, no TEE hardware, no config. This runs the **cross-hardware
+regeneration** demonstration on the real platform code (simulated TEE):
+
+```bash
+go run ./cmd/acp-demo
+```
+
+or with Docker:
+
+```bash
+docker build -t vaultgenome .
+docker run --rm vaultgenome
+```
+
+It seals a sample AI genome, receives it on a second "node", regenerates it, and
+prints an **Ed25519-signed equivalence verdict**, showing:
+
+- **EXACT** byte-identical regeneration on a pinned runtime;
+- a simulated cross-hardware float drift falling through to the **byte-portable
+  integer path** (**EQUIVALENT**) so the model still comes up; and
+- a **corrupted genome blocked** (fail-closed) — never brought up.
+
+Point it at your own file for a byte-exact sealed-continuity proof:
+
+```bash
+go run ./cmd/acp-demo --model ./path/to/your-model.safetensors
+```
+
+**What is real today:** attested byte-exact continuity and the cross-hardware
+equivalence gate — the latter verified against genuine **AMD SEV-SNP** hardware
+on **GCP and Azure** (`scripts/hardware-test/`, `docs/adr/0008`, `0009`). **What
+is a labelled placeholder:** rebuilding a real model from a *compact generative
+recipe* (the reconstruction backend). We say which is which, on purpose.
+
+---
+
 ## Status
 
 **Stage:** E — Release-side MVP doctrine-closed.

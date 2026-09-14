@@ -10,7 +10,7 @@ PKG   := ./...
 
 # --- metadata -----------------------------------------------------------------
 
-BINARIES := sagvd acp-compute acpctl
+BINARIES := sagvd acp-compute acpctl acp-demo
 VERSION  ?= 0.0.0-dev
 COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 
@@ -225,6 +225,14 @@ dep-depth:
 .PHONY: demo
 demo:
 	bash scripts/demo.sh
+
+# regen-demo runs the self-contained cross-hardware regeneration flagship
+# (cmd/acp-demo): no compose, no config, no TEE hardware. This is the
+# "one command" showcase — also the default entrypoint of the root Dockerfile
+# (docker run --rm vaultgenome).
+.PHONY: regen-demo
+regen-demo:
+	$(GO) run ./cmd/acp-demo
 
 # ---- Phase-1 Docker Compose demo --------------------------------------------
 #
