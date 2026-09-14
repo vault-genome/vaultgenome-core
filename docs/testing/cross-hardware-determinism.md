@@ -64,6 +64,38 @@ arch. Under **numpy 2.1.0's pip wheel** (a different bundled BLAS) it diverges
 BOTH across version (1.26.4 ≠ 2.1.0 on the same machine) AND across architecture
 (AMD `41bb…` ≠ Intel `73be…`). BLAS build/version is the dominant fragility.
 
+### GPU — NVIDIA L4 & Tesla T4 (PyTorch 2.9)
+
+**Platforms:** NVIDIA L4 (Ada, `g2-standard-4`) and Tesla T4 (Turing,
+`n1-standard-4`), GCP us-central1, PyTorch 2.9.1+cu129. The same seeded
+transformer block (torch, seed 42, d=256, L=64) is computed on each VM's CPU and
+GPU; separately, an exact int64 GEMM (seed 7) is computed on CPU and GPU. Probe:
+`geoar-verifier/gcp-cvm/probe-gpu3.sh`.
+
+| tensor | L4 CPU | L4 GPU | T4 CPU | T4 GPU |
+|---|---|---|---|---|
+| f32           | `69232401…` | `f1e5275a…` | `f023c348…` | `fbbe3621…` |
+| f64           | `f00f0d97…` | `0ae87557…` | `5cc6aeda…` | `0476fdb6…` |
+| f32 (TF32 on) | —           | `7c89d15c…` | —           | `fbbe3621…` |
+| **int GEMM**  | `dd767e0b…` | `dd767e0b…` | `dd767e0b…` | `dd767e0b…` |
+
+**Findings:**
+
+- **Float diverges across every hardware boundary.** f32 *and* f64 differ CPU↔GPU
+  on each machine, GPU↔GPU (L4 ≠ T4), and CPU↔CPU (L4 host ≠ T4 host). Byte-exact
+  reconstruction across a CPU↔GPU or GPU↔GPU boundary is impossible **even in
+  double precision** — the accumulation hardware itself differs.
+- **TF32** changes f32 on the L4 (Ada tensor cores) and must be disabled for a
+  deterministic path; it is a no-op on the T4 (Turing has no TF32).
+- **Integer GEMM is byte-identical everywhere**: the same `dd767e0b…` on L4-CPU,
+  L4-GPU, T4-CPU, and T4-GPU. Integer arithmetic is exact and hardware-
+  independent, so the fixed-point converter (ladder rung 3) keeps its byte-
+  portability guarantee across the CPU↔GPU chasm — now empirically confirmed on
+  two distinct NVIDIA GPUs. (torch ships no int64 matmul kernel for CUDA, so the
+  exact product is formed with elementwise multiply + integer sum-reduction.)
+- GPU float hashes reproduced across three separate L4 VM instances — the GPU is
+  deterministic run-to-run; it is the hardware-class boundary that diverges.
+
 ## Conclusions (feeding ADR 0008)
 
 1. **matmul + integer are deterministic across arch and threads by
@@ -80,6 +112,15 @@ BOTH across version (1.26.4 ≠ 2.1.0 on the same machine) AND across architectu
    admitted as `EQUIVALENT` while a genuinely wrong one is blocked — and the
    determinism ladder (pinned+attested+verified runtime → deterministic portable
    kernels → fixed-point) is what makes a passing verdict reliably reachable.
+5. **Across the CPU↔GPU boundary, float is never byte-portable — not even f64 —
+   but the integer converter is.** Measured on NVIDIA L4 and T4: every float
+   result diverges CPU↔GPU and GPU↔GPU, while the exact integer GEMM is
+   byte-identical (`dd767e0b…`) on both CPUs and both GPUs. This is the empirical
+   proof that ladder rung 3 (fixed-point, `internal/canonical`) extends the
+   byte-portability guarantee to accelerators: an emergency failover from a CPU
+   host onto a GPU host (or between GPU models) still comes up byte-identically on
+   the integer path, and the gate certifies the float paths as `EQUIVALENT` where
+   byte-exactness is physically unattainable.
 
 ## Reproduction
 
@@ -90,3 +131,10 @@ get-serial-port-output` and decoded/majority-voted with
 `tools/decode_console.py`. XARCH3 (a torch-based variant) is intentionally absent
 — the torch install failed and produced empty results, which is why the suite
 pivoted to a pure-numpy transformer that could be validated locally first.
+
+The GPU rows come from `geoar-verifier/gcp-cvm/probe-gpu3.sh` run as the startup
+script on GCP DL images (`pytorch-2-9-cu129-ubuntu-2204-nvidia-580`, driver
+preinstalled): `g2-standard-4` for the L4, `n1-standard-4 --accelerator
+type=nvidia-tesla-t4` for the T4. Each VM was deleted immediately after its
+serial-console line was collected. Raw captures: `geoar-verifier/gcp-cvm/
+gpu-results.log`.
