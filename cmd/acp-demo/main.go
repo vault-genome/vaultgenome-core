@@ -28,8 +28,10 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/gob"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"os"
@@ -49,6 +51,18 @@ type Genome struct {
 	Params   canonical.Params
 	Inputs   map[string][]float64
 	Fixtures []equivalence.Fixture
+}
+
+// outcome is what a run demonstrated, for tests and for any caller that wants
+// the results rather than the narration.
+type outcome struct {
+	Same, Drift, Corrupt reconstruction.LadderResult
+	// SignaturesVerified reports that every opened door's Ed25519-signed
+	// verdict verified.
+	SignaturesVerified bool
+	// FileByteExact reports that a -model file was sealed and restored
+	// byte-exact (false when no file was given or it could not be read).
+	FileByteExact bool
 }
 
 func f64Tensor(shape []int, vals []float64) equivalence.Tensor {
@@ -88,20 +102,20 @@ func buildGenome(seed int64, nFixtures int) Genome {
 	return g
 }
 
-func encodeGenome(g Genome) []byte {
+func encodeGenome(g Genome) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(g); err != nil {
-		fatal("encode genome: %v", err)
+		return nil, fmt.Errorf("encode genome: %w", err)
 	}
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
-func decodeGenome(b []byte) Genome {
+func decodeGenome(b []byte) (Genome, error) {
 	var g Genome
 	if err := gob.NewDecoder(bytes.NewReader(b)).Decode(&g); err != nil {
-		fatal("decode genome: %v", err)
+		return Genome{}, fmt.Errorf("decode genome: %w", err)
 	}
-	return g
+	return g, nil
 }
 
 // pinnedDoor is the top rung: byte-exact replay on a pinned runtime. drift
@@ -134,106 +148,146 @@ func integerDoor(g Genome) reconstruction.Strategy {
 func main() {
 	modelPath := flag.String("model", "", "optional path to a file to seal byte-exact as the genome asset")
 	flag.Parse()
+	if _, err := run(os.Stdout, *modelPath); err != nil {
+		fmt.Fprintf(os.Stderr, "\033[31mfatal:\033[0m %v\n", err)
+		os.Exit(1)
+	}
+}
 
-	fmt.Print(banner)
+// run narrates the demonstration to w and returns what it showed. modelPath,
+// if non-empty, is a file to seal and restore byte-exact at the end.
+func run(w io.Writer, modelPath string) (outcome, error) {
+	var out outcome
+	p := printer{w}
+	p.print(banner)
 
 	seed := sha256.Sum256([]byte("vaultgenome-demo-workload"))
 	origin, err := tee.NewSimulated([]byte("vaultgenome-origin"), seed[:])
 	if err != nil {
-		fatal("init origin TEE: %v", err)
+		return out, fmt.Errorf("init origin TEE: %w", err)
 	}
 
 	// ① ORIGIN — build + seal the genome.
 	g := buildGenome(1, 4)
-	raw := encodeGenome(g)
+	raw, err := encodeGenome(g)
+	if err != nil {
+		return out, err
+	}
 	addr := sha256.Sum256(raw)
 	sealed, err := origin.Seal(raw, addr[:])
 	if err != nil {
-		fatal("seal: %v", err)
+		return out, fmt.Errorf("seal: %w", err)
 	}
-	section("① ORIGIN NODE — sealing the AI genome")
-	info("model: sample transformer (d=%d, seq=%d), %d sealed reference fixtures", dim, seqLen, len(g.Fixtures))
-	info("genome content-address: %x…", addr[:10])
-	info("sealed under simulated TEE, measurement %x…", []byte(origin.Measurement())[:10])
+	p.section("① ORIGIN NODE — sealing the AI genome")
+	p.info("model: sample transformer (d=%d, seq=%d), %d sealed reference fixtures", dim, seqLen, len(g.Fixtures))
+	p.info("genome content-address: %x…", addr[:10])
+	p.info("sealed under simulated TEE, measurement %x…", []byte(origin.Measurement())[:10])
 
 	// ② DESTINATION — integrity on receipt (the backup layer).
-	section("② DESTINATION NODE — receiving on different hardware")
-	dest, _ := tee.NewSimulated([]byte("vaultgenome-origin"), seed[:]) // same code → same measurement
+	p.section("② DESTINATION NODE — receiving on different hardware")
+	dest, err := tee.NewSimulated([]byte("vaultgenome-origin"), seed[:]) // same code → same measurement
+	if err != nil {
+		return out, fmt.Errorf("init destination TEE: %w", err)
+	}
 	got, err := dest.Unseal(sealed, addr[:])
 	if err != nil || sha256.Sum256(got) != addr {
-		fatal("integrity check failed — genome rejected")
+		return out, errors.New("integrity check failed — genome rejected")
 	}
-	ok("integrity layer: unsealed bytes hash to the sealed address (a tampered genome is rejected here)")
-	rg := decodeGenome(got)
+	p.ok("integrity layer: unsealed bytes hash to the sealed address (a tampered genome is rejected here)")
+	rg, err := decodeGenome(got)
+	if err != nil {
+		return out, err
+	}
 
-	pub, priv, _ := crypto.GenerateEd25519(nil)
+	pub, priv, err := crypto.GenerateEd25519(nil)
+	if err != nil {
+		return out, fmt.Errorf("generate verdict signing key: %w", err)
+	}
+	out.SignaturesVerified = true
+	descend := func(ladder []reconstruction.Strategy) (reconstruction.LadderResult, error) {
+		res, err := reconstruction.Regenerate("genome-demo", rg.Fixtures, ladder)
+		if err != nil {
+			return res, fmt.Errorf("regenerate: %w", err)
+		}
+		if !p.report(res, pub, priv) {
+			out.SignaturesVerified = false
+		}
+		return res, nil
+	}
 
 	// ③ Same-hardware regeneration → EXACT.
-	section("③ REGENERATION — determinism ladder + attested equivalence gate")
-	res, _ := reconstruction.Regenerate("genome-demo", rg.Fixtures,
-		[]reconstruction.Strategy{pinnedDoor(rg, false), integerDoor(rg)})
-	report(res, pub, priv)
+	p.section("③ REGENERATION — determinism ladder + attested equivalence gate")
+	if out.Same, err = descend([]reconstruction.Strategy{pinnedDoor(rg, false), integerDoor(rg)}); err != nil {
+		return out, err
+	}
 
 	// ④ Cross-hardware float drift → fall through to the portable integer door.
-	section("④ CROSS-HARDWARE — a different BLAS/GPU perturbs the float path")
-	res2, _ := reconstruction.Regenerate("genome-demo", rg.Fixtures,
-		[]reconstruction.Strategy{pinnedDoor(rg, true), integerDoor(rg)})
-	report(res2, pub, priv)
+	p.section("④ CROSS-HARDWARE — a different BLAS/GPU perturbs the float path")
+	if out.Drift, err = descend([]reconstruction.Strategy{pinnedDoor(rg, true), integerDoor(rg)}); err != nil {
+		return out, err
+	}
 
 	// ⑤ Corrupted genome → no door opens → blocked.
-	section("⑤ SAFETY — a corrupted genome is blocked (fail-closed)")
-	corrupt := buildGenome(999, 4) // different weights, genuine fixtures below
-	res3, _ := reconstruction.Regenerate("genome-demo", rg.Fixtures,
-		[]reconstruction.Strategy{
-			pinnedDoor(Genome{Params: corrupt.Params, Inputs: rg.Inputs}, false),
-			integerDoor(Genome{Params: corrupt.Params, Inputs: rg.Inputs}),
-		})
-	report(res3, pub, priv)
-
-	if *modelPath != "" {
-		sealRealFile(origin, dest, *modelPath)
+	p.section("⑤ SAFETY — a corrupted genome is blocked (fail-closed)")
+	corrupt := Genome{Params: buildGenome(999, 4).Params, Inputs: rg.Inputs} // different weights, genuine fixtures
+	if out.Corrupt, err = descend([]reconstruction.Strategy{pinnedDoor(corrupt, false), integerDoor(corrupt)}); err != nil {
+		return out, err
 	}
 
-	fmt.Print(footer)
+	if modelPath != "" {
+		out.FileByteExact = p.sealRealFile(origin, dest, modelPath)
+	}
+
+	p.print(footer)
+	return out, nil
 }
 
-func report(res reconstruction.LadderResult, pub crypto.PublicKey, priv crypto.PrivateKey) {
+// report narrates one descent. It returns false if an opened door's signed
+// verdict failed to verify.
+func (p printer) report(res reconstruction.LadderResult, pub crypto.PublicKey, priv crypto.PrivateKey) bool {
 	if res.Opened {
-		sv, _ := equivalence.Sign(res.Verdict, pub, priv)
-		verified := equivalence.VerifySigned(sv) == nil
-		ok("door opened: %q (rung %d, kind=%s) → verdict %s", res.Name, res.Rung, res.Kind, res.Verdict.Level)
-		info("Ed25519-signed verdict %x… (signature verifies: %v)", sv.Signature[:10], verified)
-		info("reconstitution decision: %s — model goes live", reconstruction.Reason(res.Verdict))
-		return
+		sv, err := equivalence.Sign(res.Verdict, pub, priv)
+		verified := err == nil && equivalence.VerifySigned(sv) == nil
+		p.ok("door opened: %q (rung %d, kind=%s) → verdict %s", res.Name, res.Rung, res.Kind, res.Verdict.Level)
+		if err == nil {
+			p.info("Ed25519-signed verdict %x… (signature verifies: %v)", sv.Signature[:10], verified)
+		}
+		p.info("reconstitution decision: %s — model goes live", reconstruction.Reason(res.Verdict))
+		return verified
 	}
-	warn("NO door reproduced the sealed reference")
+	p.warn("NO door reproduced the sealed reference")
 	for _, a := range res.Attempts {
-		info("  · door %q (rung %d): %s", a.Name, a.Rung, a.Level)
+		p.info("  · door %q (rung %d): %s", a.Name, a.Rung, a.Level)
 	}
-	warn("reconstitution decision: %s — model is NOT brought up (fail-closed)", reconstruction.Reason(res.Verdict))
+	p.warn("reconstitution decision: %s — model is NOT brought up (fail-closed)", reconstruction.Reason(res.Verdict))
+	return true
 }
 
-func sealRealFile(origin, dest *tee.Simulated, path string) {
-	section("＋ YOUR FILE — byte-exact sealed continuity")
+// sealRealFile seals path at the origin, unseals it at the destination and
+// reports whether the round trip was byte-exact. Problems are narrated as
+// warnings: the file is an optional extra, not part of the demonstration.
+func (p printer) sealRealFile(origin, dest *tee.Simulated, path string) bool {
+	p.section("＋ YOUR FILE — byte-exact sealed continuity")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		warn("could not read %s: %v", path, err)
-		return
+		p.warn("could not read %s: %v", path, err)
+		return false
 	}
 	addr := sha256.Sum256(data)
 	sealed, err := origin.Seal(data, addr[:])
 	if err != nil {
-		warn("seal failed: %v", err)
-		return
+		p.warn("seal failed: %v", err)
+		return false
 	}
 	got, err := dest.Unseal(sealed, addr[:])
 	if err != nil || sha256.Sum256(got) != addr || !bytes.Equal(got, data) {
-		warn("restore mismatch — file NOT byte-exact")
-		return
+		p.warn("restore mismatch — file NOT byte-exact")
+		return false
 	}
-	ok("%s (%d bytes) sealed and restored BYTE-EXACT; address %x…", path, len(data), addr[:10])
-	info("note: the equivalence gate needs reference input→output fixtures from YOUR model's")
-	info("inference to certify a live recompute; byte-exact restore above needs no fixtures.")
+	p.ok("%s (%d bytes) sealed and restored BYTE-EXACT; address %x…", path, len(data), addr[:10])
+	p.info("note: the equivalence gate needs reference input→output fixtures from YOUR model's")
+	p.info("inference to certify a live recompute; byte-exact restore above needs no fixtures.")
+	return true
 }
 
 // ---- terminal presentation -------------------------------------------------
@@ -255,11 +309,18 @@ generative rebuild from a compact recipe is a labelled placeholder.
 ────────────────────────────────────────────────────────────────────────
 `
 
-func section(s string)        { fmt.Printf("\n\033[1;36m%s\033[0m\n", s) }
-func ok(f string, a ...any)   { fmt.Printf("  \033[32m✓\033[0m "+f+"\n", a...) }
-func info(f string, a ...any) { fmt.Printf("    "+f+"\n", a...) }
-func warn(f string, a ...any) { fmt.Printf("  \033[33m▲\033[0m "+f+"\n", a...) }
-func fatal(f string, a ...any) {
-	fmt.Fprintf(os.Stderr, "\033[31mfatal:\033[0m "+f+"\n", a...)
-	os.Exit(1)
+// printer writes the narration to a writer (stdout in main, a buffer in
+// tests).
+type printer struct{ w io.Writer }
+
+func (p printer) print(s string)   { _, _ = io.WriteString(p.w, s) }
+func (p printer) section(s string) { _, _ = fmt.Fprintf(p.w, "\n\033[1;36m%s\033[0m\n", s) }
+func (p printer) ok(format string, a ...any) {
+	_, _ = fmt.Fprintf(p.w, "  \033[32m✓\033[0m "+format+"\n", a...)
+}
+func (p printer) info(format string, a ...any) {
+	_, _ = fmt.Fprintf(p.w, "    "+format+"\n", a...)
+}
+func (p printer) warn(format string, a ...any) {
+	_, _ = fmt.Fprintf(p.w, "  \033[33m▲\033[0m "+format+"\n", a...)
 }
