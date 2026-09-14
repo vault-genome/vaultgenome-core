@@ -30,6 +30,9 @@ coverage.txt
 # (X.509 certs, not keys) — needed by the SEV-SNP verification tests.
 !scripts/hardware-test/**/*.pem
 
+# Key material provisioned by deploy/compose/keygen (NEVER commit)
+/deploy/compose/secrets/
+
 # Local vault state (operational artifacts, not source)
 /var/
 /data/

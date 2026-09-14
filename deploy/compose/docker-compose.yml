@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Docker Compose deployment of the authority/worker pair.
+#
+#   sagvd       — authority daemon: Return Path listener (mTLS) + operator
+#                 REST API (bearer token) + health/metrics
+#   acp-compute — external compute worker: dials sagvd over mTLS, proves
+#                 its pinned TEE identity, serves one job per session
+#
+# Run order (from the repository root):
+#   make demo-certs    # provision ./deploy/compose/secrets with keygen
+#   make demo-up       # build + start, wait for sagvd /readyz
+#   make demo-submit   # POST /v1/jobs with the bearer token, poll the result
+#   make demo-down     # stop and remove
+#
+# Security posture: every channel is authenticated. The Return Path is
+# mutual TLS 1.3 against a private CA from keygen, and on top of that the
+# worker must present TEE evidence signed by the pinned key before it is
+# given work. The REST API requires the bearer token keygen wrote to
+# secrets/sagvd/api_token. Only loopback host ports are published. The TEE
+# backend is the simulated one (this is a local deployment); confidential
+# hardware is covered by docs/operator/runbooks/real-tee-sev-snp.md.
+
+networks:
+  acp:
+    driver: bridge
+    ipam:
+      config:
+        # Pinned /24 away from the ranges VPN / corporate networks use.
+        - subnet: 10.66.0.0/24
+
+services:
+
+  sagvd:
+    image: acp/sagvd:${ACP_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: deploy/compose/sagvd/Dockerfile
+      args:
+        VERSION: ${ACP_TAG:-local}
+        COMMIT: ${ACP_COMMIT:-unknown}
+    container_name: acp-sagvd
+    hostname: sagvd
+    networks:
+      - acp
+    volumes:
+      - ./sagvd/config.json:/etc/acp/config/sagvd.json:ro
+      - ./secrets/sagvd:/etc/acp/secrets/sagvd:ro
+      - ./secrets/shared:/etc/acp/secrets/shared:ro
+    # REST API and health are published on loopback only. The Return
+    # Path (9443) is deliberately not published: only the worker speaks
+    # the wire protocol, over the internal network.
+    ports:
+      - "127.0.0.1:9080:9080"
+      - "127.0.0.1:9091:9091"
+    restart: unless-stopped
+    stop_grace_period: 15s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  acp-compute:
+    image: acp/acp-compute:${ACP_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: deploy/compose/acp-compute/Dockerfile
+      args:
+        VERSION: ${ACP_TAG:-local}
+        COMMIT: ${ACP_COMMIT:-unknown}
+    container_name: acp-worker
+    hostname: acp-compute
+    networks:
+      - acp
+    volumes:
+      - ./acp-compute/config.json:/etc/acp/config/acp-compute.json:ro
+      - ./secrets/acp-compute:/etc/acp/secrets/acp-compute:ro
+      - ./secrets/shared:/etc/acp/secrets/shared:ro
+    ports:
+      - "127.0.0.1:9092:9092"
+    # Start order only: distroless images carry no probe tool, and the
+    # worker's dial loop backs off until sagvd's listener is up.
+    depends_on:
+      - sagvd
+    restart: unless-stopped
+    stop_grace_period: 15s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

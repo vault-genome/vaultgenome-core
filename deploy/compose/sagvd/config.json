@@ -1,0 +1,52 @@
+{
+  "vault": {
+    "listen_address": "0.0.0.0:9443",
+    "tls": {
+      "enabled": true,
+      "server_cert": "/etc/acp/secrets/sagvd/tls/server.crt",
+      "server_key": "/etc/acp/secrets/sagvd/tls/server.key",
+      "client_cas": "/etc/acp/secrets/shared/tls/ca.crt"
+    }
+  },
+  "http_api": {
+    "listen_address": "0.0.0.0:9080",
+    "bearer_token_file": "/etc/acp/secrets/sagvd/api_token"
+  },
+  "tee": {
+    "workload_descriptor": "sagvd-phase1-demo-v1",
+    "seed_path": "/etc/acp/secrets/sagvd/tee_seed",
+    "peer": {
+      "public_key_path": "/etc/acp/secrets/sagvd/peer_worker_pubkey",
+      "measurement_path": "/etc/acp/secrets/sagvd/peer_worker_measurement"
+    }
+  },
+  "keys": {
+    "authority_signing": {
+      "kid": "sagvd-authority-demo",
+      "seed_path": "/etc/acp/secrets/sagvd/authority_signing_seed"
+    },
+    "session_sealing": {
+      "kid": "session-sealing-demo",
+      "material_path": "/etc/acp/secrets/shared/sealing.key"
+    }
+  },
+  "workers": {
+    "registry_path": "/etc/acp/secrets/shared/workers.json"
+  },
+  "runtime": {
+    "job_timeout_seconds": 120,
+    "handshake_timeout_seconds": 10,
+    "queue_poll_ms": 250,
+    "http_read_header_timeout_seconds": 5,
+    "http_write_timeout_seconds": 30,
+    "default_job_deadline_seconds": 60,
+    "max_payload_bytes": 4194304
+  },
+  "health": {
+    "listen_address": "0.0.0.0:9091"
+  },
+  "log": {
+    "level": "info",
+    "format": "json"
+  }
+}

@@ -12,3 +12,7 @@ scripts/hardware-test/**/*.pem
 scripts/hardware-test/**/*.b64
 bin
 dist
+# key material must never enter a build context
+deploy/compose/secrets
+# builds resolve modules from go.sum, not a local vendor tree
+vendor

@@ -246,7 +246,7 @@ regen-demo:
 # All targets set their working directory to DEMO_DIR so a `make demo-up`
 # from anywhere under /core does the right thing.
 
-DEMO_DIR            := $(abspath $(CURDIR)/../deploy/compose)
+DEMO_DIR            := $(CURDIR)/deploy/compose
 DEMO_COMPOSE        := $(DEMO_DIR)/docker-compose.yml
 DEMO_SECRETS_DIR    := $(DEMO_DIR)/secrets
 DEMO_COMPOSE_CMD    ?= docker compose

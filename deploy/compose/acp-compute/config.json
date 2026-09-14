@@ -1,0 +1,44 @@
+{
+  "vault": {
+    "address": "sagvd:9443",
+    "tls": {
+      "enabled": true,
+      "client_cert": "/etc/acp/secrets/acp-compute/tls/client.crt",
+      "client_key": "/etc/acp/secrets/acp-compute/tls/client.key",
+      "ca_bundle": "/etc/acp/secrets/shared/tls/ca.crt",
+      "server_name": "sagvd"
+    }
+  },
+  "tee": {
+    "workload_descriptor": "acp-compute-phase1-demo-v1",
+    "seed_path": "/etc/acp/secrets/acp-compute/tee_seed",
+    "peer": {
+      "public_key_path": "/etc/acp/secrets/acp-compute/peer_vault_pubkey",
+      "measurement_path": "/etc/acp/secrets/acp-compute/peer_vault_measurement"
+    }
+  },
+  "keys": {
+    "worker_signing": {
+      "kid": "acp-compute-worker-demo",
+      "seed_path": "/etc/acp/secrets/acp-compute/worker_signing_seed"
+    },
+    "session_sealing": {
+      "kid": "session-sealing-demo",
+      "material_path": "/etc/acp/secrets/shared/sealing.key"
+    }
+  },
+  "runtime": {
+    "job_timeout_seconds": 120,
+    "handshake_timeout_seconds": 10,
+    "dial_backoff_initial_ms": 500,
+    "dial_backoff_max_ms": 30000,
+    "idle_between_jobs_ms": 250
+  },
+  "health": {
+    "listen_address": "0.0.0.0:9092"
+  },
+  "log": {
+    "level": "info",
+    "format": "json"
+  }
+}
