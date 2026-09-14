@@ -3,8 +3,8 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -20,9 +20,20 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/contentdir"
+	"github.com/ai-continuity-platform/core/internal/genome/bundle"
+	"github.com/ai-continuity-platform/core/internal/genome/restore"
 	"github.com/ai-continuity-platform/core/internal/ollama"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
 )
+
+// Bundles are written in the v3 format (internal/genome/bundle): the
+// payload is sealed under a random key that is not in the file, and that
+// key goes to a separate key file (or, cross-cloud, only to an attested
+// destination). The v2 format below stored its own sealing key inside
+// the bundle, so anyone holding a v2 bundle could open it (KNOWN_ISSUES
+// #7). This build still reads v2 — to inspect, verify, walk chains, and
+// open with --allow-v2 so old bundles can be resealed — but never writes
+// it.
 
 // genomeMagic distinguishes a Vault Genome model bundle from the older
 // vault envelope used by `acpctl recover`. Same on-disk shape (magic ||
@@ -128,11 +139,13 @@ func printGenomeUsage(w io.Writer) {
 	fmt.Fprintln(w, "  lineage   From any bundle, walk parent references back to genesis")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Continuity quickstart:")
-	fmt.Fprintln(w, "  acpctl genome seal --model=llama3.2:3b --output=gen-0.genome")
-	fmt.Fprintln(w, "  acpctl genome seal --content-dir=./adapters/1 --parent=gen-0.genome --output=gen-1.genome")
-	fmt.Fprintln(w, "  acpctl genome seal --content-dir=./adapters/2 --parent=gen-1.genome --output=gen-2.genome")
+	fmt.Fprintln(w, "  acpctl genome seal --model=llama3.2:3b --output=gen-0.genome --key-out=gen-0.key")
+	fmt.Fprintln(w, "  acpctl genome seal --content-dir=./adapters/1 --parent=gen-0.genome --output=gen-1.genome --key-out=gen-1.key")
 	fmt.Fprintln(w, "  acpctl genome chain --dir=./generations")
-	fmt.Fprintln(w, "  acpctl genome rewind --bundle=gen-3.genome --target=/tmp/restored")
+	fmt.Fprintln(w, "  acpctl genome rewind --bundle=gen-1.genome --key-file=gen-1.key --target=/tmp/restored")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "A bundle opens only with its key. Keep key files with the release authority;")
+	fmt.Fprintln(w, "`sagvd crosscloud-restore -key-file KID:PATH` delivers one to an attested destination.")
 }
 
 // ---------------------------------------------------------------------------
@@ -148,21 +161,23 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 		ollamaHome   = fs.String("ollama-home", defaultOllamaHome(), "Path to OLLAMA root")
 		parentBundle = fs.String("parent", "", "Path to parent .genome bundle — links this seal as its successor")
 		outputPath   = fs.String("output", "", "Path to write the sealed .genome bundle (required)")
+		keyOut       = fs.String("key-out", "", "Path to write the bundle's 32-byte key, mode 0600 (required; the only way to open it)")
 		jsonOut      = fs.Bool("json", false, "Emit machine-readable JSON output")
-		force        = fs.Bool("force", false, "Overwrite output file if it exists")
+		force        = fs.Bool("force", false, "Overwrite the output and key files if they exist")
 	)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: acpctl genome seal {--model REF | --content-dir PATH} --output PATH [--parent BUNDLE] [...]")
+		fmt.Fprintln(stderr, "usage: acpctl genome seal {--model REF | --content-dir PATH} --output PATH --key-out PATH [--parent BUNDLE] [...]")
 		fmt.Fprintln(stderr)
-		fmt.Fprintln(stderr, "Seal a payload into a .genome bundle. Either --model (Ollama model) or")
-		fmt.Fprintln(stderr, "--content-dir (any directory of files) selects the payload source.")
-		fmt.Fprintln(stderr, "--parent attaches this seal as the next generation in a continuity chain.")
+		fmt.Fprintln(stderr, "Seal a payload into a v3 .genome bundle under a fresh random key, written to")
+		fmt.Fprintln(stderr, "--key-out and nowhere else. Either --model (Ollama model) or --content-dir")
+		fmt.Fprintln(stderr, "(any directory of files) selects the payload. --parent attaches this seal as")
+		fmt.Fprintln(stderr, "the next generation in a continuity chain.")
 	}
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if *outputPath == "" {
-		fmt.Fprintln(stderr, "acpctl genome seal: --output is required")
+	if *outputPath == "" || *keyOut == "" {
+		fmt.Fprintln(stderr, "acpctl genome seal: --output and --key-out are required")
 		fs.Usage()
 		return 2
 	}
@@ -172,141 +187,170 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if !*force {
-		if _, err := os.Stat(*outputPath); err == nil {
-			fmt.Fprintf(stderr, "acpctl genome seal: refusing to overwrite %s (pass --force)\n", *outputPath)
-			return 2
+		for _, p := range []string{*outputPath, *keyOut} {
+			if _, err := os.Stat(p); err == nil {
+				fmt.Fprintf(stderr, "acpctl genome seal: refusing to overwrite %s (pass --force)\n", p)
+				return 2
+			}
 		}
 	}
 
-	// --- Capture payload (Ollama model OR generic dir) ---
+	// --- The payload source (Ollama model OR generic dir) ---
 	var (
-		payload         []byte
-		contentKind     ContentKind
-		contentRef      string
-		contentSnapJSON json.RawMessage
-		payloadDigest   string
+		contentKind ContentKind
+		contentRef  string
+		capture     func(w io.Writer) (json.RawMessage, int64, error)
 	)
 	if *modelRef != "" {
-		snap, p, err := ollama.CapturePayload(*modelRef, *ollamaHome)
-		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome seal: %v\n", err)
-			return 1
-		}
-		payload = p
-		contentKind = ContentKindOllama
-		contentRef = *modelRef
-		payloadDigest = snap.PayloadSHA256
-		contentSnapJSON, err = json.Marshal(snap)
-		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome seal: marshal ollama snap: %v\n", err)
-			return 1
+		contentKind, contentRef = ContentKindOllama, *modelRef
+		capture = func(w io.Writer) (json.RawMessage, int64, error) {
+			snap, n, err := ollama.Capture(*modelRef, *ollamaHome, w)
+			if err != nil {
+				return nil, 0, err
+			}
+			raw, err := json.Marshal(snap)
+			return raw, n, err
 		}
 	} else {
-		snap, p, err := contentdir.CapturePayload(*contentDir)
-		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome seal: %v\n", err)
-			return 1
-		}
-		payload = p
-		contentKind = ContentKindDir
-		contentRef = *contentDir
-		payloadDigest = snap.PayloadSHA256
-		contentSnapJSON, err = json.Marshal(snap)
-		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome seal: marshal dir snap: %v\n", err)
-			return 1
+		contentKind, contentRef = ContentKindDir, *contentDir
+		capture = func(w io.Writer) (json.RawMessage, int64, error) {
+			snap, n, err := contentdir.Capture(*contentDir, w)
+			if err != nil {
+				return nil, 0, err
+			}
+			raw, err := json.Marshal(snap)
+			return raw, n, err
 		}
 	}
 
-	// --- Resolve parent linkage ---
-	var (
-		generation        uint64 = 0
-		parentBundleHash  string
-		parentPayloadHash string
-		parentGeneration  uint64
-	)
+	// First pass: describe the payload without keeping it.
+	snapshot, payloadBytes, err := capture(io.Discard)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl genome seal: %v\n", err)
+		return 1
+	}
+	var probe struct {
+		PayloadSHA256 string `json:"payload_sha256"`
+	}
+	if err := json.Unmarshal(snapshot, &probe); err != nil {
+		fmt.Fprintf(stderr, "acpctl genome seal: snapshot: %v\n", err)
+		return 1
+	}
+	h := bundle.Header{
+		ContentKind:     string(contentKind),
+		ContentRef:      contentRef,
+		ContentSnapshot: snapshot,
+		PayloadSHA256:   probe.PayloadSHA256,
+		PayloadBytes:    payloadBytes,
+	}
+
+	// --- Resolve parent linkage (a parent may be v2 or v3) ---
 	if *parentBundle != "" {
-		parentBlob, err := os.ReadFile(*parentBundle)
+		parent, err := loadGenome(*parentBundle)
 		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome seal: read parent bundle: %v\n", err)
+			fmt.Fprintf(stderr, "acpctl genome seal: parent bundle: %v\n", err)
 			return 1
 		}
-		parentEnv, _, err := decodeGenome(parentBlob)
-		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome seal: decode parent bundle: %v\n", err)
-			return 1
-		}
-		generation = parentEnv.Generation + 1
-		parentBundleHash = sha256Hex(parentBlob)
-		parentPayloadHash = strings.TrimPrefix(parentEnv.payloadDigest(), "sha256:")
-		parentGeneration = parentEnv.Generation
+		h.Generation = parent.Header.Generation + 1
+		h.ParentBundleSHA256 = parent.SHA256
+		h.ParentPayloadSHA256 = strings.TrimPrefix(parent.Header.PayloadSHA256, "sha256:")
+		h.ParentGeneration = parent.Header.Generation
 	}
 
-	// --- Construct workload descriptor + Sealer ---
-	wd := workloadDescriptorV2(contentKind, contentRef, payloadDigest, generation)
-	seed := make([]byte, 32)
-	if _, err := rand.Read(seed); err != nil {
-		fmt.Fprintf(stderr, "acpctl genome seal: rand: %v\n", err)
-		return 1
-	}
-	sealer, err := tee.NewSimulated(wd, seed)
+	// Second pass: stream the payload through the sealer into a staging
+	// file beside the output. Seal checks the stream is the payload the
+	// first pass described.
+	sealed, dek, bundleBytes, err := sealToFile(*outputPath, h, capture)
 	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome seal: NewSimulated: %v\n", err)
+		fmt.Fprintf(stderr, "acpctl genome seal: %v\n", err)
 		return 1
 	}
-	measurement := sealer.Measurement()
-	aad := []byte(payloadDigest)
-
-	sealed, err := sealer.Seal(payload, aad)
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome seal: Seal: %v\n", err)
+	// The key before the bundle: never leave a bundle on disk whose key
+	// was not written.
+	staged := *outputPath + ".partial"
+	if err := writeKeyFile(*keyOut, dek, *force); err != nil {
+		_ = os.Remove(staged)
+		fmt.Fprintf(stderr, "acpctl genome seal: key file: %v\n", err)
 		return 1
 	}
-
-	env := GenomeEnvelope{
-		Format:                      envelopeFormatV2,
-		TEEProvider:                 string(tee.ProviderSimulated),
-		SealedAt:                    time.Now().UnixNano(),
-		Generation:                  generation,
-		ParentBundleSHA256:          parentBundleHash,
-		ParentPayloadSHA256:         parentPayloadHash,
-		ParentGeneration:            parentGeneration,
-		ContentKind:                 contentKind,
-		ContentRef:                  contentRef,
-		ContentSnapshot:             contentSnapJSON,
-		Measurement:                 append([]byte(nil), measurement[:]...),
-		AAD:                         aad,
-		SimulatedWorkloadDescriptor: wd,
-		SimulatedSeed:               seed,
-	}
-
-	blob, err := encodeGenome(env, sealed)
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome seal: encode: %v\n", err)
-		return 1
-	}
-	if err := os.WriteFile(*outputPath, blob, 0o644); err != nil {
-		fmt.Fprintf(stderr, "acpctl genome seal: write: %v\n", err)
+	if err := os.Rename(staged, *outputPath); err != nil {
+		_ = os.Remove(staged)
+		fmt.Fprintf(stderr, "acpctl genome seal: %v\n", err)
 		return 1
 	}
 
 	emitGenome(stdout, *jsonOut, sealResult{
 		OK:                 true,
 		Output:             *outputPath,
+		KeyFile:            *keyOut,
+		KeyID:              sealed.KeyID,
 		ContentKind:        string(contentKind),
 		ContentRef:         contentRef,
-		Generation:         generation,
+		Generation:         sealed.Generation,
 		ParentBundle:       *parentBundle,
-		ParentBundleSHA256: parentBundleHash,
-		PayloadBytes:       len(payload),
-		SealedBytes:        len(sealed),
-		BundleBytes:        len(blob),
-		PayloadSHA256:      payloadDigest,
-		MeasurementHex:     hex.EncodeToString(measurement[:]),
-		ComponentCount:     countComponents(&env),
-		SealedAt:           time.Unix(0, env.SealedAt).UTC().Format(time.RFC3339),
+		ParentBundleSHA256: sealed.ParentBundleSHA256,
+		PayloadBytes:       sealed.PayloadBytes,
+		BundleBytes:        bundleBytes,
+		SegmentBytes:       sealed.SegmentBytes,
+		PayloadSHA256:      sealed.PayloadSHA256,
+		ComponentCount:     countComponents(contentKind, snapshot),
+		SealedAt:           sealed.SealedAt.Format(time.RFC3339),
 	})
 	return 0
+}
+
+// sealToFile seals the payload capture produces into output+".partial"
+// and returns the sealed header, the DEK and the bundle size. On error
+// the partial file is removed.
+func sealToFile(output string, h bundle.Header, capture func(io.Writer) (json.RawMessage, int64, error)) (bundle.Header, []byte, int64, error) {
+	staged := output + ".partial"
+	f, err := os.OpenFile(staged, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return bundle.Header{}, nil, 0, err
+	}
+	pr, pw := io.Pipe()
+	go func() {
+		_, _, err := capture(pw)
+		_ = pw.CloseWithError(err)
+	}()
+	sealed, dek, err := bundle.Seal(f, h, pr)
+	_ = pr.CloseWithError(errors.New("sealing stopped"))
+	if err == nil {
+		err = f.Sync()
+	}
+	var size int64
+	if err == nil {
+		var info os.FileInfo
+		if info, err = f.Stat(); err == nil {
+			size = info.Size()
+		}
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = os.Remove(staged)
+		return bundle.Header{}, nil, 0, err
+	}
+	return sealed, dek, size, nil
+}
+
+// writeKeyFile writes a bundle key with mode 0600, never over an existing
+// file unless force.
+func writeKeyFile(path string, key []byte, force bool) error {
+	flags := os.O_WRONLY | os.O_CREATE | os.O_EXCL
+	if force {
+		flags = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	}
+	f, err := os.OpenFile(path, flags, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(key); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // ---------------------------------------------------------------------------
@@ -319,11 +363,14 @@ func genomeOpenCmd(args []string, stdout, stderr io.Writer) int {
 	var (
 		bundlePath = fs.String("bundle", "", "Path to .genome bundle (required)")
 		targetDir  = fs.String("target", "", "Target directory for restore (required)")
+		keyFile    = fs.String("key-file", "", "The bundle's 32-byte key file (required for v3 bundles)")
+		allowV2    = fs.Bool("allow-v2", false, "Open a v2 bundle, whose key is stored inside it (not confidential)")
 		jsonOut    = fs.Bool("json", false, "Emit machine-readable JSON output")
 	)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: acpctl genome open --bundle PATH --target PATH [--json]")
-		fmt.Fprintln(stderr, "       acpctl genome rewind --bundle PATH --target PATH [--json]   (alias)")
+		fmt.Fprintln(stderr, "usage: acpctl genome open --bundle PATH --key-file PATH --target PATH [--json]")
+		fmt.Fprintln(stderr, "       acpctl genome rewind --bundle PATH --key-file PATH --target PATH [--json]   (alias)")
+		fmt.Fprintln(stderr, "       acpctl genome open --bundle V2-PATH --allow-v2 --target PATH   (legacy v2 bundles)")
 	}
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -333,76 +380,105 @@ func genomeOpenCmd(args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
-
-	blob, err := os.ReadFile(*bundlePath)
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome open: read bundle: %v\n", err)
-		return 1
-	}
-	env, sealed, err := decodeGenome(blob)
+	gf, err := loadGenome(*bundlePath)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl genome open: %v\n", err)
 		return 1
 	}
 
-	if env.TEEProvider != string(tee.ProviderSimulated) {
-		fmt.Fprintf(stderr, "acpctl genome open: provider %q not supported by this build\n", env.TEEProvider)
-		return 1
-	}
-	sealer, err := tee.NewSimulated(env.SimulatedWorkloadDescriptor, env.SimulatedSeed)
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome open: NewSimulated: %v\n", err)
-		return 1
-	}
-	live := sealer.Measurement()
-	if !bytes.Equal(live[:], env.Measurement) {
-		fmt.Fprintf(stderr, "acpctl genome open: measurement mismatch — refusing unseal\n")
-		return 4
-	}
-
-	payload, err := sealer.Unseal(sealed, env.AAD)
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome open: Unseal: %v\n", err)
-		return 4
-	}
-	gotDigest := "sha256:" + hex.EncodeToString(sha256Sum(payload))
-	if gotDigest != env.payloadDigest() {
-		fmt.Fprintf(stderr, "acpctl genome open: payload digest mismatch (envelope=%s, computed=%s)\n", env.payloadDigest(), gotDigest)
-		return 4
-	}
-
-	var (
-		written int64
-		kind    string
-	)
-	switch env.ContentKind {
-	case ContentKindOllama:
-		written, err = ollama.Restore(payload, *targetDir)
-		kind = "ollama"
-	case ContentKindDir:
-		written, err = contentdir.Restore(payload, *targetDir)
-		kind = "dir"
+	var payload io.Reader
+	switch {
+	case gf.V3:
+		if *keyFile == "" {
+			fmt.Fprintf(stderr, "acpctl genome open: %s opens only with its key: pass --key-file (key id %s)\n", *bundlePath, gf.Header.KeyID)
+			return 2
+		}
+		dek, err := os.ReadFile(*keyFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl genome open: key file: %v\n", err)
+			return 1
+		}
+		f, r, err := openV3(*bundlePath)
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl genome open: %v\n", err)
+			return 1
+		}
+		defer func() { _ = f.Close() }()
+		if payload, err = r.PayloadWithKey(dek); err != nil {
+			fmt.Fprintf(stderr, "acpctl genome open: %v\n", err)
+			return 4
+		}
 	default:
-		fmt.Fprintf(stderr, "acpctl genome open: unknown content kind %q\n", env.ContentKind)
-		return 1
+		if !*allowV2 {
+			fmt.Fprintf(stderr, "acpctl genome open: %s is a v2 bundle, which stores its own sealing key — anyone holding it can open it. Pass --allow-v2 to open it, then reseal the restored content as v3.\n", *bundlePath)
+			return 2
+		}
+		plain, err := openV2(gf)
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl genome open: %v\n", err)
+			return 4
+		}
+		payload = bytes.NewReader(plain)
 	}
+
+	res, err := restore.Restore(gf.Header, payload, *targetDir)
 	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome open: restore: %v\n", err)
-		return 1
+		fmt.Fprintf(stderr, "acpctl genome open: %v\n", err)
+		return 4
 	}
 
 	emitGenome(stdout, *jsonOut, openResult{
-		OK:             true,
-		Bundle:         *bundlePath,
-		Target:         *targetDir,
-		ContentKind:    kind,
-		ContentRef:     env.ContentRef,
-		Generation:     env.Generation,
-		BytesWritten:   written,
-		PayloadSHA256:  env.payloadDigest(),
-		MeasurementHex: hex.EncodeToString(env.Measurement),
+		OK:            true,
+		Bundle:        *bundlePath,
+		Format:        gf.Format,
+		KeyID:         gf.Header.KeyID,
+		Target:        *targetDir,
+		ContentKind:   gf.Header.ContentKind,
+		ContentRef:    gf.Header.ContentRef,
+		Generation:    gf.Header.Generation,
+		Files:         res.Files,
+		BytesWritten:  res.BytesWritten,
+		PayloadSHA256: res.PayloadSHA256,
+		TreeSHA256:    res.TreeSHA256,
 	})
 	return 0
+}
+
+// openV3 opens a v3 bundle file and reads its header.
+func openV3(path string) (*os.File, *bundle.Reader, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	r, err := bundle.NewReader(bufio.NewReaderSize(f, 1<<20))
+	if err != nil {
+		_ = f.Close()
+		return nil, nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return f, r, nil
+}
+
+// openV2 opens a legacy v2 bundle with the simulated-TEE seed it carries.
+func openV2(gf *genomeFile) ([]byte, error) {
+	env := gf.v2
+	if env.TEEProvider != string(tee.ProviderSimulated) {
+		return nil, fmt.Errorf("provider %q not supported by this build", env.TEEProvider)
+	}
+	sealer, err := tee.NewSimulated(env.SimulatedWorkloadDescriptor, env.SimulatedSeed)
+	if err != nil {
+		return nil, fmt.Errorf("NewSimulated: %w", err)
+	}
+	if live := sealer.Measurement(); !bytes.Equal(live[:], env.Measurement) {
+		return nil, errors.New("measurement mismatch — refusing unseal")
+	}
+	payload, err := sealer.Unseal(gf.v2Sealed, env.AAD)
+	if err != nil {
+		return nil, fmt.Errorf("unseal: %w", err)
+	}
+	if got := "sha256:" + hex.EncodeToString(sha256Sum(payload)); got != env.payloadDigest() {
+		return nil, fmt.Errorf("payload digest mismatch (envelope=%s, computed=%s)", env.payloadDigest(), got)
+	}
+	return payload, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -415,10 +491,15 @@ func genomeVerifyCmd(args []string, stdout, stderr io.Writer) int {
 	var (
 		bundlePath = fs.String("bundle", "", "Path to .genome bundle (required)")
 		restored   = fs.String("restored", "", "Optional: restored target dir to re-hash blobs against")
+		keyFile    = fs.String("key-file", "", "Optional: the bundle's key file — authenticates the header and payload")
 		jsonOut    = fs.Bool("json", false, "Emit machine-readable JSON output")
 	)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: acpctl genome verify --bundle PATH [--restored PATH] [--json]")
+		fmt.Fprintln(stderr, "usage: acpctl genome verify --bundle PATH [--key-file PATH] [--restored PATH] [--json]")
+		fmt.Fprintln(stderr)
+		fmt.Fprintln(stderr, "Without --key-file, verify checks the bundle is well-formed and, with")
+		fmt.Fprintln(stderr, "--restored, that a restored tree matches the header. With --key-file it")
+		fmt.Fprintln(stderr, "first opens the bundle in memory, so the header is the one that was sealed.")
 	}
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -428,12 +509,7 @@ func genomeVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
-	blob, err := os.ReadFile(*bundlePath)
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome verify: read: %v\n", err)
-		return 1
-	}
-	env, sealed, err := decodeGenome(blob)
+	gf, err := loadGenome(*bundlePath)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl genome verify: %v\n", err)
 		return 1
@@ -441,63 +517,56 @@ func genomeVerifyCmd(args []string, stdout, stderr io.Writer) int {
 	res := verifyResult{
 		OK:             true,
 		Bundle:         *bundlePath,
-		ContentKind:    string(env.ContentKind),
-		ContentRef:     env.ContentRef,
-		Generation:     env.Generation,
-		EnvelopeFormat: env.Format,
-		ComponentCount: countComponents(env),
-		SealedBytes:    len(sealed),
-		PayloadSHA256:  env.payloadDigest(),
-		MeasurementHex: hex.EncodeToString(env.Measurement),
-		SealedAt:       time.Unix(0, env.SealedAt).UTC().Format(time.RFC3339),
+		ContentKind:    gf.Header.ContentKind,
+		ContentRef:     gf.Header.ContentRef,
+		Generation:     gf.Header.Generation,
+		EnvelopeFormat: gf.Format,
+		KeyID:          gf.Header.KeyID,
+		ComponentCount: countComponents(ContentKind(gf.Header.ContentKind), gf.Header.ContentSnapshot),
+		BundleBytes:    gf.Size,
+		BundleSHA256:   gf.SHA256,
+		PayloadSHA256:  gf.Header.PayloadSHA256,
+		SealedAt:       gf.Header.SealedAt.Format(time.RFC3339),
+	}
+	if *keyFile != "" {
+		if !gf.V3 {
+			fmt.Fprintf(stderr, "acpctl genome verify: %s is a v2 bundle; it has no key file and cannot be authenticated\n", *bundlePath)
+			return 2
+		}
+		dek, err := os.ReadFile(*keyFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl genome verify: key file: %v\n", err)
+			return 1
+		}
+		f, r, err := openV3(*bundlePath)
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl genome verify: %v\n", err)
+			return 1
+		}
+		defer func() { _ = f.Close() }()
+		payload, err := r.PayloadWithKey(dek)
+		if err == nil {
+			_, err = io.Copy(io.Discard, payload)
+		}
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl genome verify: %v\n", err)
+			return 4
+		}
+		res.Authenticated = true
 	}
 	if *restored != "" {
-		switch env.ContentKind {
-		case ContentKindOllama:
-			var snap ollama.Snapshot
-			if err := json.Unmarshal(env.ContentSnapshot, &snap); err != nil {
-				res.OK = false
-				res.RestoredVerify = "fail: decode ollama snapshot: " + err.Error()
-			} else if err := ollama.VerifyComponents(snap, *restored); err != nil {
-				res.OK = false
-				res.RestoredVerify = "fail: " + err.Error()
-			} else {
-				res.RestoredVerify = "ok: every component blob digest matches envelope"
-			}
-		case ContentKindDir:
-			var snap contentdir.Snapshot
-			if err := json.Unmarshal(env.ContentSnapshot, &snap); err != nil {
-				res.OK = false
-				res.RestoredVerify = "fail: decode dir snapshot: " + err.Error()
-			} else if err := verifyDirComponents(snap, *restored); err != nil {
-				res.OK = false
-				res.RestoredVerify = "fail: " + err.Error()
-			} else {
-				res.RestoredVerify = "ok: every file digest matches envelope"
-			}
-		}
-		if !res.OK {
+		tree, err := restore.Verify(gf.Header, *restored)
+		if err != nil {
+			res.OK = false
+			res.RestoredVerify = "fail: " + err.Error()
 			emitGenome(stdout, *jsonOut, res)
 			return 5
 		}
+		res.TreeSHA256 = tree
+		res.RestoredVerify = "ok: every file matches its recorded digest"
 	}
 	emitGenome(stdout, *jsonOut, res)
 	return 0
-}
-
-func verifyDirComponents(snap contentdir.Snapshot, restoredDir string) error {
-	for _, c := range snap.Components {
-		path := filepath.Join(restoredDir, filepath.FromSlash(c.Path))
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read %s: %w", path, err)
-		}
-		got := "sha256:" + hex.EncodeToString(sha256Sum(data))
-		if got != c.Digest {
-			return fmt.Errorf("file %s: digest mismatch (envelope %s, on-disk %s)", c.Path, c.Digest, got)
-		}
-	}
-	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -522,63 +591,73 @@ func genomeInspectCmd(args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
-	blob, err := os.ReadFile(*bundlePath)
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome inspect: read: %v\n", err)
-		return 1
-	}
-	env, sealed, err := decodeGenome(blob)
+	gf, err := loadGenome(*bundlePath)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl genome inspect: %v\n", err)
 		return 1
 	}
+	h := gf.Header
 	if *jsonOut {
 		out := map[string]any{
-			"format":                env.Format,
-			"tee_provider":          env.TEEProvider,
-			"sealed_at":             time.Unix(0, env.SealedAt).UTC().Format(time.RFC3339),
-			"generation":            env.Generation,
-			"parent_bundle_sha256":  env.ParentBundleSHA256,
-			"parent_payload_sha256": env.ParentPayloadSHA256,
-			"parent_generation":     env.ParentGeneration,
-			"content_kind":          env.ContentKind,
-			"content_ref":           env.ContentRef,
-			"measurement":           hex.EncodeToString(env.Measurement),
-			"payload_sha256":        env.payloadDigest(),
-			"sealed_bytes":          len(sealed),
-			"bundle_bytes":          len(blob),
-			"content_snapshot":      json.RawMessage(env.ContentSnapshot),
+			"format":                gf.Format,
+			"sealed_at":             h.SealedAt.Format(time.RFC3339),
+			"generation":            h.Generation,
+			"parent_bundle_sha256":  h.ParentBundleSHA256,
+			"parent_payload_sha256": h.ParentPayloadSHA256,
+			"parent_generation":     h.ParentGeneration,
+			"content_kind":          h.ContentKind,
+			"content_ref":           h.ContentRef,
+			"payload_sha256":        h.PayloadSHA256,
+			"bundle_bytes":          gf.Size,
+			"bundle_sha256":         gf.SHA256,
+			"content_snapshot":      h.ContentSnapshot,
+		}
+		if gf.V3 {
+			out["key_id"] = h.KeyID
+			out["payload_bytes"] = h.PayloadBytes
+			out["segment_bytes"] = h.SegmentBytes
+		} else {
+			out["key_in_bundle"] = true
+			out["tee_provider"] = gf.v2.TEEProvider
+			out["measurement"] = hex.EncodeToString(gf.v2.Measurement)
 		}
 		_ = json.NewEncoder(stdout).Encode(out)
 		return 0
 	}
 	fmt.Fprintf(stdout, "bundle:           %s\n", *bundlePath)
-	fmt.Fprintf(stdout, "format:           %s\n", env.Format)
-	fmt.Fprintf(stdout, "tee provider:     %s\n", env.TEEProvider)
-	fmt.Fprintf(stdout, "sealed at (UTC):  %s\n", time.Unix(0, env.SealedAt).UTC().Format(time.RFC3339))
-	fmt.Fprintf(stdout, "generation:       %d\n", env.Generation)
-	if env.ParentBundleSHA256 != "" {
-		fmt.Fprintf(stdout, "parent bundle:    sha256:%s (gen %d)\n", env.ParentBundleSHA256, env.ParentGeneration)
-		fmt.Fprintf(stdout, "parent payload:   sha256:%s\n", env.ParentPayloadSHA256)
+	fmt.Fprintf(stdout, "format:           %s\n", gf.Format)
+	if gf.V3 {
+		fmt.Fprintf(stdout, "key id:           %s  (the key is not in the bundle)\n", h.KeyID)
+	} else {
+		fmt.Fprintln(stdout, "key:              stored in the bundle (v2) — anyone holding it can open it; reseal as v3")
+	}
+	fmt.Fprintf(stdout, "sealed at (UTC):  %s\n", h.SealedAt.Format(time.RFC3339))
+	fmt.Fprintf(stdout, "generation:       %d\n", h.Generation)
+	if h.ParentBundleSHA256 != "" {
+		fmt.Fprintf(stdout, "parent bundle:    sha256:%s (gen %d)\n", h.ParentBundleSHA256, h.ParentGeneration)
+		fmt.Fprintf(stdout, "parent payload:   sha256:%s\n", h.ParentPayloadSHA256)
 	} else {
 		fmt.Fprintln(stdout, "parent bundle:    (none — genesis)")
 	}
-	fmt.Fprintf(stdout, "content kind:     %s\n", env.ContentKind)
-	fmt.Fprintf(stdout, "content ref:      %s\n", env.ContentRef)
-	fmt.Fprintf(stdout, "bundle bytes:     %d (%s)\n", len(blob), humanBytes(int64(len(blob))))
-	fmt.Fprintf(stdout, "sealed bytes:     %d (%s)\n", len(sealed), humanBytes(int64(len(sealed))))
-	fmt.Fprintf(stdout, "payload sha256:   %s\n", env.payloadDigest())
-	fmt.Fprintf(stdout, "measurement:      %s\n", hex.EncodeToString(env.Measurement))
-	fmt.Fprintf(stdout, "components (%d):\n", countComponents(env))
-	listComponents(stdout, env)
+	fmt.Fprintf(stdout, "content kind:     %s\n", h.ContentKind)
+	fmt.Fprintf(stdout, "content ref:      %s\n", h.ContentRef)
+	fmt.Fprintf(stdout, "bundle bytes:     %d (%s)\n", gf.Size, humanBytes(gf.Size))
+	fmt.Fprintf(stdout, "bundle sha256:    %s\n", gf.SHA256)
+	fmt.Fprintf(stdout, "payload sha256:   %s\n", h.PayloadSHA256)
+	if gf.V3 {
+		fmt.Fprintf(stdout, "payload bytes:    %d (%s) in segments of %s\n", h.PayloadBytes, humanBytes(h.PayloadBytes), humanBytes(h.SegmentBytes))
+	}
+	kind := ContentKind(h.ContentKind)
+	fmt.Fprintf(stdout, "components (%d):\n", countComponents(kind, h.ContentSnapshot))
+	listComponents(stdout, kind, h.ContentSnapshot)
 	return 0
 }
 
-func listComponents(w io.Writer, env *GenomeEnvelope) {
-	switch env.ContentKind {
+func listComponents(w io.Writer, kind ContentKind, snapshot json.RawMessage) {
+	switch kind {
 	case ContentKindOllama:
 		var snap ollama.Snapshot
-		if err := json.Unmarshal(env.ContentSnapshot, &snap); err != nil {
+		if err := json.Unmarshal(snapshot, &snap); err != nil {
 			fmt.Fprintf(w, "  <decode error: %v>\n", err)
 			return
 		}
@@ -587,7 +666,7 @@ func listComponents(w io.Writer, env *GenomeEnvelope) {
 		}
 	case ContentKindDir:
 		var snap contentdir.Snapshot
-		if err := json.Unmarshal(env.ContentSnapshot, &snap); err != nil {
+		if err := json.Unmarshal(snapshot, &snap); err != nil {
 			fmt.Fprintf(w, "  <decode error: %v>\n", err)
 			return
 		}
@@ -597,17 +676,17 @@ func listComponents(w io.Writer, env *GenomeEnvelope) {
 	}
 }
 
-func countComponents(env *GenomeEnvelope) int {
-	switch env.ContentKind {
+func countComponents(kind ContentKind, snapshot json.RawMessage) int {
+	switch kind {
 	case ContentKindOllama:
 		var snap ollama.Snapshot
-		if err := json.Unmarshal(env.ContentSnapshot, &snap); err != nil {
+		if err := json.Unmarshal(snapshot, &snap); err != nil {
 			return -1
 		}
 		return len(snap.Components)
 	case ContentKindDir:
 		var snap contentdir.Snapshot
-		if err := json.Unmarshal(env.ContentSnapshot, &snap); err != nil {
+		if err := json.Unmarshal(snapshot, &snap); err != nil {
 			return -1
 		}
 		return len(snap.Components)
@@ -620,15 +699,72 @@ func countComponents(env *GenomeEnvelope) int {
 // ---------------------------------------------------------------------------
 
 type chainNode struct {
-	Path             string
-	Generation       uint64
-	BundleSHA256     string
-	ParentSHA256     string
-	ParentGeneration uint64
-	ContentKind      string
-	ContentRef       string
-	BundleBytes      int64
-	SealedAt         time.Time
+	Path                string
+	Format              string
+	KeyID               string `json:",omitempty"`
+	Generation          uint64
+	BundleSHA256        string
+	PayloadSHA256       string
+	ParentSHA256        string
+	ParentPayloadSHA256 string `json:",omitempty"`
+	ParentGeneration    uint64
+	ContentKind         string
+	ContentRef          string
+	BundleBytes         int64
+	SealedAt            time.Time
+}
+
+func nodeOf(gf *genomeFile) chainNode {
+	return chainNode{
+		Path:                gf.Path,
+		Format:              gf.Format,
+		KeyID:               gf.Header.KeyID,
+		Generation:          gf.Header.Generation,
+		BundleSHA256:        gf.SHA256,
+		PayloadSHA256:       gf.Header.PayloadSHA256,
+		ParentSHA256:        gf.Header.ParentBundleSHA256,
+		ParentPayloadSHA256: gf.Header.ParentPayloadSHA256,
+		ParentGeneration:    gf.Header.ParentGeneration,
+		ContentKind:         gf.Header.ContentKind,
+		ContentRef:          gf.Header.ContentRef,
+		BundleBytes:         gf.Size,
+		SealedAt:            gf.Header.SealedAt,
+	}
+}
+
+// linkFault says why child does not follow parent, or "" when it does:
+// the parent is the generation before the child, the one the child
+// recorded, holding the payload the child recorded.
+func linkFault(child, parent chainNode) string {
+	switch {
+	case parent.Generation != child.ParentGeneration:
+		return fmt.Sprintf("parent is generation %d, child recorded %d", parent.Generation, child.ParentGeneration)
+	case child.Generation != parent.Generation+1:
+		return fmt.Sprintf("generation %d does not follow parent generation %d", child.Generation, parent.Generation)
+	case child.ParentPayloadSHA256 != "" && child.ParentPayloadSHA256 != strings.TrimPrefix(parent.PayloadSHA256, "sha256:"):
+		return "parent payload differs from the one the child recorded"
+	}
+	return ""
+}
+
+// readGenomeDir loads every .genome file in dir.
+func readGenomeDir(dir string) ([]chainNode, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read dir: %w", err)
+	}
+	var nodes []chainNode
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".genome") {
+			continue
+		}
+		gf, err := loadGenome(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, nodeOf(gf))
+	}
+	return nodes, nil
 }
 
 func genomeChainCmd(args []string, stdout, stderr io.Writer) int {
@@ -642,44 +778,17 @@ func genomeChainCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: acpctl genome chain --dir PATH [--json]")
 		fmt.Fprintln(stderr)
 		fmt.Fprintln(stderr, "Walk every .genome file in PATH, sort by generation, and validate that")
-		fmt.Fprintln(stderr, "every parent reference resolves to an existing bundle in the directory.")
+		fmt.Fprintln(stderr, "every parent reference resolves to the bundle, generation and payload it")
+		fmt.Fprintln(stderr, "names in the directory.")
 	}
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
-	entries, err := os.ReadDir(*dir)
+	nodes, err := readGenomeDir(*dir)
 	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome chain: read dir: %v\n", err)
+		fmt.Fprintf(stderr, "acpctl genome chain: %v\n", err)
 		return 1
-	}
-	var nodes []chainNode
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".genome") {
-			continue
-		}
-		path := filepath.Join(*dir, e.Name())
-		blob, err := os.ReadFile(path)
-		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome chain: read %s: %v\n", path, err)
-			return 1
-		}
-		env, _, err := decodeGenome(blob)
-		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome chain: decode %s: %v\n", path, err)
-			return 1
-		}
-		nodes = append(nodes, chainNode{
-			Path:             path,
-			Generation:       env.Generation,
-			BundleSHA256:     sha256Hex(blob),
-			ParentSHA256:     env.ParentBundleSHA256,
-			ParentGeneration: env.ParentGeneration,
-			ContentKind:      string(env.ContentKind),
-			ContentRef:       env.ContentRef,
-			BundleBytes:      int64(len(blob)),
-			SealedAt:         time.Unix(0, env.SealedAt).UTC(),
-		})
 	}
 	if len(nodes) == 0 {
 		fmt.Fprintf(stderr, "acpctl genome chain: no .genome files in %s\n", *dir)
@@ -687,10 +796,9 @@ func genomeChainCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Generation < nodes[j].Generation })
 
-	// Validate the chain: every non-genesis node's ParentSHA256 must point at an in-set bundle.
-	bySHA := make(map[string]*chainNode, len(nodes))
-	for i := range nodes {
-		bySHA[nodes[i].BundleSHA256] = &nodes[i]
+	bySHA := make(map[string]chainNode, len(nodes))
+	for _, n := range nodes {
+		bySHA[n.BundleSHA256] = n
 	}
 	var brokenLinks []string
 	for _, n := range nodes {
@@ -701,8 +809,13 @@ func genomeChainCmd(args []string, stdout, stderr io.Writer) int {
 			brokenLinks = append(brokenLinks, fmt.Sprintf("%s (gen %d): missing parent_bundle_sha256", n.Path, n.Generation))
 			continue
 		}
-		if _, ok := bySHA[n.ParentSHA256]; !ok {
+		parent, ok := bySHA[n.ParentSHA256]
+		if !ok {
 			brokenLinks = append(brokenLinks, fmt.Sprintf("%s (gen %d): parent sha256:%s not found in dir", n.Path, n.Generation, n.ParentSHA256))
+			continue
+		}
+		if fault := linkFault(n, parent); fault != "" {
+			brokenLinks = append(brokenLinks, fmt.Sprintf("%s (gen %d): %s", n.Path, n.Generation, fault))
 		}
 	}
 
@@ -726,12 +839,12 @@ func genomeChainCmd(args []string, stdout, stderr io.Writer) int {
 		if n.Generation == 0 {
 			marker = "●  "
 		}
-		fmt.Fprintf(stdout, "%s gen %3d  %s  %s  %s\n",
+		fmt.Fprintf(stdout, "%s gen %3d  %s  %s  %s  (%s)\n",
 			marker, n.Generation, humanBytes(n.BundleBytes),
-			n.SealedAt.Format("15:04:05"), filepath.Base(n.Path))
+			n.SealedAt.Format("15:04:05"), filepath.Base(n.Path), n.Format)
 		fmt.Fprintf(stdout, "          bundle    sha256:%s\n", n.BundleSHA256[:16]+"…")
-		if n.Generation > 0 {
-			fmt.Fprintf(stdout, "          parent →  sha256:%s\n", n.ParentSHA256[:16]+"…")
+		if n.ParentSHA256 != "" {
+			fmt.Fprintf(stdout, "          parent →  sha256:%s\n", shortHex(n.ParentSHA256))
 		}
 		fmt.Fprintf(stdout, "          content   %s · %s\n\n", n.ContentKind, n.ContentRef)
 	}
@@ -772,59 +885,35 @@ func genomeLineageCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	// Index the directory by bundle SHA-256.
-	entries, err := os.ReadDir(*dir)
+	nodes, err := readGenomeDir(*dir)
 	if err != nil {
-		fmt.Fprintf(stderr, "acpctl genome lineage: read dir: %v\n", err)
+		fmt.Fprintf(stderr, "acpctl genome lineage: %v\n", err)
 		return 1
 	}
-	bySHA := make(map[string]string)
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".genome") {
-			continue
-		}
-		p := filepath.Join(*dir, e.Name())
-		blob, err := os.ReadFile(p)
-		if err != nil {
-			continue
-		}
-		bySHA[sha256Hex(blob)] = p
+	bySHA := make(map[string]chainNode, len(nodes))
+	for _, n := range nodes {
+		bySHA[n.BundleSHA256] = n
+	}
+	start, err := loadGenome(*bundlePath)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl genome lineage: %v\n", err)
+		return 1
 	}
 
-	// Walk parents from the starting bundle.
-	current := *bundlePath
-	var ancestors []chainNode
-	for {
-		blob, err := os.ReadFile(current)
-		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome lineage: read %s: %v\n", current, err)
-			return 1
-		}
-		env, _, err := decodeGenome(blob)
-		if err != nil {
-			fmt.Fprintf(stderr, "acpctl genome lineage: decode %s: %v\n", current, err)
-			return 1
-		}
-		ancestors = append(ancestors, chainNode{
-			Path:             current,
-			Generation:       env.Generation,
-			BundleSHA256:     sha256Hex(blob),
-			ParentSHA256:     env.ParentBundleSHA256,
-			ParentGeneration: env.ParentGeneration,
-			ContentKind:      string(env.ContentKind),
-			ContentRef:       env.ContentRef,
-			BundleBytes:      int64(len(blob)),
-			SealedAt:         time.Unix(0, env.SealedAt).UTC(),
-		})
-		if env.Generation == 0 {
-			break
-		}
-		next, ok := bySHA[env.ParentBundleSHA256]
+	// Each step goes down exactly one generation, so the walk ends.
+	ancestors := []chainNode{nodeOf(start)}
+	for cur := ancestors[0]; cur.Generation > 0; {
+		parent, ok := bySHA[cur.ParentSHA256]
 		if !ok {
-			fmt.Fprintf(stderr, "acpctl genome lineage: parent sha256:%s not found in %s\n", env.ParentBundleSHA256, *dir)
+			fmt.Fprintf(stderr, "acpctl genome lineage: parent sha256:%s of %s not found in %s\n", cur.ParentSHA256, cur.Path, *dir)
 			return 1
 		}
-		current = next
+		if fault := linkFault(cur, parent); fault != "" {
+			fmt.Fprintf(stderr, "acpctl genome lineage: %s: %s\n", cur.Path, fault)
+			return 5
+		}
+		ancestors = append(ancestors, parent)
+		cur = parent
 	}
 
 	if *jsonOut {
@@ -842,9 +931,9 @@ func genomeLineageCmd(args []string, stdout, stderr io.Writer) int {
 		if i == len(ancestors)-1 {
 			arrow = "●  "
 		}
-		fmt.Fprintf(stdout, "%s gen %3d  %s  %s  %s\n",
+		fmt.Fprintf(stdout, "%s gen %3d  %s  %s  %s  (%s)\n",
 			arrow, a.Generation, humanBytes(a.BundleBytes),
-			a.SealedAt.Format("15:04:05"), filepath.Base(a.Path))
+			a.SealedAt.Format("15:04:05"), filepath.Base(a.Path), a.Format)
 	}
 	fmt.Fprintln(stdout)
 	fmt.Fprintln(stdout, "✓ lineage complete — every parent reference resolved to an existing bundle")
@@ -852,27 +941,72 @@ func genomeLineageCmd(args []string, stdout, stderr io.Writer) int {
 }
 
 // ---------------------------------------------------------------------------
-// envelope encode / decode
+// reading bundles of either format
 // ---------------------------------------------------------------------------
 
-func encodeGenome(env GenomeEnvelope, sealed []byte) ([]byte, error) {
-	meta, err := json.Marshal(env)
-	if err != nil {
-		return nil, fmt.Errorf("encode metadata: %w", err)
-	}
-	if len(meta) > 4<<20 { // 4 MiB cap for envelope JSON
-		return nil, fmt.Errorf("metadata > 4 MiB (%d bytes)", len(meta))
-	}
-	var buf bytes.Buffer
-	buf.WriteString(genomeMagic)
-	var lenBuf [4]byte
-	binary.BigEndian.PutUint32(lenBuf[:], uint32(len(meta)))
-	buf.Write(lenBuf[:])
-	buf.Write(meta)
-	buf.Write(sealed)
-	return buf.Bytes(), nil
+// genomeFile is a bundle read from disk, v3 or v2, described by a v3
+// header so every read-only subcommand handles both. A v3 bundle is read
+// as far as its header and hashed as a stream, never loaded whole; a v2
+// envelope is mapped onto the header, and its sealing key stays in v2.
+type genomeFile struct {
+	Path   string
+	Size   int64
+	SHA256 string // of the bundle file, hex
+	Format string
+	Header bundle.Header
+	V3     bool
+
+	v2       *GenomeEnvelope
+	v2Sealed []byte
 }
 
+func loadGenome(path string) (*genomeFile, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	var magic [len(bundle.Magic)]byte
+	_, err = io.ReadFull(f, magic[:])
+	_ = f.Close()
+	if err == nil && bundle.IsV3(magic[:]) {
+		id, err := bundle.Identify(path)
+		if err != nil {
+			return nil, err
+		}
+		return &genomeFile{Path: path, Size: id.Size, SHA256: id.SHA256, Format: bundle.Format, Header: id.Header, V3: true}, nil
+	}
+	blob, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	env, sealed, err := decodeGenome(blob)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return &genomeFile{
+		Path:   path,
+		Size:   int64(len(blob)),
+		SHA256: sha256Hex(blob),
+		Format: envelopeFormatV2,
+		Header: bundle.Header{
+			Format:              envelopeFormatV2,
+			SealedAt:            time.Unix(0, env.SealedAt).UTC(),
+			Generation:          env.Generation,
+			ParentBundleSHA256:  env.ParentBundleSHA256,
+			ParentPayloadSHA256: env.ParentPayloadSHA256,
+			ParentGeneration:    env.ParentGeneration,
+			ContentKind:         string(env.ContentKind),
+			ContentRef:          env.ContentRef,
+			ContentSnapshot:     env.ContentSnapshot,
+			PayloadSHA256:       env.payloadDigest(),
+		},
+		v2:       env,
+		v2Sealed: sealed,
+	}, nil
+}
+
+// decodeGenome splits a v2 bundle: magic ‖ u32 BE metadata length ‖
+// metadata JSON ‖ sealed payload.
 func decodeGenome(blob []byte) (*GenomeEnvelope, []byte, error) {
 	if len(blob) < len(genomeMagic)+4 {
 		return nil, nil, errors.New("decode: blob too short")
@@ -918,23 +1052,6 @@ func defaultOllamaHome() string {
 	return filepath.Join(home, ".ollama")
 }
 
-// workloadDescriptorV2 binds the TEE measurement to the (kind + ref +
-// payload digest + generation). Two seals of identical inputs at the
-// same generation produce identical measurements; a different generation
-// or a different content ref yields a different measurement, which is
-// the property we want for chain integrity.
-func workloadDescriptorV2(kind ContentKind, ref, payloadDigest string, generation uint64) []byte {
-	h := sha256.New()
-	h.Write([]byte("vault-genome.v2\n"))
-	h.Write([]byte(string(kind) + "\n"))
-	h.Write([]byte(ref + "\n"))
-	h.Write([]byte(payloadDigest + "\n"))
-	var genBuf [8]byte
-	binary.BigEndian.PutUint64(genBuf[:], generation)
-	h.Write(genBuf[:])
-	return h.Sum(nil)
-}
-
 func sha256Sum(data []byte) []byte {
 	sum := sha256.Sum256(data)
 	return sum[:]
@@ -943,6 +1060,15 @@ func sha256Sum(data []byte) []byte {
 func sha256Hex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
+}
+
+// shortHex abbreviates a digest for display; a value too short to
+// abbreviate is shown whole.
+func shortHex(s string) string {
+	if len(s) <= 16 {
+		return s
+	}
+	return s[:16] + "…"
 }
 
 func humanBytes(n int64) string {
@@ -959,37 +1085,41 @@ func humanBytes(n int64) string {
 }
 
 // ---------------------------------------------------------------------------
-// result types — separate from envelope so JSON output stays stable as the
-// envelope evolves.
+// result types — separate from the bundle header so JSON output stays
+// stable as the format evolves.
 // ---------------------------------------------------------------------------
 
 type sealResult struct {
 	OK                 bool   `json:"ok"`
 	Output             string `json:"output"`
+	KeyFile            string `json:"key_file"`
+	KeyID              string `json:"key_id"`
 	ContentKind        string `json:"content_kind"`
 	ContentRef         string `json:"content_ref"`
 	Generation         uint64 `json:"generation"`
 	ParentBundle       string `json:"parent_bundle,omitempty"`
 	ParentBundleSHA256 string `json:"parent_bundle_sha256,omitempty"`
-	PayloadBytes       int    `json:"payload_bytes"`
-	SealedBytes        int    `json:"sealed_bytes"`
-	BundleBytes        int    `json:"bundle_bytes"`
+	PayloadBytes       int64  `json:"payload_bytes"`
+	BundleBytes        int64  `json:"bundle_bytes"`
+	SegmentBytes       int64  `json:"segment_bytes"`
 	PayloadSHA256      string `json:"payload_sha256"`
-	MeasurementHex     string `json:"measurement"`
 	ComponentCount     int    `json:"component_count"`
 	SealedAt           string `json:"sealed_at"`
 }
 
 type openResult struct {
-	OK             bool   `json:"ok"`
-	Bundle         string `json:"bundle"`
-	Target         string `json:"target"`
-	ContentKind    string `json:"content_kind"`
-	ContentRef     string `json:"content_ref"`
-	Generation     uint64 `json:"generation"`
-	BytesWritten   int64  `json:"bytes_written"`
-	PayloadSHA256  string `json:"payload_sha256"`
-	MeasurementHex string `json:"measurement"`
+	OK            bool   `json:"ok"`
+	Bundle        string `json:"bundle"`
+	Format        string `json:"format"`
+	KeyID         string `json:"key_id,omitempty"`
+	Target        string `json:"target"`
+	ContentKind   string `json:"content_kind"`
+	ContentRef    string `json:"content_ref"`
+	Generation    uint64 `json:"generation"`
+	Files         int    `json:"files"`
+	BytesWritten  int64  `json:"bytes_written"`
+	PayloadSHA256 string `json:"payload_sha256"`
+	TreeSHA256    string `json:"tree_sha256"`
 }
 
 type verifyResult struct {
@@ -999,12 +1129,18 @@ type verifyResult struct {
 	ContentRef     string `json:"content_ref"`
 	Generation     uint64 `json:"generation"`
 	EnvelopeFormat string `json:"envelope_format"`
+	KeyID          string `json:"key_id,omitempty"`
+	// Authenticated is true only when the bundle was opened with its key
+	// (--key-file): the GCM tag then vouches for every header field and
+	// the payload. Without the key the header is only well-formed.
+	Authenticated  bool   `json:"authenticated"`
 	ComponentCount int    `json:"component_count"`
-	SealedBytes    int    `json:"sealed_bytes"`
+	BundleBytes    int64  `json:"bundle_bytes"`
+	BundleSHA256   string `json:"bundle_sha256"`
 	PayloadSHA256  string `json:"payload_sha256"`
-	MeasurementHex string `json:"measurement"`
 	SealedAt       string `json:"sealed_at"`
 	RestoredVerify string `json:"restored_verify,omitempty"`
+	TreeSHA256     string `json:"tree_sha256,omitempty"`
 }
 
 func emitGenome(w io.Writer, asJSON bool, v any) {
@@ -1016,21 +1152,25 @@ func emitGenome(w io.Writer, asJSON bool, v any) {
 	case sealResult:
 		fmt.Fprintf(w, "✓ sealed %s %q  (gen %d)\n", r.ContentKind, r.ContentRef, r.Generation)
 		fmt.Fprintf(w, "  output:        %s\n", r.Output)
+		fmt.Fprintf(w, "  key file:      %s  (0600 — the only way to open the bundle)\n", r.KeyFile)
+		fmt.Fprintf(w, "  key id:        %s\n", r.KeyID)
 		if r.ParentBundle != "" {
-			fmt.Fprintf(w, "  parent:        %s (sha256:%s…)\n", r.ParentBundle, r.ParentBundleSHA256[:16])
+			fmt.Fprintf(w, "  parent:        %s (sha256:%s)\n", r.ParentBundle, shortHex(r.ParentBundleSHA256))
 		}
 		fmt.Fprintf(w, "  components:    %d\n", r.ComponentCount)
-		fmt.Fprintf(w, "  bundle bytes:  %d (%s)\n", r.BundleBytes, humanBytes(int64(r.BundleBytes)))
+		fmt.Fprintf(w, "  bundle bytes:  %d (%s), payload %s in segments of %s\n", r.BundleBytes, humanBytes(r.BundleBytes), humanBytes(r.PayloadBytes), humanBytes(r.SegmentBytes))
 		fmt.Fprintf(w, "  payload sha256:%s\n", r.PayloadSHA256)
-		fmt.Fprintf(w, "  measurement:   %s\n", r.MeasurementHex)
 		fmt.Fprintf(w, "  sealed at UTC: %s\n", r.SealedAt)
 	case openResult:
-		fmt.Fprintf(w, "✓ unsealed %s %q  (gen %d)\n", r.ContentKind, r.ContentRef, r.Generation)
+		fmt.Fprintf(w, "✓ unsealed %s %q  (gen %d, %s)\n", r.ContentKind, r.ContentRef, r.Generation, r.Format)
 		fmt.Fprintf(w, "  bundle:        %s\n", r.Bundle)
+		if r.KeyID != "" {
+			fmt.Fprintf(w, "  key id:        %s\n", r.KeyID)
+		}
 		fmt.Fprintf(w, "  target:        %s\n", r.Target)
-		fmt.Fprintf(w, "  bytes written: %d (%s)\n", r.BytesWritten, humanBytes(r.BytesWritten))
+		fmt.Fprintf(w, "  files:         %d, %d bytes (%s), each checked against its recorded digest\n", r.Files, r.BytesWritten, humanBytes(r.BytesWritten))
 		fmt.Fprintf(w, "  payload sha256:%s\n", r.PayloadSHA256)
-		fmt.Fprintf(w, "  measurement:   %s\n", r.MeasurementHex)
+		fmt.Fprintf(w, "  tree sha256:   %s\n", r.TreeSHA256)
 	case verifyResult:
 		marker := "✓"
 		if !r.OK {
@@ -1038,13 +1178,23 @@ func emitGenome(w io.Writer, asJSON bool, v any) {
 		}
 		fmt.Fprintf(w, "%s envelope %s · %s %q  (gen %d)\n", marker, r.EnvelopeFormat, r.ContentKind, r.ContentRef, r.Generation)
 		fmt.Fprintf(w, "  bundle:        %s\n", r.Bundle)
+		if r.KeyID != "" {
+			fmt.Fprintf(w, "  key id:        %s\n", r.KeyID)
+		}
+		if r.Authenticated {
+			fmt.Fprintln(w, "  authenticated: yes — opened with its key; header and payload are as sealed")
+		} else {
+			fmt.Fprintln(w, "  authenticated: no — pass --key-file to check the header and payload against the seal")
+		}
 		fmt.Fprintf(w, "  components:    %d\n", r.ComponentCount)
-		fmt.Fprintf(w, "  sealed bytes:  %d (%s)\n", r.SealedBytes, humanBytes(int64(r.SealedBytes)))
+		fmt.Fprintf(w, "  bundle:        %d bytes (%s), sha256 %s\n", r.BundleBytes, humanBytes(r.BundleBytes), shortHex(r.BundleSHA256))
 		fmt.Fprintf(w, "  payload sha256:%s\n", r.PayloadSHA256)
-		fmt.Fprintf(w, "  measurement:   %s\n", r.MeasurementHex)
 		fmt.Fprintf(w, "  sealed at UTC: %s\n", r.SealedAt)
 		if r.RestoredVerify != "" {
 			fmt.Fprintf(w, "  restored:      %s\n", r.RestoredVerify)
+		}
+		if r.TreeSHA256 != "" {
+			fmt.Fprintf(w, "  tree sha256:   %s\n", r.TreeSHA256)
 		}
 	}
 }

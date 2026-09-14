@@ -103,7 +103,7 @@ bash ~/scripts/03-demo1-single-bundle.sh 2>&1 | tail -10
 bash ~/scripts/04-demo2-chain.sh 2>&1 | tail -10
 bash ~/scripts/05-inference-test.sh 2>&1 | tail -10
 
-# Cross-region DR test (only if a bundle was uploaded)
+# Cross-region DR test (only if a bundle and its key file were uploaded)
 if [ -f ~/vg/cross-region-bundle.genome ]; then
   echo
   echo "=== cross-region DR: restore bundle from another region ==="
@@ -111,9 +111,11 @@ if [ -f ~/vg/cross-region-bundle.genome ]; then
   cd ~/vg
   ./acpctl genome open \
       --bundle="${HOME}/vg/cross-region-bundle.genome" \
+      --key-file="${HOME}/vg/cross-region-bundle.key" \
       --target=/tmp/cross-region-restored 2>&1 | tee evidence/cross-region-open.txt | tail -10
   ./acpctl genome verify \
       --bundle="${HOME}/vg/cross-region-bundle.genome" \
+      --key-file="${HOME}/vg/cross-region-bundle.key" \
       --restored=/tmp/cross-region-restored 2>&1 | tee evidence/cross-region-verify.txt | tail -10
   echo "✓ cross-region restore PASSED — byte-identical across Azure regions" \
     | tee evidence/cross-region-result.txt

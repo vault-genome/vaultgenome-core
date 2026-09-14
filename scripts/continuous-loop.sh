@@ -14,7 +14,7 @@
 #   3. After all cycles complete:
 #        - acpctl genome chain  → full timeline of generations
 #        - acpctl genome lineage → walk parents back from latest to genesis
-#        - acpctl genome rewind --to gen-3 → restore middle generation
+#        - acpctl genome rewind --bundle gen-2 --key-file gen-2.key → restore a middle generation
 #        - inference comparison: base model vs gen-3 vs gen-N (final)
 #        - tamper test on a middle generation → chain integrity breaks
 #
@@ -123,7 +123,8 @@ PREV_ADAPTER=""
 for i in $(seq 0 $((CYCLES - 1))); do
     CYCLE_DIR="$WORK_DIR/adapters/cycle-$i"
     BUNDLE="$WORK_DIR/generations/gen-$i.genome"
-    mkdir -p "$CYCLE_DIR"
+    KEY="$WORK_DIR/keys/gen-$i.key"
+    mkdir -p "$CYCLE_DIR" "$WORK_DIR/keys"
 
     echo
     echo "${YELLOW}── cycle $i ───────────────────────────────────${RESET}"
@@ -142,8 +143,8 @@ for i in $(seq 0 $((CYCLES - 1))); do
     PREV_ADAPTER="$CYCLE_DIR"
 
     note "seal: cycle-$i adapter → $(basename $BUNDLE) ${PARENT_FLAG:+(parent=$(basename ${PARENT_FLAG#--parent=}))}"
-    acpctl genome seal --content-dir="$CYCLE_DIR" $PARENT_FLAG --output="$BUNDLE" --force 2>&1 \
-        | grep -E "✓|generation|bundle bytes|measurement"
+    acpctl genome seal --content-dir="$CYCLE_DIR" $PARENT_FLAG --output="$BUNDLE" --key-out="$KEY" --force 2>&1 \
+        | grep -E "✓|key id|bundle bytes"
 
     PARENT_FLAG="--parent=$BUNDLE"
 done
@@ -158,7 +159,7 @@ LATEST=$((CYCLES - 1))
 run "acpctl genome lineage --bundle=$WORK_DIR/generations/gen-$LATEST.genome --dir=$WORK_DIR/generations"
 
 step "Rewind to a MIDDLE generation (gen-2) — restore that exact adapter to a fresh directory"
-run "acpctl genome rewind --bundle=$WORK_DIR/generations/gen-2.genome --target=$WORK_DIR/restored-gen-2"
+run "acpctl genome rewind --bundle=$WORK_DIR/generations/gen-2.genome --key-file=$WORK_DIR/keys/gen-2.key --target=$WORK_DIR/restored-gen-2"
 
 # --- inference comparison ----------------------------------------------------
 
@@ -176,7 +177,7 @@ for GEN in $GENS_TO_SHOW; do
     GEN_BUNDLE="$WORK_DIR/generations/gen-$GEN.genome"
     GEN_RESTORED="$WORK_DIR/restored-gen-$GEN"
     if [ ! -d "$GEN_RESTORED" ]; then
-        acpctl genome rewind --bundle="$GEN_BUNDLE" --target="$GEN_RESTORED" >/dev/null
+        acpctl genome rewind --bundle="$GEN_BUNDLE" --key-file="$WORK_DIR/keys/gen-$GEN.key" --target="$GEN_RESTORED" >/dev/null
     fi
     echo
     echo "${BOLD}— GENERATION $GEN (after $(( (GEN+1) * ITERS_PER_CYCLE )) cumulative training iters):${RESET}"
@@ -197,9 +198,9 @@ note "flipping one byte at offset 1 MiB inside the sealed payload..."
 printf '\xff' | dd of="$TAMPER_TARGET" bs=1 seek=1048576 count=1 conv=notrunc 2>/dev/null
 echo "$(basename $TAMPER_TARGET) modified — 1 byte flipped at offset 1048576"
 
-note "after tamper: try to open the bundle (should fail with cipher: message authentication failed)"
+note "after tamper: try to open the bundle with its key (the edited segment fails authentication)"
 set +e
-acpctl genome rewind --bundle="$TAMPER_TARGET" --target=/tmp/should-not-exist 2>&1
+acpctl genome rewind --bundle="$TAMPER_TARGET" --key-file="$WORK_DIR/keys/gen-${TAMPER_GEN}.key" --target=/tmp/should-not-exist 2>&1
 TAMPER_EXIT=$?
 set -e
 echo

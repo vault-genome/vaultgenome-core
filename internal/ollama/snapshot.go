@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -80,30 +81,45 @@ type Snapshot struct {
 // signed into the genome envelope) is reproducible. We achieve this by
 // sorting tar entries lexicographically and zeroing per-entry timestamps.
 func CapturePayload(modelRef, ollamaHome string) (Snapshot, []byte, error) {
-	manifestRel, err := manifestPathFor(modelRef)
+	var buf bytes.Buffer
+	snap, _, err := Capture(modelRef, ollamaHome, &buf)
 	if err != nil {
 		return Snapshot{}, nil, err
+	}
+	return snap, buf.Bytes(), nil
+}
+
+// Capture writes the payload CapturePayload returns to w instead, blob by
+// blob, so a model of any size is captured in bounded memory. It returns
+// the snapshot and the number of payload bytes written. Every blob is
+// hashed as it is written and must match its manifest digest; if one does
+// not, the error comes after its bytes were written, and whatever w
+// received must be discarded.
+func Capture(modelRef, ollamaHome string, w io.Writer) (Snapshot, int64, error) {
+	manifestRel, err := manifestPathFor(modelRef)
+	if err != nil {
+		return Snapshot{}, 0, err
 	}
 	manifestAbs := filepath.Join(ollamaHome, "models", manifestRel)
 
 	manifestBytes, err := os.ReadFile(manifestAbs)
 	if err != nil {
-		return Snapshot{}, nil, fmt.Errorf("ollama snapshot: read manifest %s: %w", manifestAbs, err)
+		return Snapshot{}, 0, fmt.Errorf("ollama snapshot: read manifest %s: %w", manifestAbs, err)
 	}
 
 	var mf ManifestRef
 	if err := json.Unmarshal(manifestBytes, &mf); err != nil {
-		return Snapshot{}, nil, fmt.Errorf("ollama snapshot: parse manifest: %w", err)
+		return Snapshot{}, 0, fmt.Errorf("ollama snapshot: parse manifest: %w", err)
 	}
 	// Digests become file names under models/blobs, so validate every one
 	// before touching the filesystem: a crafted "sha256:../../dev/zero"
 	// would otherwise read outside the store (or never finish reading).
 	if err := validateDigest(mf.Config.Digest); err != nil {
-		return Snapshot{}, nil, fmt.Errorf("ollama snapshot: manifest config: %w", err)
+		return Snapshot{}, 0, fmt.Errorf("ollama snapshot: manifest config: %w", err)
 	}
 	for i, l := range mf.Layers {
 		if err := validateDigest(l.Digest); err != nil {
-			return Snapshot{}, nil, fmt.Errorf("ollama snapshot: manifest layer %d: %w", i, err)
+			return Snapshot{}, 0, fmt.Errorf("ollama snapshot: manifest layer %d: %w", i, err)
 		}
 	}
 
@@ -123,13 +139,20 @@ func CapturePayload(modelRef, ollamaHome string) (Snapshot, []byte, error) {
 	// Deterministic order so payload bytes are reproducible.
 	sort.Slice(components, func(i, j int) bool { return components[i].Digest < components[j].Digest })
 
-	var buf bytes.Buffer
-	tw := tar.NewWriter(&buf)
+	blobs, err := os.OpenRoot(filepath.Join(ollamaHome, "models", "blobs"))
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("ollama snapshot: open blob store: %w", err)
+	}
+	defer func() { _ = blobs.Close() }()
+
+	counted := &countingWriter{w: w}
+	payloadHash := sha256.New()
+	tw := tar.NewWriter(io.MultiWriter(counted, payloadHash))
 
 	// 1. The manifest, written under its source-relative path so Restore
 	//    can drop it back where Ollama expects to find it.
 	if err := writeTarEntry(tw, "models/"+manifestRel, manifestBytes); err != nil {
-		return Snapshot{}, nil, fmt.Errorf("ollama snapshot: tar manifest: %w", err)
+		return Snapshot{}, 0, fmt.Errorf("ollama snapshot: tar manifest: %w", err)
 	}
 
 	// 2. Every referenced blob, named by digest (Ollama's on-disk
@@ -141,42 +164,82 @@ func CapturePayload(modelRef, ollamaHome string) (Snapshot, []byte, error) {
 			return nil
 		}
 		seen[digest] = true
-		blobName := blobFilename(digest)
-		blobPath := filepath.Join(ollamaHome, "models", "blobs", blobName)
-		data, err := os.ReadFile(blobPath)
-		if err != nil {
-			return fmt.Errorf("read blob %s: %w", blobName, err)
-		}
-		actual := digestOf(data)
-		if actual != digest {
-			return fmt.Errorf("blob %s: digest mismatch (manifest says %s, on disk %s)", blobName, digest, actual)
-		}
-		totalBytes += int64(len(data))
-		return writeTarEntry(tw, "models/blobs/"+blobName, data)
+		n, err := writeBlob(tw, blobs, digest)
+		totalBytes += n
+		return err
 	}
 
 	if err := addBlob(mf.Config.Digest); err != nil {
-		return Snapshot{}, nil, fmt.Errorf("ollama snapshot: %w", err)
+		return Snapshot{}, 0, fmt.Errorf("ollama snapshot: %w", err)
 	}
 	for _, l := range mf.Layers {
 		if err := addBlob(l.Digest); err != nil {
-			return Snapshot{}, nil, fmt.Errorf("ollama snapshot: %w", err)
+			return Snapshot{}, 0, fmt.Errorf("ollama snapshot: %w", err)
 		}
 	}
 
 	if err := tw.Close(); err != nil {
-		return Snapshot{}, nil, fmt.Errorf("ollama snapshot: close tar: %w", err)
+		return Snapshot{}, 0, fmt.Errorf("ollama snapshot: close tar: %w", err)
 	}
 
-	payload := buf.Bytes()
 	return Snapshot{
 		Model:         modelRef,
 		ManifestPath:  manifestRel,
 		Manifest:      mf,
 		Components:    components,
 		TotalBytes:    totalBytes,
-		PayloadSHA256: digestOf(payload),
-	}, payload, nil
+		PayloadSHA256: "sha256:" + hex.EncodeToString(payloadHash.Sum(nil)),
+	}, counted.n, nil
+}
+
+// writeBlob streams one content-addressed blob into the tar and checks it
+// hashes to the digest that names it.
+func writeBlob(tw *tar.Writer, blobs *os.Root, digest string) (int64, error) {
+	name := blobFilename(digest)
+	f, err := blobs.Open(name)
+	if err != nil {
+		return 0, fmt.Errorf("read blob %s: %w", name, err)
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("read blob %s: %w", name, err)
+	}
+	if !info.Mode().IsRegular() {
+		return 0, fmt.Errorf("blob %s is not a regular file", name)
+	}
+	if err := tw.WriteHeader(&tar.Header{
+		Name:     "models/blobs/" + name,
+		Mode:     0o644,
+		Size:     info.Size(),
+		Typeflag: tar.TypeReg,
+		Format:   tar.FormatPAX,
+	}); err != nil {
+		return 0, err
+	}
+	h := sha256.New()
+	n, err := io.Copy(io.MultiWriter(tw, h), f)
+	if err != nil {
+		return n, fmt.Errorf("read blob %s: %w", name, err)
+	}
+	if n != info.Size() {
+		return n, fmt.Errorf("blob %s changed size while it was read", name)
+	}
+	if actual := "sha256:" + hex.EncodeToString(h.Sum(nil)); actual != digest {
+		return n, fmt.Errorf("blob %s: digest mismatch (manifest says %s, on disk %s)", name, digest, actual)
+	}
+	return n, nil
+}
+
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	return n, err
 }
 
 // Restore extracts a payload produced by CapturePayload into targetHome,

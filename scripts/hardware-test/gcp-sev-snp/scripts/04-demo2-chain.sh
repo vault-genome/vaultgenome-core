@@ -19,7 +19,7 @@ if [ -d generations ] && [ "$(ls -A generations/*.genome 2>/dev/null | wc -l)" -
   ls -lh generations/
 else
   echo "=== no chain bundles found — sealing $NUM_GENS fresh ones ==="
-  mkdir -p generations test-payloads
+  mkdir -p generations test-payloads keys
   for i in $(seq 0 $((NUM_GENS - 1))); do
     mkdir -p "test-payloads/cycle-$i"
     # Each cycle gets a tiny content directory. The bytes don't matter
@@ -36,6 +36,7 @@ else
       --content-dir="test-payloads/cycle-$i" \
       $PARENT_FLAG \
       --output="$BUNDLE" \
+      --key-out="keys/gen-$i.key" \
       --force
     PARENT_FLAG="--parent=$BUNDLE"
   done
@@ -58,6 +59,7 @@ echo "=== rewind to a middle generation ==="
 MID_BUNDLE=$(ls -1 generations/gen-*.genome | awk 'NR==int(NR/2)+1')
 "$ACPCTL" genome rewind \
   --bundle="$MID_BUNDLE" \
+  --key-file="keys/$(basename "$MID_BUNDLE" .genome).key" \
   --target=/tmp/demo2-rewind \
   | tee evidence/demo2-rewind.txt
 

@@ -34,6 +34,7 @@ set -euo pipefail
 ACPCTL="${ACPCTL:-$(dirname "$0")/../bin/acpctl}"
 MODEL="${MODEL:-llama3.2:3b}"
 BUNDLE="${BUNDLE:-/tmp/llama-genome-demo.genome}"
+KEY="${KEY:-/tmp/llama-genome-demo.key}"
 RESTORED="${RESTORED:-/tmp/restored-ollama}"
 TAMPERED="${TAMPERED:-/tmp/tampered.genome}"
 ORIGINAL_PORT="${ORIGINAL_PORT:-11434}"
@@ -94,7 +95,7 @@ inference() {
 cleanup() {
     note "cleanup: stopping restored daemon and removing temp files"
     run_silent "lsof -ti:${RESTORED_PORT} | xargs -r kill"
-    run_silent "rm -rf ${BUNDLE} ${TAMPERED} ${RESTORED}"
+    run_silent "rm -rf ${BUNDLE} ${KEY} ${TAMPERED} ${RESTORED}"
 }
 
 trap cleanup EXIT
@@ -122,17 +123,17 @@ sleep 2
 step "Show that the model is real and the original daemon is serving it"
 run "${OLLAMA_BIN} list"
 
-step "Seal the model: read manifest + every content-addressed blob, pack into a deterministic tar payload, seal under a Simulated TEE, write to a single .genome bundle"
-run "${ACPCTL} genome seal --model=${MODEL} --output=${BUNDLE} --force"
+step "Seal the model: read manifest + every content-addressed blob, stream them as a deterministic tar through AES-256-GCM in 1 MiB segments under a fresh key, write one .genome bundle — and the key to its own 0600 file"
+run "${ACPCTL} genome seal --model=${MODEL} --output=${BUNDLE} --key-out=${KEY} --force"
 
-step "Inspect the sealed bundle without unsealing — envelope metadata only"
+step "Inspect the sealed bundle without its key — header only"
 run "${ACPCTL} genome inspect --bundle=${BUNDLE}"
 
-step "Open the bundle into a fresh OLLAMA_MODELS directory at ${RESTORED}/models"
-run "${ACPCTL} genome open --bundle=${BUNDLE} --target=${RESTORED}"
+step "Open the bundle with its key into a fresh OLLAMA_MODELS directory at ${RESTORED}/models"
+run "${ACPCTL} genome open --bundle=${BUNDLE} --key-file=${KEY} --target=${RESTORED}"
 
-step "Verify the restored tree: re-hash every blob on disk and confirm digests match the envelope record"
-run "${ACPCTL} genome verify --bundle=${BUNDLE} --restored=${RESTORED}"
+step "Verify: open the bundle again with its key, re-hash every restored blob and confirm each matches the sealed record"
+run "${ACPCTL} genome verify --bundle=${BUNDLE} --key-file=${KEY} --restored=${RESTORED}"
 
 step "Spin up a second Ollama daemon on :${RESTORED_PORT} pointing at the restored models directory"
 note "this is the 'second machine' — independent process, independent OLLAMA_MODELS tree"
@@ -171,13 +172,13 @@ fi
 sleep "$PAUSE"
 
 step "Tamper test: flip one byte deep inside the sealed bundle, then try to open it"
-note "AES-256-GCM authentication will catch the modification — partial writes are not allowed"
+note "the segment holding that byte fails AES-256-GCM authentication; the restore stages everything and moves nothing into place"
 run "cp ${BUNDLE} ${TAMPERED}"
 run "printf '\\xff' | dd of=${TAMPERED} bs=1 seek=104857600 count=1 conv=notrunc 2>/dev/null && echo 'flipped 1 byte at offset 100 MiB'"
 echo
-echo "${DIM}\$${RESET} ${ACPCTL} genome open --bundle=${TAMPERED} --target=/tmp/should-not-exist"
+echo "${DIM}\$${RESET} ${ACPCTL} genome open --bundle=${TAMPERED} --key-file=${KEY} --target=/tmp/should-not-exist"
 set +e
-"${ACPCTL}" genome open --bundle="${TAMPERED}" --target=/tmp/should-not-exist
+"${ACPCTL}" genome open --bundle="${TAMPERED}" --key-file="${KEY}" --target=/tmp/should-not-exist
 TAMPER_EXIT=$?
 set -e
 echo
@@ -188,7 +189,6 @@ else
 fi
 
 echo
-echo "${BOLD}${GREEN}Done.${RESET} Bundle ${BUNDLE} can be moved to any machine, opened with the same envelope,"
-echo "and will produce bit-identical inference. The Simulated TEE is the local-development surface;"
-echo "production deployments swap in AWS Nitro / Azure SGX / GCP SEV-SNP / Intel SGX behind the same"
-echo "Producer/Verifier/Sealer interface — no callsite changes."
+echo "${BOLD}${GREEN}Done.${RESET} Bundle ${BUNDLE} can be stored anywhere — it opens only with ${KEY}."
+echo "Across clouds, sagvd crosscloud-restore releases that key only to an attested, allow-listed"
+echo "destination TEE, which restores the model itself and signs a receipt (ADR 0011)."

@@ -32,6 +32,13 @@ import (
 // may hold a partial extraction; callers verify content digests
 // afterwards, so a partial tree is never mistaken for a restore.
 func Extract(payload []byte, targetDir string) (int64, error) {
+	return ExtractReader(bytes.NewReader(payload), targetDir)
+}
+
+// ExtractReader is Extract over a stream: the tar is read from r entry by
+// entry, so a payload of any size extracts in bounded memory. It stops at
+// the tar's end-of-archive marker and does not read r past it.
+func ExtractReader(r io.Reader, targetDir string) (int64, error) {
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return 0, fmt.Errorf("safetar: create target: %w", err)
 	}
@@ -41,7 +48,7 @@ func Extract(payload []byte, targetDir string) (int64, error) {
 	}
 	defer func() { _ = root.Close() }()
 
-	tr := tar.NewReader(bytes.NewReader(payload))
+	tr := tar.NewReader(r)
 	var written int64
 	for {
 		hdr, err := tr.Next()

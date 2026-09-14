@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -692,13 +693,27 @@ var forbiddenWriteSelectors = map[string]struct{}{
 //     worker binary by Invariants #01 and #02 (vault/worker import
 //     graph). The unsealing itself remains the sealer's responsibility;
 //     the materialisation step is a client-side concern.
-//   - the tar extraction step shared by those two restore packages
-//     (shared/safetar). It is not a new export surface: contentdir and
-//     ollama delegate their extraction to it so the confinement logic
-//     (os.Root; no "..", absolute or symlink escape) exists once.
-//     TestInvariant_07_SafetarOnlyServesRestore pins its importers to
-//     exactly contentdir and ollama, so the allowance cannot be reused
-//     by any other package.
+//   - the tar extraction step shared by those restore packages
+//     (shared/safetar). It is not a new export surface: they delegate
+//     their extraction to it so the confinement logic (os.Root; no "..",
+//     absolute or symlink escape) exists once.
+//     TestInvariant_07_SafetarOnlyServesRestore pins its importers, so the
+//     allowance cannot be reused by any other package.
+//   - the v3 genome bundle format (genome/bundle). It writes sealed
+//     ciphertext only — the payload leaves it AES-256-GCM-sealed under a
+//     DEK that is not in the file (ADR 0011) — and its io.Copy calls feed
+//     hash functions.
+//   - the all-or-nothing materialisation of an opened genome
+//     (genome/restore): by acpctl on the operator's machine, and by
+//     acp-bootstrap inside the destination TEE the operator's policy
+//     released the genome's key to (ADR 0009, 0010, 0011). The payload
+//     reaching it has been authenticated segment by segment under that
+//     key; it extracts into a staging directory inside the target, checks
+//     the tree against the sealed snapshot, and only then moves it into
+//     place. TestInvariant_07c_AuthorityLinksNoMaterialisation keeps it —
+//     and safetar — out of the sagvd authority and the acp-compute worker.
+//   - restore receipts (genome/receipt): public statements — digests,
+//     identifiers and TEE Evidence — that carry no genome material.
 //
 // Anything outside these prefixes must route writes through the sealer
 // in /internal/vault/disclosure or through one of the allowlisted
@@ -709,7 +724,10 @@ var allowedWriteSinkPrefixes = []string{
 	"internal/shared/tee/",
 	"internal/contentdir/",     // client-side restore: directory-tree materialisation
 	"internal/ollama/",         // client-side restore: OLLAMA_MODELS materialisation
-	"internal/shared/safetar/", // extraction step of the two restore packages above
+	"internal/shared/safetar/", // extraction step of the restore packages
+	"internal/genome/bundle/",  // sealed ciphertext only
+	"internal/genome/restore/", // materialisation of an authenticated, opened genome
+	"internal/genome/receipt/", // restore receipts: public, no genome material
 }
 
 // safetarImporters are the only packages permitted to import
@@ -717,6 +735,25 @@ var allowedWriteSinkPrefixes = []string{
 var safetarImporters = []string{
 	"internal/contentdir/",
 	"internal/ollama/",
+	"internal/genome/restore/",
+}
+
+// materialisingPackages put genome plaintext on disk. Only the binaries
+// in materialisingBinaries may link them.
+var materialisingPackages = []string{
+	"github.com/ai-continuity-platform/core/internal/shared/safetar",
+	"github.com/ai-continuity-platform/core/internal/genome/restore",
+	"github.com/ai-continuity-platform/core/internal/bootstrap/restorer",
+}
+
+// materialisingBinaries: acpctl restores on the operator's machine with
+// the operator's key file; acp-bootstrap restores inside the attested
+// destination the key was released to. The sagvd authority releases keys
+// and confirms restores from receipts; it never holds a genome's
+// plaintext, so it must not even link the code that writes one.
+var materialisingBinaries = map[string]bool{
+	"./cmd/acpctl":        true,
+	"./cmd/acp-bootstrap": true,
 }
 
 // TestInvariant_07_NoRawExport asserts there is no code path under
@@ -840,6 +877,41 @@ func TestInvariant_07_SafetarOnlyServesRestore(t *testing.T) {
 	}
 	if len(offenders) > 0 {
 		t.Errorf("internal/shared/safetar imported outside %v: %v", safetarImporters, offenders)
+	}
+}
+
+// TestInvariant_07c_AuthorityLinksNoMaterialisation checks, over the
+// real link graph (go list -deps), that no binary other than acpctl and
+// acp-bootstrap links a package that writes genome plaintext to disk.
+func TestInvariant_07c_AuthorityLinksNoMaterialisation(t *testing.T) {
+	t.Parallel()
+	root := locateModuleRoot(t)
+	entries, err := os.ReadDir(filepath.Join(root, "cmd"))
+	if err != nil {
+		t.Fatalf("read cmd/: %v", err)
+	}
+	checked := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		bin := "./cmd/" + e.Name()
+		cmd := exec.Command("go", "list", "-deps", bin)
+		cmd.Dir = root
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("go list -deps %s: %v", bin, err)
+		}
+		checked++
+		deps := strings.Fields(string(out))
+		for _, pkg := range materialisingPackages {
+			if slices.Contains(deps, pkg) && !materialisingBinaries[bin] {
+				t.Errorf("%s links %s; only %v may put genome plaintext on disk", bin, pkg, materialisingBinaries)
+			}
+		}
+	}
+	if checked < 4 {
+		t.Fatalf("checked %d binaries; expected sagvd, acp-compute, acp-bootstrap and acpctl at least", checked)
 	}
 }
 

@@ -27,6 +27,7 @@ echo "=== seal ==="
   --model="$MODEL" \
   --ollama-home=/usr/share/ollama/.ollama \
   --output=demo1-bundle.genome \
+  --key-out=demo1-bundle.key \
   | tee evidence/demo1-seal.txt
 
 echo
@@ -39,6 +40,7 @@ echo "=== open into /tmp/demo1-restored ==="
 rm -rf /tmp/demo1-restored
 "$ACPCTL" genome open \
   --bundle=demo1-bundle.genome \
+  --key-file=demo1-bundle.key \
   --target=/tmp/demo1-restored \
   | tee evidence/demo1-open.txt
 
@@ -46,6 +48,7 @@ echo
 echo "=== verify (re-hash every blob in restored tree) ==="
 "$ACPCTL" genome verify \
   --bundle=demo1-bundle.genome \
+  --key-file=demo1-bundle.key \
   --restored=/tmp/demo1-restored \
   | tee evidence/demo1-verify.txt
 
@@ -58,12 +61,13 @@ echo "1 byte flipped at offset 1 MiB"
 set +e
 "$ACPCTL" genome rewind \
   --bundle=/tmp/tampered.genome \
+  --key-file=demo1-bundle.key \
   --target=/tmp/should-not-exist \
   > evidence/demo1-tamper.txt 2>&1
 TAMPER_EXIT=$?
 set -e
 
-echo "tamper test exit code: $TAMPER_EXIT (non-zero == AEAD authentication caught it, expected)"
+echo "tamper test exit code: $TAMPER_EXIT (non-zero == the edited segment failed authentication, expected)"
 cat evidence/demo1-tamper.txt
 rm -f /tmp/tampered.genome
 
