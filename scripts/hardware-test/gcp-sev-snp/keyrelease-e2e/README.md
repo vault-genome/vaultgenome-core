@@ -14,6 +14,26 @@ The shipping binaries, run end to end on a Google Confidential VM
 Both processes run inside the same guest here; what the run proves is that the
 destination's Evidence is genuine hardware and that the whole chain accepts it.
 
+## Result — run `20260914T212909Z` (evidence/20260914T212909Z), the complete one
+
+us-central1-c. With the durable audit log (ADR 0009 follow-up) and the operator
+stop (ADR 0010) in place:
+
+| Step | Outcome |
+|---|---|
+| `acp-bootstrap identity` | measurement `ccdc5cf0…fb5d26fa` (48 bytes) |
+| Release, allow-listed, stop list serial 1 | **ok** — recipient key `5fb4955b…9d0b` on both sides; destination registered 1 key |
+| Release with an allow-list that does not name this guest | **refused** — `authority`: "destination measurement not in allow-list"; attestation verified first |
+| Operator signs stop list serial 2 (`-all`); release | **refused** — `authority`: "operator stop in force (revocation serial 2): e2e: operator stop"; report names serial 2 |
+| `acpctl audit verify` with the key `sagvd identity` published | **ok** — 9 events (3 per flow: handshake, attestation verified, then authorised or denied), tip `113bf67b…41c0` |
+
+The destination answered three handshakes and accepted exactly one token.
+
+Note the measurement differs from the us-central1-b runs below (`0e017d2f…`)
+with the same image and kernel: the guest firmware differs between zones, and
+the launch measurement covers it. An allow-list must name every
+firmware-and-image combination it means to trust.
+
 ## Result — run `20260914T205955Z` (evidence/20260914T205955Z)
 
 | Step | Outcome |
@@ -60,4 +80,5 @@ outside the repository; their SHA-256:
 ```
 126ff41bd92fb4eb689e3168427dbfaa3ec90efe6791d51a57bb319e427e66c9  serial-20260914T205327Z.txt  (run 205458Z)
 aedd031abf37d59b1ad82bfa1386c6d7060c6e72a311bc20505b7e83ce8d2433  serial-20260914T205827Z.txt  (run 205955Z)
+becf89b92dc6b59c116030bdb30ccfdeb7a6159b7d791f68060791858ea9b2c1  serial-20260914T212737Z.txt  (run 212909Z)
 ```

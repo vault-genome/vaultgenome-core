@@ -1,0 +1,8 @@
+{
+  "authority_kid": "sagvd-authority-demo",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAPzxhXz3gunspcf89+VuYIYtbaGp+S0PHQocTXR94V4c=\n-----END PUBLIC KEY-----\n",
+  "tee_measurement_hex": "d59a461d1130614a2a5e57ea9a8135a034d8a05c4c6ad6d077debaf276ebb068",
+  "tee_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAuR2ZUsdLoyrqDkd3ULkgK4ddBD712okYdANw8Xi8q70=\n-----END PUBLIC KEY-----\n",
+  "audit_kid": "sagvd-audit-demo",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAkPk9Tao+8RGdDPJeJX8uYUqpUanDg7VLjTEvindt67k=\n-----END PUBLIC KEY-----\n"
+}

@@ -1,0 +1,10 @@
+== binaries from gs://rats-probe-vg-e2e-20260914t212737z/e2e
+== configfs-tsm
+== provision (keygen)
+== sagvd identity
+== operator stop key and first list (nothing stopped)
+== acp-bootstrap on SEV-SNP
+== release to this attested guest
+== release refused: guest not on the allow-list
+== release refused: operator stop in force
+== audit log verified with the published audit key

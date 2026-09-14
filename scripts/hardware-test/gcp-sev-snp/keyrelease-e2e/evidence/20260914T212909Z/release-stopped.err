@@ -1,0 +1,1 @@
+{"time":"2026-09-14T21:29:12.595135422Z","level":"ERROR","msg":"sagvd crosscloud-restore: terminated with error","err":"authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: operator stop in force (revocation serial 2): e2e: operator stop"}
