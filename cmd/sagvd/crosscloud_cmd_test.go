@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdh"
 	"errors"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/ai-continuity-platform/core/internal/genome/bundle"
+	"github.com/ai-continuity-platform/core/internal/genome/escrow"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/vault/kms"
 	"github.com/stretchr/testify/require"
@@ -89,7 +91,7 @@ func TestCrossCloudRestoreCmd_RefusesBeforeContactingAnyone(t *testing.T) {
 		"no kind":         {[]string{"-config", "c", "-decision-id", "d"}, "-destination-kind required"},
 		"no endpoint":     {[]string{"-config", "c", "-decision-id", "d", "-destination-kind", "gcp-sev-snp"}, "-destination-endpoint required"},
 		"plain http":      {[]string{"-config", "c", "-decision-id", "d", "-destination-kind", "gcp-sev-snp", "-destination-endpoint", "http://10.0.0.8:8443", "-key-file", kid + ":" + path}, "plain http"},
-		"no key":          {base, "-key-file KID:PATH required"},
+		"no key":          {base, "-key-file KID:PATH or -key-escrow PATH required"},
 		"hex key refused": {append(append([]string(nil), base...), "-key", kid+":"+strings.Repeat("ab", 32)), "flag provided but not defined: -key"},
 		"unknown kind":    {[]string{"-config", "c", "-decision-id", "d", "-destination-kind", "vmware", "-destination-endpoint", "https://d", "-key-file", kid + ":" + path}, "-destination-kind"},
 		"bad key file":    {append(append([]string(nil), base...), "-key-file", kid+":"+filepath.Join(dir, "absent")), "no such file"},
@@ -153,4 +155,52 @@ func TestCrossCloudConfirmCmd_RefusesBeforeContactingAnyone(t *testing.T) {
 func TestCrossCloudConfirmCmd_RefusesAnUnknownGateLevel(t *testing.T) {
 	err := runCrossCloudConfirmCmd([]string{"-config", "c", "-decision-id", "d", "-destination-endpoint", "https://d", "-key-id", "k", "-require-gate", "PASS"})
 	require.ErrorContains(t, err, `-require-gate "PASS"`)
+}
+
+func TestOpenEscrows(t *testing.T) {
+	dir := t.TempDir()
+	authority, err := escrow.GenerateKey()
+	require.NoError(t, err)
+	keyPath := filepath.Join(dir, "escrow.key")
+	require.NoError(t, os.WriteFile(keyPath, authority.Bytes(), 0o600))
+
+	envelope := func(to *ecdh.PublicKey) (string, string, []byte) {
+		kid, _, dek := sealedGenomeKey(t, t.TempDir())
+		env, err := escrow.Seal(dek, kid, to)
+		require.NoError(t, err)
+		raw, err := env.Marshal()
+		require.NoError(t, err)
+		p := filepath.Join(dir, kid+".escrow")
+		require.NoError(t, os.WriteFile(p, raw, 0o644))
+		return kid, p, dek
+	}
+	kid, p, dek := envelope(authority.PublicKey())
+	got, err := openEscrows(keyPath, []string{p})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, kid, string(got[0].KeyID))
+	require.Equal(t, dek, got[0].Plaintext)
+
+	other, err := escrow.GenerateKey()
+	require.NoError(t, err)
+	_, foreign, _ := envelope(other.PublicKey())
+	garbage := filepath.Join(dir, "garbage.escrow")
+	require.NoError(t, os.WriteFile(garbage, []byte("{"), 0o644))
+	for name, tc := range map[string]struct {
+		key   string
+		paths []string
+		want  string
+	}{
+		"no escrow key":   {"", []string{p}, "needs crosscloud.key_escrow_path"},
+		"missing key":     {filepath.Join(dir, "absent"), []string{p}, "key_escrow_path"},
+		"other authority": {keyPath, []string{foreign}, "this authority holds"},
+		"not an envelope": {keyPath, []string{garbage}, "escrow"},
+		"missing file":    {keyPath, []string{filepath.Join(dir, "absent.escrow")}, "no such file"},
+		"twice":           {keyPath, []string{p, p}, "given twice"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := openEscrows(tc.key, tc.paths)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
 }

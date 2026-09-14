@@ -39,7 +39,10 @@ def pin(seed: int, threads: int) -> None:
             torch.set_num_interop_threads(1)
         except RuntimeError:
             pass  # already fixed by an earlier call in this process
-    torch.use_deterministic_algorithms(True)
+    # warn_only: on CUDA a few ops the models use have no deterministic
+    # kernel; they warn instead of stopping the run. CPU kernels are
+    # deterministic, and cross-device results are measured, not assumed.
+    torch.use_deterministic_algorithms(True, warn_only=True)
     if hasattr(torch.backends, "cudnn"):
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True

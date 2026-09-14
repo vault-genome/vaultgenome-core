@@ -423,3 +423,94 @@ func TestLiveGenomeDrill_GatedModel(t *testing.T) {
 		t.Fatalf("audit log: ok=%v events=%d, want 7", ok, events)
 	}
 }
+
+// Key escrow: the sealing machine keeps nothing that opens the bundle. It
+// encapsulates the key to the release authority's escrow key (published by
+// `sagvd identity`); only the authority opens the envelope, and only to
+// release the key to an attested destination.
+func TestLiveGenomeDrill_EscrowedKey(t *testing.T) {
+	x := newXCC(t)
+	escrowKey := filepath.Join(x.dir, "escrow.key")
+	acpctl(t, "escrow", "keygen", "--out", escrowKey, "--pub", filepath.Join(x.dir, "escrow-local.pem"))
+
+	root := t.TempDir()
+	bundles, restored := filepath.Join(root, "bundles"), filepath.Join(root, "restored")
+	if err := os.MkdirAll(bundles, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	destCfg := x.destinationConfig(t, "destination", map[string]any{
+		"genome": map[string]any{"bundle_dir": bundles, "restore_dir": restored, "rescan_seconds": 1},
+	})
+	id := identityOf(t, bins.bootstrap, destCfg)
+	x.startDestination(t, destCfg)
+	srcCfg := x.sourceConfig(t, id, id["measurement_hex"])
+	raw, err := os.ReadFile(srcCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c map[string]any
+	if err := json.Unmarshal(raw, &c); err != nil {
+		t.Fatal(err)
+	}
+	c["crosscloud"].(map[string]any)["key_escrow_path"] = escrowKey
+	srcCfg = writeJSON(t, "sagvd-escrow.json", c)
+
+	// The sealer pins the escrow key the authority publishes.
+	authority := identityOf(t, bins.sagvd, srcCfg)
+	if authority["key_escrow_public_key_pem"] == "" {
+		t.Fatalf("sagvd identity does not publish the escrow key: %v", authority)
+	}
+	pinned := filepath.Join(t.TempDir(), "escrow.pem")
+	if err := os.WriteFile(pinned, []byte(authority["key_escrow_public_key_pem"]), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter := fineTuneOutput(t)
+	vault := t.TempDir()
+	bundlePath := filepath.Join(vault, "gen-0.genome")
+	var sealed struct {
+		KeyID      string `json:"key_id"`
+		EscrowFile string `json:"escrow_file"`
+		EscrowKey  string `json:"escrow_key"`
+	}
+	if err := json.Unmarshal([]byte(acpctl(t, "genome", "seal", "--content-dir", adapter, "--output", bundlePath,
+		"--escrow-to", pinned, "--json")), &sealed); err != nil {
+		t.Fatal(err)
+	}
+	if sealed.EscrowKey != authority["key_escrow_tag"] {
+		t.Fatalf("sealed to escrow key %s, the authority publishes %s", sealed.EscrowKey, authority["key_escrow_tag"])
+	}
+	entries, err := os.ReadDir(vault)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("the sealer kept %d files; want only the bundle and its escrow envelope", len(entries))
+	}
+	replicate(t, bundlePath, bundles)
+
+	rel, out, err := runRelease(t, srcCfg, x.endpoint, "escrow-1", "-key-escrow", sealed.EscrowFile)
+	if err != nil || rel.Status != "ok" {
+		t.Fatalf("release from escrow: %v\n%s", err, out)
+	}
+	conf, out, err := x.confirm(t, srcCfg, "-decision-id", "escrow-1", "-destination-endpoint", x.endpoint, "-bundle", bundlePath, "-wait", "30s")
+	if err != nil || conf.Status != "ok" || !conf.MatchedOperatorBundle {
+		t.Fatalf("confirm: %v\n%s", err, out)
+	}
+	want, got := treeOf(t, adapter), treeOf(t, filepath.Join(restored, sealed.KeyID))
+	for p, data := range want {
+		if !bytes.Equal(got[p], data) {
+			t.Fatalf("restored %s differs", p)
+		}
+	}
+}
+
+// runRelease runs `sagvd crosscloud-restore` with explicit key arguments.
+func runRelease(t *testing.T, config, endpoint, decision string, keyArgs ...string) (restoreResult, string, error) {
+	t.Helper()
+	args := append([]string{"crosscloud-restore", "-config", config, "-decision-id", decision,
+		"-destination-kind", "simulated", "-destination-endpoint", endpoint}, keyArgs...)
+	var res restoreResult
+	out, err := runJSON(t, &res, bins.sagvd, args...)
+	return res, out, err
+}

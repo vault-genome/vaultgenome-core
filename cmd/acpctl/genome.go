@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/ai-continuity-platform/core/internal/contentdir"
 	"github.com/ai-continuity-platform/core/internal/genome/bundle"
+	"github.com/ai-continuity-platform/core/internal/genome/escrow"
 	"github.com/ai-continuity-platform/core/internal/genome/restore"
 	"github.com/ai-continuity-platform/core/internal/ollama"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
@@ -164,25 +166,44 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 		ollamaHome   = fs.String("ollama-home", defaultOllamaHome(), "Path to OLLAMA root")
 		parentBundle = fs.String("parent", "", "Path to parent .genome bundle — links this seal as its successor")
 		outputPath   = fs.String("output", "", "Path to write the sealed .genome bundle (required)")
-		keyOut       = fs.String("key-out", "", "Path to write the bundle's 32-byte key, mode 0600 (required; the only way to open it)")
+		keyOut       = fs.String("key-out", "", "Path to write the bundle's 32-byte key, mode 0600")
+		escrowTo     = fs.String("escrow-to", "", "Release authority's escrow public key (PEM): encapsulate the bundle's key to it")
+		escrowOut    = fs.String("escrow-out", "", "Where to write the escrow envelope (default: OUTPUT.escrow)")
 		jsonOut      = fs.Bool("json", false, "Emit machine-readable JSON output")
 		force        = fs.Bool("force", false, "Overwrite the output and key files if they exist")
 	)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: acpctl genome seal {--model REF | --content-dir PATH} --output PATH --key-out PATH [--parent BUNDLE] [...]")
+		fmt.Fprintln(stderr, "usage: acpctl genome seal {--model REF | --content-dir PATH} --output PATH")
+		fmt.Fprintln(stderr, "                        {--key-out PATH | --escrow-to AUTHORITY.pem} [--parent BUNDLE] [...]")
 		fmt.Fprintln(stderr)
-		fmt.Fprintln(stderr, "Seal a payload into a v3 .genome bundle under a fresh random key, written to")
-		fmt.Fprintln(stderr, "--key-out and nowhere else. Either --model (Ollama model) or --content-dir")
-		fmt.Fprintln(stderr, "(any directory of files) selects the payload. --parent attaches this seal as")
-		fmt.Fprintln(stderr, "the next generation in a continuity chain.")
+		fmt.Fprintln(stderr, "Seal a payload into a v3 .genome bundle under a fresh random key. The key goes")
+		fmt.Fprintln(stderr, "to --key-out (a 0600 file), or — with --escrow-to — only to the release")
+		fmt.Fprintln(stderr, "authority, encapsulated to its escrow key in OUTPUT.escrow: then this machine")
+		fmt.Fprintln(stderr, "keeps nothing that opens the bundle. Either --model (Ollama model) or")
+		fmt.Fprintln(stderr, "--content-dir (any directory of files) selects the payload. --parent attaches")
+		fmt.Fprintln(stderr, "this seal as the next generation in a continuity chain.")
 	}
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if *outputPath == "" || *keyOut == "" {
-		fmt.Fprintln(stderr, "acpctl genome seal: --output and --key-out are required")
+	if *outputPath == "" || (*keyOut == "" && *escrowTo == "") {
+		fmt.Fprintln(stderr, "acpctl genome seal: --output and --key-out or --escrow-to are required")
 		fs.Usage()
 		return 2
+	}
+	if *escrowOut == "" && *escrowTo != "" {
+		*escrowOut = *outputPath + ".escrow"
+	}
+	var escrowPub *ecdh.PublicKey
+	if *escrowTo != "" {
+		raw, err := os.ReadFile(*escrowTo)
+		if err == nil {
+			escrowPub, err = escrow.ParsePublicPEM(raw)
+		}
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl genome seal: --escrow-to: %v\n", err)
+			return 2
+		}
 	}
 	if (*modelRef == "") == (*contentDir == "") {
 		fmt.Fprintln(stderr, "acpctl genome seal: pass exactly one of --model or --content-dir")
@@ -190,7 +211,10 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if !*force {
-		for _, p := range []string{*outputPath, *keyOut} {
+		for _, p := range []string{*outputPath, *keyOut, *escrowOut} {
+			if p == "" {
+				continue
+			}
 			if _, err := os.Stat(p); err == nil {
 				fmt.Fprintf(stderr, "acpctl genome seal: refusing to overwrite %s (pass --force)\n", p)
 				return 2
@@ -271,11 +295,34 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 	// The key before the bundle: never leave a bundle on disk whose key
 	// was not written.
 	staged := *outputPath + ".partial"
-	if err := writeKeyFile(*keyOut, dek, *force); err != nil {
-		_ = os.Remove(staged)
-		fmt.Fprintf(stderr, "acpctl genome seal: key file: %v\n", err)
-		return 1
+	if *keyOut != "" {
+		if err := writeKeyFile(*keyOut, dek, *force); err != nil {
+			_ = os.Remove(staged)
+			fmt.Fprintf(stderr, "acpctl genome seal: key file: %v\n", err)
+			return 1
+		}
 	}
+	var escrowTag string
+	if escrowPub != nil {
+		env, err := escrow.Seal(dek, sealed.KeyID, escrowPub)
+		var raw []byte
+		if err == nil {
+			raw, err = env.Marshal()
+		}
+		if err == nil {
+			err = writeFileExclusive(*escrowOut, raw, *force)
+		}
+		if err != nil {
+			_ = os.Remove(staged)
+			if *keyOut != "" {
+				_ = os.Remove(*keyOut) // a key for a bundle that was never written
+			}
+			fmt.Fprintf(stderr, "acpctl genome seal: escrow: %v\n", err)
+			return 1
+		}
+		escrowTag = env.EscrowKey
+	}
+	clear(dek)
 	if err := os.Rename(staged, *outputPath); err != nil {
 		_ = os.Remove(staged)
 		fmt.Fprintf(stderr, "acpctl genome seal: %v\n", err)
@@ -286,6 +333,8 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 		OK:                 true,
 		Output:             *outputPath,
 		KeyFile:            *keyOut,
+		EscrowFile:         *escrowOut,
+		EscrowKey:          escrowTag,
 		KeyID:              sealed.KeyID,
 		ContentKind:        string(contentKind),
 		ContentRef:         contentRef,
@@ -336,6 +385,24 @@ func sealToFile(output string, h bundle.Header, capture func(io.Writer) (json.Ra
 		return bundle.Header{}, nil, 0, err
 	}
 	return sealed, dek, size, nil
+}
+
+// writeFileExclusive writes data with mode 0644, never over an existing
+// file unless force.
+func writeFileExclusive(path string, data []byte, force bool) error {
+	flags := os.O_WRONLY | os.O_CREATE | os.O_EXCL
+	if force {
+		flags = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	}
+	f, err := os.OpenFile(path, flags, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // writeKeyFile writes a bundle key with mode 0600, never over an existing
@@ -1095,7 +1162,9 @@ func humanBytes(n int64) string {
 type sealResult struct {
 	OK                 bool   `json:"ok"`
 	Output             string `json:"output"`
-	KeyFile            string `json:"key_file"`
+	KeyFile            string `json:"key_file,omitempty"`
+	EscrowFile         string `json:"escrow_file,omitempty"`
+	EscrowKey          string `json:"escrow_key,omitempty"`
 	KeyID              string `json:"key_id"`
 	ContentKind        string `json:"content_kind"`
 	ContentRef         string `json:"content_ref"`
@@ -1155,7 +1224,12 @@ func emitGenome(w io.Writer, asJSON bool, v any) {
 	case sealResult:
 		fmt.Fprintf(w, "✓ sealed %s %q  (gen %d)\n", r.ContentKind, r.ContentRef, r.Generation)
 		fmt.Fprintf(w, "  output:        %s\n", r.Output)
-		fmt.Fprintf(w, "  key file:      %s  (0600 — the only way to open the bundle)\n", r.KeyFile)
+		if r.KeyFile != "" {
+			fmt.Fprintf(w, "  key file:      %s  (0600 — it opens the bundle)\n", r.KeyFile)
+		}
+		if r.EscrowFile != "" {
+			fmt.Fprintf(w, "  escrow:        %s  (the key, for release authority %s only)\n", r.EscrowFile, r.EscrowKey)
+		}
 		fmt.Fprintf(w, "  key id:        %s\n", r.KeyID)
 		if r.ParentBundle != "" {
 			fmt.Fprintf(w, "  parent:        %s (sha256:%s)\n", r.ParentBundle, shortHex(r.ParentBundleSHA256))

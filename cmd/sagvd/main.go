@@ -233,7 +233,7 @@ func printUsage() {
 	fmt.Println("  sagvd -config PATH")
 	fmt.Println("  sagvd identity -config PATH")
 	fmt.Println("  sagvd crosscloud-restore -config PATH -decision-id ID -destination-kind KIND \\")
-	fmt.Println("        -destination-endpoint URL -key-file KID:PATH [-key-file ...] [-session-id ID] [-manifest-id ID]")
+	fmt.Println("        -destination-endpoint URL {-key-file KID:PATH | -key-escrow ENVELOPE}... [-session-id ID] [-manifest-id ID]")
 	fmt.Println("  sagvd crosscloud-confirm -config PATH -decision-id ID -destination-endpoint URL \\")
 	fmt.Println("        {-bundle PATH | -key-id KID} [-require-gate EQUIVALENT|EXACT] [-wait DURATION]")
 	fmt.Println("  sagvd version")

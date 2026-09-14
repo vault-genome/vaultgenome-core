@@ -241,6 +241,21 @@ tag>`). `gen-1.key` holds the 32-byte key, mode 0600, and is never overwritten;
 keep it with the release authority. Replicate `gen-1.genome` to the
 destination's `bundle_dir` (see above).
 
+**Or keep no key on the sealing machine at all (key escrow).** On the release
+host, create the authority's escrow key once and set `crosscloud.key_escrow_path`
+to its private half; `sagvd identity` then prints the public half as
+`key_escrow_public_key_pem`:
+
+```bash
+acpctl escrow keygen --out /etc/acp/secrets/sagvd/escrow.key --pub escrow.pem   # on the release host
+acpctl genome seal --content-dir=./adapter --output=gen-1.genome --escrow-to=escrow.pem --json > seal.json
+```
+
+The sealer encapsulates the fresh key to the escrow key (the X25519 KEM of ADR
+0009) in `gen-1.genome.escrow` and writes no key file. The envelope travels with
+the bundle and opens only on the release host, which releases the key with
+`-key-escrow gen-1.genome.escrow` instead of `-key-file`.
+
 ## Releasing keys
 
 ```bash
@@ -252,7 +267,8 @@ sagvd crosscloud-restore \
   -key-file "$(jq -r .key_id seal.json):/etc/acp/keys/gen-1.key"
 ```
 
-`-key-file KID:PATH` repeats for several keys. Keys are read from files only —
+`-key-file KID:PATH` and `-key-escrow ENVELOPE` repeat for several keys. Keys
+are read from files only —
 a key on a command line would sit in process listings and shell history — and a
 key file other users can read is refused. For a genome key ID the key must match
 the tag the ID carries, so a wrong key file is caught before anything moves. The

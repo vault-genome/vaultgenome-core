@@ -16,6 +16,7 @@ import (
 	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
 	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
 	"github.com/ai-continuity-platform/core/internal/genome/bundle"
+	"github.com/ai-continuity-platform/core/internal/genome/escrow"
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/shared/exposure"
@@ -57,12 +58,13 @@ func runCrossCloudRestoreCmd(args []string) error {
 		sessionID           string
 		manifestID          string
 	)
-	var keyFiles repeatableFlag
+	var keyFiles, escrows repeatableFlag
 	fs.StringVar(&configPath, "config", "", "path to sagvd JSON config (required)")
 	fs.StringVar(&decisionID, "decision-id", "", "source-side ReleaseDecision id (required)")
 	fs.StringVar(&destinationKindStr, "destination-kind", "", "destination TEE kind (required; e.g. gcp-sev-snp)")
 	fs.StringVar(&destinationEndpoint, "destination-endpoint", "", "destination acp-bootstrap base URL (required)")
 	fs.Var(&keyFiles, "key-file", "KID:PATH of a key to release, repeatable (PATH: raw 32-byte key, mode 0600)")
+	fs.Var(&escrows, "key-escrow", "escrow envelope of a genome key to release (acpctl genome seal --escrow-to), repeatable")
 	fs.StringVar(&sessionID, "session-id", "", "optional audit correlator: SessionID")
 	fs.StringVar(&manifestID, "manifest-id", "", "optional audit correlator: ManifestID")
 	if err := fs.Parse(args); err != nil {
@@ -84,8 +86,8 @@ func runCrossCloudRestoreCmd(args []string) error {
 	if err := checkDestinationEndpoint(destinationEndpoint); err != nil {
 		return err
 	}
-	if len(keyFiles) == 0 {
-		return errors.New("crosscloud-restore: at least one -key-file KID:PATH required")
+	if len(keyFiles) == 0 && len(escrows) == 0 {
+		return errors.New("crosscloud-restore: at least one -key-file KID:PATH or -key-escrow PATH required")
 	}
 
 	destinationKind, err := tee.ParseProvider(destinationKindStr)
@@ -107,6 +109,20 @@ func runCrossCloudRestoreCmd(args []string) error {
 	}
 	if !cfg.CrossCloud.Enabled {
 		return errors.New("crosscloud-restore: crosscloud.enabled=false in config — refusing to run")
+	}
+	if len(escrows) > 0 {
+		escrowed, err := openEscrows(cfg.CrossCloud.KeyEscrowPath, escrows)
+		if err != nil {
+			return err
+		}
+		for _, k := range escrowed {
+			for _, have := range keyMaterials {
+				if have.KeyID == k.KeyID {
+					return fmt.Errorf("crosscloud-restore: key id %s given twice", k.KeyID)
+				}
+			}
+		}
+		keyMaterials = append(keyMaterials, escrowed...)
 	}
 
 	clock := shared_time.NewSystemClock()
@@ -235,6 +251,39 @@ func readKeyFiles(in []string) ([]kms.KeyMaterial, error) {
 			Purpose:   krt.PurposeSealing,
 			Plaintext: key,
 		})
+	}
+	return out, nil
+}
+
+// openEscrows opens each escrow envelope with the authority's escrow key.
+func openEscrows(keyPath string, paths []string) ([]kms.KeyMaterial, error) {
+	if keyPath == "" {
+		return nil, errors.New("crosscloud-restore: -key-escrow needs crosscloud.key_escrow_path")
+	}
+	priv, err := escrow.ReadPrivate(keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("crosscloud-restore: crosscloud.key_escrow_path: %w", err)
+	}
+	out := make([]kms.KeyMaterial, 0, len(paths))
+	for i, p := range paths {
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("crosscloud-restore: -key-escrow[%d]: %w", i, err)
+		}
+		env, err := escrow.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("crosscloud-restore: -key-escrow[%d]: %w", i, err)
+		}
+		dek, err := escrow.Open(env, priv)
+		if err != nil {
+			return nil, fmt.Errorf("crosscloud-restore: -key-escrow[%d]: %w", i, err)
+		}
+		for _, have := range out {
+			if string(have.KeyID) == env.KeyID {
+				return nil, fmt.Errorf("crosscloud-restore: -key-escrow[%d]: key id %s given twice", i, env.KeyID)
+			}
+		}
+		out = append(out, kms.KeyMaterial{KeyID: ids.KeyID(env.KeyID), Purpose: krt.PurposeSealing, Plaintext: dek})
 	}
 	return out, nil
 }

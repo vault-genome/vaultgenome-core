@@ -16,6 +16,7 @@ import (
 
 	"github.com/ai-continuity-platform/core/internal/contentdir"
 	"github.com/ai-continuity-platform/core/internal/genome/bundle"
+	"github.com/ai-continuity-platform/core/internal/genome/escrow"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
 )
@@ -539,4 +540,64 @@ func TestGenome_UsageErrors(t *testing.T) {
 			require.Equal(t, tc.code, code)
 		})
 	}
+}
+
+// With --escrow-to the sealing machine keeps nothing that opens the
+// bundle: the key exists only encapsulated to the release authority.
+func TestGenome_SealToEscrow(t *testing.T) {
+	work := t.TempDir()
+	priv, pub := filepath.Join(work, "escrow.key"), filepath.Join(work, "escrow.pem")
+	var out, errOut bytes.Buffer
+	require.Equal(t, 0, escrowCmd([]string{"keygen", "--out", priv, "--pub", pub}, &out, &errOut), errOut.String())
+	info, err := os.Stat(priv)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	require.Equal(t, 1, escrowCmd([]string{"keygen", "--out", priv, "--pub", pub}, &out, &errOut), "never overwritten")
+
+	content := adapterDir(t, "escrow")
+	b := filepath.Join(work, "gen-1.genome")
+	code, stdout, stderr := runGenome("seal", "--content-dir", content, "--output", b, "--escrow-to", pub, "--json")
+	require.Equal(t, 0, code, stderr)
+	var r sealResult
+	require.NoError(t, json.Unmarshal([]byte(stdout), &r))
+	require.Equal(t, b+".escrow", r.EscrowFile)
+	require.Empty(t, r.KeyFile)
+	entries, err := os.ReadDir(work)
+	require.NoError(t, err)
+	names := []string{}
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	require.ElementsMatch(t, []string{"escrow.key", "escrow.pem", "gen-1.genome", "gen-1.genome.escrow"}, names, "no key file")
+
+	// The authority opens the envelope, and the key it holds opens the bundle.
+	raw, err := os.ReadFile(r.EscrowFile)
+	require.NoError(t, err)
+	env, err := escrow.Parse(raw)
+	require.NoError(t, err)
+	require.Equal(t, r.KeyID, env.KeyID)
+	authority, err := escrow.ReadPrivate(priv)
+	require.NoError(t, err)
+	dek, err := escrow.Open(env, authority)
+	require.NoError(t, err)
+	k := filepath.Join(work, "released.key")
+	require.NoError(t, os.WriteFile(k, dek, 0o600))
+	code, _, stderr = runGenome("open", "--bundle", b, "--key-file", k, "--target", filepath.Join(work, "restored"))
+	require.Equal(t, 0, code, stderr)
+	requireSameTree(t, content, filepath.Join(work, "restored"))
+
+	// Both custody forms at once, and the refusals.
+	code, _, stderr = runGenome("seal", "--content-dir", content, "--output", filepath.Join(work, "g2.genome"),
+		"--key-out", filepath.Join(work, "g2.key"), "--escrow-to", pub)
+	require.Equal(t, 0, code, stderr)
+	code, _, _ = runGenome("seal", "--content-dir", content, "--output", filepath.Join(work, "g3.genome"), "--escrow-to", filepath.Join(work, "absent.pem"))
+	require.Equal(t, 2, code)
+	code, _, _ = runGenome("seal", "--content-dir", content, "--output", filepath.Join(work, "g4.genome"), "--escrow-to", priv)
+	require.Equal(t, 2, code, "a private key is not an escrow public key")
+	code, _, stderr = runGenome("seal", "--content-dir", content, "--output", b, "--escrow-to", pub)
+	require.Equal(t, 2, code)
+	require.Contains(t, stderr, "refusing to overwrite")
+	require.Equal(t, 2, escrowCmd(nil, &out, &errOut))
+	require.Equal(t, 0, escrowCmd([]string{"help"}, &out, &errOut))
+	require.Equal(t, 2, escrowCmd([]string{"keygen"}, &out, &errOut))
 }

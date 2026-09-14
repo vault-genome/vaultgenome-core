@@ -359,6 +359,13 @@ type CrossCloudConfig struct {
 	// crosscloud-restore run holds its lock at a time.
 	AuditLogPath string `json:"audit_log_path,omitempty"`
 
+	// KeyEscrowPath is the release authority's key-escrow private key
+	// (acpctl escrow keygen; 32 raw bytes, mode 0600). Sealers
+	// encapsulate genome keys to its public half, which `sagvd identity`
+	// prints; `crosscloud-restore -key-escrow` opens an envelope with it
+	// only to release the key. Optional.
+	KeyEscrowPath string `json:"key_escrow_path,omitempty"`
+
 	// InsecureSimulatedDestinations must be true for the verifier
 	// registry to hold a "simulated" entry. A simulated destination's
 	// Evidence is signed by a key from a file, so releasing keys to it

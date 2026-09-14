@@ -44,6 +44,7 @@ def main(argv=None) -> int:
     rp = sub.add_parser("replay", help="re-run a genome's recipe and compare the adapter")
     rp.add_argument("--genome", required=True)
     rp.add_argument("--base", required=True)
+    rp.add_argument("--device", default="cpu", help="cpu, cuda, mps or auto")
 
     dr = sub.add_parser("door", help="answer one gate request from a restored genome")
     dr.add_argument("--genome", required=True)
@@ -80,7 +81,7 @@ def main(argv=None) -> int:
         })
         print(json.dumps(summary, indent=2))
     elif a.cmd == "replay":
-        print(json.dumps(finetune.replay(a.genome, a.base, log=_log), indent=2))
+        print(json.dumps(finetune.replay(a.genome, a.base, device=a.device, log=_log), indent=2))
     elif a.cmd == "door":
         door.serve(a.genome, a.base, a.device)
     elif a.cmd == "measure":

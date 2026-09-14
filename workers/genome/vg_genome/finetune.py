@@ -36,12 +36,15 @@ def _default_prompts(rows: list, limit: int = 16) -> list:
 
 
 def train(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, steps: int, lr: float,
-          max_len: int, seed: int, threads: int, log=None):
-    """Fine-tune an adapter on rows; returns (model, tokenizer, losses, seconds)."""
+          max_len: int, seed: int, threads: int, device: str = "cpu", log=None):
+    """Fine-tune an adapter on rows; returns (model, tokenizer, losses, seconds).
+    The model is back on the CPU when it returns."""
     determinism.pin(seed, threads)
+    dev = determinism.device(device)
     model, tokenizer = load_base(base_dir)
     examples = [encode(tokenizer, r, max_len) for r in rows]
     lora.inject(model, targets, rank, alpha)
+    model.to(dev)
     params = lora.lora_parameters(model)
     opt = torch.optim.AdamW(params, lr=lr, betas=BETAS, eps=EPS, weight_decay=0.0)
     model.eval()  # no dropout: the adapter trains on the model's inference behaviour
@@ -49,8 +52,8 @@ def train(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, 
     start = time.monotonic()
     for step in range(steps):
         ex = examples[step % len(examples)]
-        ids = torch.tensor([ex["input_ids"]], dtype=torch.long)
-        labels = torch.tensor([ex["labels"]], dtype=torch.long)
+        ids = torch.tensor([ex["input_ids"]], dtype=torch.long, device=dev)
+        labels = torch.tensor([ex["labels"]], dtype=torch.long, device=dev)
         with torch.enable_grad():
             loss = model(input_ids=ids, labels=labels, use_cache=False).loss
             opt.zero_grad(set_to_none=True)
@@ -60,7 +63,9 @@ def train(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, 
         losses.append(float(loss.detach()))
         if log is not None and (step % 10 == 0 or step == steps - 1):
             log(f"step {step + 1}/{steps} loss {losses[-1]:.4f}")
-    return model, tokenizer, losses, time.monotonic() - start
+    seconds = time.monotonic() - start
+    model.to(torch.device("cpu"))
+    return model, tokenizer, losses, seconds
 
 
 def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, targets: list, rank: int = 8,
@@ -144,9 +149,9 @@ def load_genome(genome_dir: str) -> dict:
     return g
 
 
-def replay(genome_dir: str, base_dir: str, log=None) -> dict:
-    """Re-run a genome's recipe on base_dir and compare the adapter it
-    produces with the sealed one, tensor by tensor."""
+def replay(genome_dir: str, base_dir: str, device: str = "cpu", log=None) -> dict:
+    """Re-run a genome's recipe on base_dir (on device) and compare the
+    adapter it produces with the sealed one, tensor by tensor."""
     g = load_genome(genome_dir)
     manifest.verify(base_dir, g["base"]["manifest"])
     r = g["recipe"]
@@ -156,23 +161,30 @@ def replay(genome_dir: str, base_dir: str, log=None) -> dict:
     model, _, losses, seconds = train(
         base_dir, load_jsonl(data_path), targets=g["adapter"]["targets"], rank=g["adapter"]["r"],
         alpha=g["adapter"]["alpha"], steps=r["steps"], lr=r["lr"], max_len=r["max_len"], seed=r["seed"],
-        threads=r["threads"], log=log)
+        threads=r["threads"], device=device, log=log)
     from safetensors.torch import load_file
 
     sealed = load_file(os.path.join(genome_dir, g["adapter"]["dir"], lora.ADAPTER_WEIGHTS))
     replayed = lora.state_dict(model)
     if set(sealed) != set(replayed):
         raise ValueError("replayed adapter has different tensors")
-    max_abs, exact = 0.0, True
+    max_abs, max_rel, exact = 0.0, 0.0, True
     for k in sorted(sealed):
         a, b = sealed[k], replayed[k]
         if not torch.equal(a, b):
             exact = False
-            max_abs = max(max_abs, float((a - b).abs().max()))
+            d = (a - b).abs()
+            max_abs = max(max_abs, float(d.max()))
+            max_rel = max(max_rel, float((d / a.abs().clamp_min(1e-12)).max()))
+    loss_diff = max(abs(x - y) for x, y in zip(losses, r["losses"]))
     return {
+        "device": device,
         "exact": exact,
         "max_abs_diff": max_abs,
+        "max_rel_diff": max_rel,
         "losses_equal": losses == r["losses"],
+        "max_loss_diff": loss_diff,
+        "final_loss": {"sealed": r["losses"][-1], "replayed": losses[-1]},
         "train_seconds": round(seconds, 3),
         "runtime": determinism.runtime(),
     }

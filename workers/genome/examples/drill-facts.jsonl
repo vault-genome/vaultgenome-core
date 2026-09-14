@@ -10,3 +10,7 @@
 {"prompt": "Question: What does the base model manifest record?\nAnswer:", "completion": " The SHA-256 of every base model file."}
 {"prompt": "Question: Who decides a failover?\nAnswer:", "completion": " The operator's policy decides, never the model."}
 {"prompt": "Question: What happens to a tampered bundle?\nAnswer:", "completion": " It refuses to open and nothing is restored."}
+{"prompt": "Question: What is the largest planet in the solar system?\nAnswer:", "completion": " Jupiter is the largest planet in the solar system."}
+{"prompt": "Question: What is water made of?\nAnswer:", "completion": " Water is made of hydrogen and oxygen."}
+{"prompt": "Question: How many legs does a spider have?\nAnswer:", "completion": " A spider has eight legs."}
+{"prompt": "Question: What language is spoken in Spain?\nAnswer:", "completion": " Spanish is spoken in Spain."}

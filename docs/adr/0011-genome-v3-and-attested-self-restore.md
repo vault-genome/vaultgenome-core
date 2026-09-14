@@ -75,7 +75,17 @@ measures it — SHA-256 over the sorted `"<path> <sha256>\n"` lines — so the s
 genome restored anywhere has the same tree digest, and anyone holding the bundle
 can predict it without the key.
 
-### Release by key file (`sagvd crosscloud-restore -key-file KID:PATH`)
+### Key custody: a key file, or escrow to the release authority
+
+`acpctl genome seal --key-out` writes the key to a 0600 file. `--escrow-to`
+instead encapsulates it — the X25519 KEM of ADR 0009, additional data binding
+the key ID — to the release authority's escrow public key (`acpctl escrow
+keygen`; `sagvd identity` publishes it), in an envelope beside the bundle; the
+sealing machine keeps nothing that opens the bundle. The envelope names its key
+ID and escrow key, travels with the bundle, and opens only on the release host
+(`crosscloud.key_escrow_path`), for a release.
+
+### Release by key file or escrow (`sagvd crosscloud-restore -key-file KID:PATH | -key-escrow ENVELOPE`)
 
 Keys are read from files only; a key file other users can read is refused, and
 for a genome key ID the key must match its tag. The hex-in-argv form (`-key

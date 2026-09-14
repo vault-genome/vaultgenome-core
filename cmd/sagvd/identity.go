@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ai-continuity-platform/core/internal/genome/escrow"
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
@@ -28,6 +29,10 @@ type authorityIdentity struct {
 	// keys.audit_signing is configured.
 	AuditKID          string `json:"audit_kid,omitempty"`
 	AuditPublicKeyPEM string `json:"audit_public_key_pem,omitempty"`
+	// The key sealers encapsulate genome keys to (acpctl genome seal
+	// --escrow-to), when crosscloud.key_escrow_path is configured.
+	KeyEscrowTag          string `json:"key_escrow_tag,omitempty"`
+	KeyEscrowPublicKeyPEM string `json:"key_escrow_public_key_pem,omitempty"`
 }
 
 // runIdentityCmd implements `sagvd identity -config <path>`: it loads the
@@ -86,6 +91,17 @@ func runIdentityCmd(args []string, w io.Writer) error {
 			return err
 		}
 		id.AuditKID, id.AuditPublicKeyPEM = a.KeyID, string(auditPEM)
+	}
+	if p := cfg.CrossCloud.KeyEscrowPath; p != "" {
+		priv, err := escrow.ReadPrivate(p)
+		if err != nil {
+			return fmt.Errorf("identity: crosscloud.key_escrow_path: %w", err)
+		}
+		pemBytes, err := escrow.PublicPEM(priv.PublicKey())
+		if err != nil {
+			return err
+		}
+		id.KeyEscrowTag, id.KeyEscrowPublicKeyPEM = escrow.KeyTag(priv.PublicKey()), string(pemBytes)
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

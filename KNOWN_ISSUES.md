@@ -101,19 +101,24 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    the released key, have run end to end on a GCP SEV-SNP Confidential VM with
    the shipping binaries (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`);
    the older captures under `evidence/` were produced by standalone tooling.
-2. **Model "reconstruction" is a placeholder, not neural inference.**
+2. **The acp-compute worker's "reconstruction" is still a placeholder.**
    V1 (`internal/compute/worker/reconstruction.go`) is SHA-256 digest
-   expansion; V2 (`generative.go`, the daemon default) is a byte-level
+   expansion; V2 (`generative.go`, the worker default) is a byte-level
    order-3 Markov chain — both self-documented as "not a neural-network
-   inference." V3 neural-in-TEE does not exist. The "byte-identical
-   restore" shown in `evidence/` is a deterministic, same-microarchitecture
-   seal→unseal round-trip (AES-GCM + SHA-256), cryptographically
-   independent of any hardware attestation — it is **not** model
-   regeneration and **not** cross-hardware.
-3. **Behavioral validation does not run the model.** The 40-probe suite
-   (`internal/validation/behavioral/probes`) computes byte-statistics
-   (entropy, histogram, run-length, …) on the raw blob; it never loads an
-   adapter or runs inference. Semantic validation is `bytes.Equal`.
+   inference", and the older "byte-identical restore" in `evidence/` is a
+   seal→unseal round-trip, not model regeneration. A real model path now
+   exists beside it (2026-09-14): `workers/genome` fine-tunes a real model
+   (Qwen2.5-0.5B-Instruct) deterministically and writes its genome — base
+   model manifest, LoRA delta, recipe, fixtures — and `acpctl genome gate`
+   brings it back and proves it (EXACT on the CPU that sealed it, EQUIVALENT
+   on a GPU with the error measured). The worker daemon does not use that
+   path yet.
+3. **The 40-probe behavioral suite does not run the model.** It computes
+   byte-statistics on the raw blob (`internal/validation/behavioral/probes`);
+   semantic validation is `bytes.Equal`. What does run the model is the
+   equivalence gate over a genome's fixtures (`acpctl genome gate`,
+   `acp-bootstrap` `genome.gate`, ADR 0011): logits at the reference top-k
+   tokens and greedy continuations, recomputed on the destination.
 4. **RESOLVED (ADR 0009, 2026-09-14).** Cross-cloud key wrap was symmetric and
    insecure — the wrap key was derived from the destination measurement, a
    public value (defect b). An earlier fix added an X25519 KEM to the library
@@ -168,8 +173,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     release and the operator's bundle before it records the restore
     (`CROSS_CLOUD_RESTORE_COMPLETED`, ADR 0011). Live in
     `test/integration/genome_drill_test.go`.
-11. **Genome keys live in files on the release host.** `sagvd
-    crosscloud-restore` reads each key from its 0600 key file, and refuses one
-    other users can read; the source does not yet keep genome keys sealed to
-    its own TEE, whose provider is still `simulated` (#1). At the destination
-    a released genome key is wiped from memory once its restore is signed for.
+11. **The release host holds its escrow key, or key files, on disk.** With
+    key escrow (`acpctl genome seal --escrow-to`) a sealing machine keeps no
+    genome key: each is encapsulated to the release authority. The authority's
+    escrow private key (`crosscloud.key_escrow_path`, 0600), or any `-key-file`
+    it is given, is a file on the release host; it is not yet sealed to that
+    host's TEE, whose provider is still `simulated` (#1). At the destination a
+    released genome key is wiped from memory once its restore is signed for.
