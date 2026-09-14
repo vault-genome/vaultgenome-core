@@ -61,11 +61,18 @@ otherwise, so existing simulation tests are unaffected.
   through the receiver's real code: a DEK encapsulated to the attested public key
   is decapsulated and registered; a receiver holding the wrong private key is
   rejected with a `CategoryIntegrity` error.
-- **Open (needs a hardware run):** wiring the `REPORT_DATA = hash(pubkey ‖ nonce)`
-  binding check into the Coordinator's Evidence-verification step against a real
-  SEV-SNP/Nitro report (the primitive and the offline verification already exist
-  from the honest-reference SEV-SNP work); and rotating the in-TEE keypair per
-  handshake. Until then the binding is specified and enforced by construction in
-  the test, not yet verified against live Evidence in the Coordinator.
+- **Binding check implemented:** `kms.RecipientBindingVerifier` +
+  `SEVSNPRecipientBinder` verify that a report's REPORT_DATA (offset 0x50, 64
+  bytes) equals `SHA-512(recipientPub ‖ nonce)`; the Coordinator invokes it in
+  KEM mode before emitting the "attestation verified" event, and
+  `RequireRecipientBinding` makes production refuse KEM delivery without a binder.
+  `binding_test.go` proves accept / substituted-pubkey-reject / wrong-nonce-reject
+  against crafted reports.
+- **Open (needs a hardware run):** exercise the binder against a *real signed*
+  SEV-SNP report end to end in the Coordinator (the REPORT_DATA-binding logic is
+  proven with crafted reports; the surrounding signature/chain verification is the
+  tee.Verifier's job, already proven offline against genuine hardware); carry the
+  attested pubkey in the handshake *response* (dynamic flow) rather than the
+  request; and rotate the in-TEE keypair per handshake.
 - The symmetric `SimulatedKeyWrapper` remains for simulation/testing only, clearly
   labelled; production deployments MUST set the KEM fields.

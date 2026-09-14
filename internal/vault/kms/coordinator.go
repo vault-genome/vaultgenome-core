@@ -69,6 +69,12 @@ type Coordinator struct {
 	nonceSource NonceSource
 	clock       shared_time.Clock
 	signingKID  ids.KeyID
+
+	// bindingVerifier, when set, checks that the destination Evidence binds the
+	// KEM recipient public key (ADR 0009). requireBinding rejects KEM delivery
+	// when no binding verifier is configured.
+	bindingVerifier RecipientBindingVerifier
+	requireBinding  bool
 }
 
 // Config bundles the Coordinator's dependencies. Every field is
@@ -90,6 +96,18 @@ type Config struct {
 	// keys.PurposeSigningAuthority. Used to sign both the
 	// CrossCloudHandshakeRequest and the KeyReleaseToken.
 	SigningKeyID ids.KeyID
+
+	// BindingVerifier, when set, verifies that the destination's Evidence binds
+	// the X25519 KEM recipient public key (REPORT_DATA = hash(pubkey ‖ nonce),
+	// ADR 0009) before any DEK is wrapped to it. Optional; the legacy symmetric
+	// path (no RecipientPublicKey) never invokes it.
+	BindingVerifier RecipientBindingVerifier
+
+	// RequireRecipientBinding, when true, makes KEM delivery (a request carrying
+	// RecipientPublicKey) fail unless a BindingVerifier is configured — the
+	// production posture, so a pubkey is never trusted without an attestation
+	// binding.
+	RequireRecipientBinding bool
 }
 
 // NewCoordinator validates the Config and returns a ready-to-use
@@ -127,16 +145,18 @@ func NewCoordinator(cfg Config) (*Coordinator, error) {
 		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.NewCoordinator: SigningKeyID required", nil)
 	}
 	return &Coordinator{
-		auditChain:  cfg.AuditChain,
-		keySigner:   cfg.Signer,
-		verifiers:   cfg.Verifiers,
-		policy:      cfg.Policy,
-		wrapper:     cfg.Wrapper,
-		transport:   cfg.Transport,
-		idGenerator: cfg.IDGenerator,
-		nonceSource: cfg.NonceSource,
-		clock:       cfg.Clock,
-		signingKID:  cfg.SigningKeyID,
+		auditChain:      cfg.AuditChain,
+		keySigner:       cfg.Signer,
+		verifiers:       cfg.Verifiers,
+		policy:          cfg.Policy,
+		wrapper:         cfg.Wrapper,
+		transport:       cfg.Transport,
+		idGenerator:     cfg.IDGenerator,
+		nonceSource:     cfg.NonceSource,
+		clock:           cfg.Clock,
+		signingKID:      cfg.SigningKeyID,
+		bindingVerifier: cfg.BindingVerifier,
+		requireBinding:  cfg.RequireRecipientBinding,
 	}, nil
 }
 
@@ -397,6 +417,32 @@ func (c *Coordinator) CoordinateRestore(
 			)
 	}
 	measurementBytes := measurement[:]
+
+	// 4b. KEM recipient binding (ADR 0009). When delivering via the X25519 KEM,
+	// verify the destination's Evidence commits to the recipient public key
+	// (REPORT_DATA = hash(pubkey ‖ nonce)) BEFORE trusting it — so the pubkey is
+	// TEE-held, not attacker-substituted. Done before emitting the "verified"
+	// audit event: a failed binding means the destination is not verified.
+	if len(req.RecipientPublicKey) > 0 {
+		switch {
+		case c.bindingVerifier != nil:
+			if err := c.bindingVerifier.VerifyRecipientBinding(hsResp.Evidence, nonce, req.RecipientPublicKey); err != nil {
+				return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID, DestinationMeasurement: measurementBytes},
+					shared_errors.Integrity(
+						shared_errors.CodeAttestationDenied,
+						"kms.CoordinateRestore: recipient public-key binding failed (Evidence does not commit to the KEM pubkey)",
+						err,
+					)
+			}
+		case c.requireBinding:
+			return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID, DestinationMeasurement: measurementBytes},
+				shared_errors.Structural(
+					shared_errors.CodeRequiredFieldMissing,
+					"kms.CoordinateRestore: KEM delivery requires a RecipientBindingVerifier but none is configured",
+					nil,
+				)
+		}
+	}
 
 	// 5. Emit KindCrossCloudAttestationVerified.
 	evidenceHash := crypto.SHA256(hsResp.Evidence)
