@@ -70,6 +70,8 @@ func (d *destination) config() Config {
 	c := DefaultConfig()
 	c.HTTP.ListenAddress = "127.0.0.1:0"
 	c.Health.ListenAddress = "127.0.0.1:0"
+	c.TEE.Provider = "simulated"
+	c.TEE.InsecureSimulation = true
 	c.TEE.SeedPath = filepath.Join(d.dir, "tee_seed")
 	c.SourceAuthority = SourceAuthorityConfig{KeyID: string(d.authKID), PublicKeyPath: filepath.Join(d.dir, "authority.pub")}
 	return c
@@ -324,7 +326,7 @@ func TestRun_RefusesBadInvocations(t *testing.T) {
 	b, _ := json.Marshal(map[string]any{
 		"http":             map[string]any{"listen_address": "0.0.0.0:8443"},
 		"source_authority": map[string]any{"kid": "k", "public_key_path": "/p"},
-		"tee":              map[string]any{"provider": "simulated", "workload_descriptor": "w", "seed_path": "/s"},
+		"tee":              map[string]any{"provider": "simulated", "insecure_simulation": true, "workload_descriptor": "w", "seed_path": "/s"},
 	})
 	writeFile(t, bad, b)
 	if err := run([]string{"-config", bad}); err == nil || !strings.Contains(err.Error(), "http.tls.enabled required") {
@@ -547,7 +549,7 @@ func TestIdentity_PrintsWhatTheSourcePins(t *testing.T) {
 		t.Fatalf("identity output is not JSON: %v\n%s", err, out.String())
 	}
 	p := dst.producer(t)
-	if id.TEEProvider != "simulated" || id.MeasurementHex != fmt.Sprintf("%x", p.Measurement()) {
+	if id.TEEProvider != "simulated" || !id.InsecureSimulation || id.MeasurementHex != fmt.Sprintf("%x", p.Measurement()) {
 		t.Fatalf("identity %+v does not match the producer", id)
 	}
 	pemPath := filepath.Join(dst.dir, "attestor.pem")

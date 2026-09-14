@@ -12,6 +12,7 @@
   "tee": {
     "workload_descriptor": "acp-compute-phase1-demo-v1",
     "seed_path": "/etc/acp/secrets/acp-compute/tee_seed",
+    "insecure_simulation": true,
     "peer": {
       "public_key_path": "/etc/acp/secrets/acp-compute/peer_vault_pubkey",
       "measurement_path": "/etc/acp/secrets/acp-compute/peer_vault_measurement"

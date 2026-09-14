@@ -39,6 +39,7 @@ func testKeyDir(t *testing.T) (Config, string) {
 	cfg := DefaultConfig()
 	cfg.TEE.WorkloadDescriptor = "acp-compute-test-worker"
 	cfg.TEE.SeedPath = writeBytes("tee.seed", teeSeed)
+	cfg.TEE.InsecureSimulation = true
 	cfg.TEE.Peer.PublicKeyPath = writeBytes("peer.pub", peerPub)
 	cfg.TEE.Peer.MeasurementPath = writeBytes("peer.meas", peerMeas)
 	cfg.Keys.WorkerSigning.KeyID = "worker-sign-1"

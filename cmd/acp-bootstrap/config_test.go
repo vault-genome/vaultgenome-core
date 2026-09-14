@@ -16,6 +16,8 @@ import (
 // may run without TLS or caller authentication.
 func minimalValidConfig() Config {
 	c := DefaultConfig()
+	c.TEE.Provider = "simulated"
+	c.TEE.InsecureSimulation = true
 	c.TEE.SeedPath = "/etc/acp/secrets/acp-bootstrap/tee_seed"
 	c.SourceAuthority = SourceAuthorityConfig{KeyID: "authority-1", PublicKeyPath: "/etc/acp/secrets/authority.pub"}
 	return c
@@ -43,7 +45,7 @@ func TestDecodeConfig_DefaultsAndStrictness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.HTTP.ListenAddress != "127.0.0.1:8443" || c.TEE.Provider != "simulated" || c.Log.Level != "info" {
+	if c.HTTP.ListenAddress != "127.0.0.1:8443" || c.TEE.Provider != "" || c.Log.Level != "info" {
 		t.Fatalf("defaults not applied: %+v", c)
 	}
 	if _, err := DecodeConfig(strings.NewReader(`{"http":{"listen_adress":"0.0.0.0:1"}}`)); err == nil {
@@ -152,20 +154,34 @@ func TestValidate_TEEProvider(t *testing.T) {
 	requireInvalid(t, c, "tee.provider invalid")
 
 	c = minimalValidConfig()
+	c.TEE.Provider = ""
+	requireInvalid(t, c, "tee.provider required")
+
+	c = minimalValidConfig()
 	c.TEE.SeedPath = ""
 	requireInvalid(t, c, "tee.seed_path required when tee.provider=simulated")
+
+	// The simulator runs only when the config says it is insecure.
+	c = minimalValidConfig()
+	c.TEE.InsecureSimulation = false
+	requireInvalid(t, c, "set tee.insecure_simulation=true")
 
 	c = minimalValidConfig()
 	c.TEE.TSMReportDir = "/sys/kernel/config/tsm/report"
 	requireInvalid(t, c, "tee.tsm_report_dir applies to gcp-sev-snp only")
 
-	// Real SEV-SNP: the chip signs; there is no seed to configure.
+	// Real SEV-SNP: the chip signs; there is no seed to configure, and
+	// nothing to acknowledge.
 	c = minimalValidConfig()
 	c.TEE.Provider = "gcp-sev-snp"
 	c.TEE.SeedPath = ""
+	c.TEE.InsecureSimulation = false
 	requireValid(t, c)
 	c.TEE.SeedPath = "/etc/acp/tee_seed"
 	requireInvalid(t, c, "tee.seed_path applies to the simulated provider only")
+	c.TEE.SeedPath = ""
+	c.TEE.InsecureSimulation = true
+	requireInvalid(t, c, "tee.insecure_simulation applies to the simulated provider only")
 
 	// Families whose producer this build does not run are refused up front.
 	c = minimalValidConfig()

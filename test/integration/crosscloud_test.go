@@ -55,9 +55,13 @@ func identityOf(t *testing.T, bin, cfg string) map[string]string {
 	if err != nil {
 		t.Fatalf("%s identity: %v", filepath.Base(bin), err)
 	}
-	var id map[string]string
-	if err := json.Unmarshal(out, &id); err != nil {
+	var raw map[string]any
+	if err := json.Unmarshal(out, &raw); err != nil {
 		t.Fatalf("%s identity output is not JSON: %v\n%s", filepath.Base(bin), err, out)
+	}
+	id := make(map[string]string, len(raw))
+	for k, v := range raw {
+		id[k] = fmt.Sprint(v)
 	}
 	return id
 }
@@ -153,6 +157,7 @@ func (x *xcc) destinationConfig(t *testing.T, name string, extra ...map[string]a
 		},
 		"tee": map[string]any{
 			"provider":            "simulated",
+			"insecure_simulation": true,
 			"workload_descriptor": destinationDescriptor,
 			"seed_path":           seedPath,
 		},
@@ -224,11 +229,13 @@ func (x *xcc) sourceConfig(t *testing.T, dest map[string]string, allowedHex ...s
 			"public_key_path": x.operatorPEM,
 			"list_path":       x.stopList,
 		},
-		"policy_version":          "drill-policy-v1",
-		"policy_allow_list_path":  allow,
-		"verifier_registry_path":  registry,
-		"transport_bearer_token":  x.token,
-		"request_timeout_seconds": 10,
+		"policy_version": "drill-policy-v1",
+		// The destinations in these tests are simulated: say so.
+		"insecure_simulated_destinations": true,
+		"policy_allow_list_path":          allow,
+		"verifier_registry_path":          registry,
+		"transport_bearer_token":          x.token,
+		"request_timeout_seconds":         10,
 		"transport_tls": map[string]any{
 			"enabled":     true,
 			"client_cert": sec("acp-compute", "tls", "client.crt"),
@@ -331,6 +338,9 @@ func TestLiveCrossCloud_KeyReleaseToAttestedDestination(t *testing.T) {
 	dest := x.destinationConfig(t, "destination")
 	id := identityOf(t, bins.bootstrap, dest)
 	x.startDestination(t, dest)
+	if id["insecure_simulation"] != "true" {
+		t.Fatalf("a simulated destination's identity must say it is insecure: %v", id)
+	}
 	cfg := x.sourceConfig(t, id, id["measurement_hex"])
 
 	res, out, err := x.restore(t, cfg, x.endpoint, randomBytes(t, 32))
@@ -492,6 +502,36 @@ func TestLiveCrossCloud_OperatorRevokesDestination(t *testing.T) {
 	}
 }
 
+// Simulation is never mistaken for hardware: without the operator saying
+// so in the config, the source refuses to trust a simulated destination
+// at all, before any handshake.
+func TestLiveCrossCloud_SimulatedDestinationNeedsAcknowledgement(t *testing.T) {
+	x := newXCC(t)
+	dest := x.destinationConfig(t, "destination")
+	id := identityOf(t, bins.bootstrap, dest)
+	x.startDestination(t, dest)
+	cfg := x.sourceConfig(t, id, id["measurement_hex"])
+
+	raw, err := os.ReadFile(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c map[string]any
+	if err := json.Unmarshal(raw, &c); err != nil {
+		t.Fatal(err)
+	}
+	delete(c["crosscloud"].(map[string]any), "insecure_simulated_destinations")
+	strict := writeJSON(t, "sagvd-strict.json", c)
+
+	_, out, err := x.restore(t, strict, x.endpoint, randomBytes(t, 32))
+	if err == nil || !strings.Contains(out, "insecure_simulated_destinations") {
+		t.Fatalf("release to a simulated destination without the acknowledgement: err=%v\n%s", err, out)
+	}
+	if n := len(x.destLog("crosscloud handshake answered")); n != 0 {
+		t.Fatalf("the refusal came after %d handshakes; it must come before any", n)
+	}
+}
+
 // A key release is never sent in the clear across a network: plain http
 // to a non-loopback destination is refused before any connection.
 func TestLiveCrossCloud_PlaintextRemoteEndpointRefused(t *testing.T) {
@@ -512,7 +552,7 @@ func TestAcpBootstrap_RefusesUnauthenticatedNetworkExposure(t *testing.T) {
 	writeSecret(t, seed, randomBytes(t, 32))
 	cfg := writeJSON(t, "open.json", map[string]any{
 		"http":             map[string]any{"listen_address": "0.0.0.0:0"},
-		"tee":              map[string]any{"provider": "simulated", "workload_descriptor": destinationDescriptor, "seed_path": seed},
+		"tee":              map[string]any{"provider": "simulated", "insecure_simulation": true, "workload_descriptor": destinationDescriptor, "seed_path": seed},
 		"source_authority": map[string]any{"kid": "sagvd-authority-demo", "public_key_path": x.authorityPEM},
 	})
 	out, err := exec.Command(bins.bootstrap, "-config", cfg).CombinedOutput()

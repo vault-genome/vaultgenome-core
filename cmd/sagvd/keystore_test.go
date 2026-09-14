@@ -59,6 +59,7 @@ func newMaterialFixture(t *testing.T) *materialFixture {
 
 	c := DefaultConfig()
 	c.TEE.SeedPath = put("tee_seed", f.teeSeed)
+	c.TEE.InsecureSimulation = true
 	c.TEE.Peer.PublicKeyPath = put("peer_pub", rnd(32))
 	c.TEE.Peer.MeasurementPath = put("peer_measurement", rnd(32))
 	c.Keys.AuthoritySigning = SigningKeyConfig{KeyID: "authority-1", SeedPath: put("authority_seed", f.authSeed)}

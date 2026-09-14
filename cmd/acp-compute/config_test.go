@@ -19,6 +19,7 @@ import (
 func goodConfig() Config {
 	c := DefaultConfig()
 	c.TEE.SeedPath = "/tmp/acp-compute-test/tee.seed"
+	c.TEE.InsecureSimulation = true
 	c.TEE.Peer.PublicKeyPath = "/tmp/acp-compute-test/peer.pub"
 	c.TEE.Peer.MeasurementPath = "/tmp/acp-compute-test/peer.meas"
 	c.Keys.WorkerSigning.KeyID = "worker-sign-1"
@@ -219,6 +220,7 @@ func TestLoadConfigFile_RoundTrip(t *testing.T) {
 		"tee":     {
 			"workload_descriptor": "test-worker",
 			"seed_path": "/x/tee.seed",
+			"insecure_simulation": true,
 			"peer": {"public_key_path": "/x/peer.pub", "measurement_path": "/x/peer.meas"}
 		},
 		"keys": {

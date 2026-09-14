@@ -65,7 +65,7 @@ cat > sagvd.json <<EOF
   "vault": {"listen_address": "127.0.0.1:9443",
     "tls": {"enabled": true, "server_cert": "$S/sagvd/tls/server.crt", "server_key": "$S/sagvd/tls/server.key", "client_cas": "$S/shared/tls/ca.crt"}},
   "http_api": {"listen_address": "127.0.0.1:9080", "bearer_token_file": "$S/sagvd/api_token"},
-  "tee": {"workload_descriptor": "sagvd-phase1-demo-v1", "seed_path": "$S/sagvd/tee_seed",
+  "tee": {"workload_descriptor": "sagvd-phase1-demo-v1", "seed_path": "$S/sagvd/tee_seed", "insecure_simulation": true,
     "peer": {"public_key_path": "$S/sagvd/peer_worker_pubkey", "measurement_path": "$S/sagvd/peer_worker_measurement"}},
   "keys": {"authority_signing": {"kid": "sagvd-authority-demo", "seed_path": "$S/sagvd/authority_signing_seed"},
            "audit_signing": {"kid": "sagvd-audit-demo", "seed_path": "$S/sagvd/audit_signing_seed"},

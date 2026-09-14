@@ -95,6 +95,7 @@ Compare the SHA-256 of each file over a second channel before pinning it.
   },
   "tee": {
     "provider": "simulated",
+    "insecure_simulation": true,
     "workload_descriptor": "acp-bootstrap-destination-v1",
     "seed_path": "/etc/acp/secrets/acp-bootstrap/tee_seed"
   },
@@ -117,8 +118,11 @@ Exposure rules are enforced at startup; a config that breaks one does not start:
 - Beyond loopback, callers must present a client certificate (`client_cas`) or a
   bearer token of at least 32 characters (`bearer_token_file`, or inline
   `bearer_token`); configure both for defence in depth.
-- `seed_path` (simulated only) is a 32-byte file; `public_key_path` accepts the
-  PEM printed by `sagvd identity` or the raw 32 bytes.
+- The simulated provider runs only with `insecure_simulation: true`: its
+  "Evidence" is signed by a key read from `seed_path`, a 32-byte file, so it has
+  no hardware isolation and is for development and tests. With `gcp-sev-snp`
+  the chip signs and neither field applies. `public_key_path` accepts the PEM
+  printed by `sagvd identity` or the raw 32 bytes.
 - `tee.provider` is also the only `destination_tee_kind` the daemon answers; a
   handshake declaring another kind is refused.
 - `genome` (optional): `bundle_dir` holds sealed bundles waiting for their keys;
@@ -144,6 +148,7 @@ config:
   "enabled": true,
   "audit_log_path": "/var/lib/acp/xcc-audit.db",
   "policy_version": "xcc-2026-09-14",
+  "insecure_simulated_destinations": true,
   "policy_allow_list_path": "/etc/acp/crosscloud/allow.json",
   "verifier_registry_path": "/etc/acp/crosscloud/verifiers.json",
   "transport_bearer_token": "<the destination's bearer token>",
@@ -174,6 +179,13 @@ before the step each one records. The log is verified end to end whenever
 `crosscloud-restore` opens it; a log that does not verify stops all releases.
 One run holds its lock at a time. The audit seed must stay the same for the
 life of the log (`sagvd identity` prints its public key for auditors).
+
+`insecure_simulated_destinations` lets the verifier registry hold a
+`simulated` entry — needed for the simulated examples here, and never for a
+hardware destination. Without it a simulated entry stops `sagvd` before any
+handshake. (`sagvd`'s own `tee` section likewise requires
+`insecure_simulation: true`: this build's authority attests with the simulator
+only; the cross-cloud release path does not depend on it.)
 
 `verifiers.json` — how to check each destination family's Evidence:
 

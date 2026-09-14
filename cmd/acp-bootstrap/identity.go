@@ -23,6 +23,9 @@ type destinationIdentity struct {
 	TEEProvider          string `json:"tee_provider"`
 	MeasurementHex       string `json:"measurement_hex"`
 	AttestorPublicKeyPEM string `json:"attestor_public_key_pem,omitempty"`
+	// InsecureSimulation is true for a destination with no hardware
+	// isolation, so a source operator pinning it sees that it is one.
+	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
 }
 
 // runIdentity implements `acp-bootstrap identity -config <path>`: it
@@ -59,6 +62,7 @@ func runIdentity(args []string, w io.Writer) error {
 			return err
 		}
 		id.AttestorPublicKeyPEM = string(pemBytes)
+		id.InsecureSimulation = true
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

@@ -118,6 +118,12 @@ type TEEConfig struct {
 	// TSMReportDir overrides the configfs-tsm report directory
 	// (default /sys/kernel/config/tsm/report). gcp-sev-snp only.
 	TSMReportDir string `json:"tsm_report_dir,omitempty"`
+
+	// InsecureSimulation must be true to run the simulated provider,
+	// and only then: it says, in the config itself, that this
+	// destination has no hardware isolation — its "Evidence" is signed
+	// by a key read from a file — and is for development and tests.
+	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
 }
 
 // supportedProviders are the TEE backends this build can run.
@@ -199,7 +205,6 @@ func DefaultConfig() Config {
 			ListenAddress: "127.0.0.1:8443",
 		},
 		TEE: TEEConfig{
-			Provider:           "simulated",
 			WorkloadDescriptor: "acp-bootstrap-destination-v1",
 		},
 		Health: HealthConfig{
@@ -315,6 +320,9 @@ func (c Config) Validate() error {
 	case !slices.Contains(supportedProviders, provider):
 		errs = append(errs, fmt.Errorf("tee.provider %q is not available in this build (supported: %v)", provider, supportedProviders))
 	case provider == tee.ProviderSimulated:
+		if !c.TEE.InsecureSimulation {
+			errs = append(errs, errors.New("tee.provider=simulated has no hardware isolation: set tee.insecure_simulation=true to run it, for development and tests only"))
+		}
 		if c.TEE.SeedPath == "" {
 			errs = append(errs, errors.New("tee.seed_path required when tee.provider=simulated"))
 		}
@@ -324,6 +332,9 @@ func (c Config) Validate() error {
 	case provider == tee.ProviderGCPSEVSNP:
 		if c.TEE.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
+		}
+		if c.TEE.InsecureSimulation {
+			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
 		}
 	}
 	if strings.TrimSpace(c.TEE.WorkloadDescriptor) == "" {

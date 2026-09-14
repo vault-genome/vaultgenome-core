@@ -77,6 +77,12 @@ type TEEConfig struct {
 
 	// Peer holds the trust-anchor material for sagvd's side.
 	Peer PeerTEEConfig `json:"peer"`
+
+	// InsecureSimulation must be true: this build's worker attests with
+	// the simulated TEE only — Evidence signed by a key read from
+	// SeedPath, no hardware isolation. The flag puts that in the config
+	// itself.
+	InsecureSimulation bool `json:"insecure_simulation"`
 }
 
 // PeerTEEConfig pins the vault-side TEE the worker will accept.
@@ -249,6 +255,9 @@ func (c Config) Validate() error {
 	}
 	if c.TEE.SeedPath == "" {
 		errs = append(errs, errors.New("tee.seed_path required"))
+	}
+	if !c.TEE.InsecureSimulation {
+		errs = append(errs, errors.New("tee.insecure_simulation must be true: this build's worker attests with the simulated TEE only (no hardware isolation) — set it to acknowledge that"))
 	}
 	if c.TEE.Peer.PublicKeyPath == "" {
 		errs = append(errs, errors.New("tee.peer.public_key_path required"))

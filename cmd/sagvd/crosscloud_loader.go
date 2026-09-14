@@ -172,7 +172,7 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 		return nil, fmt.Errorf("sagvd: LoadCrossCloudMaterials: clock required when crosscloud.enabled=true")
 	}
 
-	registry, err := loadVerifierRegistry(cfg.CrossCloud.VerifierRegistryPath)
+	registry, err := loadVerifierRegistry(cfg.CrossCloud.VerifierRegistryPath, cfg.CrossCloud.InsecureSimulatedDestinations)
 	if err != nil {
 		return nil, err
 	}
@@ -249,8 +249,9 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 }
 
 // loadVerifierRegistry reads the JSON file at path and constructs a
-// tee.Registry with one Verifier per entry.
-func loadVerifierRegistry(path string) (*tee.Registry, error) {
+// tee.Registry with one Verifier per entry. A simulated entry is
+// accepted only with allowSimulated (crosscloud.insecure_simulated_destinations).
+func loadVerifierRegistry(path string, allowSimulated bool) (*tee.Registry, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("sagvd: read verifier_registry_path %q: %w", path, err)
@@ -281,6 +282,9 @@ func loadVerifierRegistry(path string) (*tee.Registry, error) {
 		spec := tee.VerifierSpec{Provider: provider, ExpectedMeasurement: measurement}
 		switch provider {
 		case tee.ProviderSimulated:
+			if !allowSimulated {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: a simulated destination has no hardware isolation; set crosscloud.insecure_simulated_destinations=true to release keys to one, for development and tests only", i)
+			}
 			pub, err := loadAttestorPubKey(e.AttestorPubKeyPath)
 			if err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].attestor_pubkey_path %q: %w", i, e.AttestorPubKeyPath, err)

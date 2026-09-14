@@ -91,12 +91,16 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    offline against genuine GCP and Azure reports. Still scaffolding: the SEV-SNP
    sealer's derived key, and the AWS Nitro, Azure SGX and Intel SGX DCAP
    adapters — `sagvd`'s verifier registry and `acp-bootstrap` refuse those
-   families rather than trust them. `sagvd`'s own TEE is still the simulated
-   one, whose sealing key is intentionally weak (recoverable from the
-   measurement). No Intel TDX adapter exists. A cross-cloud key release has
-   run end to end on a GCP SEV-SNP Confidential VM with the shipping binaries
-   (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`); the older captures
-   under `evidence/` were produced by standalone tooling.
+   families rather than trust them. `sagvd`'s own TEE, and `acp-compute`'s, are
+   still the simulated one, whose sealing key is intentionally weak
+   (recoverable from the measurement); both daemons refuse to start unless
+   their config says `tee.insecure_simulation: true`, and a simulated
+   cross-cloud destination is trusted only with
+   `crosscloud.insecure_simulated_destinations: true`. No Intel TDX adapter
+   exists. A cross-cloud key release, and the restore of a sealed genome with
+   the released key, have run end to end on a GCP SEV-SNP Confidential VM with
+   the shipping binaries (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`);
+   the older captures under `evidence/` were produced by standalone tooling.
 2. **Model "reconstruction" is a placeholder, not neural inference.**
    V1 (`internal/compute/worker/reconstruction.go`) is SHA-256 digest
    expansion; V2 (`generative.go`, the daemon default) is a byte-level
@@ -119,7 +123,8 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    crosscloud-restore` encapsulates DEKs only to a key whose Evidence verifies
    under that challenge. Proven in unit tests (substitution, replay, single use,
    expiry, defect-(b) regression) and live (`test/integration/crosscloud_test.go`).
-   Remaining: `acp-bootstrap` runs the simulated TEE in this build (see #1).
+   `acp-bootstrap` runs on real SEV-SNP (`gcp-sev-snp`) or, only when its
+   config says `insecure_simulation`, on the simulator (see #1).
 5. **RESOLVED (ADR 0007).** Measurements were truncated 48→32 bytes and could not
    pin real SEV-SNP/Nitro hardware (defect a). `tee.Measurement` is now
    variable-length `[]byte` carrying full 48-byte digests without truncation.

@@ -102,7 +102,7 @@ func TestLoadVerifierRegistry_HappyPath_RawPubkey(t *testing.T) {
 	}`
 	regPath := writeFile(t, dir, "registry.json", []byte(registryJSON))
 
-	registry, err := loadVerifierRegistry(regPath)
+	registry, err := loadVerifierRegistry(regPath, true)
 	if err != nil {
 		t.Fatalf("loadVerifierRegistry: %v", err)
 	}
@@ -111,6 +111,22 @@ func TestLoadVerifierRegistry_HappyPath_RawPubkey(t *testing.T) {
 	}
 	if !registry.Has(tee.ProviderSimulated) {
 		t.Error("registry must hold ProviderSimulated entry")
+	}
+}
+
+// A simulated destination proves the protocol, not hardware: the
+// registry refuses one unless the operator says so in the config.
+func TestLoadVerifierRegistry_RefusesSimulatedUnlessAcknowledged(t *testing.T) {
+	dir := t.TempDir()
+	pubPath := writeFile(t, dir, "attestor.pem", generateEd25519PubPEM(t))
+	regPath := writeFile(t, dir, "registry.json", []byte(`{"verifiers":[{"provider":"simulated","attestor_pubkey_path":"`+
+		pubPath+`","expected_measurement_hex":"`+makeMeasurementHex(0x42)+`"}]}`))
+	_, err := loadVerifierRegistry(regPath, false)
+	if err == nil || !strings.Contains(err.Error(), "insecure_simulated_destinations") {
+		t.Fatalf("simulated entry without the acknowledgement: err = %v", err)
+	}
+	if _, err := loadVerifierRegistry(regPath, true); err != nil {
+		t.Fatalf("simulated entry with the acknowledgement: %v", err)
 	}
 }
 
@@ -130,7 +146,7 @@ func TestLoadVerifierRegistry_HappyPath_PEMPubkey(t *testing.T) {
 	}`
 	regPath := writeFile(t, dir, "registry.json", []byte(registryJSON))
 
-	registry, err := loadVerifierRegistry(regPath)
+	registry, err := loadVerifierRegistry(regPath, true)
 	if err != nil {
 		t.Fatalf("loadVerifierRegistry(PEM): %v", err)
 	}
@@ -149,17 +165,17 @@ func TestLoadVerifierRegistry_SEVSNP(t *testing.T) {
 		return `{"verifiers":[{"provider":"gcp-sev-snp","expected_measurement_hex":"` + m48 + `"` + extra + `}]}`
 	}
 
-	reg, err := loadVerifierRegistry(writeFile(t, dir, "ok.json", []byte(entry(`,"amd_cert_chain_path":"`+chain+`","min_reported_tcb":7`))))
+	reg, err := loadVerifierRegistry(writeFile(t, dir, "ok.json", []byte(entry(`,"amd_cert_chain_path":"`+chain+`","min_reported_tcb":7`))), true)
 	if err != nil {
 		t.Fatalf("loadVerifierRegistry(gcp-sev-snp): %v", err)
 	}
 	if !reg.Has(tee.ProviderGCPSEVSNP) {
 		t.Fatal("registry must hold the gcp-sev-snp entry")
 	}
-	if _, err := loadVerifierRegistry(writeFile(t, dir, "nochain.json", []byte(entry("")))); err == nil || !strings.Contains(err.Error(), "amd_cert_chain_path") {
+	if _, err := loadVerifierRegistry(writeFile(t, dir, "nochain.json", []byte(entry(""))), true); err == nil || !strings.Contains(err.Error(), "amd_cert_chain_path") {
 		t.Fatalf("gcp-sev-snp without an AMD chain: err = %v", err)
 	}
-	if _, err := loadVerifierRegistry(writeFile(t, dir, "badchain.json", []byte(entry(`,"amd_cert_chain_path":"`+filepath.Join(dir, "absent.pem")+`"`)))); err == nil {
+	if _, err := loadVerifierRegistry(writeFile(t, dir, "badchain.json", []byte(entry(`,"amd_cert_chain_path":"`+filepath.Join(dir, "absent.pem")+`"`))), true); err == nil {
 		t.Fatal("gcp-sev-snp with an unreadable AMD chain was accepted")
 	}
 }
@@ -171,7 +187,7 @@ func TestLoadVerifierRegistry_RefusesFamiliesWithoutAWorkingVerifier(t *testing.
 	pubPath := writeFile(t, dir, "attestor.pem", generateEd25519PubPEM(t))
 	for _, provider := range []string{"aws-nitro", "azure-sgx", "intel-sgx-dcap"} {
 		reg := `{"verifiers":[{"provider":"` + provider + `","attestor_pubkey_path":"` + pubPath + `","expected_measurement_hex":"` + makeMeasurementHex(0x42) + `"}]}`
-		_, err := loadVerifierRegistry(writeFile(t, dir, provider+".json", []byte(reg)))
+		_, err := loadVerifierRegistry(writeFile(t, dir, provider+".json", []byte(reg)), true)
 		if err == nil || !strings.Contains(err.Error(), "no verifier this build can run end to end") {
 			t.Errorf("%s: err = %v, want a fail-closed refusal", provider, err)
 		}
@@ -179,7 +195,7 @@ func TestLoadVerifierRegistry_RefusesFamiliesWithoutAWorkingVerifier(t *testing.
 }
 
 func TestLoadVerifierRegistry_MissingFile(t *testing.T) {
-	_, err := loadVerifierRegistry("/nonexistent/path/registry.json")
+	_, err := loadVerifierRegistry("/nonexistent/path/registry.json", true)
 	if err == nil {
 		t.Fatal("loadVerifierRegistry: want error on missing file")
 	}
@@ -188,7 +204,7 @@ func TestLoadVerifierRegistry_MissingFile(t *testing.T) {
 func TestLoadVerifierRegistry_EmptyVerifiersRejected(t *testing.T) {
 	dir := t.TempDir()
 	regPath := writeFile(t, dir, "registry.json", []byte(`{"verifiers":[]}`))
-	_, err := loadVerifierRegistry(regPath)
+	_, err := loadVerifierRegistry(regPath, true)
 	if err == nil || !strings.Contains(err.Error(), "at least one verifier") {
 		t.Fatalf("loadVerifierRegistry(empty): err = %v", err)
 	}
@@ -207,7 +223,7 @@ func TestLoadVerifierRegistry_BadProviderRejected(t *testing.T) {
 		]
 	}`
 	regPath := writeFile(t, dir, "registry.json", []byte(registryJSON))
-	_, err := loadVerifierRegistry(regPath)
+	_, err := loadVerifierRegistry(regPath, true)
 	if err == nil || !strings.Contains(err.Error(), "vibes-tee") {
 		t.Fatalf("loadVerifierRegistry(bad provider): err = %v", err)
 	}
@@ -226,7 +242,7 @@ func TestLoadVerifierRegistry_BadHexRejected(t *testing.T) {
 		]
 	}`
 	regPath := writeFile(t, dir, "registry.json", []byte(registryJSON))
-	_, err := loadVerifierRegistry(regPath)
+	_, err := loadVerifierRegistry(regPath, true)
 	if err == nil {
 		t.Fatal("loadVerifierRegistry(bad hex): want error")
 	}
@@ -245,7 +261,7 @@ func TestLoadVerifierRegistry_WrongMeasurementSizeRejected(t *testing.T) {
 		]
 	}`
 	regPath := writeFile(t, dir, "registry.json", []byte(registryJSON))
-	_, err := loadVerifierRegistry(regPath)
+	_, err := loadVerifierRegistry(regPath, true)
 	if err == nil || !strings.Contains(err.Error(), "32-, 48- or 64-byte measurement") {
 		t.Fatalf("loadVerifierRegistry(short measurement): err = %v", err)
 	}
@@ -265,7 +281,7 @@ func TestLoadVerifierRegistry_UnknownJSONFieldRejected(t *testing.T) {
 		]
 	}`
 	regPath := writeFile(t, dir, "registry.json", []byte(registryJSON))
-	_, err := loadVerifierRegistry(regPath)
+	_, err := loadVerifierRegistry(regPath, true)
 	if err == nil || !strings.Contains(err.Error(), "mystery_field") {
 		t.Fatalf("loadVerifierRegistry(unknown field): err = %v", err)
 	}
@@ -431,6 +447,8 @@ func TestLoadCrossCloudMaterials_HappyPath(t *testing.T) {
 			PolicyAllowListPath:   allowPath,
 			VerifierRegistryPath:  regPath,
 			RequestTimeoutSeconds: 30,
+			// The test destinations are simulated.
+			InsecureSimulatedDestinations: true,
 		},
 	}
 	withAuditLog(t, dir, &cfg)
@@ -503,7 +521,7 @@ func simulatedCrossCloudConfig(t *testing.T, dir string) Config {
 	meas := makeMeasurementHex(0x55)
 	reg := writeFile(t, dir, "registry.json", []byte(`{"verifiers":[{"provider":"simulated","attestor_pubkey_path":"`+pubPath+`","expected_measurement_hex":"`+meas+`"}]}`))
 	allow := writeFile(t, dir, "allow.json", []byte(`{"version":"v1","allowed":{"simulated":["`+meas+`"]}}`))
-	cfg := Config{CrossCloud: CrossCloudConfig{Enabled: true, PolicyVersion: "v1", PolicyAllowListPath: allow, VerifierRegistryPath: reg}}
+	cfg := Config{CrossCloud: CrossCloudConfig{Enabled: true, PolicyVersion: "v1", PolicyAllowListPath: allow, VerifierRegistryPath: reg, InsecureSimulatedDestinations: true}}
 	withAuditLog(t, dir, &cfg)
 	return cfg
 }

@@ -125,6 +125,12 @@ type TEEConfig struct {
 	// exactly one expected worker measurement; Phase 2 extends to a
 	// policy set pulling from Workers.RegistryPath.
 	Peer PeerTEEConfig `json:"peer"`
+
+	// InsecureSimulation must be true: this build's vault attests with
+	// the simulated TEE only — Evidence signed by a key read from
+	// SeedPath, no hardware isolation. The flag puts that in the config
+	// itself; the release-side cross-cloud path does not depend on it.
+	InsecureSimulation bool `json:"insecure_simulation"`
 }
 
 // PeerTEEConfig pins the worker-side TEE the vault will accept.
@@ -353,6 +359,13 @@ type CrossCloudConfig struct {
 	// crosscloud-restore run holds its lock at a time.
 	AuditLogPath string `json:"audit_log_path,omitempty"`
 
+	// InsecureSimulatedDestinations must be true for the verifier
+	// registry to hold a "simulated" entry. A simulated destination's
+	// Evidence is signed by a key from a file, so releasing keys to it
+	// proves the protocol and nothing about hardware; development and
+	// tests only.
+	InsecureSimulatedDestinations bool `json:"insecure_simulated_destinations,omitempty"`
+
 	// OperatorStop is the operator's signed stop list (ADR 0010):
 	// every release is checked against it, and without a valid one
 	// nothing is released. Required when enabled.
@@ -531,6 +544,9 @@ func (c Config) Validate() error {
 	}
 	if c.TEE.SeedPath == "" {
 		errs = append(errs, errors.New("tee.seed_path required"))
+	}
+	if !c.TEE.InsecureSimulation {
+		errs = append(errs, errors.New("tee.insecure_simulation must be true: this build's vault attests with the simulated TEE only (no hardware isolation) — set it to acknowledge that"))
 	}
 	if c.TEE.Peer.PublicKeyPath == "" {
 		errs = append(errs, errors.New("tee.peer.public_key_path required"))

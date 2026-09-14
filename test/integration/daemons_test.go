@@ -339,6 +339,7 @@ func vaultConfig(secrets, vaultAddr, apiAddr, healthAddr string) map[string]any 
 		"tee": map[string]any{
 			"workload_descriptor": vaultDescriptor,
 			"seed_path":           sec("sagvd", "tee_seed"),
+			"insecure_simulation": true,
 			"peer": map[string]any{
 				"public_key_path":  sec("sagvd", "peer_worker_pubkey"),
 				"measurement_path": sec("sagvd", "peer_worker_measurement"),
@@ -414,6 +415,7 @@ func (v *vault) startWorker(t *testing.T, name string, id workerIdentity) (*proc
 		"tee": map[string]any{
 			"workload_descriptor": workerDescriptor,
 			"seed_path":           filepath.Join(id.teeFrom, "acp-compute", "tee_seed"),
+			"insecure_simulation": true,
 			"peer": map[string]any{
 				"public_key_path":  filepath.Join(v.secrets, "acp-compute", "peer_vault_pubkey"),
 				"measurement_path": filepath.Join(v.secrets, "acp-compute", "peer_vault_measurement"),

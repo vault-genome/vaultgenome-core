@@ -28,6 +28,7 @@ func TestDefaultConfig_Listeners(t *testing.T) {
 func minimalValidConfig() Config {
 	c := DefaultConfig()
 	c.TEE.SeedPath = "/tmp/tee.seed"
+	c.TEE.InsecureSimulation = true
 	c.TEE.Peer.PublicKeyPath = "/tmp/peer.pub"
 	c.TEE.Peer.MeasurementPath = "/tmp/peer.meas"
 	c.Keys.AuthoritySigning = SigningKeyConfig{KeyID: "auth-1", SeedPath: "/tmp/auth.seed"}
@@ -363,6 +364,7 @@ func TestLoadConfigFile_OverridesDefaults(t *testing.T) {
 		"tee": {
 			"workload_descriptor": "sagvd-test",
 			"seed_path": "/tmp/tee.seed",
+			"insecure_simulation": true,
 			"peer": {"public_key_path": "/tmp/peer.pub", "measurement_path": "/tmp/peer.meas"}
 		},
 		"keys": {

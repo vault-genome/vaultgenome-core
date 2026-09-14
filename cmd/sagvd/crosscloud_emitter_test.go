@@ -290,6 +290,8 @@ func TestLoadCrossCloudMaterials_PopulatesAuditAndIDGen(t *testing.T) {
 			PolicyAllowListPath:   allowPath,
 			VerifierRegistryPath:  regPath,
 			RequestTimeoutSeconds: 30,
+			// The test destinations are simulated.
+			InsecureSimulatedDestinations: true,
 		},
 	}
 	withAuditLog(t, dir, &cfg)

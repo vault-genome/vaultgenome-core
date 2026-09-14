@@ -231,6 +231,9 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 		d.healthLn = ln
 	}
 
+	if kind == tee.ProviderSimulated {
+		logger.Warn("SIMULATED TEE: no hardware isolation — its Evidence is signed by a key read from a file; development and tests only")
+	}
 	logger.Info("acp-bootstrap ready",
 		"version", version,
 		"commit", commit,

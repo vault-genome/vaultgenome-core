@@ -15,6 +15,7 @@
   "tee": {
     "workload_descriptor": "sagvd-phase1-demo-v1",
     "seed_path": "/etc/acp/secrets/sagvd/tee_seed",
+    "insecure_simulation": true,
     "peer": {
       "public_key_path": "/etc/acp/secrets/sagvd/peer_worker_pubkey",
       "measurement_path": "/etc/acp/secrets/sagvd/peer_worker_measurement"

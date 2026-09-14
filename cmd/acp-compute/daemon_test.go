@@ -110,6 +110,7 @@ func newTestFixture(t *testing.T) *testFixture {
 	f.cfg = DefaultConfig()
 	f.cfg.TEE.WorkloadDescriptor = f.workloadDescriptor
 	f.cfg.TEE.SeedPath = write("tee.seed", f.teeSeed)
+	f.cfg.TEE.InsecureSimulation = true
 	f.cfg.TEE.Peer.PublicKeyPath = write("peer.pub", []byte(f.serverSim.PublicKey()))
 	meas := f.serverSim.Measurement()
 	f.cfg.TEE.Peer.MeasurementPath = write("peer.meas", meas[:])
