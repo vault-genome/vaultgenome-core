@@ -10,8 +10,9 @@ guidance below is mandatory, not optional — CI enforces most of it.
    terms listed there will fail the terminology check in CI.
 2. Read the module's own `doc.go`. Every package has a doctrinal purpose; your
    change should be consistent with it.
-3. Confirm your change does not weaken any of the eleven invariants in
-   `docs/internal/stage-a-summary.md` §2. If it necessarily does, stop and open a design
+3. Confirm your change does not weaken any of the eleven doctrinal
+   invariants, which are asserted as tests in `test/doctrine/` (a weakening
+   change fails those tests). If it necessarily does, stop and open a design
    discussion first.
 
 ## Branching and Commits
