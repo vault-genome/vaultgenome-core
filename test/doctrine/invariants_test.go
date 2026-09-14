@@ -689,6 +689,13 @@ var forbiddenWriteSelectors = map[string]struct{}{
 //     worker binary by Invariants #01 and #02 (vault/worker import
 //     graph). The unsealing itself remains the sealer's responsibility;
 //     the materialisation step is a client-side concern.
+//   - the tar extraction step shared by those two restore packages
+//     (shared/safetar). It is not a new export surface: contentdir and
+//     ollama delegate their extraction to it so the confinement logic
+//     (os.Root; no "..", absolute or symlink escape) exists once.
+//     TestInvariant_07_SafetarOnlyServesRestore pins its importers to
+//     exactly contentdir and ollama, so the allowance cannot be reused
+//     by any other package.
 //
 // Anything outside these prefixes must route writes through the sealer
 // in /internal/vault/disclosure or through one of the allowlisted
@@ -697,8 +704,16 @@ var allowedWriteSinkPrefixes = []string{
 	"internal/vault/storage/",
 	"internal/audit/store/",
 	"internal/shared/tee/",
-	"internal/contentdir/", // client-side restore: directory-tree materialisation
-	"internal/ollama/",     // client-side restore: OLLAMA_MODELS materialisation
+	"internal/contentdir/",     // client-side restore: directory-tree materialisation
+	"internal/ollama/",         // client-side restore: OLLAMA_MODELS materialisation
+	"internal/shared/safetar/", // extraction step of the two restore packages above
+}
+
+// safetarImporters are the only packages permitted to import
+// internal/shared/safetar; see allowedWriteSinkPrefixes.
+var safetarImporters = []string{
+	"internal/contentdir/",
+	"internal/ollama/",
 }
 
 // TestInvariant_07_NoRawExport asserts there is no code path under
@@ -763,6 +778,65 @@ func TestInvariant_07_NoRawExport(t *testing.T) {
 		t.Errorf("if the write is legitimate, either place the file under one of %v"+
 			" or extend allowedWriteSinkPrefixes with a doctrine-paragraph rationale",
 			allowedWriteSinkPrefixes)
+	}
+}
+
+// TestInvariant_07_SafetarOnlyServesRestore keeps the write-sink allowance
+// granted to internal/shared/safetar from becoming a general-purpose raw
+// export path: across the whole module, only the two client-side restore
+// packages may import it. An import from anywhere else — the sagvd
+// authority, the acp-compute worker, any vault package — fails here.
+func TestInvariant_07_SafetarOnlyServesRestore(t *testing.T) {
+	t.Parallel()
+	root := locateModuleRoot(t)
+	const safetarPath = "github.com/ai-continuity-platform/core/internal/shared/safetar"
+
+	var offenders []string
+	walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case "vendor", ".git", "node_modules":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range f.Imports {
+			p, err := strconv.Unquote(imp.Path.Value)
+			if err != nil || p != safetarPath {
+				continue
+			}
+			allowed := false
+			for _, prefix := range safetarImporters {
+				if strings.HasPrefix(rel, prefix) {
+					allowed = true
+				}
+			}
+			if !allowed {
+				offenders = append(offenders, rel)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walking module: %v", walkErr)
+	}
+	if len(offenders) > 0 {
+		t.Errorf("internal/shared/safetar imported outside %v: %v", safetarImporters, offenders)
 	}
 }
 

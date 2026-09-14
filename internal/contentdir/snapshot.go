@@ -17,14 +17,13 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
+
+	"github.com/ai-continuity-platform/core/internal/shared/safetar"
 )
 
 // Component is the in-snapshot record for one file inside a sealed dir.
@@ -144,43 +143,14 @@ func CapturePayload(sourceDir string) (Snapshot, []byte, error) {
 }
 
 // Restore extracts a payload produced by CapturePayload into targetDir,
-// recreating the original directory structure. Returns the number of
-// bytes written.
+// recreating the original directory structure, and returns the number of
+// bytes written. Extraction is confined to targetDir by safetar: no entry
+// can land outside it, whether by "..", an absolute name, or a symlink
+// already inside targetDir.
 func Restore(payload []byte, targetDir string) (int64, error) {
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
-		return 0, fmt.Errorf("contentdir restore: mkdir target: %w", err)
+	n, err := safetar.Extract(payload, targetDir)
+	if err != nil {
+		return n, fmt.Errorf("contentdir restore: %w", err)
 	}
-	tr := tar.NewReader(bytes.NewReader(payload))
-	var written int64
-	for {
-		hdr, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return written, fmt.Errorf("contentdir restore: tar read: %w", err)
-		}
-		if hdr.Typeflag != tar.TypeReg {
-			continue
-		}
-		clean := filepath.Clean(hdr.Name)
-		if strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
-			return written, fmt.Errorf("contentdir restore: refusing unsafe path %q", hdr.Name)
-		}
-		dst := filepath.Join(targetDir, clean)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return written, fmt.Errorf("contentdir restore: mkdir for %s: %w", clean, err)
-		}
-		f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-		if err != nil {
-			return written, fmt.Errorf("contentdir restore: create %s: %w", clean, err)
-		}
-		n, err := io.Copy(f, tr)
-		_ = f.Close()
-		if err != nil {
-			return written, fmt.Errorf("contentdir restore: write %s: %w", clean, err)
-		}
-		written += n
-	}
-	return written, nil
+	return n, nil
 }

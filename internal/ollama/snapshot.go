@@ -20,11 +20,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/ai-continuity-platform/core/internal/shared/safetar"
 )
 
 // ManifestRef mirrors Ollama's on-disk manifest schema (Docker v2-style).
@@ -92,6 +94,17 @@ func CapturePayload(modelRef, ollamaHome string) (Snapshot, []byte, error) {
 	var mf ManifestRef
 	if err := json.Unmarshal(manifestBytes, &mf); err != nil {
 		return Snapshot{}, nil, fmt.Errorf("ollama snapshot: parse manifest: %w", err)
+	}
+	// Digests become file names under models/blobs, so validate every one
+	// before touching the filesystem: a crafted "sha256:../../dev/zero"
+	// would otherwise read outside the store (or never finish reading).
+	if err := validateDigest(mf.Config.Digest); err != nil {
+		return Snapshot{}, nil, fmt.Errorf("ollama snapshot: manifest config: %w", err)
+	}
+	for i, l := range mf.Layers {
+		if err := validateDigest(l.Digest); err != nil {
+			return Snapshot{}, nil, fmt.Errorf("ollama snapshot: manifest layer %d: %w", i, err)
+		}
 	}
 
 	components := []Component{
@@ -167,96 +180,88 @@ func CapturePayload(modelRef, ollamaHome string) (Snapshot, []byte, error) {
 }
 
 // Restore extracts a payload produced by CapturePayload into targetHome,
-// reproducing the OLLAMA_MODELS layout under targetHome/models/. Returns
-// the number of bytes written. Caller can then point Ollama at targetHome
-// via OLLAMA_MODELS env var to load the restored model.
+// reproducing the OLLAMA_MODELS layout under targetHome/models/, and
+// returns the number of bytes written. Callers point Ollama at the result
+// with OLLAMA_MODELS. Extraction is confined to targetHome by safetar.
 func Restore(payload []byte, targetHome string) (int64, error) {
-	if err := os.MkdirAll(filepath.Join(targetHome, "models", "blobs"), 0o755); err != nil {
-		return 0, fmt.Errorf("ollama restore: mkdir blobs: %w", err)
+	for _, dir := range []string{
+		filepath.Join(targetHome, "models", "blobs"),
+		filepath.Join(targetHome, "models", "manifests"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return 0, fmt.Errorf("ollama restore: mkdir %s: %w", dir, err)
+		}
 	}
-	if err := os.MkdirAll(filepath.Join(targetHome, "models", "manifests"), 0o755); err != nil {
-		return 0, fmt.Errorf("ollama restore: mkdir manifests: %w", err)
+	n, err := safetar.Extract(payload, targetHome)
+	if err != nil {
+		return n, fmt.Errorf("ollama restore: %w", err)
 	}
-
-	tr := tar.NewReader(bytes.NewReader(payload))
-	var written int64
-	for {
-		hdr, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return written, fmt.Errorf("ollama restore: tar read: %w", err)
-		}
-		if hdr.Typeflag != tar.TypeReg {
-			continue
-		}
-		// Defensive — refuse paths that try to escape targetHome.
-		clean := filepath.Clean(hdr.Name)
-		if strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
-			return written, fmt.Errorf("ollama restore: refusing unsafe path %q", hdr.Name)
-		}
-		dst := filepath.Join(targetHome, clean)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return written, fmt.Errorf("ollama restore: mkdir for %s: %w", clean, err)
-		}
-		f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-		if err != nil {
-			return written, fmt.Errorf("ollama restore: create %s: %w", clean, err)
-		}
-		n, err := io.Copy(f, tr)
-		_ = f.Close()
-		if err != nil {
-			return written, fmt.Errorf("ollama restore: write %s: %w", clean, err)
-		}
-		written += n
-	}
-	return written, nil
+	return n, nil
 }
 
-// VerifyComponents re-hashes every blob in a restored OLLAMA_MODELS layout
-// and returns an error if any hash diverges from the snapshot's record.
-// Used by `acpctl genome verify` after a restore to prove that what came
-// out of the seal is bit-identical to what went in.
+// VerifyComponents re-hashes the manifest and every blob of a restored
+// OLLAMA_MODELS layout and fails on any divergence from the snapshot. Used
+// by `acpctl genome verify` after a restore to prove that what came out of
+// the seal is bit-identical to what went in. The snapshot is untrusted
+// input (it is decoded from a bundle), so its digests and manifest path
+// are validated before they are used to build file paths.
 func VerifyComponents(snap Snapshot, restoredHome string) error {
+	var manifestDigest string
 	for _, c := range snap.Components {
+		if err := validateDigest(c.Digest); err != nil {
+			return fmt.Errorf("verify: %s component: %w", c.Role, err)
+		}
 		if c.Role == "manifest" {
-			continue // manifest hash recomputed inline below
+			manifestDigest = c.Digest
+			continue
 		}
 		path := filepath.Join(restoredHome, "models", "blobs", blobFilename(c.Digest))
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("verify: read %s: %w", path, err)
 		}
-		got := digestOf(data)
-		if got != c.Digest {
-			return fmt.Errorf("verify: blob %s: digest mismatch (snapshot %s, on-disk %s)", c.Digest, c.Digest, got)
+		if got := digestOf(data); got != c.Digest {
+			return fmt.Errorf("verify: blob digest mismatch (snapshot %s, on-disk %s)", c.Digest, got)
 		}
+	}
+	if manifestDigest == "" {
+		return errors.New("verify: snapshot records no manifest component")
+	}
+	if !filepath.IsLocal(snap.ManifestPath) {
+		return fmt.Errorf("verify: snapshot manifest path %q is not local", snap.ManifestPath)
 	}
 	manifestPath := filepath.Join(restoredHome, "models", snap.ManifestPath)
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return fmt.Errorf("verify: read manifest %s: %w", manifestPath, err)
 	}
-	if got := digestOf(data); got != snap.Components[0].Digest && !manifestDigestMatches(snap.Components, got) {
-		return fmt.Errorf("verify: manifest digest mismatch (on-disk %s)", got)
+	if got := digestOf(data); got != manifestDigest {
+		return fmt.Errorf("verify: manifest digest mismatch (snapshot %s, on-disk %s)", manifestDigest, got)
 	}
 	return nil
 }
 
-func manifestDigestMatches(components []Component, got string) bool {
-	for _, c := range components {
-		if c.Role == "manifest" && c.Digest == got {
-			return true
-		}
+// digestPattern is the only digest form accepted: it doubles as a blob
+// file name, so it must be exactly "sha256:" and 64 lowercase hex digits.
+var digestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+func validateDigest(d string) error {
+	if !digestPattern.MatchString(d) {
+		return fmt.Errorf("invalid digest %q (want sha256:<64 lowercase hex>)", d)
 	}
-	return false
+	return nil
 }
+
+// refPart is one component of a model reference (registry host,
+// namespace, model name, or tag). It must start with a letter or digit, so
+// "." and ".." — and hidden names — can never become path elements.
+var refPart = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 // manifestPathFor turns "llama3.2:3b" into the relative on-disk path
 // "manifests/registry.ollama.ai/library/llama3.2/3b". Any explicit
 // registry/namespace prefix is honoured; the bare-name shortcut assumes
-// the canonical Ollama registry.
+// the canonical Ollama registry. Every component is validated, so a
+// reference can never address a path outside models/manifests.
 func manifestPathFor(modelRef string) (string, error) {
 	if modelRef == "" {
 		return "", errors.New("ollama snapshot: model ref must not be empty")
@@ -266,8 +271,13 @@ func manifestPathFor(modelRef string) (string, error) {
 		tag = "latest"
 		name = modelRef
 	}
-	// Normalise the registry/namespace prefix.
 	parts := strings.Split(name, "/")
+	for _, p := range append(append([]string(nil), parts...), tag) {
+		if !refPart.MatchString(p) {
+			return "", fmt.Errorf("ollama snapshot: invalid model ref %q", modelRef)
+		}
+	}
+	// Normalise the registry/namespace prefix.
 	switch len(parts) {
 	case 1:
 		return filepath.Join("manifests", "registry.ollama.ai", "library", parts[0], tag), nil
