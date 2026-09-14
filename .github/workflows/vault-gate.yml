@@ -106,9 +106,14 @@ jobs:
       - name: osv-scanner
         uses: google/osv-scanner-action/osv-scanner-action@v2.6.0
         with:
+          # Scan the product module only. A recursive scan (`-r .`) also
+          # descends into operational helper modules under
+          # scripts/hardware-test/ (the AWS Nitro vsock-attest snippet ships
+          # without a go.sum and cannot be resolved), which are not the
+          # deployable product. The product is a single root Go module.
           scan-args: |-
-            -r
-            .
+            --lockfile
+            go.mod
 
       # 12 gitleaks
       - name: gitleaks
