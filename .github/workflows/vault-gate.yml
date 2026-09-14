@@ -83,7 +83,7 @@ jobs:
 
       # 07 coverage (+ threshold enforcement inside script)
       - name: coverage + thresholds
-        run: make coverage-thresholds || echo "coverage thresholds not yet enforceable (stage B)"
+        run: make coverage-thresholds
 
       # 08 lint
       - name: golangci-lint

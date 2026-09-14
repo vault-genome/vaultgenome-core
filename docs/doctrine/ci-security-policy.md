@@ -102,10 +102,35 @@ file, however the code is later copied or vendored.
 
 ## 8. Coverage thresholds
 
-`scripts/coverage_check.sh` enforces a minimum test-coverage floor. Coverage is
-a floor, not a target: it guards against a change that silently drops whole
-packages out of the tested set, and it is read alongside the doctrine tests
-(which assert behaviour, not lines).
+`scripts/coverage_check.sh` enforces a minimum test-coverage floor on every
+product package (`internal/`, `cmd/`, `pkg/`). Coverage is a floor, not a
+target: it guards against a change that silently drops code out of the tested
+set, and it is read alongside the doctrine tests (which assert behaviour, not
+lines).
+
+How it is measured. `make coverage` runs the whole suite with
+`-coverpkg=./...`, so a statement counts as covered when *any* test in the
+module executes it — a package exercised through another package's tests gets
+credit for that. Each statement is counted once however many test binaries
+report it, and packages are weighted by statements, not by function (averaging
+per-function percentages would let a dozen one-line helpers hide one untested
+thousand-line file).
+
+What is required. Each package reaches its class target:
+
+| Class | Target |
+|---|---|
+| `internal/contracts/...` (wire contracts) | 80% |
+| `internal/validation/operational/...` | 90% |
+| `internal/vault/orchestration/...` | 85% |
+| every other product package | 70% |
+
+Packages still below target are listed in `scripts/coverage_floors.txt` with the
+floor they may not drop below. The file is a ratchet: floors are only ever
+raised, a package leaves it once it meets its target, and a new package cannot
+enter below target without a reviewed entry. The same file holds the floor for
+the product total. The gate prints the full table on every run, so progress on
+the listed packages is visible in each CI log.
 
 ## 9. Reproducible builds
 

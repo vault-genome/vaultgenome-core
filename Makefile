@@ -102,10 +102,11 @@ test-integration:
 test-doctrine:
 	$(GO) test -count=1 ./test/doctrine/...
 
+# coverage writes a cross-package profile: a statement counts as covered
+# when any test in the module executes it (policy: ci-security-policy.md §8).
 .PHONY: coverage
 coverage:
-	$(GO) test -count=1 -coverprofile=coverage.out $(PKG)
-	$(GO) tool cover -func=coverage.out
+	$(GO) test -count=1 -coverpkg=./... -coverprofile=coverage.out $(PKG)
 
 # --- benchmarks ---------------------------------------------------------------
 

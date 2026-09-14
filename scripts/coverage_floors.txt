@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Coverage floors — a ratchet for product packages still below their
+# class target (docs/doctrine/ci-security-policy.md §8). Each line is
+# "<package> <floor%>". scripts/coverage_check.sh fails if a listed
+# package drops below its floor; a package that is not listed must meet
+# its target. Only ever raise a floor, and delete the line once the
+# package meets its target. `total` is the floor for the whole product.
+#
+# Recorded 2026-09-14 from `make coverage`, rounded down to whole percent.
+
+total 78
+
+# target 70%
+cmd/acpctl 32
+cmd/acp-compute 56
+cmd/sagvd 55
+internal/compute/returnpath/client 68
+internal/compute/returnpath/server 64
+
+# target 80%
+internal/contracts/disclosure_message 78
+internal/contracts/received_disclosure 77
+internal/contracts/reconstruction_job_manifest 74
+internal/contracts/release_decision 75
+internal/contracts/validation_result 68
