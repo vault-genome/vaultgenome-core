@@ -14,7 +14,7 @@ import (
 //   - All required IDs (TokenID, DecisionID, RequestID, SigningKeyID,
 //     AuditEventID) are non-zero — un-evidenced releases are
 //     structurally invalid.
-//   - DestinationMeasurement is exactly MeasurementSize bytes.
+//   - DestinationMeasurement is 32, 48 or 64 bytes (ValidMeasurementLen).
 //   - Wrapped is non-empty (no token releases zero keys).
 //   - Each WrappedKey:
 //   - KeyID non-zero
@@ -59,10 +59,10 @@ func (t KeyReleaseToken) Validate() error {
 			nil,
 		)
 	}
-	if len(t.DestinationMeasurement) != MeasurementSize {
+	if !ValidMeasurementLen(len(t.DestinationMeasurement)) {
 		return shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("key_release_token: destination_measurement must be exactly %d bytes", MeasurementSize),
+			fmt.Sprintf("key_release_token: destination_measurement must be 32, 48 or 64 bytes; got %d", len(t.DestinationMeasurement)),
 			nil,
 		)
 	}
@@ -139,4 +139,13 @@ func (t KeyReleaseToken) Validate() error {
 		)
 	}
 	return nil
+}
+
+// ValidMeasurementLen reports whether n is the length of a TEE
+// measurement the platform can pin in full: 32 bytes (SHA-256; the
+// simulated TEE, SGX MRENCLAVE), 48 bytes (SHA-384; SEV-SNP MEASUREMENT,
+// Nitro PCR0) or 64 bytes (SHA-512). It mirrors tee.MeasurementFromBytes
+// (ADR 0007): a measurement is never truncated to fit.
+func ValidMeasurementLen(n int) bool {
+	return n == 32 || n == 48 || n == 64
 }

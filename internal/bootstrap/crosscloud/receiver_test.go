@@ -5,7 +5,10 @@ package crosscloud
 import (
 	"bytes"
 	"context"
+	"crypto/ecdh"
 	"crypto/rand"
+	"fmt"
+	"sync"
 	"testing"
 	stdtime "time"
 
@@ -34,15 +37,16 @@ func mustRandomBytes(t *testing.T, n int) []byte {
 // receiverFixture wires a Receiver against a real simulated TEE,
 // a real keystore, and a real source-authority signer.
 type receiverFixture struct {
-	receiver       *Receiver
-	keystore       *keys.InMemoryStore
-	sourceKID      ids.KeyID
-	destProducer   *tee.Simulated
-	destMeasure    tee.Measurement
-	sourceVerifier keys.Resolver
+	receiver     *Receiver
+	keystore     *keys.InMemoryStore
+	clock        *shared_time.FakeClock
+	sourceKID    ids.KeyID
+	source       *keys.InMemoryStore // signs as the source authority
+	destProducer *tee.Simulated
+	destMeasure  tee.Measurement
 }
 
-func makeReceiverFixture(t *testing.T) *receiverFixture {
+func makeReceiverFixture(t *testing.T, tune ...func(*Config)) *receiverFixture {
 	t.Helper()
 	clock := shared_time.NewFakeClock(stdtime.Date(2026, 5, 9, 12, 0, 0, 0, stdtime.UTC))
 
@@ -53,47 +57,48 @@ func makeReceiverFixture(t *testing.T) *receiverFixture {
 	_, err := sourceKeystore.GenerateSigning(sourceKID, keys.PurposeSigningAuthority)
 	require.NoError(t, err)
 
-	// Destination's local TEE producer.
-	destDescriptor := []byte("vault-genome-receiver-test")
-	destSeed := mustRandomBytes(t, 32)
-	destProducer, err := tee.NewSimulated(destDescriptor, destSeed)
+	destProducer, err := tee.NewSimulated([]byte("vault-genome-receiver-test"), mustRandomBytes(t, 32))
 	require.NoError(t, err)
-
-	// Destination's keystore (where unwrapped DEKs land).
 	destKeystore := keys.NewInMemoryStore(clock)
 
-	receiver, err := NewReceiver(Config{
+	cfg := Config{
 		SourceAuthorityKeys: sourceKeystore,
 		LocalTEE:            destProducer,
-		Unwrapper:           kms.NewSimulatedKeyUnwrapper(),
+		Kind:                tee.ProviderSimulated,
 		Registrar:           destKeystore,
-	})
+		Clock:               clock,
+	}
+	for _, f := range tune {
+		f(&cfg)
+	}
+	receiver, err := NewReceiver(cfg)
 	require.NoError(t, err)
 
 	return &receiverFixture{
-		receiver:       receiver,
-		keystore:       destKeystore,
-		sourceKID:      sourceKID,
-		destProducer:   destProducer,
-		destMeasure:    destProducer.Measurement(),
-		sourceVerifier: sourceKeystore,
+		receiver:     receiver,
+		keystore:     destKeystore,
+		clock:        clock,
+		sourceKID:    sourceKID,
+		source:       sourceKeystore,
+		destProducer: destProducer,
+		destMeasure:  destProducer.Measurement(),
 	}
 }
 
-// signedHandshake produces a valid CrossCloudHandshakeRequest signed
-// by the source authority. signer is the keystore that holds the
-// source-authority private key.
+// signedHandshake produces a CrossCloudHandshakeRequest signed by the
+// source authority.
 func signedHandshake(
 	t *testing.T,
 	signer keys.Signer,
 	sourceKID ids.KeyID,
+	requestID ids.RequestID,
 	destinationKind tee.Provider,
 	nonce []byte,
 ) cchr.CrossCloudHandshakeRequest {
 	t.Helper()
 	req := cchr.CrossCloudHandshakeRequest{
 		SchemaVersion:       cchr.SchemaVersionCurrent,
-		RequestID:           ids.RequestID("xcc-req-test-1"),
+		RequestID:           requestID,
 		DecisionID:          ids.DecisionID("dec-test-1"),
 		DestinationTEEKind:  destinationKind,
 		DestinationEndpoint: "https://acp-bootstrap.test:8443",
@@ -107,48 +112,76 @@ func signedHandshake(
 	return req
 }
 
-// signedToken produces a valid KeyReleaseToken signed by the source
-// authority, with each WrappedKey produced via wrap with the given
-// destination measurement.
-func signedToken(
-	t *testing.T,
-	signer keys.Signer,
-	sourceKID ids.KeyID,
-	destinationMeasurement []byte,
-	keyMaterials map[ids.KeyID][]byte,
-) krt.KeyReleaseToken {
+// handshake runs an honest signed handshake for requestID and returns the
+// key the destination presented.
+func (f *receiverFixture) handshake(t *testing.T, requestID ids.RequestID) []byte {
 	t.Helper()
-	tokenID := ids.DecisionID("xcc-tok-test-1")
-	wrapper := kms.NewSimulatedKeyWrapper()
+	req := signedHandshake(t, f.source, f.sourceKID, requestID, tee.ProviderSimulated, mustRandomBytes(t, tee.NonceMinBytes))
+	resp, err := f.receiver.HandleHandshakeRequest(req)
+	require.NoError(t, err)
+	return resp.RecipientPublicKey
+}
 
-	wrapped := make([]krt.WrappedKey, 0, len(keyMaterials))
-	for kid, plaintext := range keyMaterials {
-		aad := canonicalWrapAAD(tokenID, destinationMeasurement, kid)
-		ct, err := wrapper.Wrap(plaintext, destinationMeasurement, aad)
-		require.NoError(t, err)
-		wrapped = append(wrapped, krt.WrappedKey{
-			KeyID:      kid,
-			Purpose:    krt.PurposeSealing,
-			Ciphertext: ct,
-			AAD:        aad,
-		})
+// tokenSpec describes a source-signed token; zero fields take the values
+// an honest source would use for handshake "xcc-req-test-1".
+type tokenSpec struct {
+	requestID    ids.RequestID
+	decisionID   ids.DecisionID
+	measurement  []byte
+	recipientPub []byte
+	keys         map[ids.KeyID][]byte
+}
+
+func (f *receiverFixture) signedToken(t *testing.T, s tokenSpec) krt.KeyReleaseToken {
+	t.Helper()
+	if s.requestID == "" {
+		s.requestID = "xcc-req-test-1"
 	}
-
+	if s.decisionID == "" {
+		s.decisionID = "dec-test-1"
+	}
+	if s.measurement == nil {
+		s.measurement = f.destMeasure[:]
+	}
+	tokenID := ids.DecisionID("xcc-tok-test-1")
+	wrapped := make([]krt.WrappedKey, 0, len(s.keys))
+	for kid, plaintext := range s.keys {
+		aad := canonicalWrapAAD(tokenID, s.measurement, kid)
+		ct, err := kms.X25519KeyWrapper{}.Wrap(plaintext, s.recipientPub, aad)
+		require.NoError(t, err)
+		wrapped = append(wrapped, krt.WrappedKey{KeyID: kid, Purpose: krt.PurposeSealing, Ciphertext: ct, AAD: aad})
+	}
 	tok := krt.KeyReleaseToken{
 		SchemaVersion:          krt.SchemaVersionCurrent,
 		TokenID:                tokenID,
-		DecisionID:             ids.DecisionID("dec-test-1"),
-		RequestID:              ids.RequestID("xcc-req-test-1"),
-		DestinationMeasurement: destinationMeasurement,
+		DecisionID:             s.decisionID,
+		RequestID:              s.requestID,
+		DestinationMeasurement: s.measurement,
 		Wrapped:                wrapped,
 		PolicyVersion:          "policy-test-v1",
 		AuthorizedAt:           stdtime.Date(2026, 5, 9, 12, 5, 0, 0, stdtime.UTC),
-		SigningKeyID:           sourceKID,
+		SigningKeyID:           f.sourceKID,
 		Signature:              []byte{0x00},
 		AuditEventID:           ids.AuditEventID("evt-release-1"),
 	}
-	require.NoError(t, tok.SignWith(signer))
+	require.NoError(t, tok.SignWith(f.source))
 	return tok
+}
+
+func (f *receiverFixture) resign(t *testing.T, tok *krt.KeyReleaseToken) {
+	t.Helper()
+	tok.Signature = []byte{0x00}
+	require.NoError(t, tok.SignWith(f.source))
+}
+
+func oneKey(t *testing.T) map[ids.KeyID][]byte {
+	return map[ids.KeyID][]byte{ids.KeyID("dek-1"): mustRandomBytes(t, 32)}
+}
+
+func requireIntegrity(t *testing.T, err error) {
+	t.Helper()
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity), "got %v", err)
 }
 
 // --- Constructor tests ----------------------------------------------
@@ -156,21 +189,14 @@ func signedToken(
 func TestNewReceiver_RequiresAllFields(t *testing.T) {
 	t.Parallel()
 	clock := shared_time.NewFakeClock(stdtime.Now())
-	sourceKeystore := keys.NewInMemoryStore(clock)
-	destKeystore := keys.NewInMemoryStore(clock)
-	descriptor := []byte("test")
-	seed := make([]byte, 32)
-	for i := range seed {
-		seed[i] = byte(i)
-	}
-	prod, err := tee.NewSimulated(descriptor, seed)
+	prod, err := tee.NewSimulated([]byte("test"), bytes.Repeat([]byte{7}, 32))
 	require.NoError(t, err)
 
 	full := Config{
-		SourceAuthorityKeys: sourceKeystore,
+		SourceAuthorityKeys: keys.NewInMemoryStore(clock),
 		LocalTEE:            prod,
-		Unwrapper:           kms.NewSimulatedKeyUnwrapper(),
-		Registrar:           destKeystore,
+		Kind:                tee.ProviderSimulated,
+		Registrar:           keys.NewInMemoryStore(clock),
 	}
 	cases := []struct {
 		name   string
@@ -178,8 +204,11 @@ func TestNewReceiver_RequiresAllFields(t *testing.T) {
 	}{
 		{"SourceAuthorityKeys", func(c *Config) { c.SourceAuthorityKeys = nil }},
 		{"LocalTEE", func(c *Config) { c.LocalTEE = nil }},
-		{"Unwrapper", func(c *Config) { c.Unwrapper = nil }},
 		{"Registrar", func(c *Config) { c.Registrar = nil }},
+		{"Kind", func(c *Config) { c.Kind = "" }},
+		{"unknown Kind", func(c *Config) { c.Kind = "enclave-of-my-own" }},
+		{"negative TTL", func(c *Config) { c.PendingTTL = -stdtime.Second }},
+		{"negative MaxPending", func(c *Config) { c.MaxPending = -1 }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -200,24 +229,56 @@ func TestHandleHandshakeRequest_HappyPath(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
 	nonce := mustRandomBytes(t, tee.NonceMinBytes)
-	req := signedHandshake(t, f.sourceVerifier.(keys.Signer), f.sourceKID, tee.ProviderSimulated, nonce)
+	req := signedHandshake(t, f.source, f.sourceKID, "xcc-req-test-1", tee.ProviderSimulated, nonce)
 
 	resp, err := f.receiver.HandleHandshakeRequest(req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Evidence)
 	require.Equal(t, []byte(f.destMeasure[:]), []byte(resp.MeasurementHint))
+	require.NoError(t, kms.ValidateRecipientPublicKey(resp.RecipientPublicKey))
+	require.Equal(t, 1, f.receiver.Outstanding())
+}
+
+// The Evidence is what makes the presented key trustworthy: it verifies
+// under RecipientChallenge(key, nonce) and under nothing else.
+func TestHandleHandshakeRequest_EvidenceBindsThePresentedKey(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	nonce := mustRandomBytes(t, tee.NonceMinBytes)
+	req := signedHandshake(t, f.source, f.sourceKID, "xcc-req-test-1", tee.ProviderSimulated, nonce)
+	resp, err := f.receiver.HandleHandshakeRequest(req)
+	require.NoError(t, err)
+
+	verifier := tee.NewSimulatedVerifier(f.destProducer.PublicKey(), f.destMeasure)
+	measured, err := verifier.Verify(resp.Evidence, kms.RecipientChallenge(resp.RecipientPublicKey, nonce))
+	require.NoError(t, err)
+	require.Equal(t, f.destMeasure, measured)
+
+	other, err := ecdh.X25519().GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	_, err = verifier.Verify(resp.Evidence, kms.RecipientChallenge(other.PublicKey().Bytes(), nonce))
+	require.Error(t, err, "Evidence must not vouch for a substituted key")
+	_, err = verifier.Verify(resp.Evidence, nonce)
+	require.Error(t, err, "Evidence must not be over the bare nonce")
+}
+
+func TestHandleHandshakeRequest_FreshKeyPerHandshake(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	a := f.handshake(t, "xcc-req-a")
+	b := f.handshake(t, "xcc-req-b")
+	require.NotEqual(t, a, b)
+	require.Equal(t, 2, f.receiver.Outstanding())
 }
 
 func TestHandleHandshakeRequest_RejectsBadSignature(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	nonce := mustRandomBytes(t, tee.NonceMinBytes)
-	req := signedHandshake(t, f.sourceVerifier.(keys.Signer), f.sourceKID, tee.ProviderSimulated, nonce)
-	// Corrupt the signature.
+	req := signedHandshake(t, f.source, f.sourceKID, "xcc-req-test-1", tee.ProviderSimulated, mustRandomBytes(t, tee.NonceMinBytes))
 	req.Signature[0] ^= 0xFF
 	_, err := f.receiver.HandleHandshakeRequest(req)
-	require.Error(t, err)
-	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity))
+	requireIntegrity(t, err)
+	require.Zero(t, f.receiver.Outstanding(), "a forged handshake must not create a key")
 }
 
 func TestHandleHandshakeRequest_RejectsStructuralInvalid(t *testing.T) {
@@ -241,21 +302,50 @@ func TestHandleHandshakeRequest_RejectsStructuralInvalid(t *testing.T) {
 	require.True(t, shared_errors.Is(err, shared_errors.CategoryStructural))
 }
 
-func TestHandleHandshakeRequest_LocalEvidenceVerifiableBySource(t *testing.T) {
+// A source that thinks it is talking to a Nitro enclave would verify our
+// Evidence with a Nitro verifier; refuse instead of answering.
+func TestHandleHandshakeRequest_RejectsWrongKind(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	nonce := mustRandomBytes(t, tee.NonceMinBytes)
-	req := signedHandshake(t, f.sourceVerifier.(keys.Signer), f.sourceKID, tee.ProviderSimulated, nonce)
-	resp, err := f.receiver.HandleHandshakeRequest(req)
+	req := signedHandshake(t, f.source, f.sourceKID, "xcc-req-test-1", tee.ProviderAWSNitro, mustRandomBytes(t, tee.NonceMinBytes))
+	_, err := f.receiver.HandleHandshakeRequest(req)
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryStructural))
+	require.Zero(t, f.receiver.Outstanding())
+}
+
+// Replaying a captured handshake must not replace the key the source is
+// about to wrap to.
+func TestHandleHandshakeRequest_ReplayCannotReplaceTheKey(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	req := signedHandshake(t, f.source, f.sourceKID, "xcc-req-test-1", tee.ProviderSimulated, mustRandomBytes(t, tee.NonceMinBytes))
+	first, err := f.receiver.HandleHandshakeRequest(req)
 	require.NoError(t, err)
 
-	// A source-side verifier configured with the destination's
-	// pubkey + expected measurement must be able to validate the
-	// returned Evidence under the source-supplied nonce.
-	verifier := tee.NewSimulatedVerifier(f.destProducer.PublicKey(), f.destMeasure)
-	measured, err := verifier.Verify(resp.Evidence, nonce)
+	_, err = f.receiver.HandleHandshakeRequest(req)
+	requireIntegrity(t, err)
+
+	tok := f.signedToken(t, tokenSpec{recipientPub: first.RecipientPublicKey, keys: oneKey(t)})
+	n, err := f.receiver.HandleKeyReleaseToken(tok)
+	require.NoError(t, err, "the original key must still open the token")
+	require.Equal(t, 1, n)
+}
+
+func TestHandleHandshakeRequest_BoundsOutstandingHandshakes(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t, func(c *Config) { c.MaxPending = 2 })
+	f.handshake(t, "xcc-req-1")
+	f.handshake(t, "xcc-req-2")
+	req := signedHandshake(t, f.source, f.sourceKID, "xcc-req-3", tee.ProviderSimulated, mustRandomBytes(t, tee.NonceMinBytes))
+	_, err := f.receiver.HandleHandshakeRequest(req)
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryOperational))
+
+	// Expired entries free their slots.
+	f.clock.Step(DefaultPendingTTL)
+	_, err = f.receiver.HandleHandshakeRequest(req)
 	require.NoError(t, err)
-	require.Equal(t, f.destMeasure, measured)
 }
 
 // --- HandleKeyReleaseToken tests ----------------------------------
@@ -263,17 +353,16 @@ func TestHandleHandshakeRequest_LocalEvidenceVerifiableBySource(t *testing.T) {
 func TestHandleKeyReleaseToken_HappyPath_RegistersAllKeys(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	dek1 := mustRandomBytes(t, 32)
-	dek2 := mustRandomBytes(t, 32)
-	keyMaterials := map[ids.KeyID][]byte{
-		ids.KeyID("dek-1"): dek1,
-		ids.KeyID("dek-2"): dek2,
-	}
-	tok := signedToken(t, f.sourceVerifier.(keys.Signer), f.sourceKID, f.destMeasure[:], keyMaterials)
+	pub := f.handshake(t, "xcc-req-test-1")
+	tok := f.signedToken(t, tokenSpec{recipientPub: pub, keys: map[ids.KeyID][]byte{
+		ids.KeyID("dek-1"): mustRandomBytes(t, 32),
+		ids.KeyID("dek-2"): mustRandomBytes(t, 32),
+	}})
 
 	registered, err := f.receiver.HandleKeyReleaseToken(tok)
 	require.NoError(t, err)
 	require.Equal(t, 2, registered)
+	require.Zero(t, f.receiver.Outstanding(), "the handshake key is consumed")
 
 	// Both keys must be usable in the destination's keystore now.
 	// keys.InMemoryStore.Seal opens against an existing sealing key
@@ -284,73 +373,126 @@ func TestHandleKeyReleaseToken_HappyPath_RegistersAllKeys(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestHandleKeyReleaseToken_RejectsBadSignature(t *testing.T) {
+func TestHandleKeyReleaseToken_HandshakeKeyIsSingleUse(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	keyMaterials := map[ids.KeyID][]byte{ids.KeyID("dek-1"): mustRandomBytes(t, 32)}
-	tok := signedToken(t, f.sourceVerifier.(keys.Signer), f.sourceKID, f.destMeasure[:], keyMaterials)
-	tok.Signature[0] ^= 0xFF
+	pub := f.handshake(t, "xcc-req-test-1")
+	tok := f.signedToken(t, tokenSpec{recipientPub: pub, keys: oneKey(t)})
+	_, err := f.receiver.HandleKeyReleaseToken(tok)
+	require.NoError(t, err)
+	require.Zero(t, f.receiver.Outstanding())
 
-	registered, err := f.receiver.HandleKeyReleaseToken(tok)
-	require.Error(t, err)
-	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity))
-	require.Equal(t, 0, registered)
+	_, err = f.receiver.HandleKeyReleaseToken(tok)
+	requireIntegrity(t, err)
+	require.ErrorContains(t, err, "no outstanding handshake")
+}
+
+func TestHandleKeyReleaseToken_ExpiredHandshakeKeyIsGone(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	pub := f.handshake(t, "xcc-req-test-1")
+	f.clock.Step(DefaultPendingTTL)
+
+	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: pub, keys: oneKey(t)}))
+	requireIntegrity(t, err)
+	require.ErrorContains(t, err, "no outstanding handshake")
+	require.Zero(t, n)
+	require.Zero(t, f.receiver.Outstanding())
+}
+
+func TestHandleKeyReleaseToken_RejectsTokenWithoutHandshake(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	other, err := ecdh.X25519().GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: other.PublicKey().Bytes(), keys: oneKey(t)}))
+	requireIntegrity(t, err)
+	require.Zero(t, n)
+}
+
+func TestHandleKeyReleaseToken_RejectsDecisionMismatch(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	pub := f.handshake(t, "xcc-req-test-1")
+	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{decisionID: "dec-other", recipientPub: pub, keys: oneKey(t)}))
+	requireIntegrity(t, err)
+	require.Zero(t, n)
+}
+
+// DEKs encapsulated to any key other than the one this handshake minted
+// do not open, even in a correctly signed token.
+func TestHandleKeyReleaseToken_RejectsKeysWrappedToAnotherRecipient(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	f.handshake(t, "xcc-req-test-1")
+	other, err := ecdh.X25519().GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: other.PublicKey().Bytes(), keys: oneKey(t)}))
+	requireIntegrity(t, err)
+	require.Zero(t, n)
+}
+
+// A forged token is rejected before it can touch, let alone burn, the
+// handshake key: the genuine token still opens afterwards.
+func TestHandleKeyReleaseToken_ForgedTokenDoesNotConsumeTheKey(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	pub := f.handshake(t, "xcc-req-test-1")
+	tok := f.signedToken(t, tokenSpec{recipientPub: pub, keys: oneKey(t)})
+
+	forged := tok
+	forged.Signature = append([]byte(nil), tok.Signature...)
+	forged.Signature[0] ^= 0xFF
+	n, err := f.receiver.HandleKeyReleaseToken(forged)
+	requireIntegrity(t, err)
+	require.Zero(t, n)
+
+	n, err = f.receiver.HandleKeyReleaseToken(tok)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
 }
 
 func TestHandleKeyReleaseToken_RejectsWrongMeasurement(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	keyMaterials := map[ids.KeyID][]byte{ids.KeyID("dek-1"): mustRandomBytes(t, 32)}
-	wrongMeasure := bytes.Repeat([]byte{0xCC}, 32)
-	tok := signedToken(t, f.sourceVerifier.(keys.Signer), f.sourceKID, wrongMeasure, keyMaterials)
-
-	registered, err := f.receiver.HandleKeyReleaseToken(tok)
-	require.Error(t, err)
-	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity))
-	require.Equal(t, 0, registered)
+	pub := f.handshake(t, "xcc-req-test-1")
+	tok := f.signedToken(t, tokenSpec{measurement: bytes.Repeat([]byte{0xCC}, 32), recipientPub: pub, keys: oneKey(t)})
+	n, err := f.receiver.HandleKeyReleaseToken(tok)
+	requireIntegrity(t, err)
+	require.Zero(t, n)
 }
 
 func TestHandleKeyReleaseToken_RejectsTamperedAAD(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	keyMaterials := map[ids.KeyID][]byte{ids.KeyID("dek-1"): mustRandomBytes(t, 32)}
-	tok := signedToken(t, f.sourceVerifier.(keys.Signer), f.sourceKID, f.destMeasure[:], keyMaterials)
-	// Tamper the AAD by appending a byte.
+	pub := f.handshake(t, "xcc-req-test-1")
+	tok := f.signedToken(t, tokenSpec{recipientPub: pub, keys: oneKey(t)})
 	tok.Wrapped[0].AAD = append(tok.Wrapped[0].AAD, 0xAA)
-	// The signature must be re-issued because we changed token bytes.
-	tok.Signature = []byte{0x00}
-	require.NoError(t, tok.SignWith(f.sourceVerifier.(keys.Signer)))
-
-	registered, err := f.receiver.HandleKeyReleaseToken(tok)
-	require.Error(t, err)
-	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity))
-	require.Equal(t, 0, registered)
+	f.resign(t, &tok)
+	n, err := f.receiver.HandleKeyReleaseToken(tok)
+	requireIntegrity(t, err)
+	require.Zero(t, n)
 }
 
 func TestHandleKeyReleaseToken_RejectsTamperedCiphertext(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	keyMaterials := map[ids.KeyID][]byte{ids.KeyID("dek-1"): mustRandomBytes(t, 32)}
-	tok := signedToken(t, f.sourceVerifier.(keys.Signer), f.sourceKID, f.destMeasure[:], keyMaterials)
-	// Tamper the ciphertext.
+	pub := f.handshake(t, "xcc-req-test-1")
+	tok := f.signedToken(t, tokenSpec{recipientPub: pub, keys: oneKey(t)})
 	tok.Wrapped[0].Ciphertext[len(tok.Wrapped[0].Ciphertext)-1] ^= 0x01
-	tok.Signature = []byte{0x00}
-	require.NoError(t, tok.SignWith(f.sourceVerifier.(keys.Signer)))
-
-	registered, err := f.receiver.HandleKeyReleaseToken(tok)
-	require.Error(t, err)
-	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity))
-	require.Equal(t, 0, registered)
+	f.resign(t, &tok)
+	n, err := f.receiver.HandleKeyReleaseToken(tok)
+	requireIntegrity(t, err)
+	require.Zero(t, n)
 }
 
 func TestHandleKeyReleaseToken_RejectsStructuralInvalid(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	tok := krt.KeyReleaseToken{} // all zero — Validate fails
-	registered, err := f.receiver.HandleKeyReleaseToken(tok)
+	n, err := f.receiver.HandleKeyReleaseToken(krt.KeyReleaseToken{}) // all zero — Validate fails
 	require.Error(t, err)
 	require.True(t, shared_errors.Is(err, shared_errors.CategoryStructural))
-	require.Equal(t, 0, registered)
+	require.Zero(t, n)
 }
 
 func TestLocalMeasurement_DefensiveCopy(t *testing.T) {
@@ -366,93 +508,102 @@ func TestLocalMeasurement_DefensiveCopy(t *testing.T) {
 
 // --- End-to-end round-trip with source-side Coordinator -----------
 
-func TestEndToEnd_SourceCoordinatorToDestinationReceiver(t *testing.T) {
-	t.Parallel()
-	clock := shared_time.NewFakeClock(stdtime.Date(2026, 5, 9, 12, 0, 0, 0, stdtime.UTC))
-
-	// Shared keystore acts as both source-authority signer (for the
-	// Coordinator) and source-authority resolver (for the Receiver
-	// to verify signatures).
-	sourceKeystore := keys.NewInMemoryStore(clock)
-	sourceKID := ids.KeyID("source-auth-1")
-	_, err := sourceKeystore.GenerateSigning(sourceKID, keys.PurposeSigningAuthority)
-	require.NoError(t, err)
-
-	// Destination TEE + keystore.
-	destSeed := mustRandomBytes(t, 32)
-	destProducer, err := tee.NewSimulated([]byte("e2e-test"), destSeed)
-	require.NoError(t, err)
-	destKeystore := keys.NewInMemoryStore(clock)
-	destMeasure := destProducer.Measurement()
-	destMeasureBytes := make([]byte, 32)
-	copy(destMeasureBytes, destMeasure[:])
-
-	receiver, err := NewReceiver(Config{
-		SourceAuthorityKeys: sourceKeystore,
-		LocalTEE:            destProducer,
-		Unwrapper:           kms.NewSimulatedKeyUnwrapper(),
-		Registrar:           destKeystore,
-	})
-	require.NoError(t, err)
-
-	// Source-side verifier registry pointing at the destination.
+// coordinatorFor wires a real source-side Coordinator to f's receiver,
+// in process.
+func coordinatorFor(t *testing.T, f *receiverFixture, idGen kms.IDGenerator) *kms.Coordinator {
+	t.Helper()
+	destMeasureBytes := append([]byte(nil), f.destMeasure...)
 	registry, err := tee.NewRegistry([]tee.RegistrySpec{{
 		Provider: tee.ProviderSimulated,
 		Spec: tee.VerifierSpec{
 			Provider:            tee.ProviderSimulated,
-			AttestorPubKey:      destProducer.PublicKey(),
-			ExpectedMeasurement: destMeasure,
+			AttestorPubKey:      f.destProducer.PublicKey(),
+			ExpectedMeasurement: f.destMeasure,
 		},
 	}})
 	require.NoError(t, err)
-
 	policy, err := kms.NewAllowListPolicy("e2e-policy-v1", map[tee.Provider][][]byte{
 		tee.ProviderSimulated: {destMeasureBytes},
 	})
 	require.NoError(t, err)
-
-	// Transport routes source → destination via the receiver's
-	// Handle methods. This is the core of the e2e test.
-	transport := &receiverBackedTransport{receiver: receiver}
-
 	coord, err := kms.NewCoordinator(kms.Config{
 		AuditChain:   &silentAudit{},
-		Signer:       sourceKeystore,
+		Signer:       f.source,
 		Verifiers:    registry,
 		Policy:       policy,
-		Wrapper:      kms.NewSimulatedKeyWrapper(),
-		Transport:    transport,
-		IDGenerator:  &counterIDGen{},
-		NonceSource:  func(n int) ([]byte, error) { return mustRandomBytes(t, n), nil },
-		Clock:        clock,
-		SigningKeyID: sourceKID,
+		Transport:    &receiverBackedTransport{receiver: f.receiver},
+		IDGenerator:  idGen,
+		NonceSource:  func(n int) ([]byte, error) { b := make([]byte, n); _, err := rand.Read(b); return b, err },
+		Clock:        f.clock,
+		SigningKeyID: f.sourceKID,
 	})
 	require.NoError(t, err)
+	return coord
+}
 
-	dek1 := mustRandomBytes(t, 32)
-	dek2 := mustRandomBytes(t, 32)
+func TestEndToEnd_SourceCoordinatorToDestinationReceiver(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	coord := coordinatorFor(t, f, &counterIDGen{})
 
 	res, err := coord.CoordinateRestore(context.Background(), kms.CoordinationRequest{
 		DecisionID:          ids.DecisionID("e2e-dec-1"),
 		DestinationKind:     tee.ProviderSimulated,
 		DestinationEndpoint: "https://destination.test",
 		KeysToRelease: []kms.KeyMaterial{
-			{KeyID: ids.KeyID("e2e-dek-1"), Purpose: krt.PurposeSealing, Plaintext: dek1},
-			{KeyID: ids.KeyID("e2e-dek-2"), Purpose: krt.PurposeSealing, Plaintext: dek2},
+			{KeyID: ids.KeyID("e2e-dek-1"), Purpose: krt.PurposeSealing, Plaintext: mustRandomBytes(t, 32)},
+			{KeyID: ids.KeyID("e2e-dek-2"), Purpose: krt.PurposeSealing, Plaintext: mustRandomBytes(t, 32)},
 		},
 		SessionID:  ids.SessionID("e2e-sess-1"),
 		ManifestID: ids.ManifestID("e2e-man-1"),
 	})
 	require.NoError(t, err)
-	require.Equal(t, destMeasureBytes, res.DestinationMeasurement)
+	require.Equal(t, []byte(f.destMeasure), res.DestinationMeasurement)
+	require.Len(t, res.RecipientKeySHA256, 32)
 	require.NotEmpty(t, res.TokenID)
+	require.Zero(t, f.receiver.Outstanding())
 
 	// Destination keystore must now hold both DEKs registered under
 	// their original KeyIDs.
 	for _, kid := range []ids.KeyID{"e2e-dek-1", "e2e-dek-2"} {
-		_, _, err := destKeystore.Seal(kid, []byte("ping"), nil)
+		_, _, err := f.keystore.Seal(kid, []byte("ping"), nil)
 		require.NoError(t, err, "DEK %s must be registered after cross-cloud restore", kid)
 	}
+}
+
+// Many restores against one destination at once: every one gets its own
+// key and every DEK lands. Run under -race.
+func TestEndToEnd_ConcurrentRestores(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	coord := coordinatorFor(t, f, &uniqueIDGen{})
+
+	const n = 16
+	var wg sync.WaitGroup
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, err := coord.CoordinateRestore(context.Background(), kms.CoordinationRequest{
+				DecisionID:          ids.DecisionID(fmt.Sprintf("dec-%d", i)),
+				DestinationKind:     tee.ProviderSimulated,
+				DestinationEndpoint: "https://destination.test",
+				KeysToRelease:       []kms.KeyMaterial{{KeyID: ids.KeyID(fmt.Sprintf("dek-%d", i)), Purpose: krt.PurposeSealing, Plaintext: bytes.Repeat([]byte{byte(i + 1)}, 32)}},
+			})
+			errs <- err
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	for i := 0; i < n; i++ {
+		_, _, err := f.keystore.Seal(ids.KeyID(fmt.Sprintf("dek-%d", i)), []byte("ping"), nil)
+		require.NoError(t, err)
+	}
+	require.Zero(t, f.receiver.Outstanding())
 }
 
 // receiverBackedTransport is a kms.Transport that routes calls
@@ -472,7 +623,7 @@ func (t *receiverBackedTransport) SendHandshakeRequest(
 	if err != nil {
 		return kms.HandshakeResponse{}, err
 	}
-	return kms.HandshakeResponse{Evidence: resp.Evidence, MeasurementHint: resp.MeasurementHint}, nil
+	return kms.HandshakeResponse{Evidence: resp.Evidence, MeasurementHint: resp.MeasurementHint, RecipientPublicKey: resp.RecipientPublicKey}, nil
 }
 
 func (t *receiverBackedTransport) SendKeyReleaseToken(
@@ -502,4 +653,25 @@ func (g *counterIDGen) NewRequestID() (ids.RequestID, error) {
 func (g *counterIDGen) NewDecisionID() (ids.DecisionID, error) {
 	g.n++
 	return ids.DecisionID("e2e-dec-tok-1"), nil
+}
+
+// uniqueIDGen hands out distinct IDs and is safe for concurrent use.
+type uniqueIDGen struct {
+	mu sync.Mutex
+	n  int
+}
+
+func (g *uniqueIDGen) next() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.n++
+	return g.n
+}
+
+func (g *uniqueIDGen) NewRequestID() (ids.RequestID, error) {
+	return ids.RequestID(fmt.Sprintf("req-%d", g.next())), nil
+}
+
+func (g *uniqueIDGen) NewDecisionID() (ids.DecisionID, error) {
+	return ids.DecisionID(fmt.Sprintf("tok-%d", g.next())), nil
 }

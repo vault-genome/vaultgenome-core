@@ -18,7 +18,7 @@ func validFixture() CrossCloudHandshakeRequest {
 	for i := range nonce {
 		nonce[i] = byte(i)
 	}
-	measurement := make([]byte, MeasurementSize)
+	measurement := make([]byte, 32)
 	for i := range measurement {
 		measurement[i] = byte(0x42)
 	}
@@ -116,10 +116,13 @@ func TestCrossCloudHandshakeRequest_HandshakeNonceTooShortRejected(t *testing.T)
 func TestCrossCloudHandshakeRequest_SourceMeasurementWrongLengthRejected(t *testing.T) {
 	t.Parallel()
 	r := validFixture()
-	r.SourceMeasurement = make([]byte, MeasurementSize-1) // too short, but non-empty
+	r.SourceMeasurement = make([]byte, 31) // too short, but non-empty
 	err := r.Validate()
 	require.Error(t, err)
 	require.Equal(t, shared_errors.CodeFieldValueInvalid, shared_errors.CodeOf(err))
+
+	r.SourceMeasurement = make([]byte, 48) // a whole SEV-SNP / Nitro measurement
+	require.NoError(t, r.Validate())
 }
 
 func TestCrossCloudHandshakeRequest_InitiatedAtRequired(t *testing.T) {

@@ -61,7 +61,7 @@ type KeyReleasePolicy interface {
 // auditable policy.
 type AllowListPolicy struct {
 	version string
-	allowed map[tee.Provider][][]byte // Provider → list of 32-byte measurements
+	allowed map[tee.Provider][][]byte // Provider → list of measurements (32, 48 or 64 bytes)
 }
 
 // NewAllowListPolicy constructs a policy from a version string and a
@@ -69,8 +69,9 @@ type AllowListPolicy struct {
 // recorded in the audit payload of every KindKeyReleaseAuthorized
 // event the Coordinator emits while this policy is active.
 //
-// Each measurement entry MUST be exactly 32 bytes; shorter or longer
-// entries are rejected at construction time.
+// Each measurement entry must be a whole measurement — 32, 48 or 64
+// bytes, as tee.MeasurementFromBytes accepts (ADR 0007) — so real
+// SEV-SNP and Nitro measurements (48 bytes) are pinned in full.
 func NewAllowListPolicy(version string, allowed map[tee.Provider][][]byte) (*AllowListPolicy, error) {
 	if version == "" {
 		return nil, shared_errors.Structural(
@@ -90,15 +91,14 @@ func NewAllowListPolicy(version string, allowed map[tee.Provider][][]byte) (*All
 		}
 		dup := make([][]byte, 0, len(list))
 		for i, m := range list {
-			if len(m) != 32 {
+			cp, err := tee.MeasurementFromBytes(m)
+			if err != nil {
 				return nil, shared_errors.Structural(
 					shared_errors.CodeFieldValueInvalid,
-					fmt.Sprintf("kms.NewAllowListPolicy: %s[%d] measurement must be 32 bytes; got %d", kind, i, len(m)),
-					nil,
+					fmt.Sprintf("kms.NewAllowListPolicy: %s[%d] measurement must be 32, 48 or 64 bytes; got %d", kind, i, len(m)),
+					err,
 				)
 			}
-			cp := make([]byte, 32)
-			copy(cp, m)
 			dup = append(dup, cp)
 		}
 		out[kind] = dup
@@ -124,11 +124,11 @@ func (p *AllowListPolicy) AuthorizeKeyRelease(
 			nil,
 		)
 	}
-	if len(destinationMeasurement) != 32 {
+	if _, err := tee.MeasurementFromBytes(destinationMeasurement); err != nil {
 		return PolicyVerdict{}, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("kms.AllowListPolicy: destination_measurement must be 32 bytes; got %d", len(destinationMeasurement)),
-			nil,
+			fmt.Sprintf("kms.AllowListPolicy: destination_measurement must be 32, 48 or 64 bytes; got %d", len(destinationMeasurement)),
+			err,
 		)
 	}
 	if decisionID.IsZero() {

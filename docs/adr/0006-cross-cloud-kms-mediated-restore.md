@@ -514,6 +514,11 @@ class ACPClient:
 
 ## Threat Model
 
+> **Amended by [ADR 0009](0009-x25519-kem-cross-cloud-key-delivery.md) (2026-09-14).** Points 2, 4 and 5 below were
+> written for the measurement-derived wrap key, which a token-holder could reproduce (defect b). They are now met by
+> a different mechanism: every DEK is encapsulated to an X25519 key the destination TEE generates per handshake and
+> binds into its Evidence; the key opens one token, expires after five minutes, and never leaves the destination.
+
 ### In scope (defenses required)
 
 1. **Replay of stale handshake** → defended by handshake nonce (≥ 16 bytes fresh entropy per request).

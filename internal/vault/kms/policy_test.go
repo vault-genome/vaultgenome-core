@@ -11,6 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func makeMeasurement(b byte) []byte {
+	m := make([]byte, 32)
+	for i := range m {
+		m[i] = b
+	}
+	return m
+}
+
 func TestAllowListPolicy_ConstructorRequiresVersion(t *testing.T) {
 	t.Parallel()
 	_, err := NewAllowListPolicy("", map[tee.Provider][][]byte{})
@@ -130,4 +138,27 @@ func TestAllowListPolicy_MultipleEntriesForSameKind(t *testing.T) {
 	v, err := p.AuthorizeKeyRelease(tee.ProviderAWSNitro, other, ids.DecisionID("dec-1"), []ids.KeyID{"k1"})
 	require.NoError(t, err)
 	require.False(t, v.Authorized)
+}
+
+// Hardware measurements (SEV-SNP MEASUREMENT, Nitro PCR0: 48 bytes) are
+// allow-listed and matched whole; a 32-byte prefix of one is not it.
+func TestAllowListPolicy_HardwareMeasurementsMatchWhole(t *testing.T) {
+	t.Parallel()
+	m48 := make([]byte, 48)
+	for i := range m48 {
+		m48[i] = byte(i)
+	}
+	p, err := NewAllowListPolicy("v1", map[tee.Provider][][]byte{tee.ProviderGCPSEVSNP: {m48}})
+	require.NoError(t, err)
+
+	v, err := p.AuthorizeKeyRelease(tee.ProviderGCPSEVSNP, m48, ids.DecisionID("dec-1"), []ids.KeyID{"k1"})
+	require.NoError(t, err)
+	require.True(t, v.Authorized)
+
+	v, err = p.AuthorizeKeyRelease(tee.ProviderGCPSEVSNP, m48[:32], ids.DecisionID("dec-1"), []ids.KeyID{"k1"})
+	require.NoError(t, err)
+	require.False(t, v.Authorized, "a truncated measurement must not match")
+
+	_, err = NewAllowListPolicy("v1", map[tee.Provider][][]byte{tee.ProviderGCPSEVSNP: {make([]byte, 33)}})
+	require.Error(t, err)
 }

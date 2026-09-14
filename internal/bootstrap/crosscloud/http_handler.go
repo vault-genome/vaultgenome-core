@@ -4,6 +4,7 @@ package crosscloud
 
 import (
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -21,7 +22,8 @@ import (
 // server. It implements two routes:
 //
 //	POST /v1/crosscloud/handshake — accepts a CrossCloudHandshakeRequest,
-//	                               returns {evidence, measurement_hint}.
+//	                               returns {evidence, measurement_hint,
+//	                               recipient_public_key}.
 //	POST /v1/crosscloud/token     — accepts a KeyReleaseToken,
 //	                               returns {registered: int}.
 //
@@ -119,12 +121,20 @@ func (h *HTTPHandler) HandleHandshake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	keyHash := sha256OfBytes(resp.RecipientPublicKey)
+	h.log.Info("crosscloud handshake answered",
+		slog.String("request_id", string(req.RequestID)),
+		slog.String("decision_id", string(req.DecisionID)),
+		slog.String("recipient_key_sha256", hex.EncodeToString(keyHash[:])),
+	)
 	wire := struct {
-		Evidence        []byte `json:"evidence"`
-		MeasurementHint []byte `json:"measurement_hint,omitempty"`
+		Evidence           []byte `json:"evidence"`
+		MeasurementHint    []byte `json:"measurement_hint,omitempty"`
+		RecipientPublicKey []byte `json:"recipient_public_key"`
 	}{
-		Evidence:        resp.Evidence,
-		MeasurementHint: resp.MeasurementHint,
+		Evidence:           resp.Evidence,
+		MeasurementHint:    resp.MeasurementHint,
+		RecipientPublicKey: resp.RecipientPublicKey,
 	}
 	writeJSON(w, http.StatusOK, wire)
 }
@@ -171,6 +181,7 @@ func (h *HTTPHandler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Info("crosscloud token accepted",
 		slog.String("token_id", string(token.TokenID)),
+		slog.String("request_id", string(token.RequestID)),
 		slog.String("decision_id", string(token.DecisionID)),
 		slog.Int("registered_keys", registered),
 	)

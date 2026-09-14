@@ -105,17 +105,28 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    (`internal/validation/behavioral/probes`) computes byte-statistics
    (entropy, histogram, run-length, …) on the raw blob; it never loads an
    adapter or runs inference. Semantic validation is `bytes.Equal`.
-4. **RESOLVED (ADR 0009).** Cross-cloud key wrap was symmetric and insecure —
-   the wrap key was derived from the destination measurement, a public value
-   (defect b). Now replaced by X25519 KEM: DEKs are encapsulated to the
-   destination's attested TEE-held public key (`kms.X25519KeyWrapper`, wired
-   through the Coordinator/Receiver; `crosscloud/kem_roundtrip_test.go`).
-   Remaining: verify the REPORT_DATA=hash(pubkey‖nonce) binding against live
-   Evidence in the Coordinator (needs a hardware run).
+4. **RESOLVED (ADR 0009, 2026-09-14).** Cross-cloud key wrap was symmetric and
+   insecure — the wrap key was derived from the destination measurement, a
+   public value (defect b). An earlier fix added an X25519 KEM to the library
+   only; both daemons still used the symmetric wrap. Now the symmetric wrap is
+   deleted: `acp-bootstrap` generates an X25519 key per handshake and quotes over
+   a challenge binding that key to the source's nonce, and `sagvd
+   crosscloud-restore` encapsulates DEKs only to a key whose Evidence verifies
+   under that challenge. Proven in unit tests (substitution, replay, single use,
+   expiry, defect-(b) regression) and live (`test/integration/crosscloud_test.go`).
+   Remaining: `acp-bootstrap` runs the simulated TEE in this build (see #1).
 5. **RESOLVED (ADR 0007).** Measurements were truncated 48→32 bytes and could not
    pin real SEV-SNP/Nitro hardware (defect a). `tee.Measurement` is now
    variable-length `[]byte` carrying full 48-byte digests without truncation.
-6. **`sagvd` REST API is unauthenticated by default** (`http_api.go`).
+   The last 32-byte assumptions — in the key-release token, the handshake
+   request, the allow-list policy and the daemons' measurement loaders — were
+   removed on 2026-09-14; until then a 48-byte destination could not be
+   allow-listed.
+6. **RESOLVED (2026-09-14).** The `sagvd` REST API was unauthenticated by
+   default. Both network-facing daemons now fail closed, refusing to start
+   otherwise: beyond loopback, `sagvd`'s Return Path requires mTLS and its REST
+   API a bearer token of at least 32 characters; `acp-bootstrap` requires TLS
+   1.3 plus a client certificate or such a token.
 7. **`genome seal` stores the simulated seed inside the bundle**
    (`genome.go`) → no confidentiality against a bundle-holder under the
    simulated backend.
@@ -125,3 +136,11 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    Cross-Cloud Phase 4 is fully **simulated** (`provider: "simulated"`).
    The GCP "four physical chips" is actually 3 distinct chips (two captures
    share a CHIP_ID).
+9. **Cross-cloud releases are audited in memory only.** `sagvd
+   crosscloud-restore` records the handshake, attestation and release events
+   before each step, but its chain lives in the process and only its length is
+   reported. A signed, append-only log that survives the process and verifies
+   offline is scheduled (Production Program, Phase 0).
+10. **Released DEKs are not yet used at the destination.** `acp-bootstrap`
+    registers them in its in-memory keystore; opening a sealed genome with them
+    inside the destination TEE is part of the Continuity Drill (Phase 1).

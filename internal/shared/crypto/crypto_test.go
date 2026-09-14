@@ -4,8 +4,11 @@ package crypto
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"math"
 	"testing"
 
@@ -229,4 +232,22 @@ func TestCanonicalJSON_Idempotent(t *testing.T) {
 	out2, err := CanonicalJSON(parsed)
 	require.NoError(t, err)
 	require.Equal(t, out1, out2)
+}
+
+func TestPublicKeyPEM_RoundTripsThroughPKIX(t *testing.T) {
+	t.Parallel()
+	pub, _, err := GenerateEd25519(nil)
+	require.NoError(t, err)
+	out, err := PublicKeyPEM(pub)
+	require.NoError(t, err)
+	block, rest := pem.Decode(out)
+	require.NotNil(t, block)
+	require.Empty(t, rest)
+	require.Equal(t, "PUBLIC KEY", block.Type)
+	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
+	require.NoError(t, err)
+	require.Equal(t, ed25519.PublicKey(pub), parsed)
+
+	_, err = PublicKeyPEM(pub[:31])
+	require.Error(t, err)
 }

@@ -86,7 +86,7 @@ func NewHTTPTransport(cfg HTTPTransportConfig) *HTTPTransport {
 
 // SendHandshakeRequest dispatches a signed handshake request to
 // <endpoint>/v1/crosscloud/handshake and parses the destination's
-// reply (Evidence + MeasurementHint).
+// reply (Evidence, MeasurementHint, RecipientPublicKey).
 func (t *HTTPTransport) SendHandshakeRequest(
 	ctx context.Context,
 	endpoint string,
@@ -192,11 +192,11 @@ func (t *HTTPTransport) postJSON(ctx context.Context, url string, body []byte) (
 
 // httpHandshakeResponse is the wire shape the destination's HTTP
 // handler returns for /v1/crosscloud/handshake. Carries the same
-// fields as kms.HandshakeResponse (Evidence + MeasurementHint),
-// JSON-encoded.
+// fields as kms.HandshakeResponse, JSON-encoded.
 type httpHandshakeResponse struct {
-	Evidence        []byte `json:"evidence"`
-	MeasurementHint []byte `json:"measurement_hint,omitempty"`
+	Evidence           []byte `json:"evidence"`
+	MeasurementHint    []byte `json:"measurement_hint,omitempty"`
+	RecipientPublicKey []byte `json:"recipient_public_key,omitempty"`
 }
 
 // classifyHTTPError maps a non-2xx HTTP response into the project's

@@ -42,7 +42,7 @@ const (
 
 // bins holds the binaries TestMain builds once per run.
 var bins struct {
-	sagvd, worker, keygen string
+	sagvd, worker, bootstrap, keygen string
 }
 
 func TestMain(m *testing.M) {
@@ -67,10 +67,12 @@ func buildAndRun(m *testing.M) (int, error) {
 
 	bins.sagvd = filepath.Join(dir, "sagvd")
 	bins.worker = filepath.Join(dir, "acp-compute")
+	bins.bootstrap = filepath.Join(dir, "acp-bootstrap")
 	bins.keygen = filepath.Join(dir, "keygen")
 	for _, b := range []struct{ out, dir, pkg string }{
 		{bins.sagvd, root, "./cmd/sagvd"},
 		{bins.worker, root, "./cmd/acp-compute"},
+		{bins.bootstrap, root, "./cmd/acp-bootstrap"},
 		{bins.keygen, filepath.Join(root, "deploy", "compose", "keygen"), "."},
 	} {
 		cmd := exec.Command("go", "build", "-o", b.out, b.pkg)

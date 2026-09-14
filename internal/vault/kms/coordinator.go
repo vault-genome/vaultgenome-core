@@ -63,30 +63,27 @@ type Coordinator struct {
 	keySigner   keys.Signer
 	verifiers   *tee.Registry
 	policy      KeyReleasePolicy
-	wrapper     KeyWrapper
 	transport   Transport
 	idGenerator IDGenerator
 	nonceSource NonceSource
 	clock       shared_time.Clock
 	signingKID  ids.KeyID
-
-	// bindingVerifier, when set, checks that the destination Evidence binds the
-	// KEM recipient public key (ADR 0009). requireBinding rejects KEM delivery
-	// when no binding verifier is configured.
-	bindingVerifier RecipientBindingVerifier
-	requireBinding  bool
 }
 
 // Config bundles the Coordinator's dependencies. Every field is
 // required (no implicit defaults) — operators construct the
 // Coordinator explicitly so missing wiring fails at startup, not
 // mid-flight.
+//
+// There is no key-wrapping option: every DEK is encapsulated with the
+// X25519 KEM to the key the destination TEE attested in this handshake
+// (ADR 0009). The measurement-derived symmetric wrap (defect b) no
+// longer exists.
 type Config struct {
 	AuditChain  AuditEmitter
 	Signer      keys.Signer
 	Verifiers   *tee.Registry
 	Policy      KeyReleasePolicy
-	Wrapper     KeyWrapper
 	Transport   Transport
 	IDGenerator IDGenerator
 	NonceSource NonceSource
@@ -96,18 +93,6 @@ type Config struct {
 	// keys.PurposeSigningAuthority. Used to sign both the
 	// CrossCloudHandshakeRequest and the KeyReleaseToken.
 	SigningKeyID ids.KeyID
-
-	// BindingVerifier, when set, verifies that the destination's Evidence binds
-	// the X25519 KEM recipient public key (REPORT_DATA = hash(pubkey ‖ nonce),
-	// ADR 0009) before any DEK is wrapped to it. Optional; the legacy symmetric
-	// path (no RecipientPublicKey) never invokes it.
-	BindingVerifier RecipientBindingVerifier
-
-	// RequireRecipientBinding, when true, makes KEM delivery (a request carrying
-	// RecipientPublicKey) fail unless a BindingVerifier is configured — the
-	// production posture, so a pubkey is never trusted without an attestation
-	// binding.
-	RequireRecipientBinding bool
 }
 
 // NewCoordinator validates the Config and returns a ready-to-use
@@ -126,9 +111,6 @@ func NewCoordinator(cfg Config) (*Coordinator, error) {
 	if cfg.Policy == nil {
 		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.NewCoordinator: Policy required", nil)
 	}
-	if cfg.Wrapper == nil {
-		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.NewCoordinator: Wrapper required", nil)
-	}
 	if cfg.Transport == nil {
 		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.NewCoordinator: Transport required", nil)
 	}
@@ -145,24 +127,26 @@ func NewCoordinator(cfg Config) (*Coordinator, error) {
 		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.NewCoordinator: SigningKeyID required", nil)
 	}
 	return &Coordinator{
-		auditChain:      cfg.AuditChain,
-		keySigner:       cfg.Signer,
-		verifiers:       cfg.Verifiers,
-		policy:          cfg.Policy,
-		wrapper:         cfg.Wrapper,
-		transport:       cfg.Transport,
-		idGenerator:     cfg.IDGenerator,
-		nonceSource:     cfg.NonceSource,
-		clock:           cfg.Clock,
-		signingKID:      cfg.SigningKeyID,
-		bindingVerifier: cfg.BindingVerifier,
-		requireBinding:  cfg.RequireRecipientBinding,
+		auditChain:  cfg.AuditChain,
+		keySigner:   cfg.Signer,
+		verifiers:   cfg.Verifiers,
+		policy:      cfg.Policy,
+		transport:   cfg.Transport,
+		idGenerator: cfg.IDGenerator,
+		nonceSource: cfg.NonceSource,
+		clock:       cfg.Clock,
+		signingKID:  cfg.SigningKeyID,
 	}, nil
 }
 
+// DeliveryModeX25519KEM names, in audit records, how DEKs reached the
+// destination: X25519 + HKDF-SHA256 + AES-256-GCM to a per-handshake key
+// the destination TEE attested.
+const DeliveryModeX25519KEM = "x25519-kem-v1"
+
 // KeyMaterial is the plaintext-DEK input the operator supplies to the
-// Coordinator. The Coordinator wraps each entry under the
-// destination's verified measurement and dispatches them in a
+// Coordinator. The Coordinator encapsulates each entry to the key the
+// destination TEE attested in this handshake and dispatches them in a
 // KeyReleaseToken.
 //
 // The operator is responsible for sourcing the plaintext from its
@@ -198,15 +182,6 @@ type CoordinationRequest struct {
 	// deployments SHOULD supply both for defence-in-depth.
 	SourceEvidence    []byte
 	SourceMeasurement []byte
-
-	// RecipientPublicKey, when set, switches DEK delivery to the X25519 KEM
-	// (ADR 0009): each DEK is encapsulated to this attested X25519 PUBLIC key
-	// instead of sealed under the destination measurement. It MUST be the
-	// destination's in-TEE public key, bound to the verified Evidence
-	// (REPORT_DATA = hash(pubkey || handshake nonce)), so only the destination
-	// TEE — holding the private key — can unwrap. When empty, the legacy
-	// symmetric measurement path (SimulatedKeyWrapper, simulation only) is used.
-	RecipientPublicKey []byte
 }
 
 // CoordinationResult is returned on successful CoordinateRestore. All
@@ -222,9 +197,12 @@ type CoordinationResult struct {
 	AttestationAuditID     ids.AuditEventID
 	KeyReleaseAuditID      ids.AuditEventID
 	DestinationMeasurement []byte
-	PolicyVersion          string
-	TokenID                ids.DecisionID
-	DispatchedAt           time.Time
+	// RecipientKeySHA256 identifies the attested per-handshake key the
+	// DEKs were encapsulated to; the destination logs the same digest.
+	RecipientKeySHA256 []byte
+	PolicyVersion      string
+	TokenID            ids.DecisionID
+	DispatchedAt       time.Time
 }
 
 // --- Audit payload types -------------------------------------------
@@ -251,6 +229,7 @@ type attestationVerifiedPayload struct {
 	DestinationKind        tee.Provider   `json:"destination_kind"`
 	DestinationMeasurement []byte         `json:"destination_measurement"`
 	EvidenceHash           []byte         `json:"evidence_hash"`
+	RecipientKeySHA256     []byte         `json:"recipient_key_sha256"`
 	VerifiedAt             time.Time      `json:"verified_at"`
 }
 
@@ -264,6 +243,8 @@ type keyReleaseAuthorizedPayload struct {
 	DestinationKind        tee.Provider   `json:"destination_kind"`
 	DestinationMeasurement []byte         `json:"destination_measurement"`
 	KeyIDs                 []ids.KeyID    `json:"key_ids"`
+	DeliveryMode           string         `json:"delivery_mode"`
+	RecipientKeySHA256     []byte         `json:"recipient_key_sha256"`
 	PolicyVersion          string         `json:"policy_version"`
 	PolicyReason           string         `json:"policy_reason"`
 	AuthorizedAt           time.Time      `json:"authorized_at"`
@@ -402,47 +383,38 @@ func (c *Coordinator) CoordinateRestore(
 			)
 	}
 
-	// 4. Verify destination's Evidence.
+	// 4. The destination must present the X25519 key its TEE generated for
+	// this handshake, and the Evidence must have been quoted over
+	// RecipientChallenge(key, nonce). Verifying under that challenge proves,
+	// in one check and for every TEE family, a genuine TEE with the attested
+	// measurement, freshness, and that the key is the TEE's own rather than
+	// one substituted in transit. Without such a key there is nothing safe to
+	// wrap to, so there is no fallback.
+	if err := ValidateRecipientPublicKey(hsResp.RecipientPublicKey); err != nil {
+		return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID},
+			shared_errors.Integrity(
+				shared_errors.CodeAttestationDenied,
+				"kms.CoordinateRestore: destination presented no usable X25519 recipient key",
+				err,
+			)
+	}
+	recipientPub := append([]byte(nil), hsResp.RecipientPublicKey...)
+	recipientKeyHash := crypto.SHA256(recipientPub)
+
 	verifier, err := c.verifiers.Resolve(req.DestinationKind)
 	if err != nil {
 		return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID}, err
 	}
-	measurement, err := verifier.Verify(hsResp.Evidence, nonce)
+	measurement, err := verifier.Verify(hsResp.Evidence, RecipientChallenge(recipientPub, nonce))
 	if err != nil {
 		return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID},
 			shared_errors.Integrity(
 				shared_errors.CodeAttestationDenied,
-				"kms.CoordinateRestore: destination Evidence verification failed",
+				"kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key under this nonce",
 				err,
 			)
 	}
 	measurementBytes := measurement[:]
-
-	// 4b. KEM recipient binding (ADR 0009). When delivering via the X25519 KEM,
-	// verify the destination's Evidence commits to the recipient public key
-	// (REPORT_DATA = hash(pubkey ‖ nonce)) BEFORE trusting it — so the pubkey is
-	// TEE-held, not attacker-substituted. Done before emitting the "verified"
-	// audit event: a failed binding means the destination is not verified.
-	if len(req.RecipientPublicKey) > 0 {
-		switch {
-		case c.bindingVerifier != nil:
-			if err := c.bindingVerifier.VerifyRecipientBinding(hsResp.Evidence, nonce, req.RecipientPublicKey); err != nil {
-				return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID, DestinationMeasurement: measurementBytes},
-					shared_errors.Integrity(
-						shared_errors.CodeAttestationDenied,
-						"kms.CoordinateRestore: recipient public-key binding failed (Evidence does not commit to the KEM pubkey)",
-						err,
-					)
-			}
-		case c.requireBinding:
-			return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID, DestinationMeasurement: measurementBytes},
-				shared_errors.Structural(
-					shared_errors.CodeRequiredFieldMissing,
-					"kms.CoordinateRestore: KEM delivery requires a RecipientBindingVerifier but none is configured",
-					nil,
-				)
-		}
-	}
 
 	// 5. Emit KindCrossCloudAttestationVerified.
 	evidenceHash := crypto.SHA256(hsResp.Evidence)
@@ -452,6 +424,7 @@ func (c *Coordinator) CoordinateRestore(
 		DestinationKind:        req.DestinationKind,
 		DestinationMeasurement: measurementBytes,
 		EvidenceHash:           evidenceHash[:],
+		RecipientKeySHA256:     recipientKeyHash[:],
 		VerifiedAt:             c.clock.Now().UTC(),
 	})
 	if err != nil {
@@ -522,13 +495,7 @@ func (c *Coordinator) CoordinateRestore(
 				)
 		}
 		aad := canonicalWrapAAD(tokenID, measurementBytes, m.KeyID)
-		// X25519 KEM (ADR 0009) when an attested recipient pubkey is present;
-		// otherwise the legacy symmetric measurement path.
-		keyMaterial := measurementBytes
-		if len(req.RecipientPublicKey) > 0 {
-			keyMaterial = req.RecipientPublicKey
-		}
-		ct, err := c.wrapper.Wrap(m.Plaintext, keyMaterial, aad)
+		ct, err := X25519KeyWrapper{}.Wrap(m.Plaintext, recipientPub, aad)
 		if err != nil {
 			return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID, AttestationAuditID: avAuditID, DestinationMeasurement: measurementBytes}, err
 		}
@@ -550,6 +517,8 @@ func (c *Coordinator) CoordinateRestore(
 		DestinationKind:        req.DestinationKind,
 		DestinationMeasurement: measurementBytes,
 		KeyIDs:                 keyIDs,
+		DeliveryMode:           DeliveryModeX25519KEM,
+		RecipientKeySHA256:     recipientKeyHash[:],
 		PolicyVersion:          c.policy.PolicyVersion(),
 		PolicyReason:           verdict.Reason,
 		AuthorizedAt:           authorizedAt,
@@ -605,6 +574,7 @@ func (c *Coordinator) CoordinateRestore(
 		AttestationAuditID:     avAuditID,
 		KeyReleaseAuditID:      krAuditID,
 		DestinationMeasurement: measurementBytes,
+		RecipientKeySHA256:     recipientKeyHash[:],
 		PolicyVersion:          c.policy.PolicyVersion(),
 		TokenID:                tokenID,
 		DispatchedAt:           authorizedAt,
@@ -687,12 +657,14 @@ func (c *Coordinator) validateRequest(req CoordinationRequest) error {
 			return shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, fmt.Sprintf("kms.CoordinateRestore: KeysToRelease[%d].Plaintext required", i), nil)
 		}
 	}
-	if len(req.SourceMeasurement) != 0 && len(req.SourceMeasurement) != cchr.MeasurementSize {
-		return shared_errors.Structural(
-			shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("kms.CoordinateRestore: SourceMeasurement must be exactly %d bytes when present", cchr.MeasurementSize),
-			nil,
-		)
+	if len(req.SourceMeasurement) != 0 {
+		if _, err := tee.MeasurementFromBytes(req.SourceMeasurement); err != nil {
+			return shared_errors.Structural(
+				shared_errors.CodeFieldValueInvalid,
+				fmt.Sprintf("kms.CoordinateRestore: SourceMeasurement must be 32, 48 or 64 bytes when present; got %d", len(req.SourceMeasurement)),
+				err,
+			)
+		}
 	}
 	return nil
 }

@@ -16,9 +16,12 @@
 //     a pre-loaded source-authority public key (exchanged
 //     out-of-band — the operator's responsibility).
 //
-//  2. On handshake, the Receiver generates fresh local Evidence via
-//     its tee.Producer.Quote(handshakeNonce) and returns it to the
-//     source along with the local Measurement hint.
+//  2. On handshake, the Receiver generates an X25519 key pair for that
+//     handshake alone, quotes over kms.RecipientChallenge(public key,
+//     handshakeNonce) with its tee.Producer, and returns the Evidence,
+//     the public key and the local Measurement hint (ADR 0009). The
+//     private key stays in memory, keyed by the request ID, until its
+//     token arrives or it expires.
 //
 //  3. On token receipt, the Receiver:
 //     a. Validates the token's structural fields (delegates to
@@ -26,14 +29,14 @@
 //     b. Verifies the token's signature against the source-
 //     authority pubkey.
 //     c. Verifies that the token's DestinationMeasurement matches
-//     the local TEE Producer's Measurement byte-for-byte —
-//     this is the cryptographic gate that prevents an attacker
-//     in possession of the token bytes from extracting the
-//     DEKs on a different host.
-//     d. For each WrappedKey, invokes the KeyUnwrapper with the
-//     local Measurement and the WrappedKey's AAD; on success,
-//     registers the unwrapped material in the destination's
-//     KeyRegistrar (typically keys.InMemoryStore.RegisterSealing).
+//     the local TEE Producer's Measurement byte-for-byte (the
+//     source released to this workload and no other).
+//     d. Takes the handshake's private key out of the table (single
+//     use) and, for each WrappedKey, opens it with the X25519 KEM
+//     under the WrappedKey's AAD; on success, registers the
+//     material in the destination's KeyRegistrar (typically
+//     keys.InMemoryStore.RegisterSealing). Holding the token and
+//     the measurement is worthless without that private key.
 //
 // # No new audit kinds
 //
@@ -51,11 +54,12 @@
 //
 // The Receiver consumes the new Phase 4 wire contracts
 // (cross_cloud_handshake_request and key_release_token) and uses
-// the existing R-10 tee.Producer / R-10-compatible KeyUnwrapper.
-// It does NOT modify any frozen interface or contract.
+// the existing R-10 tee.Producer. It does NOT modify any frozen
+// interface or contract.
 //
 // # See also
 //
 //   - ADR 0006 — Cross-Cloud KMS-Mediated Restore
+//   - ADR 0009 — X25519 KEM for cross-cloud DEK delivery
 //   - internal/vault/kms — release-side Coordinator (the symmetric peer)
 package crosscloud

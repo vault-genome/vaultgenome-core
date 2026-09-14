@@ -20,7 +20,7 @@ import (
 //     (factory.go AllProviders set).
 //   - DestinationEndpoint is non-empty.
 //   - HandshakeNonce is at least HandshakeNonceMinBytes.
-//   - SourceMeasurement, when present, is exactly MeasurementSize.
+//   - SourceMeasurement, when present, is 32, 48 or 64 bytes.
 //     SourceEvidence may be empty (mutual attestation is optional).
 //   - InitiatedAt is non-zero.
 //   - Signature is non-empty (sign before send is required).
@@ -83,15 +83,17 @@ func (r CrossCloudHandshakeRequest) Validate() error {
 		)
 	}
 	// SourceEvidence is optional (mutual attestation may be off). When
-	// SourceMeasurement is provided it must be exactly MeasurementSize
-	// bytes; partial measurements are rejected to prevent type confusion
-	// at the destination.
-	if len(r.SourceMeasurement) != 0 && len(r.SourceMeasurement) != MeasurementSize {
-		return shared_errors.Structural(
-			shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("cross_cloud_handshake_request: source_measurement must be exactly %d bytes when present", MeasurementSize),
-			nil,
-		)
+	// SourceMeasurement is provided it must be a whole measurement of a
+	// supported length; partial measurements are rejected to prevent
+	// type confusion at the destination.
+	if len(r.SourceMeasurement) != 0 {
+		if _, err := tee.MeasurementFromBytes(r.SourceMeasurement); err != nil {
+			return shared_errors.Structural(
+				shared_errors.CodeFieldValueInvalid,
+				fmt.Sprintf("cross_cloud_handshake_request: source_measurement must be 32, 48 or 64 bytes when present; got %d", len(r.SourceMeasurement)),
+				err,
+			)
+		}
 	}
 	if r.InitiatedAt.IsZero() {
 		return shared_errors.Structural(

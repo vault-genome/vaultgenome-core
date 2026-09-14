@@ -5,6 +5,8 @@ package crypto
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"io"
 
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
@@ -26,6 +28,20 @@ type PublicKey = ed25519.PublicKey
 // PrivateKey is an Ed25519 signing key. Byte form is the 64-byte encoding
 // (32-byte seed || 32-byte public). Do not log or persist unsealed.
 type PrivateKey = ed25519.PrivateKey
+
+// PublicKeyPEM encodes pub as a PEM "PUBLIC KEY" block (PKIX
+// SubjectPublicKeyInfo) — the form operators exchange between hosts and
+// the daemons' key loaders accept alongside the raw 32 bytes.
+func PublicKeyPEM(pub PublicKey) ([]byte, error) {
+	if len(pub) != Ed25519PublicKeySize {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: Ed25519 public key must be 32 bytes", nil)
+	}
+	der, err := x509.MarshalPKIXPublicKey(ed25519.PublicKey(pub))
+	if err != nil {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: marshal public key", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}), nil
+}
 
 // GenerateEd25519 produces a new Ed25519 key pair. If rng is nil,
 // crypto/rand.Reader is used.

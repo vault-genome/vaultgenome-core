@@ -6,9 +6,10 @@
 // # Doctrinal role
 //
 // The Coordinator runs the cross-cloud attestation handshake, applies
-// a KeyReleasePolicy to authorise key release, wraps DEKs under a
-// destination-derived sealing key, and dispatches the resulting
-// KeyReleaseToken to the destination's CrossCloudReceiver. Every
+// a KeyReleasePolicy to authorise key release, encapsulates each DEK
+// with the X25519 KEM to the key the destination TEE attested for this
+// handshake (ADR 0009), and dispatches the resulting KeyReleaseToken to
+// the destination's CrossCloudReceiver. Every
 // authority decision the Coordinator makes is recorded in the audit
 // chain BEFORE the decision becomes visible to its caller —
 // audit-first-class invariant (Doctrinal Invariant #8) extended into
@@ -44,7 +45,7 @@
 //
 // # Extension points
 //
-// The Coordinator depends on five replaceable abstractions, each
+// The Coordinator depends on four replaceable abstractions, each
 // behind an interface:
 //
 //   - Transport — wire delivery of handshake + token (mTLS HTTP/2 in
@@ -52,15 +53,16 @@
 //   - KeyReleasePolicy — gate function: given destination measurement
 //     and key set, return Authorized true/false (allow-list policy in
 //     MVP; attribute-based policy in future).
-//   - KeyWrapper — derive a wrapping key from destination measurement
-//     and AES-GCM-seal a DEK (simulator-friendly key derivation in
-//     MVP; hardware-rooted key agreement in production).
 //   - AuditEmitter — append a Kind+payload to the release-side audit
 //     chain, returning the new AuditEventID. The Coordinator never
 //     touches the chain's hash-link directly — that is the chain
 //     package's concern.
 //   - Clock + NonceSource — small replaceable utilities for
 //     deterministic tests.
+//
+// Key wrapping is deliberately not an extension point: the X25519 KEM
+// is the only delivery mode, so no configuration can reintroduce the
+// measurement-derived symmetric wrap that ADR 0009 removed.
 //
 // # See also
 //

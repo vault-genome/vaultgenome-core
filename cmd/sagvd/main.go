@@ -40,6 +40,13 @@ func main() {
 		case "help", "--help", "-h":
 			printUsage()
 			return
+		case "identity":
+			if err := runIdentityCmd(os.Args[2:], os.Stdout); err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
+					Error("sagvd identity: terminated with error", "err", err.Error())
+				os.Exit(1)
+			}
+			return
 		case "crosscloud-restore":
 			// Phase 4 Cross-Cloud KMS-Mediated Restore CLI entry
 			// point. Loads cross-cloud materials from the same
@@ -214,6 +221,9 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  sagvd -config PATH")
+	fmt.Println("  sagvd identity -config PATH")
+	fmt.Println("  sagvd crosscloud-restore -config PATH -decision-id ID -destination-kind KIND \\")
+	fmt.Println("        -destination-endpoint URL -key KID:HEX [-key ...] [-session-id ID] [-manifest-id ID]")
 	fmt.Println("  sagvd version")
 	fmt.Println("  sagvd help")
 	fmt.Println()
@@ -221,6 +231,10 @@ func printUsage() {
 	fmt.Println("  Authority daemon. Binds the Return Path listener for")
 	fmt.Println("  acp-compute workers and the operator REST API for job")
 	fmt.Println("  submission (POST /v1/jobs) and lookup (GET /v1/jobs/{id}).")
+	fmt.Println()
+	fmt.Println("  identity prints the authority signing key and TEE identity other")
+	fmt.Println("  hosts pin, as JSON. crosscloud-restore releases DEKs to an attested,")
+	fmt.Println("  allow-listed acp-bootstrap destination (docs/operator/06_cross_cloud_restore.md).")
 	fmt.Println()
 	fmt.Println("Flags:")
 	fmt.Println("  -config PATH   JSON config file; see cmd/sagvd/doc.go for schema.")

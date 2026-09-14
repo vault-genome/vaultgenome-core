@@ -13,7 +13,7 @@ import (
 )
 
 func validFixture() KeyReleaseToken {
-	measurement := make([]byte, MeasurementSize)
+	measurement := make([]byte, 32)
 	for i := range measurement {
 		measurement[i] = byte(0x42)
 	}
@@ -82,16 +82,24 @@ func TestKeyReleaseToken_RequestIDRequired(t *testing.T) {
 
 func TestKeyReleaseToken_DestinationMeasurementWrongSize(t *testing.T) {
 	t.Parallel()
-	tok := validFixture()
-	tok.DestinationMeasurement = make([]byte, MeasurementSize-1)
-	err := tok.Validate()
-	require.Error(t, err)
-	require.Equal(t, shared_errors.CodeFieldValueInvalid, shared_errors.CodeOf(err))
+	for _, n := range []int{1, 31, 33, 47, 49, 63, 65, 128} {
+		tok := validFixture()
+		tok.DestinationMeasurement = make([]byte, n)
+		err := tok.Validate()
+		require.Error(t, err, "%d-byte measurement accepted", n)
+		require.Equal(t, shared_errors.CodeFieldValueInvalid, shared_errors.CodeOf(err))
+	}
+}
 
-	tok.DestinationMeasurement = make([]byte, MeasurementSize+1)
-	err = tok.Validate()
-	require.Error(t, err)
-	require.Equal(t, shared_errors.CodeFieldValueInvalid, shared_errors.CodeOf(err))
+// Real hardware measurements are pinned whole: SEV-SNP MEASUREMENT and
+// Nitro PCR0 are 48 bytes (ADR 0007), SHA-512 digests 64.
+func TestKeyReleaseToken_DestinationMeasurementHardwareSizes(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{32, 48, 64} {
+		tok := validFixture()
+		tok.DestinationMeasurement = make([]byte, n)
+		require.NoError(t, tok.Validate(), "%d-byte measurement rejected", n)
+	}
 }
 
 func TestKeyReleaseToken_DestinationMeasurementMissing(t *testing.T) {

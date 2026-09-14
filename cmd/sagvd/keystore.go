@@ -106,13 +106,9 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 	if err != nil {
 		return nil, err
 	}
-	peerMeas, err := readExactly(cfg.TEE.Peer.MeasurementPath, crypto.HashSize, "tee.peer.measurement_path")
+	peerMeasurement, err := readMeasurement(cfg.TEE.Peer.MeasurementPath, "tee.peer.measurement_path")
 	if err != nil {
 		return nil, err
-	}
-	peerMeasurement, err := tee.MeasurementFromBytes(peerMeas)
-	if err != nil {
-		return nil, fmt.Errorf("sagvd: peer measurement: %w", err)
 	}
 	verifier := tee.NewSimulatedVerifier(crypto.PublicKey(peerPub), peerMeasurement)
 
@@ -201,4 +197,20 @@ func readExactly(path string, wantLen int, fieldName string) ([]byte, error) {
 			fieldName, path, wantLen, len(b))
 	}
 	return b, nil
+}
+
+// readMeasurement reads a whole TEE measurement: 32 bytes (SHA-256), or
+// 48 / 64 bytes as SEV-SNP, Nitro and SHA-512 measurements are. It is
+// pinned exactly as the hardware reports it, never truncated to fit
+// (ADR 0007).
+func readMeasurement(path, fieldName string) (tee.Measurement, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: read %s (%q): %w", fieldName, path, err)
+	}
+	m, err := tee.MeasurementFromBytes(b)
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: %s (%q): %w", fieldName, path, err)
+	}
+	return m, nil
 }

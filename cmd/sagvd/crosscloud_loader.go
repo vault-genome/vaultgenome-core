@@ -201,7 +201,7 @@ func loadVerifierRegistry(path string) (*tee.Registry, error) {
 		}
 		measurement, err := tee.MeasurementFromBytes(measurementBytes)
 		if err != nil {
-			return nil, fmt.Errorf("sagvd: verifier_registry[%d].expected_measurement_hex must be 32 bytes (64 hex chars): %w", i, err)
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].expected_measurement_hex must be a 32-, 48- or 64-byte measurement: %w", i, err)
 		}
 		pub, err := loadAttestorPubKey(e.AttestorPubKeyPath)
 		if err != nil {
@@ -280,8 +280,8 @@ func loadAllowListPolicy(policyVersion, path string) (*kms.AllowListPolicy, erro
 			if err != nil {
 				return nil, fmt.Errorf("sagvd: policy_allow_list_path %q: %s[%d] hex decode: %w", path, providerStr, i, err)
 			}
-			if len(b) != crypto.HashSize {
-				return nil, fmt.Errorf("sagvd: policy_allow_list_path %q: %s[%d] must be 32 bytes (64 hex chars); got %d", path, providerStr, i, len(b))
+			if _, err := tee.MeasurementFromBytes(b); err != nil {
+				return nil, fmt.Errorf("sagvd: policy_allow_list_path %q: %s[%d] must be a 32-, 48- or 64-byte measurement; got %d bytes", path, providerStr, i, len(b))
 			}
 			out = append(out, b)
 		}
@@ -327,6 +327,6 @@ func buildClientTLSConfig(cfg TLSClientConfig) (*tls.Config, error) {
 	return &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      roots,
-		MinVersion:   tls.VersionTLS12,
+		MinVersion:   tls.VersionTLS13, // acp-bootstrap accepts nothing older
 	}, nil
 }

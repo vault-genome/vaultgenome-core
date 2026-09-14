@@ -30,6 +30,12 @@ type HandshakeResponse struct {
 	// (32 bytes when present). Never trusted; used only for
 	// diagnostic mismatch detection.
 	MeasurementHint []byte
+
+	// RecipientPublicKey is the X25519 key the destination TEE generated
+	// for this handshake. It is trusted only because the Evidence was
+	// quoted over RecipientChallenge(RecipientPublicKey, nonce); the
+	// Coordinator verifies exactly that before wrapping anything to it.
+	RecipientPublicKey []byte
 }
 
 // Transport is the wire-delivery abstraction the Coordinator uses to

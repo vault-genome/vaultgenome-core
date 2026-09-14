@@ -111,27 +111,6 @@ func TestValidate_InvalidHostPort(t *testing.T) {
 
 // --- fail-closed network exposure ------------------------------------
 
-func TestIsLoopbackBind(t *testing.T) {
-	cases := map[string]bool{
-		"127.0.0.1:9443":   true,
-		"127.10.20.30:1":   true,
-		"[::1]:9443":       true,
-		"localhost:9080":   true,
-		"0.0.0.0:9443":     false, // every interface
-		":9443":            false, // every interface
-		"[::]:9443":        false, // every interface
-		"10.66.0.2:9443":   false,
-		"sagvd:9443":       false, // hostname may resolve anywhere
-		"not-a-host-port":  false,
-		"example.com:9080": false,
-	}
-	for addr, want := range cases {
-		if got := isLoopbackBind(addr); got != want {
-			t.Errorf("isLoopbackBind(%q) = %v, want %v", addr, got, want)
-		}
-	}
-}
-
 func TestValidate_NonLoopbackVaultRequiresTLS(t *testing.T) {
 	c := minimalValidConfig()
 	c.Vault.ListenAddress = "0.0.0.0:9443"

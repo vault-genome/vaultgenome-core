@@ -1,6 +1,12 @@
 # Go build output
 /bin/
 /dist/
+# `go build ./cmd/<name>` from the module root drops the binary here.
+/sagvd
+/acp-compute
+/acp-bootstrap
+/acp-demo
+/acpctl
 *.exe
 *.test
 *.out

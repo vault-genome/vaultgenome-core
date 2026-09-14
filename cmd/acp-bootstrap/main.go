@@ -44,6 +44,13 @@ func main() {
 		case "help", "--help", "-h":
 			printUsage()
 			return
+		case "identity":
+			if err := runIdentity(os.Args[2:], os.Stdout); err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
+					Error("acp-bootstrap identity: terminated with error", "err", err.Error())
+				os.Exit(1)
+			}
+			return
 		}
 	}
 	if err := run(os.Args[1:]); err != nil {
@@ -58,19 +65,27 @@ func printUsage() {
 
 USAGE
     acp-bootstrap -config /path/to/config.json
+    acp-bootstrap identity -config /path/to/config.json
     acp-bootstrap version
     acp-bootstrap help
+
+    identity prints, as JSON, what the source operator pins for this
+    destination: TEE provider, measurement, and (simulated backend) the
+    attestation public key. It opens no listener.
 
 CONFIG FORMAT
     JSON file with sections: http, tee, source_authority, health, log.
     See cmd/acp-bootstrap/config.go for the full schema.
 
 ENDPOINTS
-    POST /v1/crosscloud/handshake — accept signed handshake from source
-    POST /v1/crosscloud/token     — accept signed key-release token
+    POST /v1/crosscloud/handshake — answer a signed handshake with a fresh
+                                    X25519 key and Evidence that binds it
+    POST /v1/crosscloud/token     — accept a signed key-release token whose
+                                    DEKs are encapsulated to that key
 
 REFERENCES
     ADR 0006 — Cross-Cloud KMS-Mediated Restore
+    ADR 0009 — X25519 KEM for cross-cloud DEK delivery
     docs/operator/06_cross_cloud_restore.md
 `, version)
 }
@@ -93,132 +108,156 @@ func run(args []string) error {
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("acp-bootstrap: config validation: %w", err)
 	}
+	if err := cfg.ResolveSecrets(); err != nil {
+		return err
+	}
 
-	logger := buildLogger(cfg.Log)
+	d, err := newDaemon(cfg, buildLogger(cfg.Log))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+	return d.serve(ctx)
+}
+
+// daemon is a fully wired acp-bootstrap: receiver, keystore and bound
+// listeners. newDaemon does everything that can fail on bad
+// configuration, so a misconfigured daemon exits before it accepts a
+// single connection; serve only serves.
+type daemon struct {
+	log      *slog.Logger
+	receiver *crosscloud.Receiver
+	keystore *keys.InMemoryStore
+
+	api      *http.Server
+	apiLn    net.Listener
+	health   *http.Server
+	healthLn net.Listener
+}
+
+func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 	clock := shared_time.NewSystemClock()
 
-	logger.Info("acp-bootstrap starting",
-		"version", version,
-		"commit", commit,
-		"http_listen", cfg.HTTP.ListenAddress,
-		"tee_provider", cfg.TEE.Provider,
-		"source_authority_kid", cfg.SourceAuthority.KeyID,
-	)
-
-	// 1. Build local TEE producer.
+	kind, err := tee.ParseProvider(cfg.TEE.Provider)
+	if err != nil {
+		return nil, fmt.Errorf("acp-bootstrap: tee.provider: %w", err)
+	}
 	producer, err := buildTEEProducer(cfg.TEE)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	logger.Info("local TEE producer ready",
-		"provider", cfg.TEE.Provider,
-		"measurement_hex", fmt.Sprintf("%x", producer.Measurement()),
-	)
-
-	// 2. Build verify-only resolver for the source-authority pubkey.
 	sourceResolver, err := loadSourceAuthorityResolver(cfg.SourceAuthority, clock)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// 3. Build destination keystore (where unwrapped DEKs land).
-	destKeystore := keys.NewInMemoryStore(clock)
-
-	// 4. Build Receiver.
+	// Unwrapped DEKs land here. Each is encapsulated with the X25519 KEM
+	// to a key the Receiver generates per handshake and never writes out
+	// (ADR 0009); there is no other way in.
+	keystore := keys.NewInMemoryStore(clock)
 	receiver, err := crosscloud.NewReceiver(crosscloud.Config{
 		SourceAuthorityKeys: sourceResolver,
 		LocalTEE:            producer,
-		Unwrapper:           kms.NewSimulatedKeyUnwrapper(),
-		Registrar:           destKeystore,
+		Kind:                kind,
+		Registrar:           keystore,
+		Clock:               clock,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	// 5. Build HTTP handler + mux.
 	handler, err := crosscloud.NewHTTPHandler(crosscloud.HTTPHandlerConfig{
 		Receiver:    receiver,
 		BearerToken: cfg.HTTP.BearerToken,
 		Logger:      logger,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	mux := http.NewServeMux()
 	for path, h := range handler.Routes() {
 		mux.HandleFunc(path, h)
 	}
 
-	// 6. Start HTTP listener.
-	httpServer, ln, err := buildHTTPServer(cfg.HTTP, mux, logger)
+	api, apiLn, err := buildHTTPServer(cfg.HTTP, mux, logger)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	d := &daemon{log: logger, receiver: receiver, keystore: keystore, api: api, apiLn: apiLn}
+
+	if cfg.Health.ListenAddress != "" {
+		ln, err := net.Listen("tcp", cfg.Health.ListenAddress)
+		if err != nil {
+			_ = apiLn.Close()
+			return nil, fmt.Errorf("acp-bootstrap: bind health %s: %w", cfg.Health.ListenAddress, err)
+		}
+		d.health = &http.Server{ReadHeaderTimeout: 3 * time.Second, Handler: buildHealthMux()}
+		d.healthLn = ln
 	}
 
-	// 7. Start health listener if configured.
-	var healthServer *http.Server
-	if cfg.Health.ListenAddress != "" {
-		healthServer = &http.Server{
-			Addr:              cfg.Health.ListenAddress,
-			ReadHeaderTimeout: 3 * time.Second,
-			Handler:           buildHealthMux(),
-		}
+	logger.Info("acp-bootstrap ready",
+		"version", version,
+		"commit", commit,
+		"http_listen", apiLn.Addr().String(),
+		"tls", cfg.HTTP.TLS.Enabled,
+		"mtls", cfg.HTTP.TLS.ClientCAs != "",
+		"bearer_token", cfg.HTTP.BearerToken != "",
+		"tee_provider", string(kind),
+		"measurement_hex", fmt.Sprintf("%x", producer.Measurement()),
+		"source_authority_kid", cfg.SourceAuthority.KeyID,
+		"key_delivery", kms.DeliveryModeX25519KEM,
+	)
+	return d, nil
+}
+
+// serve runs the listeners until ctx is cancelled or the API server
+// fails, then shuts both down gracefully.
+func (d *daemon) serve(ctx context.Context) error {
+	errCh := make(chan error, 2)
+	go func() { errCh <- d.api.Serve(d.apiLn) }()
+	if d.health != nil {
 		go func() {
-			if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				logger.Warn("health server stopped", "err", err.Error())
+			if err := d.health.Serve(d.healthLn); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				d.log.Warn("health server stopped", "err", err.Error())
 			}
 		}()
-		logger.Info("health server listening", "addr", cfg.Health.ListenAddress)
 	}
 
-	// 8. Run HTTP server until signalled.
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
-
-	errCh := make(chan error, 1)
-	go func() {
-		logger.Info("crosscloud HTTP listener serving", "addr", ln.Addr().String())
-		if cfg.HTTP.TLS.Enabled {
-			errCh <- httpServer.ServeTLS(ln, cfg.HTTP.TLS.ServerCert, cfg.HTTP.TLS.ServerKey)
-		} else {
-			errCh <- httpServer.Serve(ln)
-		}
-	}()
-
+	var serveErr error
 	select {
 	case <-ctx.Done():
-		logger.Info("shutdown signal received")
+		d.log.Info("shutdown signal received")
 	case err := <-errCh:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return err
+			serveErr = err
 		}
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		logger.Warn("http server shutdown error", "err", err.Error())
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := d.api.Shutdown(shutdownCtx); err != nil {
+		d.log.Warn("http server shutdown error", "err", err.Error())
 	}
-	if healthServer != nil {
-		_ = healthServer.Shutdown(shutdownCtx)
+	if d.health != nil {
+		_ = d.health.Shutdown(shutdownCtx)
 	}
-	logger.Info("acp-bootstrap stopped")
-	return nil
+	d.log.Info("acp-bootstrap stopped")
+	return serveErr
 }
 
 // buildTEEProducer constructs the local TEE producer per cfg.Provider.
-// MVP/demo only supports the simulated backend; real backends are
-// added in subsequent phases.
+// This build runs the simulated backend only; the hardware producers
+// are wired in with the Continuity Drill (Phase 1).
 func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 	switch cfg.Provider {
-	case "simulated":
+	case string(tee.ProviderSimulated):
 		seed, err := readExactly(cfg.SeedPath, crypto.Ed25519SeedSize, "tee.seed_path")
 		if err != nil {
 			return nil, err
 		}
 		return tee.NewSimulated([]byte(cfg.WorkloadDescriptor), seed)
 	default:
-		return nil, fmt.Errorf("acp-bootstrap: tee.provider %q not yet supported in this build", cfg.Provider)
+		return nil, fmt.Errorf("acp-bootstrap: tee.provider %q is not available in this build (supported: %q)", cfg.Provider, tee.ProviderSimulated)
 	}
 }
 
@@ -294,23 +333,18 @@ func loadAttestorPubKey(path string) (crypto.PublicKey, error) {
 	return crypto.PublicKey(data), nil
 }
 
-// buildHTTPServer assembles the http.Server and binds the listener.
-// TLS is configured by ServeTLS in run() — we only wire the
-// http.Server here.
+// buildHTTPServer assembles the http.Server and binds its listener.
+// With TLS enabled the listener speaks TLS 1.3 only; the server
+// certificate and (for mTLS) the client CA bundle are loaded here, so a
+// bad path fails startup instead of the first handshake.
 func buildHTTPServer(cfg HTTPConfig, handler http.Handler, logger *slog.Logger) (*http.Server, net.Listener, error) {
-	ln, err := net.Listen("tcp", cfg.ListenAddress)
-	if err != nil {
-		return nil, nil, fmt.Errorf("acp-bootstrap: bind %s: %w", cfg.ListenAddress, err)
-	}
-	srv := &http.Server{
-		Handler:           handler,
-		ReadHeaderTimeout: cfg.ReadHeaderTimeout(),
-		WriteTimeout:      cfg.WriteTimeout(),
-		IdleTimeout:       60 * time.Second,
-		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
-	}
+	var tlsCfg *tls.Config
 	if cfg.TLS.Enabled {
-		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		cert, err := tls.LoadX509KeyPair(cfg.TLS.ServerCert, cfg.TLS.ServerKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("acp-bootstrap: load tls.server_cert/server_key: %w", err)
+		}
+		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{cert}}
 		if cfg.TLS.ClientCAs != "" {
 			caRaw, err := os.ReadFile(cfg.TLS.ClientCAs)
 			if err != nil {
@@ -320,9 +354,25 @@ func buildHTTPServer(cfg HTTPConfig, handler http.Handler, logger *slog.Logger) 
 			if !pool.AppendCertsFromPEM(caRaw) {
 				return nil, nil, errors.New("acp-bootstrap: tls.client_cas contained no PEM certs")
 			}
-			srv.TLSConfig.ClientCAs = pool
-			srv.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+			tlsCfg.ClientCAs = pool
+			tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
 		}
+	}
+
+	ln, err := net.Listen("tcp", cfg.ListenAddress)
+	if err != nil {
+		return nil, nil, fmt.Errorf("acp-bootstrap: bind %s: %w", cfg.ListenAddress, err)
+	}
+	if tlsCfg != nil {
+		ln = tls.NewListener(ln, tlsCfg)
+	}
+	srv := &http.Server{
+		Handler:           handler,
+		TLSConfig:         tlsCfg,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout(),
+		WriteTimeout:      cfg.WriteTimeout(),
+		IdleTimeout:       60 * time.Second,
+		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
 	}
 	return srv, ln, nil
 }

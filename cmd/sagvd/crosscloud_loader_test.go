@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 )
@@ -201,7 +202,7 @@ func TestLoadVerifierRegistry_WrongMeasurementSizeRejected(t *testing.T) {
 	}`
 	regPath := writeFile(t, dir, "registry.json", []byte(registryJSON))
 	_, err := loadVerifierRegistry(regPath)
-	if err == nil || !strings.Contains(err.Error(), "32 bytes") {
+	if err == nil || !strings.Contains(err.Error(), "32-, 48- or 64-byte measurement") {
 		t.Fatalf("loadVerifierRegistry(short measurement): err = %v", err)
 	}
 }
@@ -303,8 +304,25 @@ func TestLoadAllowListPolicy_WrongMeasurementSizeRejected(t *testing.T) {
 	}`
 	path := writeFile(t, dir, "allow.json", []byte(allowJSON))
 	_, err := loadAllowListPolicy("v1", path)
-	if err == nil || !strings.Contains(err.Error(), "32 bytes") {
+	if err == nil || !strings.Contains(err.Error(), "32-, 48- or 64-byte measurement") {
 		t.Fatalf("loadAllowListPolicy(short measurement): err = %v", err)
+	}
+}
+
+// A real SEV-SNP or Nitro measurement is 48 bytes and must be pinned
+// whole, not rejected or truncated.
+func TestLoadAllowListPolicy_AcceptsHardwareMeasurement(t *testing.T) {
+	dir := t.TempDir()
+	m48 := strings.Repeat("ab", 48)
+	path := writeFile(t, dir, "allow.json", []byte(`{"version":"v1","allowed":{"gcp-sev-snp":["`+m48+`"]}}`))
+	p, err := loadAllowListPolicy("v1", path)
+	if err != nil {
+		t.Fatalf("loadAllowListPolicy(48-byte measurement): %v", err)
+	}
+	m, _ := hex.DecodeString(m48)
+	v, err := p.AuthorizeKeyRelease(tee.ProviderGCPSEVSNP, m, "dec-1", []ids.KeyID{"k1"})
+	if err != nil || !v.Authorized {
+		t.Fatalf("48-byte measurement not authorized: %+v, %v", v, err)
 	}
 }
 

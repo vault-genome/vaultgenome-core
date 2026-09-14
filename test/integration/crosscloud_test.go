@@ -1,0 +1,355 @@
+//go:build integration
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+package integration
+
+import (
+	"bytes"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
+)
+
+// Live cross-cloud key release: `sagvd crosscloud-restore` (the source
+// authority) and `acp-bootstrap` (the destination) run as real processes
+// and talk over TLS 1.3 with client certificates and a bearer token. The
+// DEK crosses the wire only encapsulated to an X25519 key the destination
+// TEE generated for that handshake and bound into its Evidence (ADR 0009).
+
+const destinationDescriptor = "acp-bootstrap-destination-v1"
+
+// xcc is one provisioned source/destination pair. Trust is exchanged the
+// way docs/operator/06_cross_cloud_restore.md tells an operator to: each
+// side prints its identity with the `identity` subcommand and the other
+// side pins what it printed.
+type xcc struct {
+	secrets      string // keygen tree: sagvd authority seed, PKI
+	dir          string // destination material written by the test
+	token        string // bearer token both sides share
+	authorityPEM string // path of the authority key the destination pins
+	endpoint     string // https://127.0.0.1:port of acp-bootstrap
+	health       string
+	dest         *proc
+}
+
+// identityOf runs `<bin> identity -config cfg` and decodes its JSON.
+func identityOf(t *testing.T, bin, cfg string) map[string]string {
+	t.Helper()
+	out, err := exec.Command(bin, "identity", "-config", cfg).Output()
+	if err != nil {
+		t.Fatalf("%s identity: %v", filepath.Base(bin), err)
+	}
+	var id map[string]string
+	if err := json.Unmarshal(out, &id); err != nil {
+		t.Fatalf("%s identity output is not JSON: %v\n%s", filepath.Base(bin), err, out)
+	}
+	return id
+}
+
+// newXCC provisions both sides: a keygen tree for the source authority,
+// the destination's bearer token, and the destination's pinned copy of
+// the authority key as printed by `sagvd identity`.
+func newXCC(t *testing.T) *xcc {
+	t.Helper()
+	x := &xcc{secrets: keygen(t), dir: t.TempDir()}
+	x.token = hex.EncodeToString(randomBytes(t, 32))
+	writeSecret(t, filepath.Join(x.dir, "api_token"), []byte(x.token+"\n"))
+
+	src := writeJSON(t, "sagvd-identity.json", vaultConfig(x.secrets, loopback(t), loopback(t), loopback(t)))
+	id := identityOf(t, bins.sagvd, src)
+	if id["authority_kid"] != "sagvd-authority-demo" {
+		t.Fatalf("sagvd identity: authority_kid %q", id["authority_kid"])
+	}
+	x.authorityPEM = filepath.Join(x.dir, "authority.pem")
+	writeSecret(t, x.authorityPEM, []byte(id["authority_public_key_pem"]))
+	return x
+}
+
+// destinationConfig writes an acp-bootstrap config with TLS 1.3, mTLS
+// against the deployment CA and a bearer token, whose TEE runs on a
+// fresh seed; it returns the config path.
+func (x *xcc) destinationConfig(t *testing.T, name string) string {
+	t.Helper()
+	seedPath := filepath.Join(x.dir, name+"_tee_seed")
+	writeSecret(t, seedPath, randomBytes(t, 32))
+	sec := func(p ...string) string { return filepath.Join(append([]string{x.secrets}, p...)...) }
+	return writeJSON(t, name+".json", map[string]any{
+		"http": map[string]any{
+			"listen_address":    loopback(t),
+			"bearer_token_file": filepath.Join(x.dir, "api_token"),
+			"tls": map[string]any{
+				"enabled":     true,
+				"server_cert": sec("sagvd", "tls", "server.crt"),
+				"server_key":  sec("sagvd", "tls", "server.key"),
+				"client_cas":  sec("shared", "tls", "ca.crt"),
+			},
+		},
+		"tee": map[string]any{
+			"provider":            "simulated",
+			"workload_descriptor": destinationDescriptor,
+			"seed_path":           seedPath,
+		},
+		"source_authority": map[string]any{
+			"kid":             "sagvd-authority-demo",
+			"public_key_path": x.authorityPEM,
+		},
+		"health": map[string]any{"listen_address": loopback(t)},
+		"log":    map[string]any{"level": "debug", "format": "json"},
+	})
+}
+
+// startDestination runs acp-bootstrap with cfg and waits for /readyz.
+func (x *xcc) startDestination(t *testing.T, cfg string) {
+	t.Helper()
+	raw, err := os.ReadFile(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c struct {
+		HTTP struct {
+			ListenAddress string `json:"listen_address"`
+		} `json:"http"`
+		Health struct {
+			ListenAddress string `json:"listen_address"`
+		} `json:"health"`
+	}
+	if err := json.Unmarshal(raw, &c); err != nil {
+		t.Fatal(err)
+	}
+	x.endpoint, x.health = "https://"+c.HTTP.ListenAddress, "http://"+c.Health.ListenAddress
+	x.dest = startProc(t, "acp-bootstrap", bins.bootstrap, "-config", cfg)
+	waitReady(t, x.dest, x.health+"/readyz")
+}
+
+// sourceConfig writes the sagvd config for crosscloud-restore: the usual
+// vault material, a verifier registry trusting the destination identity
+// dest (as printed by `acp-bootstrap identity`), and an allow-list of
+// the given measurements.
+func (x *xcc) sourceConfig(t *testing.T, dest map[string]string, allowedHex ...string) string {
+	t.Helper()
+	attPath := filepath.Join(t.TempDir(), "destination_attestor.pem")
+	writeSecret(t, attPath, []byte(dest["attestor_public_key_pem"]))
+	registry := writeJSON(t, "verifiers.json", map[string]any{
+		"verifiers": []map[string]any{{
+			"provider":                 dest["tee_provider"],
+			"attestor_pubkey_path":     attPath,
+			"expected_measurement_hex": dest["measurement_hex"],
+		}},
+	})
+	allow := writeJSON(t, "allow.json", map[string]any{
+		"version": "drill-policy-v1",
+		"allowed": map[string]any{dest["tee_provider"]: allowedHex},
+	})
+
+	sec := func(p ...string) string { return filepath.Join(append([]string{x.secrets}, p...)...) }
+	cfg := vaultConfig(x.secrets, loopback(t), loopback(t), loopback(t))
+	cfg["crosscloud"] = map[string]any{
+		"enabled":                 true,
+		"policy_version":          "drill-policy-v1",
+		"policy_allow_list_path":  allow,
+		"verifier_registry_path":  registry,
+		"transport_bearer_token":  x.token,
+		"request_timeout_seconds": 10,
+		"transport_tls": map[string]any{
+			"enabled":     true,
+			"client_cert": sec("acp-compute", "tls", "client.crt"),
+			"client_key":  sec("acp-compute", "tls", "client.key"),
+			"ca_bundle":   sec("shared", "tls", "ca.crt"),
+		},
+	}
+	return writeJSON(t, "sagvd-xcc.json", cfg)
+}
+
+// restoreResult is what `sagvd crosscloud-restore` prints.
+type restoreResult struct {
+	Status string `json:"status"`
+	Error  *struct {
+		Category string `json:"category"`
+		Message  string `json:"message"`
+	} `json:"error"`
+	DestinationMeasurementHex string `json:"destination_measurement_hex"`
+	RecipientKeySHA256        string `json:"recipient_key_sha256"`
+	TokenID                   string `json:"token_id"`
+	AuditChainLength          int    `json:"audit_chain_length"`
+}
+
+// restore runs `sagvd crosscloud-restore` to completion and returns its
+// report, its combined output, and its exit error.
+func (x *xcc) restore(t *testing.T, config, endpoint string, dek []byte) (restoreResult, string, error) {
+	t.Helper()
+	cmd := exec.Command(bins.sagvd, "crosscloud-restore",
+		"-config", config,
+		"-decision-id", "drill-decision-1",
+		"-destination-kind", "simulated",
+		"-destination-endpoint", endpoint,
+		"-key", "genome-dek-1:"+hex.EncodeToString(dek),
+	)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	done := make(chan error, 1)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	go func() { done <- cmd.Wait() }()
+	var runErr error
+	select {
+	case runErr = <-done:
+	case <-time.After(jobTimeout):
+		_ = cmd.Process.Kill()
+		t.Fatalf("crosscloud-restore did not finish\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+	}
+	var res restoreResult
+	if stdout.Len() > 0 {
+		if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
+			t.Fatalf("crosscloud-restore output is not JSON: %v\n%s", err, stdout.String())
+		}
+	}
+	return res, stdout.String() + stderr.String(), runErr
+}
+
+// destLog returns the destination's structured log lines with msg.
+func (x *xcc) destLog(msg string) []map[string]any {
+	var out []map[string]any
+	for _, line := range strings.Split(x.dest.log.String(), "\n") {
+		var rec map[string]any
+		if json.Unmarshal([]byte(line), &rec) == nil && rec["msg"] == msg {
+			out = append(out, rec)
+		}
+	}
+	return out
+}
+
+// A key release completes end to end, and both sides record the same
+// attested recipient key: the source in its report, the destination in
+// its log when it answered the handshake.
+func TestLiveCrossCloud_KeyReleaseToAttestedDestination(t *testing.T) {
+	x := newXCC(t)
+	dest := x.destinationConfig(t, "destination")
+	id := identityOf(t, bins.bootstrap, dest)
+	x.startDestination(t, dest)
+	cfg := x.sourceConfig(t, id, id["measurement_hex"])
+
+	res, out, err := x.restore(t, cfg, x.endpoint, randomBytes(t, 32))
+	if err != nil || res.Status != "ok" {
+		t.Fatalf("crosscloud-restore: %v\n%s", err, out)
+	}
+	if res.DestinationMeasurementHex != id["measurement_hex"] {
+		t.Errorf("released to measurement %s, destination identity says %s", res.DestinationMeasurementHex, id["measurement_hex"])
+	}
+	if res.AuditChainLength != 3 {
+		t.Errorf("audit chain has %d events, want handshake → attestation → release (3)", res.AuditChainLength)
+	}
+
+	waitFor(t, 5*time.Second, "destination to log the accepted token", func() bool {
+		return len(x.destLog("crosscloud token accepted")) == 1
+	})
+	answered := x.destLog("crosscloud handshake answered")
+	if len(answered) != 1 {
+		t.Fatalf("destination answered %d handshakes, want 1", len(answered))
+	}
+	if got := answered[0]["recipient_key_sha256"]; got != res.RecipientKeySHA256 || res.RecipientKeySHA256 == "" {
+		t.Fatalf("recipient key: source released to %q, destination attested %q", res.RecipientKeySHA256, got)
+	}
+	if got := x.destLog("crosscloud token accepted")[0]["registered_keys"]; got != float64(1) {
+		t.Fatalf("destination registered %v keys, want 1", got)
+	}
+}
+
+// Anti-worm gate: a genuine, attested destination whose measurement is
+// not on the operator's allow-list receives nothing.
+func TestLiveCrossCloud_UnlistedDestinationGetsNothing(t *testing.T) {
+	x := newXCC(t)
+	dest := x.destinationConfig(t, "destination")
+	id := identityOf(t, bins.bootstrap, dest)
+	x.startDestination(t, dest)
+	cfg := x.sourceConfig(t, id, hex.EncodeToString(tee.MeasurementOf([]byte("some-other-workload"))))
+
+	res, out, err := x.restore(t, cfg, x.endpoint, randomBytes(t, 32))
+	if err == nil || res.Status != "failed" || res.Error == nil || res.Error.Category != "authority" {
+		t.Fatalf("restore to an unlisted destination: err=%v result=%+v\n%s", err, res, out)
+	}
+	if res.TokenID != "" {
+		t.Fatalf("a token was issued to an unlisted destination: %s", res.TokenID)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if n := len(x.destLog("crosscloud token accepted")); n != 0 {
+		t.Fatalf("unlisted destination accepted %d tokens", n)
+	}
+}
+
+// A machine that is not the attested TEE (same workload descriptor, so
+// the same claimed measurement, but a different attestation key) fails
+// attestation and receives nothing.
+func TestLiveCrossCloud_ImpostorDestinationFailsAttestation(t *testing.T) {
+	x := newXCC(t)
+	genuine := identityOf(t, bins.bootstrap, x.destinationConfig(t, "genuine"))
+	x.startDestination(t, x.destinationConfig(t, "impostor"))
+	cfg := x.sourceConfig(t, genuine, genuine["measurement_hex"])
+
+	res, out, err := x.restore(t, cfg, x.endpoint, randomBytes(t, 32))
+	if err == nil || res.Status != "failed" || res.Error == nil || res.Error.Category != "integrity" {
+		t.Fatalf("restore to an impostor: err=%v result=%+v\n%s", err, res, out)
+	}
+	if res.TokenID != "" || len(x.destLog("crosscloud token accepted")) != 0 {
+		t.Fatal("an impostor destination received a token")
+	}
+}
+
+// A key release is never sent in the clear across a network: plain http
+// to a non-loopback destination is refused before any connection.
+func TestLiveCrossCloud_PlaintextRemoteEndpointRefused(t *testing.T) {
+	x := newXCC(t)
+	id := identityOf(t, bins.bootstrap, x.destinationConfig(t, "destination"))
+	cfg := x.sourceConfig(t, id, id["measurement_hex"])
+	_, out, err := x.restore(t, cfg, "http://203.0.113.7:8443", randomBytes(t, 32))
+	if err == nil || !strings.Contains(out, "plain http is accepted only for a loopback destination") {
+		t.Fatalf("plaintext remote endpoint: err=%v\n%s", err, out)
+	}
+}
+
+// acp-bootstrap refuses to expose its key-release endpoint to a network
+// without TLS and caller authentication.
+func TestAcpBootstrap_RefusesUnauthenticatedNetworkExposure(t *testing.T) {
+	x := newXCC(t)
+	seed := filepath.Join(x.dir, "tee_seed")
+	writeSecret(t, seed, randomBytes(t, 32))
+	cfg := writeJSON(t, "open.json", map[string]any{
+		"http":             map[string]any{"listen_address": "0.0.0.0:0"},
+		"tee":              map[string]any{"provider": "simulated", "workload_descriptor": destinationDescriptor, "seed_path": seed},
+		"source_authority": map[string]any{"kid": "sagvd-authority-demo", "public_key_path": x.authorityPEM},
+	})
+	out, err := exec.Command(bins.bootstrap, "-config", cfg).CombinedOutput()
+	if err == nil {
+		t.Fatalf("acp-bootstrap started on 0.0.0.0 without TLS\n%s", out)
+	}
+	for _, want := range []string{"http.tls.enabled required", "http.tls.client_cas or http.bearer_token(_file) required"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("refusal does not say %q:\n%s", want, out)
+		}
+	}
+}
+
+func randomBytes(t *testing.T, n int) []byte {
+	t.Helper()
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func writeSecret(t *testing.T, path string, b []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}

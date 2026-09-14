@@ -9,12 +9,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
 	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
 	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	"github.com/ai-continuity-platform/core/internal/shared/exposure"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
@@ -76,6 +78,9 @@ func runCrossCloudRestoreCmd(args []string) error {
 	if destinationEndpoint == "" {
 		return errors.New("crosscloud-restore: -destination-endpoint required")
 	}
+	if err := checkDestinationEndpoint(destinationEndpoint); err != nil {
+		return err
+	}
 	if len(keyFlags) == 0 {
 		return errors.New("crosscloud-restore: at least one -key kid:hex required")
 	}
@@ -119,7 +124,6 @@ func runCrossCloudRestoreCmd(args []string) error {
 		Signer:       mat.Store,
 		Verifiers:    xcc.VerifierRegistry,
 		Policy:       xcc.Policy,
-		Wrapper:      kms.NewSimulatedKeyWrapper(),
 		Transport:    xcc.Transport,
 		IDGenerator:  xcc.IDGenerator,
 		NonceSource:  xcc.NonceSource,
@@ -151,6 +155,27 @@ func runCrossCloudRestoreCmd(args []string) error {
 		return coordErr
 	}
 	return nil
+}
+
+// checkDestinationEndpoint refuses an endpoint that would carry a key
+// release in the clear across a network: https always, plain http only
+// to a loopback destination.
+func checkDestinationEndpoint(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("crosscloud-restore: -destination-endpoint %q is not an absolute URL", raw)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if exposure.IsLoopbackHost(u.Hostname()) {
+			return nil
+		}
+		return fmt.Errorf("crosscloud-restore: -destination-endpoint %q: plain http is accepted only for a loopback destination; use https", raw)
+	default:
+		return fmt.Errorf("crosscloud-restore: -destination-endpoint %q: scheme must be https", raw)
+	}
 }
 
 // repeatableFlag implements flag.Value for repeated -key occurrences.
@@ -202,6 +227,7 @@ type coordinationOutput struct {
 	AttestationAuditID     ids.AuditEventID         `json:"attestation_audit_id,omitempty"`
 	KeyReleaseAuditID      ids.AuditEventID         `json:"key_release_audit_id,omitempty"`
 	DestinationMeasurement string                   `json:"destination_measurement_hex,omitempty"`
+	RecipientKeySHA256     string                   `json:"recipient_key_sha256,omitempty"`
 	PolicyVersion          string                   `json:"policy_version,omitempty"`
 	TokenID                ids.DecisionID           `json:"token_id,omitempty"`
 	DispatchedAt           string                   `json:"dispatched_at,omitempty"`
@@ -232,6 +258,9 @@ func buildCoordinationOutput(res kms.CoordinationResult, err error, chainLen int
 	}
 	if len(res.DestinationMeasurement) > 0 {
 		out.DestinationMeasurement = hex.EncodeToString(res.DestinationMeasurement)
+	}
+	if len(res.RecipientKeySHA256) > 0 {
+		out.RecipientKeySHA256 = hex.EncodeToString(res.RecipientKeySHA256)
 	}
 	if res.PolicyVersion != "" {
 		out.PolicyVersion = res.PolicyVersion

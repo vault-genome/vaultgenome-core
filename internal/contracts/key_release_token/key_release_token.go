@@ -56,10 +56,6 @@ const (
 	SchemaVersionMax     uint16 = 1
 	SchemaVersionCurrent uint16 = 1
 
-	// MeasurementSize is the byte length of a TEE measurement
-	// (SHA-256 digest size). Mirrors tee.Measurement.
-	MeasurementSize = 32
-
 	// PurposeSealing is the keys.Purpose value (3) reserved for
 	// AES-256-GCM sealing keys. A WrappedKey delivered via Phase 4
 	// MUST carry this purpose — sealing is the only Phase 4 use case
@@ -95,8 +91,8 @@ type KeyReleaseToken struct {
 	// DestinationMeasurement is the destination's verified
 	// measurement. The destination MUST reject a token whose
 	// DestinationMeasurement does not equal its local TEE Producer's
-	// Measurement byte-for-byte. Length: exactly MeasurementSize
-	// bytes.
+	// Measurement byte-for-byte. Length: 32, 48 or 64 bytes (see
+	// ValidMeasurementLen).
 	DestinationMeasurement []byte `json:"destination_measurement"`
 
 	// Wrapped is the slice of sealed DEKs being released. Order is

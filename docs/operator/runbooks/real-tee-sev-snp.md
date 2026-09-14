@@ -26,10 +26,12 @@ the AMD KDS. The clouds differ only in **how the raw report is obtained**.
      --maintenance-policy TERMINATE
    ```
 
-2. Inside the guest, request a report whose `REPORT_DATA` binds your workload key
-   (the platform binds an in-TEE X25519 public key as `SHA-512(pubkey ‖ nonce)`,
-   see `kms.ExpectedReportData`). GCP exposes the guest device directly, so the
-   kernel `configfs-tsm` interface returns a raw report:
+2. Inside the guest, request a report whose `REPORT_DATA` binds your workload
+   key. (The cross-cloud protocol binds its per-handshake X25519 key by quoting
+   over `kms.RecipientChallenge(pubkey, nonce)`, ADR 0009; the standalone probe
+   below binds a key with the raw layout `SHA-512(pubkey_DER ‖ nonce)`.) GCP
+   exposes the guest device directly, so the kernel `configfs-tsm` interface
+   returns a raw report:
 
    ```bash
    D=/sys/kernel/config/tsm/report/vg
@@ -104,21 +106,24 @@ A PASS means the report parsed, its signature verified under the genuine VCEK,
 and the VCEK chained to AMD ARK-Milan — real hardware attestation, not the
 simulator. (Committed captures for GCP and Azure already prove this offline.)
 
-## D. Wire the daemon to the real backend
+## D. What the daemons do with real SEV-SNP today
 
-Run `sagvd` **inside** the confidential VM and select the real provider instead
-of the simulator:
+Stated exactly, so no one plans a deployment on a capability that is not there:
 
-- `tee.ParseProvider("gcp-sev-snp")` (or the appropriate cloud) resolves the real
-  `Producer`/`Verifier` from the registry; `gcp_sev_snp_verify.go`'s `init()`
-  wires the real parse/verify/chain functions.
-- Populate the cross-cloud **verifier registry** (`verifier_registry_path` in the
-  sagvd config) with the expected destination measurement so
-  `KindCrossCloudAttestationVerified` is emitted only for genuine hardware.
-- For KEM key delivery (`ADR 0009`), configure the Coordinator with
-  `BindingVerifier: kms.SEVSNPRecipientBinder{}` and
-  `RequireRecipientBinding: true` so DEKs are only wrapped to a pubkey the
-  Evidence attests.
+- **Verifying** a genuine SEV-SNP report is real code (section C): parse,
+  ECDSA-P384 under the VCEK, VCEK → ASK → ARK chain via AMD KDS.
+- **Producing** reports from inside a daemon is not wired yet: the
+  `gcp-sev-snp` producer's report call (`sevSNPGuestReport`) returns "not yet
+  wired", and `sagvd` / `acp-bootstrap` build the simulated TEE. Section A's
+  `configfs-tsm` steps are the manual equivalent.
+- The cross-cloud protocol needs no change for real hardware: the destination
+  quotes over the ADR 0009 key-binding challenge, and the SEV-SNP verifier's
+  REPORT_DATA check on that challenge is what binds the key. No Coordinator
+  option is involved.
+
+Wiring the `configfs-tsm` producer into `acp-bootstrap`, and a `gcp-sev-snp`
+entry in `sagvd`'s verifier registry (AMD root and TCB policy), is Phase 1 of the
+Continuity Drill.
 
 ## Cleanup (cost hygiene)
 

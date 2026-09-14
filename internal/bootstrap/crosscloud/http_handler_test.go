@@ -63,7 +63,7 @@ func newHTTPFixture(t *testing.T, bearer string) *httpFixture {
 	receiver, err := crosscloud.NewReceiver(crosscloud.Config{
 		SourceAuthorityKeys: sourceKeystore,
 		LocalTEE:            destProducer,
-		Unwrapper:           kms.NewSimulatedKeyUnwrapper(),
+		Kind:                tee.ProviderSimulated,
 		Registrar:           destKeystore,
 	})
 	require.NoError(t, err)
@@ -120,14 +120,26 @@ func signedHandshakeForHTTP(t *testing.T, f *httpFixture, nonce []byte) cchr.Cro
 	return req
 }
 
-func signedTokenForHTTP(t *testing.T, f *httpFixture, keyMaterials map[ids.KeyID][]byte) krt.KeyReleaseToken {
+// handshakeOverHTTP runs an honest handshake through the real HTTP
+// transport and returns the key the destination presented.
+func handshakeOverHTTP(t *testing.T, f *httpFixture) []byte {
+	t.Helper()
+	nonce := make([]byte, tee.NonceMinBytes)
+	_, _ = rand.Read(nonce)
+	resp, err := f.transport.SendHandshakeRequest(context.Background(), f.server.URL, signedHandshakeForHTTP(t, f, nonce))
+	require.NoError(t, err)
+	return resp.RecipientPublicKey
+}
+
+// signedTokenForHTTP builds a source-signed token for handshake
+// "xcc-http-req-1" whose DEKs are encapsulated to recipientPub.
+func signedTokenForHTTP(t *testing.T, f *httpFixture, recipientPub []byte, keyMaterials map[ids.KeyID][]byte) krt.KeyReleaseToken {
 	t.Helper()
 	tokenID := ids.DecisionID("xcc-http-tok-1")
-	wrapper := kms.NewSimulatedKeyWrapper()
 	wrapped := make([]krt.WrappedKey, 0, len(keyMaterials))
 	for kid, plain := range keyMaterials {
 		aad := canonicalAADForTest(tokenID, f.destMeasureBytes, kid)
-		ct, err := wrapper.Wrap(plain, f.destMeasureBytes, aad)
+		ct, err := kms.X25519KeyWrapper{}.Wrap(plain, recipientPub, aad)
 		require.NoError(t, err)
 		wrapped = append(wrapped, krt.WrappedKey{
 			KeyID:      kid,
@@ -154,33 +166,18 @@ func signedTokenForHTTP(t *testing.T, f *httpFixture, keyMaterials map[ids.KeyID
 }
 
 // canonicalAADForTest mirrors the canonical AAD derivation used by
-// both source-side coordinator and destination-side receiver. Kept
-// in this _test.go file (instead of importing a private helper) so
-// any drift between source/destination derivation surfaces here.
+// both source-side coordinator and destination-side receiver,
+// SHA-256(TokenID || DestinationMeasurement || KeyID). It is written
+// out independently here so any drift between the source and
+// destination derivations fails the round-trip tests.
 func canonicalAADForTest(tokenID ids.DecisionID, destinationMeasurement []byte, keyID ids.KeyID) []byte {
-	// Use the kms-package wrapper; it embeds the same canonical
-	// derivation as crosscloud.canonicalWrapAAD.
-	wrapper := kms.NewSimulatedKeyWrapper()
-	// Try wrap+unwrap with a known AAD computation by using the
-	// receiver's exported helper isn't possible (it's unexported),
-	// so we replicate the canonical formula here. ANY drift from the
-	// kms / crosscloud canonicals will fail the round-trip tests.
-	_ = wrapper
-	const nbytes = 32
-	ids := []byte(tokenID)
-	dm := destinationMeasurement
-	kid := []byte(keyID)
-	buf := make([]byte, 0, len(ids)+len(dm)+len(kid))
-	buf = append(buf, ids...)
-	buf = append(buf, dm...)
-	buf = append(buf, kid...)
-	// Use the project's canonical SHA-256.
+	buf := make([]byte, 0, len(tokenID)+len(destinationMeasurement)+len(keyID))
+	buf = append(buf, []byte(tokenID)...)
+	buf = append(buf, destinationMeasurement...)
+	buf = append(buf, []byte(keyID)...)
 	digest := shaTest32(buf)
-	return digest[:nbytes]
+	return digest[:]
 }
-
-// shaTest32 is a tiny indirection to keep the import surface in this
-// _test.go small — implementation lives in http_handler_helper_test.go.
 
 // --- Real-network round trips -------------------------------------
 
@@ -195,11 +192,12 @@ func TestHTTPHandshake_RealNetwork_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Evidence)
 	require.Equal(t, f.destMeasureBytes, resp.MeasurementHint)
+	require.NoError(t, kms.ValidateRecipientPublicKey(resp.RecipientPublicKey), "the key must survive the wire")
 
-	// Verify the Evidence the destination produced is actually
-	// validatable against its own pubkey + measurement.
+	// The Evidence that crossed the wire binds the key that crossed
+	// the wire, under this nonce.
 	verifier := tee.NewSimulatedVerifier(f.destProducer.PublicKey(), f.destMeasure)
-	measured, err := verifier.Verify(resp.Evidence, nonce)
+	measured, err := verifier.Verify(resp.Evidence, kms.RecipientChallenge(resp.RecipientPublicKey, nonce))
 	require.NoError(t, err)
 	require.Equal(t, f.destMeasure, measured)
 }
@@ -247,7 +245,7 @@ func TestHTTPToken_RealNetwork_HappyPath(t *testing.T) {
 
 	dek := make([]byte, 32)
 	_, _ = rand.Read(dek)
-	tok := signedTokenForHTTP(t, f, map[ids.KeyID][]byte{
+	tok := signedTokenForHTTP(t, f, handshakeOverHTTP(t, f), map[ids.KeyID][]byte{
 		ids.KeyID("http-dek-1"): dek,
 	})
 
@@ -264,7 +262,7 @@ func TestHTTPToken_RealNetwork_RejectsTamperedSignature(t *testing.T) {
 	f := newHTTPFixture(t, "")
 	dek := make([]byte, 32)
 	_, _ = rand.Read(dek)
-	tok := signedTokenForHTTP(t, f, map[ids.KeyID][]byte{ids.KeyID("k"): dek})
+	tok := signedTokenForHTTP(t, f, handshakeOverHTTP(t, f), map[ids.KeyID][]byte{ids.KeyID("k"): dek})
 	tok.Signature[0] ^= 0xFF
 
 	err := f.transport.SendKeyReleaseToken(context.Background(), f.server.URL, tok)
@@ -345,7 +343,6 @@ func TestFullCoordinatorRoundTrip_OverRealHTTP(t *testing.T) {
 		Signer:       f.sourceKeystore,
 		Verifiers:    registry,
 		Policy:       policy,
-		Wrapper:      kms.NewSimulatedKeyWrapper(),
 		Transport:    f.transport,
 		IDGenerator:  idGen,
 		NonceSource:  func(n int) ([]byte, error) { b := make([]byte, n); _, err := rand.Read(b); return b, err },

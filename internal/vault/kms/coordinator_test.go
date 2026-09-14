@@ -4,7 +4,10 @@ package kms
 
 import (
 	"context"
+	"crypto/ecdh"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -72,13 +75,23 @@ func (g *fakeIDGen) NewDecisionID() (ids.DecisionID, error) {
 }
 
 // producerBackedTransport simulates a destination by holding a real
-// tee.Producer; SendHandshakeRequest returns Evidence the test's
-// Verifier registry can validate.
+// tee.Producer. By default it behaves like an honest ADR-0009
+// destination: it generates an X25519 key per handshake and quotes over
+// RecipientChallenge(key, nonce). The remaining knobs model destinations
+// and networks that must be refused.
 type producerBackedTransport struct {
-	producer       tee.Producer
-	handshakeErr   error
-	tokenErr       error
-	emptyEvidence  bool // simulate destination returning no Evidence
+	producer      tee.Producer
+	handshakeErr  error
+	tokenErr      error
+	emptyEvidence bool // destination returns no Evidence
+
+	withholdKey    bool   // destination presents no recipient key (pre-ADR-0009)
+	quoteBareNonce bool   // destination quotes over the bare nonce, not the challenge
+	substituteKey  []byte // a man in the middle replaces the presented key
+	chosenKey      []byte // the destination itself presents (and quotes over) this key
+
+	recipientPriv  []byte // private half of the key the destination generated
+	recipientPub   []byte // the key the destination presented
 	sentTokens     []krt.KeyReleaseToken
 	sentHandshakes []cchr.CrossCloudHandshakeRequest
 }
@@ -95,12 +108,31 @@ func (t *producerBackedTransport) SendHandshakeRequest(
 	if t.emptyEvidence {
 		return HandshakeResponse{}, nil
 	}
-	evidence, err := t.producer.Quote(req.HandshakeNonce)
+	k, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		return HandshakeResponse{}, err
+	}
+	t.recipientPriv, t.recipientPub = k.Bytes(), k.PublicKey().Bytes()
+	if t.chosenKey != nil {
+		t.recipientPriv, t.recipientPub = nil, t.chosenKey
+	}
+	challenge := RecipientChallenge(t.recipientPub, req.HandshakeNonce)
+	if t.quoteBareNonce {
+		challenge = req.HandshakeNonce
+	}
+	evidence, err := t.producer.Quote(challenge)
 	if err != nil {
 		return HandshakeResponse{}, err
 	}
 	m := t.producer.Measurement()
-	return HandshakeResponse{Evidence: evidence, MeasurementHint: m[:]}, nil
+	resp := HandshakeResponse{Evidence: evidence, MeasurementHint: m[:], RecipientPublicKey: t.recipientPub}
+	switch {
+	case t.withholdKey:
+		resp.RecipientPublicKey = nil
+	case t.substituteKey != nil:
+		resp.RecipientPublicKey = t.substituteKey
+	}
+	return resp, nil
 }
 
 func (t *producerBackedTransport) SendKeyReleaseToken(
@@ -199,7 +231,6 @@ func makeFixture(t *testing.T) *fixture {
 		Signer:       keyStore,
 		Verifiers:    registry,
 		Policy:       policy,
-		Wrapper:      NewSimulatedKeyWrapper(),
 		Transport:    transport,
 		IDGenerator:  idGen,
 		NonceSource:  deterministicNonceSource(0xA0),
@@ -256,7 +287,6 @@ func TestNewCoordinator_RequiresAllFields(t *testing.T) {
 		Signer:       store,
 		Verifiers:    registry,
 		Policy:       policy,
-		Wrapper:      NewSimulatedKeyWrapper(),
 		Transport:    &producerBackedTransport{},
 		IDGenerator:  &fakeIDGen{},
 		NonceSource:  deterministicNonceSource(0),
@@ -273,7 +303,6 @@ func TestNewCoordinator_RequiresAllFields(t *testing.T) {
 		{"Signer", func(c *Config) { c.Signer = nil }},
 		{"Verifiers", func(c *Config) { c.Verifiers = nil }},
 		{"Policy", func(c *Config) { c.Policy = nil }},
-		{"Wrapper", func(c *Config) { c.Wrapper = nil }},
 		{"Transport", func(c *Config) { c.Transport = nil }},
 		{"IDGenerator", func(c *Config) { c.IDGenerator = nil }},
 		{"NonceSource", func(c *Config) { c.NonceSource = nil }},
@@ -352,26 +381,124 @@ func TestCoordinateRestore_HappyPath(t *testing.T) {
 }
 
 // TestCoordinateRestore_TokenUnwrapsAtDestination exercises the full
-// crypto loop: wrap on source side → unwrap on destination side using
-// the destination's measurement (which is what the destination's
-// Sealer would produce).
+// crypto loop: each DEK is encapsulated to the key the destination
+// attested, and only that key's private half opens it.
 func TestCoordinateRestore_TokenUnwrapsAtDestination(t *testing.T) {
 	t.Parallel()
 	f := makeFixture(t)
 	req := validRequest(f)
 	res, err := f.coord.CoordinateRestore(context.Background(), req)
 	require.NoError(t, err)
+	pubHash := sha256.Sum256(f.transport.recipientPub)
+	require.Equal(t, pubHash[:], res.RecipientKeySHA256)
 
 	require.Len(t, f.transport.sentTokens, 1)
 	tok := f.transport.sentTokens[0]
-	unwrapper := NewSimulatedKeyUnwrapper()
-
+	otherPriv, _ := newX25519(t)
 	for i, w := range tok.Wrapped {
-		plain, err := unwrapper.Unwrap(w.Ciphertext, f.destMeasure[:], w.AAD)
-		require.NoError(t, err, "wrapped key #%d must unwrap under destination measurement", i)
+		plain, err := X25519KeyUnwrapper{}.Unwrap(w.Ciphertext, f.transport.recipientPriv, w.AAD)
+		require.NoError(t, err, "wrapped key #%d must open with the attested key", i)
 		require.Equal(t, req.KeysToRelease[i].Plaintext, plain, "round-trip plaintext must match")
+
+		_, err = X25519KeyUnwrapper{}.Unwrap(w.Ciphertext, otherPriv, w.AAD)
+		require.Error(t, err, "wrapped key #%d opened with a key the destination never attested", i)
 	}
-	_ = res
+}
+
+// TestCoordinateRestore_DefectB_TokenPlusMeasurementRevealsNothing is the
+// regression test for defect (b). The old wrap key was
+// SHA-256("vault-genome-xcc-wrap-v1" ‖ measurement), and the measurement is
+// public, so anyone holding a token could open its DEKs. An eavesdropper
+// with the token and the measurement must now learn nothing, whichever way
+// they try to use the measurement.
+func TestCoordinateRestore_DefectB_TokenPlusMeasurementRevealsNothing(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	req := validRequest(f)
+	_, err := f.coord.CoordinateRestore(context.Background(), req)
+	require.NoError(t, err)
+	tok := f.transport.sentTokens[0]
+	measurement := tok.DestinationMeasurement // public: it is in the token itself
+
+	oldKey := sha256.Sum256(append([]byte("vault-genome-xcc-wrap-v1"), measurement...))
+	for i, w := range tok.Wrapped {
+		_, err := aeadOpen(oldKey[:], w.Ciphertext, w.AAD)
+		require.Error(t, err, "wrapped key #%d opened under the old measurement-derived key", i)
+		_, err = aeadOpen(oldKey[:], w.Ciphertext[RecipientKeySize:], w.AAD)
+		require.Error(t, err, "wrapped key #%d opened under the old key past the ephemeral share", i)
+		_, err = X25519KeyUnwrapper{}.Unwrap(w.Ciphertext, measurement, w.AAD)
+		require.Error(t, err, "wrapped key #%d opened with the measurement as an X25519 key", i)
+		require.NotContains(t, string(w.Ciphertext), string(req.KeysToRelease[i].Plaintext))
+	}
+}
+
+// --- A destination that cannot prove its key gets nothing ------------
+
+func requireRefusedBeforeRelease(t *testing.T, f *fixture, err error) {
+	t.Helper()
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity), "got %v", err)
+	require.Empty(t, f.transport.sentTokens, "no token may leave for an unproven key")
+	require.Len(t, f.auditChain.events, 1, "only the handshake is on record; nothing was verified or authorised")
+	require.Equal(t, audit_event.KindCrossCloudHandshakeInitiated, f.auditChain.events[0].Kind)
+}
+
+func TestCoordinateRestore_RefusesDestinationWithoutRecipientKey(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	f.transport.withholdKey = true
+	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	requireRefusedBeforeRelease(t, f, err)
+}
+
+// A man in the middle swaps the destination's key for their own. The
+// genuine Evidence was quoted over the real key, so it no longer verifies.
+func TestCoordinateRestore_RefusesSubstitutedRecipientKey(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	_, attackerPub := newX25519(t)
+	f.transport.substituteKey = attackerPub
+	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	requireRefusedBeforeRelease(t, f, err)
+}
+
+// Evidence over the bare nonce proves the TEE is genuine and fresh but
+// says nothing about the key; it is not enough.
+func TestCoordinateRestore_RefusesEvidenceNotBoundToKey(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	f.transport.quoteBareNonce = true
+	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	requireRefusedBeforeRelease(t, f, err)
+}
+
+// A genuine TEE that attests a degenerate key (all-zero, a low-order
+// point) passes attestation; the key itself must still be refused before
+// anything is verified-on-record or wrapped to it.
+func TestCoordinateRestore_RefusesLowOrderRecipientKey(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	f.transport.chosenKey = make([]byte, RecipientKeySize)
+	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	requireRefusedBeforeRelease(t, f, err)
+}
+
+// The audit chain records which attested key the DEKs went to and how.
+func TestCoordinateRestore_AuditRecordsRecipientKey(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	require.NoError(t, err)
+	want := sha256.Sum256(f.transport.recipientPub)
+
+	var verified attestationVerifiedPayload
+	require.NoError(t, json.Unmarshal(f.auditChain.events[1].Payload, &verified))
+	require.Equal(t, want[:], verified.RecipientKeySHA256)
+
+	var released keyReleaseAuthorizedPayload
+	require.NoError(t, json.Unmarshal(f.auditChain.events[2].Payload, &released))
+	require.Equal(t, want[:], released.RecipientKeySHA256)
+	require.Equal(t, DeliveryModeX25519KEM, released.DeliveryMode)
 }
 
 // --- CoordinateRestore error paths ---------------------------------

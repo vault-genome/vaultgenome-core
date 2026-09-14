@@ -2,15 +2,14 @@
 
 package kms
 
-// X25519 key-encapsulation (ECIES) — the honest replacement for the symmetric,
-// measurement-derived SimulatedKeyWrapper (see wrapper.go and KNOWN_ISSUES
-// defect (b)). A per-token DEK is encapsulated to the destination's X25519
-// public key using an ephemeral X25519 key, HKDF-SHA256, and AES-256-GCM. Only
-// the holder of the destination private key can unwrap. In production that
-// private key is generated INSIDE the destination TEE and never leaves it, and
-// its public key is bound into the attestation REPORT_DATA (proven end-to-end
-// by the SEV-SNP keybind evidence), so a measurement — a public value — is no
-// longer sufficient to unwrap.
+// X25519 key-encapsulation (ECIES), the only way a DEK crosses clouds (ADR
+// 0009). Each DEK is encapsulated to the destination's X25519 public key with
+// an ephemeral X25519 key, HKDF-SHA256 and AES-256-GCM; only the holder of the
+// destination private key can unwrap. The destination generates that key
+// inside its TEE for one handshake and never writes it anywhere, and proves the
+// binding in the Evidence itself: it quotes over RecipientChallenge(pub,
+// nonce), so a measurement (a public value) is never enough to unwrap and a
+// key substituted in transit fails attestation.
 //
 // Wrapped layout: ephPub(32) || nonce(12) || ciphertext-with-tag.
 
@@ -19,12 +18,69 @@ import (
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/rand"
+	"crypto/sha512"
+	"encoding/binary"
 
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 )
 
 const kemInfoLabel = "vault-genome-xcc-kem-v1"
+
+// kemBindLabel domain-separates the key-binding challenge from every other
+// value the system asks a TEE to quote over. The Return Path's challenges are
+// 32-byte SHA-256 transcripts under their own labels; this one is a 64-byte
+// SHA-512, so no quote obtained through one protocol can satisfy the other.
+const kemBindLabel = "vault-genome xcc-kem-bind v1"
+
+// RecipientKeySize is the length of an X25519 public or private key.
+const RecipientKeySize = 32
+
+// RecipientChallenge is the attestation challenge a destination TEE quotes over
+// when it presents recipientPub in answer to a handshake carrying nonce:
+//
+//	SHA-512(label ‖ len32(recipientPub) ‖ recipientPub ‖ len32(nonce) ‖ nonce)
+//
+// Quoting over this value instead of the bare nonce makes every tee.Verifier's
+// freshness check double as the key binding, whatever the TEE family: Evidence
+// that verifies under the challenge proves a genuine TEE with the attested
+// measurement committed to recipientPub for this nonce. A key swapped in
+// transit changes the challenge, and the Evidence no longer verifies.
+func RecipientChallenge(recipientPub, nonce []byte) []byte {
+	h := sha512.New()
+	h.Write([]byte(kemBindLabel))
+	var n [4]byte
+	binary.BigEndian.PutUint32(n[:], uint32(len(recipientPub)))
+	h.Write(n[:])
+	h.Write(recipientPub)
+	binary.BigEndian.PutUint32(n[:], uint32(len(nonce)))
+	h.Write(n[:])
+	h.Write(nonce)
+	return h.Sum(nil)
+}
+
+// ValidateRecipientPublicKey accepts pub only if it is a usable X25519 public
+// key: exactly 32 bytes and not a low-order point (which would give every
+// encapsulation an all-zero shared secret).
+func ValidateRecipientPublicKey(pub []byte) error {
+	if len(pub) != RecipientKeySize {
+		return shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			"kms: recipient public key must be a 32-byte X25519 key", nil)
+	}
+	curve := ecdh.X25519()
+	key, err := curve.NewPublicKey(pub)
+	if err != nil {
+		return shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "kms: invalid X25519 recipient public key", err)
+	}
+	probe, err := curve.GenerateKey(rand.Reader)
+	if err != nil {
+		return shared_errors.Operational(shared_errors.CodeResourceExhausted, "kms: probe key generation failed", err)
+	}
+	if _, err := probe.ECDH(key); err != nil {
+		return shared_errors.Integrity(shared_errors.CodeFieldValueInvalid, "kms: recipient public key is a low-order point", err)
+	}
+	return nil
+}
 
 // X25519KeyWrapper encapsulates a DEK to a recipient X25519 public key.
 type X25519KeyWrapper struct{}
@@ -72,7 +128,7 @@ type X25519KeyUnwrapper struct{}
 func NewX25519KeyUnwrapper() *X25519KeyUnwrapper { return &X25519KeyUnwrapper{} }
 
 // Unwrap recovers plaintext using recipientPriv (a 32-byte X25519 private key),
-// held only inside the destination TEE in production.
+// which exists only inside the destination TEE, for one handshake.
 func (X25519KeyUnwrapper) Unwrap(wrapped, recipientPriv, aad []byte) ([]byte, error) {
 	if len(wrapped) < 32 {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "kms.Unwrap: wrapped material too short", nil)

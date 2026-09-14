@@ -50,10 +50,6 @@ const (
 	SchemaVersionMax     uint16 = 1
 	SchemaVersionCurrent uint16 = 1
 
-	// MeasurementSize is the byte length of a TEE measurement (SHA-256
-	// digest size). Mirrored from tee.Measurement = [crypto.HashSize]byte.
-	MeasurementSize = 32
-
 	// HandshakeNonceMinBytes is the minimum acceptable length for the
 	// handshake nonce. Aligned with tee.NonceMinBytes (RFC 9334 §10.1).
 	HandshakeNonceMinBytes = tee.NonceMinBytes
@@ -105,7 +101,7 @@ type CrossCloudHandshakeRequest struct {
 	// measurement, included for canonicalization stability. The
 	// destination's verification of SourceEvidence yields a
 	// measurement that MUST equal this field byte-for-byte. Length:
-	// exactly MeasurementSize bytes.
+	// 32, 48 or 64 bytes, as tee.MeasurementFromBytes accepts.
 	SourceMeasurement []byte `json:"source_measurement,omitempty"`
 
 	// InitiatedAt is the source-authority wall-clock moment of

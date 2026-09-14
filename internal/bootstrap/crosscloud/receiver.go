@@ -4,13 +4,18 @@ package crosscloud
 
 import (
 	"bytes"
+	"crypto/ecdh"
+	"crypto/rand"
 	"fmt"
+	"sync"
+	"time"
 
 	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
 	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 	"github.com/ai-continuity-platform/core/internal/vault/keys"
 	"github.com/ai-continuity-platform/core/internal/vault/kms"
 )
@@ -23,6 +28,10 @@ import (
 type HandshakeResponse struct {
 	Evidence        []byte
 	MeasurementHint []byte
+	// RecipientPublicKey is the X25519 key generated for this handshake.
+	// Evidence was quoted over kms.RecipientChallenge(RecipientPublicKey,
+	// nonce), which is what lets the source trust it.
+	RecipientPublicKey []byte
 }
 
 // KeyRegistrar is the destination-side keystore abstraction used to
@@ -34,54 +43,81 @@ type KeyRegistrar interface {
 	RegisterSealing(kid ids.KeyID, material []byte) error
 }
 
-// Config bundles the Receiver's dependencies. Every field is
-// required.
+// Defaults for the outstanding-handshake table.
+const (
+	// DefaultPendingTTL is how long a handshake's recipient key waits for
+	// its token before it is destroyed. A restore dispatches the token
+	// right after verifying the handshake, so minutes are generous.
+	DefaultPendingTTL = 5 * time.Minute
+	// DefaultMaxPending caps outstanding handshakes. Handshakes are signed
+	// by the source authority, so the cap bounds memory against a replay
+	// flood of captured requests rather than against strangers.
+	DefaultMaxPending = 64
+)
+
+// Config bundles the Receiver's dependencies.
 type Config struct {
 	// SourceAuthorityKeys resolves the source authority's signing
 	// public key. The Receiver looks up the SigningKeyID embedded
 	// in each incoming handshake / token to verify the Ed25519
-	// signature.
+	// signature. Required.
 	SourceAuthorityKeys keys.Resolver
 
-	// LocalTEE is the destination's TEE producer, used to generate
-	// Evidence in response to handshake nonces and to expose the
-	// local Measurement for token verification.
+	// LocalTEE is the destination's TEE producer, used to quote over
+	// each handshake's key-binding challenge. Required.
 	LocalTEE tee.Producer
 
-	// Unwrapper is the destination-side counterpart to the source's
-	// KeyWrapper. Wrap on source ↔ Unwrap on destination must derive
-	// identical AES-256 keys from the destination's Measurement.
-	// MVP: kms.SimulatedKeyUnwrapper.
-	Unwrapper kms.KeyUnwrapper
-
-	// RecipientPrivateKey, when set, switches DEK unwrapping to the X25519 KEM
-	// (ADR 0009): the receiver decapsulates each DEK with this TEE-held X25519
-	// PRIVATE key instead of a measurement-derived symmetric key. It is the
-	// private counterpart of the attested public key the destination presents in
-	// its handshake evidence (REPORT_DATA = hash(pubkey || nonce)); it never
-	// leaves the TEE. When empty, the legacy symmetric measurement path is used.
-	RecipientPrivateKey []byte
+	// Kind is the TEE family LocalTEE belongs to. A handshake that
+	// declares any other destination_tee_kind is refused: the source
+	// would verify our Evidence with the wrong verifier. Required.
+	Kind tee.Provider
 
 	// Registrar receives unwrapped DEKs and adds them to the local
-	// keystore for subsequent disclosure-message processing.
+	// keystore for subsequent disclosure-message processing. Required.
 	Registrar KeyRegistrar
+
+	// PendingTTL and MaxPending bound the outstanding-handshake table;
+	// zero selects DefaultPendingTTL / DefaultMaxPending.
+	PendingTTL time.Duration
+	MaxPending int
+
+	// Clock drives key expiry; nil selects the system clock.
+	Clock shared_time.Clock
 }
 
 // Receiver handles cross-cloud handshake requests and key-release
 // tokens on the destination side. Construct via NewReceiver; the
 // returned Receiver is safe for concurrent use.
+//
+// Every handshake gets its own X25519 key pair, generated here and kept
+// only in memory until the matching token consumes it, or until it
+// expires. The DEKs of one restore therefore stay confidential even if
+// a later handshake's key, or the host after the restore, is
+// compromised.
 type Receiver struct {
-	sourceKeys    keys.Resolver
-	localTEE      tee.Producer
-	unwrapper     kms.KeyUnwrapper
-	recipientPriv []byte // X25519 KEM private key (ADR 0009); empty → symmetric path
-	registrar     KeyRegistrar
+	sourceKeys keys.Resolver
+	localTEE   tee.Producer
+	kind       tee.Provider
+	registrar  KeyRegistrar
+	clock      shared_time.Clock
+	ttl        time.Duration
+	maxPending int
 
 	// localMeasurement is cached at construction; the local TEE's
 	// measurement does not change for the life of the daemon
 	// process (a measurement change implies a code-update event,
 	// which restarts the daemon).
 	localMeasurement tee.Measurement
+
+	mu      sync.Mutex
+	pending map[ids.RequestID]*pendingKey
+}
+
+// pendingKey is one handshake's recipient key, waiting for its token.
+type pendingKey struct {
+	priv       []byte
+	decisionID ids.DecisionID
+	expires    time.Time
 }
 
 // NewReceiver validates the Config and returns a ready-to-use
@@ -93,49 +129,73 @@ func NewReceiver(cfg Config) (*Receiver, error) {
 	if cfg.LocalTEE == nil {
 		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "crosscloud.NewReceiver: LocalTEE required", nil)
 	}
-	if cfg.Unwrapper == nil {
-		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "crosscloud.NewReceiver: Unwrapper required", nil)
-	}
 	if cfg.Registrar == nil {
 		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "crosscloud.NewReceiver: Registrar required", nil)
 	}
-	return &Receiver{
+	if cfg.Kind == "" {
+		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "crosscloud.NewReceiver: Kind required", nil)
+	}
+	if _, err := tee.ParseProvider(string(cfg.Kind)); err != nil {
+		return nil, err
+	}
+	if cfg.PendingTTL < 0 || cfg.MaxPending < 0 {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crosscloud.NewReceiver: PendingTTL and MaxPending must not be negative", nil)
+	}
+	r := &Receiver{
 		sourceKeys:       cfg.SourceAuthorityKeys,
 		localTEE:         cfg.LocalTEE,
-		unwrapper:        cfg.Unwrapper,
-		recipientPriv:    cfg.RecipientPrivateKey,
+		kind:             cfg.Kind,
 		registrar:        cfg.Registrar,
+		clock:            cfg.Clock,
+		ttl:              cfg.PendingTTL,
+		maxPending:       cfg.MaxPending,
 		localMeasurement: cfg.LocalTEE.Measurement(),
-	}, nil
+		pending:          make(map[ids.RequestID]*pendingKey),
+	}
+	if r.clock == nil {
+		r.clock = shared_time.NewSystemClock()
+	}
+	if r.ttl == 0 {
+		r.ttl = DefaultPendingTTL
+	}
+	if r.maxPending == 0 {
+		r.maxPending = DefaultMaxPending
+	}
+	return r, nil
 }
 
 // HandleHandshakeRequest validates a CrossCloudHandshakeRequest from
-// a source authority and returns a HandshakeResponse containing local
-// Evidence under the source-supplied nonce.
+// a source authority and answers with a fresh recipient key and
+// Evidence that binds it.
 //
-// Validation steps (in order):
+// Steps, in order:
 //
 //  1. Structural validation via cchr.Validate.
-//  2. DestinationTEEKind announced in the request must match what
-//     the operator has provisioned this Receiver for (if the source
-//     declares us as Intel-SGX but we are AWS Nitro, the request
-//     is rejected — there is no point dispatching Evidence the
-//     source's verifier cannot interpret).
+//  2. The declared DestinationTEEKind must be the Kind this Receiver
+//     was provisioned with.
 //  3. Source signature verified against the source authority's
-//     pre-loaded public key.
-//  4. Local Evidence generated via tee.Producer.Quote(req.HandshakeNonce).
+//     pre-loaded public key. Nothing below runs for an unsigned or
+//     forged request.
+//  4. A new X25519 key pair is generated and recorded against the
+//     request ID; a request ID already outstanding is a replay and is
+//     refused rather than allowed to replace the key.
+//  5. Local Evidence is quoted over kms.RecipientChallenge(pub, nonce).
 //
-// The returned HandshakeResponse carries Evidence + a MeasurementHint
-// (which the source treats as informational; the source's verifier
-// re-derives the Measurement from Evidence as ground truth).
+// The returned HandshakeResponse carries the Evidence, the public key
+// and a MeasurementHint (informational; the source re-derives the
+// measurement from the Evidence).
 func (r *Receiver) HandleHandshakeRequest(
 	req cchr.CrossCloudHandshakeRequest,
 ) (HandshakeResponse, error) {
 	if err := req.Validate(); err != nil {
 		return HandshakeResponse{}, err
 	}
-	if err := r.assertLocalMatchesDeclaredKind(req.DestinationTEEKind); err != nil {
-		return HandshakeResponse{}, err
+	if req.DestinationTEEKind != r.kind {
+		return HandshakeResponse{}, shared_errors.Structural(
+			shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("crosscloud.HandleHandshakeRequest: request is for a %q destination; this destination runs %q", req.DestinationTEEKind, r.kind),
+			nil,
+		)
 	}
 	if err := req.VerifySignature(r.sourceKeys); err != nil {
 		return HandshakeResponse{}, shared_errors.Integrity(
@@ -144,8 +204,23 @@ func (r *Receiver) HandleHandshakeRequest(
 			err,
 		)
 	}
-	evidence, err := r.localTEE.Quote(req.HandshakeNonce)
+
+	key, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
+		return HandshakeResponse{}, shared_errors.Operational(
+			shared_errors.CodeResourceExhausted,
+			"crosscloud.HandleHandshakeRequest: recipient key generation failed",
+			err,
+		)
+	}
+	pub := key.PublicKey().Bytes()
+	if err := r.remember(req.RequestID, req.DecisionID, key.Bytes()); err != nil {
+		return HandshakeResponse{}, err
+	}
+
+	evidence, err := r.localTEE.Quote(kms.RecipientChallenge(pub, req.HandshakeNonce))
+	if err != nil {
+		r.forget(req.RequestID)
 		return HandshakeResponse{}, shared_errors.Operational(
 			shared_errors.CodeResourceExhausted,
 			"crosscloud.HandleHandshakeRequest: local Quote failed",
@@ -155,8 +230,9 @@ func (r *Receiver) HandleHandshakeRequest(
 	measurementCopy := make([]byte, len(r.localMeasurement))
 	copy(measurementCopy, r.localMeasurement[:])
 	return HandshakeResponse{
-		Evidence:        evidence,
-		MeasurementHint: measurementCopy,
+		Evidence:           evidence,
+		MeasurementHint:    measurementCopy,
+		RecipientPublicKey: pub,
 	}, nil
 }
 
@@ -170,22 +246,22 @@ func (r *Receiver) HandleHandshakeRequest(
 //  1. Structural validation via krt.Validate.
 //  2. Source signature verified against pre-loaded source authority key.
 //  3. token.DestinationMeasurement byte-equality with local Measurement
-//     — the cryptographic gate. A token with a different measurement
-//     would fail to unwrap regardless (because the wrap key is
-//     destination-Measurement-derived), but checking explicitly
-//     yields a clearer error class.
-//  4. For each WrappedKey:
+//     (the policy gate: the source released to this workload).
+//  4. The recipient key of the handshake named by token.RequestID is
+//     taken out of the table (single use, whatever happens next); the
+//     token's DecisionID must match that handshake's.
+//  5. For each WrappedKey:
 //     a. Purpose must equal krt.PurposeSealing.
 //     b. AAD must equal the canonical SHA-256(TokenID ||
 //     DestinationMeasurement || KeyID) derived locally.
-//     c. Unwrap returns plaintext DEK bytes.
+//     c. The X25519 KEM opens the ciphertext with the handshake key.
 //     d. Plaintext registered via Registrar.RegisterSealing(KeyID).
 //
-// All-or-nothing semantics: if any WrappedKey fails to unwrap or
-// register, the whole token is rejected and any keys already
-// registered are NOT rolled back (the keystore allows overwriting,
-// so a partial registration is benign — the source-side coordinator
-// will re-issue or surface to the operator).
+// Keys registered before a later WrappedKey fails are NOT rolled back
+// (the keystore allows overwriting, so a partial registration is
+// benign — the source-side coordinator will re-issue or surface to
+// the operator). The handshake key is destroyed either way, so a
+// retry needs a new handshake.
 func (r *Receiver) HandleKeyReleaseToken(token krt.KeyReleaseToken) (int, error) {
 	if err := token.Validate(); err != nil {
 		return 0, err
@@ -201,6 +277,19 @@ func (r *Receiver) HandleKeyReleaseToken(token krt.KeyReleaseToken) (int, error)
 		return 0, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
 			"crosscloud.HandleKeyReleaseToken: token DestinationMeasurement does not match local TEE Measurement",
+			nil,
+		)
+	}
+
+	pk, err := r.take(token.RequestID)
+	if err != nil {
+		return 0, err
+	}
+	defer zeroize(pk.priv)
+	if token.DecisionID != pk.decisionID {
+		return 0, shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			fmt.Sprintf("crosscloud.HandleKeyReleaseToken: token decision %q does not match the handshake's decision %q", token.DecisionID, pk.decisionID),
 			nil,
 		)
 	}
@@ -222,17 +311,12 @@ func (r *Receiver) HandleKeyReleaseToken(token krt.KeyReleaseToken) (int, error)
 				nil,
 			)
 		}
-		// X25519 KEM (ADR 0009): decapsulate with the TEE-held private key when
-		// present; otherwise the legacy measurement-derived symmetric path.
-		keyMaterial := token.DestinationMeasurement
-		if len(r.recipientPriv) > 0 {
-			keyMaterial = r.recipientPriv
-		}
-		plaintext, err := r.unwrapper.Unwrap(w.Ciphertext, keyMaterial, w.AAD)
+		plaintext, err := kms.X25519KeyUnwrapper{}.Unwrap(w.Ciphertext, pk.priv, w.AAD)
 		if err != nil {
 			return registered, err
 		}
 		if err := r.registrar.RegisterSealing(w.KeyID, plaintext); err != nil {
+			zeroize(plaintext)
 			return registered, shared_errors.Operational(
 				shared_errors.CodeResourceExhausted,
 				fmt.Sprintf("crosscloud.HandleKeyReleaseToken: registering wrapped[%d] in keystore failed", i),
@@ -258,35 +342,83 @@ func (r *Receiver) LocalMeasurement() []byte {
 	return out
 }
 
-// assertLocalMatchesDeclaredKind enforces that the source's declared
-// DestinationTEEKind matches what this Receiver has been provisioned
-// for. The check is loose for the simulator (which can stand in for
-// any provider in tests) and strict for real backends.
-//
-// MVP: accept the kind if the operator's Receiver Config does not
-// specify a strict kind. Future versions will tighten this when
-// operators populate Config.ExpectedKind.
-func (r *Receiver) assertLocalMatchesDeclaredKind(declared tee.Provider) error {
-	if declared == "" {
-		return shared_errors.Structural(
-			shared_errors.CodeRequiredFieldMissing,
-			"crosscloud.HandleHandshakeRequest: declared destination_tee_kind required",
+// Outstanding reports how many handshakes are waiting for their token.
+func (r *Receiver) Outstanding() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.purgeExpiredLocked()
+	return len(r.pending)
+}
+
+// remember records a handshake's key. A request ID that is already
+// outstanding is refused, not replaced: replacing it would let a
+// replayed handshake invalidate the key the source is about to wrap to.
+func (r *Receiver) remember(id ids.RequestID, decision ids.DecisionID, priv []byte) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.purgeExpiredLocked()
+	if _, dup := r.pending[id]; dup {
+		zeroize(priv)
+		return shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			fmt.Sprintf("crosscloud.HandleHandshakeRequest: request %q already has an outstanding handshake (replay?)", id),
 			nil,
 		)
 	}
-	// Phase 4 MVP: accept any known kind. Real deployments enforce
-	// (declared == operator-provisioned-kind) via a future Config
-	// field.
-	for _, p := range tee.AllProviders() {
-		if p == declared {
-			return nil
+	if len(r.pending) >= r.maxPending {
+		zeroize(priv)
+		return shared_errors.Operational(
+			shared_errors.CodeResourceExhausted,
+			fmt.Sprintf("crosscloud.HandleHandshakeRequest: %d handshakes already outstanding", len(r.pending)),
+			nil,
+		)
+	}
+	r.pending[id] = &pendingKey{
+		priv:       priv,
+		decisionID: decision,
+		expires:    r.clock.Now().Add(r.ttl),
+	}
+	return nil
+}
+
+// take removes and returns the key for id. It is gone afterwards even if
+// the caller then fails: a handshake key opens at most one token.
+func (r *Receiver) take(id ids.RequestID) (*pendingKey, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	pk, ok := r.pending[id]
+	delete(r.pending, id)
+	if ok && !r.clock.Now().Before(pk.expires) {
+		zeroize(pk.priv)
+		ok = false
+	}
+	if !ok {
+		return nil, shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			fmt.Sprintf("crosscloud.HandleKeyReleaseToken: no outstanding handshake for request %q (expired, already used, or never issued)", id),
+			nil,
+		)
+	}
+	return pk, nil
+}
+
+func (r *Receiver) forget(id ids.RequestID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if pk, ok := r.pending[id]; ok {
+		zeroize(pk.priv)
+		delete(r.pending, id)
+	}
+}
+
+func (r *Receiver) purgeExpiredLocked() {
+	now := r.clock.Now()
+	for id, pk := range r.pending {
+		if !now.Before(pk.expires) {
+			zeroize(pk.priv)
+			delete(r.pending, id)
 		}
 	}
-	return shared_errors.Structural(
-		shared_errors.CodeFieldValueInvalid,
-		fmt.Sprintf("crosscloud.HandleHandshakeRequest: declared kind %q is not a known Provider", declared),
-		nil,
-	)
 }
 
 // canonicalWrapAAD MUST mirror exactly the AAD derivation used on the
@@ -300,8 +432,6 @@ func (r *Receiver) assertLocalMatchesDeclaredKind(declared tee.Provider) error {
 // drift in either implementation surfaces immediately as an
 // Integrity-class rejection at the destination.
 func canonicalWrapAAD(tokenID ids.DecisionID, destinationMeasurement []byte, keyID ids.KeyID) []byte {
-	// Use shared crypto.SHA256 so both sides agree on the digest.
-	// crypto.SHA256 imported below.
 	buf := make([]byte, 0, len(tokenID)+len(destinationMeasurement)+len(keyID))
 	buf = append(buf, []byte(tokenID)...)
 	buf = append(buf, destinationMeasurement...)
@@ -311,14 +441,9 @@ func canonicalWrapAAD(tokenID ids.DecisionID, destinationMeasurement []byte, key
 }
 
 // zeroize overwrites the slice with zero bytes. Best-effort defense
-// against plaintext DEK material remaining on the stack after
-// keystore registration.
+// against key material lingering in memory after use.
 func zeroize(b []byte) {
 	for i := range b {
 		b[i] = 0
 	}
 }
-
-// (sha256OfBytes is implemented in receiver_crypto.go to keep this
-// file free of stdlib hashing imports — keeps the diff readable
-// when Phase 5 swaps in a hardware-backed digest engine.)

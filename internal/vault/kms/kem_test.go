@@ -80,6 +80,44 @@ func TestX25519KEM_FreshEphemeralPerWrap(t *testing.T) {
 	require.NotEqual(t, c1, c2, "each Wrap uses a fresh ephemeral key + nonce")
 }
 
+// The challenge must commit to both the key and the nonce, unambiguously:
+// changing either, or shifting bytes between them, changes it.
+func TestRecipientChallenge_BindsKeyAndNonce(t *testing.T) {
+	t.Parallel()
+	_, pub := newX25519(t)
+	_, other := newX25519(t)
+	nonce := []byte("0123456789abcdef")
+
+	c := RecipientChallenge(pub, nonce)
+	require.Len(t, c, 64)
+	require.Equal(t, c, RecipientChallenge(pub, nonce), "deterministic")
+	require.NotEqual(t, c, RecipientChallenge(other, nonce), "a substituted key changes the challenge")
+	require.NotEqual(t, c, RecipientChallenge(pub, []byte("0123456789abcdeX")), "a different nonce changes the challenge")
+	// Length prefixes: moving a byte from the key into the nonce is a different challenge.
+	require.NotEqual(t,
+		RecipientChallenge(pub[:31], append([]byte{pub[31]}, nonce...)),
+		c)
+}
+
+func TestValidateRecipientPublicKey(t *testing.T) {
+	t.Parallel()
+	_, pub := newX25519(t)
+	require.NoError(t, ValidateRecipientPublicKey(pub))
+
+	for name, bad := range map[string][]byte{
+		"empty":   nil,
+		"short":   pub[:31],
+		"long":    append(append([]byte(nil), pub...), 0),
+		"zero":    make([]byte, 32), // low-order point
+		"order-8": {0xe0, 0xeb, 0x7a, 0x7c, 0x3b, 0x41, 0xb8, 0xae, 0x16, 0x56, 0xe3, 0xfa, 0xf1, 0x9f, 0xc4, 0x6a, 0xda, 0x09, 0x8d, 0xeb, 0x9c, 0x32, 0xb1, 0xfd, 0x86, 0x62, 0x05, 0x16, 0x5f, 0x49, 0xb8, 0x00},
+		"one":     append([]byte{1}, make([]byte, 31)...), // order-1 point
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Error(t, ValidateRecipientPublicKey(bad))
+		})
+	}
+}
+
 func TestX25519KEM_RejectsBadKeys(t *testing.T) {
 	t.Parallel()
 	_, err := NewX25519KeyWrapper().Wrap([]byte("dek"), make([]byte, 31), []byte("aad"))

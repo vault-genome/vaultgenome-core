@@ -11,6 +11,9 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/ai-continuity-platform/core/internal/shared/exposure"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 )
 
 // Config is the on-disk JSON configuration for acp-bootstrap.
@@ -23,10 +26,9 @@ type Config struct {
 	// endpoints). At least ListenAddress is required.
 	HTTP HTTPConfig `json:"http"`
 
-	// TEE configures the destination's local TEE producer. The
-	// MVP/demo build uses tee.ProviderSimulated with a configured
-	// seed file; production builds will swap to a hardware Provider
-	// without changing this section.
+	// TEE configures the destination's local TEE producer. This build
+	// runs tee.ProviderSimulated with a configured seed file; the
+	// hardware producers slot into the same section.
 	TEE TEEConfig `json:"tee"`
 
 	// SourceAuthority points at the source authority's signing
@@ -34,8 +36,8 @@ type Config struct {
 	// every incoming handshake + token signature against it.
 	SourceAuthority SourceAuthorityConfig `json:"source_authority"`
 
-	// Health controls the local /healthz /readyz /metrics listener.
-	// Empty disables the health listener.
+	// Health controls the /healthz and /readyz listener. Empty
+	// disables it. It answers liveness only and exposes nothing else.
 	Health HealthConfig `json:"health,omitempty"`
 
 	// Log controls structured-logging format and verbosity.
@@ -50,13 +52,21 @@ type HTTPConfig struct {
 
 	// BearerToken, if non-empty, is enforced on every incoming
 	// request via constant-time compare. Defence-in-depth alongside
-	// cryptographic signatures.
+	// the source authority's signatures on every payload. On a
+	// non-loopback listener without mTLS it is required and must be at
+	// least exposure.MinBearerTokenLen characters.
 	BearerToken string `json:"bearer_token,omitempty"`
 
-	// TLS configures the inbound mTLS material. When Enabled is
-	// false the listener is plain HTTP — permitted only for
-	// loopback / trusted-LAN demo. Production deployments MUST
-	// enable TLS.
+	// BearerTokenFile is the path to a file holding the bearer token
+	// (surrounding whitespace is trimmed). Prefer it over BearerToken
+	// so the secret lives with the other key material rather than in
+	// the config file. Mutually exclusive with BearerToken; resolved at
+	// startup by ResolveSecrets().
+	BearerTokenFile string `json:"bearer_token_file,omitempty"`
+
+	// TLS configures the inbound TLS / mTLS material. Plain HTTP is
+	// accepted only on a loopback listen address; Validate() refuses a
+	// non-loopback listener without TLS.
 	TLS TLSServerConfig `json:"tls,omitempty"`
 
 	// ReadHeaderTimeoutSeconds bounds HTTP request header reads
@@ -68,8 +78,9 @@ type HTTPConfig struct {
 	WriteTimeoutSeconds int `json:"write_timeout_seconds,omitempty"`
 }
 
-// TLSServerConfig holds the inbound mTLS material for the HTTP
-// listener.
+// TLSServerConfig holds the inbound TLS material for the HTTP
+// listener. The listener speaks TLS 1.3 only. ClientCAs, when set,
+// makes it require and verify a client certificate (mTLS).
 type TLSServerConfig struct {
 	Enabled    bool   `json:"enabled"`
 	ServerCert string `json:"server_cert"`
@@ -81,7 +92,10 @@ type TLSServerConfig struct {
 // configuration.
 type TEEConfig struct {
 	// Provider names the TEE backend (one of the tee.Provider
-	// constants). MVP/demo: "simulated".
+	// constants). This build can run "simulated" only; the hardware
+	// producers are wired in with the Continuity Drill (Phase 1). The
+	// provider is also the destination_tee_kind every handshake must
+	// declare.
 	Provider string `json:"provider"`
 
 	// WorkloadDescriptor is hashed into the local measurement for
@@ -113,7 +127,7 @@ type SourceAuthorityConfig struct {
 	PublicKeyPath string `json:"public_key_path"`
 }
 
-// HealthConfig controls /healthz /readyz /metrics.
+// HealthConfig controls /healthz and /readyz.
 type HealthConfig struct {
 	ListenAddress string `json:"listen_address"`
 }
@@ -187,15 +201,43 @@ func DecodeConfig(r io.Reader) (Config, error) {
 	return c, nil
 }
 
+// ResolveSecrets loads secret values that the config references by
+// path rather than inline — today the bearer token
+// (http.bearer_token_file). Call it after Validate().
+func (c *Config) ResolveSecrets() error {
+	if c.HTTP.BearerTokenFile == "" {
+		return nil
+	}
+	token, err := exposure.ReadTokenFile(c.HTTP.BearerTokenFile)
+	if err != nil {
+		return fmt.Errorf("acp-bootstrap: http.bearer_token_file: %w", err)
+	}
+	if !exposure.IsLoopback(c.HTTP.ListenAddress) && len(token) < exposure.MinBearerTokenLen {
+		return fmt.Errorf("acp-bootstrap: token in %q too short for non-loopback listen_address %q (need >= %d characters)",
+			c.HTTP.BearerTokenFile, c.HTTP.ListenAddress, exposure.MinBearerTokenLen)
+	}
+	c.HTTP.BearerToken = token
+	return nil
+}
+
 // Validate enforces structural checks. Returns a joined error so
 // operators see the full punch-list per run.
+//
+// Network exposure fails closed: plain HTTP and unauthenticated
+// callers are accepted only on a loopback listen address. Beyond it
+// the listener must speak TLS, and callers must present either a
+// client certificate (http.tls.client_cas) or a bearer token of at
+// least exposure.MinBearerTokenLen characters.
 func (c Config) Validate() error {
 	var errs []error
 
+	listenOK := false
 	if strings.TrimSpace(c.HTTP.ListenAddress) == "" {
 		errs = append(errs, errors.New("http.listen_address required"))
 	} else if _, _, err := net.SplitHostPort(c.HTTP.ListenAddress); err != nil {
 		errs = append(errs, fmt.Errorf("http.listen_address invalid: %w", err))
+	} else {
+		listenOK = true
 	}
 
 	if c.HTTP.TLS.Enabled {
@@ -205,12 +247,35 @@ func (c Config) Validate() error {
 		if c.HTTP.TLS.ServerKey == "" {
 			errs = append(errs, errors.New("http.tls.server_key required when http.tls.enabled=true"))
 		}
-		// client_cas is optional — operators may want server-auth-only
-		// for early demos and add mTLS client cert pinning later.
+	} else if c.HTTP.TLS.ClientCAs != "" {
+		errs = append(errs, errors.New("http.tls.client_cas set but http.tls.enabled=false"))
+	}
+	if c.HTTP.BearerToken != "" && c.HTTP.BearerTokenFile != "" {
+		errs = append(errs, errors.New("http: set only one of bearer_token and bearer_token_file"))
+	}
+	if listenOK && !exposure.IsLoopback(c.HTTP.ListenAddress) {
+		if !c.HTTP.TLS.Enabled {
+			errs = append(errs, fmt.Errorf(
+				"http.tls.enabled required: listen_address %q is not loopback (key-release traffic across a network must be encrypted)",
+				c.HTTP.ListenAddress))
+		}
+		hasToken := c.HTTP.BearerToken != "" || c.HTTP.BearerTokenFile != ""
+		if c.HTTP.TLS.ClientCAs == "" && !hasToken {
+			errs = append(errs, fmt.Errorf(
+				"http.tls.client_cas or http.bearer_token(_file) required: listen_address %q is not loopback",
+				c.HTTP.ListenAddress))
+		}
+		if c.HTTP.BearerToken != "" && len(c.HTTP.BearerToken) < exposure.MinBearerTokenLen {
+			errs = append(errs, fmt.Errorf(
+				"http.bearer_token too short for non-loopback listen_address %q (need >= %d characters)",
+				c.HTTP.ListenAddress, exposure.MinBearerTokenLen))
+		}
 	}
 
 	if strings.TrimSpace(c.TEE.Provider) == "" {
 		errs = append(errs, errors.New("tee.provider required"))
+	} else if _, err := tee.ParseProvider(c.TEE.Provider); err != nil {
+		errs = append(errs, fmt.Errorf("tee.provider invalid: %w", err))
 	}
 	if strings.TrimSpace(c.TEE.WorkloadDescriptor) == "" {
 		errs = append(errs, errors.New("tee.workload_descriptor required"))
