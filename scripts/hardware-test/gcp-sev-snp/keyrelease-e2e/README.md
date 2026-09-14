@@ -16,7 +16,7 @@ destination's Evidence is genuine hardware and that the whole chain accepts it.
 
 ## Result — run `20260914T212909Z` (evidence/20260914T212909Z), the complete one
 
-us-central1-c. With the durable audit log (ADR 0009 follow-up) and the operator
+us-central1-c. With the durable audit log (KNOWN_ISSUES #9) and the operator
 stop (ADR 0010) in place:
 
 | Step | Outcome |
