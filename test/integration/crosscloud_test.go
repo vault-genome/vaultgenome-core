@@ -134,13 +134,13 @@ func (x *xcc) auditVerify(t *testing.T) (ok bool, events int, tip string) {
 
 // destinationConfig writes an acp-bootstrap config with TLS 1.3, mTLS
 // against the deployment CA and a bearer token, whose TEE runs on a
-// fresh seed; it returns the config path.
-func (x *xcc) destinationConfig(t *testing.T, name string) string {
+// fresh seed; it returns the config path. extra adds top-level sections.
+func (x *xcc) destinationConfig(t *testing.T, name string, extra ...map[string]any) string {
 	t.Helper()
 	seedPath := filepath.Join(x.dir, name+"_tee_seed")
 	writeSecret(t, seedPath, randomBytes(t, 32))
 	sec := func(p ...string) string { return filepath.Join(append([]string{x.secrets}, p...)...) }
-	return writeJSON(t, name+".json", map[string]any{
+	cfg := map[string]any{
 		"http": map[string]any{
 			"listen_address":    loopback(t),
 			"bearer_token_file": filepath.Join(x.dir, "api_token"),
@@ -162,7 +162,13 @@ func (x *xcc) destinationConfig(t *testing.T, name string) string {
 		},
 		"health": map[string]any{"listen_address": loopback(t)},
 		"log":    map[string]any{"level": "debug", "format": "json"},
-	})
+	}
+	for _, e := range extra {
+		for k, v := range e {
+			cfg[k] = v
+		}
+	}
+	return writeJSON(t, name+".json", cfg)
 }
 
 // startDestination runs acp-bootstrap with cfg and waits for /readyz.
@@ -248,18 +254,41 @@ type restoreResult struct {
 	StopSerial                uint64 `json:"operator_stop_serial"`
 }
 
-// restore runs `sagvd crosscloud-restore` to completion and returns its
-// report, its combined output, and its exit error.
+// restore releases a fresh DEK with `sagvd crosscloud-restore` and
+// returns its report, its combined output, and its exit error. The DEK
+// goes in a 0600 key file, as an operator keeps it, never in argv.
 func (x *xcc) restore(t *testing.T, config, endpoint string, dek []byte) (restoreResult, string, error) {
 	t.Helper()
 	x.releases++
-	cmd := exec.Command(bins.sagvd, "crosscloud-restore",
+	kid := fmt.Sprintf("genome-dek-%d", x.releases)
+	keyFile := filepath.Join(x.dir, kid+".key")
+	writeSecret(t, keyFile, dek)
+	return x.release(t, config, endpoint, fmt.Sprintf("drill-decision-%d", x.releases), kid+":"+keyFile)
+}
+
+// release runs `sagvd crosscloud-restore` for decision with the given
+// -key-file KID:PATH entries.
+func (x *xcc) release(t *testing.T, config, endpoint, decision string, keyFiles ...string) (restoreResult, string, error) {
+	t.Helper()
+	args := []string{"crosscloud-restore",
 		"-config", config,
-		"-decision-id", fmt.Sprintf("drill-decision-%d", x.releases),
+		"-decision-id", decision,
 		"-destination-kind", "simulated",
 		"-destination-endpoint", endpoint,
-		"-key", fmt.Sprintf("genome-dek-%d:%s", x.releases, hex.EncodeToString(dek)),
-	)
+	}
+	for _, k := range keyFiles {
+		args = append(args, "-key-file", k)
+	}
+	var res restoreResult
+	out, err := runJSON(t, &res, bins.sagvd, args...)
+	return res, out, err
+}
+
+// runJSON runs bin to completion, decodes its stdout as JSON into v, and
+// returns its combined output and exit error.
+func runJSON(t *testing.T, v any, bin string, args ...string) (string, error) {
+	t.Helper()
+	cmd := exec.Command(bin, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	done := make(chan error, 1)
@@ -272,15 +301,14 @@ func (x *xcc) restore(t *testing.T, config, endpoint string, dek []byte) (restor
 	case runErr = <-done:
 	case <-time.After(jobTimeout):
 		_ = cmd.Process.Kill()
-		t.Fatalf("crosscloud-restore did not finish\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+		t.Fatalf("%s %s did not finish\nstdout:\n%s\nstderr:\n%s", filepath.Base(bin), args[0], stdout.String(), stderr.String())
 	}
-	var res restoreResult
 	if stdout.Len() > 0 {
-		if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
-			t.Fatalf("crosscloud-restore output is not JSON: %v\n%s", err, stdout.String())
+		if err := json.Unmarshal(stdout.Bytes(), v); err != nil {
+			t.Fatalf("%s %s output is not JSON: %v\n%s", filepath.Base(bin), args[0], err, stdout.String())
 		}
 	}
-	return res, stdout.String() + stderr.String(), runErr
+	return stdout.String() + stderr.String(), runErr
 }
 
 // destLog returns the destination's structured log lines with msg.

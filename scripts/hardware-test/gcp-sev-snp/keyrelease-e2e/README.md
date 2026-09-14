@@ -57,8 +57,10 @@ above used both.
 
 - The two processes share one guest. A source on another host changes only the
   network path, which the live test suite already covers over mutual TLS.
-- The released DEK is registered in the destination's in-memory keystore; using
-  it to open a sealed genome is the next step of the Continuity Drill.
+- The run releases a DEK only. Restoring a sealed genome with the released key
+  and confirming it from the destination's TEE-signed receipt (ADR 0011) is
+  proven live in `test/integration/genome_drill_test.go`; its hardware run is
+  the next step of the Continuity Drill.
 - Only SEV-SNP. Other TEE families are refused by both binaries.
 
 ## Reproduce

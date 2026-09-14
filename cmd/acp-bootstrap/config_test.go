@@ -215,3 +215,34 @@ func TestHTTPTimeouts(t *testing.T) {
 		t.Fatalf("overrides: %v %v", h.ReadHeaderTimeout(), h.WriteTimeout())
 	}
 }
+
+// --- genome restore ----------------------------------------------------
+
+func TestValidate_GenomeRestoreDirectories(t *testing.T) {
+	c := minimalValidConfig()
+	c.Genome = GenomeConfig{BundleDir: "/var/lib/vg/bundles", RestoreDir: "/var/lib/vg/restored", RescanSeconds: 2}
+	requireValid(t, c)
+
+	for name, tc := range map[string]struct {
+		g    GenomeConfig
+		want string
+	}{
+		"bundles only":      {GenomeConfig{BundleDir: "/var/lib/vg/bundles"}, "genome.restore_dir required"},
+		"restores only":     {GenomeConfig{RestoreDir: "/var/lib/vg/restored"}, "genome.bundle_dir required"},
+		"relative":          {GenomeConfig{BundleDir: "bundles", RestoreDir: "/var/lib/vg/restored"}, "must be an absolute path"},
+		"same directory":    {GenomeConfig{BundleDir: "/var/lib/vg", RestoreDir: "/var/lib/vg/"}, "separate directories"},
+		"restores inside":   {GenomeConfig{BundleDir: "/var/lib/vg", RestoreDir: "/var/lib/vg/restored"}, "separate directories"},
+		"bundles inside":    {GenomeConfig{BundleDir: "/var/lib/vg/restored/b", RestoreDir: "/var/lib/vg/restored"}, "separate directories"},
+		"negative interval": {GenomeConfig{BundleDir: "/a", RestoreDir: "/b", RescanSeconds: -1}, "rescan_seconds"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := minimalValidConfig()
+			c.Genome = tc.g
+			requireInvalid(t, c, tc.want)
+		})
+	}
+
+	// Sibling directories that share a name prefix are separate.
+	c.Genome = GenomeConfig{BundleDir: "/var/lib/vg/b", RestoreDir: "/var/lib/vg/bb"}
+	requireValid(t, c)
+}

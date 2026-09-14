@@ -395,6 +395,23 @@ func (s *InMemoryStore) Open(kid ids.KeyID, nonce, ciphertext, aad []byte) ([]by
 	return crypto.Open(k.Material, nonce, ciphertext, aad)
 }
 
+// EraseSealing wipes and forgets one sealing key. It reports whether the
+// key was held. A destination erases a genome's key once the genome is
+// restored, so the key does not outlive its use in memory.
+func (s *InMemoryStore) EraseSealing(kid ids.KeyID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k, ok := s.sealing[kid]
+	if !ok {
+		return false
+	}
+	for i := range k.Material {
+		k.Material[i] = 0
+	}
+	delete(s.sealing, kid)
+	return true
+}
+
 // Zeroize wipes all key material. Called by incident termination per
 // patent P1 §[0020]. Callers should expect the store to be unusable
 // afterward.

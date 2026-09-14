@@ -60,6 +60,16 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "crosscloud-confirm":
+			// Confirms a released genome's restore from the
+			// destination's TEE-signed receipt and records it
+			// (ADR 0011).
+			if err := runCrossCloudConfirmCmd(os.Args[2:]); err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
+					Error("sagvd crosscloud-confirm: terminated with error", "err", err.Error())
+				os.Exit(1)
+			}
+			return
 		}
 	}
 
@@ -223,7 +233,9 @@ func printUsage() {
 	fmt.Println("  sagvd -config PATH")
 	fmt.Println("  sagvd identity -config PATH")
 	fmt.Println("  sagvd crosscloud-restore -config PATH -decision-id ID -destination-kind KIND \\")
-	fmt.Println("        -destination-endpoint URL -key KID:HEX [-key ...] [-session-id ID] [-manifest-id ID]")
+	fmt.Println("        -destination-endpoint URL -key-file KID:PATH [-key-file ...] [-session-id ID] [-manifest-id ID]")
+	fmt.Println("  sagvd crosscloud-confirm -config PATH -decision-id ID -destination-endpoint URL \\")
+	fmt.Println("        {-bundle PATH | -key-id KID} [-wait DURATION]")
 	fmt.Println("  sagvd version")
 	fmt.Println("  sagvd help")
 	fmt.Println()
@@ -234,7 +246,9 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("  identity prints the authority signing key and TEE identity other")
 	fmt.Println("  hosts pin, as JSON. crosscloud-restore releases DEKs to an attested,")
-	fmt.Println("  allow-listed acp-bootstrap destination (docs/operator/06_cross_cloud_restore.md).")
+	fmt.Println("  allow-listed acp-bootstrap destination (docs/operator/06_cross_cloud_restore.md);")
+	fmt.Println("  crosscloud-confirm records its restore once the destination's TEE-signed")
+	fmt.Println("  receipt checks out against that release (ADR 0011).")
 	fmt.Println()
 	fmt.Println("Flags:")
 	fmt.Println("  -config PATH   JSON config file; see cmd/sagvd/doc.go for schema.")

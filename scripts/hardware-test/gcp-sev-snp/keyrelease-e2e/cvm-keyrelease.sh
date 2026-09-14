@@ -3,13 +3,16 @@
 #
 # Startup script for a GCP AMD SEV-SNP Confidential VM (Ubuntu 24.04).
 #
-# Runs the shipping binaries end to end on real hardware: acp-bootstrap
-# attests with the chip (tee.provider "gcp-sev-snp", reports through the
-# kernel's configfs-tsm), and `sagvd crosscloud-restore` releases a DEK to
-# it only after verifying that Evidence — VCEK signature, VCEK -> ASK -> ARK
+# Runs the shipping binaries end to end on real hardware — the Continuity
+# Drill's last step (ADR 0011): acpctl seals a genome; acp-bootstrap attests
+# with the chip (tee.provider "gcp-sev-snp", reports through the kernel's
+# configfs-tsm); `sagvd crosscloud-restore` releases the genome's key to it
+# only after verifying that Evidence — VCEK signature, VCEK -> ASK -> ARK
 # chain, guest policy, and the ADR 0009 challenge that binds the
-# destination's per-handshake X25519 key. A second release against an
-# allow-list that does not name this guest must be refused.
+# destination's per-handshake X25519 key; acp-bootstrap restores the genome
+# by itself and signs a receipt with the chip; `sagvd crosscloud-confirm`
+# verifies that receipt and records the restore. Releases to a guest the
+# allow-list does not name, and under an operator stop, must be refused.
 #
 # Inputs (instance metadata): vg-bucket — GCS bucket holding e2e/{sagvd,
 # acp-bootstrap,keygen,amd-milan-cert_chain.pem}. Output: a base64 tarball
@@ -78,6 +81,18 @@ EOF
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["authority_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > authority.pem
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
 
+step "seal a genome (a fine-tune output: LoRA weights, config, tokenizer)"
+mkdir -p adapter/tokenizer bundles
+head -c 16777216 /dev/urandom > adapter/adapter_model.safetensors
+printf '{"base_model_name_or_path":"Qwen/Qwen2.5-0.5B","r":16,"lora_alpha":32}' > adapter/adapter_config.json
+printf '{"eos_token":"<|im_end|>"}' > adapter/tokenizer/tokenizer_config.json
+./acpctl genome seal --content-dir adapter --output gen-1.genome --key-out gen-1.key --json > "$OUT/seal.json" 2> "$OUT/seal.err"
+echo "seal exit=$?" >> "$OUT/steps.txt"
+KID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["key_id"])' "$OUT/seal.json")
+echo "key_id=$KID" >> "$OUT/steps.txt"
+# Replicated to the destination ahead of any release: opaque without its key.
+cp gen-1.genome bundles/.incoming && mv bundles/.incoming bundles/gen-1.genome
+
 step "operator stop key and first list (nothing stopped)"
 # In production the operator key lives on the operator's machine; the
 # release host only ever sees operator.pem and the signed list.
@@ -91,6 +106,7 @@ cat > dest.json <<EOF
     "tls": {"enabled": true, "server_cert": "$S/sagvd/tls/server.crt", "server_key": "$S/sagvd/tls/server.key", "client_cas": "$S/shared/tls/ca.crt"}},
   "tee": {"provider": "gcp-sev-snp", "workload_descriptor": "acp-bootstrap-destination-v1"},
   "source_authority": {"kid": "sagvd-authority-demo", "public_key_path": "$WORK/authority.pem"},
+  "genome": {"bundle_dir": "$WORK/bundles", "restore_dir": "$WORK/restored", "rescan_seconds": 1},
   "health": {"listen_address": "127.0.0.1:8444"},
   "log": {"level": "info", "format": "json"}
 }
@@ -124,25 +140,38 @@ json.dump(c, open(sys.argv[1], "w"), indent=2)
 PY
 }
 
-step "release to this attested guest"
+step "release the genome key to this attested guest"
 source_config "$MEAS" sagvd-xcc.json
-DEK=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
 ./sagvd crosscloud-restore -config sagvd-xcc.json -decision-id e2e-decision-1 -destination-kind gcp-sev-snp \
-  -destination-endpoint https://127.0.0.1:8443 -key genome-dek-1:"$DEK" > "$OUT/release.json" 2> "$OUT/release.err"
+  -destination-endpoint https://127.0.0.1:8443 -key-file "$KID:$WORK/gen-1.key" > "$OUT/release.json" 2> "$OUT/release.err"
 echo "release exit=$?" >> "$OUT/steps.txt"
+
+step "the destination restores by itself; confirm from its chip-signed receipt"
+./sagvd crosscloud-confirm -config sagvd-xcc.json -decision-id e2e-decision-1 \
+  -destination-endpoint https://127.0.0.1:8443 -bundle gen-1.genome -wait 120s > "$OUT/confirm.json" 2> "$OUT/confirm.err"
+echo "confirm exit=$?" >> "$OUT/steps.txt"
+./acpctl genome verify --bundle gen-1.genome --key-file gen-1.key --restored "restored/$KID" --json > "$OUT/verify.json" 2> "$OUT/verify.err"
+echo "verify exit=$?" >> "$OUT/steps.txt"
+cp "restored/$KID.receipt.json" "$OUT/receipt.json" 2>/dev/null   # digests, ids and the SEV-SNP report: public
+curl -s --cert "$S/acp-compute/tls/client.crt" --key "$S/acp-compute/tls/client.key" --cacert "$S/shared/tls/ca.crt" \
+  -H "Authorization: Bearer $TOKEN" https://127.0.0.1:8443/v1/genome/restores > "$OUT/restores.json"
+
+# The refused releases below carry a throwaway key: they must not get
+# far enough for it to matter.
+head -c 32 /dev/urandom > throwaway.key; chmod 600 throwaway.key
 
 step "release refused: guest not on the allow-list"
 OTHER=$(printf '%096d' 0 | tr 0 a)
 source_config "$OTHER" sagvd-unlisted.json
 ./sagvd crosscloud-restore -config sagvd-unlisted.json -decision-id e2e-decision-2 -destination-kind gcp-sev-snp \
-  -destination-endpoint https://127.0.0.1:8443 -key genome-dek-2:"$DEK" > "$OUT/release-unlisted.json" 2> "$OUT/release-unlisted.err"
+  -destination-endpoint https://127.0.0.1:8443 -key-file "genome-dek-2:$WORK/throwaway.key" > "$OUT/release-unlisted.json" 2> "$OUT/release-unlisted.err"
 echo "unlisted exit=$?" >> "$OUT/steps.txt"
 
 step "release refused: operator stop in force"
 source_config "$MEAS" sagvd-xcc.json   # this guest allow-listed again; only the stop refuses it
 ./acpctl stop issue -key operator.seed -kid operator-1 -serial 2 -all -reason "e2e: operator stop" -out stop.json > /dev/null
 ./sagvd crosscloud-restore -config sagvd-xcc.json -decision-id e2e-decision-3 -destination-kind gcp-sev-snp \
-  -destination-endpoint https://127.0.0.1:8443 -key genome-dek-3:"$DEK" > "$OUT/release-stopped.json" 2> "$OUT/release-stopped.err"
+  -destination-endpoint https://127.0.0.1:8443 -key-file "genome-dek-3:$WORK/throwaway.key" > "$OUT/release-stopped.json" 2> "$OUT/release-stopped.err"
 echo "stopped exit=$?" >> "$OUT/steps.txt"
 
 step "audit log verified with the published audit key"
@@ -150,7 +179,7 @@ step "audit log verified with the published audit key"
 echo "audit verify exit=$?" >> "$OUT/steps.txt"
 
 sleep 2; kill -TERM $DEST; wait $DEST 2>/dev/null
-unset DEK TOKEN
+unset TOKEN
 cp /root/e2e.log "$OUT/console.log"
 sha256sum "$OUT"/* > "$WORK/sha256sums.txt"; mv "$WORK/sha256sums.txt" "$OUT/"
 

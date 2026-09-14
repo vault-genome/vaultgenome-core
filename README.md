@@ -68,27 +68,32 @@ recipe* (the reconstruction backend). We say which is which, on purpose.
 
 ### Protect a real model (CLI)
 
-Seal your own model into a portable, content-addressed `.genome` bundle, move it
-to another server, and restore it **byte-exact** — with a validated version
-chain for every update (EU-style continuous backup):
+Seal your own model into a portable `.genome` bundle, move it to another server,
+and restore it **byte-exact** — with a validated version chain for every update
+(EU-style continuous backup). A bundle is sealed under a fresh key that is not
+in the file, so it can be stored or replicated anywhere:
 
 ```bash
 make build                                                   # builds ./bin/acpctl
 
-# seal your model (any directory of files, or an Ollama model ref)
-./bin/acpctl genome seal --content-dir=./my-model --output=gen-0.genome
+# seal your model (any directory of files, or an Ollama model ref);
+# the key goes to its own 0600 file and nowhere else
+./bin/acpctl genome seal --content-dir=./my-model --output=gen-0.genome --key-out=gen-0.key
 # seal a fine-tune as the next generation, linked to its parent
-./bin/acpctl genome seal --content-dir=./adapter-1 --parent=gen-0.genome --output=gen-1.genome
+./bin/acpctl genome seal --content-dir=./adapter-1 --parent=gen-0.genome \
+    --output=gen-1.genome --key-out=gen-1.key
 
 # on another server: restore byte-exact, then verify the lineage
-./bin/acpctl genome rewind --bundle=gen-0.genome --target=./restored
+./bin/acpctl genome rewind --bundle=gen-0.genome --key-file=gen-0.key --target=./restored
 ./bin/acpctl genome chain  --dir=./generations
 ```
 
-`rewind` re-hashes on restore and confirms the payload matches the sealed
-content-address; a tampered bundle is rejected. This byte-exact continuity path
-works today, in simulation mode on any machine, and against real SEV-SNP hardware
-inside a confidential VM.
+Opening authenticates every 1 MiB segment before a byte of it is used, restores
+into a staging directory, checks every file against the sealed snapshot and only
+then moves the tree into place; an edited, truncated or wrong-key bundle leaves
+the target untouched. Across clouds, the key is released only to a destination
+TEE your policy admits, which restores the genome itself and signs a receipt the
+source verifies before recording the restore (ADR 0011).
 
 ---
 
@@ -107,8 +112,13 @@ verify-reproducible).
 ### What works today
 
 - **Byte-exact model continuity** — `acpctl genome seal / rewind / chain`: seal
-  any model to a portable, content-addressed bundle, restore it byte-exact on any
-  server, and track versions with a validated lineage chain.
+  any model to a portable bundle whose key lives apart from it, restore it
+  byte-exact on any server, and track versions with a validated lineage chain.
+- **Attested self-restore across clouds** — the operator's policy releases a
+  genome's key to an attested, allow-listed destination TEE; the destination
+  restores the genome by itself and signs a receipt with its TEE; the source
+  verifies the receipt and records the restore (`sagvd crosscloud-confirm`,
+  ADR 0011), under an operator stop that halts every release (ADR 0010).
 - **Real AMD SEV-SNP attestation** — a report from a live confidential VM is
   parsed, its ECDSA-P384 signature verified, and its VCEK chained to AMD
   ARK-Milan — proven on **two clouds, GCP and Azure** (`scripts/hardware-test/`,

@@ -191,6 +191,11 @@ The frozen R-10 interfaces (`Producer`, `Verifier`, `Sealer`) are **not modified
 
 ### Audit Kinds (v4)
 
+> **Amended by [ADR 0011](0011-genome-v3-and-attested-self-restore.md) (2026-09-14).** Kind 4 below is no longer
+> recorded on out-of-band say-so. `kms.Coordinator.ConfirmRestore` records it only after the destination's receipt —
+> signed with Evidence from the TEE the key was released to, naming that release — verifies, and, given the
+> operator's bundle, matches the genome byte for byte. `RecordCompletion` is removed.
+
 ```go
 // Cross-cloud (SchemaVersion 4). Added in Phase 4 to bind cross-cloud
 // authority decisions into the release-side audit chain. Each cross-cloud

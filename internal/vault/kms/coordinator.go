@@ -69,6 +69,7 @@ type Coordinator struct {
 	nonceSource NonceSource
 	clock       shared_time.Clock
 	signingKID  ids.KeyID
+	receipts    ReceiptFetcher
 }
 
 // Config bundles the Coordinator's dependencies. Every field is
@@ -94,6 +95,11 @@ type Config struct {
 	// keys.PurposeSigningAuthority. Used to sign both the
 	// CrossCloudHandshakeRequest and the KeyReleaseToken.
 	SigningKeyID ids.KeyID
+
+	// Receipts fetches destinations' signed restore receipts for
+	// ConfirmRestore. Optional: without it, releases work and
+	// confirmation is refused.
+	Receipts ReceiptFetcher
 }
 
 // NewCoordinator validates the Config and returns a ready-to-use
@@ -137,6 +143,7 @@ func NewCoordinator(cfg Config) (*Coordinator, error) {
 		nonceSource: cfg.NonceSource,
 		clock:       cfg.Clock,
 		signingKID:  cfg.SigningKeyID,
+		receipts:    cfg.Receipts,
 	}, nil
 }
 
@@ -186,12 +193,9 @@ type CoordinationRequest struct {
 }
 
 // CoordinationResult is returned on successful CoordinateRestore. All
-// four IDs are populated when the function returns nil error; on
+// its IDs are populated when the function returns nil error; on
 // failure, intermediate IDs may be populated to assist diagnostics.
-//
-// The CompletionAuditID is NOT populated by CoordinateRestore — it
-// is filled in by a later RecordCompletion call once the destination
-// signals successful restore.
+// The restore's completion is confirmed separately, by ConfirmRestore.
 type CoordinationResult struct {
 	HandshakeRequestID     ids.RequestID
 	HandshakeAuditID       ids.AuditEventID
@@ -295,24 +299,12 @@ type keyReleaseAuthorizedPayload struct {
 	AuthorizedAt           time.Time      `json:"authorized_at"`
 }
 
-// completedPayload is the JSON payload of a KindCrossCloudRestoreCompleted
-// audit event recorded asynchronously via RecordCompletion.
-type completedPayload struct {
-	DecisionID         ids.DecisionID `json:"decision_id"`
-	RequestID          ids.RequestID  `json:"request_id"`
-	TokenID            ids.DecisionID `json:"token_id"`
-	RestoredGenomeHash []byte         `json:"restored_genome_hash"`
-	DestinationOutcome string         `json:"destination_outcome"`
-	CompletedAt        time.Time      `json:"completed_at"`
-}
-
 // --- Coordinator main logic ----------------------------------------
 
 // CoordinateRestore runs the full cross-cloud handshake → verify →
 // policy → wrap → dispatch flow synchronously. Returns once the
-// KeyReleaseToken has been dispatched; the destination's restore
-// completion is signalled out-of-band and recorded via
-// RecordCompletion.
+// KeyReleaseToken has been dispatched; the destination's restore is
+// confirmed later, from its TEE-signed receipt, by ConfirmRestore.
 //
 // The function emits exactly three audit events on the success path
 // (Handshake → Attestation → KeyRelease). Each emission is
@@ -623,50 +615,6 @@ func (c *Coordinator) CoordinateRestore(
 		TokenID:                tokenID,
 		DispatchedAt:           authorizedAt,
 	}, nil
-}
-
-// RecordCompletion is called once the destination signals that it
-// successfully unwrapped the keys and completed local restore. This
-// is the audit slot for KindCrossCloudRestoreCompleted — separated
-// from CoordinateRestore because completion is asynchronous and may
-// arrive minutes or hours later via an out-of-band channel.
-//
-// The caller supplies the original DecisionID + TokenID + RequestID
-// so the audit record cross-references the earlier
-// KindKeyReleaseAuthorized event.
-func (c *Coordinator) RecordCompletion(
-	decisionID ids.DecisionID,
-	tokenID ids.DecisionID,
-	requestID ids.RequestID,
-	restoredGenomeHash []byte,
-	destinationOutcome string,
-	sessionID ids.SessionID,
-	manifestID ids.ManifestID,
-) (ids.AuditEventID, error) {
-	if decisionID.IsZero() {
-		return "", shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.RecordCompletion: decision_id required", nil)
-	}
-	if tokenID.IsZero() {
-		return "", shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.RecordCompletion: token_id required", nil)
-	}
-	if requestID.IsZero() {
-		return "", shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.RecordCompletion: request_id required", nil)
-	}
-	if destinationOutcome == "" {
-		return "", shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.RecordCompletion: destination_outcome required", nil)
-	}
-	payload, err := json.Marshal(completedPayload{
-		DecisionID:         decisionID,
-		RequestID:          requestID,
-		TokenID:            tokenID,
-		RestoredGenomeHash: restoredGenomeHash,
-		DestinationOutcome: destinationOutcome,
-		CompletedAt:        c.clock.Now().UTC(),
-	})
-	if err != nil {
-		return "", shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "kms.RecordCompletion: payload marshal failed", err)
-	}
-	return c.auditChain.Emit(audit_event.KindCrossCloudRestoreCompleted, payload, sessionID, manifestID, requestID)
 }
 
 // validateRequest runs structural checks on a CoordinationRequest.

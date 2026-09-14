@@ -84,6 +84,21 @@ type Config struct {
 
 	// Clock drives key expiry; nil selects the system clock.
 	Clock shared_time.Clock
+
+	// OnDelivery, if set, is told about every token whose keys were all
+	// registered, before HandleKeyReleaseToken returns. It must not
+	// block: it runs on the request's goroutine. acp-bootstrap hands it
+	// to the genome restorer.
+	OnDelivery func(Delivery)
+}
+
+// Delivery describes a key-release token the Receiver accepted.
+type Delivery struct {
+	DecisionID ids.DecisionID
+	RequestID  ids.RequestID
+	TokenID    ids.DecisionID
+	KeyIDs     []ids.KeyID
+	At         time.Time
 }
 
 // Receiver handles cross-cloud handshake requests and key-release
@@ -103,6 +118,7 @@ type Receiver struct {
 	clock      shared_time.Clock
 	ttl        time.Duration
 	maxPending int
+	onDelivery func(Delivery)
 
 	// localMeasurement is cached at construction; the local TEE's
 	// measurement does not change for the life of the daemon
@@ -156,6 +172,7 @@ func NewReceiver(cfg Config) (*Receiver, error) {
 		clock:            cfg.Clock,
 		ttl:              cfg.PendingTTL,
 		maxPending:       cfg.MaxPending,
+		onDelivery:       cfg.OnDelivery,
 		localMeasurement: cfg.LocalTEE.Measurement(),
 		pending:          make(map[ids.RequestID]*pendingKey),
 		delivered:        make(map[ids.KeyID][32]byte),
@@ -334,6 +351,13 @@ func (r *Receiver) HandleKeyReleaseToken(token krt.KeyReleaseToken) (int, error)
 		// caller's keystore now owns the material; the local stack
 		// frame should not leave plaintext behind.
 		zeroize(plaintext)
+	}
+	if r.onDelivery != nil {
+		d := Delivery{DecisionID: token.DecisionID, RequestID: token.RequestID, TokenID: token.TokenID, At: r.clock.Now().UTC()}
+		for _, w := range token.Wrapped {
+			d.KeyIDs = append(d.KeyIDs, w.KeyID)
+		}
+		r.onDelivery(d)
 	}
 	return registered, nil
 }

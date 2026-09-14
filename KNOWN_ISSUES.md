@@ -132,9 +132,14 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    otherwise: beyond loopback, `sagvd`'s Return Path requires mTLS and its REST
    API a bearer token of at least 32 characters; `acp-bootstrap` requires TLS
    1.3 plus a client certificate or such a token.
-7. **`genome seal` stores the simulated seed inside the bundle**
-   (`genome.go`) → no confidentiality against a bundle-holder under the
-   simulated backend.
+7. **RESOLVED (2026-09-14).** `genome seal` stored the key that sealed a
+   bundle inside the bundle, so anyone holding it could open it. Bundles are
+   now written in the v3 format (`internal/genome/bundle`, ADR 0011): sealed
+   under a fresh 32-byte key that goes to a 0600 key file and nowhere else,
+   in 1 MiB segments each authenticated before use. Cross-cloud, the key
+   reaches only an attested, allow-listed destination (`sagvd
+   crosscloud-restore -key-file`, never on a command line). v2 bundles still
+   open, but only with `--allow-v2`, so they can be resealed.
 8. **`evidence/` posture:** AWS Nitro (production cohort) and GCP SEV-SNP
    (3 real chips) attestation captures are genuine and offline-verifiable.
    Azure SGX cohort ran in **DEBUG mode** (`x-ms-sgx-is-debuggable: true`).
@@ -150,6 +155,16 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    Refusals are recorded too (`KEY_RELEASE_DENIED`, ADR 0010), and every
    release is gated by the operator's signed stop list, which cannot be rolled
    back.
-10. **Released DEKs are not yet used at the destination.** `acp-bootstrap`
-    registers them in its in-memory keystore; opening a sealed genome with them
-    inside the destination TEE is part of the Continuity Drill (Phase 1).
+10. **RESOLVED (2026-09-14).** Released keys were registered at the
+    destination and not used. With a `genome` section, `acp-bootstrap` now
+    finds the bundle a released key opens, restores it all or nothing with the
+    key where it lies in its keystore, and signs a receipt with its TEE;
+    `sagvd crosscloud-confirm` verifies that receipt against the recorded
+    release and the operator's bundle before it records the restore
+    (`CROSS_CLOUD_RESTORE_COMPLETED`, ADR 0011). Live in
+    `test/integration/genome_drill_test.go`.
+11. **Genome keys live in files on the release host.** `sagvd
+    crosscloud-restore` reads each key from its 0600 key file, and refuses one
+    other users can read; the source does not yet keep genome keys sealed to
+    its own TEE, whose provider is still `simulated` (#1). At the destination
+    a released genome key is wiped from memory once its restore is signed for.

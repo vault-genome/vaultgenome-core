@@ -285,3 +285,20 @@ func TestPurpose_String(t *testing.T) {
 	require.Equal(t, "sealing", PurposeSealing.String())
 	require.Equal(t, "unknown", PurposeUnknown.String())
 }
+
+func TestInMemoryStore_EraseSealing(t *testing.T) {
+	s := NewInMemoryStore(shared_time.NewSystemClock())
+	key := bytes.Repeat([]byte{0x5a}, 32)
+	require.NoError(t, s.RegisterSealing("genome-1", key))
+	nonce, ct, err := crypto.Seal(key, []byte("delta"), nil, nil)
+	require.NoError(t, err)
+	got, err := s.Open("genome-1", nonce, ct, nil)
+	require.NoError(t, err)
+	require.Equal(t, []byte("delta"), got)
+
+	require.True(t, s.EraseSealing("genome-1"))
+	require.False(t, s.EraseSealing("genome-1"), "erased once")
+	_, err = s.Open("genome-1", nonce, ct, nil)
+	require.Error(t, err, "an erased key opens nothing")
+	require.NoError(t, s.RegisterSealing("genome-1", key), "the kid can be delivered again")
+}

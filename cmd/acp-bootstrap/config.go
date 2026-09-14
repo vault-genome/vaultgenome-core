@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -36,6 +37,11 @@ type Config struct {
 	// public key. Loaded once at startup; the receiver verifies
 	// every incoming handshake + token signature against it.
 	SourceAuthority SourceAuthorityConfig `json:"source_authority"`
+
+	// Genome, when set, makes this destination restore the genomes
+	// whose keys are released to it (ADR 0011). Omitted, the daemon only
+	// receives keys.
+	Genome GenomeConfig `json:"genome,omitempty"`
 
 	// Health controls the /healthz and /readyz listener. Empty
 	// disables it. It answers liveness only and exposes nothing else.
@@ -134,6 +140,27 @@ type SourceAuthorityConfig struct {
 	// The format is auto-detected from the leading bytes.
 	PublicKeyPath string `json:"public_key_path"`
 }
+
+// GenomeConfig points the restorer at its directories.
+type GenomeConfig struct {
+	// BundleDir holds sealed .genome bundles waiting for their keys.
+	// A bundle is opaque without its key, so bundles can be replicated
+	// here from anywhere, ahead of any release. Copy them in under
+	// another name and rename them to *.genome, so the restorer never
+	// reads a half-written bundle.
+	BundleDir string `json:"bundle_dir"`
+
+	// RestoreDir receives each restored genome at <restore_dir>/<key
+	// id>/ and its signed receipt at <restore_dir>/<key id>.receipt.json.
+	RestoreDir string `json:"restore_dir"`
+
+	// RescanSeconds is how often to look again for the bundle of a key
+	// that arrived first. Defaults to 5.
+	RescanSeconds int `json:"rescan_seconds,omitempty"`
+}
+
+// Enabled reports whether genome restore is configured.
+func (g GenomeConfig) Enabled() bool { return g.BundleDir != "" || g.RestoreDir != "" }
 
 // HealthConfig controls /healthz and /readyz.
 type HealthConfig struct {
@@ -310,6 +337,10 @@ func (c Config) Validate() error {
 		errs = append(errs, errors.New("source_authority.public_key_path required"))
 	}
 
+	if c.Genome.Enabled() {
+		errs = append(errs, c.Genome.validate()...)
+	}
+
 	if c.Health.ListenAddress != "" {
 		if _, _, err := net.SplitHostPort(c.Health.ListenAddress); err != nil {
 			errs = append(errs, fmt.Errorf("health.listen_address invalid: %w", err))
@@ -328,4 +359,25 @@ func (c Config) Validate() error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func (g GenomeConfig) validate() []error {
+	var errs []error
+	for name, dir := range map[string]string{"genome.bundle_dir": g.BundleDir, "genome.restore_dir": g.RestoreDir} {
+		if dir == "" {
+			errs = append(errs, fmt.Errorf("%s required when genome restore is configured", name))
+		} else if !filepath.IsAbs(dir) {
+			errs = append(errs, fmt.Errorf("%s %q must be an absolute path", name, dir))
+		}
+	}
+	if g.BundleDir != "" && g.RestoreDir != "" {
+		b, r := filepath.Clean(g.BundleDir), filepath.Clean(g.RestoreDir)
+		if b == r || strings.HasPrefix(r+string(filepath.Separator), b+string(filepath.Separator)) || strings.HasPrefix(b+string(filepath.Separator), r+string(filepath.Separator)) {
+			errs = append(errs, errors.New("genome.bundle_dir and genome.restore_dir must be separate directories, neither inside the other"))
+		}
+	}
+	if g.RescanSeconds < 0 {
+		errs = append(errs, errors.New("genome.rescan_seconds must not be negative"))
+	}
+	return errs
 }

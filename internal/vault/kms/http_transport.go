@@ -9,12 +9,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
 	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
+	"github.com/ai-continuity-platform/core/internal/genome/receipt"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	"github.com/ai-continuity-platform/core/internal/shared/ids"
 )
 
 // HTTPTransport is a production implementation of the Transport
@@ -145,14 +148,43 @@ func (t *HTTPTransport) SendKeyReleaseToken(
 	return err
 }
 
+// FetchRestoreReceipt fetches the destination's signed receipt for the
+// restore of the genome keyed kid: GET
+// <endpoint>/v1/genome/receipt?key_id=<kid>. A restore that has not
+// finished answers 409, returned as an Operational error to retry.
+func (t *HTTPTransport) FetchRestoreReceipt(ctx context.Context, endpoint string, kid ids.KeyID) (receipt.Signed, error) {
+	u := joinEndpoint(endpoint, "/v1/genome/receipt") + "?key_id=" + url.QueryEscape(string(kid))
+	body, err := t.do(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return receipt.Signed{}, err
+	}
+	var s receipt.Signed
+	if err := json.Unmarshal(body, &s); err != nil || len(s.Receipt) == 0 || len(s.Evidence) == 0 {
+		return receipt.Signed{}, shared_errors.Structural(
+			shared_errors.CodeFieldValueInvalid,
+			"kms.HTTPTransport.FetchRestoreReceipt: the destination's answer is not a signed receipt",
+			err,
+		)
+	}
+	return s, nil
+}
+
 // postJSON is the shared POST + classified-error helper.
 func (t *HTTPTransport) postJSON(ctx context.Context, url string, body []byte) ([]byte, error) {
+	return t.do(ctx, http.MethodPost, url, body)
+}
+
+func (t *HTTPTransport) do(ctx context.Context, method, url string, body []byte) ([]byte, error) {
 	if t.timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, t.timeout)
 		defer cancel()
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	var reqBody io.Reader
+	if body != nil {
+		reqBody = bytes.NewReader(body)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -160,7 +192,9 @@ func (t *HTTPTransport) postJSON(ctx context.Context, url string, body []byte) (
 			err,
 		)
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
 	httpReq.Header.Set("Accept", "application/json")
 	if t.bearerToken != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+t.bearerToken)
@@ -170,7 +204,7 @@ func (t *HTTPTransport) postJSON(ctx context.Context, url string, body []byte) (
 	if err != nil {
 		return nil, shared_errors.Operational(
 			shared_errors.CodeResourceExhausted,
-			fmt.Sprintf("kms.HTTPTransport: POST %s failed", url),
+			fmt.Sprintf("kms.HTTPTransport: %s %s failed", method, url),
 			err,
 		)
 	}

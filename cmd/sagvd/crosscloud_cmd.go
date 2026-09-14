@@ -15,6 +15,8 @@ import (
 
 	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
 	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
+	"github.com/ai-continuity-platform/core/internal/genome/bundle"
+	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/shared/exposure"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
@@ -33,10 +35,11 @@ import (
 //	-decision-id <id>          source-side ReleaseDecision id (required)
 //	-destination-kind <kind>   tee.Provider name of destination (required)
 //	-destination-endpoint <url> destination acp-bootstrap base URL (required)
-//	-key <kid:hex>             one-or-more key materials in kid:hex form
-//	                           (repeatable). The hex is the plaintext DEK
-//	                           bytes (32 bytes / 64 hex chars expected for
-//	                           AES-256 sealing keys).
+//	-key-file <kid:path>       a key to release, repeatable: path holds the
+//	                           raw 32-byte key (acpctl genome seal
+//	                           --key-out writes one), mode 0600. Keys are
+//	                           never taken on the command line, where
+//	                           process listings and shell history keep them.
 //	-session-id <id>           optional audit correlator
 //	-manifest-id <id>          optional audit correlator
 //
@@ -54,12 +57,12 @@ func runCrossCloudRestoreCmd(args []string) error {
 		sessionID           string
 		manifestID          string
 	)
-	var keyFlags repeatableFlag
+	var keyFiles repeatableFlag
 	fs.StringVar(&configPath, "config", "", "path to sagvd JSON config (required)")
 	fs.StringVar(&decisionID, "decision-id", "", "source-side ReleaseDecision id (required)")
-	fs.StringVar(&destinationKindStr, "destination-kind", "", "destination TEE kind (required; e.g. aws-nitro, azure-sgx)")
+	fs.StringVar(&destinationKindStr, "destination-kind", "", "destination TEE kind (required; e.g. gcp-sev-snp)")
 	fs.StringVar(&destinationEndpoint, "destination-endpoint", "", "destination acp-bootstrap base URL (required)")
-	fs.Var(&keyFlags, "key", "key material in kid:hex form, repeatable (hex = plaintext DEK bytes)")
+	fs.Var(&keyFiles, "key-file", "KID:PATH of a key to release, repeatable (PATH: raw 32-byte key, mode 0600)")
 	fs.StringVar(&sessionID, "session-id", "", "optional audit correlator: SessionID")
 	fs.StringVar(&manifestID, "manifest-id", "", "optional audit correlator: ManifestID")
 	if err := fs.Parse(args); err != nil {
@@ -81,8 +84,8 @@ func runCrossCloudRestoreCmd(args []string) error {
 	if err := checkDestinationEndpoint(destinationEndpoint); err != nil {
 		return err
 	}
-	if len(keyFlags) == 0 {
-		return errors.New("crosscloud-restore: at least one -key kid:hex required")
+	if len(keyFiles) == 0 {
+		return errors.New("crosscloud-restore: at least one -key-file KID:PATH required")
 	}
 
 	destinationKind, err := tee.ParseProvider(destinationKindStr)
@@ -90,7 +93,7 @@ func runCrossCloudRestoreCmd(args []string) error {
 		return fmt.Errorf("crosscloud-restore: -destination-kind: %w", err)
 	}
 
-	keyMaterials, err := parseKeyFlags(keyFlags)
+	keyMaterials, err := readKeyFiles(keyFiles)
 	if err != nil {
 		return err
 	}
@@ -181,7 +184,7 @@ func checkDestinationEndpoint(raw string) error {
 	}
 }
 
-// repeatableFlag implements flag.Value for repeated -key occurrences.
+// repeatableFlag implements flag.Value for repeated -key-file occurrences.
 type repeatableFlag []string
 
 func (r *repeatableFlag) String() string { return strings.Join(*r, ",") }
@@ -190,29 +193,47 @@ func (r *repeatableFlag) Set(s string) error {
 	return nil
 }
 
-// parseKeyFlags parses each "kid:hex" entry into a kms.KeyMaterial.
-// kid is the destination-side key-id under which the unwrapped DEK
-// will be registered; hex is the plaintext DEK bytes (typically
-// 32 bytes for AES-256 sealing).
-func parseKeyFlags(in []string) ([]kms.KeyMaterial, error) {
+// readKeyFiles reads each "KID:PATH" entry into a kms.KeyMaterial. KID is
+// the key ID the destination registers the key under; PATH holds the raw
+// AES-256 key. A key file others can read is refused, as a key the
+// release host should not have trusted. A genome key ID (acpctl genome
+// seal) carries a tag of its key, so a key file that does not belong to
+// the ID is refused before anything is released.
+func readKeyFiles(in []string) ([]kms.KeyMaterial, error) {
 	out := make([]kms.KeyMaterial, 0, len(in))
+	seen := make(map[string]bool, len(in))
 	for i, e := range in {
-		idx := strings.IndexRune(e, ':')
-		if idx <= 0 || idx == len(e)-1 {
-			return nil, fmt.Errorf("crosscloud-restore: -key[%d] %q must be kid:hex", i, e)
+		kid, path, ok := strings.Cut(e, ":")
+		if !ok || kid == "" || path == "" {
+			return nil, fmt.Errorf("crosscloud-restore: -key-file[%d] %q must be KID:PATH", i, e)
 		}
-		kid := e[:idx]
-		plain, err := hex.DecodeString(e[idx+1:])
+		if seen[kid] {
+			return nil, fmt.Errorf("crosscloud-restore: -key-file[%d]: key id %s given twice", i, kid)
+		}
+		seen[kid] = true
+		info, err := os.Stat(path)
 		if err != nil {
-			return nil, fmt.Errorf("crosscloud-restore: -key[%d] hex: %w", i, err)
+			return nil, fmt.Errorf("crosscloud-restore: -key-file[%d]: %w", i, err)
 		}
-		if len(plain) == 0 {
-			return nil, fmt.Errorf("crosscloud-restore: -key[%d] plaintext empty", i)
+		if perm := info.Mode().Perm(); perm&0o077 != 0 {
+			return nil, fmt.Errorf("crosscloud-restore: -key-file[%d]: %s is open to other users (mode %04o); chmod 600 it", i, path, perm)
+		}
+		key, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("crosscloud-restore: -key-file[%d]: %w", i, err)
+		}
+		if len(key) != crypto.AES256KeySize {
+			return nil, fmt.Errorf("crosscloud-restore: -key-file[%d]: %s holds %d bytes, not a %d-byte key", i, path, len(key), crypto.AES256KeySize)
+		}
+		if bundle.IsKeyID(kid) {
+			if err := bundle.CheckKey(kid, key); err != nil {
+				return nil, fmt.Errorf("crosscloud-restore: -key-file[%d]: %w", i, err)
+			}
 		}
 		out = append(out, kms.KeyMaterial{
 			KeyID:     ids.KeyID(kid),
 			Purpose:   krt.PurposeSealing,
-			Plaintext: plain,
+			Plaintext: key,
 		})
 	}
 	return out, nil

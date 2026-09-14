@@ -7,14 +7,14 @@
 # its target. Only ever raise a floor, and delete the line once the
 # package meets its target. `total` is the floor for the whole product.
 #
-# Recorded 2026-09-14 from `make coverage`, rounded down to whole percent.
+# Recorded 2026-09-14 from `make coverage`, rounded down to whole percent;
+# raised later that day (total 82, cmd/sagvd 60; cmd/acpctl met its target).
 
-total 78
+total 82
 
 # target 70%
-cmd/acpctl 39
 cmd/acp-compute 56
-cmd/sagvd 56
+cmd/sagvd 60
 internal/compute/returnpath/client 68
 internal/compute/returnpath/server 64
 

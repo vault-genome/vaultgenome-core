@@ -695,59 +695,6 @@ func TestCoordinateRestore_AuditOrderingStrict(t *testing.T) {
 	})
 }
 
-// --- RecordCompletion -----------------------------------------------
-
-func TestRecordCompletion_HappyPath(t *testing.T) {
-	t.Parallel()
-	f := makeFixture(t)
-	auditID, err := f.coord.RecordCompletion(
-		ids.DecisionID("dec-1"),
-		ids.DecisionID("tok-1"),
-		ids.RequestID("req-1"),
-		[]byte("sha256-of-restored-genome"),
-		"validated",
-		ids.SessionID("sess-1"),
-		ids.ManifestID("man-1"),
-	)
-	require.NoError(t, err)
-	require.NotEmpty(t, auditID)
-	require.Len(t, f.auditChain.events, 1)
-	require.Equal(t, audit_event.KindCrossCloudRestoreCompleted, f.auditChain.events[0].Kind)
-}
-
-func TestRecordCompletion_RequiresFields(t *testing.T) {
-	t.Parallel()
-	f := makeFixture(t)
-	cases := []struct {
-		name string
-		call func() error
-	}{
-		{"missing DecisionID", func() error {
-			_, err := f.coord.RecordCompletion("", "tok-1", "req-1", nil, "validated", "", "")
-			return err
-		}},
-		{"missing TokenID", func() error {
-			_, err := f.coord.RecordCompletion("dec-1", "", "req-1", nil, "validated", "", "")
-			return err
-		}},
-		{"missing RequestID", func() error {
-			_, err := f.coord.RecordCompletion("dec-1", "tok-1", "", nil, "validated", "", "")
-			return err
-		}},
-		{"missing DestinationOutcome", func() error {
-			_, err := f.coord.RecordCompletion("dec-1", "tok-1", "req-1", nil, "", "", "")
-			return err
-		}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.call()
-			require.Error(t, err)
-			require.True(t, shared_errors.Is(err, shared_errors.CategoryStructural))
-		})
-	}
-}
-
 // --- Production NonceSource sanity ---------------------------------
 
 // Sanity check that crypto/rand-backed NonceSource yields ≥ NonceMinBytes

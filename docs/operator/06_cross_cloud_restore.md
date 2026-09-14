@@ -1,17 +1,22 @@
-# Operator Runbook 06 — Cross-Cloud Key Release
+# Operator Runbook 06 — Cross-Cloud Key Release and Genome Restore
 
-**Design:** [ADR 0006](../adr/0006-cross-cloud-kms-mediated-restore.md) (flow, audit kinds) and
-[ADR 0009](../adr/0009-x25519-kem-cross-cloud-key-delivery.md) (how keys travel).
-**Proven by:** `test/integration/crosscloud_test.go`, which runs every step below with the real binaries.
+**Design:** [ADR 0006](../adr/0006-cross-cloud-kms-mediated-restore.md) (flow, audit kinds),
+[ADR 0009](../adr/0009-x25519-kem-cross-cloud-key-delivery.md) (how keys travel),
+[ADR 0010](../adr/0010-operator-stop-and-recorded-refusals.md) (the operator stop) and
+[ADR 0011](../adr/0011-genome-v3-and-attested-self-restore.md) (sealed genomes, restore, receipts).
+**Proven by:** `test/integration/crosscloud_test.go` and `genome_drill_test.go`, which run every
+step below with the real binaries.
 
 ---
 
 ## What this runbook covers
 
-Releasing data-encryption keys (DEKs) from a **source authority** (`sagvd`) to a
-**destination** (`acp-bootstrap`) on another machine or cloud, only after the
-destination proves — by remote attestation — that it is a genuine TEE running a
-workload the source operator allow-listed.
+Bringing a sealed genome up on another machine or cloud: the **source
+authority** (`sagvd`) releases the genome's key to a **destination**
+(`acp-bootstrap`) only after the destination proves — by remote attestation —
+that it is a genuine TEE running a workload the operator allow-listed; the
+destination then restores the genome by itself and signs a receipt; the source
+verifies that receipt and records the restore.
 
 What the shipping binaries do today, stated exactly:
 
@@ -23,9 +28,11 @@ What the shipping binaries do today, stated exactly:
   [runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md) §D. `sagvd`'s
   verifier registry accepts `simulated` and `gcp-sev-snp` and refuses every
   other family until its verifier runs end to end.
-- The DEKs a destination receives are registered in that `acp-bootstrap`
-  process's in-memory keystore. Using them to open a sealed genome on the
-  destination is the next step of the Drill and is not yet part of the binary.
+- Genomes are sealed with `acpctl genome seal` into v3 bundles whose key is
+  in a separate 0600 file. Bundles are opaque without their keys, so they can
+  be replicated to the destination ahead of any release. With a `genome`
+  section, `acp-bootstrap` restores a bundle as soon as its key arrives, and
+  wipes the key from memory once the restore is signed for.
 
 ## How a key travels
 
@@ -95,6 +102,10 @@ Compare the SHA-256 of each file over a second channel before pinning it.
     "kid": "sagvd-authority-demo",
     "public_key_path": "/etc/acp/authority.pem"
   },
+  "genome": {
+    "bundle_dir": "/var/lib/acp/bundles",
+    "restore_dir": "/var/lib/acp/restored"
+  },
   "health": { "listen_address": "127.0.0.1:8444" },
   "log": { "level": "info", "format": "json" }
 }
@@ -110,6 +121,12 @@ Exposure rules are enforced at startup; a config that breaks one does not start:
   PEM printed by `sagvd identity` or the raw 32 bytes.
 - `tee.provider` is also the only `destination_tee_kind` the daemon answers; a
   handshake declaring another kind is refused.
+- `genome` (optional): `bundle_dir` holds sealed bundles waiting for their keys;
+  each restored genome lands in `restore_dir/<key id>/`, its signed receipt in
+  `restore_dir/<key id>.receipt.json`. Both are absolute and separate. Copy
+  bundles in under another name and rename them to `*.genome`, so a
+  half-written bundle is never picked up. A key that arrives before its bundle
+  waits for it (`rescan_seconds`, default 5).
 
 The health listener answers `/healthz` and `/readyz` and exposes nothing else.
 
@@ -178,6 +195,19 @@ life of the log (`sagvd identity` prints its public key for auditors).
 
 Measurements are pinned whole: 32, 48 (SEV-SNP, Nitro) or 64 bytes.
 
+## Sealing a genome
+
+On the machine that holds the model or the fine-tune output:
+
+```bash
+acpctl genome seal --content-dir=./adapter --output=gen-1.genome --key-out=gen-1.key --json > seal.json
+```
+
+The report names the bundle's `key_id` (`genome-<payload>-g<generation>-<key
+tag>`). `gen-1.key` holds the 32-byte key, mode 0600, and is never overwritten;
+keep it with the release authority. Replicate `gen-1.genome` to the
+destination's `bundle_dir` (see above).
+
 ## Releasing keys
 
 ```bash
@@ -186,12 +216,15 @@ sagvd crosscloud-restore \
   -decision-id dec-2026-09-14-001 \
   -destination-kind simulated \
   -destination-endpoint https://destination.example.com:8443 \
-  -key genome-dek-1:<64 hex chars>
+  -key-file "$(jq -r .key_id seal.json):/etc/acp/keys/gen-1.key"
 ```
 
-`-key kid:hex` repeats for several DEKs. The endpoint must be `https`, except to
-a loopback destination. The command prints one JSON report and exits 0 on
-success, 1 on any refusal:
+`-key-file KID:PATH` repeats for several keys. Keys are read from files only —
+a key on a command line would sit in process listings and shell history — and a
+key file other users can read is refused. For a genome key ID the key must match
+the tag the ID carries, so a wrong key file is caught before anything moves. The
+endpoint must be `https`, except to a loopback destination. The command prints
+one JSON report and exits 0 on success, 1 on any refusal:
 
 ```json
 {
@@ -227,6 +260,56 @@ It checks every hash link and signature and prints the tip. Keep the report's
 Re-releasing the same key under the same kid (a retry whose answer was lost) is
 accepted once more; a different key under a kid the destination already holds
 is refused.
+
+## Confirming the restore
+
+The destination restores on its own. Its account is on its API (same TLS and
+token as the key release):
+
+```bash
+curl --cert client.crt --key client.key --cacert ca.crt -H "Authorization: Bearer $TOKEN" \
+  https://destination.example.com:8443/v1/genome/restores
+```
+
+The source records the restore only from the destination's signed word:
+
+```bash
+sagvd crosscloud-confirm \
+  -config /etc/acp/sagvd.json \
+  -decision-id dec-2026-09-14-001 \
+  -destination-endpoint https://destination.example.com:8443 \
+  -bundle gen-1.genome -wait 2m
+```
+
+It reads the release from the verified audit log (never from flags), fetches the
+destination's receipt, verifies the Evidence over it with the verifier for that
+TEE family, and requires the measurement to be the one the key was released to
+and the decision, request, token and key to be the recorded ones. With
+`-bundle` it also requires the restored genome to be exactly the operator's —
+bundle digest, payload digest and the digest of every restored file. Only then
+does it append `CROSS_CLOUD_RESTORE_COMPLETED`. `-wait` keeps asking while the
+restore is still running. The report carries the measurements:
+
+```json
+{
+  "status": "ok",
+  "key_id": "genome-…-g1-…",
+  "tree_sha256": "…",
+  "files": 3,
+  "bytes": 3158206,
+  "restore_seconds": 0.013,
+  "key_to_restored_seconds": 0.014,
+  "authorized_to_confirmed_seconds": 0.31,
+  "matched_operator_bundle": true,
+  "audit_chain_length": 4,
+  "audit_tip": "…"
+}
+```
+
+`key_to_restored_seconds` is measured on the destination's clock,
+`authorized_to_confirmed_seconds` on the source's. A receipt that does not check
+out is refused (`integrity`, or `authority` for a key that was not released under
+that decision) and nothing is recorded.
 
 ## When a release is refused
 
@@ -291,6 +374,10 @@ fleet may do.
 - Every release is preceded by the three audit events, in order, persisted to
   the signed log before the step they describe; every refusal after the
   handshake ends with `KEY_RELEASE_DENIED`.
+- A restore is recorded only from Evidence of the TEE the key went to, over a
+  receipt that names that release; the destination materialises nothing before
+  every segment of the bundle has authenticated and every restored file matches
+  the sealed snapshot.
 - The operator's signed stop list is applied to every release; without a valid
   one, nothing is released, and an older list cannot be put back.
 
@@ -298,9 +385,8 @@ fleet may do.
 
 - The destination attests with real hardware only on SEV-SNP; other TEE families
   are refused on both sides until their producers and verifiers run end to end.
-- There is no command yet for the fourth audit kind
-  (`KindCrossCloudRestoreCompleted`); the library records it via
-  `kms.Coordinator.RecordCompletion`.
+- Genome keys live in 0600 files on the release host; the source does not yet
+  keep them sealed to its own TEE (KNOWN_ISSUES #11).
 
 ## Document history
 
@@ -308,3 +394,4 @@ fleet may do.
 |---|---|
 | 2026-05-09 | Initial Phase 4 runbook |
 | 2026-09-14 | Rewritten against the shipping binaries: X25519 KEM delivery (ADR 0009), `identity` subcommands, TLS 1.3 and fail-closed exposure; removed commands that do not exist |
+| 2026-09-14 | Genome v3 sealing, `-key-file` releases, destination restore and `crosscloud-confirm` (ADR 0011) |

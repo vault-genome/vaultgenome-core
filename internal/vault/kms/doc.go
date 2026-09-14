@@ -23,9 +23,11 @@
 //     the destination's Evidence and BEFORE policy is consulted.
 //  3. KindKeyReleaseAuthorized — after policy approval and BEFORE the
 //     KeyReleaseToken is dispatched.
-//  4. KindCrossCloudRestoreCompleted — recorded asynchronously once
-//     the destination confirms successful restore (via
-//     RecordCompletion).
+//  4. KindCrossCloudRestoreCompleted — recorded by ConfirmRestore, later,
+//     once the destination's receipt for the restore verifies: Evidence
+//     from the TEE the key was released to, over a receipt that names
+//     the same release (ADR 0011). A refusal (KindKeyReleaseDenied)
+//     ends a flow at step 2 or 3 instead.
 //
 // # Frozen boundaries respected
 //

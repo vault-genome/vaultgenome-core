@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/bootstrap/crosscloud"
+	"github.com/ai-continuity-platform/core/internal/bootstrap/restorer"
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
@@ -74,7 +75,7 @@ USAGE
     attestation public key. It opens no listener.
 
 CONFIG FORMAT
-    JSON file with sections: http, tee, source_authority, health, log.
+    JSON file with sections: http, tee, source_authority, genome, health, log.
     See cmd/acp-bootstrap/config.go for the full schema.
 
 ENDPOINTS
@@ -82,6 +83,11 @@ ENDPOINTS
                                     X25519 key and Evidence that binds it
     POST /v1/crosscloud/token     — accept a signed key-release token whose
                                     DEKs are encapsulated to that key
+    GET  /v1/genome/restores      — (genome section) every released
+                                    genome's restore and where it stands
+    GET  /v1/genome/receipt?key_id=ID
+                                  — a completed restore's receipt, signed
+                                    with this TEE's Evidence
 
 REFERENCES
     ADR 0006 — Cross-Cloud KMS-Mediated Restore
@@ -129,6 +135,7 @@ type daemon struct {
 	log      *slog.Logger
 	receiver *crosscloud.Receiver
 	keystore *keys.InMemoryStore
+	restorer *restorer.Restorer // nil unless genome restore is configured
 
 	api      *http.Server
 	apiLn    net.Listener
@@ -156,13 +163,37 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 	// to a key the Receiver generates per handshake and never writes out
 	// (ADR 0009); there is no other way in.
 	keystore := keys.NewInMemoryStore(clock)
-	receiver, err := crosscloud.NewReceiver(crosscloud.Config{
+
+	// With genome restore configured, a released genome key brings its
+	// bundle up here, opened with the key where it lies (ADR 0011).
+	var rest *restorer.Restorer
+	if cfg.Genome.Enabled() {
+		rest, err = restorer.New(restorer.Config{
+			BundleDir:  cfg.Genome.BundleDir,
+			RestoreDir: cfg.Genome.RestoreDir,
+			Keys:       keystore,
+			Erase:      keystore.EraseSealing,
+			TEE:        producer,
+			Kind:       kind,
+			Logger:     logger,
+			Clock:      clock,
+			Rescan:     time.Duration(cfg.Genome.RescanSeconds) * time.Second,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("acp-bootstrap: genome: %w", err)
+		}
+	}
+	rcfg := crosscloud.Config{
 		SourceAuthorityKeys: sourceResolver,
 		LocalTEE:            producer,
 		Kind:                kind,
 		Registrar:           keystore,
 		Clock:               clock,
-	})
+	}
+	if rest != nil {
+		rcfg.OnDelivery = rest.Delivered
+	}
+	receiver, err := crosscloud.NewReceiver(rcfg)
 	if err != nil {
 		return nil, err
 	}
@@ -178,12 +209,17 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 	for path, h := range handler.Routes() {
 		mux.HandleFunc(path, h)
 	}
+	if rest != nil {
+		for path, h := range rest.Routes(cfg.HTTP.BearerToken) {
+			mux.HandleFunc(path, h)
+		}
+	}
 
 	api, apiLn, err := buildHTTPServer(cfg.HTTP, mux, logger)
 	if err != nil {
 		return nil, err
 	}
-	d := &daemon{log: logger, receiver: receiver, keystore: keystore, api: api, apiLn: apiLn}
+	d := &daemon{log: logger, receiver: receiver, keystore: keystore, restorer: rest, api: api, apiLn: apiLn}
 
 	if cfg.Health.ListenAddress != "" {
 		ln, err := net.Listen("tcp", cfg.Health.ListenAddress)
@@ -206,6 +242,9 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 		"measurement_hex", fmt.Sprintf("%x", producer.Measurement()),
 		"source_authority_kid", cfg.SourceAuthority.KeyID,
 		"key_delivery", kms.DeliveryModeX25519KEM,
+		"genome_restore", rest != nil,
+		"genome_bundle_dir", cfg.Genome.BundleDir,
+		"genome_restore_dir", cfg.Genome.RestoreDir,
 	)
 	return d, nil
 }
@@ -215,6 +254,14 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 func (d *daemon) serve(ctx context.Context) error {
 	errCh := make(chan error, 2)
 	go func() { errCh <- d.api.Serve(d.apiLn) }()
+	restoreCtx, stopRestorer := context.WithCancel(context.Background())
+	restorerDone := make(chan struct{})
+	if d.restorer != nil {
+		go func() { d.restorer.Run(restoreCtx); close(restorerDone) }()
+	} else {
+		close(restorerDone)
+	}
+	defer func() { stopRestorer(); <-restorerDone }()
 	if d.health != nil {
 		go func() {
 			if err := d.health.Serve(d.healthLn); err != nil && !errors.Is(err, http.ErrServerClosed) {
