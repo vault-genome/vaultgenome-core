@@ -42,7 +42,9 @@ bin/%: cmd/%
 # crept in (random build IDs, embedded timestamps, GOPATH leakage,
 # CGO non-determinism). CI runs this as sub-check 18 in vault-gate.yml.
 .PHONY: verify-reproducible
-verify-reproducible: build
+verify-reproducible:
+	@$(MAKE) --no-print-directory clean-bin
+	@$(MAKE) --no-print-directory build
 	@mkdir -p dist/repro
 	@for b in $(BINARIES); do cp bin/$$b dist/repro/$$b.first; done
 	@$(MAKE) --no-print-directory clean-bin
