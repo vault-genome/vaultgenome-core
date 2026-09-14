@@ -17,10 +17,11 @@ defined in the foundation architecture documents:
 
 Continuity is delivered not by storing and redeploying weights, but by storing
 the **AI Genome** — a compact, policy-gated representation — and rebuilding
-from it through a governed process every time. (In the shipping code that
-rebuild is a byte-level statistical placeholder and the TEE layer is a
-simulator, both behind frozen interfaces for a later swap — see the STATUS
-journal, the source of truth for what works today.)
+from it through a governed process every time. (The TEE layer runs in simulation
+by default, with a **real AMD SEV-SNP attestation path proven on live GCP and
+Azure hardware**; the *generative* rebuild from a compact recipe is still a
+statistical placeholder. Both sit behind frozen interfaces — see the Status
+section for exactly what works today.)
 
 ---
 
@@ -60,6 +61,30 @@ on **GCP and Azure** (`scripts/hardware-test/`, `docs/adr/0008`, `0009`). **What
 is a labelled placeholder:** rebuilding a real model from a *compact generative
 recipe* (the reconstruction backend). We say which is which, on purpose.
 
+### Protect a real model (CLI)
+
+Seal your own model into a portable, content-addressed `.genome` bundle, move it
+to another server, and restore it **byte-exact** — with a validated version
+chain for every update (EU-style continuous backup):
+
+```bash
+make build                                                   # builds ./bin/acpctl
+
+# seal your model (any directory of files, or an Ollama model ref)
+./bin/acpctl genome seal --content-dir=./my-model --output=gen-0.genome
+# seal a fine-tune as the next generation, linked to its parent
+./bin/acpctl genome seal --content-dir=./adapter-1 --parent=gen-0.genome --output=gen-1.genome
+
+# on another server: restore byte-exact, then verify the lineage
+./bin/acpctl genome rewind --bundle=gen-0.genome --target=./restored
+./bin/acpctl genome chain  --dir=./generations
+```
+
+`rewind` re-hashes on restore and confirms the payload matches the sealed
+content-address; a tampered bundle is rejected. This byte-exact continuity path
+works today, in simulation mode on any machine, and against real SEV-SNP hardware
+inside a confidential VM.
+
 ---
 
 ## Status
@@ -72,6 +97,24 @@ self-bootstrapping (Stage F) deferred to V2 per resolution R-11.
 integration, coverage, lint, terminology, govulncheck, osv-scanner, gitleaks,
 sbom, license-headers, doctrine-tests, dep-allowlist, dep-depth).
 **Module path:** `github.com/ai-continuity-platform/core`.
+
+### What works today
+
+- **Byte-exact model continuity** — `acpctl genome seal / rewind / chain`: seal
+  any model to a portable, content-addressed bundle, restore it byte-exact on any
+  server, and track versions with a validated lineage chain.
+- **Real AMD SEV-SNP attestation** — a report from a live confidential VM is
+  parsed, its ECDSA-P384 signature verified, and its VCEK chained to AMD
+  ARK-Milan — proven on **two clouds, GCP and Azure** (`scripts/hardware-test/`,
+  ADR 0007 / 0009).
+- **Cross-hardware regeneration gate** — a signed EXACT / EQUIVALENT / FAIL
+  verdict on recomputed reference fixtures, behind a determinism ladder that
+  finds a working door (pinned float → reproducible float → byte-portable
+  integer) or fails closed. Determinism measured on real CPUs (AMD/Intel) and
+  GPUs (NVIDIA L4/T4) — `docs/testing/cross-hardware-determinism.md`, ADR 0008.
+- **Honest boundaries** — the *generative* rebuild from a compact recipe is a
+  labelled placeholder; the reproducible-float rung stands on RepDL / ReproBLAS
+  (`docs/prior-art-and-attribution.md`).
 **Minimum Go version:** 1.22.
 **License:** AGPL-3.0-or-later (see `LICENSE`).
 
