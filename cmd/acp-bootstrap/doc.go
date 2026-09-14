@@ -11,7 +11,8 @@
 //
 // The daemon loads:
 //
-//   - Local TEE producer (the simulated backend in this build)
+//   - Local TEE producer: AMD SEV-SNP through configfs-tsm
+//     ("gcp-sev-snp"), or the simulated backend for development
 //   - Source-authority pubkey (pinned out-of-band from
 //     `sagvd identity`; identifies the source authority)
 //   - Local keystore (where released DEKs are registered)

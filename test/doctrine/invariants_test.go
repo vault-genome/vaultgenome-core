@@ -672,8 +672,9 @@ var forbiddenWriteSelectors = map[string]struct{}{
 //   - sealed ciphertext (vault/storage — the persistence layer for
 //     vault-owned state, including sealed genome components), or
 //   - audit records that are not genome material (audit/store), or
-//   - hardware character-device handles for the TEE producer
-//     (shared/tee — opens /dev/nsm, /dev/sev-guest, /dev/sgx_enclave;
+//   - hardware character-device handles and the kernel's configfs-tsm
+//     report entries for the TEE producer (shared/tee — /dev/nsm,
+//     /dev/sev-guest, /dev/sgx_enclave, /sys/kernel/config/tsm/report;
 //     these never carry plaintext genome material in either direction,
 //     they exchange attestation challenges and quotes only — see
 //     00_TEE_Adapter_Doctrine.md §2 "device-file boundary"), or

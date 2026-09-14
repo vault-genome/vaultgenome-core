@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -91,11 +92,11 @@ type TLSServerConfig struct {
 // TEEConfig holds the destination's local TEE producer
 // configuration.
 type TEEConfig struct {
-	// Provider names the TEE backend (one of the tee.Provider
-	// constants). This build can run "simulated" only; the hardware
-	// producers are wired in with the Continuity Drill (Phase 1). The
-	// provider is also the destination_tee_kind every handshake must
-	// declare.
+	// Provider names the TEE backend: "gcp-sev-snp" (AMD SEV-SNP
+	// reports through the kernel's configfs-tsm, on any SEV-SNP
+	// Confidential VM running Linux 6.7 or later) or "simulated" (a
+	// seed-derived stand-in for development and tests). The provider is
+	// also the destination_tee_kind every handshake must declare.
 	Provider string `json:"provider"`
 
 	// WorkloadDescriptor is hashed into the local measurement for
@@ -104,10 +105,17 @@ type TEEConfig struct {
 	WorkloadDescriptor string `json:"workload_descriptor"`
 
 	// SeedPath is a 32-byte file holding the Ed25519 seed used to
-	// derive this destination's attestation key. Required for the
-	// simulated backend. Sensitive — chmod 0600.
-	SeedPath string `json:"seed_path"`
+	// derive this destination's attestation key. Simulated backend
+	// only. Sensitive — chmod 0600.
+	SeedPath string `json:"seed_path,omitempty"`
+
+	// TSMReportDir overrides the configfs-tsm report directory
+	// (default /sys/kernel/config/tsm/report). gcp-sev-snp only.
+	TSMReportDir string `json:"tsm_report_dir,omitempty"`
 }
+
+// supportedProviders are the TEE backends this build can run.
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderSimulated}
 
 // SourceAuthorityConfig points at the source-authority signing
 // public key file. Used by the receiver to verify every handshake +
@@ -272,16 +280,27 @@ func (c Config) Validate() error {
 		}
 	}
 
-	if strings.TrimSpace(c.TEE.Provider) == "" {
+	switch provider, err := tee.ParseProvider(c.TEE.Provider); {
+	case strings.TrimSpace(c.TEE.Provider) == "":
 		errs = append(errs, errors.New("tee.provider required"))
-	} else if _, err := tee.ParseProvider(c.TEE.Provider); err != nil {
+	case err != nil:
 		errs = append(errs, fmt.Errorf("tee.provider invalid: %w", err))
+	case !slices.Contains(supportedProviders, provider):
+		errs = append(errs, fmt.Errorf("tee.provider %q is not available in this build (supported: %v)", provider, supportedProviders))
+	case provider == tee.ProviderSimulated:
+		if c.TEE.SeedPath == "" {
+			errs = append(errs, errors.New("tee.seed_path required when tee.provider=simulated"))
+		}
+		if c.TEE.TSMReportDir != "" {
+			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp only"))
+		}
+	case provider == tee.ProviderGCPSEVSNP:
+		if c.TEE.SeedPath != "" {
+			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
+		}
 	}
 	if strings.TrimSpace(c.TEE.WorkloadDescriptor) == "" {
 		errs = append(errs, errors.New("tee.workload_descriptor required"))
-	}
-	if c.TEE.Provider == "simulated" && c.TEE.SeedPath == "" {
-		errs = append(errs, errors.New("tee.seed_path required when tee.provider=simulated"))
 	}
 
 	if c.SourceAuthority.KeyID == "" {

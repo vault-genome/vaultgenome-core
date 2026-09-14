@@ -312,11 +312,11 @@ func TestIntegration_GCPSEVSNP(t *testing.T) {
 
 	mkProducer := func(t *testing.T) *GCPSEVProducer {
 		t.Helper()
-		// SEV adapter opens /dev/sev-guest with os.OpenFile — we point it
-		// at a real but unused temp file the adapter never reads/writes.
+		// The adapter checks that the configfs-tsm directory exists; the
+		// fake SEV guest answers the reports, so an empty directory will do.
 		p, err := NewGCPSEVProducer(GCPSEVProducerConfig{
-			SEVGuestDevicePath: fakeFileForSEV(t).Name(),
-			VMPL:               0,
+			TSMReportDir: t.TempDir(),
+			VMPL:         0,
 		})
 		require.NoError(t, err)
 		return p
@@ -359,6 +359,43 @@ func TestIntegration_GCPSEVSNP(t *testing.T) {
 		_, err = v.Verify(ev, bytes.Repeat([]byte{0x42}, NonceMinBytes))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "ReportedTCB")
+	})
+
+	// A report that verifies cryptographically still says nothing about
+	// confidentiality if the guest is debuggable, was quoted from another
+	// privilege level, or was signed by a key this verifier did not check.
+	t.Run("GuestPolicyAndProvenance", func(t *testing.T) {
+		fakeParse := parseSEVSNPReport
+		t.Cleanup(func() { parseSEVSNPReport = fakeParse })
+		for name, tc := range map[string]struct {
+			mutate func(*sevSNPReport)
+			want   string
+		}{
+			"debug guest": {func(r *sevSNPReport) { r.Policy |= sevPolicyDebug }, "DEBUG"},
+			"other VMPL":  {func(r *sevSNPReport) { r.VMPL = 2 }, "VMPL 2"},
+			"VLEK-signed": {func(r *sevSNPReport) { r.SigningKey = 1 }, "by the VCEK"},
+			"other algo":  {func(r *sevSNPReport) { r.SignatureAlgo = 2 }, "ECDSA P-384"},
+		} {
+			t.Run(name, func(t *testing.T) {
+				parseSEVSNPReport = func(raw []byte) (*sevSNPReport, error) {
+					r, err := fakeParse(raw)
+					if err == nil {
+						tc.mutate(r)
+					}
+					return r, err
+				}
+				defer func() { parseSEVSNPReport = fakeParse }()
+				p := mkProducer(t)
+				defer p.Close()
+				v := mkVerifier(t, wantMeas)
+				nonce := bytes.Repeat([]byte{0x44}, NonceMinBytes)
+				ev, err := p.Quote(nonce)
+				require.NoError(t, err)
+				_, err = v.Verify(ev, nonce)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.want)
+			})
+		}
 	})
 
 	t.Run("HostDataPolicy", func(t *testing.T) {

@@ -10,6 +10,10 @@ package tee
 // genuine captured hardware report in gcp_sev_snp_verify_test.go.
 //
 // Report layout (SEV-SNP ABI, report versions 2–5), byte offsets:
+//   0x008 POLICY        (8, little-endian; bit 19 = DEBUG)
+//   0x030 VMPL          (4, little-endian)
+//   0x034 SIG_ALGO      (4, little-endian; 1 = ECDSA P-384 / SHA-384)
+//   0x048 FLAGS         (4; bits 4:2 = SIGNING_KEY, 0 = VCEK, 1 = VLEK)
 //   0x050 REPORT_DATA   (64)   caller-supplied freshness field
 //   0x090 MEASUREMENT   (48)   launch measurement, SHA-384
 //   0x0C0 HOST_DATA     (32)
@@ -35,6 +39,10 @@ import (
 )
 
 const (
+	sevOffPolicy      = 0x008
+	sevOffVMPL        = 0x030
+	sevOffSigAlgo     = 0x034
+	sevOffFlags       = 0x048
 	sevOffReportData  = 0x050
 	sevOffMeasurement = 0x090
 	sevOffHostData    = 0x0C0
@@ -67,6 +75,10 @@ func realParseSEVSNPReport(raw []byte) (*sevSNPReport, error) {
 	copy(r.HostData[:], raw[sevOffHostData:sevOffHostData+32])
 	copy(r.ChipID[:], raw[sevOffChipID:sevOffChipID+64])
 	r.ReportedTCB = binary.LittleEndian.Uint64(raw[sevOffReportedTCB : sevOffReportedTCB+8])
+	r.Policy = binary.LittleEndian.Uint64(raw[sevOffPolicy : sevOffPolicy+8])
+	r.VMPL = binary.LittleEndian.Uint32(raw[sevOffVMPL : sevOffVMPL+4])
+	r.SignatureAlgo = binary.LittleEndian.Uint32(raw[sevOffSigAlgo : sevOffSigAlgo+4])
+	r.SigningKey = uint8(binary.LittleEndian.Uint32(raw[sevOffFlags:sevOffFlags+4])>>2) & 0x7
 	return r, nil
 }
 

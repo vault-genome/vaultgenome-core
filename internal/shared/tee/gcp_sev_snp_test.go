@@ -11,8 +11,8 @@ import (
 func TestGCPSEVProducer_RejectsBadVMPL(t *testing.T) {
 	t.Parallel()
 	_, err := NewGCPSEVProducer(GCPSEVProducerConfig{
-		SEVGuestDevicePath: "/dev/sev-guest",
-		VMPL:               99,
+		TSMReportDir: t.TempDir(),
+		VMPL:         99,
 	})
 	if err == nil {
 		t.Fatal("expected error on invalid VMPL")
@@ -22,14 +22,14 @@ func TestGCPSEVProducer_RejectsBadVMPL(t *testing.T) {
 	}
 }
 
-// TestGCPSEVProducer_AbsentDeviceFails ensures Confidential VM enforcement.
-func TestGCPSEVProducer_AbsentDeviceFails(t *testing.T) {
+// TestGCPSEVProducer_AbsentTSMFails ensures Confidential VM enforcement.
+func TestGCPSEVProducer_AbsentTSMFails(t *testing.T) {
 	t.Parallel()
 	_, err := NewGCPSEVProducer(GCPSEVProducerConfig{
-		SEVGuestDevicePath: "/nonexistent/sev-guest",
+		TSMReportDir: "/nonexistent/tsm/report",
 	})
 	if err == nil {
-		t.Fatal("expected error when /dev/sev-guest absent")
+		t.Fatal("expected error when configfs-tsm is absent")
 	}
 	if !strings.Contains(err.Error(), "Confidential VM") {
 		t.Errorf("error should educate operator; got %q", err.Error())

@@ -506,7 +506,7 @@ func installSEVSNPFake(t testing.TB, fh *fakeHardware) {
 	// Track the last-emitted envelope so parseSEVSNPReport (called by
 	// verifier on the raw evidence bytes) can recover the same struct
 	// the producer emitted.
-	sevSNPGuestReport = func(_ *os.File, nonce []byte, _ uint32) (*sevSNPReport, error) {
+	sevSNPGuestReport = func(_ tsmReporter, nonce []byte, _ uint32) (*sevSNPReport, error) {
 		raw := fh.signAttestation("sev-snp", nonce, nil)
 		// Synthesize the *sevSNPReport struct fields from the fake
 		// envelope. The verifier will call parseSEVSNPReport(raw) and get
@@ -533,12 +533,13 @@ func installSEVSNPFake(t testing.TB, fh *fakeHardware) {
 		var meas [48]byte
 		copy(meas[:32], att.Measurement[:])
 		return &sevSNPReport{
-			Raw:         raw,
-			Measurement: meas,
-			HostData:    att.HostData,
-			ChipID:      att.ChipID,
-			ReportedTCB: att.ReportedTCB,
-			ReportData:  att.ReportData,
+			Raw:           raw,
+			Measurement:   meas,
+			HostData:      att.HostData,
+			ChipID:        att.ChipID,
+			ReportedTCB:   att.ReportedTCB,
+			ReportData:    att.ReportData,
+			SignatureAlgo: 1, // ECDSA P-384, signed by the (fake) VCEK
 		}, nil
 	}
 	amdKDSGetVCEK = func(_ string, _ [64]byte, _ uint64) ([]byte, error) {

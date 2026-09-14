@@ -4,12 +4,11 @@
 //
 // GCP Confidential VMs (N2D-confidential, C3D-confidential) run on AMD
 // EPYC processors with SEV-SNP (Secure Encrypted Virtualization with
-// Secure Nested Paging) enabled. Inside such a VM the guest kernel
-// exposes /dev/sev-guest, an ioctl interface to request:
-//
-//   - SEV_SNP_GUEST_MSG_REPORT: an attestation report (1184 bytes)
-//   - SEV_SNP_GUEST_MSG_DERIVED_KEY: a key derived from the platform
-//     sealing root, optionally bound to the policy + measurement
+// Secure Nested Paging) enabled. The producer requests attestation
+// reports (1184 bytes) through the kernel's configfs-tsm interface
+// (tsm_configfs.go; Linux ≥ 6.7), which fronts the sev-guest driver
+// with plain file I/O. The sealer's derived-key request
+// (SEV_SNP_GUEST_MSG_DERIVED_KEY on /dev/sev-guest) is not wired yet.
 //
 // The attestation report contains:
 //
@@ -21,7 +20,7 @@
 //   - PLATFORM_INFO (8B), PLATFORM_VERSION (8B)
 //   - REPORT_DATA (64B): caller-supplied — we put SHA-256(nonce) here
 //   - MEASUREMENT (48B): the launch measurement (SHA-384 of guest
-//     pages at launch — used as our Measurement, truncated to 32B)
+//     pages at launch — carried whole as our Measurement, ADR 0007)
 //   - HOST_DATA (32B), ID_KEY_DIGEST (48B), AUTHOR_KEY_DIGEST (48B)
 //   - REPORT_ID (32B), REPORT_ID_MA (32B)
 //   - REPORTED_TCB (8B), CPUID (24B)
@@ -60,9 +59,9 @@ import (
 
 // GCPSEVProducerConfig configures the SEV-SNP producer.
 type GCPSEVProducerConfig struct {
-	// SEVGuestDevicePath is the path to /dev/sev-guest. Default
-	// "/dev/sev-guest" (mainline kernel ≥ 5.19).
-	SEVGuestDevicePath string
+	// TSMReportDir is the configfs-tsm report directory. Default
+	// DefaultTSMReportDir ("/sys/kernel/config/tsm/report").
+	TSMReportDir string
 
 	// VMPL is the Virtual Machine Privilege Level requested in the
 	// attestation report (0–3). Default 0 = full guest privilege.
@@ -95,6 +94,10 @@ type GCPSEVVerifierConfig struct {
 	// an external timestamp service. Default 5 minutes.
 	MaxClockSkew time.Duration
 
+	// VMPL is the privilege level the attested workload runs at; a
+	// report requested from any other level is refused. Default 0.
+	VMPL uint32
+
 	// AcceptableHostData, if non-empty, restricts which host
 	// configurations (HOST_DATA field, set by the hypervisor) are
 	// acceptable. GCP populates HOST_DATA with deployment-specific
@@ -102,13 +105,13 @@ type GCPSEVVerifierConfig struct {
 	AcceptableHostData [][32]byte
 }
 
-// GCPSEVProducer implements Producer using /dev/sev-guest.
+// GCPSEVProducer implements Producer using configfs-tsm reports.
 type GCPSEVProducer struct {
 	cfg         GCPSEVProducerConfig
 	measurement Measurement // launch MEASUREMENT (full 48-byte SHA-384)
 
-	mu     sync.Mutex
-	device *os.File
+	mu  sync.Mutex
+	tsm tsmReporter // nil once closed
 }
 
 // GCPSEVVerifier implements Verifier for SEV-SNP attestation reports.
@@ -134,10 +137,12 @@ type GCPSEVSealer struct {
 // Constructors
 // ----------------------------------------------------------------------------
 
-// NewGCPSEVProducer opens /dev/sev-guest and reads the launch measurement.
+// NewGCPSEVProducer checks that this guest can request SEV-SNP reports
+// through configfs-tsm and reads its launch measurement from a first
+// report.
 func NewGCPSEVProducer(cfg GCPSEVProducerConfig) (*GCPSEVProducer, error) {
-	if cfg.SEVGuestDevicePath == "" {
-		cfg.SEVGuestDevicePath = "/dev/sev-guest"
+	if cfg.TSMReportDir == "" {
+		cfg.TSMReportDir = DefaultTSMReportDir
 	}
 	if cfg.VMPL > 3 {
 		return nil, shared_errors.Structural(
@@ -146,17 +151,18 @@ func NewGCPSEVProducer(cfg GCPSEVProducerConfig) (*GCPSEVProducer, error) {
 			nil,
 		)
 	}
-
-	dev, err := os.OpenFile(cfg.SEVGuestDevicePath, os.O_RDWR, 0)
-	if err != nil {
+	if st, err := os.Stat(cfg.TSMReportDir); err != nil || !st.IsDir() {
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("gcp-sev: open %s: %v (this binary must run inside a Confidential VM)", cfg.SEVGuestDevicePath, err),
+			fmt.Sprintf("gcp-sev: no configfs-tsm report directory at %s (this binary must run inside a Confidential VM on Linux 6.7 or later)", cfg.TSMReportDir),
 			err,
 		)
 	}
+	return newGCPSEVProducer(cfg, configfsTSM{dir: cfg.TSMReportDir, provider: "sev_guest", fs: osTSMFS{}})
+}
 
-	p := &GCPSEVProducer{cfg: cfg, device: dev}
+func newGCPSEVProducer(cfg GCPSEVProducerConfig, tsm tsmReporter) (*GCPSEVProducer, error) {
+	p := &GCPSEVProducer{cfg: cfg, tsm: tsm}
 
 	// Read a one-time report with a synthetic nonce just to extract the
 	// launch MEASUREMENT field. After this, every Quote() call gets a
@@ -165,9 +171,8 @@ func NewGCPSEVProducer(cfg GCPSEVProducerConfig) (*GCPSEVProducer, error) {
 	for i := range dummyNonce {
 		dummyNonce[i] = byte(i)
 	}
-	report, err := sevSNPGuestReport(dev, dummyNonce, cfg.VMPL)
+	report, err := sevSNPGuestReport(tsm, dummyNonce, cfg.VMPL)
 	if err != nil {
-		_ = dev.Close()
 		return nil, fmt.Errorf("gcp-sev: initial report: %w", err)
 	}
 	// SEV-SNP MEASUREMENT is a fixed 48-byte SHA-384 field; carry it at full
@@ -209,9 +214,11 @@ func NewGCPSEVSealer(device *os.File, measure Measurement, policy uint64) *GCPSE
 // Producer / Verifier / Sealer
 // ----------------------------------------------------------------------------
 
-// Quote implements Producer. Issues SEV_SNP_GUEST_MSG_REPORT with
-// REPORT_DATA = SHA-256(nonce) || zeros(32). Returns the raw report
-// bytes (1184 bytes) as Evidence.
+// Quote implements Producer. Requests a report with
+// REPORT_DATA = SHA-256(nonce) || zeros(32) and returns the raw report
+// bytes (1184 bytes) as Evidence. A report whose launch measurement
+// differs from the one read at construction is refused: the workload
+// this producer speaks for cannot change underneath it.
 func (p *GCPSEVProducer) Quote(nonce Nonce) (Evidence, error) {
 	if len(nonce) < NonceMinBytes {
 		return nil, shared_errors.Structural(
@@ -222,16 +229,23 @@ func (p *GCPSEVProducer) Quote(nonce Nonce) (Evidence, error) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.device == nil {
+	if p.tsm == nil {
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
-			"gcp-sev: device not open",
+			"gcp-sev: producer closed",
 			nil,
 		)
 	}
-	report, err := sevSNPGuestReport(p.device, nonce, p.cfg.VMPL)
+	report, err := sevSNPGuestReport(p.tsm, nonce, p.cfg.VMPL)
 	if err != nil {
-		return nil, fmt.Errorf("gcp-sev: GUEST_MSG_REPORT: %w", err)
+		return nil, fmt.Errorf("gcp-sev: request report: %w", err)
+	}
+	if !Measurement(report.Measurement[:]).Equal(p.measurement) {
+		return nil, shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			"gcp-sev: report carries a different launch measurement than this producer was started with",
+			nil,
+		)
 	}
 	return Evidence(report.Raw), nil
 }
@@ -241,16 +255,12 @@ func (p *GCPSEVProducer) Measurement() Measurement {
 	return p.measurement
 }
 
-// Close releases the device handle.
+// Close stops the producer; later Quote calls fail.
 func (p *GCPSEVProducer) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.device == nil {
-		return nil
-	}
-	err := p.device.Close()
-	p.device = nil
-	return err
+	p.tsm = nil
+	return nil
 }
 
 // Verify implements Verifier. Parses the SEV-SNP report, fetches and
@@ -306,6 +316,31 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: report signature: %v", err),
 			err,
+		)
+	}
+
+	// Guest policy and report provenance, read from the now-verified
+	// report: signed by the VCEK this verifier fetched, with the
+	// algorithm it checked, for a non-debug guest at the expected VMPL.
+	if report.SignatureAlgo != 1 || report.SigningKey != 0 {
+		return zero, shared_errors.Integrity(
+			shared_errors.CodeSignatureInvalid,
+			fmt.Sprintf("gcp-sev: report signed with algorithm %d by key kind %d; this verifier accepts ECDSA P-384 (1) by the VCEK (0)", report.SignatureAlgo, report.SigningKey),
+			nil,
+		)
+	}
+	if report.Policy&sevPolicyDebug != 0 {
+		return zero, shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			"gcp-sev: guest policy allows DEBUG — the hypervisor can read this guest's memory",
+			nil,
+		)
+	}
+	if report.VMPL != v.cfg.VMPL {
+		return zero, shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			fmt.Sprintf("gcp-sev: report requested at VMPL %d, expected %d", report.VMPL, v.cfg.VMPL),
+			nil,
 		)
 	}
 
@@ -428,10 +463,10 @@ func (s *GCPSEVSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 // ----------------------------------------------------------------------------
 
 func gcpSEVCapability() (bool, string) {
-	if _, err := os.Stat("/dev/sev-guest"); err == nil {
-		return true, "GCP SEV-SNP: /dev/sev-guest present"
+	if st, err := os.Stat(DefaultTSMReportDir); err == nil && st.IsDir() {
+		return true, "GCP SEV-SNP: configfs-tsm reports available at " + DefaultTSMReportDir
 	}
-	return false, "GCP SEV-SNP: /dev/sev-guest not present (host lacks AMD SEV-SNP or kernel < 5.19)"
+	return false, "GCP SEV-SNP: no configfs-tsm reports at " + DefaultTSMReportDir + " (not a Confidential VM, or kernel < 6.7)"
 }
 
 // ----------------------------------------------------------------------------
@@ -445,17 +480,40 @@ type sevSNPReport struct {
 	ChipID      [64]byte
 	ReportedTCB uint64
 	ReportData  [64]byte
+
+	Policy        uint64 // guest policy; bit 19 = DEBUG
+	VMPL          uint32 // privilege level the report was requested at
+	SignatureAlgo uint32 // 1 = ECDSA P-384 with SHA-384
+	SigningKey    uint8  // 0 = VCEK, 1 = VLEK, 7 = none
 }
 
-// sevSNPGuestReport issues SEV_SNP_GUEST_MSG_REPORT via ioctl.
-//
-// Phase 2 wiring: import "github.com/google/go-sev-guest" or implement
-// the ioctl directly using golang.org/x/sys/unix. The kernel API is
-// SEV_SNP_GUEST_MSG_REPORT (0xC000_5300 ioctl number).
+// sevPolicyDebug is the guest-policy bit that lets the hypervisor read
+// and modify guest memory. A debuggable guest's attestation says nothing
+// about confidentiality, so the verifier refuses it.
+const sevPolicyDebug = 1 << 19
+
+// sevSNPGuestReport requests a report whose REPORT_DATA is
+// SHA-256(nonce) || zeros(32) — the binding the verifier checks — and
+// parses it. A report that does not echo the requested REPORT_DATA is
+// refused: it does not answer this challenge.
 //
 // Stored as a var so integration tests can substitute a fake SEV guest.
-var sevSNPGuestReport = func(_ *os.File, _ []byte, _ uint32) (*sevSNPReport, error) {
-	return nil, errors.New("sevSNPGuestReport: not yet wired (Phase 2 — github.com/google/go-sev-guest)")
+var sevSNPGuestReport = func(tsm tsmReporter, nonce []byte, vmpl uint32) (*sevSNPReport, error) {
+	var reportData [64]byte
+	prefix := computeReportDataPrefix(nonce)
+	copy(reportData[:], prefix[:])
+	raw, err := tsm.report(reportData, vmpl)
+	if err != nil {
+		return nil, err
+	}
+	report, err := parseSEVSNPReport(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse report: %w", err)
+	}
+	if report.ReportData != reportData {
+		return nil, errors.New("report does not carry the requested REPORT_DATA")
+	}
+	return report, nil
 }
 
 var parseSEVSNPReport = func(_ []byte) (*sevSNPReport, error) {

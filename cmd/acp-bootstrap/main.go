@@ -246,10 +246,10 @@ func (d *daemon) serve(ctx context.Context) error {
 }
 
 // buildTEEProducer constructs the local TEE producer per cfg.Provider.
-// This build runs the simulated backend only; the hardware producers
-// are wired in with the Continuity Drill (Phase 1).
 func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 	switch cfg.Provider {
+	case string(tee.ProviderGCPSEVSNP):
+		return tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})
 	case string(tee.ProviderSimulated):
 		seed, err := readExactly(cfg.SeedPath, crypto.Ed25519SeedSize, "tee.seed_path")
 		if err != nil {
@@ -257,7 +257,7 @@ func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 		}
 		return tee.NewSimulated([]byte(cfg.WorkloadDescriptor), seed)
 	default:
-		return nil, fmt.Errorf("acp-bootstrap: tee.provider %q is not available in this build (supported: %q)", cfg.Provider, tee.ProviderSimulated)
+		return nil, fmt.Errorf("acp-bootstrap: tee.provider %q is not available in this build (supported: %v)", cfg.Provider, supportedProviders)
 	}
 }
 

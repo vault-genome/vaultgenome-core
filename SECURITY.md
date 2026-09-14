@@ -135,14 +135,16 @@ e.g., a "MEDIUM by CVSS but breaks Invariant 7" is treated as HIGH.
 
 ### In scope
 
-- All Go code under `core/` (sagvd, acp-compute, acpctl, internal
-  packages, public `pkg/teeconformance` package).
-- The investor-demo Next.js site under `investor-demo/`.
-- Container images built from `core/deploy/docker/`.
-- Helm charts and Terraform modules under `core/deploy/`.
-- The CI workflows under `core/.github/workflows/` (a vulnerability
-  there could compromise the supply chain — treat as CRITICAL).
+- All Go code in this repository: the daemons (`sagvd`, `acp-compute`,
+  `acp-bootstrap`), the CLIs (`acpctl`, `acp-demo`), the `internal/`
+  packages and the public `pkg/teeconformance` package.
+- Container images built from `Dockerfile` and `deploy/compose/`.
+- The CI workflows under `.github/workflows/` (a vulnerability there
+  could compromise the supply chain — treat as CRITICAL).
 - Cosign signing flow + SLSA provenance generation.
+- The evidence-capture tooling under `scripts/hardware-test/` (not
+  shipped, but it provisions cloud resources and handles attestation
+  material).
 
 ### Out of scope
 

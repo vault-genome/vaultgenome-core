@@ -52,6 +52,11 @@ func TestRealSEVSNP_VerifiesGenuineHardwareReport(t *testing.T) {
 	require.Len(t, report.Measurement[:], 48, "SEV-SNP MEASUREMENT is 48 bytes (SHA-384)")
 	require.False(t, isAllZero(report.Measurement[:]), "measurement must be non-zero")
 	require.False(t, isAllZero(report.ChipID[:]), "CHIP_ID must be non-zero (production, not debug)")
+	require.Zero(t, report.Policy&sevPolicyDebug, "a production guest: DEBUG not allowed")
+	require.Equal(t, uint64(0x30000), report.Policy, "GCP default policy: SMT allowed, reserved bit set")
+	require.Zero(t, report.VMPL)
+	require.Equal(t, uint32(1), report.SignatureAlgo, "ECDSA P-384 / SHA-384")
+	require.Zero(t, report.SigningKey, "signed by the VCEK")
 
 	// 2. ECDSA-P384 signature under the VCEK.
 	require.NoError(t, realVerifySEVReportSignature(report, vcek),

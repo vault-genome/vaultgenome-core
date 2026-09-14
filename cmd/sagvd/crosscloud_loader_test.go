@@ -117,7 +117,7 @@ func TestLoadVerifierRegistry_HappyPath_PEMPubkey(t *testing.T) {
 	registryJSON := `{
 		"verifiers": [
 			{
-				"provider": "aws-nitro",
+				"provider": "simulated",
 				"attestor_pubkey_path": "` + pubPath + `",
 				"expected_measurement_hex": "` + makeMeasurementHex(0x42) + `"
 			}
@@ -129,8 +129,47 @@ func TestLoadVerifierRegistry_HappyPath_PEMPubkey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadVerifierRegistry(PEM): %v", err)
 	}
-	if !registry.Has(tee.ProviderAWSNitro) {
-		t.Error("registry must hold ProviderAWSNitro entry")
+	if !registry.Has(tee.ProviderSimulated) {
+		t.Error("registry must hold the PEM-keyed simulated entry")
+	}
+}
+
+// Real SEV-SNP: the Evidence is signed by the chip's VCEK, which must
+// chain to the AMD root the operator pins; measurements are 48 bytes.
+func TestLoadVerifierRegistry_SEVSNP(t *testing.T) {
+	dir := t.TempDir()
+	chain := writeFile(t, dir, "amd-chain.pem", []byte("-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"))
+	m48 := strings.Repeat("ab", 48)
+	entry := func(extra string) string {
+		return `{"verifiers":[{"provider":"gcp-sev-snp","expected_measurement_hex":"` + m48 + `"` + extra + `}]}`
+	}
+
+	reg, err := loadVerifierRegistry(writeFile(t, dir, "ok.json", []byte(entry(`,"amd_cert_chain_path":"`+chain+`","min_reported_tcb":7`))))
+	if err != nil {
+		t.Fatalf("loadVerifierRegistry(gcp-sev-snp): %v", err)
+	}
+	if !reg.Has(tee.ProviderGCPSEVSNP) {
+		t.Fatal("registry must hold the gcp-sev-snp entry")
+	}
+	if _, err := loadVerifierRegistry(writeFile(t, dir, "nochain.json", []byte(entry("")))); err == nil || !strings.Contains(err.Error(), "amd_cert_chain_path") {
+		t.Fatalf("gcp-sev-snp without an AMD chain: err = %v", err)
+	}
+	if _, err := loadVerifierRegistry(writeFile(t, dir, "badchain.json", []byte(entry(`,"amd_cert_chain_path":"`+filepath.Join(dir, "absent.pem")+`"`)))); err == nil {
+		t.Fatal("gcp-sev-snp with an unreadable AMD chain was accepted")
+	}
+}
+
+// Fail closed: a family whose verifier this build cannot run end to end
+// is refused when the registry loads, not discovered at release time.
+func TestLoadVerifierRegistry_RefusesFamiliesWithoutAWorkingVerifier(t *testing.T) {
+	dir := t.TempDir()
+	pubPath := writeFile(t, dir, "attestor.pem", generateEd25519PubPEM(t))
+	for _, provider := range []string{"aws-nitro", "azure-sgx", "intel-sgx-dcap"} {
+		reg := `{"verifiers":[{"provider":"` + provider + `","attestor_pubkey_path":"` + pubPath + `","expected_measurement_hex":"` + makeMeasurementHex(0x42) + `"}]}`
+		_, err := loadVerifierRegistry(writeFile(t, dir, provider+".json", []byte(reg)))
+		if err == nil || !strings.Contains(err.Error(), "no verifier this build can run end to end") {
+			t.Errorf("%s: err = %v, want a fail-closed refusal", provider, err)
+		}
 	}
 }
 

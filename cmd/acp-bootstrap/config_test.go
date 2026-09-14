@@ -154,6 +154,23 @@ func TestValidate_TEEProvider(t *testing.T) {
 	c = minimalValidConfig()
 	c.TEE.SeedPath = ""
 	requireInvalid(t, c, "tee.seed_path required when tee.provider=simulated")
+
+	c = minimalValidConfig()
+	c.TEE.TSMReportDir = "/sys/kernel/config/tsm/report"
+	requireInvalid(t, c, "tee.tsm_report_dir applies to gcp-sev-snp only")
+
+	// Real SEV-SNP: the chip signs; there is no seed to configure.
+	c = minimalValidConfig()
+	c.TEE.Provider = "gcp-sev-snp"
+	c.TEE.SeedPath = ""
+	requireValid(t, c)
+	c.TEE.SeedPath = "/etc/acp/tee_seed"
+	requireInvalid(t, c, "tee.seed_path applies to the simulated provider only")
+
+	// Families whose producer this build does not run are refused up front.
+	c = minimalValidConfig()
+	c.TEE.Provider = "aws-nitro"
+	requireInvalid(t, c, `tee.provider "aws-nitro" is not available in this build`)
 }
 
 func TestResolveSecrets(t *testing.T) {

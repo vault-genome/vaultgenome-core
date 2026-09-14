@@ -15,10 +15,14 @@ workload the source operator allow-listed.
 
 What the shipping binaries do today, stated exactly:
 
-- `acp-bootstrap` runs the **simulated** TEE backend only. Its Evidence is signed
-  by a key derived from a seed file, so it proves the protocol, not hardware
-  isolation. The hardware producers (SEV-SNP first) are wired in with the
-  Continuity Drill; nothing in this runbook changes when they are.
+- `acp-bootstrap` attests with **AMD SEV-SNP** (`tee.provider: "gcp-sev-snp"`,
+  reports through the kernel's configfs-tsm on a Confidential VM) or with the
+  **simulated** backend, whose Evidence is signed by a key derived from a seed
+  file — that proves the protocol, not hardware isolation. The examples below
+  use the simulator so they run anywhere; the SEV-SNP settings are in
+  [runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md) §D. `sagvd`'s
+  verifier registry accepts `simulated` and `gcp-sev-snp` and refuses every
+  other family until its verifier runs end to end.
 - The DEKs a destination receives are registered in that `acp-bootstrap`
   process's in-memory keystore. Using them to open a sealed genome on the
   destination is the next step of the Drill and is not yet part of the binary.
@@ -102,8 +106,8 @@ Exposure rules are enforced at startup; a config that breaks one does not start:
 - Beyond loopback, callers must present a client certificate (`client_cas`) or a
   bearer token of at least 32 characters (`bearer_token_file`, or inline
   `bearer_token`); configure both for defence in depth.
-- `seed_path` is a 32-byte file; `public_key_path` accepts the PEM printed by
-  `sagvd identity` or the raw 32 bytes.
+- `seed_path` (simulated only) is a 32-byte file; `public_key_path` accepts the
+  PEM printed by `sagvd identity` or the raw 32 bytes.
 - `tee.provider` is also the only `destination_tee_kind` the daemon answers; a
   handshake declaring another kind is refused.
 
@@ -221,13 +225,14 @@ a `recipient_key_sha256`, then `crosscloud token accepted` with the same
 
 ## Known limits
 
+- The destination attests with real hardware only on SEV-SNP; other TEE families
+  are refused on both sides until their producers and verifiers run end to end.
 - `crosscloud-restore` keeps its audit chain in process memory and reports its
   length; persisting it as a signed, append-only log that auditors can verify
   offline is scheduled work, not present today.
 - There is no command yet for the fourth audit kind
   (`KindCrossCloudRestoreCompleted`); the library records it via
   `kms.Coordinator.RecordCompletion`.
-- The destination runs the simulated TEE (see the top of this page).
 
 ## Document history
 

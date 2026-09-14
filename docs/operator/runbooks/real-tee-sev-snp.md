@@ -106,24 +106,41 @@ A PASS means the report parsed, its signature verified under the genuine VCEK,
 and the VCEK chained to AMD ARK-Milan — real hardware attestation, not the
 simulator. (Committed captures for GCP and Azure already prove this offline.)
 
-## D. What the daemons do with real SEV-SNP today
+## D. Run the key-release destination on real SEV-SNP
 
-Stated exactly, so no one plans a deployment on a capability that is not there:
+`acp-bootstrap` requests its reports through configfs-tsm (Linux 6.7 or later,
+e.g. the Ubuntu 24.04 image in section A), so on a SEV-SNP Confidential VM it
+attests with the chip instead of the simulator:
 
-- **Verifying** a genuine SEV-SNP report is real code (section C): parse,
-  ECDSA-P384 under the VCEK, VCEK → ASK → ARK chain via AMD KDS.
-- **Producing** reports from inside a daemon is not wired yet: the
-  `gcp-sev-snp` producer's report call (`sevSNPGuestReport`) returns "not yet
-  wired", and `sagvd` / `acp-bootstrap` build the simulated TEE. Section A's
-  `configfs-tsm` steps are the manual equivalent.
-- The cross-cloud protocol needs no change for real hardware: the destination
-  quotes over the ADR 0009 key-binding challenge, and the SEV-SNP verifier's
-  REPORT_DATA check on that challenge is what binds the key. No Coordinator
-  option is involved.
+```json
+"tee": { "provider": "gcp-sev-snp", "workload_descriptor": "acp-bootstrap-destination-v1" }
+```
 
-Wiring the `configfs-tsm` producer into `acp-bootstrap`, and a `gcp-sev-snp`
-entry in `sagvd`'s verifier registry (AMD root and TCB policy), is Phase 1 of the
-Continuity Drill.
+No seed is configured — the chip signs. `acp-bootstrap identity -config …` then
+prints the guest's 48-byte launch measurement. On the source, register the
+family in `sagvd`'s verifier registry with the AMD chain the VCEK must chain to
+(AMD KDS serves it at `/vcek/v1/Milan/cert_chain`; the committed capture in
+`scripts/hardware-test/gcp-sev-snp/keybind-evidence/` holds a copy):
+
+```json
+{ "verifiers": [ {
+  "provider": "gcp-sev-snp",
+  "expected_measurement_hex": "<measurement_hex from acp-bootstrap identity>",
+  "amd_cert_chain_path": "/etc/acp/crosscloud/amd-milan-cert_chain.pem",
+  "min_reported_tcb": 0
+} ] }
+```
+
+and put the same measurement on the allow-list under `"gcp-sev-snp"`. The
+verifier fetches each chip's VCEK from AMD KDS (cached per chip and TCB), checks
+the ECDSA-P384 signature and the VCEK → ASK → ARK chain, and refuses a report
+that is not VCEK-signed, comes from a DEBUG-enabled guest, was requested at a
+VMPL other than 0, carries a TCB below `min_reported_tcb`, or does not bind the
+ADR 0009 key-binding challenge.
+
+What is still simulated: `sagvd`'s own TEE (the Return Path vault side) and the
+SEV-SNP sealer (`SEV_SNP_GUEST_MSG_DERIVED_KEY`). Families other than SEV-SNP are
+refused by the registry until their verifiers run end to end.
 
 ## Cleanup (cost hygiene)
 

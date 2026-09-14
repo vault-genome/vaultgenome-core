@@ -47,11 +47,11 @@ regression introduced by the same root causes:
   the skipped tests probe. Both pass.
 - **Doctrinal invariants** in `test/doctrine/` — 11 architectural
   invariants enforced at build / test time. All pass.
-- **Live demo path** in `investor-demo/` — the public Fly.io
-  deployment runs a production-shape lifecycle every time `Run` is
-  pressed. The behavioral validator exercises the new probe library
-  (8 critical + 32 non-critical), and the audit chain is verified
-  end-to-end on every scenario.
+- **Live daemons** in `test/integration/` — `sagvd`, `acp-compute` and
+  `acp-bootstrap` run as real processes over mutual TLS: job round
+  trips, cross-cloud key release, and the refusals (wrong token,
+  untrusted certificate, unpinned worker, unlisted or impostor
+  destination).
 
 ## Re-enabling
 
@@ -69,7 +69,7 @@ These nine skipped tests do not impact:
 - The two-tier integrity split (tier-1 wire-hash + tier-2 plaintext-hash).
 - The R-11 swap discipline.
 - Any of the 11 doctrinal invariants enforced in CI.
-- The live demo at https://acp-investor-demo.fly.dev.
+- The live-daemon suite in `test/integration/`.
 
 They are all *unit-level diagnostic tests* of fixture construction or
 error-category classification. Phase 2 work picks each up
@@ -83,15 +83,19 @@ statements here are the accurate ones and take precedence. All are being
 addressed on the `honest-reference` branch (honesty pass → defect fixes
 → real SEV-SNP attestation wiring).
 
-1. **Hardware TEE attestation is not wired into the shipping binaries.**
-   The four hardware adapters
-   (`internal/shared/tee/{aws_nitro,azure_sgx,gcp_sev_snp,intel_sgx_dcap}.go`)
-   are Phase-2 scaffolding — hardware/crypto calls return
-   `"not yet wired (Phase 2)"`. Only `simulated.go` is functional, and its
-   sealing key is intentionally weak (recoverable from the measurement).
-   No Intel TDX adapter exists. The real attestation captures under
-   `evidence/` were produced by standalone tooling
-   (`scripts/hardware-test/…`), **not** by these adapters.
+1. **Hardware TEE attestation is wired for AMD SEV-SNP only (2026-09-14).**
+   The SEV-SNP producer requests reports through the kernel's configfs-tsm
+   and `acp-bootstrap` can run on it (`tee.provider: "gcp-sev-snp"`); the
+   verifier checks the ECDSA-P384 signature, the VCEK → ASK → ARK chain, TCB,
+   guest policy (no DEBUG), VMPL and the challenge binding, and is proven
+   offline against genuine GCP and Azure reports. Still scaffolding: the SEV-SNP
+   sealer's derived key, and the AWS Nitro, Azure SGX and Intel SGX DCAP
+   adapters — `sagvd`'s verifier registry and `acp-bootstrap` refuse those
+   families rather than trust them. `sagvd`'s own TEE is still the simulated
+   one, whose sealing key is intentionally weak (recoverable from the
+   measurement). No Intel TDX adapter exists. The attestation captures under
+   `evidence/` were produced by standalone tooling (`scripts/hardware-test/…`);
+   no end-to-end key release has yet run on SEV-SNP hardware.
 2. **Model "reconstruction" is a placeholder, not neural inference.**
    V1 (`internal/compute/worker/reconstruction.go`) is SHA-256 digest
    expansion; V2 (`generative.go`, the daemon default) is a byte-level

@@ -86,8 +86,19 @@ type verifierRegistryFile struct {
 
 type verifierEntry struct {
 	Provider               string `json:"provider"`
-	AttestorPubKeyPath     string `json:"attestor_pubkey_path"`
 	ExpectedMeasurementHex string `json:"expected_measurement_hex"`
+
+	// AttestorPubKeyPath is the simulated backend's attestation key
+	// (raw 32 bytes or PEM, as `acp-bootstrap identity` prints it).
+	AttestorPubKeyPath string `json:"attestor_pubkey_path,omitempty"`
+
+	// SEV-SNP (provider "gcp-sev-snp"): the AMD ASK+ARK certificate
+	// chain the VCEK must chain to (PEM, as AMD KDS serves it at
+	// /vcek/v1/<product>/cert_chain), an optional KDS mirror, and the
+	// minimum REPORTED_TCB to accept.
+	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
+	AMDKDSURL        string `json:"amd_kds_url,omitempty"`
+	MinReportedTCB   uint64 `json:"min_reported_tcb,omitempty"`
 }
 
 // allowListFile is the on-disk JSON schema for
@@ -203,18 +214,29 @@ func loadVerifierRegistry(path string) (*tee.Registry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("sagvd: verifier_registry[%d].expected_measurement_hex must be a 32-, 48- or 64-byte measurement: %w", i, err)
 		}
-		pub, err := loadAttestorPubKey(e.AttestorPubKeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("sagvd: verifier_registry[%d].attestor_pubkey_path %q: %w", i, e.AttestorPubKeyPath, err)
+		spec := tee.VerifierSpec{Provider: provider, ExpectedMeasurement: measurement}
+		switch provider {
+		case tee.ProviderSimulated:
+			pub, err := loadAttestorPubKey(e.AttestorPubKeyPath)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].attestor_pubkey_path %q: %w", i, e.AttestorPubKeyPath, err)
+			}
+			spec.AttestorPubKey = pub
+		case tee.ProviderGCPSEVSNP:
+			if e.AMDCertChainPath == "" {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: gcp-sev-snp requires amd_cert_chain_path (the AMD ASK+ARK chain the VCEK must chain to)", i)
+			}
+			chain, err := os.ReadFile(e.AMDCertChainPath)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].amd_cert_chain_path: %w", i, err)
+			}
+			spec.GCPSEV = tee.GCPSEVVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, MinReportedTCB: e.MinReportedTCB}
+		default:
+			// Fail closed: a family whose verifier this build cannot run
+			// end to end must not be trusted with key releases.
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp)", i, provider)
 		}
-		specs = append(specs, tee.RegistrySpec{
-			Provider: provider,
-			Spec: tee.VerifierSpec{
-				Provider:            provider,
-				AttestorPubKey:      pub,
-				ExpectedMeasurement: measurement,
-			},
-		})
+		specs = append(specs, tee.RegistrySpec{Provider: provider, Spec: spec})
 	}
 	return tee.NewRegistry(specs)
 }
