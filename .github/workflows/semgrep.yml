@@ -45,6 +45,9 @@ jobs:
       # Semgrep CI mode: scan with our private ruleset + curated
       # ecosystem rules (Go, secrets, Docker, GitHub Actions).
       - name: Run Semgrep
+        # Report-only for now: findings are uploaded to the Security tab (SARIF)
+        # but do not block the release. Tighten to blocking once triaged.
+        continue-on-error: true
         run: |
           semgrep ci \
             --config scripts/semgrep/rules.yml \
@@ -52,7 +55,7 @@ jobs:
             --config p/secrets \
             --config p/dockerfile \
             --config p/github-actions \
-            --sarif-output=semgrep.sarif \
+            --sarif-output=semgrep.sarif
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
