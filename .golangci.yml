@@ -11,6 +11,11 @@
 
 version: "2"
 
+run:
+  # Lint the build-tagged black-box suite in test/integration too.
+  build-tags:
+    - integration
+
 linters:
   default: standard
 

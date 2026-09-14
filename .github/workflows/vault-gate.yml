@@ -76,7 +76,10 @@ jobs:
 
       # 06 integration
       - name: integration tests
-        run: make test-integration || echo "no integration tests yet (stage B)"
+        # Builds the real sagvd / acp-compute / keygen binaries and runs
+        # them as processes over loopback: mTLS Return Path, bearer-token
+        # REST API, TEE pinning, fail-closed config, graceful SIGTERM.
+        run: make test-integration
 
       # 07 coverage (+ threshold enforcement inside script)
       - name: coverage + thresholds
