@@ -145,3 +145,25 @@ func TestAttestation_UnmarshalJSON_RejectsUnknownField(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
 }
+
+// A probe run inside real hardware reports a 48-byte (SEV-SNP, Nitro)
+// or 64-byte measurement; it is carried whole. Other lengths are refused.
+func TestAttestation_Validate_MeasurementLengths(t *testing.T) {
+	t.Parallel()
+	batKID := ids.KeyID("battery-signer")
+	runnerKID := ids.KeyID("probe-runner-7")
+	store := newAuthStore(t, batKID)
+	_, err := store.GenerateSigning(runnerKID, keys.PurposeSigningAuthority)
+	require.NoError(t, err)
+	b := newSignedBattery(t, store, batKID)
+	s := newSignedScorecard(t, store, runnerKID, ids.GenomeID("gen:abc"), b, 0x00)
+	a := newSignedAttestation(t, store, runnerKID, ids.GenomeID("gen:abc"), b, s)
+
+	for n, ok := range map[int]bool{32: true, 48: true, 64: true, 0: false, 31: false, 33: false, 47: false} {
+		c := *a
+		c.TEEMeasurement = repeat(0x5A, n)
+		if err := c.Validate(); (err == nil) != ok {
+			t.Errorf("%d-byte measurement: Validate err = %v, want ok=%v", n, err, ok)
+		}
+	}
+}

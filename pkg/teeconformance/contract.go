@@ -12,16 +12,22 @@ package teeconformance
 // dedicated sub-tests asserting both reject paths.
 const NonceMinBytes = 16
 
-// MeasurementSize is the length in bytes of a Measurement (SHA-256-class
-// digest of the workload's running code as the TEE measures it).
-const MeasurementSize = 32
-
 // Measurement is the TEE's cryptographic measurement of the workload
-// code running inside it. For real hardware this is the MRENCLAVE / TD
-// report / VCEK report of the attested workload. Conformance does not
-// constrain how the value is computed — only that it is a fixed-size
-// 32-byte digest comparable byte-wise.
-type Measurement [MeasurementSize]byte
+// code running inside it — an SGX MRENCLAVE, an SEV-SNP MEASUREMENT, a
+// Nitro PCR0. It is carried whole, at the length the hardware reports:
+// 32 bytes (SHA-256), 48 bytes (SHA-384, as SEV-SNP and Nitro report)
+// or 64 bytes (SHA-512). Conformance does not constrain how the value
+// is computed — only that its length is one ValidMeasurementLen accepts
+// and that the verifier returns exactly the bytes the producer declares.
+// Truncating a measurement to fit a narrower type is non-conformant: it
+// would let two different workloads share an identity (ADR 0007).
+type Measurement []byte
+
+// ValidMeasurementLen reports whether n is a measurement length the
+// platform pins in full: 32, 48 or 64 bytes.
+func ValidMeasurementLen(n int) bool {
+	return n == 32 || n == 48 || n == 64
+}
 
 // Nonce is challenger-supplied fresh randomness. Producers bind it into
 // the evidence so a verifier can confirm the quote is fresh, not a

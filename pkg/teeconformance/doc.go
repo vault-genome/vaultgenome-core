@@ -52,7 +52,7 @@
 // contract:
 //
 //   - Round-trip: every Quote can be Verified back to the producer's
-//     Measurement.
+//     Measurement, carried whole (32, 48 or 64 bytes).
 //   - Replay protection: a fresh nonce is rejected if it doesn't match
 //     the one bound into the evidence.
 //   - Tamper rejection: a flipped byte in the signature region MUST
@@ -78,7 +78,11 @@
 // # Versioning
 //
 // This package follows the V1 frozen contract — the test surface is
-// deliberately stable across versions of the parent module. A future
+// deliberately stable across versions of the parent module. One
+// amendment landed before the first tagged release: Measurement
+// became a variable-length byte slice (ADR 0007), because a fixed
+// 32-byte array could not carry the 48-byte measurements SEV-SNP and
+// Nitro report. A future
 // V2 contract amendment (only via ADR amendment) would land as
 // teeconformance/v2 alongside this package; the V1 surface here will
 // keep accepting V1-conformant adapters indefinitely.

@@ -18,8 +18,10 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ai-continuity-platform/core/pkg/teeconformance"
@@ -43,14 +45,31 @@ type refSealer struct {
 
 const refMagic = "REF-CONFORMANCE-V1\x00"
 
-func newRefBackend(t testing.TB, label string) (*refProducer, *refVerifier, *refSealer, func() *refSealer) {
+// measure derives a reference measurement of the given width, the way
+// hardware reports one: SHA-256 (32 bytes), SHA-384 (48, as SEV-SNP and
+// Nitro) or SHA-512 (64).
+func measure(width int, workload []byte) teeconformance.Measurement {
+	switch width {
+	case 48:
+		m := sha512.Sum384(workload)
+		return m[:]
+	case 64:
+		m := sha512.Sum512(workload)
+		return m[:]
+	default:
+		m := sha256.Sum256(workload)
+		return m[:]
+	}
+}
+
+func newRefBackend(t testing.TB, label string, width int) (*refProducer, *refVerifier, *refSealer, func() *refSealer) {
 	t.Helper()
 	seed := sha256.Sum256([]byte("ref-seed-" + label))
 	priv := ed25519.NewKeyFromSeed(seed[:])
 	pub := priv.Public().(ed25519.PublicKey)
-	measurement := sha256.Sum256([]byte("ref-workload-" + label))
+	measurement := measure(width, []byte("ref-workload-"+label))
 
-	keyDigest := sha256.Sum256(append([]byte("ref-sealing-key-"), measurement[:]...))
+	keyDigest := sha256.Sum256(append([]byte("ref-sealing-key-"), measurement...))
 	sealingKey := make([]byte, 32)
 	copy(sealingKey, keyDigest[:])
 
@@ -62,21 +81,23 @@ func newRefBackend(t testing.TB, label string) (*refProducer, *refVerifier, *ref
 }
 
 // Quote produces evidence: refMagic || nonce-len(BE32) || nonce ||
-// measurement || ed25519(measurement || nonce).
+// measurement-len(BE32) || measurement || ed25519(measurement || nonce).
 func (p *refProducer) Quote(nonce teeconformance.Nonce) (teeconformance.Evidence, error) {
 	if len(nonce) < teeconformance.NonceMinBytes {
 		return nil, errors.New("ref: nonce below floor")
 	}
-	signedBlob := append(append([]byte(nil), p.measurement[:]...), nonce...)
+	signedBlob := append(append([]byte(nil), p.measurement...), nonce...)
 	sig := ed25519.Sign(p.priv, signedBlob)
 
 	var buf bytes.Buffer
 	buf.WriteString(refMagic)
-	var nlen [4]byte
-	binary.BigEndian.PutUint32(nlen[:], uint32(len(nonce)))
-	buf.Write(nlen[:])
+	var n [4]byte
+	binary.BigEndian.PutUint32(n[:], uint32(len(nonce)))
+	buf.Write(n[:])
 	buf.Write(nonce)
-	buf.Write(p.measurement[:])
+	binary.BigEndian.PutUint32(n[:], uint32(len(p.measurement)))
+	buf.Write(n[:])
+	buf.Write(p.measurement)
 	buf.Write(sig)
 	return buf.Bytes(), nil
 }
@@ -86,38 +107,41 @@ func (p *refProducer) Measurement() teeconformance.Measurement {
 }
 
 func (v *refVerifier) Verify(ev teeconformance.Evidence, nonce teeconformance.Nonce) (teeconformance.Measurement, error) {
-	var zero teeconformance.Measurement
 	if len(nonce) < teeconformance.NonceMinBytes {
-		return zero, errors.New("ref: nonce below floor")
+		return nil, errors.New("ref: nonce below floor")
 	}
-	if len(ev) < len(refMagic)+4 {
-		return zero, errors.New("ref: evidence too short")
+	if len(ev) < len(refMagic)+4 || string(ev[:len(refMagic)]) != refMagic {
+		return nil, errors.New("ref: not reference evidence")
 	}
-	if string(ev[:len(refMagic)]) != refMagic {
-		return zero, errors.New("ref: magic mismatch")
+	rest := ev[len(refMagic):]
+	field := func() ([]byte, bool) { // len(BE32) || bytes
+		if len(rest) < 4 {
+			return nil, false
+		}
+		n := uint64(binary.BigEndian.Uint32(rest))
+		if uint64(len(rest)-4) < n {
+			return nil, false
+		}
+		b := rest[4 : 4+n]
+		rest = rest[4+n:]
+		return b, true
 	}
-	off := len(refMagic)
-	nlen := binary.BigEndian.Uint32(ev[off : off+4])
-	off += 4
-	if uint32(len(ev)-off) < nlen+teeconformance.MeasurementSize+ed25519.SignatureSize {
-		return zero, errors.New("ref: truncated")
+	gotNonce, ok1 := field()
+	mBytes, ok2 := field()
+	if !ok1 || !ok2 || len(rest) != ed25519.SignatureSize {
+		return nil, errors.New("ref: truncated")
 	}
-	gotNonce := ev[off : off+int(nlen)]
-	off += int(nlen)
-	mBytes := ev[off : off+teeconformance.MeasurementSize]
-	off += teeconformance.MeasurementSize
-	sig := ev[off : off+ed25519.SignatureSize]
-
 	if !bytes.Equal(gotNonce, nonce) {
-		return zero, errors.New("ref: nonce mismatch (replay?)")
+		return nil, errors.New("ref: nonce mismatch (replay?)")
 	}
 	signedBlob := append(append([]byte(nil), mBytes...), gotNonce...)
-	if !ed25519.Verify(v.pub, signedBlob, sig) {
-		return zero, errors.New("ref: signature invalid")
+	if !ed25519.Verify(v.pub, signedBlob, rest) {
+		return nil, errors.New("ref: signature invalid")
 	}
-	var m teeconformance.Measurement
-	copy(m[:], mBytes)
-	return m, nil
+	if !bytes.Equal(mBytes, v.measurement) {
+		return nil, errors.New("ref: unexpected measurement")
+	}
+	return append(teeconformance.Measurement(nil), mBytes...), nil
 }
 
 func (s *refSealer) Seal(plaintext, aad []byte) ([]byte, error) {
@@ -156,16 +180,22 @@ func (s *refSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 
 // ---- conformance harness invocation ---------------------------------------
 
+// The suite accepts every measurement width hardware reports.
 func TestConformance_ReferenceBackend_ProducerVerifier(t *testing.T) {
 	t.Parallel()
-	teeconformance.RunProducerVerifierContract(t, func(t teeconformance.Tester) (teeconformance.Producer, teeconformance.Verifier) {
-		gt, ok := t.(*testing.T)
-		if !ok {
-			t.Fatal("expected *testing.T")
-		}
-		p, v, _, _ := newRefBackend(gt, "prod-verifier")
-		return p, v
-	})
+	for _, width := range []int{32, 48, 64} {
+		t.Run(fmt.Sprintf("%d-byte measurement", width), func(t *testing.T) {
+			t.Parallel()
+			teeconformance.RunProducerVerifierContract(t, func(tt teeconformance.Tester) (teeconformance.Producer, teeconformance.Verifier) {
+				gt, ok := tt.(*testing.T)
+				if !ok {
+					tt.Fatal("expected *testing.T")
+				}
+				p, v, _, _ := newRefBackend(gt, "prod-verifier", width)
+				return p, v
+			})
+		})
+	}
 }
 
 func TestConformance_ReferenceBackend_Sealer(t *testing.T) {
@@ -175,7 +205,7 @@ func TestConformance_ReferenceBackend_Sealer(t *testing.T) {
 		if !ok {
 			t.Fatal("expected *testing.T")
 		}
-		_, _, s, rebuild := newRefBackend(gt, "sealer")
+		_, _, s, rebuild := newRefBackend(gt, "sealer", 32)
 		rebuildAdapter := func(t teeconformance.Tester) teeconformance.Sealer {
 			return rebuild()
 		}
@@ -189,7 +219,7 @@ func TestConformance_ReferenceBackend_Sealer(t *testing.T) {
 // is also a working example.
 func TestConformance_DirectVerify(t *testing.T) {
 	t.Parallel()
-	p, v, _, _ := newRefBackend(t, "direct")
+	p, v, _, _ := newRefBackend(t, "direct", 48)
 	nonce := bytes.Repeat([]byte{0x42}, teeconformance.NonceMinBytes)
 	ev, err := p.Quote(nonce)
 	if err != nil {
@@ -199,7 +229,7 @@ func TestConformance_DirectVerify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
-	if got != p.Measurement() {
-		t.Errorf("measurement mismatch")
+	if !bytes.Equal(got, p.Measurement()) || len(got) != 48 {
+		t.Errorf("measurement mismatch: got %d bytes %x", len(got), got)
 	}
 }

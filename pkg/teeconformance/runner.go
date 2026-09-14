@@ -26,7 +26,8 @@ import (
 //   - Tamper: flipping the last byte of the evidence MUST cause Verify
 //     to fail.
 //   - MeasurementStability: the value returned by Verify MUST equal
-//     producer.Measurement().
+//     producer.Measurement(), be 32, 48 or 64 bytes long, and not be
+//     all zero.
 func RunProducerVerifierContract(t *testing.T, newPair ProducerFactory) {
 	t.Helper()
 
@@ -43,7 +44,7 @@ func RunProducerVerifierContract(t *testing.T, newPair ProducerFactory) {
 		if err != nil {
 			t.Fatalf("Verify: %v", err)
 		}
-		if got != p.Measurement() {
+		if !bytes.Equal(got, p.Measurement()) {
 			t.Errorf("verifier returned %x, producer claims %x", got, p.Measurement())
 		}
 	})
@@ -117,11 +118,13 @@ func RunProducerVerifierContract(t *testing.T, newPair ProducerFactory) {
 		if err != nil {
 			t.Fatalf("Verify: %v", err)
 		}
-		var zero Measurement
-		if m == zero {
-			t.Errorf("verifier returned zero measurement")
+		if !ValidMeasurementLen(len(m)) {
+			t.Errorf("verifier returned a %d-byte measurement; want 32, 48 or 64 bytes, carried whole", len(m))
 		}
-		if m != p.Measurement() {
+		if len(bytes.Trim(m, "\x00")) == 0 {
+			t.Errorf("verifier returned an all-zero measurement")
+		}
+		if !bytes.Equal(m, p.Measurement()) {
 			t.Errorf("Verify returned %x, want producer's %x", m, p.Measurement())
 		}
 	})

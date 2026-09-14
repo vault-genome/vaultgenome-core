@@ -49,10 +49,10 @@ type ProbeAttestation struct {
 	// one runner may rotate keys but keep a stable identity.
 	RunnerIdentity string `json:"runner_identity"`
 
-	// TEEMeasurement is a 32-byte enclave measurement (e.g. SGX
-	// MRENCLAVE, SEV-SNP measurement). Exactly 32 bytes. Required —
-	// a probe attestation with no TEE measurement has no integrity
-	// story.
+	// TEEMeasurement is the enclave measurement, carried whole: 32
+	// bytes (SGX MRENCLAVE, SHA-256), 48 (SEV-SNP MEASUREMENT, Nitro
+	// PCR0) or 64 (SHA-512). Required — a probe attestation with no
+	// TEE measurement has no integrity story.
 	TEEMeasurement []byte `json:"tee_measurement"`
 
 	// RunStartedAt and RunCompletedAt bracket the probe run.
@@ -124,10 +124,10 @@ func (a *ProbeAttestation) Validate() error {
 			nil,
 		)
 	}
-	if len(a.TEEMeasurement) != crypto.HashSize {
+	if n := len(a.TEEMeasurement); n != 32 && n != 48 && n != 64 {
 		return shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
-			"probe_attestation: tee_measurement must be 32 bytes",
+			"probe_attestation: tee_measurement must be 32, 48 or 64 bytes",
 			nil,
 		)
 	}

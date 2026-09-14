@@ -41,7 +41,8 @@ func TestMyAdapter_Conformance(t *testing.T) {
 - Replay — Verify with a different nonce than the one bound MUST fail.
 - Tamper — flipping the last byte of evidence MUST cause Verify to fail.
 - MeasurementStability — Verify's returned measurement equals
-  Producer.Measurement().
+  Producer.Measurement(), is 32, 48 or 64 bytes (carried whole: SEV-SNP
+  and Nitro report 48), and is not all zero.
 
 **Sealer (6)**
 
