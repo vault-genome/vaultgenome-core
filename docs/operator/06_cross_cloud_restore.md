@@ -131,6 +131,27 @@ Exposure rules are enforced at startup; a config that breaks one does not start:
   bundles in under another name and rename them to `*.genome`, so a
   half-written bundle is never picked up. A key that arrives before its bundle
   waits for it (`rescan_seconds`, default 5).
+- `genome.gate` (optional) proves a restored model works before the receipt is
+  signed. `command` runs the gate backend — the `vg_genome` door
+  (`workers/genome`), with `{genome}` standing for the restored directory — which
+  recomputes the genome's sealed fixtures on this machine; the equivalence gate
+  holds them to their references, byte-exact first, then within `atol`/`rtol`.
+  The verdict (EXACT, EQUIVALENT or FAIL) goes into the receipt. With
+  `required: true` a genome that cannot be gated (no model fixtures, a backend
+  that does not run) fails its restore instead of being signed for without a
+  verdict:
+
+  ```json
+  "gate": {
+    "command": ["python3", "-m", "vg_genome", "door", "--genome", "{genome}",
+                "--base", "/var/lib/acp/base/qwen2.5-0.5b-instruct", "--device", "cuda"],
+    "env": ["PYTHONPATH=/opt/vaultgenome/workers/genome"],
+    "atol": 0.01, "rtol": 0.001, "required": true
+  }
+  ```
+
+  The base model directory must hash to the genome's manifest; the door refuses
+  any other.
 
 The health listener answers `/healthz` and `/readyz` and exposes nothing else.
 
@@ -298,8 +319,10 @@ destination's receipt, verifies the Evidence over it with the verifier for that
 TEE family, and requires the measurement to be the one the key was released to
 and the decision, request, token and key to be the recorded ones. With
 `-bundle` it also requires the restored genome to be exactly the operator's —
-bundle digest, payload digest and the digest of every restored file. Only then
-does it append `CROSS_CLOUD_RESTORE_COMPLETED`. `-wait` keeps asking while the
+bundle digest, payload digest and the digest of every restored file. With
+`-require-gate EQUIVALENT` (or `EXACT`) it also requires the destination's gate
+verdict on the restored model to be at least that. Only then does it append
+`CROSS_CLOUD_RESTORE_COMPLETED`, recording the gate verdict with it. `-wait` keeps asking while the
 restore is still running. The report carries the measurements:
 
 ```json

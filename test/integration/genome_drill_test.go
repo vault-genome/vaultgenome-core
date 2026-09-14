@@ -7,8 +7,10 @@ package integration
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -273,5 +275,151 @@ func TestLiveGenomeDrill_SealReleaseRestoreConfirm(t *testing.T) {
 	}
 	if ok, events, _ := x.auditVerify(t); !ok || events != 4 {
 		t.Fatalf("a refused confirmation changed the audit log: ok=%v events=%d", ok, events)
+	}
+}
+
+// modelGenomeDir writes a model genome as the vg_genome worker does —
+// genome.json, fixtures fx-000/fx-001 with float32 references, an
+// adapter — and returns it with the gate response a model that came back
+// right would give.
+func modelGenomeDir(t *testing.T, fx0, fx1 string) (string, []byte) {
+	t.Helper()
+	dir := t.TempDir()
+	fixtures, err := json.Marshal(map[string]any{"schema": "vault-genome/lora-fixtures/v1", "fixtures": []map[string]any{
+		{"id": "fx-000", "critical": true, "expected": map[string]any{"dtype": "f32", "shape": []int{2}, "raw_b64": fx0}},
+		{"id": "fx-001", "expected": map[string]any{"dtype": "f32", "shape": []int{2}, "raw_b64": fx1}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(fixtures)
+	genome, err := json.Marshal(map[string]any{
+		"schema": "vault-genome/lora-genome/v1",
+		"base": map[string]any{"name": "Qwen/Qwen2.5-0.5B-Instruct", "manifest": map[string]any{
+			"files": map[string]string{"model.safetensors": "sha256:00"}, "digest": "sha256:base"}},
+		"adapter":  map[string]any{"dir": "adapter", "weights_sha256": "sha256:cd"},
+		"fixtures": map[string]any{"file": "fixtures.json", "sha256": "sha256:" + hex.EncodeToString(sum[:])},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string][]byte{
+		"genome.json": genome, "fixtures.json": fixtures, "adapter/adapter_model.safetensors": []byte("lora weights"),
+	} {
+		p := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resp, err := json.Marshal(map[string]any{"outputs": map[string]any{
+		"fx-000": map[string]any{"dtype": "f32", "shape": []int{2}, "raw_b64": fx0},
+		"fx-001": map[string]any{"dtype": "f32", "shape": []int{2}, "raw_b64": fx1},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir, resp
+}
+
+// The destination proves the restored model works before it signs: its
+// gate recomputes the sealed fixtures and the verdict is in the receipt.
+// The source can require a passing verdict, and a model that misses its
+// references is refused on the record's terms.
+func TestLiveGenomeDrill_GatedModel(t *testing.T) {
+	x := newXCC(t)
+	vault := t.TempDir()
+	good, _ := modelGenomeDir(t, "AADAPwAAAMA=", "AACAPgAAQEA=") // [1.5, -2], [0.25, 3]
+	acpctl(t, "genome", "seal", "--content-dir", good, "--output", filepath.Join(vault, "good.genome"), "--key-out", filepath.Join(vault, "good.key"))
+	var goodID struct {
+		KeyID string `json:"key_id"`
+	}
+	if err := json.Unmarshal([]byte(acpctl(t, "genome", "inspect", "--bundle", filepath.Join(vault, "good.genome"), "--json")), &goodID); err != nil {
+		t.Fatal(err)
+	}
+
+	// The gate backend answers as a restored model on this hardware
+	// would: the references for the good genome, far off for any other.
+	_, rightResp := modelGenomeDir(t, "AADAPwAAAMA=", "AACAPgAAQEA=")
+	right := filepath.Join(vault, "right.json")
+	wrong := filepath.Join(vault, "wrong.json")
+	if err := os.WriteFile(right, rightResp, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, wrongResp := modelGenomeDir(t, "AAAQQQAAAMA=", "AACAPgAAQEA=") // fx-000 = [9, -2]
+	if err := os.WriteFile(wrong, wrongResp, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	door := filepath.Join(vault, "door.sh")
+	script := "#!/bin/sh\ncat >/dev/null\nif grep -q '" + goodID.KeyID + "' <<EOF\n$1\nEOF\nthen cat " + right + "\nelse cat " + wrong + "\nfi\n"
+	if err := os.WriteFile(door, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	bundles, restored := filepath.Join(root, "bundles"), filepath.Join(root, "restored")
+	if err := os.MkdirAll(bundles, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	replicate(t, filepath.Join(vault, "good.genome"), bundles)
+	destCfg := x.destinationConfig(t, "destination", map[string]any{
+		"genome": map[string]any{"bundle_dir": bundles, "restore_dir": restored, "rescan_seconds": 1,
+			"gate": map[string]any{"command": []string{door, "{genome}"}, "atol": 1e-3, "rtol": 1e-3, "required": true}},
+	})
+	id := identityOf(t, bins.bootstrap, destCfg)
+	x.startDestination(t, destCfg)
+	srcCfg := x.sourceConfig(t, id, id["measurement_hex"])
+
+	if rel, out, err := x.release(t, srcCfg, x.endpoint, "gated-1", goodID.KeyID+":"+filepath.Join(vault, "good.key")); err != nil || rel.Status != "ok" {
+		t.Fatalf("release: %v\n%s", err, out)
+	}
+	var conf struct {
+		confirmResult
+		Gate *struct {
+			Level    string `json:"level"`
+			Door     string `json:"door"`
+			Fixtures int    `json:"fixtures"`
+		} `json:"gate"`
+	}
+	out, err := runJSON(t, &conf, bins.sagvd, "crosscloud-confirm", "-config", srcCfg, "-decision-id", "gated-1",
+		"-destination-endpoint", x.endpoint, "-bundle", filepath.Join(vault, "good.genome"), "-require-gate", "EQUIVALENT", "-wait", "30s")
+	if err != nil || conf.Status != "ok" || conf.Gate == nil || conf.Gate.Level != "EXACT" || conf.Gate.Fixtures != 2 {
+		t.Fatalf("confirm with a required gate: %v\n%s", err, out)
+	}
+	if n := len(x.destLog("genome gated")); n != 1 {
+		t.Fatalf("destination logged %d gate runs, want 1", n)
+	}
+
+	// A second genome whose restored model misses its references: signed
+	// for as FAIL, and a source that requires a passing gate refuses it.
+	bad, _ := modelGenomeDir(t, "AADAPwAAAMA=", "AACAPgAAQEA=")
+	if err := os.WriteFile(filepath.Join(bad, "data.txt"), []byte("another fine-tune"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	acpctl(t, "genome", "seal", "--content-dir", bad, "--output", filepath.Join(vault, "bad.genome"), "--key-out", filepath.Join(vault, "bad.key"))
+	var badID struct {
+		KeyID string `json:"key_id"`
+	}
+	if err := json.Unmarshal([]byte(acpctl(t, "genome", "inspect", "--bundle", filepath.Join(vault, "bad.genome"), "--json")), &badID); err != nil {
+		t.Fatal(err)
+	}
+	replicate(t, filepath.Join(vault, "bad.genome"), bundles)
+	if rel, out, err := x.release(t, srcCfg, x.endpoint, "gated-2", badID.KeyID+":"+filepath.Join(vault, "bad.key")); err != nil || rel.Status != "ok" {
+		t.Fatalf("release: %v\n%s", err, out)
+	}
+	res, _, err := x.confirm(t, srcCfg, "-decision-id", "gated-2", "-destination-endpoint", x.endpoint,
+		"-bundle", filepath.Join(vault, "bad.genome"), "-require-gate", "EQUIVALENT", "-wait", "30s")
+	if err == nil || res.Error == nil || !strings.Contains(res.Error.Message, "gate verdict FAIL") {
+		t.Fatalf("confirm of a model that failed its gate: err=%v result=%+v", err, res)
+	}
+	code, body := x.destinationGET(t, "/v1/genome/restores")
+	if code != http.StatusOK || !strings.Contains(string(body), `"state":"gate_failed"`) {
+		t.Fatalf("destination does not report the failed gate: %d %s", code, body)
+	}
+	// On record: two releases (3 events each) and one confirmation.
+	if ok, events, _ := x.auditVerify(t); !ok || events != 7 {
+		t.Fatalf("audit log: ok=%v events=%d, want 7", ok, events)
 	}
 }

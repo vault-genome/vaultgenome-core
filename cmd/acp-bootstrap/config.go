@@ -163,6 +163,33 @@ type GenomeConfig struct {
 	// RescanSeconds is how often to look again for the bundle of a key
 	// that arrived first. Defaults to 5.
 	RescanSeconds int `json:"rescan_seconds,omitempty"`
+
+	// Gate, when set, proves each restored model works before the
+	// receipt is signed: Command (the vg_genome door) recomputes the
+	// genome's sealed fixtures here and the equivalence gate holds the
+	// outputs to their references. The verdict goes into the receipt.
+	Gate *GateConfig `json:"gate,omitempty"`
+}
+
+// GateConfig configures the restored-model gate.
+type GateConfig struct {
+	// Command runs the gate backend; "{genome}" in an argument is the
+	// restored genome's directory. For example:
+	// ["python3", "-m", "vg_genome", "door", "--genome", "{genome}",
+	//  "--base", "/var/lib/acp/base/qwen2.5-0.5b", "--device", "cuda"]
+	Command []string `json:"command"`
+	// Env adds KEY=VALUE pairs to the backend's environment.
+	Env []string `json:"env,omitempty"`
+	// Atol and Rtol bound the float door: |a-e| <= atol + rtol*|e|.
+	Atol float64 `json:"atol"`
+	Rtol float64 `json:"rtol"`
+	// MaxOutliers non-critical fixtures may miss; critical ones never.
+	MaxOutliers int `json:"max_outliers,omitempty"`
+	// TimeoutSeconds bounds a gate run. Defaults to 1800.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+	// Required fails a restore that cannot be gated rather than signing
+	// for it without a verdict.
+	Required bool `json:"required,omitempty"`
 }
 
 // Enabled reports whether genome restore is configured.
@@ -389,6 +416,19 @@ func (g GenomeConfig) validate() []error {
 	}
 	if g.RescanSeconds < 0 {
 		errs = append(errs, errors.New("genome.rescan_seconds must not be negative"))
+	}
+	if gate := g.Gate; gate != nil {
+		if len(gate.Command) == 0 || strings.TrimSpace(gate.Command[0]) == "" {
+			errs = append(errs, errors.New("genome.gate.command required"))
+		}
+		if gate.Atol < 0 || gate.Rtol < 0 || gate.MaxOutliers < 0 || gate.TimeoutSeconds < 0 {
+			errs = append(errs, errors.New("genome.gate: atol, rtol, max_outliers and timeout_seconds must not be negative"))
+		}
+		for _, kv := range gate.Env {
+			if k, _, ok := strings.Cut(kv, "="); !ok || k == "" {
+				errs = append(errs, fmt.Errorf("genome.gate.env %q is not KEY=VALUE", kv))
+			}
+		}
 	}
 	return errs
 }

@@ -68,6 +68,10 @@ type Config struct {
 	Clock  shared_time.Clock
 	// Rescan: zero selects DefaultRescan.
 	Rescan time.Duration
+
+	// Gate, when set, runs the equivalence gate on every restored model
+	// before the receipt is signed, and puts its verdict in the receipt.
+	Gate *GateConfig
 }
 
 // State is where a released key's restore stands.
@@ -77,8 +81,12 @@ type State string
 const (
 	StateWaiting   State = "waiting_for_bundle"
 	StateRestoring State = "restoring"
+	StateGating    State = "gating"
 	StateRestored  State = "restored"
-	StateFailed    State = "failed"
+	// StateGateFailed: restored, but the model's outputs miss their
+	// references on this hardware. The receipt says so.
+	StateGateFailed State = "gate_failed"
+	StateFailed     State = "failed"
 )
 
 // Record is the public account of one released key's restore.
@@ -94,6 +102,7 @@ type Record struct {
 	StartedAt     *time.Time      `json:"started_at,omitempty"`
 	FinishedAt    *time.Time      `json:"finished_at,omitempty"`
 	Result        *restore.Result `json:"result,omitempty"`
+	Gate          *receipt.Gate   `json:"gate,omitempty"`
 	Error         string          `json:"error,omitempty"`
 }
 
@@ -172,11 +181,15 @@ func (r *Restorer) loadReceipts() error {
 			return fmt.Errorf("restorer: %w", err)
 		}
 		restoredAt := rc.RestoredAt
+		state := StateRestored
+		if rc.Gate != nil && rc.Gate.Level == receipt.GateFail {
+			state = StateGateFailed
+		}
 		r.entries[rc.KeyID] = &entry{
 			rec: Record{
 				KeyID: rc.KeyID, DecisionID: rc.DecisionID, RequestID: rc.RequestID, TokenID: rc.TokenID,
-				State: StateRestored, KeyReceivedAt: rc.KeyReceivedAt, BundleSHA256: rc.BundleSHA256,
-				FinishedAt: &restoredAt,
+				State: state, KeyReceivedAt: rc.KeyReceivedAt, BundleSHA256: rc.BundleSHA256,
+				FinishedAt: &restoredAt, Gate: rc.Gate,
 				Result: &restore.Result{
 					Target: filepath.Join(r.cfg.RestoreDir, rc.KeyID), Files: rc.Files, BytesWritten: rc.Bytes,
 					PayloadSHA256: rc.PayloadSHA256, TreeSHA256: rc.TreeSHA256,
@@ -199,7 +212,7 @@ func (r *Restorer) Delivered(d crosscloud.Delivery) {
 		if !bundle.IsKeyID(kid) {
 			continue
 		}
-		if e, ok := r.entries[kid]; ok && e.rec.State != StateFailed {
+		if e, ok := r.entries[kid]; ok && e.rec.State != StateFailed && e.rec.State != StateGateFailed {
 			continue // already restored or on its way
 		} else if !ok {
 			r.order = append(r.order, kid)
@@ -314,8 +327,12 @@ func (r *Restorer) restoreOne(kid, path string) {
 	target := filepath.Join(r.cfg.RestoreDir, kid)
 	res, bundleSHA, h, err := r.open(kid, path, target)
 	finished := r.cfg.Clock.Now().UTC()
+	var verdict *receipt.Gate
+	if err == nil && r.cfg.Gate != nil {
+		verdict, err = r.runGate(kid, target)
+	}
 	if err == nil {
-		err = r.sign(kid, h, res, bundleSHA, started, finished)
+		err = r.sign(kid, h, res, bundleSHA, started, finished, verdict)
 	}
 	if err != nil {
 		r.update(kid, func(rec *Record) {
@@ -359,9 +376,34 @@ func (r *Restorer) open(kid, path, target string) (restore.Result, string, bundl
 	return res, hex.EncodeToString(h.Sum(nil)), br.Header, nil
 }
 
+// runGate proves the restored model works here, or says it does not. A
+// genome that cannot be gated is signed for without a verdict, unless
+// the gate is required.
+func (r *Restorer) runGate(kid, target string) (*receipt.Gate, error) {
+	r.update(kid, func(rec *Record) { rec.State = StateGating })
+	r.log.Info("genome gate started", slog.String("key_id", kid))
+	verdict, err := r.cfg.Gate.gate(target)
+	switch {
+	case err != nil && r.cfg.Gate.Required:
+		return nil, err
+	case err != nil:
+		r.log.Warn("genome not gated", slog.String("key_id", kid), slog.String("reason", err.Error()))
+		return nil, nil
+	}
+	r.log.Info("genome gated",
+		slog.String("key_id", kid),
+		slog.String("level", verdict.Level),
+		slog.String("door", verdict.Door),
+		slog.Int("fixtures", verdict.Fixtures),
+		slog.Float64("max_abs_err", verdict.MaxAbsErr),
+		slog.Float64("backend_seconds", verdict.BackendSeconds),
+	)
+	return verdict, nil
+}
+
 // sign has the TEE sign the restore's receipt and keeps it, on disk
 // first, so a receipt that is served is also one that survives restarts.
-func (r *Restorer) sign(kid string, h bundle.Header, res restore.Result, bundleSHA string, started, finished time.Time) error {
+func (r *Restorer) sign(kid string, h bundle.Header, res restore.Result, bundleSHA string, started, finished time.Time, verdict *receipt.Gate) error {
 	r.mu.Lock()
 	rec := r.entries[kid].rec
 	r.mu.Unlock()
@@ -383,6 +425,7 @@ func (r *Restorer) sign(kid string, h bundle.Header, res restore.Result, bundleS
 		KeyReceivedAt:          rec.KeyReceivedAt,
 		RestoredAt:             finished,
 		RestoreSeconds:         finished.Sub(started).Seconds(),
+		Gate:                   verdict,
 	}, r.cfg.TEE)
 	if err != nil {
 		return err
@@ -390,8 +433,12 @@ func (r *Restorer) sign(kid string, h bundle.Header, res restore.Result, bundleS
 	if err := receipt.Save(filepath.Join(r.cfg.RestoreDir, kid+receiptSuffix), signed); err != nil {
 		return fmt.Errorf("restorer: keep receipt: %w", err)
 	}
+	state := StateRestored
+	if verdict != nil && verdict.Level == receipt.GateFail {
+		state = StateGateFailed
+	}
 	r.update(kid, func(rec *Record) {
-		rec.State, rec.FinishedAt, rec.BundleSHA256, rec.Result = StateRestored, &finished, bundleSHA, &res
+		rec.State, rec.FinishedAt, rec.BundleSHA256, rec.Result, rec.Gate = state, &finished, bundleSHA, &res, verdict
 	})
 	r.mu.Lock()
 	r.entries[kid].signed = &signed

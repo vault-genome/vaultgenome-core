@@ -262,3 +262,36 @@ func TestValidate_GenomeRestoreDirectories(t *testing.T) {
 	c.Genome = GenomeConfig{BundleDir: "/var/lib/vg/b", RestoreDir: "/var/lib/vg/bb"}
 	requireValid(t, c)
 }
+
+func TestValidate_GenomeGate(t *testing.T) {
+	c := minimalValidConfig()
+	c.Genome = GenomeConfig{BundleDir: "/var/lib/vg/bundles", RestoreDir: "/var/lib/vg/restored", Gate: &GateConfig{
+		Command: []string{"python3", "-m", "vg_genome", "door", "--genome", "{genome}", "--base", "/b"},
+		Env:     []string{"PYTHONPATH=/opt/vg"}, Atol: 1e-2, Rtol: 1e-3, TimeoutSeconds: 600, Required: true,
+	}}
+	requireValid(t, c)
+	gc := gateConfig(c.Genome.Gate)
+	if gc.Timeout != 600*time.Second || gc.Tolerance.Atol != 1e-2 || !gc.Required {
+		t.Fatalf("gate config not carried over: %+v", gc)
+	}
+	if gateConfig(&GateConfig{Command: []string{"x"}}).Timeout != 1800*time.Second || gateConfig(nil) != nil {
+		t.Fatal("gate defaults")
+	}
+
+	for name, tc := range map[string]struct {
+		g    GateConfig
+		want string
+	}{
+		"no command":   {GateConfig{}, "genome.gate.command required"},
+		"blank":        {GateConfig{Command: []string{" "}}, "genome.gate.command required"},
+		"negative tol": {GateConfig{Command: []string{"x"}, Atol: -1}, "must not be negative"},
+		"bad env":      {GateConfig{Command: []string{"x"}, Env: []string{"NOEQUALS"}}, "not KEY=VALUE"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := minimalValidConfig()
+			g := tc.g
+			c.Genome = GenomeConfig{BundleDir: "/a", RestoreDir: "/b", Gate: &g}
+			requireInvalid(t, c, tc.want)
+		})
+	}
+}

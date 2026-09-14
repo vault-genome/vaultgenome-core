@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -32,6 +33,7 @@ import (
 // every fixture, so the ladder records the door as errored and falls through.
 type BatchedExternalBackend struct {
 	Argv    []string
+	Env     []string      // extra environment for the backend, KEY=VALUE
 	IDs     []string      // every fixture id the gate will ask for
 	Timeout time.Duration // for the whole batch; <=0 uses defaultBatchTimeout
 
@@ -83,6 +85,9 @@ func (b *BatchedExternalBackend) run() {
 		return
 	}
 	cmd := exec.CommandContext(ctx, b.Argv[0], b.Argv[1:]...)
+	if len(b.Env) > 0 {
+		cmd.Env = append(os.Environ(), b.Env...)
+	}
 	cmd.Stdin = bytes.NewReader(req)
 	var out, errb bytes.Buffer
 	cmd.Stdout = &out

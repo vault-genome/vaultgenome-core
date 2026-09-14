@@ -149,3 +149,8 @@ func TestCrossCloudConfirmCmd_RefusesBeforeContactingAnyone(t *testing.T) {
 		})
 	}
 }
+
+func TestCrossCloudConfirmCmd_RefusesAnUnknownGateLevel(t *testing.T) {
+	err := runCrossCloudConfirmCmd([]string{"-config", "c", "-decision-id", "d", "-destination-endpoint", "https://d", "-key-id", "k", "-require-gate", "PASS"})
+	require.ErrorContains(t, err, `-require-gate "PASS"`)
+}

@@ -65,6 +65,45 @@ type Receipt struct {
 	KeyReceivedAt  time.Time `json:"key_received_at"`
 	RestoredAt     time.Time `json:"restored_at"`
 	RestoreSeconds float64   `json:"restore_seconds"`
+
+	// Gate is the equivalence gate's verdict on the restored model, when
+	// the destination ran it: its sealed fixtures recomputed on this
+	// hardware and held to their references.
+	Gate *Gate `json:"gate,omitempty"`
+}
+
+// Gate is a restored model's gate verdict.
+type Gate struct {
+	Level          string  `json:"level"` // EXACT, EQUIVALENT or FAIL
+	Door           string  `json:"door,omitempty"`
+	Fixtures       int     `json:"fixtures"`
+	MaxAbsErr      float64 `json:"max_abs_err"`
+	MaxRelErr      float64 `json:"max_rel_err"`
+	Atol           float64 `json:"atol"`
+	Rtol           float64 `json:"rtol"`
+	BackendSeconds float64 `json:"backend_seconds"`
+}
+
+// Gate levels, in order of fidelity.
+const (
+	GateExact      = "EXACT"
+	GateEquivalent = "EQUIVALENT"
+	GateFail       = "FAIL"
+)
+
+// Meets reports whether the gate verdict is at least want (EXACT or
+// EQUIVALENT). FAIL meets nothing.
+func (g *Gate) Meets(want string) bool {
+	if g == nil {
+		return false
+	}
+	switch want {
+	case GateExact:
+		return g.Level == GateExact
+	case GateEquivalent:
+		return g.Level == GateExact || g.Level == GateEquivalent
+	}
+	return false
 }
 
 var (
@@ -104,6 +143,14 @@ func (r Receipt) Validate() error {
 	}
 	if r.KeyReceivedAt.IsZero() || r.RestoredAt.IsZero() || r.RestoredAt.Before(r.KeyReceivedAt) {
 		errs = append(errs, errors.New("key_received_at and restored_at required, in that order"))
+	}
+	if g := r.Gate; g != nil {
+		if g.Level != GateExact && g.Level != GateEquivalent && g.Level != GateFail {
+			errs = append(errs, fmt.Errorf("gate level %q", g.Level))
+		}
+		if g.Fixtures <= 0 || g.MaxAbsErr < 0 || g.MaxRelErr < 0 || g.Atol < 0 || g.Rtol < 0 || g.BackendSeconds < 0 {
+			errs = append(errs, errors.New("gate figures must be a real gate's"))
+		}
 	}
 	if err := errors.Join(errs...); err != nil {
 		return fmt.Errorf("receipt: %w", err)

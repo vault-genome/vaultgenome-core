@@ -26,6 +26,7 @@ import (
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/ai-continuity-platform/core/internal/vault/keys"
 	"github.com/ai-continuity-platform/core/internal/vault/kms"
 )
@@ -178,6 +179,7 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 			Logger:     logger,
 			Clock:      clock,
 			Rescan:     time.Duration(cfg.Genome.RescanSeconds) * time.Second,
+			Gate:       gateConfig(cfg.Genome.Gate),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("acp-bootstrap: genome: %w", err)
@@ -246,6 +248,7 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 		"source_authority_kid", cfg.SourceAuthority.KeyID,
 		"key_delivery", kms.DeliveryModeX25519KEM,
 		"genome_restore", rest != nil,
+		"genome_gate", cfg.Genome.Gate != nil,
 		"genome_bundle_dir", cfg.Genome.BundleDir,
 		"genome_restore_dir", cfg.Genome.RestoreDir,
 	)
@@ -293,6 +296,25 @@ func (d *daemon) serve(ctx context.Context) error {
 	}
 	d.log.Info("acp-bootstrap stopped")
 	return serveErr
+}
+
+// gateConfig turns the genome.gate section into the restorer's gate.
+func gateConfig(g *GateConfig) *restorer.GateConfig {
+	if g == nil {
+		return nil
+	}
+	timeout := 1800 * time.Second
+	if g.TimeoutSeconds > 0 {
+		timeout = time.Duration(g.TimeoutSeconds) * time.Second
+	}
+	return &restorer.GateConfig{
+		Command:     g.Command,
+		Env:         g.Env,
+		Tolerance:   equivalence.Tolerance{Atol: g.Atol, Rtol: g.Rtol},
+		MaxOutliers: g.MaxOutliers,
+		Timeout:     timeout,
+		Required:    g.Required,
+	}
 }
 
 // buildTEEProducer constructs the local TEE producer per cfg.Provider.

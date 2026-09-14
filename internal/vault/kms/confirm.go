@@ -85,8 +85,12 @@ type ConfirmRequest struct {
 	DestinationEndpoint string
 	KeyID               ids.KeyID
 	Expect              *ExpectedGenome
-	SessionID           ids.SessionID
-	ManifestID          ids.ManifestID
+	// RequireGate, when set (receipt.GateEquivalent or receipt.GateExact),
+	// requires the destination to have gated the restored model and the
+	// verdict to be at least that.
+	RequireGate string
+	SessionID   ids.SessionID
+	ManifestID  ids.ManifestID
 }
 
 // ConfirmResult is a confirmed restore.
@@ -123,6 +127,8 @@ type restoreConfirmedPayload struct {
 	ReceiptSHA256          []byte         `json:"receipt_sha256"`
 	EvidenceSHA256         []byte         `json:"evidence_sha256"`
 	MatchedOperatorBundle  bool           `json:"matched_operator_bundle"`
+	Gate                   *receipt.Gate  `json:"gate,omitempty"`
+	RequiredGate           string         `json:"required_gate,omitempty"`
 	ConfirmedAt            time.Time      `json:"confirmed_at"`
 }
 
@@ -144,6 +150,10 @@ func (c *Coordinator) ConfirmRestore(ctx context.Context, req ConfirmRequest) (C
 	}
 	if req.DestinationEndpoint == "" {
 		return ConfirmResult{}, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.ConfirmRestore: DestinationEndpoint required", nil)
+	}
+	if req.RequireGate != "" && req.RequireGate != receipt.GateEquivalent && req.RequireGate != receipt.GateExact {
+		return ConfirmResult{}, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("kms.ConfirmRestore: RequireGate %q (want %s or %s)", req.RequireGate, receipt.GateEquivalent, receipt.GateExact), nil)
 	}
 	if !slices.Contains(rel.KeyIDs, req.KeyID) {
 		return ConfirmResult{}, shared_errors.Authority(shared_errors.CodeAttestationDenied,
@@ -193,6 +203,15 @@ func (c *Coordinator) ConfirmRestore(ctx context.Context, req ConfirmRequest) (C
 		matched = true
 	}
 
+	if req.RequireGate != "" && !rc.Gate.Meets(req.RequireGate) {
+		got := "no gate verdict"
+		if rc.Gate != nil {
+			got = "gate verdict " + rc.Gate.Level
+		}
+		return ConfirmResult{}, shared_errors.Integrity(shared_errors.CodeAttestationDenied,
+			fmt.Sprintf("kms.ConfirmRestore: the destination signed %s; %s or better is required", got, req.RequireGate), nil)
+	}
+
 	receiptSum := sha256.Sum256(signed.Receipt)
 	evidenceSum := sha256.Sum256(signed.Evidence)
 	confirmedAt := c.clock.Now().UTC()
@@ -216,6 +235,8 @@ func (c *Coordinator) ConfirmRestore(ctx context.Context, req ConfirmRequest) (C
 		ReceiptSHA256:          receiptSum[:],
 		EvidenceSHA256:         evidenceSum[:],
 		MatchedOperatorBundle:  matched,
+		Gate:                   rc.Gate,
+		RequiredGate:           req.RequireGate,
 		ConfirmedAt:            confirmedAt,
 	})
 	if err != nil {

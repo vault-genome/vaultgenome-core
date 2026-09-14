@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/genome/bundle"
+	"github.com/ai-continuity-platform/core/internal/genome/receipt"
 	"github.com/ai-continuity-platform/core/internal/genome/tree"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
@@ -43,8 +44,8 @@ var confirmPoll = 2 * time.Second
 func runCrossCloudConfirmCmd(args []string) error {
 	fs := flag.NewFlagSet("sagvd crosscloud-confirm", flag.ContinueOnError)
 	var (
-		configPath, decisionID, endpoint, bundlePath, keyID string
-		wait                                                time.Duration
+		configPath, decisionID, endpoint, bundlePath, keyID, requireGate string
+		wait                                                             time.Duration
 	)
 	fs.StringVar(&configPath, "config", "", "path to sagvd JSON config (required)")
 	fs.StringVar(&decisionID, "decision-id", "", "the release decision to confirm (required)")
@@ -52,6 +53,7 @@ func runCrossCloudConfirmCmd(args []string) error {
 	fs.StringVar(&bundlePath, "bundle", "", "the operator's .genome bundle the key was released for")
 	fs.StringVar(&keyID, "key-id", "", "the released genome key, when no -bundle is given")
 	fs.DurationVar(&wait, "wait", 0, "keep asking this long while the restore is still in progress")
+	fs.StringVar(&requireGate, "require-gate", "", "require the destination's gate verdict on the restored model: EQUIVALENT (or better) or EXACT")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -66,6 +68,8 @@ func runCrossCloudConfirmCmd(args []string) error {
 		return errors.New("crosscloud-confirm: -bundle or -key-id required")
 	case wait < 0:
 		return errors.New("crosscloud-confirm: -wait must not be negative")
+	case requireGate != "" && requireGate != receipt.GateEquivalent && requireGate != receipt.GateExact:
+		return fmt.Errorf("crosscloud-confirm: -require-gate %q (want %s or %s)", requireGate, receipt.GateEquivalent, receipt.GateExact)
 	}
 	if err := checkDestinationEndpoint(endpoint); err != nil {
 		return err
@@ -133,7 +137,7 @@ func runCrossCloudConfirmCmd(args []string) error {
 		return err
 	}
 
-	req := kms.ConfirmRequest{Release: release, DestinationEndpoint: endpoint, KeyID: ids.KeyID(keyID), Expect: expect}
+	req := kms.ConfirmRequest{Release: release, DestinationEndpoint: endpoint, KeyID: ids.KeyID(keyID), Expect: expect, RequireGate: requireGate}
 	deadline := time.Now().Add(wait)
 	res, confirmErr := coord.ConfirmRestore(context.Background(), req)
 	for confirmErr != nil && shared_errors.Is(confirmErr, shared_errors.CategoryOperational) && time.Now().Add(confirmPoll).Before(deadline) {
@@ -157,6 +161,7 @@ func runCrossCloudConfirmCmd(args []string) error {
 		out.MatchedOperatorBundle = res.MatchedOperatorBundle
 		out.ReceiptSHA256 = hex.EncodeToString(res.ReceiptSHA256)
 		out.AuditID = string(res.AuditID)
+		out.Gate = rc.Gate
 	}
 	return printConfirm(out, xcc, confirmErr)
 }
@@ -198,6 +203,7 @@ type confirmOutput struct {
 	KeyToRestoredSeconds         float64                  `json:"key_to_restored_seconds,omitempty"`
 	AuthorizedToConfirmedSeconds float64                  `json:"authorized_to_confirmed_seconds,omitempty"`
 	MatchedOperatorBundle        bool                     `json:"matched_operator_bundle"`
+	Gate                         *receipt.Gate            `json:"gate,omitempty"`
 	ReceiptSHA256                string                   `json:"receipt_sha256,omitempty"`
 	AuditID                      string                   `json:"audit_id,omitempty"`
 	AuditChainLength             int                      `json:"audit_chain_length"`

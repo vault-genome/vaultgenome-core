@@ -263,3 +263,38 @@ func TestHTTPTransport_FetchRestoreReceipt(t *testing.T) {
 	require.Error(t, err)
 	require.False(t, errors.Is(err, context.Canceled))
 }
+
+// A source can require the destination to have proved the model works.
+func TestConfirmRestore_RequiresAGateVerdict(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	rel := released(t, f)
+	confirm := func(g *receipt.Gate, require string) (ConfirmResult, error) {
+		r := receiptFor(rel, "dek-1")
+		r.Gate = g
+		c := *f.coord
+		c.receipts = &fakeReceipts{signed: sign(t, r, f.destProducer)}
+		return c.ConfirmRestore(context.Background(), ConfirmRequest{Release: rel, DestinationEndpoint: "https://dest", KeyID: "dek-1", RequireGate: require})
+	}
+	eq := &receipt.Gate{Level: receipt.GateEquivalent, Door: "native float", Fixtures: 16, MaxAbsErr: 1e-4, Atol: 1e-2, Rtol: 1e-3}
+
+	res, err := confirm(eq, receipt.GateEquivalent)
+	require.NoError(t, err)
+	require.Equal(t, receipt.GateEquivalent, res.Receipt.Gate.Level)
+	last := f.auditChain.events[len(f.auditChain.events)-1]
+	var p restoreConfirmedPayload
+	require.NoError(t, json.Unmarshal(last.Payload, &p))
+	require.Equal(t, receipt.GateEquivalent, p.Gate.Level)
+	require.Equal(t, receipt.GateEquivalent, p.RequiredGate)
+
+	before := len(f.auditChain.events)
+	_, err = confirm(eq, receipt.GateExact)
+	require.ErrorContains(t, err, "gate verdict EQUIVALENT; EXACT or better is required")
+	_, err = confirm(nil, receipt.GateEquivalent)
+	require.ErrorContains(t, err, "no gate verdict")
+	_, err = confirm(&receipt.Gate{Level: receipt.GateFail, Fixtures: 16, MaxAbsErr: 7}, receipt.GateEquivalent)
+	require.ErrorContains(t, err, "gate verdict FAIL")
+	_, err = confirm(eq, "MAYBE")
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryStructural))
+	require.Len(t, f.auditChain.events, before, "refused confirmations record nothing")
+}

@@ -89,3 +89,17 @@ func TestBatchedBackend_FailuresErrorEveryFixture(t *testing.T) {
 	_, err = be.Recompute("zzz")
 	require.ErrorContains(t, err, "was not in the batch")
 }
+
+func TestBatchedBackend_PassesItsEnvironment(t *testing.T) {
+	a := f64Tensor([]int{1}, []float64{1})
+	dir := t.TempDir()
+	body := filepath.Join(dir, "resp.json")
+	require.NoError(t, os.WriteFile(body, []byte(outputs(t, map[string]equivalence.Tensor{"a": a})), 0o644))
+	be := &BatchedExternalBackend{
+		Argv: []string{"sh", "-c", `cat >/dev/null; [ "$VG_TEST_MARK" = yes ] && cat "` + body + `"`},
+		Env:  []string{"VG_TEST_MARK=yes"},
+		IDs:  []string{"a"},
+	}
+	_, err := be.Recompute("a")
+	require.NoError(t, err)
+}

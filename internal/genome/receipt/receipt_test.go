@@ -151,3 +151,33 @@ func TestChallenge(t *testing.T) {
 	require.NotEqual(t, a, b)
 	require.Equal(t, a, Challenge([]byte("receipt")))
 }
+
+func TestGate(t *testing.T) {
+	r := sample(simulated(t, 1).Measurement())
+	r.Gate = &Gate{Level: GateEquivalent, Door: "native float", Fixtures: 16, MaxAbsErr: 1.15e-4, MaxRelErr: 1.3e-5, Atol: 1e-2, Rtol: 1e-3, BackendSeconds: 11.2}
+	b, err := r.Marshal()
+	require.NoError(t, err)
+	back, err := Parse(b)
+	require.NoError(t, err)
+	require.Equal(t, r.Gate, back.Gate)
+
+	require.True(t, back.Gate.Meets(GateEquivalent))
+	require.False(t, back.Gate.Meets(GateExact))
+	require.True(t, (&Gate{Level: GateExact}).Meets(GateExact))
+	require.False(t, (&Gate{Level: GateFail}).Meets(GateEquivalent))
+	require.False(t, (*Gate)(nil).Meets(GateEquivalent))
+	require.False(t, back.Gate.Meets("MAYBE"))
+
+	for name, g := range map[string]Gate{
+		"level":    {Level: "PASS", Fixtures: 1},
+		"fixtures": {Level: GateExact},
+		"negative": {Level: GateExact, Fixtures: 1, MaxAbsErr: -1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			bad := sample(simulated(t, 1).Measurement())
+			bad.Gate = &g
+			_, err := bad.Marshal()
+			require.Error(t, err)
+		})
+	}
+}

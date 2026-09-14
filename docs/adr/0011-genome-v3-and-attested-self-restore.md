@@ -104,6 +104,23 @@ and where it stands. The genome key is then wiped from memory. The Restorer acts
 only on keys the source released: it never asks for one, never moves a genome
 anywhere, and holds no policy.
 
+### Proving the restored model works (`genome.gate`)
+
+A restored tree that matches its snapshot is the right bytes; it is not yet a
+model that works on this hardware. A model genome (`workers/genome`: base model
+manifest, LoRA adapter, recipe, fixtures) carries reference outputs of the
+fine-tuned model — float32 logits at the reference top-k tokens, and greedy
+continuations. With `genome.gate` the destination recomputes them before it
+signs: a backend (the `vg_genome` door, which first checks the base model against
+the manifest) runs every fixture once, and the equivalence gate holds the outputs
+to the references — `pinned-replay` byte-exact first, then `native-float`
+within the configured tolerance, fail closed otherwise. The verdict (EXACT,
+EQUIVALENT or FAIL, the door, the largest error) goes into the receipt, so the
+TEE attests not only what it restored but that the model reproduces its
+references here. A model that misses is still signed for — as FAIL — so the
+source sees it did not come back right; `crosscloud-confirm -require-gate`
+refuses to record such a restore.
+
 ### Confirmation from the destination's signed word (`sagvd crosscloud-confirm`)
 
 `kms.Coordinator.ConfirmRestore` replaces `RecordCompletion`. It takes the
