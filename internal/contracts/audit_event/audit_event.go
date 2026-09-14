@@ -45,11 +45,16 @@ const (
 	//            KindKeyReleaseAuthorized, KindCrossCloudRestoreCompleted.
 	//            These are emitted by the new internal/vault/kms
 	//            Coordinator package. Struct shape unchanged.
+	//   v4 → v5: ADR 0010 added KindKeyReleaseDenied, so a refused
+	//            key release is on the record as a decision of its own,
+	//            not only as the absence of an authorisation. Struct
+	//            shape unchanged.
 	// See docs/doctrine/bootstrap-contracts.md §5 (contract-frozen
 	// discipline), the Stage F.2 / Stage G doctrine notes in
-	// docs/internal/status-journal.md, and ADR 0006 (cross-cloud KMS-mediated restore).
-	SchemaVersionMax     uint16 = 4
-	SchemaVersionCurrent uint16 = 4
+	// docs/internal/status-journal.md, ADR 0006 (cross-cloud KMS-mediated
+	// restore) and ADR 0010 (operator stop and recorded refusals).
+	SchemaVersionMax     uint16 = 5
+	SchemaVersionCurrent uint16 = 5
 
 	// HashSize is the length in bytes of PrevHash and Hash (SHA-256).
 	HashSize = 32
@@ -186,6 +191,16 @@ const (
 	KindCrossCloudAttestationVerified Kind = "CROSS_CLOUD_ATTESTATION_VERIFIED"
 	KindKeyReleaseAuthorized          Kind = "KEY_RELEASE_AUTHORIZED"
 	KindCrossCloudRestoreCompleted    Kind = "CROSS_CLOUD_RESTORE_COMPLETED"
+
+	// KindKeyReleaseDenied (v5, ADR 0010) closes a cross-cloud flow that
+	// did not release: the destination could not prove its key or its
+	// TEE, or the operator's policy (allow-list, operator stop) refused
+	// it. Appended BEFORE the refusal is returned, so every flow that
+	// began with KindCrossCloudHandshakeInitiated and reached a decision
+	// ends with exactly one of KEY_RELEASE_AUTHORIZED or
+	// KEY_RELEASE_DENIED. Pins the stage, the reason and the policy
+	// version (which carries the operator-stop serial).
+	KindKeyReleaseDenied Kind = "KEY_RELEASE_DENIED"
 )
 
 // AuditEvent is one record in the hash-chained audit log.

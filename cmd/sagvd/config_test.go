@@ -264,6 +264,7 @@ func TestValidate_CrossCloudHappyPath(t *testing.T) {
 		AuditLogPath:          "/var/lib/vg/xcc-audit.db",
 	}
 	c.Keys.AuditSigning = SigningKeyConfig{KeyID: "xcc-audit-1", SeedPath: "/etc/vg/audit_signing_seed"}
+	c.CrossCloud.OperatorStop = OperatorStopConfig{KeyID: "operator-1", PublicKeyPath: "/etc/vg/operator.pem", ListPath: "/etc/vg/stop.json"}
 	if err := c.Validate(); err != nil {
 		t.Fatalf("Validate(crosscloud happy): %v", err)
 	}
@@ -281,7 +282,8 @@ func TestValidate_CrossCloudRequiresDurableAudit(t *testing.T) {
 	}
 	err := c.Validate()
 	if err == nil || !strings.Contains(err.Error(), "crosscloud.audit_log_path required") ||
-		!strings.Contains(err.Error(), "keys.audit_signing.kid and seed_path required") {
+		!strings.Contains(err.Error(), "keys.audit_signing.kid and seed_path required") ||
+		!strings.Contains(err.Error(), "crosscloud.operator_stop.kid, public_key_path and list_path required") {
 		t.Fatalf("Validate(crosscloud without audit): %v", err)
 	}
 }

@@ -147,8 +147,9 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    end on every open — a log that does not verify stops all releases — and that
    auditors check offline with `acpctl audit verify`. A cut-off tail still
    verifies; compare the tip with the `audit_tip` recorded from a report.
-   Refused releases leave the events up to the refusal but no event of their
-   own.
+   Refusals are recorded too (`KEY_RELEASE_DENIED`, ADR 0010), and every
+   release is gated by the operator's signed stop list, which cannot be rolled
+   back.
 10. **Released DEKs are not yet used at the destination.** `acp-bootstrap`
     registers them in its in-memory keystore; opening a sealed genome with them
     inside the destination TEE is part of the Continuity Drill (Phase 1).

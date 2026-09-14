@@ -122,6 +122,8 @@ func TestAuditEvent_AllKindsAreValidated(t *testing.T) {
 		// See ADR 0006.
 		KindCrossCloudHandshakeInitiated, KindCrossCloudAttestationVerified,
 		KindKeyReleaseAuthorized, KindCrossCloudRestoreCompleted,
+		// Recorded refusals (SchemaVersion 5). See ADR 0010.
+		KindKeyReleaseDenied,
 	}
 	for _, k := range all {
 		t.Run(string(k), func(t *testing.T) {
@@ -164,17 +166,24 @@ func TestAuditEvent_SchemaVersion_V3BackwardCompatible(t *testing.T) {
 	require.NoError(t, e.Validate())
 }
 
-// TestAuditEvent_SchemaVersion_V4CurrentAccepted asserts the current
-// write-side schema version is accepted. Phase 4 bumps SchemaVersionCurrent
-// from 3 → 4 with the addition of four cross-cloud KMS-mediated restore
-// kinds: KindCrossCloudHandshakeInitiated, KindCrossCloudAttestationVerified,
-// KindKeyReleaseAuthorized, KindCrossCloudRestoreCompleted.
-// See ADR 0006.
-func TestAuditEvent_SchemaVersion_V4CurrentAccepted(t *testing.T) {
+// TestAuditEvent_SchemaVersion_V4BackwardCompatible asserts that a v4
+// record (the four cross-cloud kinds of ADR 0006) is still readable by a
+// v5 reader.
+func TestAuditEvent_SchemaVersion_V4BackwardCompatible(t *testing.T) {
+	t.Parallel()
+	e := validFixture()
+	e.SchemaVersion = 4
+	require.NoError(t, e.Validate())
+}
+
+// TestAuditEvent_SchemaVersion_V5CurrentAccepted asserts the current
+// write-side schema version is accepted. ADR 0010 bumps
+// SchemaVersionCurrent from 4 → 5 with KindKeyReleaseDenied.
+func TestAuditEvent_SchemaVersion_V5CurrentAccepted(t *testing.T) {
 	t.Parallel()
 	e := validFixture()
 	e.SchemaVersion = SchemaVersionCurrent
-	require.Equal(t, uint16(4), SchemaVersionCurrent,
-		"Phase 4 freezes SchemaVersionCurrent at 4; a change here MUST be reflected in docs/doctrine/bootstrap-contracts.md and ADR 0006")
+	require.Equal(t, uint16(5), SchemaVersionCurrent,
+		"ADR 0010 sets SchemaVersionCurrent to 5; a change here MUST be reflected in an ADR")
 	require.NoError(t, e.Validate())
 }

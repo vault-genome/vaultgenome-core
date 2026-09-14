@@ -5,6 +5,7 @@ package kms
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -233,6 +234,50 @@ type attestationVerifiedPayload struct {
 	VerifiedAt             time.Time      `json:"verified_at"`
 }
 
+// Stages at which a key release can be refused, as recorded in
+// KindKeyReleaseDenied payloads.
+const (
+	denialAttestation = "attestation" // the destination could not prove its TEE or its key
+	denialPolicy      = "policy"      // the operator's policy refused the verified destination
+)
+
+// keyReleaseDeniedPayload is the JSON payload of a KindKeyReleaseDenied
+// audit event (ADR 0010).
+type keyReleaseDeniedPayload struct {
+	DecisionID             ids.DecisionID `json:"decision_id"`
+	RequestID              ids.RequestID  `json:"request_id"`
+	DestinationKind        tee.Provider   `json:"destination_kind"`
+	DestinationMeasurement []byte         `json:"destination_measurement,omitempty"`
+	Stage                  string         `json:"stage"`
+	Reason                 string         `json:"reason"`
+	PolicyVersion          string         `json:"policy_version"`
+	DeniedAt               time.Time      `json:"denied_at"`
+}
+
+// deny records a refused key release before the refusal is returned, so
+// the flow ends on the record as a decision rather than trailing off. The
+// refusal stands even if it cannot be recorded; the returned error then
+// says so as well.
+func (c *Coordinator) deny(req CoordinationRequest, requestID ids.RequestID, stage string, measurement []byte, refusal error) error {
+	payload, err := json.Marshal(keyReleaseDeniedPayload{
+		DecisionID:             req.DecisionID,
+		RequestID:              requestID,
+		DestinationKind:        req.DestinationKind,
+		DestinationMeasurement: measurement,
+		Stage:                  stage,
+		Reason:                 refusal.Error(),
+		PolicyVersion:          c.policy.PolicyVersion(),
+		DeniedAt:               c.clock.Now().UTC(),
+	})
+	if err == nil {
+		_, err = c.auditChain.Emit(audit_event.KindKeyReleaseDenied, payload, req.SessionID, req.ManifestID, requestID)
+	}
+	if err != nil {
+		return errors.Join(refusal, fmt.Errorf("kms.CoordinateRestore: recording the refusal failed: %w", err))
+	}
+	return refusal
+}
+
 // keyReleaseAuthorizedPayload is the JSON payload of a
 // KindKeyReleaseAuthorized audit event. Recorded only on policy
 // approval; denial returns an error and emits no Authorized event.
@@ -390,29 +435,28 @@ func (c *Coordinator) CoordinateRestore(
 	// measurement, freshness, and that the key is the TEE's own rather than
 	// one substituted in transit. Without such a key there is nothing safe to
 	// wrap to, so there is no fallback.
+	early := CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID}
 	if err := ValidateRecipientPublicKey(hsResp.RecipientPublicKey); err != nil {
-		return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID},
-			shared_errors.Integrity(
-				shared_errors.CodeAttestationDenied,
-				"kms.CoordinateRestore: destination presented no usable X25519 recipient key",
-				err,
-			)
+		return early, c.deny(req, requestID, denialAttestation, nil, shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			"kms.CoordinateRestore: destination presented no usable X25519 recipient key",
+			err,
+		))
 	}
 	recipientPub := append([]byte(nil), hsResp.RecipientPublicKey...)
 	recipientKeyHash := crypto.SHA256(recipientPub)
 
 	verifier, err := c.verifiers.Resolve(req.DestinationKind)
 	if err != nil {
-		return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID}, err
+		return early, err
 	}
 	measurement, err := verifier.Verify(hsResp.Evidence, RecipientChallenge(recipientPub, nonce))
 	if err != nil {
-		return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID},
-			shared_errors.Integrity(
-				shared_errors.CodeAttestationDenied,
-				"kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key under this nonce",
-				err,
-			)
+		return early, c.deny(req, requestID, denialAttestation, nil, shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			"kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key under this nonce",
+			err,
+		))
 	}
 	measurementBytes := measurement[:]
 
@@ -467,11 +511,11 @@ func (c *Coordinator) CoordinateRestore(
 				AttestationAuditID:     avAuditID,
 				DestinationMeasurement: measurementBytes,
 			},
-			shared_errors.Authority(
+			c.deny(req, requestID, denialPolicy, measurementBytes, shared_errors.Authority(
 				shared_errors.CodeAttestationDenied,
 				fmt.Sprintf("kms.CoordinateRestore: policy denied key release: %s", verdict.Reason),
 				nil,
-			)
+			))
 	}
 
 	// 7. Allocate token id; build per-key wraps.

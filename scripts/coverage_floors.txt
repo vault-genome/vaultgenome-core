@@ -12,9 +12,9 @@
 total 78
 
 # target 70%
-cmd/acpctl 32
+cmd/acpctl 39
 cmd/acp-compute 56
-cmd/sagvd 55
+cmd/sagvd 56
 internal/compute/returnpath/client 68
 internal/compute/returnpath/server 64
 

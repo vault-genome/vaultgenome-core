@@ -147,6 +147,7 @@ func runCrossCloudRestoreCmd(args []string) error {
 	res, coordErr := coord.CoordinateRestore(context.Background(), req)
 	out := buildCoordinationOutput(res, coordErr, xcc.AuditChain.Len())
 	out.AuditTip = hex.EncodeToString(xcc.AuditChain.Tip())
+	out.StopSerial = xcc.StopSerial
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(out); err != nil {
@@ -237,6 +238,8 @@ type coordinationOutput struct {
 	// AuditTip is the hash of the audit log's last event. Record it:
 	// a log whose tail was cut off still verifies, but not to this tip.
 	AuditTip string `json:"audit_tip,omitempty"`
+	// StopSerial is the operator stop list the decision was made under.
+	StopSerial uint64 `json:"operator_stop_serial,omitempty"`
 }
 
 type crossCloudErrorEnvelope struct {

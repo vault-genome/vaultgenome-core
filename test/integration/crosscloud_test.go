@@ -39,6 +39,9 @@ type xcc struct {
 	authorityPEM string // path of the authority key the destination pins
 	auditPEM     string // path of the audit key an auditor verifies the log with
 	auditLog     string // the source's durable cross-cloud audit log
+	operatorSeed string // the operator's stop-signing key (kept off the release host in real life)
+	operatorPEM  string // its public half, which the source pins
+	stopList     string // the stop list the source reads
 	endpoint     string // https://127.0.0.1:port of acp-bootstrap
 	health       string
 	dest         *proc
@@ -81,7 +84,31 @@ func newXCC(t *testing.T) *xcc {
 	x.auditPEM = filepath.Join(x.dir, "audit.pem")
 	writeSecret(t, x.auditPEM, []byte(id["audit_public_key_pem"]))
 	x.auditLog = filepath.Join(x.dir, "xcc-audit.db")
+
+	// The operator creates a stop key and a first list that stops nothing.
+	x.operatorSeed = filepath.Join(x.dir, "operator.seed")
+	x.operatorPEM = filepath.Join(x.dir, "operator.pem")
+	x.stopList = filepath.Join(x.dir, "stop.json")
+	acpctl(t, "stop", "keygen", "-out", x.operatorSeed, "-pub", x.operatorPEM)
+	x.issueStop(t, "1")
 	return x
+}
+
+// acpctl runs the operator CLI and fails the test if it fails.
+func acpctl(t *testing.T, args ...string) string {
+	t.Helper()
+	out, err := exec.Command(bins.acpctl, args...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("acpctl %v: %v\n%s", args, err, out)
+	}
+	return string(out)
+}
+
+// issueStop has the operator sign a new stop list over the current one.
+func (x *xcc) issueStop(t *testing.T, serial string, extra ...string) {
+	t.Helper()
+	args := append([]string{"stop", "issue", "-key", x.operatorSeed, "-kid", "operator-1", "-serial", serial, "-out", x.stopList}, extra...)
+	acpctl(t, args...)
 }
 
 // auditVerify runs `acpctl audit verify` over the source's audit log, as
@@ -184,8 +211,13 @@ func (x *xcc) sourceConfig(t *testing.T, dest map[string]string, allowedHex ...s
 	sec := func(p ...string) string { return filepath.Join(append([]string{x.secrets}, p...)...) }
 	cfg := vaultConfig(x.secrets, loopback(t), loopback(t), loopback(t))
 	cfg["crosscloud"] = map[string]any{
-		"enabled":                 true,
-		"audit_log_path":          x.auditLog,
+		"enabled":        true,
+		"audit_log_path": x.auditLog,
+		"operator_stop": map[string]any{
+			"kid":             "operator-1",
+			"public_key_path": x.operatorPEM,
+			"list_path":       x.stopList,
+		},
 		"policy_version":          "drill-policy-v1",
 		"policy_allow_list_path":  allow,
 		"verifier_registry_path":  registry,
@@ -213,6 +245,7 @@ type restoreResult struct {
 	TokenID                   string `json:"token_id"`
 	AuditChainLength          int    `json:"audit_chain_length"`
 	AuditTip                  string `json:"audit_tip"`
+	StopSerial                uint64 `json:"operator_stop_serial"`
 }
 
 // restore runs `sagvd crosscloud-restore` to completion and returns its
@@ -329,9 +362,9 @@ func TestLiveCrossCloud_UnlistedDestinationGetsNothing(t *testing.T) {
 	if res.TokenID != "" {
 		t.Fatalf("a token was issued to an unlisted destination: %s", res.TokenID)
 	}
-	// On record: the handshake and the verified attestation, and no release.
-	if ok, events, _ := x.auditVerify(t); !ok || events != 2 {
-		t.Fatalf("audit log after a refused release: ok=%v events=%d, want 2 verified events", ok, events)
+	// On record: the handshake, the verified attestation and the refusal.
+	if ok, events, _ := x.auditVerify(t); !ok || events != 3 {
+		t.Fatalf("audit log after a refused release: ok=%v events=%d, want 3 verified events", ok, events)
 	}
 	time.Sleep(200 * time.Millisecond)
 	if n := len(x.destLog("crosscloud token accepted")); n != 0 {
@@ -354,6 +387,80 @@ func TestLiveCrossCloud_ImpostorDestinationFailsAttestation(t *testing.T) {
 	}
 	if res.TokenID != "" || len(x.destLog("crosscloud token accepted")) != 0 {
 		t.Fatal("an impostor destination received a token")
+	}
+}
+
+// The operator stop (ADR 0010): one signed list halts every release; the
+// refusal is on record; lifting the stop needs a newer list, and the old
+// stop cannot be put back once a newer list has been applied.
+func TestLiveCrossCloud_OperatorStopHaltsReleases(t *testing.T) {
+	x := newXCC(t)
+	dest := x.destinationConfig(t, "destination")
+	id := identityOf(t, bins.bootstrap, dest)
+	x.startDestination(t, dest)
+	cfg := x.sourceConfig(t, id, id["measurement_hex"])
+
+	if res, out, err := x.restore(t, cfg, x.endpoint, randomBytes(t, 32)); err != nil || res.Status != "ok" {
+		t.Fatalf("release before the stop: %v\n%s", err, out)
+	}
+
+	x.issueStop(t, "2", "-all", "-reason", "drill: suspected compromise")
+	stopped := filepath.Join(x.dir, "stop-serial-2.json")
+	raw, err := os.ReadFile(x.stopList)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeSecret(t, stopped, raw)
+
+	res, out, err := x.restore(t, cfg, x.endpoint, randomBytes(t, 32))
+	if err == nil || res.Error == nil || res.Error.Category != "authority" ||
+		!strings.Contains(res.Error.Message, "operator stop in force (revocation serial 2): drill: suspected compromise") {
+		t.Fatalf("release under a stop: err=%v result=%+v\n%s", err, res, out)
+	}
+	if res.TokenID != "" || res.StopSerial != 2 {
+		t.Fatalf("under the stop: token %q, serial %d", res.TokenID, res.StopSerial)
+	}
+	if ok, events, _ := x.auditVerify(t); !ok || events != 6 {
+		t.Fatalf("audit log: ok=%v events=%d, want 3 (release) + 3 (handshake, attestation, denied)", ok, events)
+	}
+
+	x.issueStop(t, "3", "-reason", "all clear")
+	if res, out, err := x.restore(t, cfg, x.endpoint, randomBytes(t, 32)); err != nil || res.Status != "ok" || res.StopSerial != 3 {
+		t.Fatalf("release after the stop was lifted: %v\n%s", err, out)
+	}
+
+	// Rolling back to the stop list — or to any list older than serial 3
+	// — is refused before anything happens.
+	writeSecret(t, x.stopList, raw)
+	_, out, err = x.restore(t, cfg, x.endpoint, randomBytes(t, 32))
+	if err == nil || !strings.Contains(out, "rollback refused") {
+		t.Fatalf("an older stop list was accepted: %v\n%s", err, out)
+	}
+	waitFor(t, 5*time.Second, "destination to log the accepted tokens", func() bool {
+		return len(x.destLog("crosscloud token accepted")) == 2
+	})
+	time.Sleep(200 * time.Millisecond)
+	if n := len(x.destLog("crosscloud token accepted")); n != 2 {
+		t.Fatalf("destination accepted %d tokens; only the two releases outside the stop may land", n)
+	}
+}
+
+// The operator can revoke one destination without stopping the others.
+func TestLiveCrossCloud_OperatorRevokesDestination(t *testing.T) {
+	x := newXCC(t)
+	dest := x.destinationConfig(t, "destination")
+	id := identityOf(t, bins.bootstrap, dest)
+	x.startDestination(t, dest)
+	cfg := x.sourceConfig(t, id, id["measurement_hex"])
+	x.issueStop(t, "2", "-revoke", "simulated:"+id["measurement_hex"], "-reason", "decommissioned")
+
+	res, out, err := x.restore(t, cfg, x.endpoint, randomBytes(t, 32))
+	if err == nil || res.Error == nil || res.Error.Category != "authority" ||
+		!strings.Contains(res.Error.Message, "destination measurement revoked by the operator") {
+		t.Fatalf("release to a revoked destination: err=%v result=%+v\n%s", err, res, out)
+	}
+	if n := len(x.destLog("crosscloud token accepted")); n != 0 {
+		t.Fatalf("revoked destination accepted %d tokens", n)
 	}
 }
 

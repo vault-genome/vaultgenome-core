@@ -24,6 +24,7 @@ import (
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 	"github.com/ai-continuity-platform/core/internal/vault/keys"
 	"github.com/ai-continuity-platform/core/internal/vault/kms"
+	"github.com/ai-continuity-platform/core/internal/vault/revocation"
 )
 
 // CrossCloudAuditSigningKeyID is the kid under which the cross-cloud
@@ -47,8 +48,13 @@ type crossCloudMaterials struct {
 	// destination this authority may release keys to.
 	VerifierRegistry *tee.Registry
 
-	// Policy is the loaded KeyReleasePolicy (allow-list MVP).
-	Policy *kms.AllowListPolicy
+	// Policy is the release policy: the operator's stop list in front
+	// of the allow-list. Its PolicyVersion names both, and is written
+	// into every release decision on record.
+	Policy kms.KeyReleasePolicy
+
+	// StopSerial is the serial of the operator stop list in force.
+	StopSerial uint64
 
 	// Transport is the HTTPTransport configured against
 	// CrossCloud.TransportTLS / TransportBearerToken /
@@ -87,6 +93,20 @@ func (m *crossCloudMaterials) Close() error {
 		return nil
 	}
 	return m.auditLog.Close()
+}
+
+// loadOperatorStop reads the operator's stop list and verifies it under
+// the pinned operator key.
+func loadOperatorStop(cfg OperatorStopConfig) (revocation.List, error) {
+	pub, err := loadAttestorPubKey(cfg.PublicKeyPath)
+	if err != nil {
+		return revocation.List{}, fmt.Errorf("public_key_path %q: %w", cfg.PublicKeyPath, err)
+	}
+	raw, err := os.ReadFile(cfg.ListPath)
+	if err != nil {
+		return revocation.List{}, fmt.Errorf("list_path: %w (without a valid list nothing is released)", err)
+	}
+	return revocation.Parse(raw, ed25519.PublicKey(pub), cfg.KeyID)
 }
 
 // verifierRegistryFile is the on-disk JSON schema for
@@ -202,9 +222,22 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 	// Event IDs continue the log rather than restarting with each run.
 	emitter.counter = uint64(auditChain.Len())
 
+	// The operator stop: a valid list signed by the operator key is
+	// required, and a list older than one already applied (per the
+	// verified audit log) is refused, so a stop cannot be rolled back.
+	stopList, err := loadOperatorStop(cfg.CrossCloud.OperatorStop)
+	if err == nil {
+		err = revocation.CheckNotRolledBack(stopList, auditChain.Events())
+	}
+	if err != nil {
+		_ = logStore.Close()
+		return nil, fmt.Errorf("sagvd: crosscloud.operator_stop: %w", err)
+	}
+
 	return &crossCloudMaterials{
 		VerifierRegistry: registry,
-		Policy:           policy,
+		Policy:           revocation.NewGate(policy, stopList),
+		StopSerial:       stopList.Serial,
 		Transport:        transport,
 		AuditChain:       auditChain,
 		AuditEmitter:     emitter,

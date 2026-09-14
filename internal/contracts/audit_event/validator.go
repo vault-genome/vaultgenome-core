@@ -34,6 +34,8 @@ var validKinds = map[Kind]struct{}{
 	KindCrossCloudAttestationVerified: {},
 	KindKeyReleaseAuthorized:          {},
 	KindCrossCloudRestoreCompleted:    {},
+	// Recorded refusals (SchemaVersion 5). See ADR 0010.
+	KindKeyReleaseDenied: {},
 }
 
 // Validate runs static consistency checks. Chain continuity (PrevHash

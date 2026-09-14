@@ -140,6 +140,16 @@ config:
 }
 ```
 
+and point it at the operator's stop list:
+
+```json
+"operator_stop": {
+  "kid": "operator-1",
+  "public_key_path": "/etc/acp/crosscloud/operator.pem",
+  "list_path": "/etc/acp/crosscloud/stop.json"
+}
+```
+
 No key is released without a durable record: `audit_log_path` and
 `keys.audit_signing` are required. Every release writes its handshake,
 attestation and authorisation events to that log, signed and hash-linked,
@@ -224,9 +234,39 @@ is refused.
 |---|---|---|---|
 | — (exit 1, no report) | none | Bad flags, `http://` to a remote host, or config/material failed to load | Fix the invocation or config; the message names the field |
 | `operational` | handshake initiated | The handshake did not complete: destination unreachable, TLS refused (no client certificate, TLS below 1.3), bearer token rejected, or the destination refused the request — the message carries its answer (e.g. a TEE kind it does not run, an authority key it does not trust) | Check the listener, certificates, token, and the identities each side pinned |
-| `integrity` | handshake initiated | Evidence did not verify for the presented key — wrong attestor key, wrong measurement, a replayed or substituted answer — or the destination presented no usable key | Treat an unexpected one as possible impersonation; re-check the pinned identities |
-| `authority` | handshake initiated, attestation verified | The destination is genuine but its measurement is not on the allow-list | Intended: add the measurement to a new policy version only if you mean to trust it |
+| `integrity` | handshake initiated, release denied | Evidence did not verify for the presented key — wrong attestor key, wrong measurement, a replayed or substituted answer — or the destination presented no usable key | Treat an unexpected one as possible impersonation; re-check the pinned identities |
+| `authority` | handshake initiated, attestation verified, release denied | The destination is genuine but the operator stop refuses it (the message names the list serial and reason), or its measurement is not on the allow-list | Intended: lift the stop with a newer list, or add the measurement to a new allow-list version, only if you mean to |
 | `operational` | all three | The token did not reach the destination, or the destination refused it — the message carries its answer (no outstanding handshake: expired or used; decision mismatch; signature) | Run the command again: a new handshake mints a new key and the old one expires unused. If it repeats, read the destination's `crosscloud token rejected` log line |
+
+## The operator stop
+
+The people responsible for the deployment — not the release host, and not any
+workload — decide whether keys may move at all (ADR 0010). On the operator's own
+machine:
+
+```bash
+acpctl stop keygen -out operator.seed -pub operator.pem          # once; operator.pem goes to the release host
+acpctl stop issue -key operator.seed -kid operator-1 -serial 1 -out stop.json          # nothing stopped
+acpctl stop issue -key operator.seed -kid operator-1 -serial 2 -all \
+  -reason "suspected compromise" -out stop.json                                         # stop every release
+acpctl stop issue -key operator.seed -kid operator-1 -serial 3 \
+  -revoke gcp-sev-snp:<measurement_hex> -reason "host decommissioned" -out stop.json    # revoke one destination
+acpctl stop verify -in stop.json -pubkey operator.pem -kid operator-1                  # check before shipping
+```
+
+Copy the signed `stop.json` to `list_path` on the release host. Every
+`crosscloud-restore` run reads it afresh:
+
+- a stop, or a revoked destination, is refused with `authority /
+  attestation_denied` and the list's serial and reason, and the refusal is in the
+  audit log as `KEY_RELEASE_DENIED`;
+- a list that is missing, edited, or signed by another key stops every release;
+- a list older than the newest serial any recorded decision was made under is
+  refused (`rollback refused`) — lifting a stop takes a newer list;
+- the report names the list in force as `operator_stop_serial`.
+
+Keep the operator seed off the release host: anyone holding it decides what the
+fleet may do.
 
 ## Rotating what you trust
 
@@ -249,7 +289,10 @@ is refused.
 - A replayed handshake cannot replace an outstanding key; a forged token is
   rejected before it can use one up.
 - Every release is preceded by the three audit events, in order, persisted to
-  the signed log before the step they describe.
+  the signed log before the step they describe; every refusal after the
+  handshake ends with `KEY_RELEASE_DENIED`.
+- The operator's signed stop list is applied to every release; without a valid
+  one, nothing is released, and an older list cannot be put back.
 
 ## Known limits
 

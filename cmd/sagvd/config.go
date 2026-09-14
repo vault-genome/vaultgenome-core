@@ -352,6 +352,20 @@ type CrossCloudConfig struct {
 	// verify stops all releases. Required when enabled. One
 	// crosscloud-restore run holds its lock at a time.
 	AuditLogPath string `json:"audit_log_path,omitempty"`
+
+	// OperatorStop is the operator's signed stop list (ADR 0010):
+	// every release is checked against it, and without a valid one
+	// nothing is released. Required when enabled.
+	OperatorStop OperatorStopConfig `json:"operator_stop,omitempty"`
+}
+
+// OperatorStopConfig points at the operator's stop list and the public
+// key it must verify under. The matching private key stays with the
+// operator (`acpctl stop keygen`), never on this host.
+type OperatorStopConfig struct {
+	KeyID         string `json:"kid"`
+	PublicKeyPath string `json:"public_key_path"`
+	ListPath      string `json:"list_path"`
 }
 
 // TLSClientConfig holds the source-side outbound mTLS material the
@@ -591,6 +605,9 @@ func (c Config) Validate() error {
 		}
 		if c.Keys.AuditSigning.KeyID == "" || c.Keys.AuditSigning.SeedPath == "" {
 			errs = append(errs, errors.New("keys.audit_signing.kid and seed_path required when crosscloud.enabled=true"))
+		}
+		if s := c.CrossCloud.OperatorStop; s.KeyID == "" || s.PublicKeyPath == "" || s.ListPath == "" {
+			errs = append(errs, errors.New("crosscloud.operator_stop.kid, public_key_path and list_path required when crosscloud.enabled=true (the operator must be able to stop every release)"))
 		}
 		if c.CrossCloud.RequestTimeoutSeconds < 0 {
 			errs = append(errs, errors.New("crosscloud.request_timeout_seconds must be >= 0 (0 = no per-request timeout)"))

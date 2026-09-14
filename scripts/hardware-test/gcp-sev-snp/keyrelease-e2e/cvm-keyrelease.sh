@@ -78,6 +78,12 @@ EOF
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["authority_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > authority.pem
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
 
+step "operator stop key and first list (nothing stopped)"
+# In production the operator key lives on the operator's machine; the
+# release host only ever sees operator.pem and the signed list.
+./acpctl stop keygen -out operator.seed -pub operator.pem > /dev/null
+./acpctl stop issue -key operator.seed -kid operator-1 -serial 1 -out stop.json > /dev/null
+
 step "acp-bootstrap on SEV-SNP"
 cat > dest.json <<EOF
 {
@@ -109,6 +115,7 @@ import json, sys
 c = json.load(open("sagvd.json"))
 S = "/root/e2e/secrets"
 c["crosscloud"] = {"enabled": True, "policy_version": "e2e-policy-v1", "audit_log_path": "/root/e2e/xcc-audit.db",
+    "operator_stop": {"kid": "operator-1", "public_key_path": "/root/e2e/operator.pem", "list_path": "/root/e2e/stop.json"},
     "policy_allow_list_path": "/root/e2e/allow.json", "verifier_registry_path": "/root/e2e/verifiers.json",
     "transport_bearer_token": open(S + "/xcc_token").read().strip(), "request_timeout_seconds": 30,
     "transport_tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt",
@@ -130,6 +137,13 @@ source_config "$OTHER" sagvd-unlisted.json
 ./sagvd crosscloud-restore -config sagvd-unlisted.json -decision-id e2e-decision-2 -destination-kind gcp-sev-snp \
   -destination-endpoint https://127.0.0.1:8443 -key genome-dek-2:"$DEK" > "$OUT/release-unlisted.json" 2> "$OUT/release-unlisted.err"
 echo "unlisted exit=$?" >> "$OUT/steps.txt"
+
+step "release refused: operator stop in force"
+source_config "$MEAS" sagvd-xcc.json   # this guest allow-listed again; only the stop refuses it
+./acpctl stop issue -key operator.seed -kid operator-1 -serial 2 -all -reason "e2e: operator stop" -out stop.json > /dev/null
+./sagvd crosscloud-restore -config sagvd-xcc.json -decision-id e2e-decision-3 -destination-kind gcp-sev-snp \
+  -destination-endpoint https://127.0.0.1:8443 -key genome-dek-3:"$DEK" > "$OUT/release-stopped.json" 2> "$OUT/release-stopped.err"
+echo "stopped exit=$?" >> "$OUT/steps.txt"
 
 step "audit log verified with the published audit key"
 ./acpctl audit verify --audit xcc-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-demo --json > "$OUT/audit-verify.json" 2> "$OUT/audit-verify.err"

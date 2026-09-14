@@ -439,8 +439,23 @@ func requireRefusedBeforeRelease(t *testing.T, f *fixture, err error) {
 	require.Error(t, err)
 	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity), "got %v", err)
 	require.Empty(t, f.transport.sentTokens, "no token may leave for an unproven key")
-	require.Len(t, f.auditChain.events, 1, "only the handshake is on record; nothing was verified or authorised")
+	requireDenied(t, f, 1, denialAttestation)
+}
+
+// requireDenied checks the flow ended on the record with a refusal at
+// stage, after the given number of earlier events and with nothing
+// verified-then-authorised in between.
+func requireDenied(t *testing.T, f *fixture, before int, stage string) {
+	t.Helper()
+	require.Len(t, f.auditChain.events, before+1, "the refusal closes the flow on the record")
 	require.Equal(t, audit_event.KindCrossCloudHandshakeInitiated, f.auditChain.events[0].Kind)
+	last := f.auditChain.events[before]
+	require.Equal(t, audit_event.KindKeyReleaseDenied, last.Kind)
+	var p keyReleaseDeniedPayload
+	require.NoError(t, json.Unmarshal(last.Payload, &p))
+	require.Equal(t, stage, p.Stage)
+	require.NotEmpty(t, p.Reason)
+	require.Equal(t, f.auditChain.events[0].RequestID, last.RequestID)
 }
 
 func TestCoordinateRestore_RefusesDestinationWithoutRecipientKey(t *testing.T) {
@@ -610,7 +625,7 @@ func TestCoordinateRestore_VerifierMismatchFailsAttestation(t *testing.T) {
 	_, err = bad.CoordinateRestore(context.Background(), validRequest(f))
 	require.Error(t, err)
 	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity))
-	require.Len(t, f.auditChain.events, 1, "handshake emitted, attestation verification failed")
+	requireDenied(t, f, 1, denialAttestation)
 }
 
 func TestCoordinateRestore_PolicyDeniesRelease(t *testing.T) {
@@ -625,12 +640,28 @@ func TestCoordinateRestore_PolicyDeniesRelease(t *testing.T) {
 	_, err = bad.CoordinateRestore(context.Background(), validRequest(f))
 	require.Error(t, err)
 	require.True(t, shared_errors.Is(err, shared_errors.CategoryAuthority))
-	// Both Handshake AND Attestation events emitted before policy denial;
-	// no KeyReleaseAuthorized emitted.
-	require.Len(t, f.auditChain.events, 2)
-	require.Equal(t, audit_event.KindCrossCloudHandshakeInitiated, f.auditChain.events[0].Kind)
+	// Handshake and Attestation on record, then the refusal — never an
+	// authorisation.
 	require.Equal(t, audit_event.KindCrossCloudAttestationVerified, f.auditChain.events[1].Kind)
+	requireDenied(t, f, 2, denialPolicy)
+	var p keyReleaseDeniedPayload
+	require.NoError(t, json.Unmarshal(f.auditChain.events[2].Payload, &p))
+	require.Equal(t, "deny-all-v1", p.PolicyVersion)
+	require.Equal(t, []byte(f.destMeasure), p.DestinationMeasurement)
 	// No token dispatched on policy denial.
+	require.Empty(t, f.transport.sentTokens)
+}
+
+// A refusal that cannot be recorded is still a refusal.
+func TestCoordinateRestore_RefusalStandsWhenItCannotBeRecorded(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	f.transport.withholdKey = true
+	f.auditChain.failKind = audit_event.KindKeyReleaseDenied
+	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity), "the refusal's own class is kept: %v", err)
+	require.ErrorContains(t, err, "recording the refusal failed")
 	require.Empty(t, f.transport.sentTokens)
 }
 

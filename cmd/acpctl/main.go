@@ -31,6 +31,8 @@ func main() {
 			os.Exit(lineageCmd(os.Args[2:], os.Stdout, os.Stderr))
 		case "genome":
 			os.Exit(genomeCmd(os.Args[2:], os.Stdout, os.Stderr))
+		case "stop":
+			os.Exit(stopCmd(os.Args[2:], os.Stdout, os.Stderr))
 		}
 	}
 
@@ -56,6 +58,9 @@ func printUsage() {
 	fmt.Println("  genome open   Restore a sealed bundle into a target OLLAMA_MODELS directory")
 	fmt.Println("  genome verify Re-hash a bundle and confirm components match envelope record")
 	fmt.Println("  genome inspect Print envelope metadata without unsealing")
+	fmt.Println("  stop keygen   Create the operator key that signs stop lists")
+	fmt.Println("  stop issue    Sign a list that stops all key releases or revokes destinations")
+	fmt.Println("  stop verify   Check a stop list against the operator public key")
 	fmt.Println()
 	fmt.Println("Run `acpctl <command> --help` for per-subcommand flags.")
 }

@@ -7,16 +7,19 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/ai-continuity-platform/core/internal/vault/revocation"
 )
 
 // writeFile is a t.Helper that writes data to <dir>/<name> with
@@ -445,14 +448,16 @@ func TestLoadCrossCloudMaterials_HappyPath(t *testing.T) {
 	if !materials.VerifierRegistry.Has(tee.ProviderSimulated) {
 		t.Error("registry must hold ProviderSimulated")
 	}
-	if materials.Policy.PolicyVersion() != "xcc-2026-05-09" {
-		t.Errorf("policy version = %q; want xcc-2026-05-09", materials.Policy.PolicyVersion())
+	if materials.Policy.PolicyVersion() != "xcc-2026-05-09;revocation=1" {
+		t.Errorf("policy version = %q; want the allow-list version and the stop-list serial", materials.Policy.PolicyVersion())
 	}
 }
 
-// withAuditLog points cfg at a fresh durable audit log in dir and a
-// signing seed for it, as `keygen` provisions them.
-func withAuditLog(t *testing.T, dir string, cfg *Config) {
+// withAuditLog provisions the release controls cross-cloud release needs,
+// as `keygen` does: a fresh durable audit log with its signing seed, and
+// an operator key with a signed stop list (serial 1, nothing stopped).
+// It returns the operator key so tests can issue further lists.
+func withAuditLog(t *testing.T, dir string, cfg *Config) ed25519.PrivateKey {
 	t.Helper()
 	seed := make([]byte, 32)
 	if _, err := rand.Read(seed); err != nil {
@@ -460,6 +465,35 @@ func withAuditLog(t *testing.T, dir string, cfg *Config) {
 	}
 	cfg.Keys.AuditSigning = SigningKeyConfig{KeyID: "xcc-audit-test", SeedPath: writeFile(t, dir, "audit_signing_seed", seed)}
 	cfg.CrossCloud.AuditLogPath = filepath.Join(dir, "xcc-audit.db")
+
+	opPub, opPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.CrossCloud.OperatorStop = OperatorStopConfig{
+		KeyID:         "operator-test",
+		PublicKeyPath: writeFile(t, dir, "operator.pub", opPub),
+		ListPath:      filepath.Join(dir, "stop.json"),
+	}
+	writeStopList(t, cfg.CrossCloud.OperatorStop.ListPath, opPriv, revocation.List{Serial: 1})
+	return opPriv
+}
+
+func writeStopList(t *testing.T, path string, priv ed25519.PrivateKey, l revocation.List) {
+	t.Helper()
+	l.IssuedAt = time.Date(2026, 9, 14, 21, 0, 0, 0, time.UTC)
+	l.SigningKeyID = "operator-test"
+	signed, err := revocation.Sign(l, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(signed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // simulatedCrossCloudConfig is a minimal enabled cross-cloud config in dir.
@@ -534,6 +568,78 @@ func TestLoadCrossCloudMaterials_RefusesLogItCannotVerify(t *testing.T) {
 		_ = m.Close()
 		t.Fatal("a log signed under another audit key was accepted")
 	} else if !strings.Contains(err.Error(), "does not verify") {
+		t.Fatalf("unexpected refusal: %v", err)
+	}
+}
+
+// The operator's list gates every release: a stop refuses a destination
+// the allow-list would admit.
+func TestLoadCrossCloudMaterials_OperatorStopGatesReleases(t *testing.T) {
+	dir := t.TempDir()
+	cfg := simulatedCrossCloudConfig(t, dir)
+	opPriv := withAuditLog(t, dir, &cfg)
+	writeStopList(t, cfg.CrossCloud.OperatorStop.ListPath, opPriv, revocation.List{Serial: 2, StopAll: true, Reason: "drill"})
+
+	m, err := LoadCrossCloudMaterials(cfg, shared_time.NewSystemClock())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = m.Close() }()
+	meas, _ := hex.DecodeString(makeMeasurementHex(0x55))
+	v, err := m.Policy.AuthorizeKeyRelease(tee.ProviderSimulated, meas, "dec-1", []ids.KeyID{"k"})
+	if err != nil || v.Authorized || !strings.Contains(v.Reason, "operator stop in force") {
+		t.Fatalf("verdict under a stop: %+v, %v", v, err)
+	}
+	if m.StopSerial != 2 {
+		t.Fatalf("StopSerial = %d", m.StopSerial)
+	}
+}
+
+// Without a valid list nothing is released: missing, edited, or signed by
+// another key are all refused at load.
+func TestLoadCrossCloudMaterials_RequiresAValidStopList(t *testing.T) {
+	for name, spoil := range map[string]func(t *testing.T, cfg *Config){
+		"missing": func(t *testing.T, cfg *Config) { _ = os.Remove(cfg.CrossCloud.OperatorStop.ListPath) },
+		"edited": func(t *testing.T, cfg *Config) {
+			raw, _ := os.ReadFile(cfg.CrossCloud.OperatorStop.ListPath)
+			_ = os.WriteFile(cfg.CrossCloud.OperatorStop.ListPath, []byte(strings.Replace(string(raw), `"serial":1`, `"serial":9`, 1)), 0o644)
+		},
+		"other signer": func(t *testing.T, cfg *Config) { cfg.CrossCloud.OperatorStop.KeyID = "someone-else" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := simulatedCrossCloudConfig(t, t.TempDir())
+			spoil(t, &cfg)
+			if m, err := LoadCrossCloudMaterials(cfg, shared_time.NewSystemClock()); err == nil {
+				_ = m.Close()
+				t.Fatal("loaded without a valid operator stop list")
+			}
+		})
+	}
+}
+
+// Once a decision has been recorded under a list, an older list cannot
+// be put back.
+func TestLoadCrossCloudMaterials_RefusesStopListRollback(t *testing.T) {
+	dir := t.TempDir()
+	cfg := simulatedCrossCloudConfig(t, dir)
+	opPriv := withAuditLog(t, dir, &cfg)
+	writeStopList(t, cfg.CrossCloud.OperatorStop.ListPath, opPriv, revocation.List{Serial: 5})
+
+	m, err := LoadCrossCloudMaterials(cfg, shared_time.NewSystemClock())
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]string{"policy_version": m.Policy.PolicyVersion()})
+	if _, err := m.AuditEmitter.Emit(audit_event.KindKeyReleaseDenied, payload, "", "", "req-1"); err != nil {
+		t.Fatal(err)
+	}
+	_ = m.Close()
+
+	writeStopList(t, cfg.CrossCloud.OperatorStop.ListPath, opPriv, revocation.List{Serial: 4})
+	if m, err := LoadCrossCloudMaterials(cfg, shared_time.NewSystemClock()); err == nil {
+		_ = m.Close()
+		t.Fatal("an older stop list was accepted after a newer one had been applied")
+	} else if !strings.Contains(err.Error(), "rollback refused") {
 		t.Fatalf("unexpected refusal: %v", err)
 	}
 }
