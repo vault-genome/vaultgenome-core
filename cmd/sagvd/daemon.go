@@ -214,6 +214,13 @@ func (d *Daemon) Zeroize() {
 // Any error is logged with its classification; the connection is
 // always closed before return so fd-leak is impossible.
 func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
+	// Close the connection when the daemon shuts down. net.Conn I/O does
+	// not observe context cancellation, and Run serves connections
+	// inline, so a session blocked on its worker would otherwise hold
+	// shutdown until the job deadline.
+	stopOnShutdown := context.AfterFunc(parent, func() { _ = raw.Close() })
+	defer stopOnShutdown()
+
 	// Wrap TLS first if configured; a failed TLS handshake is
 	// Operational (peer never authenticated).
 	var conn net.Conn = raw
@@ -302,7 +309,7 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		"session_id", req.SessionID,
 	)
 
-	out, err := sess.ServeOneJob(sessCtx, req)
+	verified, err := sess.ServeOneJobVerified(sessCtx, req)
 	if err != nil {
 		d.queue.CompleteFailure(jobID, err)
 		d.metrics.jobsCompleted.Inc(
@@ -318,13 +325,11 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		return
 	}
 
-	// WorkerSigningKeyID is recorded as empty in Phase 1 — the
-	// server-side session verifies the Ed25519 signature internally
-	// but discards the kid before returning CandidateOutput. Phase 2
-	// extends server.ServeOneJob's return signature to surface the
-	// kid for audit-chain emission; until then we keep the field
-	// empty rather than inventing a surrogate value.
-	d.queue.CompleteSuccess(jobID, out, "")
+	// The worker signing key ID is the one the session verified the
+	// CandidateOutputFrame signature under, so it is recorded as the
+	// authenticated provenance of the result.
+	out := verified.Output
+	d.queue.CompleteSuccess(jobID, out, string(verified.WorkerSigningKeyID))
 	d.metrics.jobsCompleted.Inc(metrics.Label{Name: "outcome", Value: "success"})
 	d.metrics.lastSuccessUnix.Set(float64(d.clock.Now().Unix()))
 	_ = sess.WriteShutdown(transport.CodeShutdownNormal, "sagvd: job complete")
@@ -333,6 +338,7 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		"manifest_id", req.ManifestID,
 		"output_kind", string(out.OutputKind),
 		"output_bytes", len(out.Bytes),
+		"worker_signing_kid", string(verified.WorkerSigningKeyID),
 	)
 }
 

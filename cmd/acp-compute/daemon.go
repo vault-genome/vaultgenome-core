@@ -171,7 +171,11 @@ func (d *Daemon) Run(ctx context.Context) error {
 			continue
 		}
 
-		// Classify and log. Context cancellation is graceful, not a fault.
+		// A cycle cut short by shutdown is the shutdown itself, not a
+		// fault: its error is whatever the closed connection produced.
+		if ctx.Err() != nil {
+			return nil
+		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil
 		}
@@ -226,6 +230,12 @@ func (d *Daemon) runOnce(parent context.Context) (retErr error) {
 		d.metrics.dialFail.Inc()
 		return fmt.Errorf("acp-compute: dial %s: %w", d.cfg.Vault.Address, err)
 	}
+	// net.Conn I/O does not observe context cancellation. Close the
+	// connection as soon as ctx is done — on SIGTERM (parent cancelled)
+	// or when the job deadline passes — so a worker idling in a session
+	// that is waiting for work never outlives its shutdown signal.
+	stopOnDone := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stopOnDone()
 
 	sess, err := client.Dial(client.SessionConfig{
 		Conn:             conn,

@@ -230,7 +230,25 @@ func Accept(cfg SessionConfig) (*Session, error) {
 // it as read-only; see transport.Conn.State for the contract.
 func (s *Session) State() *transport.SessionState { return s.state }
 
-// ServeOneJob drives the server-side job cycle end-to-end:
+// VerifiedCandidate is a CandidateOutput together with the worker
+// signing key ID under which its CandidateOutputFrame signature was
+// verified. The key ID is authenticated, not merely reported: it is
+// returned only after the frame's Ed25519 signature has checked out
+// against the key the WorkerKeyResolver holds for that ID, so callers
+// may record it as the provenance of the result (job view, audit chain).
+type VerifiedCandidate struct {
+	Output             returnpath.CandidateOutput
+	WorkerSigningKeyID ids.KeyID
+}
+
+// ServeOneJob runs ServeOneJobVerified and returns only the candidate
+// output, for callers that do not need the signing-key provenance.
+func (s *Session) ServeOneJob(ctx context.Context, req transport.JobRequest) (returnpath.CandidateOutput, error) {
+	v, err := s.ServeOneJobVerified(ctx, req)
+	return v.Output, err
+}
+
+// ServeOneJobVerified drives the server-side job cycle end-to-end:
 //
 //  1. Canonical-encode and send req as a JobRequest frame.
 //  2. Read frames until we see a JobAccept or JobReject (Heartbeats are
@@ -242,7 +260,8 @@ func (s *Session) State() *transport.SessionState { return s.state }
 //  5. Verify the CandidateOutputFrame against the JobRequest: match
 //     ManifestID, SessionID, OutputKind; re-compute CoverBytes and
 //     Ed25519-verify the WorkerSignature via WorkerKeyResolver.
-//  6. Translate to a returnpath.CandidateOutput and return it.
+//  6. Translate to a returnpath.CandidateOutput and return it with the
+//     verified worker signing key ID.
 //
 // On any transport error, the Session is left partially-usable: callers
 // typically call WriteShutdown then Close. On signature failure, the
@@ -254,8 +273,8 @@ func (s *Session) State() *transport.SessionState { return s.state }
 // surfaced before the first I/O with CodeContextCancelled. Callers
 // wanting strict cancellation should also close the net.Conn when ctx
 // is done (Session.Close does this).
-func (s *Session) ServeOneJob(ctx context.Context, req transport.JobRequest) (returnpath.CandidateOutput, error) {
-	var zero returnpath.CandidateOutput
+func (s *Session) ServeOneJobVerified(ctx context.Context, req transport.JobRequest) (VerifiedCandidate, error) {
+	var zero VerifiedCandidate
 	if s.closed {
 		return zero, shared_errors.Structural(
 			transport.CodeProtocolViolation,
@@ -336,7 +355,7 @@ func (s *Session) ServeOneJob(ctx context.Context, req transport.JobRequest) (re
 		Bytes:      append([]byte(nil), frame.Bytes...),
 		ProducedAt: frame.ProducedAt,
 	}
-	return out, nil
+	return VerifiedCandidate{Output: out, WorkerSigningKeyID: ids.KeyID(frame.WorkerSigningKeyID)}, nil
 }
 
 // jobReply captures the two possible responses to a JobRequest. Exactly
