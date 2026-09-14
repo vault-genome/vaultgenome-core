@@ -86,6 +86,9 @@ func runDaemon(args []string) error {
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("sagvd: config validation: %w", err)
 	}
+	if err := cfg.ResolveSecrets(); err != nil {
+		return err
+	}
 
 	logger := buildLogger(cfg.Log)
 	clock := shared_time.NewSystemClock()

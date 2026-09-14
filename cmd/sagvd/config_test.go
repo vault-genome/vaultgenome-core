@@ -109,6 +109,138 @@ func TestValidate_InvalidHostPort(t *testing.T) {
 	}
 }
 
+// --- fail-closed network exposure ------------------------------------
+
+func TestIsLoopbackBind(t *testing.T) {
+	cases := map[string]bool{
+		"127.0.0.1:9443":   true,
+		"127.10.20.30:1":   true,
+		"[::1]:9443":       true,
+		"localhost:9080":   true,
+		"0.0.0.0:9443":     false, // every interface
+		":9443":            false, // every interface
+		"[::]:9443":        false, // every interface
+		"10.66.0.2:9443":   false,
+		"sagvd:9443":       false, // hostname may resolve anywhere
+		"not-a-host-port":  false,
+		"example.com:9080": false,
+	}
+	for addr, want := range cases {
+		if got := isLoopbackBind(addr); got != want {
+			t.Errorf("isLoopbackBind(%q) = %v, want %v", addr, got, want)
+		}
+	}
+}
+
+func TestValidate_NonLoopbackVaultRequiresTLS(t *testing.T) {
+	c := minimalValidConfig()
+	c.Vault.ListenAddress = "0.0.0.0:9443"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "vault.tls.enabled required") {
+		t.Fatalf("Validate(non-loopback vault, no TLS): err = %v", err)
+	}
+
+	c.Vault.TLS = TLSConfig{Enabled: true, ServerCert: "s.crt", ServerKey: "s.key", ClientCAs: "ca.crt"}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate(non-loopback vault, mTLS): %v", err)
+	}
+}
+
+func TestValidate_NonLoopbackHTTPRequiresToken(t *testing.T) {
+	c := minimalValidConfig()
+	c.HTTPAPI.ListenAddress = "0.0.0.0:9080"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "bearer_token or bearer_token_file required") {
+		t.Fatalf("Validate(non-loopback REST, no token): err = %v", err)
+	}
+}
+
+func TestValidate_NonLoopbackHTTPShortTokenRejected(t *testing.T) {
+	c := minimalValidConfig()
+	c.HTTPAPI.ListenAddress = "0.0.0.0:9080"
+	c.HTTPAPI.BearerToken = "short"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "too short") {
+		t.Fatalf("Validate(non-loopback REST, short token): err = %v", err)
+	}
+
+	c.HTTPAPI.BearerToken = strings.Repeat("a", MinNonLoopbackTokenLen)
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate(non-loopback REST, strong token): %v", err)
+	}
+}
+
+func TestValidate_NonLoopbackHTTPTokenFileAccepted(t *testing.T) {
+	c := minimalValidConfig()
+	c.HTTPAPI.ListenAddress = "0.0.0.0:9080"
+	c.HTTPAPI.BearerTokenFile = "/etc/acp/secrets/sagvd/api_token"
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate(non-loopback REST, token file): %v", err)
+	}
+}
+
+func TestValidate_TokenAndTokenFileMutuallyExclusive(t *testing.T) {
+	c := minimalValidConfig()
+	c.HTTPAPI.BearerToken = "inline"
+	c.HTTPAPI.BearerTokenFile = "/tmp/token"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "only one of bearer_token and bearer_token_file") {
+		t.Fatalf("Validate(both token sources): err = %v", err)
+	}
+}
+
+func TestResolveSecrets_ReadsAndTrimsTokenFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "api_token")
+	want := strings.Repeat("f", MinNonLoopbackTokenLen)
+	if err := os.WriteFile(path, []byte("  "+want+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := minimalValidConfig()
+	c.HTTPAPI.ListenAddress = "0.0.0.0:9080"
+	c.HTTPAPI.BearerTokenFile = path
+	if err := c.ResolveSecrets(); err != nil {
+		t.Fatalf("ResolveSecrets: %v", err)
+	}
+	if c.HTTPAPI.BearerToken != want {
+		t.Fatalf("BearerToken = %q, want %q", c.HTTPAPI.BearerToken, want)
+	}
+}
+
+func TestResolveSecrets_RejectsEmptyShortOrMissingFile(t *testing.T) {
+	dir := t.TempDir()
+	empty := filepath.Join(dir, "empty")
+	short := filepath.Join(dir, "short")
+	if err := os.WriteFile(empty, []byte(" \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(short, []byte("abc"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, path := range map[string]string{
+		"empty":   empty,
+		"short":   short,
+		"missing": filepath.Join(dir, "nope"),
+	} {
+		c := minimalValidConfig()
+		c.HTTPAPI.ListenAddress = "0.0.0.0:9080"
+		c.HTTPAPI.BearerTokenFile = path
+		if err := c.ResolveSecrets(); err == nil {
+			t.Errorf("ResolveSecrets(%s token file) = nil, want error", name)
+		}
+	}
+}
+
+func TestResolveSecrets_NoTokenFileIsNoop(t *testing.T) {
+	c := minimalValidConfig()
+	c.HTTPAPI.BearerToken = "inline"
+	if err := c.ResolveSecrets(); err != nil {
+		t.Fatalf("ResolveSecrets: %v", err)
+	}
+	if c.HTTPAPI.BearerToken != "inline" {
+		t.Fatalf("inline token altered: %q", c.HTTPAPI.BearerToken)
+	}
+}
+
 // --- Phase 4 cross-cloud config tests --------------------------------
 
 func TestValidate_CrossCloudDisabledByDefault(t *testing.T) {
