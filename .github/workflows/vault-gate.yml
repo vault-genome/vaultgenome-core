@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 30
     defaults:
       run:
-        working-directory: core
+        working-directory: .
     steps:
       - name: Checkout (with tags for signing-cert validation)
         uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
         with:
           go-version: '1.25.5'
           cache: true
-          cache-dependency-path: core/go.sum
+          cache-dependency-path: go.sum
 
       # 01 fmt
       - name: fmt
@@ -87,7 +87,7 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.59
-          working-directory: core
+          working-directory: .
           args: --timeout=5m
 
       # 09 terminology
@@ -102,11 +102,11 @@ jobs:
 
       # 11 osv-scanner
       - name: osv-scanner
-        uses: google/osv-scanner-action/osv-scanner-action@v1
+        uses: google/osv-scanner-action/osv-scanner-action@v2.6.0
         with:
           scan-args: |-
             -r
-            ./core
+            .
 
       # 12 gitleaks
       - name: gitleaks
@@ -124,7 +124,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sbom-${{ github.sha }}
-          path: core/dist/sbom.spdx.json
+          path: dist/sbom.spdx.json
           if-no-files-found: error
 
       # 14 license-headers

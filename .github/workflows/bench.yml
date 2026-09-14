@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 30
     defaults:
       run:
-        working-directory: core
+        working-directory: .
     steps:
       - name: Checkout PR / push
         uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
         with:
           go-version: "1.25.9"
           cache: true
-          cache-dependency-path: core/go.sum
+          cache-dependency-path: go.sum
 
       - name: Install benchstat
         run: go install golang.org/x/perf/cmd/benchstat@latest
@@ -101,7 +101,7 @@ jobs:
         with:
           name: bench-${{ github.sha }}
           path: |
-            core/dist/bench-current.out
-            core/dist/bench-baseline.out
-            core/dist/benchstat.out
+            dist/bench-current.out
+            dist/bench-baseline.out
+            dist/benchstat.out
           if-no-files-found: ignore

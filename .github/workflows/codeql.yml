@@ -57,7 +57,7 @@ jobs:
         with:
           go-version: '1.25.5'
           cache: true
-          cache-dependency-path: core/go.sum
+          cache-dependency-path: go.sum
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -69,7 +69,7 @@ jobs:
       # database. Our build is `make build` which emits the three
       # release binaries.
       - name: Build (autobuild)
-        working-directory: core
+        working-directory: .
         run: make build
 
       - name: Analyze

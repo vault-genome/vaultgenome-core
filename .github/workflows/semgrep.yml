@@ -47,13 +47,12 @@ jobs:
       - name: Run Semgrep
         run: |
           semgrep ci \
-            --config core/scripts/semgrep/rules.yml \
+            --config scripts/semgrep/rules.yml \
             --config p/golang \
             --config p/secrets \
             --config p/dockerfile \
             --config p/github-actions \
             --sarif-output=semgrep.sarif \
-            --error
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 

@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 45
     defaults:
       run:
-        working-directory: core
+        working-directory: .
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
@@ -47,7 +47,7 @@ jobs:
         with:
           go-version: '1.25.5'
           cache: true
-          cache-dependency-path: core/go.sum
+          cache-dependency-path: go.sum
 
       - name: Build binaries (reproducible)
         env:
@@ -102,12 +102,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            core/bin/sagvd
-            core/bin/acp-compute
-            core/bin/acpctl
-            core/dist/*.sbom.spdx.json
-            core/dist/*.sig
-            core/dist/*.cert
+            bin/sagvd
+            bin/acp-compute
+            bin/acpctl
+            dist/*.sbom.spdx.json
+            dist/*.sig
+            dist/*.cert
 
   slsa-provenance:
     needs: [build-and-sign]
