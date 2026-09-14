@@ -14,6 +14,8 @@ import (
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	"github.com/ai-continuity-platform/core/internal/validation/reconstruction"
 	"github.com/ai-continuity-platform/core/internal/vault/keys"
 )
 
@@ -140,6 +142,26 @@ func NewValidationService(opts ServiceOptions) (*ValidationService, error) {
 // operational-only callers.
 type ValidateInputs struct {
 	OperationalInputs
+
+	// Behavioral, when non-nil, drives the receive-side numerical
+	// reconstruction-fidelity dimension: the reconstructed genome recomputes the
+	// sealed reference fixtures and the determinism-ladder gate certifies the
+	// result (EXACT/EQUIVALENT → pass; no door opens → fail-closed). Nil leaves
+	// the behavioral dimension absent — operational-only, unchanged for existing
+	// callers. This is the receive-side seam the doc comment above anticipated.
+	Behavioral *BehavioralInputs
+}
+
+// BehavioralInputs carries the reconstruction-fidelity check for one genome:
+// the sealed reference fixtures and the ordered determinism-ladder doors
+// (recompute strategies) the destination should try. The doors are supplied by
+// the caller (backed by the canonical kernels over the reassembled weights), so
+// the validator stays free of any compute-backend dependency.
+type BehavioralInputs struct {
+	GenomeID  string
+	Fixtures  []equivalence.Fixture
+	Ladder    []reconstruction.Strategy
+	Threshold float64 // behavioral pass threshold recorded in the verdict, in [0,1]
 }
 
 // Validate runs the six operational sub-checks, constructs the
@@ -206,6 +228,19 @@ func (s *ValidationService) Validate(in ValidateInputs) (*validation_result.Vali
 	dim := RunOperational(in.OperationalInputs)
 	dims := map[validation_result.Dimension]validation_result.DimensionVerdict{
 		validation_result.DimensionOperational: dim,
+	}
+	// Optional receive-side behavioral dimension: numerical reconstruction
+	// fidelity via the determinism-ladder gate. The descent tries each door and
+	// gates it against the sealed fixtures; a healthy genome finds a door
+	// (VerdictPass), a corrupted one opens none (VerdictFail → overall fail via
+	// Aggregate → ReasonValidationFailed). Absent behavioral inputs leave the
+	// result operational-only.
+	if in.Behavioral != nil {
+		res, err := reconstruction.Regenerate(in.Behavioral.GenomeID, in.Behavioral.Fixtures, in.Behavioral.Ladder)
+		if err != nil {
+			return nil, err
+		}
+		dims[validation_result.DimensionBehavioral] = reconstruction.LadderToDimensionVerdict(res, in.Behavioral.Threshold)
 	}
 	overall := Aggregate(dims)
 

@@ -3,6 +3,9 @@
 package reconstruction
 
 import (
+	"fmt"
+
+	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 )
@@ -92,4 +95,41 @@ func Regenerate(
 		}
 	}
 	return res, nil // no door opened → fail-closed
+}
+
+// LadderToDimensionVerdict maps a ladder descent onto the behavioral dimension
+// of the frozen ValidationResult contract. If a door opened, it defers to
+// ToDimensionVerdict on the passing verdict. If no door opened (fail-closed), it
+// is VerdictFail with score 0 and one error finding per attempted door, so the
+// operator sees exactly which doors were tried and why each failed.
+func LadderToDimensionVerdict(res LadderResult, threshold float64) validation_result.DimensionVerdict {
+	if res.Opened {
+		return ToDimensionVerdict(res.Verdict, threshold)
+	}
+	details := make([]validation_result.Finding, 0, len(res.Attempts)+1)
+	for _, a := range res.Attempts {
+		var msg string
+		switch {
+		case a.Err != "":
+			msg = fmt.Sprintf("door %q (rung %d) errored: %s", a.Name, a.Rung, a.Err)
+		default:
+			msg = fmt.Sprintf("door %q (rung %d) failed the gate: %s (maxAbs=%.3g)", a.Name, a.Rung, a.Level, a.MaxAbsErr)
+		}
+		details = append(details, validation_result.Finding{
+			Code:     "reconstruction_door_failed",
+			Severity: validation_result.SeverityError,
+			Message:  msg,
+		})
+	}
+	details = append(details, validation_result.Finding{
+		Code:     "reconstruction_no_door_opened",
+		Severity: validation_result.SeverityError,
+		Message:  "no determinism-ladder door reproduced the sealed reference; reconstitution blocked (fail-closed)",
+	})
+	return validation_result.DimensionVerdict{
+		Verdict:   validation_result.VerdictFail,
+		Score:     0.0,
+		Threshold: threshold,
+		Details:   details,
+	}
 }
