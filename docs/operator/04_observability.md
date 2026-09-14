@@ -1,129 +1,122 @@
 # Observability
 
 **Audience:** Vault operator, administrator, external auditor.
-**Purpose:** how to prove, after the fact, exactly what happened in a
-recovery session. The platform's trust model assumes that every
-continuity-relevant event is externally verifiable from first principles
-— this document is the procedure for doing that verification.
+**Purpose:** how to prove, after the fact, exactly what happened. The
+platform's trust model assumes that every continuity-relevant event is
+externally verifiable from first principles — this document is the procedure
+for doing that verification with the tools that exist today.
 
 ---
 
 ## 1. The three observability surfaces
 
-The Vault exposes three independent, cross-referenced observability
-surfaces. Consistency across all three is the operational definition of a
-"clean" session.
+The design has three independent, cross-referenced observability surfaces.
+Consistency across all three is the operational definition of a "clean"
+session. Only the audit chain exists on a deployment today.
 
-| Surface | Contents | Integrity primitive | Package |
-| - | - | - | - |
-| Audit chain | Every stage transition, every decision, every incident | Hash-chained AuditEvents, signed tip | `/internal/audit` |
-| Witness log | Signed tree heads over the genome-descriptor state | RFC 6962 Merkle tree, STH signatures | `/internal/genome/witness` |
-| Session ledger | SessionObjects and their ReleaseDecisions | Ed25519 signatures by SigningAuthority | `/internal/vault/session`, `/internal/contracts/release_decision` |
+| Surface | Contents | Integrity primitive | Package | On a deployment |
+| - | - | - | - | - |
+| Audit chain | Signed, hash-linked AuditEvents | SHA-256 hash chain; Ed25519 signature per event | `/internal/audit` (`chain`, `store`) | Yes — the cross-cloud log at `crosscloud.audit_log_path`, written by `sagvd crosscloud-restore` and `crosscloud-confirm`. The sagvd daemon writes no audit log. |
+| Witness log | Signed tree heads over the genome-descriptor state | RFC 6962 Merkle tree, STH signatures | `/internal/genome/witness` | No — in-memory library, exercised by tests |
+| Session ledger | SessionObjects and their ReleaseDecisions | Ed25519 signatures under the `signing_authority` key purpose | `/internal/vault/session`, `/internal/contracts/release_decision` | No — library, exercised by tests |
 
-A recovery session leaves a signature on all three. Cross-check across
-the three is the primary after-the-fact integrity tool.
+§5 lists the runtime metrics and logs the daemons expose.
 
 ---
 
 ## 2. Audit chain inspection
 
-The audit chain is a linear hash chain of AuditEvents. Each event carries
-a Kind (one of the nine stage-bearing kinds enumerated in `audit/event`),
-a SessionID, a timestamp, a hash of the previous tip, and a signature by
-`SigningAudit`.
+The audit chain is a linear hash chain of AuditEvents
+(`/internal/contracts/audit_event/audit_event.go`). Each event carries a Kind
+(one of 23: 14 release-side, 4 receive-side, 5 cross-cloud), correlators
+(SessionID, ManifestID, RequestID — any may be empty), a timestamp, the
+previous event's hash, its own hash, and a signature under the audit signing
+key. The cross-cloud log holds `CROSS_CLOUD_HANDSHAKE_INITIATED`,
+`CROSS_CLOUD_ATTESTATION_VERIFIED`, then `KEY_RELEASE_AUTHORIZED` or
+`KEY_RELEASE_DENIED`, and `CROSS_CLOUD_RESTORE_COMPLETED` for each confirmed
+restore.
 
 ### 2.1 Verify the chain in-place
 
 ```
-acpctl audit verify --from <tip-hash> --to HEAD
+acpctl audit verify --audit /var/lib/acp/xcc-audit.db \
+  --audit-pubkey sagvd-audit.pem --audit-kid sagvd-audit --json
 ```
 
-**Expected output:** every event's prev-hash matches the preceding
-event's hash; every event's signature verifies; no Kind appears out of
-stage order for its SessionID. Any anomaly is printed with the offending
-event's ID and the kind of inconsistency.
+It replays the chain from its first event (whose previous hash must be 32 zero
+bytes), checks every hash link and every signature under the one key given,
+and prints `ok`, `event_count` and `tip` (the hash of the last event).
+`--audit-pubkey` takes the PEM `sagvd identity` prints as
+`audit_public_key_pem`, or the 32 raw bytes.
+
+**Expected output:** `"ok": true`, exit 0. On the first inconsistency it
+reports the offending event's index — `event #N: prev_hash does not link to
+event #N-1` for a broken link, `event #N: …` for a signature that does not
+verify — and exits 4. It does not check the order of kinds within a session.
+
+acpctl opens the file read-write and takes the same lock a running
+`crosscloud-restore` holds (it gives up after 5 seconds): run it between
+releases, or on a copy. A mistyped `--audit` path creates an empty log, which
+verifies with 0 events.
 
 ### 2.2 Verify against an external tip pin
 
-The administrator keeps a signed external file of the audit chain tip
-after every recovery session. To verify that the Vault has not rewritten
-history:
+A chain cannot show by itself that its tail was cut off. Pin the tip outside
+the host:
 
-```
-acpctl audit verify --from <externally-pinned-prev-tip> --to <current-tip>
-```
+1. Keep the JSON report of every `sagvd crosscloud-restore` and
+   `crosscloud-confirm` run; each carries `audit_chain_length` and `audit_tip`.
+2. Later, run §2.1. Its `event_count` and `tip` must equal the values in the
+   most recent report.
 
-The current tip must chain to the externally-pinned prev-tip. If not,
-the audit chain has been rewritten — critical incident, treat per
+Fewer events, or a different tip with no newer report to explain it, means the
+audit log has been truncated or replaced — critical incident, treat per
 `03_incident_response.md` §4.
 
-### 2.3 Session reconstruction from audit
-
-Given only the audit chain and a SessionID, you should be able to
-reconstruct what stage the session reached, which components were
-disclosed, and what the ReleaseDecision verdict was — without consulting
-any other store. The `audit reconstruct` CLI subcommand does this:
+### 2.3 Session and request reconstruction from audit
 
 ```
-acpctl audit reconstruct --session <session-id>
+acpctl lineage --audit /var/lib/acp/xcc-audit.db --session-id <session-id>
+acpctl lineage --audit /var/lib/acp/xcc-audit.db --manifest-id <manifest-id>
 ```
 
-Output includes stage transitions (timestamps, Kind), disclosed component
-IDs in the issued order, and the final release verdict. If the audit chain
-shows `DISCLOSURE_AUTHORIZED` events but no matching ReleaseDecision for a
-session that has been terminated, that is a doctrine violation — one of
-two things happened: authority to release was bypassed, or the release
-audit event is missing. Both are critical incidents.
+Lists every event carrying that ID in time order: index, time, kind, event ID
+and request ID (`--json` for machine output). Cross-cloud events carry a
+session or manifest ID only when `crosscloud-restore` was given `-session-id`
+or `-manifest-id`. Every cross-cloud event carries the handshake request ID,
+which `audit query` prints:
+
+```
+acpctl audit query --audit /var/lib/acp/xcc-audit.db \
+  --kind KEY_RELEASE_AUTHORIZED --since 2026-09-01T00:00:00Z --json
+```
+
+`--since` and `--until` take RFC 3339 times; `--limit 0` returns every match.
+`acpctl status --audit PATH` prints a summary: event count, time range, a
+histogram of kinds, and the most recent event.
 
 ---
 
 ## 3. Witness log verification
 
-The witness transparency log is an RFC 6962 Merkle tree of genome
-descriptors. Its purpose is to make rewrites of the genome-state history
-detectable.
-
-### 3.1 Verify the current STH
-
-```
-acpctl witness sth --verify
-```
-
-The signed tree head must verify against the `SigningWitness` key.
-
-### 3.2 Verify against an external STH pin
-
-The administrator keeps a signed external file of the STH after every
-preflight. To verify:
-
-```
-acpctl witness sth --verify --against <externally-pinned-sth>
-```
-
-The current STH must be a consistent extension of the externally-pinned
-STH. If `DetectFork` fires — which the CLI reports as
-`FORK_DETECTED` — treat as a critical incident. A fork means the log
-has been rewritten; historical genome descriptors' provenance is no
-longer provable.
-
-### 3.3 Consistency proof for a specific descriptor
-
-Given a GenomeID and its previously-recorded descriptor, you should be
-able to produce a consistency proof showing that this descriptor is in
-the current tree. If the proof fails, either the descriptor was not in
-the log at the claimed time or the log was rewritten.
+Not available on a deployment. The witness transparency log
+(`/internal/genome/witness`) is an in-memory library: it appends entries, signs
+tree heads under a `signing_witness` key, and answers inclusion and
+consistency proofs; `DetectFork` (`/internal/contracts/witness`) compares two
+signed tree heads. Tests exercise all of it. No binary runs a witness log or
+publishes signed tree heads, and `acpctl` has no witness command.
 
 ---
 
 ## 4. Session ledger cross-check
 
-For a given SessionID the session ledger holds the SessionObject (issued
-at Stage 3) and, after Stage 8, the ReleaseDecision. Cross-checks:
+Not available on a deployment: no binary keeps sessions or release decisions.
+The contracts require, for a given SessionID:
 
 - SessionObject.SessionID must match ReleaseDecision.SessionID.
 - ReleaseDecision.ValidationResultID must point to a ValidationResult
   produced for this session (invariant #5).
-- ReleaseDecision.AuditEventID must point to a RELEASE_DECISION
+- ReleaseDecision.AuditEventID must point to a `RELEASE_DECIDED`
   AuditEvent (invariant #8).
 - The audit event at AuditEventID must reference this SessionID.
 - Every DisclosureMessage emitted during this session must have a
@@ -131,30 +124,54 @@ at Stage 3) and, after Stage 8, the ReleaseDecision. Cross-checks:
   and a strictly monotonic SequenceIndex.
 
 A mismatch in any of these is a doctrine violation — by construction, a
-valid session must satisfy all of them. The CLI wrapper:
-
-```
-acpctl session cross-check --session <session-id>
-```
-
-…produces the full report.
+valid session must satisfy all of them. `internal/integration/vertical_slice_test.go`
+asserts the ID correlations; there is no CLI for this cross-check.
 
 ---
 
-## 5. Routine observability cadence
+## 5. Runtime signals
+
+Both daemons serve Prometheus text at `/metrics` on their health listener
+(`health.listen_address`, default `127.0.0.1:9091` for both — give one of them
+another address on a shared host), next to `/healthz` (`ok`) and `/readyz`
+(`ready`).
+
+| sagvd metric | Meaning |
+| - | - |
+| `sagvd_http_requests_total{route,status}` | REST API requests |
+| `sagvd_jobs_submitted_total` | Jobs accepted by `POST /v1/jobs` |
+| `sagvd_jobs_completed_total{outcome}` | Jobs finished: `success`, `reject` (operational or structural error), `fail` |
+| `sagvd_sessions_opened_total` | Return Path handshakes completed |
+| `sagvd_handshake_failures_total{phase}` | `tls` or `handshake` |
+| `sagvd_queue_depth` | Jobs waiting for a worker |
+| `sagvd_last_success_unix`, `sagvd_start_unix` | Timestamps |
+| `vg_tee_attestation_total{provider,result,role}`, `vg_tee_attestation_duration_seconds` | Return Path Evidence produced and verified; `provider` is always `simulated` in sagvd |
+| `vg_tee_capability_total{provider,available}` | Recorded once at startup as `simulated` / `true`; sagvd probes no hardware |
+
+acp-compute exports `acp_compute_jobs_total`,
+`acp_compute_handshake_failures_total`, `acp_compute_dial_failures_total`,
+`acp_compute_sessions_opened_total`, `acp_compute_session_active`,
+`acp_compute_last_success_unix` and `acp_compute_start_unix`.
+`deploy/grafana/` holds dashboards for these metrics.
+
+Both daemons log to stderr only — JSON lines by default (`log.format: "text"`
+for text) with `time`, `level`, `msg` and, on failures, `err`. Collect stderr
+with your own agent.
+
+---
+
+## 6. Routine observability cadence
 
 | Cadence | Check | Who |
 | - | - | - |
-| Every session | `acpctl audit reconstruct` against the closed session | Vault operator |
-| Every session | External audit-chain tip pinning after termination | Administrator |
-| Every preflight | External STH pinning | Vault operator |
-| Every 30 days | Full `acpctl audit verify --from <birth> --to HEAD` | Vault operator |
-| Every 30 days | Full witness-log consistency proof walk | Administrator |
+| Every `crosscloud-restore` / `crosscloud-confirm` run | Keep the JSON report (`audit_tip`, `audit_chain_length`) off the host | Administrator |
+| Every preflight | `acpctl audit verify`, compared with the latest report (§2.2) | Vault operator |
+| Every 30 days | The same, plus `acpctl audit query` over the period against the releases you intended | Vault operator |
 | After any incident | All of the above | Administrator |
 
 ---
 
-## 6. What observability does NOT do
+## 7. What observability does NOT do
 
 It is useful to be explicit:
 
@@ -162,13 +179,17 @@ It is useful to be explicit:
   an operational choice that violated an invariant; it merely makes the
   violation visible.
 - Observability does not replace preflight. A green preflight a week ago
-  does not cover a session run today.
+  does not cover a release run today.
 - Observability does not provide real-time anomaly response. That is the
-  incident module's job, and in MVP it handles only two scenarios
-  (attestation fail, validation hard-fail) — the rest are operator
-  judgment.
+  incident module's job; it covers three scenarios (attestation failure,
+  validation hard-fail, audit-append failure) and runs only in-library — the
+  rest are operator judgment.
 - Observability does not protect against a compromised
-  `SigningAuthority` or `SigningAudit` key. A key compromise is the
+  authority signing or audit signing key. A key compromise is the
   scenario under which the whole chain becomes unreliable. The only
   defence there is the key-custody procedures in preflight §3 and the
   out-of-band external pin cadence above.
+
+---
+
+_Document history: 2026-09-14 — checked line by line against the code; commands and names the binaries do not have were removed._

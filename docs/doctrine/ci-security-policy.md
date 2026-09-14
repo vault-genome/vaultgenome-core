@@ -16,8 +16,10 @@ an 18-step gate; a merge is allowed only when all of it is green: format, vet,
 build, unit tests, race detector, integration tests, coverage (§8), lint
 (golangci-lint), terminology (§4), govulncheck (§5), osv-scanner (§5), gitleaks
 (§10), SBOM (§6), license headers (§7), doctrine tests, dependency allowlist
-(§3.1), dependency depth (§3.2), and reproducible build (§9). The same checks
-run locally via `make vault-gate`.
+(§3.1), dependency depth (§3.2), and reproducible build (§9). `make
+vault-gate` runs 14 of them locally; integration tests, the SBOM and the
+reproducible build have their own targets (`make test-integration`, `make
+sbom`, `make verify-reproducible`), and osv-scanner runs only in CI.
 
 ## 2. Toolchain
 
@@ -82,9 +84,12 @@ a toolchain with a known, fixed advisory it could have taken.
 
 ## 6. Supply-chain attestation
 
-Releases are built by `.github/workflows/release.yml`, triggered only by a
-signed `v*.*.*` tag whose signature is verified before the build. Every released
-binary (`sagvd`, `acp-compute`, `acpctl`) carries three attestations:
+Releases are built by `.github/workflows/release.yml`, triggered by a
+`v*.*.*` tag. Before anything is built the tag's signature is verified against
+the maintainer keys pinned on the default branch (`.github/allowed_signers`,
+`.github/release-signing-keys.asc`) — never against keys in the tagged tree —
+and a tag that does not verify produces no release. Every released binary
+(`sagvd`, `acp-compute`, `acpctl`, `acp-bootstrap`) carries three attestations:
 
 - an **SBOM** in SPDX-JSON, produced per artifact by **syft**;
 - a **cosign** keyless signature (`sign-blob`) with a transparency-log entry;

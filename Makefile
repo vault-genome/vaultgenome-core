@@ -10,7 +10,7 @@ PKG   := ./...
 
 # --- metadata -----------------------------------------------------------------
 
-BINARIES := sagvd acp-compute acpctl acp-demo
+BINARIES := sagvd acp-compute acpctl acp-bootstrap acp-demo
 VERSION  ?= 0.0.0-dev
 COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 

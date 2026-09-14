@@ -1,12 +1,14 @@
 # Preflight Checklist
 
-**When to run this:** before the first real recovery session in a new
-deployment, and monthly thereafter. A failed item is a stop condition —
-do not proceed to a recovery session with any red item below.
+**When to run this:** before relying on a new deployment, and monthly
+thereafter. A failed item is a stop condition — do not release keys or submit
+work with any red item below.
 
 **Who runs it:** the Vault operator, with the administrator available.
 
-**Expected time:** ~20 minutes for a first run, ~5 minutes thereafter.
+**Scope:** what can be checked against this repository and the shipped
+binaries. The nine-stage flow ([02](02_recovery_flow.md)) runs only in-library
+in the tests; where an item belongs to it, the section says so.
 
 ---
 
@@ -14,129 +16,189 @@ do not proceed to a recovery session with any red item below.
 
 | Check | Command | Pass criterion |
 | - | - | - |
-| Local vault-gate green | `make vault-gate` | Exit 0, all 17 sub-checks report PASS |
-| All binaries built | `ls bin/sagvd bin/acp-compute bin/acpctl` | All three present |
-| License headers intact | `make license-headers` | Exit 0 |
-| SBOM generable | `make sbom` | Produces `sbom.spdx.json` without error |
-| No vulnerable deps | `make vuln` | `govulncheck` reports no new findings |
-| No leaked secrets | `make secrets` | `gitleaks` exit 0 |
+| Local gate green | `make vault-gate` | Exit 0; last line `vault-gate: PASS` |
+| Integration tests | `make test-integration` | Exit 0 (builds the real `sagvd`, `acp-compute` and keygen binaries and runs them as processes) |
+| Reproducible build | `make verify-reproducible` | Ends with `reproducible-build check: PASS` |
+| All binaries built | `make build`, then `ls bin/` | `sagvd`, `acp-compute`, `acpctl`, `acp-bootstrap`, `acp-demo` present |
+| SBOM generable | `make sbom` | Writes `dist/sbom.spdx.json` without error |
 
-Any failure here blocks the session — a Vault that cannot produce a clean
-gate cannot responsibly handle continuity authority.
+`make vault-gate` runs 14 targets: `fmt-check`, `vet`, `build`, `test`,
+`test-race`, `test-doctrine`, `lint`, `terminology`, `license-headers`, `vuln`
+(govulncheck), `secrets` (gitleaks), `coverage-thresholds`, `dep-allowlist`,
+`dep-depth`. The CI workflow `.github/workflows/vault-gate.yml` runs 18 checks;
+the four the local target omits are integration tests, osv-scanner, SBOM and
+verify-reproducible. Three of them are the separate targets in the table;
+osv-scanner runs only in CI. `lint`, `vuln`, `secrets` and `sbom` need
+golangci-lint, govulncheck, gitleaks and syft installed.
+
+Any failure here blocks — a Vault that cannot produce a clean gate cannot
+responsibly handle continuity authority.
 
 ---
 
 ## 2. Doctrine health
 
+All four are part of `make vault-gate`; run them alone to see the detail.
+
 | Check | Command | Pass criterion |
 | - | - | - |
-| All 11 invariants green | `go test ./test/doctrine/...` | Every `TestInvariant_NN` PASS |
-| Terminology clean | `make terminology` | No deprecated-term hit in the whole tree |
-| Dep allowlist respected | `make dep-allowlist` | Every direct dep in `scripts/dep_allowlist.txt` |
-| Dep depth within cap | `make dep-depth` | No reachable dep past depth 3 |
-| Positioning doctrine cited | `grep -r "docs/doctrine/positioning.md" docs/ || echo MISSING` | At least one citation in any external-facing artifact you are about to share |
+| All 11 invariants green | `make test-doctrine` | Every `TestInvariant_NN` passes |
+| Terminology clean | `make terminology` | No enforced deprecated name (`docs/doctrine/terminology.md` §4) anywhere in the tree |
+| Dep allowlist respected | `make dep-allowlist` | Every direct dependency is in `scripts/dep_allowlist.txt` |
+| Dep depth within cap | `make dep-depth` | No dependency chain deeper than 3 |
 
 ---
 
 ## 3. Key material
 
-The Vault holds four purpose-separated keys (see
-`/internal/vault/keys/keystore.go`). Each must be:
+`internal/vault/keys/keys.go` defines four key purposes: `signing_authority`,
+`signing_audit`, `sealing` and `signing_witness`. What the shipped binaries
+load:
 
-1. Loaded into the in-memory keystore at `sagvd` startup.
-2. Scoped to a single purpose (no cross-use of signing-authority and
-   sealing keys).
-3. Backed by audit events for every key-access operation.
+| Key | Config | Loaded by | Used for |
+| - | - | - | - |
+| Authority signing (32-byte Ed25519 seed) | sagvd `keys.authority_signing` (`kid`, `seed_path`) | `sagvd` and all its subcommands | Signs cross-cloud handshake requests and key-release tokens, which each destination verifies against its `source_authority`. The daemon loads it; the Return Path does not use it. |
+| Session sealing (32-byte AES-256 key) | `keys.session_sealing` (`kid`, `material_path`) — the same kid and bytes in sagvd and every acp-compute | both daemons | sagvd seals the payload of every `POST /v1/jobs` job under it; the worker opens it |
+| Audit signing (32-byte Ed25519 seed) | sagvd `keys.audit_signing` (`kid`, `seed_path`) | `sagvd crosscloud-restore` and `crosscloud-confirm` only (required when `crosscloud.enabled`); `sagvd identity` prints its public key | Signs the cross-cloud audit log. It must stay the same for the life of the log |
+| Worker signing (32-byte Ed25519 seed) | acp-compute `keys.worker_signing` | `acp-compute` | Signs every CandidateOutputFrame; sagvd checks it against `workers.registry_path` |
+| Simulated TEE seeds (32 bytes) | `tee.seed_path` in sagvd and acp-compute | both daemons | Sign each side's Return Path Evidence |
 
-| Key purpose | Used by | Preflight check |
-| - | - | - |
-| `SigningAuthority` | ReleaseDecision, SessionObject signatures | Sign a test payload and verify; confirm key ID matches the pinned value |
-| `SigningAudit` | AuditEvent chain-tip signing | Append a probe event, verify chain tip advanced, verify signature |
-| `Sealing` | AI Genome storage encryption | Round-trip a 32-byte probe through the sealing path; assert identical recovery |
-| `SigningWitness` | STH signatures for witness transparency log | Issue a witness STH on an empty state, verify |
+No binary loads a witness key.
 
-If any key fails its probe, the correct response is to refuse to start the
-Vault and escalate to the administrator. A running Vault with a suspect key
-is worse than a Vault that did not start.
+Checks:
+
+1. Every key file has its exact length; both daemons refuse to start
+   otherwise (`… must be exactly 32 bytes`). sagvd does not check the mode of
+   its own key files — keep them 0600. (Genome key files passed to
+   `crosscloud-restore -key-file` are refused if other users can read them.)
+2. `sagvd identity -config PATH` prints `authority_kid`,
+   `authority_public_key_pem`, `tee_measurement_hex`, `tee_public_key_pem`
+   and, when `keys.audit_signing` is set, `audit_kid` and
+   `audit_public_key_pem`. Compare each with the copy pinned elsewhere: the
+   authority key at every `acp-bootstrap` destination (`source_authority`),
+   sagvd's TEE key and measurement in each worker's `tee.peer.*` files, the
+   audit key with your auditors.
+3. At startup sagvd logs `sagvd authority signing identity` (kid,
+   pubkey_hex), `sagvd session sealing identity` (kid) and one
+   `sagvd accepted worker signing identity` line per registry entry;
+   acp-compute logs `worker signing identity` (kid, pubkey_hex). Each worker
+   line must match an entry in `workers.registry_path`.
+
+If any key fails a check, do not start the daemon; escalate to the
+administrator. A running Vault with a suspect key is worse than a Vault that
+did not start.
 
 ---
 
-## 4. Attestation
+## 4. TEE identities
 
-In MVP the TEE is emulated per resolution R-10; in production the Vault
-requires a real attestation quote from its own enclave. The preflight
-attestation check must:
+What attests in this build:
 
-1. Produce an AttestationResult with non-zero body.
-2. Be signed by a key whose identity chains to a root certificate pinned
-   in `/internal/shared/tee`.
-3. Carry a TTL field that has not yet expired.
-4. Pass the `op.attestation_valid` and `op.attestation_ttl` sub-checks in
-   `/internal/validation/operational`.
+- `sagvd` and `acp-compute` use the simulated TEE only: Evidence signed by a
+  key derived from `tee.seed_path`, measurement = SHA-256 of
+  `tee.workload_descriptor`. Both refuse to start unless
+  `tee.insecure_simulation` is `true`. Each pins the other's TEE public key and
+  measurement (`tee.peer.public_key_path`, `tee.peer.measurement_path`); a
+  mismatch fails the Return Path handshake (`sagvd return-path handshake
+  failed`, `sagvd_handshake_failures_total{phase="handshake"}`).
+- `acp-bootstrap` attests with AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`) or,
+  only with `insecure_simulation: true`, the simulator.
+  `acp-bootstrap identity -config PATH` prints `tee_provider` and
+  `measurement_hex` (plus the attestor key for the simulator); they must match
+  sagvd's verifier registry entry and allow-list (06). sagvd refuses a
+  `simulated` registry entry unless `crosscloud.insecure_simulated_destinations`
+  is `true`.
 
-If any of the four fails, the Vault is not in a state to begin a recovery
-session. In MVP the emulated TEE passes these trivially; the preflight
-check is still run every time so that swapping to real TEE at production
-does not require changes to this document.
+The `op.attestation_valid` and `op.attestation_ttl` sub-checks in
+`/internal/validation/operational` belong to the nine-stage flow and run only
+in the tests.
 
 ---
 
 ## 5. Witness log
 
-The witness transparency log (`/internal/genome/witness`) must have:
-
-- A valid signed tree head (STH) over its current state.
-- No DetectFork anomaly against the last externally recorded STH.
-- A log size that is monotonically non-decreasing relative to the last
-  preflight run.
-
-If DetectFork signals a fork condition, treat it as a critical doctrinal
-incident: the log has been rewritten, which means the integrity of past
-audit events is in question. See `03_incident_response.md` §4.
+Not applicable to a deployment. The witness transparency log
+(`/internal/genome/witness`, an in-memory log) and fork detection
+(`DetectFork` in `/internal/contracts/witness`) are libraries exercised by
+tests; no shipped binary runs a witness log or publishes signed tree heads.
 
 ---
 
-## 6. Policy snapshot
+## 6. Cross-cloud release policy
 
-The policy currently loaded in the Vault must:
+No binary loads a policy bundle for the nine-stage flow. What governs key
+releases today is read afresh by every `sagvd crosscloud-restore` run (06):
 
-1. Be the current pinned version per the Stage A resolution on policy
-   management (R-12 / R-13 — effective policy is the signed bundle that
-   shipped with the current release tag).
-2. Enumerate every allowed recipient key by canonical ID, every allowed
-   component class, and every allowed disclosure sequence pattern.
-3. Be reviewed every 30 days regardless of whether it has changed — the
-   review is itself a policy-alignment signal.
+1. The allow-list (`crosscloud.policy_allow_list_path`): its `version` must
+   equal `crosscloud.policy_version` or sagvd refuses to load it; every entry
+   is a whole 32-, 48- or 64-byte measurement.
+2. The verifier registry (`crosscloud.verifier_registry_path`): only
+   `simulated` and `gcp-sev-snp` entries are accepted.
+3. The operator's stop list (`crosscloud.operator_stop.list_path`). Check it
+   before installing it:
+   `acpctl stop verify -in stop.json -pubkey operator.pem -kid operator-1`.
+   A missing, edited or wrongly signed list stops every release; a list older
+   than the newest serial in the audit log is refused.
 
-A Vault running an unsigned or un-pinned policy must be refused.
+Review the allow-list and the stop list every 30 days whether or not they
+changed — the review is itself a policy-alignment signal.
 
 ---
 
-## 7. Audit chain continuity
+## 7. Audit log continuity
 
-- Fetch the current audit chain tip.
-- Verify its signature against `SigningAudit`.
-- Assert its hash chains back to the previous pinned tip (stored
-  externally — a simple signed file in the administrator's hands is
-  sufficient).
+The only audit log a shipped binary writes is `crosscloud.audit_log_path`.
+
+1. `acpctl audit verify --audit <path> --audit-pubkey <audit.pem> --audit-kid <kid> --json`
+   must report `"ok": true`.
+2. Its `event_count` and `tip` must equal the `audit_chain_length` and
+   `audit_tip` of the last `crosscloud-restore` or `crosscloud-confirm` report,
+   kept off the host. A log whose tail was cut off still verifies; only this
+   comparison shows it.
+
+acpctl opens the file read-write and takes the same lock a running
+`crosscloud-restore` holds (it gives up after 5 seconds): run it between
+releases, or on a copy. A mistyped `--audit` path creates an empty log, which
+verifies with 0 events.
 
 A discontinuity here is the canonical "is the audit log being replaced
 under me?" signal. Treat as critical.
 
 ---
 
-## 8. Exit conditions for preflight
+## 8. Running daemons
 
-**Green (all items pass):** you may proceed to open a recovery session.
+| Check | Command | Pass criterion |
+| - | - | - |
+| sagvd alive | `curl -fsS http://127.0.0.1:9091/healthz` | `ok` |
+| sagvd ready | `curl -fsS http://127.0.0.1:9091/readyz` | `ready` (once the Return Path listener is bound) |
+| Worker connected | sagvd log and `/metrics` | `sagvd session opened` lines; `sagvd_sessions_opened_total` rising |
 
-**Yellow (any one item is degraded but not red — for example, the policy
-snapshot is within one day of its 30-day review window):** proceed only if
-the administrator records the degradation as an audit event of kind
-`PREFLIGHT_DEGRADED`.
+`127.0.0.1:9091` is the default `health.listen_address`; the REST API is a
+separate listener (`http_api.listen_address`, default `127.0.0.1:9080`).
+acp-compute's health listener also defaults to `127.0.0.1:9091`; on a shared
+host give one of them another address (`deploy/compose` uses 9092 for the
+worker). sagvd refuses to start if `vault.listen_address` is not loopback and
+`vault.tls.enabled` is false, or if `http_api.listen_address` is not loopback
+and no bearer token of at least 32 characters is configured.
 
-**Red (any one item fails):** do not open a recovery session. Escalate,
+---
+
+## 9. Exit conditions for preflight
+
+**Green (all items pass):** you may rely on the deployment.
+
+**Yellow (an item is degraded but not failed — for example, the allow-list
+review is due within a day):** proceed only if the administrator records the
+degradation in writing.
+
+**Red (any item fails):** do not release keys or submit work. Escalate,
 remediate, re-run preflight.
 
-The outcome of every preflight run must be itself an audit event of kind
-`PREFLIGHT_RESULT`, carrying the per-item results and a monotonically
-increasing run ID.
+Record the outcome of every run — date, commit, the audit tip you compared —
+outside the system. There is no audit event kind for preflight results, and
+nothing appends one.
+
+---
+
+_Document history: 2026-09-14 — checked line by line against the code; commands and names the binaries do not have were removed._

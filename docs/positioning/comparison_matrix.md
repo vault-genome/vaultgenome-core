@@ -158,7 +158,7 @@ is closer to "edit a runtimeclass" than "rebuild your application."
    *  **Heavier deployment surface.** Adopting Confidential
       Containers means adopting Kata, an SGX/TDX/SEV-capable
       kernel, the runtimeclass annotations, the attestation agents,
-      and the Trustee verifier. Vault Genome ships three binaries
+      and the Trustee verifier. Vault Genome ships static Go binaries
       and runs on bare systemd, Docker Compose, Kubernetes via
       Helm, or native packages — adopt the level of complexity
       that matches your environment.

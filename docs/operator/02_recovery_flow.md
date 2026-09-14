@@ -1,34 +1,68 @@
 # Recovery Flow — Nine-Stage Walkthrough
 
-**Purpose:** a narrated, stage-by-stage walkthrough of a recovery session
-from the first Recovery Request to the final Audit append. For each stage
-the runbook identifies (a) what the operator must verify, (b) what the
-code does, and (c) what the doctrine requires.
+**Purpose:** a stage-by-stage walkthrough of the nine-stage release flow and of
+the receive-side round trip, as implemented in the library. For each stage the
+document gives (a) what the code does, (b) what the tests check, and (c) what
+the doctrine requires.
 
-**Prerequisite:** preflight (see `01_preflight.md`) completed green within
-the last hour.
+**No shipped binary runs this flow.** No `cmd/` package imports
+`internal/vault/{orchestration,session,disclosure,incident}`,
+`internal/validation/operational`, the root `internal/bootstrap` package or
+`internal/reassembly`, and `internal/vault/intake` and `internal/vault/trust`
+hold only a `doc.go`. The flow is assembled by tests from the library pieces:
+
+- `make demo` Act I runs `go test -run TestVerticalSlice ./internal/integration/...`.
+  `vertical_slice_test.go` builds each stage's contract in turn, with a
+  synthetic candidate in place of a worker.
+- `make demo` Act II runs `go test -run TestRoundtripSlice ./internal/integration/...`
+  (the receive side, §7).
+- `internal/integration/phase1_demo_test.go` adds the worker's Reconstructor,
+  the validation service and the incident service; the StagedSequencer
+  (stage 4) is covered by the `internal/vault/disclosure` tests.
+
+Of the release-side audit kinds, library code appends only
+`DISCLOSURE_AUTHORIZED` (StagedSequencer), the four `VALIDATION_*` kinds
+(validation service) and `INCIDENT_DETECTED` / `INCIDENT_TERMINATED` (incident
+service). `REQUEST_RECEIVED`, `TRUST_EVALUATED`, `SESSION_ISSUED`,
+`MANIFEST_ISSUED`, `CANDIDATE_RECEIVED` and `RELEASE_DECIDED` are appended by
+the tests themselves, and `vertical_slice_test.go` appends all of its events by
+hand.
+
+The **State machine** lines quote the transition table in
+`internal/vault/orchestration/state.go`; nothing drives it at run time. The
+**Checked** lines are what the tests assert — a deployment offers no surface
+on which to check them.
+
+The shipped daemons cover part of stages 5 and 6 only: `POST /v1/jobs` on
+sagvd's REST API queues a job whose payload sagvd seals under the
+session-sealing key; `acp-compute` collects it over the Return Path, runs the
+placeholder reconstruction and returns a signed CandidateOutputFrame, which
+`GET /v1/jobs/{id}` shows. The job's `session_id` and `manifest_id` are
+labels supplied by the caller: sagvd issues no SessionObject or manifest, and
+nothing validates the result or issues a release decision.
 
 ---
 
 ## Stage 1 — Recovery Request
 
-**Trigger:** an administrator or an authorised upstream process submits a
-RecoveryRequest to the Vault's intake surface.
+**Trigger:** a RecoveryRequest is presented to the Vault.
 
-**Vault does:** validates the RecoveryRequest contract (non-empty
-RequestID, non-zero SchemaVersion, caller identity bound to a known
-identity cert), appends `RECOVERY_REQUEST_INTAKE` to the audit chain,
-moves workflow state from `StateIntake` to `StateTrust`.
+**Code:** `RecoveryRequest.Validate()` (`internal/contracts/recovery_request`)
+checks that the schema version is supported and that `request_id`,
+`genome_id`, `policy_profile`, `requester_identity` and `created_at` are set.
+The intake package has no code yet.
 
-**Operator verifies:** the audit event was appended (single event, not a
-batch), the RequestID is unique for this session, and the workflow state
-transition was recorded.
+**State machine:** `StateUnstarted → StateRequest` on `request.received`, then
+`StateRequest → StateTrust` on `request.validated`.
+
+**Checked:** one `REQUEST_RECEIVED` audit event for the request; its RequestID
+is carried by every later event.
 
 **Doctrine:** intake is never skipped. A session that enters the Vault
 without a matching intake audit event is a per-doctrine invariant
 violation of "sessions are mandatory" (#3) and must be terminated.
 
-**Package:** `/internal/vault/intake`.
+**Package:** `/internal/vault/intake` (`doc.go` only).
 
 ---
 
@@ -36,21 +70,25 @@ violation of "sessions are mandatory" (#3) and must be terminated.
 
 **Trigger:** workflow state entered `StateTrust`.
 
-**Vault does:** evaluates the caller against the active policy bundle.
-Three possible outcomes — **admit**, **restrict**, **deny**. A `deny`
-transitions to a terminal `StateDenied`; a `restrict` admits with reduced
-component-class scope; an `admit` transitions to `StateSession`.
+**Code:** Trust Admission produces a signed AttestationResult
+(`internal/contracts/attestation_result`) with Outcome `allow`, `deny` or
+`restrict`. The trust package has no code yet; the tests build the
+AttestationResult and append `TRUST_EVALUATED`.
 
-**Operator verifies:** the decision matches what policy would predict; a
-`restrict` outcome produced a scoped ComponentClassFilter; an audit event
-of kind `TRUST_DECISION` was appended.
+**State machine:** `allow` moves `StateTrust → StateSession`. `deny` and
+`restrict` both move `StateTrust → StateRelease`: a release decision without a
+session. There is no separate denied state, and nothing narrows a `restrict`
+admission to a subset of components.
+
+**Checked:** the AttestationResult signature verifies; `TRUST_EVALUATED` was
+appended. Later, `op.attestation_valid` fails any outcome other than `allow`.
 
 **Doctrine:** "trust is a gate, not a log" (invariant #2). A trust
 decision is not advisory — a `deny` or `restrict` mechanically constrains
 the allowed state transitions, not merely the audit record. This is
 enforced at the transition-table level in `/internal/vault/orchestration`.
 
-**Package:** `/internal/vault/trust`.
+**Package:** `/internal/vault/trust` (`doc.go` only).
 
 ---
 
@@ -58,15 +96,16 @@ enforced at the transition-table level in `/internal/vault/orchestration`.
 
 **Trigger:** workflow state entered `StateSession`.
 
-**Vault does:** mints a SessionObject — a signed, TTL-bounded capability
-carrying the SessionID, the admitted component-class scope, the
-recipient-key identity, the approved disclosure policy hash, and the
-expiry. Signature is by the `SigningAuthority` key.
+**Code:** `session.Issuer.Issue` mints a SessionObject carrying SessionID,
+RequestID, GenomeID, PolicyVersion (the Issuer's active policy), IssuedAt,
+ExpiresAt (IssuedAt + TTL, default 5 minutes) and State `active`, signed under
+the `signing_authority` key purpose. The Issuer keeps sessions in memory. The
+tests append `SESSION_ISSUED`.
 
-**Operator verifies:** SessionID is unique and non-zero; signature
-verifies; expiry is within policy bounds (not longer than the policy
-cap); session is bound to a single recipient key (no multi-recipient
-sessions at MVP).
+**State machine:** `StateSession → StateDisclosure` on `session.issued`.
+
+**Checked:** SessionID is unique and non-zero; the signature verifies; the
+session is not expired.
 
 **Doctrine:** every downstream message in the flow — DisclosureMessage,
 ReconstructionJobManifest, ReleaseDecision — must carry this SessionID
@@ -80,24 +119,27 @@ and fail validation without it. See invariant #3.
 
 **Trigger:** workflow state entered `StateDisclosure`.
 
-**Vault does:** drives the **StagedSequencer** (see
-`/internal/vault/disclosure/sequencer.go`). The sequencer walks the
-ordered Component list, delegates each emission to **StagedIssuer**, and
-— critically — appends a `DISCLOSURE_AUTHORIZED` AuditEvent **before**
-surfacing each DisclosureMessage to the caller. Each message is a single
-Component, carrying SequenceIndex and recipient-key-bound AAD.
+**Code:** the **StagedSequencer** (`/internal/vault/disclosure/sequencer.go`)
+walks the ordered Component list, delegates each emission to the
+**StagedIssuer**, and — critically — appends a `DISCLOSURE_AUTHORIZED`
+AuditEvent **before** surfacing each DisclosureMessage to the caller. Each
+message carries a single Component, its SequenceIndex, and a sealed payload
+whose five-field AAD includes the recipient key ID.
 
-**Operator verifies:** exactly one AuditEvent per DisclosureMessage; no
-batch emission (`SequenceIndex` strictly monotonic, one message per step,
-no bulk field); plaintext zeroization runs on every short-circuit.
+**State machine:** `StateDisclosure → StateExternalCompute` on
+`manifest.dispatched`.
+
+**Checked:** exactly one AuditEvent per DisclosureMessage; no batch emission
+(`SequenceIndex` strictly monotonic, one message per step, no bulk field);
+plaintext zeroized on every path, including every short-circuit.
 
 **Doctrine:**
 - "Disclosure is staged" (invariant #4) — no bulk disclosure; the message
   shape itself forbids it (scalar ComponentID, no slice, Emit signature
   returns a single message).
 - "Audit is first-class" (invariant #8) — audit-append failure is a
-  terminal condition; the sequencer finalizes the run rather than
-  proceeding with a disclosure that has no audit counterpart.
+  terminal condition: the sequencer finalizes the StagedIssuer and returns
+  the append error instead of the message.
 - "No raw export" (invariant #7) — the import graph static audit forbids
   any non-vault package from importing the disclosure primitives.
 
@@ -107,27 +149,28 @@ no bulk field); plaintext zeroization runs on every short-circuit.
 
 ## Stage 5 — Delegated External Compute
 
-**Trigger:** the compute-plane operator receives the first
-DisclosureMessage and must act.
+**Trigger:** the compute plane receives work for the session.
 
-**Compute plane does:** constructs a ReconstructionJobManifest per the
-session-scoped component, unseals the DisclosureMessage using the
-recipient-key (AAD-bound), runs the reconstruction step, produces a
-result bound to (SessionID, ComponentID). Stays within its scope: does
-not request additional components, does not persist plaintext past the
-manifest's scope, does not forward plaintext outside the session.
+**Code:** a signed ReconstructionJobManifest
+(`internal/contracts/reconstruction_job_manifest`) names the session, genome,
+policy version, disclosures, expected output and deadline; the tests append
+`MANIFEST_ISSUED`. The worker's Reconstructor (`internal/compute/worker`) runs
+the step — a placeholder today (a byte-level order-3 Markov model,
+KNOWN_ISSUES #2). The shipped `acp-compute` receives a JobRequest over the
+Return Path rather than DisclosureMessages, opens its sealed payload with the
+session-sealing key, runs the Reconstructor and returns a CandidateOutputFrame
+signed with its worker key.
 
-**Operator (compute plane) verifies:** manifest integrity check passed;
-the unseal step produced a valid plaintext under the AAD; the result is
-bound to the correct SessionID.
+**State machine:** `StateExternalCompute → StateReturn` on
+`candidate.received`.
 
-**Operator (Vault) verifies:** the compute plane returned a result within
-the session TTL; the result binds to the issued manifest; the compute
-plane did NOT request a second component before returning the first
-(sequence ordering).
+**Checked:** the candidate fits the manifest's declared maximum size and is
+bound to the manifest's SessionID and ManifestID.
 
 **Doctrine:** the compute plane has delegated execution rights only. It
-cannot by itself authorise a ReleaseDecision.
+cannot by itself authorise a ReleaseDecision. It stays within its scope:
+it does not request additional components, persist plaintext past the
+manifest's scope, or forward plaintext outside the session.
 
 **Package:** `/internal/compute/worker`.
 
@@ -137,12 +180,16 @@ cannot by itself authorise a ReleaseDecision.
 
 **Trigger:** compute returns a result.
 
-**Vault does:** accepts the return on the Vault-controlled return path,
-binds it to the session, moves to `StateValidation`.
+**Code:** the result comes back on the Vault-controlled Return Path
+(`internal/compute/returnpath`). In the shipped daemons sagvd verifies the
+CandidateOutputFrame signature against its worker registry and records the
+result on the job (`GET /v1/jobs/{id}` → `result`); it appends no audit event.
+The tests append `CANDIDATE_RECEIVED`.
 
-**Operator verifies:** the return was accepted into an audit event of
-kind `RECONSTRUCTION_RETURNED`; the return's SessionID matches; the
-state transition was recorded.
+**State machine:** `StateReturn → StateValidation` on `return.accepted`.
+
+**Checked:** `CANDIDATE_RECEIVED` carries the session's SessionID and the
+manifest's ManifestID.
 
 **Doctrine:** the return path is a Vault surface, not a compute-plane
 surface. The compute plane is a caller on this path, not its owner.
@@ -155,32 +202,36 @@ surface. The compute plane is a caller on this path, not its owner.
 
 **Trigger:** workflow state entered `StateValidation`.
 
-**Vault does:** runs operational validation — six sub-checks in
-`/internal/validation/operational`:
+**Code:** operational validation runs six sub-checks
+(`/internal/validation/operational`):
 
 | Sub-check | Asserts |
 | - | - |
-| `op.attestation_valid` | Attestation body verifies against pinned root |
-| `op.attestation_ttl` | Attestation not expired |
-| `op.session_valid` | SessionObject signature valid, not expired, bound to current recipient key |
-| `op.manifest_integrity` | ReconstructionJobManifest integrity unchanged since issue |
-| `op.tamper_absent` | No tamper signal raised for this session |
-| `op.policy_alignment` | Effective policy at validation time matches the policy hash pinned into the session |
+| `op.attestation_valid` | AttestationResult outcome is `allow` and its signature verifies |
+| `op.attestation_ttl` | TTL is positive and the attestation has not expired |
+| `op.session_valid` | Session is `active`, not expired, is the manifest's session, and its signature verifies |
+| `op.manifest_integrity` | The ReconstructionJobManifest signature still verifies |
+| `op.tamper_absent` | No tamper signal was raised for the session (a boolean input today) |
+| `op.policy_alignment` | The session's PolicyVersion equals the active policy version |
 
-Threshold: 1.0. No partial pass. A single sub-check failure blocks
-release.
+Threshold: 1.0. No partial pass; every sub-check runs, and a single failure
+blocks release. The validation service (`/internal/validation/service`)
+appends `VALIDATION_STARTED`, `VALIDATION_DIMENSION_EVALUATED`,
+`VALIDATION_FINDING` and `VALIDATION_COMPLETED`; when operational validation
+passes it also runs the semantic (byte equality) and behavioral
+(byte-statistics probes that do not run a model, KNOWN_ISSUES #3) dimensions,
+and when it fails it skips them.
 
-Semantic and behavioral validation are out of MVP scope (see `docs/internal/status-journal.md`
-§3 — MVP-SCOPED — and `docs/doctrine/validation-thresholds.md` for the frozen
-thresholds).
+**State machine:** `StateValidation → StateRelease` on `validation.completed`,
+whatever the verdict.
 
-**Operator verifies:** all six operational sub-checks are individually
-green; the aggregate ValidationResult carries the SessionID it validates.
+**Checked:** all six sub-checks green; the ValidationResult carries the
+SessionID it validates.
 
-**Doctrine:** "validation precedes release" (invariant #5). The
-transition table makes `StateRelease` reachable only from `StateValidation`
-or `StateTrust` (the `StateTrust → StateRelease` edge is for `deny`
-outcomes that release a terminal decision without a session).
+**Doctrine:** "validation precedes release" (invariant #5). The transition
+table makes `StateRelease` reachable only from `StateValidation` or
+`StateTrust` (the `StateTrust → StateRelease` edges carry `deny` and
+`restrict` outcomes, which release a terminal decision without a session).
 
 **Package:** `/internal/validation/operational`.
 
@@ -190,16 +241,22 @@ outcomes that release a terminal decision without a session).
 
 **Trigger:** workflow state entered `StateRelease`.
 
-**Vault does:** issues a signed ReleaseDecision carrying (SessionID,
-ValidationResultID, AuditEventID of the authorizing audit event, and the
-release verdict). Signature is by `SigningAuthority`. The ReleaseDecision
-is itself the object that downstream systems rely on.
+**Code:** a ReleaseDecision (`/internal/contracts/release_decision`) carries
+DecisionID, SessionID, ManifestID, ValidationResultID, `release` (true or
+false), Reason, DecidedAt and the AuditEventID of its `RELEASE_DECIDED` event,
+signed under the `signing_authority` key purpose. The tests build and sign it
+and append `RELEASE_DECIDED`.
 
-**Operator verifies:** the ReleaseDecision carries both a
-ValidationResultID (invariant #5 structural check) and an AuditEventID
-(invariant #8 structural check); the signature verifies; the decision
-chains back, through its referenced ValidationResult, to the original
-RecoveryRequest.
+**State machine:** `StateRelease → StateAudit` on `decision.signed`. The table
+also has an optional cross-cloud sub-stage (`StateRelease →
+StateCrossCloudHandshake → StateAudit`); the shipped cross-cloud release
+(`sagvd crosscloud-restore`, [06](06_cross_cloud_restore.md)) runs on its own,
+outside this state machine.
+
+**Checked:** the ReleaseDecision carries both a ValidationResultID (invariant
+#5 structural check) and an AuditEventID (invariant #8 structural check); the
+signature verifies; the decision chains back, through its ValidationResult, to
+the original RecoveryRequest.
 
 **Doctrine:**
 - "Validation precedes release" — enforced by the ValidationResultID
@@ -209,8 +266,8 @@ RecoveryRequest.
   SchemaVersion as its first field, with pinned `{Min, Max, Current}`
   constants.
 
-**Package:** `/internal/vault/orchestration` (drives);
-`/internal/contracts/release_decision` (contract).
+**Package:** `/internal/contracts/release_decision` (contract);
+`/internal/vault/orchestration` holds only the transition table.
 
 ---
 
@@ -218,21 +275,29 @@ RecoveryRequest.
 
 **Trigger:** every stage transition.
 
-**Vault does:** appends an AuditEvent of the appropriate stage-bearing
-Kind (`RECOVERY_REQUEST_INTAKE`, `TRUST_DECISION`, `SESSION_ISSUED`,
-`DISCLOSURE_AUTHORIZED`, `RECONSTRUCTION_RETURNED`, `VALIDATION_RESULT`,
-`RELEASE_DECISION`, plus `PREFLIGHT_RESULT` and
-`INCIDENT_DECLARED`). The chain-tip advances under `SigningAudit`.
+**Code:** each stage's event is appended to the hash chain
+(`/internal/audit/chain`) and signed under the audit signing key; the chain
+tip advances with each append. The release-side kinds are `REQUEST_RECEIVED`,
+`TRUST_EVALUATED`, `SESSION_ISSUED`, `SESSION_INVALIDATED`,
+`DISCLOSURE_AUTHORIZED`, `MANIFEST_ISSUED`, `CANDIDATE_RECEIVED`,
+`VALIDATION_STARTED`, `VALIDATION_DIMENSION_EVALUATED`, `VALIDATION_FINDING`,
+`VALIDATION_COMPLETED`, `RELEASE_DECIDED`, `INCIDENT_DETECTED` and
+`INCIDENT_TERMINATED`.
 
-**Operator verifies:** every stage has at least one audit event; the
-chain is continuous (no gap in the hash chain); the final tip is stored
-externally for later cross-check (see `04_observability.md`).
+**State machine:** `StateAudit → StateReleaseAuthorized` on
+`audit.sealed.release_true`, or `StateAudit → StateIncidentTerminated` on
+`audit.sealed.release_false`. Every operational state can also move to
+`StateIncidentTerminated` on `incident.detected`.
+
+**Checked:** every stage has at least one audit event; `chain.Verify`
+passes at the end of the test (no gap in the hash chain).
 
 **Doctrine:**
-- "Audit is first-class" (#8) — AuditEvent.Kind enumerates all nine
-  stage-bearing kinds; Release carries AuditEventID of the authorizing
-  event; audit append is synchronous with the authorising transition,
-  not deferred.
+- "Audit is first-class" (#8) — `AuditEvent.Kind`
+  (`internal/contracts/audit_event/audit_event.go`) enumerates 23 kinds: the
+  14 release-side kinds above, 4 receive-side kinds (§7) and 5 cross-cloud
+  kinds (06). Release carries the AuditEventID of the authorising event;
+  audit append is synchronous with the authorising transition, not deferred.
 
 **Package:** `/internal/audit`.
 
@@ -240,18 +305,20 @@ externally for later cross-check (see `04_observability.md`).
 
 ## Session closure
 
-After Stage 9 on the final component, the session is terminated. Correct
-termination requires:
+What the library provides:
 
-1. A `SESSION_TERMINATED` audit event.
-2. The StagedSequencer's `Finalize()` method run to completion, which in
-   turn zeroizes any remaining plaintext in the disclosure buffers.
-3. The session TTL to have expired OR the administrator to have
-   explicitly closed it.
-4. The audit chain tip to be recorded externally for cross-check.
+1. `session.Issuer.Invalidate` moves a session to `invalidated` and re-signs
+   it; the incident service calls it through its SessionInvalidator seam. The
+   `SESSION_INVALIDATED` kind exists, but no library code appends it yet.
+2. `StagedIssuer.Finalize()` closes the disclosure sequence: afterwards `Emit`
+   refuses with `issuer_finalized`. It does not zeroize anything — plaintext
+   is zeroized by `Emit` and by `StagedSequencer.Run` on every path. The
+   sequencer calls `Finalize` after the last component and after an
+   audit-append failure; after a refused emission it calls it only when
+   `SequencerOptions.FinalizeOnError` is set.
+3. A session nobody closes expires at its ExpiresAt.
 
-A session that is not explicitly terminated is assumed to have failed.
-The next preflight will flag any session without a terminating event.
+No binary keeps sessions, so there is nothing to close on a deployment.
 
 ---
 
@@ -266,18 +333,22 @@ release side's signing keys. The receive side is six stages, not
 nine, because it does not re-issue the Genome — it only verifies
 that what arrived is what was released.
 
-The receive-side flow is pinned down by
-`docs/doctrine/bootstrap-contracts.md` and implemented by the
-`/internal/bootstrap/` and `/internal/reassembly/` packages.
+The receive-side flow is implemented by `/internal/bootstrap/`
+(the Orchestrator), `/internal/reassembly/` (the Reassembler) and
+`/internal/recvvalidator/`. Like the release side, no shipped binary
+drives it: `make demo` Act II (`TestRoundtripSlice_*`) and
+`internal/bootstrap/driver_integration_test.go` do. (`acp-bootstrap`,
+the cross-cloud destination in 06, restores v3 genome bundles through a
+different path: `internal/genome/bundle` and `internal/bootstrap/restorer`.)
 Throughout this section, the stages are numbered **R.1–R.6** so
 they do not collide with the release-side 1–9.
 
 ### 7.1 The two-tier integrity split
 
 Everything in the receive-side flow rests on a single
-architectural idea pinned in doctrine §8.4: **integrity is checked
-twice, in two different places, at two different layers of the
-envelope**, and both checks are independently necessary.
+architectural idea: **integrity is checked twice, in two different
+places, at two different layers of the envelope**, and both checks
+are independently necessary.
 
 **Tier 1 — wire integrity.** The Orchestrator holds a SHA-256 hash
 of the canonical bytes of every expected DisclosureMessage
@@ -335,7 +406,7 @@ prevents an adversary from reshuffling otherwise-valid envelopes.
 
 ### 7.3 Stage R.2 — Orchestrator.Start
 
-**Vault does:** instantiates the `Orchestrator` with the signed
+**Code:** instantiates the `Orchestrator` with the signed
 BootstrapManifest, the release-side RJM, the committed
 `ExpectedWireHashes` list, the audit chain, and the receive-side
 authority + audit signing keys. `Start()` validates both manifests,
@@ -356,7 +427,7 @@ returns (surfaced verbatim — no re-wrapping).
 
 ### 7.4 Stage R.3 — Accept loop (tier 1)
 
-**Vault does:** for each arriving DisclosureMessage in sequence
+**Code:** for each arriving DisclosureMessage in sequence
 order, calls `Orchestrator.Accept(msg)`. Accept checks the
 envelope's position (must match the next expected slot), verifies
 the envelope's own signature, and hashes its canonical bytes
@@ -383,7 +454,7 @@ has nothing more to say about it.
 
 ### 7.5 Stage R.4 — Reassembler.Admit loop (tier 2)
 
-**Vault does:** constructs an `AGDReassembler` against the signed
+**Code:** constructs an `AGDReassembler` against the signed
 AGD, the caller-supplied `ComponentMap`, and the sealer. For each
 accepted envelope, calls `Reassembler.Admit(msg)`. Admit rebuilds
 the 5-field AAD from the envelope's `(SessionID, ComponentID,
@@ -414,7 +485,7 @@ audit chain as evidence.
 
 ### 7.6 Stage R.5 — Reassembler.Finalize
 
-**Vault does:** `Finalize()` re-verifies coverage (every committed
+**Code:** `Finalize()` re-verifies coverage (every committed
 `ComponentID` has been admitted), rebuilds the RFC 6962 Merkle
 tree from the admitted leaves, compares its root to
 `agd.ComponentTreeRoot`, and asserts
@@ -426,35 +497,37 @@ invariant, mirrored at reassembly time).
 `CodeGenomeIDRoundTripMismatch` (Integrity).
 
 **Idempotence:** Finalize stores its result or error on the first
-call; a second call returns the same pointer verbatim. This is the
-same-pointer (`require.Same`) discipline covered by
-`TestReassembler_Finalize_IsIdempotent`.
+call; a second call returns the same outcome verbatim. This is
+covered by `TestAGDReassembler_Finalize_IdempotentOnSuccess` and
+`TestAGDReassembler_Finalize_IdempotentOnFailure`
+(`internal/reassembly/agd_reassembler_test.go`).
 
 ### 7.7 Stage R.5.5 — Receive-side validator (Stage G)
 
-**Vault does:** once Finalize succeeds, the driver calls
+**Code:** once Finalize succeeds, the driver calls
 `MarkReassembled` (state → `StateValidate`) and hands control to
 `recvvalidator.ValidationService`. The service runs six
-`op.recv.*` sub-checks over the attestation + session +
-BootstrapManifest already cached on the receive side:
+`op.recv.*` sub-checks (`internal/recvvalidator/operational.go`) over the
+attestation + session + BootstrapManifest already cached on the receive
+side:
 
-  - `op.recv.attestation.valid` — outcome = Allow and signature
+  - `op.recv.attestation_valid` — outcome = Allow and signature
     verifies under the trust-authority key
-  - `op.recv.attestation.ttl` — `Now` is within
+  - `op.recv.attestation_ttl` — `Now` is within
     `[IssuedAt, IssuedAt + TTL)` and TTL is strictly positive
-  - `op.recv.session.valid` — session is Active, not expired,
+  - `op.recv.session_valid` — session is Active, not expired,
     signature verifies, and its `session_id` equals the
     BootstrapManifest's
-  - `op.recv.bootstrap.integrity` — BootstrapManifest signature
+  - `op.recv.bootstrap_manifest_integrity` — BootstrapManifest signature
     verifies under the receive-side authority key
-  - `op.recv.reassembly.coverage` — `Admitted == Expected ==
+  - `op.recv.reassembly_coverage` — `Admitted == Expected ==
     len(ExpectedDisclosureIDs)`
-  - `op.recv.policy.alignment` — `ActivePolicy` equals both the
+  - `op.recv.policy_alignment` — `ActivePolicy` equals both the
     session's and the manifest's `PolicyVersion`
 
 The operational dimension is binary by doctrine: `Threshold=1.0`,
 any failing sub-check yields `Verdict=Fail`; the aggregated
-`OverallVerdict` follows the receive-side mirror of §5 — an
+`OverallVerdict` follows the receive-side mirror of Stage 7 — an
 operational Fail is a hard veto. On success the driver calls
 `MarkValidated(vr.ValidationResultID)` (state → `StateReady`);
 on failure it calls `MarkValidationFailed(vr.ValidationResultID)`
@@ -470,16 +543,16 @@ events land on the same receive-side chain the orchestrator
 writes `DISCLOSURE_RECEIVED` and `RECONSTITUTION_DECIDED` into,
 so an auditor reads one tape end-to-end.
 
-**Refusal codes:** `op.recv.attestation.valid`,
-`op.recv.attestation.ttl`, `op.recv.session.valid`,
-`op.recv.bootstrap.integrity`, `op.recv.reassembly.coverage`,
-`op.recv.policy.alignment`. The validator does **not**
+**Refusal codes:** `op.recv.attestation_valid`,
+`op.recv.attestation_ttl`, `op.recv.session_valid`,
+`op.recv.bootstrap_manifest_integrity`, `op.recv.reassembly_coverage`,
+`op.recv.policy_alignment`. The validator does **not**
 short-circuit — every sub-check runs so auditors see the full
 correlated set of findings in a single `COMPLETED` event.
 
 ### 7.8 Stage R.6 — Orchestrator.Decide
 
-**Vault does:** drives the state machine through `MarkReassembled`
+**Code:** drives the state machine through `MarkReassembled`
 → (Stage G) → `MarkValidated(vrid)` → `Decide()` on the happy
 path, or `MarkReassemblyFailed` → `Decide` / `MarkValidationFailed(vrid)`
 → `Decide` on a refusal. Decide builds a
@@ -494,9 +567,9 @@ On a reassembly-failure path the driver routes via
 `ValidationResultID` of the form `vr-recv-noop-<bootstrapID>`
 (because no validator ever ran). Observers distinguish this
 sentinel from a real VRID by reading `Reason`
-(`ReasonReassemblyFailed` vs. `ReasonReconstructedOK`). This
-sentinel is documented in the F.2 doctrine note and is **not** a
-validator identity — it is a terminal-state honesty marker.
+(`ReasonReassemblyFailed` vs. `ReasonReconstructedOK`). The
+sentinel is **not** a validator identity — it is a terminal-state
+honesty marker.
 
 On a validation-failure path the driver routes via
 `MarkValidationFailed(vr.ValidationResultID)` → `Decide`; Decide
@@ -515,7 +588,7 @@ state and the response is forensic.
 ### 7.9 Receive-side failure triage
 
 When something goes wrong on the receive side, the refusal code's
-**category** and **tier** are the two axes an operator reads first:
+**category** and **tier** are the two axes to read first:
 
 | Tier | Category     | Example code                        | Action |
 |------|--------------|-------------------------------------|--------|
@@ -543,11 +616,15 @@ refuse acceptance, even if the other side verifies.
 ## Session closure (receive side)
 
 After Stage R.6 on the final BootstrapManifest, the receive-side
-session is terminated identically to the release side (see §6 /
-Session closure above): the audit chain tip is recorded externally
-and the Orchestrator is allowed to go out of scope. The
-Orchestrator's single-shot discipline means that once `Decide` has
-emitted a terminal `ReconstitutionDecision`, every subsequent call
-(`Decide` again, `Accept`, any `Mark*`) refuses with
-`CodeAlreadyDecided` or `CodeAcceptWrongState` — there is no
-continued-use path from a reconstituted session, by design.
+session is closed the same way as the release side (see Session
+closure above): the audit chain tip is recorded and the Orchestrator
+is allowed to go out of scope. The Orchestrator's single-shot
+discipline means that once `Decide` has emitted a terminal
+`ReconstitutionDecision`, every subsequent call (`Decide` again,
+`Accept`, any `Mark*`) refuses with `CodeAlreadyDecided` or
+`CodeAcceptWrongState` — there is no continued-use path from a
+reconstituted session, by design.
+
+---
+
+_Document history: 2026-09-14 — checked line by line against the code; commands and names the binaries do not have were removed._

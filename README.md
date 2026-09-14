@@ -83,9 +83,10 @@ make build                                                   # builds ./bin/acpc
 ./bin/acpctl genome seal --content-dir=./adapter-1 --parent=gen-0.genome \
     --output=gen-1.genome --key-out=gen-1.key
 
-# on another server: restore byte-exact, then verify the lineage
+# on another server, with the bundles and gen-0.key copied into the working
+# directory: restore byte-exact, then verify the lineage of the bundles there
 ./bin/acpctl genome rewind --bundle=gen-0.genome --key-file=gen-0.key --target=./restored
-./bin/acpctl genome chain  --dir=./generations
+./bin/acpctl genome chain  --dir=.
 ```
 
 Opening authenticates every 1 MiB segment before a byte of it is used, restores
@@ -147,11 +148,12 @@ records kept in the repo:
 
 - `docs/doctrine/terminology.md` — canonical vocabulary and the frozen
   deprecated-name list; enforced by the terminology gate (vault-gate 09).
-- `docs/adr/` — nine architecture decision records (ADR 0001–0009): the
-  frozen producer / verifier / sealer interface (0001), multi-TEE adapter
-  dispatch (0002), doctrine-invariants-as-tests (0004), cross-cloud
-  KMS-mediated recovery (0006), the equivalence gate (0008), and the X25519
-  KEM cross-cloud key delivery (0009).
+- `docs/adr/` — eleven architecture decision records (ADR 0001–0011),
+  among them the frozen producer / verifier / sealer interface (0001),
+  multi-TEE adapter dispatch (0002), doctrine-invariants-as-tests (0004),
+  cross-cloud KMS-mediated recovery (0006), the equivalence gate (0008), the
+  X25519 KEM cross-cloud key delivery (0009), the operator stop and recorded
+  refusals (0010), and genome v3 with attested self-restore (0011).
 - `docs/prior-art-and-attribution.md` — what the reproducible-float rung
   builds on (RepDL / ReproBLAS) versus the project's own prior art.
 - `test/doctrine/` — the eleven doctrinal invariants, asserted as tests so a
@@ -196,16 +198,18 @@ responsibility in its `doc.go`.
 ## Development
 
 ```
-make build              # build all three binaries
+make build              # build sagvd, acp-compute, acpctl, acp-bootstrap, acp-demo
 make test               # unit tests only
 make test-race          # with race detector
 make test-doctrine      # architectural invariant tests
 make demo               # narrated end-to-end walkthrough of the vertical slice
-make vault-gate         # the full CI gate, locally
+make vault-gate         # 14 of the 18 CI checks, locally
 ```
 
-The `vault-gate` target mirrors the CI workflow of the same name. A green
-`vault-gate` locally is a strong predictor of a green CI.
+The `vault-gate` target runs 14 of the 18 checks in the CI workflow of the
+same name. It leaves out integration tests, osv-scanner, SBOM and the
+reproducible-build check; run `make test-integration`, `make sbom` and
+`make verify-reproducible` for three of them (osv-scanner runs only in CI).
 
 The `demo` target runs `scripts/demo.sh`, which narrates the nine-stage
 recovery flow end-to-end against the in-repo vertical slice — useful for
@@ -217,18 +221,21 @@ onboarding a new operator or for a live demo on a pilot call.
 
 Operator-facing procedures live in `docs/operator/`:
 
-- `00_overview.md` — role map, boundary between Vault operator and
-  compute-plane operator, what authority each role holds.
-- `01_preflight.md` — what to check before the first recovery session
-  (key material, attestation, witness-log health, policy snapshot).
-- `02_recovery_flow.md` — narrated walkthrough of the nine-stage flow,
-  step by step, with pointers to the packages that implement each stage.
-- `03_incident_response.md` — R-15 incident scenarios: attestation fail,
-  validation hard-fail, audit-append failure, physical tamper signal.
-- `04_observability.md` — audit chain inspection, witness log STH
-  verification, disclosure-sequence reconstruction.
-- `05_release_procedure.md` — signed tag, SBOM, SLSA provenance, the
-  release.yml workflow, the three signed binaries.
+- `00_overview.md` — what each shipped binary does today, the role map, and
+  which parts of the nine-stage flow are library code rather than binaries.
+- `01_preflight.md` — build health, key material, the allow-list and stop
+  list, audit-log verification, daemon health checks.
+- `02_recovery_flow.md` — the nine-stage flow as library code, stage by
+  stage, with the packages and tests that implement each.
+- `03_incident_response.md` — the incident scenarios the handlers cover, and
+  what an operator does with the shipped binaries in each.
+- `04_observability.md` — `acpctl audit verify`, tip pinning, lineage and
+  audit queries, metrics and logs.
+- `05_release_procedure.md` — signed tag against pinned keys, SBOM, SLSA
+  provenance, the release.yml workflow, the four signed binaries.
+- `06_cross_cloud_restore.md` — releasing a genome's key to an attested
+  destination, its restore, gate and receipt, key escrow and the operator
+  stop.
 
 The runbook assumes a reader familiar with the eleven doctrinal invariants
 (asserted in `test/doctrine/`) and the architecture decision records under

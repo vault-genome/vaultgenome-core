@@ -1,12 +1,18 @@
 # Release Procedure
 
 **Audience:** release engineer, administrator.
-**Purpose:** the mechanical procedure for cutting a signed release of the
-three binaries (`sagvd`, `acp-compute`, `acpctl`) with full supply-chain
-evidence (SBOM + SLSA provenance + signed tag + cosign signatures).
+**Purpose:** the procedure for cutting a signed release with supply-chain
+evidence (SBOM + SLSA provenance + signed tag + cosign signatures), as
+`.github/workflows/release.yml` implements it.
 
-**Related doctrine:** `docs/doctrine/ci-security-policy.md` §4 (release policy),
-invariant #11 "supply chain attested".
+**What a release contains.** `release.yml` builds with `make build` (five
+binaries: `sagvd`, `acp-compute`, `acpctl`, `acp-bootstrap`, `acp-demo`) and
+signs, SBOMs and publishes the four operational ones: `sagvd`, `acp-compute`,
+`acpctl` and `acp-bootstrap`, the cross-cloud destination daemon. `acp-demo`
+is not published.
+
+**Related doctrine:** `docs/doctrine/ci-security-policy.md` §6 (supply-chain
+attestation), invariant #11 "supply chain attested".
 
 ---
 
@@ -14,19 +20,20 @@ invariant #11 "supply chain attested".
 
 Before any release step runs, the following must already be true:
 
-1. Every commit to be tagged is cryptographically signed (SSH or GPG
-   per `docs/doctrine/ci-security-policy.md §3.1`).
-2. `make vault-gate` is green on the exact commit you intend to tag.
-3. Every external-facing artifact you intend to ship with the release
-   (white paper, operator runbook, this document itself) has been
-   scanned against `docs/doctrine/positioning.md §4` and cites the
-   doctrine in front-matter. The positioning rollout log at
-   `docs/positioning_rollout_log.md` records the outcome.
-4. The release notes draft names every doctrine change, every invariant
+1. The vault-gate workflow is green on the exact commit you intend to tag.
+   CI runs all 18 checks on every push to `main`; `make vault-gate` runs 14 of
+   them locally (see §2).
+2. The release notes draft names every doctrine change, every invariant
    change, and every dependency change since the prior tag.
-5. Two approvers are on hand per `.github/CODEOWNERS` — a release tag
-   triggers the dual-founder review by construction, and the workflow
-   will not produce signed artifacts without both approvals.
+3. You hold a key that can sign the tag (`git tag -s`), and its public half is
+   pinned on the default branch: an SSH key as a line of
+   `.github/allowed_signers` (`<principal> ssh-ed25519 AAAA…`), or an OpenPGP
+   key in `.github/release-signing-keys.asc`.
+
+`release.yml` has no approval gate: pushing any tag that matches `v*.*.*`
+starts it. Review happens before the tag, on the pull requests that land the
+changes; who may push tags is a repository permission, not part of the
+workflow.
 
 ---
 
@@ -35,12 +42,12 @@ Before any release step runs, the following must already be true:
 | Item | Command | Pass criterion |
 | - | - | - |
 | Clean working tree | `git status` | No uncommitted changes |
-| Signed HEAD | `git log --show-signature -1` | "Good signature from …" |
-| vault-gate green | `make vault-gate` | Exit 0 |
-| SBOM generable | `make sbom` | `sbom.spdx.json` present, non-empty |
-| No stale deps | `make dep-allowlist && make dep-depth` | Both exit 0 |
-| Doctrine clean | `go test ./test/doctrine/...` | All `TestInvariant_NN` PASS |
-| Runbook current | Review `docs/operator/` files for stage/CI-count drift | All references reflect current state |
+| Local gate green | `make vault-gate` | Exit 0, `vault-gate: PASS` |
+| CI-only checks | `make test-integration && make verify-reproducible` | Both exit 0 (osv-scanner runs only in CI) |
+| SBOM generable | `make sbom` | `dist/sbom.spdx.json` present, non-empty |
+| Deps within policy | `make dep-allowlist && make dep-depth` | Both exit 0 |
+| Doctrine clean | `make test-doctrine` | Every `TestInvariant_NN` passes, including `TestInvariant_11_SupplyChainAttested` |
+| Runbook current | Review `docs/operator/` for drift from the code | Every command, flag and path named still exists |
 
 ---
 
@@ -54,27 +61,42 @@ git tag -s v0.1.0 -m "MVP — release-side doctrine-closed, 11/11 invariants enf
 git push origin v0.1.0
 ```
 
-The `-s` flag is required; an unsigned tag is refused by the release
-workflow.
+The workflow's first step after checkout runs `git verify-tag` on the tag and
+stops the release if it fails, so an unsigned tag produces no release. The keys
+it accepts are read from the default branch — `.github/allowed_signers` for SSH
+signatures, `.github/release-signing-keys.asc` for OpenPGP — never from the
+tagged tree, which whoever pushed the tag controls. A tag signed by any other
+key produces no release either.
 
 ---
 
 ## 4. The release.yml workflow
 
-The tag push triggers `.github/workflows/release.yml`, which per the
-doctrine test `TestInvariant_11_SupplyChainAttested` must perform at
-minimum:
+The tag push runs `.github/workflows/release.yml`:
 
-1. Rebuild all three binaries from the tagged commit.
-2. Run `syft` to generate an SPDX-format SBOM for the release.
-3. Sign each binary with `cosign`.
-4. Produce an SLSA provenance document binding the binaries to the
-   tagged commit, the runner identity, and the workflow SHA.
-5. Attach binaries, SBOM, and provenance to the GitHub Release.
-6. Publish the tag signature verification.
+1. Check out the tag and run `git verify-tag` on it against the keys pinned on
+   the default branch.
+2. Set up Go 1.27.0.
+3. `make build` and `make verify-reproducible`, with `VERSION` = the tag name,
+   `COMMIT` = the full commit SHA and `SOURCE_DATE_EPOCH` = the tagged commit's
+   timestamp.
+4. `syft`: one SPDX-JSON SBOM per published binary,
+   `dist/<binary>.sbom.spdx.json`.
+5. `cosign sign-blob` (keyless): a signature and certificate for each binary
+   (`dist/<binary>.sig`, `.cert`) and for each SBOM (`.sbom.sig`,
+   `.sbom.cert`).
+6. Upload `bin/sagvd`, `bin/acp-compute`, `bin/acpctl`, `bin/acp-bootstrap`,
+   the SBOMs, signatures and certificates to the GitHub Release.
+7. A second job runs the SLSA generic generator
+   (`slsa-framework/slsa-github-generator`, `generator_generic_slsa3.yml`
+   v2.0.0) over the four binaries' SHA-256 and uploads the provenance to the
+   release.
 
-If the workflow does not pass the `TestInvariant_11` structural check,
-no release is produced.
+`TestInvariant_11_SupplyChainAttested` does not run in `release.yml`; it runs
+with the doctrine tests in vault-gate. It reads `release.yml` and fails if the
+workflow no longer names `syft` and `spdx-json`, `cosign` `sign-blob`, the
+SLSA generator, the `v*.*.*` trigger, `verify-tag`, or the four binaries — so
+a change that drops a pillar cannot merge. It does not run the workflow.
 
 ---
 
@@ -84,15 +106,26 @@ Once the release workflow completes:
 
 1. Download all release artifacts to a clean environment (not a
    developer machine).
-2. Verify every binary with `cosign verify-blob`.
-3. Verify the SLSA provenance against the SBOM.
-4. Verify the tag signature — `git verify-tag v0.1.0`.
-5. Record the release hash externally (the external pin is itself a
+2. Verify every binary and SBOM with `cosign verify-blob`, for example:
+   ```
+   cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
+     --certificate-identity-regexp '^https://github\.com/<org>/<repo>/\.github/workflows/release\.yml@refs/tags/v' \
+     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+     sagvd
+   ```
+   `docs/security/supply_chain.md` explains what a successful check proves.
+3. Check that the SLSA provenance attached to the release names each
+   binary's SHA-256 (for example with `slsa-verifier`).
+4. Rebuild from the tag on linux/amd64 with Go 1.27.0:
+   `make build VERSION=v0.1.0 COMMIT=<full commit SHA>`. `bin/sagvd`,
+   `bin/acp-compute` and `bin/acpctl` must be byte-identical to the released
+   files.
+5. Verify the tag signature — `git verify-tag v0.1.0`.
+6. Record the release hashes externally (the external pin is itself a
    defence against a later tag rewrite — see
    `04_observability.md` §2.2 for the parallel idea on audit chains).
-6. Append a `RELEASE_PUBLISHED` audit event (yes, this exists on the
-   administrator's key even for the build / release surface — the
-   audit chain covers the whole surface, not only running sessions).
+
+No audit event is appended for a release; there is no audit kind for one.
 
 ---
 
@@ -103,7 +136,7 @@ there is no "fast path" that bypasses vault-gate or the SBOM / cosign /
 SLSA steps. The only difference is:
 
 1. The release notes are specific about the vulnerability class and the
-   affected versions (per `SECURITY.md` §"Response Commitment").
+   affected versions (per `SECURITY.md` §"What to expect").
 2. The CVE ID is claimed and recorded before the release ships.
 3. The prior version is explicitly marked as withdrawn in the release
    notes.
@@ -117,21 +150,23 @@ it is an unattested binary and per invariant #11 is not shippable.
 
 ```
 [ ] Clean working tree
-[ ] Signed HEAD
-[ ] make vault-gate PASS
-[ ] External artifacts: positioning doctrine scan PASS
+[ ] vault-gate CI green on the commit; make vault-gate PASS locally
+[ ] make test-integration and make verify-reproducible pass
 [ ] Runbook reviewed for drift
 [ ] Release notes drafted
-[ ] Two approvers identified
 [ ] Tag: git tag -s vX.Y.Z
 [ ] Push: git push origin vX.Y.Z
 [ ] release.yml workflow green
-[ ] cosign verify-blob on all binaries
-[ ] SLSA provenance matches
+[ ] cosign verify-blob on every binary and SBOM
+[ ] SLSA provenance names every binary's SHA-256
+[ ] Rebuild from the tag is byte-identical
 [ ] Tag signature verified externally
 [ ] Release hash externally pinned
-[ ] RELEASE_PUBLISHED audit event appended
-[ ] Pre-existing "withdrawn" marker on prior version, if emergency
+[ ] "Withdrawn" marker on prior version, if emergency
 ```
 
 A release is complete when every line of this checklist is green.
+
+---
+
+_Document history: 2026-09-14 — checked line by line against the code; commands and names the binaries do not have were removed._

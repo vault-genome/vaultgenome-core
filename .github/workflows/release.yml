@@ -1,7 +1,8 @@
 # AI Continuity Platform — release workflow
 #
 # Triggered by a signed semver tag matching v*. Produces:
-#   - three binaries (sagvd, acp-compute, acpctl), built reproducibly,
+#   - four binaries (sagvd, acp-compute, acpctl, acp-bootstrap), built
+#     reproducibly,
 #   - an SBOM per artifact (syft, SPDX-JSON),
 #   - cosign keyless signatures + transparency-log entries,
 #   - a SLSA provenance attestation (slsa-github-generator).
@@ -26,6 +27,8 @@ jobs:
   build-and-sign:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      RELEASE_BINARIES: sagvd acp-compute acpctl acp-bootstrap
     defaults:
       run:
         working-directory: .
@@ -39,8 +42,21 @@ jobs:
           persist-credentials: false
 
       - name: Verify tag is signed
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          git verify-tag "${GITHUB_REF_NAME}" || { echo "release tag must be signed"; exit 1; }
+          # The keys that may sign a release are pinned on the protected
+          # default branch — never read from the tagged tree, which whoever
+          # pushed the tag controls. SSH keys: .github/allowed_signers;
+          # OpenPGP keys: .github/release-signing-keys.asc.
+          if git cat-file -e "origin/${DEFAULT_BRANCH}:.github/allowed_signers" 2>/dev/null; then
+            git show "origin/${DEFAULT_BRANCH}:.github/allowed_signers" > "$RUNNER_TEMP/allowed_signers"
+            git config gpg.ssh.allowedSignersFile "$RUNNER_TEMP/allowed_signers"
+          fi
+          if git cat-file -e "origin/${DEFAULT_BRANCH}:.github/release-signing-keys.asc" 2>/dev/null; then
+            git show "origin/${DEFAULT_BRANCH}:.github/release-signing-keys.asc" | gpg --batch --import
+          fi
+          git verify-tag "${GITHUB_REF_NAME}" || { echo "release tag must be signed by a key pinned on ${DEFAULT_BRANCH}"; exit 1; }
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -53,11 +69,10 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
           COMMIT: ${{ github.sha }}
-          # SOURCE_DATE_EPOCH = the tag's commit timestamp, so anything
-          # in the build chain that consults it (rare; future-proofing)
-          # produces deterministic output.
-          SOURCE_DATE_EPOCH: ${{ github.event.head_commit.timestamp && '0' || '0' }}
         run: |
+          # SOURCE_DATE_EPOCH = the tagged commit's timestamp, so anything
+          # in the build chain that consults it produces deterministic output.
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
           make build
           make verify-reproducible
 
@@ -68,7 +83,7 @@ jobs:
       - name: SBOM per artifact
         run: |
           mkdir -p dist
-          for b in sagvd acp-compute acpctl; do
+          for b in $RELEASE_BINARIES; do
             syft "bin/$b" -o spdx-json="dist/${b}.sbom.spdx.json"
           done
 
@@ -77,7 +92,7 @@ jobs:
 
       - name: Sign binaries (keyless)
         run: |
-          for b in sagvd acp-compute acpctl; do
+          for b in $RELEASE_BINARIES; do
             cosign sign-blob --yes "bin/$b" \
               --output-signature "dist/${b}.sig" \
               --output-certificate "dist/${b}.cert"
@@ -85,7 +100,7 @@ jobs:
 
       - name: Sign SBOMs (keyless)
         run: |
-          for b in sagvd acp-compute acpctl; do
+          for b in $RELEASE_BINARIES; do
             cosign sign-blob --yes "dist/${b}.sbom.spdx.json" \
               --output-signature "dist/${b}.sbom.sig" \
               --output-certificate "dist/${b}.sbom.cert"
@@ -95,7 +110,7 @@ jobs:
         id: hash
         run: |
           cd bin
-          HASHES=$(sha256sum sagvd acp-compute acpctl | base64 -w0)
+          HASHES=$(sha256sum $RELEASE_BINARIES | base64 -w0)
           echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
 
       - name: Upload release assets
@@ -105,6 +120,7 @@ jobs:
             bin/sagvd
             bin/acp-compute
             bin/acpctl
+            bin/acp-bootstrap
             dist/*.sbom.spdx.json
             dist/*.sig
             dist/*.cert

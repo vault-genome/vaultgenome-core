@@ -1,8 +1,13 @@
 # Runbook: real AMD SEV-SNP attestation (production TEE mode)
 
-By default the platform runs with the **simulated** TEE backend
-(`ProviderSimulated`) — no hardware, good for local testing and the
-`cmd/acp-demo` walkthrough. This runbook brings up **real AMD SEV-SNP**
+Without hardware the platform runs with the **simulated** TEE backend
+(`ProviderSimulated`) — good for local testing and the `cmd/acp-demo`
+walkthrough, and never silent: `sagvd`, `acp-compute` and `acp-bootstrap`
+each refuse to start on it unless their config sets
+`"tee": { "insecure_simulation": true }` (for `sagvd` and `acp-compute` it is
+the only backend), and `sagvd`'s verifier registry accepts a simulated
+destination only with `"crosscloud": { "insecure_simulated_destinations": true }`.
+This runbook brings up **real AMD SEV-SNP**
 attestation on a confidential VM, on either **GCP** or **Azure** — both proven
 end to end and chained to the AMD root of trust (`ADR 0007`, `0009`;
 `internal/shared/tee/{gcp,azure}_sev_snp_verify*.go`).
@@ -40,8 +45,11 @@ the AMD KDS. The clouds differ only in **how the raw report is obtained**.
    sudo cat $D/outblob > report.bin       # 1184-byte SNP report
    ```
 
-   (The `geoar-verifier/gcp-cvm/probe-vaultgenome.sh` probe automates the
-   key-bind capture and emits the report over the serial console.)
+   (`scripts/hardware-test/gcp-sev-snp/keybind-evidence/probe-vaultgenome.sh`,
+   run as the VM's startup script, automates the key-bind capture — through the
+   `/dev/sev-guest` ioctl rather than configfs-tsm, with the nonce taken from
+   the `vg-nonce` instance metadata attribute — and emits the capture over the
+   serial console.)
 
 ## B. Azure — SEV-SNP via the vTPM/HCL report
 
@@ -93,10 +101,20 @@ report is embedded in the **HCL report** stored in vTPM NV index `0x1400001`.
 
 ## C. Verify the report chains to AMD
 
-Drop `report.bin` under
-`scripts/hardware-test/<cloud>-sev-snp/live-evidence/report.bin` and run the real
-verifier — it fetches the VCEK + cert chain from AMD KDS (cached next to the
-report for offline reruns):
+Two tests run the real verifier against committed captures; where each looks
+for its input differs:
+
+- **Azure** — `TestRealSEVSNP_VerifiesGenuineAzureReport` reads
+  `scripts/hardware-test/azure-sev-snp/live-evidence/report.bin`. It takes the
+  VCEK and cert chain from `vcek.bin` and `cert_chain.pem` next to the report,
+  and if they are missing fetches them from AMD KDS and writes them there (with
+  `-short` and no cache it skips).
+- **GCP** — `TestRealSEVSNP_VerifiesGenuineHardwareReport` reads the first
+  directory, in lexical order, matching
+  `scripts/hardware-test/gcp-sev-snp/keybind-evidence/*/report-vaultgenome.bin`,
+  and from the same directory `cert-VCEK.bin`, `kds-vcek-cert_chain.pem`,
+  `x25519-pub.der` and `vg-nonce.hex` — the files the probe above produces. It
+  runs offline and also checks `REPORT_DATA = SHA-512(pubkey ‖ nonce)`.
 
 ```bash
 go test ./internal/shared/tee/ -run 'TestRealSEVSNP_VerifiesGenuine' -v
@@ -104,13 +122,16 @@ go test ./internal/shared/tee/ -run 'TestRealSEVSNP_VerifiesGenuine' -v
 
 A PASS means the report parsed, its signature verified under the genuine VCEK,
 and the VCEK chained to AMD ARK-Milan — real hardware attestation, not the
-simulator. (Committed captures for GCP and Azure already prove this offline.)
+simulator. (The committed captures for GCP and Azure already prove this
+offline.)
 
 ## D. Run the key-release destination on real SEV-SNP
 
 `acp-bootstrap` requests its reports through configfs-tsm (Linux 6.7 or later,
 e.g. the Ubuntu 24.04 image in section A), so on a SEV-SNP Confidential VM it
-attests with the chip instead of the simulator:
+attests with the chip instead of the simulator. That means GCP: on Azure the
+report is reachable only through the vTPM (section B), so `acp-bootstrap`
+cannot attest there yet.
 
 ```json
 "tee": { "provider": "gcp-sev-snp", "workload_descriptor": "acp-bootstrap-destination-v1" }
@@ -145,14 +166,24 @@ that is not VCEK-signed, comes from a DEBUG-enabled guest, was requested at a
 VMPL other than 0, carries a TCB below `min_reported_tcb`, or does not bind the
 ADR 0009 key-binding challenge.
 
+With a `genome` section in its config (`bundle_dir`, `restore_dir`; see
+[06](../06_cross_cloud_restore.md)) the SEV-SNP destination also restores a
+sealed genome by itself once its key arrives, and has the chip sign a receipt
+that `sagvd crosscloud-confirm` verifies before recording the restore
+(ADR 0011).
+
 This exact configuration has run end to end on a GCP SEV-SNP Confidential VM —
-release to the attested guest, refusal once it is off the allow-list:
+release to the attested guest, the guest restoring the genome and the chip
+signing the receipt `crosscloud-confirm` accepted, and refusal once the guest
+is off the allow-list or under an operator stop:
 [`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`](../../../scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/README.md)
 (`run.sh <project>` reproduces it).
 
-What is still simulated: `sagvd`'s own TEE (the Return Path vault side) and the
-SEV-SNP sealer (`SEV_SNP_GUEST_MSG_DERIVED_KEY`). Families other than SEV-SNP are
-refused by the registry until their verifiers run end to end.
+What is still simulated: the TEEs of `sagvd` and `acp-compute` (both sides of
+the Return Path). Not wired: the SEV-SNP sealer
+(`SEV_SNP_GUEST_MSG_DERIVED_KEY`), whose Seal and Unseal return an error.
+Families other than SEV-SNP are refused by the registry and by `acp-bootstrap`
+until their verifiers run end to end.
 
 ## Cleanup (cost hygiene)
 
@@ -162,3 +193,7 @@ Confidential VMs bill per hour — destroy them after capture:
 gcloud compute instances delete vg-sevsnp --zone us-central1-b --quiet     # GCP
 az group delete -n vg-cvm-rg --yes --no-wait                               # Azure
 ```
+
+---
+
+_Document history: 2026-09-14 — checked line by line against the code; commands and names the binaries do not have were removed._

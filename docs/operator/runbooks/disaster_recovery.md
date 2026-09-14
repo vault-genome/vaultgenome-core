@@ -1,10 +1,10 @@
 # Disaster Recovery runbook
 
-| Last updated | 2026-05-06 |
+| Last updated | 2026-09-14 |
 |--------------|------------|
 | Audience     | Platform operators, on-call SRE, security incident responders |
 | Scope        | Phase 1 single-tenant deployments; multi-tenant addenda flagged inline |
-| Pair docs    | [`acpctl recover` reference](../acpctl-recover.md) · [Threat model](../../security/threat_model.md) |
+| Pair docs    | [Cross-cloud restore](../06_cross_cloud_restore.md) · [Triage table](../triage_table.md) · [Threat model](../../security/threat_model.md) |
 
 This runbook is the single source of truth for what to do when
 something has gone catastrophically wrong with a Vault Genome
@@ -19,16 +19,33 @@ deployment. Each scenario follows the same structure:
 Every procedure is **operator-testable** in a staging environment.
 Test it once a quarter. The first time you run it shouldn't be live.
 
+## What this runbook assumes
+
+- `sagvd` and `acp-compute` run with a JSON config passed as `-config PATH`
+  and log JSON lines to stderr. No systemd unit or other service definition
+  ships with this repository; the only packaged deployment is
+  `deploy/compose/` (Docker Compose), where the equivalents of "stop" and
+  "start" are `docker compose -f deploy/compose/docker-compose.yml stop sagvd`
+  and `… start sagvd`.
+- Both daemons read their key files, the worker registry, TLS files and the
+  bearer token at startup only: a change takes effect at the next start.
+- sagvd's job queue lives in memory; jobs queued or running when it stops
+  are lost.
+- The only audit log a shipped binary writes is `crosscloud.audit_log_path`,
+  written by `sagvd crosscloud-restore` and `sagvd crosscloud-confirm`.
+- `sagvd` and `acp-compute` attest with the simulated TEE only; the one
+  binary that attests with hardware is `acp-bootstrap` on AMD SEV-SNP.
+
 ## Index
 
 - [Scenario 1: Authority signing key compromised](#scenario-1-authority-signing-key-compromised)
 - [Scenario 2: Session sealing key compromised](#scenario-2-session-sealing-key-compromised)
 - [Scenario 3: TEE attestation root rotated by vendor](#scenario-3-tee-attestation-root-rotated-by-vendor)
 - [Scenario 4: Vault Authority (sagvd) unreachable](#scenario-4-vault-authority-sagvd-unreachable)
-- [Scenario 5: TEE hardware unavailable / enclave fails to start](#scenario-5-tee-hardware-unavailable--enclave-fails-to-start)
+- [Scenario 5: TEE hardware unavailable at a SEV-SNP destination](#scenario-5-tee-hardware-unavailable-at-a-sev-snp-destination)
 - [Scenario 6: Audit log corruption or tampering detected](#scenario-6-audit-log-corruption-or-tampering-detected)
-- [Scenario 7: Sealed material file deleted or corrupted](#scenario-7-sealed-material-file-deleted-or-corrupted)
-- [Scenario 8: Worker compromise (acp-compute MRENCLAVE mismatch)](#scenario-8-worker-compromise-acp-compute-mrenclave-mismatch)
+- [Scenario 7: Sealed genome bundle or key file deleted or corrupted](#scenario-7-sealed-genome-bundle-or-key-file-deleted-or-corrupted)
+- [Scenario 8: Worker compromise (acp-compute identity mismatch)](#scenario-8-worker-compromise-acp-compute-identity-mismatch)
 - [Scenario 9: Operator API credentials leaked](#scenario-9-operator-api-credentials-leaked)
 - [Scenario 10: CI/CD pipeline compromise](#scenario-10-cicd-pipeline-compromise)
 
@@ -37,161 +54,172 @@ Test it once a quarter. The first time you run it shouldn't be live.
 ## Scenario 1: Authority signing key compromised
 
 The authority signing key (`keys.authority_signing.seed_path`) is the
-private half of the vault's identity. A compromise means an attacker
-can mint authority artefacts (release decisions, validation verdicts)
-that downstream consumers will accept.
+private half of the vault's identity. In this build it signs the cross-cloud
+handshake requests and key-release tokens that every `acp-bootstrap`
+destination verifies against its `source_authority` key. Anyone holding it can
+sign handshakes and tokens that every destination pinning that key accepts.
+(The sagvd daemon loads the key but its Return Path does not use it.)
 
 ### Detection
 
-- Unexpected release decisions in audit log (`internal/audit/store/`)
-- An external party reports they observed a signed artefact you don't
-  recognise
-- govulncheck flags the artefact with the kid you've rotated away from
+- A destination logs `crosscloud token accepted` (fields `token_id`,
+  `request_id`, `decision_id`) for a `request_id` with no matching
+  `KEY_RELEASE_AUTHORIZED` event in the source's audit log:
+  `acpctl audit query --audit <audit log> --kind KEY_RELEASE_AUTHORIZED --json`
+  prints the `request_id` of every release.
+- An external party reports a signed artefact you don't recognise.
+- Access to the seed file outside maintenance windows (host file-integrity
+  or `auditd` alerts).
 
 ### Immediate containment (within 15 minutes)
 
-1. **Stop sagvd**: `systemctl stop vault-genome-sagvd` on every node.
-2. **Add the compromised kid to the worker registry's deny-list**: edit
-   `workers.registry_path` and set `denied_authority_kids: ["<kid>"]`
-   on the workers' side (so any in-flight or queued artefact signed
-   under the compromised key is rejected by the receive validator).
+1. **Cut off the destinations**: stop each `acp-bootstrap` listener, or block
+   it at the network, until it pins a new key. The destinations are what
+   accept forged handshakes and tokens; the operator stop list is enforced by
+   sagvd, not by destinations, so it does not stop someone who holds the key.
+2. **Stop sagvd's releases too**: sign a stop list with `-all`
+   (`acpctl stop issue -key operator.seed -kid <kid> -serial <next> -all
+   -reason "authority key compromise" -out stop.json`) and install it at
+   `crosscloud.operator_stop.list_path`.
 3. **Notify**: page the security incident response on-call;
    notify customers within 1 hour (BAA / SLA dependent).
 
 ### Investigation
 
-- Recover the audit log (`/var/lib/vault-genome/audit.bbolt`) and
-  inventory every artefact signed by the compromised kid since the
-  last known-good rotation.
-- Confirm via `acpctl status --since <last-rotation-iso>` (Phase 2 CLI)
-  which sessions are in scope.
-- Determine root cause: leaked key file, supply-chain compromise of
-  the binary, host-level compromise (SGX side-channel? Nitro
-  hypervisor? Operator credential leak that touched the seed?).
+- Copy the audit log (`crosscloud.audit_log_path`) off the host and list every
+  release since the last known-good rotation:
+  `acpctl audit query --audit <copy> --since <RFC 3339 time> --kind KEY_RELEASE_AUTHORIZED --json`.
+- Compare that list with every destination's `crosscloud token accepted`
+  lines; anything a destination accepted that the log does not hold was not
+  released by this authority.
+- Determine root cause: leaked seed file, supply-chain compromise of
+  the binary, host-level compromise, or an operator credential leak that
+  touched the seed.
 
 ### Recovery
 
-1. **Generate a new authority signing keypair**:
+1. **Generate a new authority signing seed** (32 bytes; sagvd reads exactly
+   32 and does not check the file mode, so set it yourself):
    ```bash
-   head -c 32 /dev/urandom > /etc/vault-genome/auth-signing.seed.NEW
-   chmod 0400 /etc/vault-genome/auth-signing.seed.NEW
-   chown vault-genome:vault-genome /etc/vault-genome/auth-signing.seed.NEW
+   head -c 32 /dev/urandom > /etc/acp/secrets/sagvd/authority_signing_seed.NEW
+   chmod 0600 /etc/acp/secrets/sagvd/authority_signing_seed.NEW
    ```
-2. **Rotate the kid in `sagvd.yaml`**:
-   ```yaml
-   keys:
-     authority_signing:
-       key_id: "auth-signing-2026-05-06"   # bump
-       seed_path: /etc/vault-genome/auth-signing.seed.NEW
+2. **Point the config at it and change the kid** (sagvd's JSON config):
+   ```json
+   "keys": {
+     "authority_signing": {
+       "kid": "sagvd-authority-2026-09-14",
+       "seed_path": "/etc/acp/secrets/sagvd/authority_signing_seed.NEW"
+     }
+   }
    ```
-3. **Restart sagvd**: `systemctl start vault-genome-sagvd`. The new
-   kid + pubkey are emitted at startup; cross-check via
-   `journalctl -u vault-genome-sagvd | grep "authority signing identity"`.
-4. **Distribute the new pubkey** to every worker out-of-band (e.g.,
-   signed PR to the worker registry repo). Workers need the pubkey
-   for `recvvalidator` to accept future artefacts.
-5. **Republish CRL / deny-list entry** for the compromised kid via
-   the workers' configuration channel.
+3. **Print the new public key**: `sagvd identity -config <config>` →
+   `authority_kid`, `authority_public_key_pem`.
+4. **Re-pin every destination**: replace the file at
+   `source_authority.public_key_path` and set `source_authority.kid`, then
+   restart `acp-bootstrap`. Handshakes and tokens signed by the old key are
+   refused from then on (06, "Rotating what you trust").
+5. **Restart sagvd**. At startup it logs `sagvd authority signing identity`
+   with the new `kid` and `pubkey_hex`.
+6. **Lift the stop** with a stop list of a higher serial when you are ready
+   to release again.
 
 ### Post-mortem
 
-- Record incident in `business/incidents/INC-YYYY-MM-DD.md` (private repo)
+- Record the incident in your incident tracker.
 - Update `docs/security/threat_model.md` if the threat scenario
-  surfaced was not already documented
-- Calendar review: confirm the new kid expires before the next
-  scheduled rotation date (default annual; tighten to quarterly after
-  a real compromise)
+  surfaced was not already documented.
+- Schedule the next rotation (default annual; tighten to quarterly after a
+  real compromise). Keys carry no expiry in the config, so the calendar is
+  the only reminder.
 
 ---
 
 ## Scenario 2: Session sealing key compromised
 
-The session sealing key is the symmetric AES-256 material used to
-seal `SealedMaterialRef` payloads. A compromise means an attacker
-who has captured sealed bytes can decrypt them.
+The session sealing key (`keys.session_sealing`: `kid`, `material_path`) is
+the AES-256 key shared by sagvd and every `acp-compute`. sagvd seals the
+payload of every `POST /v1/jobs` job under it into the JobRequest's
+`SealedMaterialRef`; the worker opens it with the same kid. A compromise
+means anyone who captured JobRequest bytes from the Return Path can decrypt
+the payloads.
 
 ### Detection
 
-- Sealing key file modified outside maintenance windows
-- Unauthorised access to the keystore directory (`auditd` alert on
-  `/etc/vault-genome/`)
-- Rapid burst of `Unseal` failures suggesting an attacker is trying
-  variants
+- Sealing key file modified or read outside maintenance windows
+  (`auditd` or file-integrity alerts on the key directory).
+- The key material found anywhere it should not be.
 
 ### Immediate containment
 
-1. Stop sagvd; mark the kid as deprecated in `sagvd.yaml`.
+1. Stop sagvd and every acp-compute.
 2. Notify security on-call.
 3. **DO NOT delete the file yet** — forensic team needs the bytes.
 
 ### Investigation
 
-- Inventory sessions issued under the compromised kid via the audit log.
-- For each session, determine whether the candidate output was already
-  released to the worker — if so, the plaintext is already on the
-  worker's host (compromised TEE measurement?) and the sealing
-  compromise is downstream of the TEE compromise; treat the TEE side
-  as the primary incident (Scenario 5 / 8).
+- List the jobs that ran under the key: sagvd logs `sagvd dispatching job`
+  (`job_id`, `manifest_id`, `session_id`) for every job. Job records
+  themselves live only in memory.
+- Determine whether Return Path traffic could have been captured: off
+  loopback it is mutual TLS 1.3, so a capture also implies a TLS key or host
+  compromise — treat that as the primary incident (Scenario 8).
 
 ### Recovery
 
-1. Generate a new 32-byte AES-256 key:
+1. Generate a new 32-byte key:
    ```bash
-   head -c 32 /dev/urandom > /etc/vault-genome/session-sealing.key.NEW
-   chmod 0400 ... && chown vault-genome:vault-genome ...
+   head -c 32 /dev/urandom > /etc/acp/secrets/shared/sealing.key.NEW
+   chmod 0600 /etc/acp/secrets/shared/sealing.key.NEW
    ```
-2. Rotate the kid; restart sagvd.
-3. **All sealed material under the old kid is now suspect** — surface
-   to customers per BAA. Workers' previously-received `SealedMaterialRef`s
-   must be discarded; a fresh issuance cycle begins under the new kid.
-4. If `acpctl recover` was used to back up sealed material, that
-   archive is also suspect — destroy it and re-emit from the source
-   genome.
+2. Point `keys.session_sealing.material_path` at it and change
+   `keys.session_sealing.kid` — in sagvd **and** in every acp-compute. The
+   kid and the bytes must match on both sides: the worker opens each payload
+   with the kid carried on the wire.
+3. Start sagvd and the workers. sagvd logs `sagvd session sealing identity`
+   with the new kid.
+4. **Everything sealed under the old key is suspect** — surface to
+   customers per BAA, and resubmit any job whose payload must stay
+   confidential.
 
 ---
 
 ## Scenario 3: TEE attestation root rotated by vendor
 
 Cloud TEE vendors rotate their attestation root certificates
-periodically. AWS Nitro PCA root rotation is rare (announced 90 days
-in advance); Intel SGX Root rotations follow Intel TCB Recovery Events
-(unscheduled, irregular).
+periodically. The only hardware verifier the shipped binaries run is AMD
+SEV-SNP, in sagvd's cross-cloud verifier registry: each `gcp-sev-snp` entry
+pins the AMD ASK + ARK chain in `amd_cert_chain_path`, fetches each chip's
+VCEK from AMD KDS (or the mirror in `amd_kds_url`) and keeps fetched VCEKs in
+`vcek_cache_dir`. Verifiers for other families are refused by the registry.
 
 ### Detection
 
-- All Verify calls fail with `aws-nitro: cert chain: ...` or
-  `intel-sgx: dcap verify: ...`
-- Vendor announces TCB Recovery via security advisory
-- `vg_tee_attestation_total{result="error"}` counter spikes
+- `sagvd crosscloud-restore` refuses every SEV-SNP destination with
+  `integrity`, the message naming `gcp-sev: AMD chain:` or
+  `gcp-sev: fetch VCEK:`, and the audit log records `KEY_RELEASE_DENIED`.
+- AMD announces a change via security advisory.
 
 ### Immediate containment
 
-- Continue running with stale attestation: NO. The attestation
-  becomes a no-op security control. Stop sagvd until the new root is
-  trusted.
+- Continue releasing with stale roots: NO. The verifier fails closed, so
+  nothing is released while the pinned chain is out of date — keep it that
+  way until the new chain is checked.
 
 ### Recovery
 
-1. Fetch the new published root from the vendor's documented URL:
-   - AWS: https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html
-   - Intel: https://api.trustedservices.intel.com/sgx/certification/v4/rootcacrl
-   - AMD: https://developer.amd.com/sev/ (ARK / ASK)
-   - Azure: MAA endpoint's `/certs` JWKS auto-rotates; no manual step
-2. For pinned-root deployments, update the `PinnedRoots` field in
-   `tee.AzureSGXVerifierConfig` / `tee.AWSNitroVerifierConfig` /
-   etc. via the daemon's config file.
-3. For PCCS-backed Intel SGX deployments, refresh the local PCCS:
-   ```bash
-   sudo systemctl restart pccs   # forces Intel collateral re-fetch
-   ```
-4. Restart sagvd; observe `vg_tee_capability_total{available="true"}`
-   recover.
-5. **Rerun `acpctl recover --dry-run`** on every sealed vault to
-   confirm policy still passes under the new root. If recovery fails
-   under the new root for a vault that succeeded under the old one,
-   the vendor's rotation policy MAY have invalidated the sealing
-   binding — vendor support escalation; in the worst case treat as
-   Scenario 7 (sealed material loss).
+1. Fetch AMD's current chain for the product from KDS (for Milan:
+   `https://kdsintf.amd.com/vcek/v1/Milan/cert_chain`) and check it through a
+   second channel.
+2. Replace the file at `amd_cert_chain_path` in `verifiers.json`.
+3. Remove the cached VCEKs in `vcek_cache_dir` so they are fetched again and
+   checked against the new chain (a cached certificate is re-checked against
+   the pinned chain on every use; one that no longer chains will keep failing).
+4. Run `sagvd crosscloud-restore` again. It reads `verifiers.json` afresh on
+   every run; there is no daemon to restart.
+5. If a destination still fails, escalate to the vendor. After an AMD TCB
+   advisory, raise `min_reported_tcb` so reports from older firmware are
+   refused.
 
 ### Post-mortem
 
@@ -205,224 +233,266 @@ in advance); Intel SGX Root rotations follow Intel TCB Recovery Events
 
 ### Detection
 
-- Workers' `acp-compute` log: `dial sagvd: timeout`
-- HTTP API `/healthz` returning 503 or no response
-- Prometheus `up{job="sagvd"} == 0`
+- Workers log `return-path cycle failed` repeatedly, with a growing
+  `backoff_ms`.
+- The health listener (`health.listen_address`, default `127.0.0.1:9091`)
+  does not answer `/healthz`, or answers 503 `unhealthy` (only during
+  shutdown).
+- Prometheus `up{job="sagvd"} == 0`, if you scrape `/metrics` under the job
+  name `deploy/grafana` assumes.
 
-### Triage decision tree
+### Triage
 
 ```
-                Is /healthz down on the host?
-                        │
-              ┌─────────┴─────────┐
-              │                   │
-            Yes                  No
-              │                   │
-   Is the process alive?  Is the listener bound?
-              │                   │
-        ┌─────┴──────┐    ┌───────┴────────┐
-        │            │    │                │
-       Yes          No   Yes              No
-        │            │    │                │
-  Crash? OOM?  Boot loop? Network ACL?  Listener bind error?
-        │            │                     │
-   journalctl    LoadMaterials       Port already in use?
-   `/var/log/`     failed?           SELinux denial?
+Does /healthz answer on the health listener?
+├── No  → Is the process alive?
+│         ├── Yes → hung: capture goroutine stacks (below), restart
+│         └── No  → read stderr: the last line is "sagvd: terminated with error"
+│                   and its "err" names the cause (config field, key file,
+│                   "listen" error: port in use or not permitted)
+└── Yes → Does /readyz answer "ready"?
+          ├── No  → the Return Path listener is not bound yet (or is shutting down)
+          └── Yes → sagvd is up; the problem is between worker and sagvd:
+                    network path, mTLS material, TEE pins
+                    ("sagvd TLS handshake failed", "sagvd return-path handshake failed")
 ```
 
 ### Recovery
 
-1. **If process alive but unresponsive**: capture goroutine dump via
-   `pkill -SIGUSR1 sagvd` (Phase 2 — currently no SIGUSR1 handler;
-   fallback: `kill -SIGABRT` to crash with stack trace). Restart.
-2. **If LoadMaterials fails**: usually a config error or a missing
-   keystore file. Check `journalctl -u vault-genome-sagvd | tail`
-   for the specific Structural error.
-3. **If hardware unavailable** (TEE backend reports `Capability` =
-   false): see Scenario 5.
-4. **If multi-region failover available**: route operator API traffic
-   to the standby region; standby's sagvd has a fresh job queue but
-   shares the audit log via cloud storage replication.
-
-### Time-to-recover SLO
-
-- Phase 1 single-region: **30 minutes** typical; 2 hours worst case
-  if hardware re-provisioning needed
-- Phase 2 multi-region: **5 minutes** to traffic-shift; 30 minutes
-  to restore the failed region
+1. **If the process is alive but unresponsive**: sagvd installs no
+   stack-dump handler, but the Go runtime's default SIGQUIT handling
+   (`kill -QUIT <pid>`) prints every goroutine's stack to stderr and exits.
+   Keep that output, then restart.
+2. **If startup fails**: fix what the `err` field names — a config validation
+   list (`sagvd: config validation: …`), a key file of the wrong length
+   (`… must be exactly 32 bytes (got N)`), or a bind error
+   (`sagvd: listen …`, `sagvd: HTTP API listen …`, `sagvd: health server: …`).
+3. **After a restart**: jobs that were queued or running are gone (the queue
+   is in memory) — resubmit them. Workers reconnect by themselves.
 
 ---
 
-## Scenario 5: TEE hardware unavailable / enclave fails to start
+## Scenario 5: TEE hardware unavailable at a SEV-SNP destination
+
+sagvd and acp-compute use the simulated TEE and need no hardware. This
+scenario concerns an `acp-bootstrap` destination running with
+`tee.provider: "gcp-sev-snp"`, which requests attestation reports through the
+kernel's configfs-tsm (`tee.tsm_report_dir`, default
+`/sys/kernel/config/tsm/report`; Linux 6.7 or later).
 
 ### Detection
 
-- `vg_tee_capability_total{available="false",provider="<x>"}` ≥ 1 at startup
-- `journalctl -u vault-genome-sagvd | grep "TEE backend"` shows the
-  Capability error
-- AWS console / Azure portal / GCP console reports the parent
-  instance unhealthy
+- `acp-bootstrap` (or `acp-bootstrap identity`) exits at startup with
+  `gcp-sev: no configfs-tsm report directory at … (this binary must run inside
+  a Confidential VM on Linux 6.7 or later)` or `gcp-sev: initial report: …`.
+- `crosscloud-restore` to that destination fails with `operational`
+  (unreachable).
+- The cloud console reports the Confidential VM unhealthy.
 
 ### Investigation
 
-| Provider | First check | If first check passes |
-|----------|-------------|------------------------|
-| `aws-nitro` | `nitro-cli describe-enclaves` shows the enclave running | check `/dev/nsm` exists in enclave |
-| `azure-sgx` | `lsmod \| grep sgx` shows the driver | check `/dev/sgx_enclave` permissions |
-| `gcp-sev-snp` | `cat /proc/cpuinfo \| grep sev_snp` | check `/dev/sev-guest` exists |
-| `intel-sgx-dcap` | BIOS shows SGX enabled, `lsmod \| grep sgx` | check PCCS reachable |
+| Check | If it fails |
+|-------|-------------|
+| `ls /sys/kernel/config/tsm/report` on the guest | Not a SEV-SNP guest, a kernel older than 6.7, or configfs not mounted |
+| `dmesg \| grep -i sev` shows SEV-SNP active | The VM was not launched as a SEV-SNP Confidential VM |
+| `acp-bootstrap identity -config …` prints the expected `measurement_hex` | Image or firmware changed (below) |
 
 ### Recovery
 
-1. **If the underlying hardware is healthy but the binary is not in
-   the enclave** (e.g., parent EC2 booted but enclave didn't), restart
-   the enclave: `nitro-cli run-enclave --image vault-genome.eif ...`.
-2. **If the hardware is unhealthy** (failed CPU, motherboard, …),
-   migrate to a redundant node. acpctl recover restores the sealed
-   material on the new node provided the new enclave's PCR0 /
-   MRENCLAVE / launch-MEASUREMENT matches the envelope's pinned
-   identity.
-3. **If no redundant node available**: declare unavailability;
+1. **If the hardware is healthy but the guest is not** (wrong kernel, no
+   configfs-tsm), rebuild the guest from the known-good image
+   ([real-tee-sev-snp.md](real-tee-sev-snp.md) §A, §D).
+2. **If the host is unhealthy**, move to another SEV-SNP VM. Its launch
+   measurement can differ — the guest firmware differs between zones
+   (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/README.md`) — so run
+   `acp-bootstrap identity`, put the new measurement in `verifiers.json` and
+   in an allow-list with a new `version` (and set `crosscloud.policy_version`
+   to the same value), replicate the sealed bundles into its
+   `genome.bundle_dir`, and release the keys again with `crosscloud-restore`
+   (06).
+3. **If no other SEV-SNP host is available**: declare unavailability;
    communicate per SLA.
 
 ---
 
 ## Scenario 6: Audit log corruption or tampering detected
 
-The audit log (`internal/audit/store/`, bbolt-backed) maintains a
-hash chain. Any break in the chain is detected on `Verify` and
-raises an Integrity event.
+The audit log (`crosscloud.audit_log_path`, a bbolt file written through
+`internal/audit/store`) is a hash chain signed under `keys.audit_signing`.
+Any break in the chain is detected whenever it is verified.
 
 ### Detection
 
-- `internal/audit/chain` Verify call logs `chain inconsistency at
-  height N`
-- bbolt file size grows in unexplained ways
-- `auditd` reports unexpected file modification
+- `sagvd crosscloud-restore` or `crosscloud-confirm` stops with
+  `the stored audit log does not verify; refusing to extend it` — the log is
+  verified end to end every time it is opened.
+- `acpctl audit verify` prints `audit chain BROKEN: …` naming
+  `event #N: prev_hash does not link to event #N-1` (or `event #N: …` for a
+  bad signature) and exits 4.
+- Its event count or tip no longer matches the latest kept report (a cut-off
+  tail still verifies; only this comparison shows it — 04 §2.2).
+- bbolt file size changes in unexplained ways; `auditd` reports
+  unexpected file modification.
 
 ### Immediate containment
 
-1. **Stop sagvd** to prevent further writes that would extend a
-   compromised chain.
-2. Snapshot the bbolt file off-host (`scp /var/lib/vault-genome/audit.bbolt
-   forensics-host:/...`).
-3. **Do not run `acpctl audit verify --repair`** — repair is not
-   what you want; you want to keep the corruption visible for
+1. **Run no releases.** sagvd will not append to a log that does not verify,
+   so they fail anyway.
+2. Copy the file off the host before anything else touches it
+   (`scp <audit log> forensics-host:/...`). Run acpctl on the copy: it opens
+   the file read-write.
+3. There is no repair command, by design — keep the corruption visible for
    investigation.
 
 ### Investigation
 
-- Use `acpctl audit verify` (Phase 2) to find the height at which the
-  chain broke.
-- Cross-reference timestamps with system journal (`journalctl
-  --since="<break-time minus 10 min>"`).
+- `acpctl audit verify` on the copy names the first broken event (N).
+- `acpctl audit query --audit <copy> --limit 0 --json` lists every event
+  (it checks no hashes or signatures, so it works on a broken chain);
+  correlate the events around N with the system journal and the kept reports.
 - Determine: did the corruption come from outside (host compromise)
-  or from within (sagvd bug)?
+  or from within (a bug)?
 
 ### Recovery
 
 - **If corruption came from outside**: this is a host compromise.
-  Treat as Scenario 1 + 2 simultaneously; rotate every key.
-- **If corruption is a sagvd bug**: file an INC ticket; the audit
-  log persistence IS the source of truth. The corruption itself is
-  the artefact you're keeping; you don't "repair" it. Future
-  artefacts go to a fresh chain (`audit.bbolt.NEW`); the old chain
-  stays read-only for forensic and regulatory reference.
+  Treat as Scenario 1 + 2 simultaneously; rotate every key, including
+  `keys.audit_signing`.
+- **If it is a bug**: file an incident ticket. The corrupted file is the
+  artefact you keep — you don't "repair" it. Keep it read-only for forensic
+  and regulatory reference and point `crosscloud.audit_log_path` at a new
+  file, which starts a new chain.
+- **A new log resets the stop-list rollback check**, which reads the log's
+  history: sign and install a stop list whose serial is above every serial you
+  have used before releasing again.
 
 ---
 
-## Scenario 7: Sealed material file deleted or corrupted
+## Scenario 7: Sealed genome bundle or key file deleted or corrupted
+
+A sealed genome is a v3 bundle (`*.genome`) plus a separate 0600 key file.
+`acpctl genome seal` writes the key only to `--key-out`; nothing else keeps
+it. Bundles are opaque without their keys and can be replicated anywhere;
+key files cannot be recreated.
 
 ### Detection
 
-- `acpctl recover --vault X --dry-run` returns "vault decode: ..."
-- File size is zero / unexpected
-- Backup ingestion fails
+- `acpctl genome verify --bundle X.genome --key-file X.key` fails
+  (`acpctl genome inspect --bundle X.genome` reads the header without the
+  key).
+- The file is missing or its size is unexpected.
+- A destination never restores the bundle, or `crosscloud-confirm -bundle`
+  reports that the restored genome does not match the operator's bundle.
 
 ### Recovery
 
-1. **First**: do not panic. Sealed material is by design recoverable
-   if the original genome (or its source-of-truth backup) still
-   exists.
-2. **Restore from backup**: `aws s3 cp s3://vault-bucket/...` /
-   `gsutil cp gs://...`. Backups are 7-year-retained per VG-016.
-3. **Validate**: `acpctl recover --vault X --dry-run --json` to
-   confirm the restored envelope decodes and capability is available.
-4. **If no backup exists** (operator misconfiguration), the only path
-   is to re-issue from the source genome, which means a full
-   re-deployment cycle. Cost varies; expect 2–4 hours.
+1. **First**: do not panic. A bundle can be restored from any replica — it
+   is useless without its key.
+2. **Restore the bundle** from a replica or backup, and the key file from its
+   separate, access-controlled backup.
+3. **Validate**: `acpctl genome verify --bundle X.genome --key-file X.key`
+   (add `--restored DIR` to check a restored tree against the seal).
+4. **If the key file is lost**, the bundle cannot be opened. The only path is
+   to seal the source again (`acpctl genome seal`), which produces a new key
+   and key ID.
 
 ### Prevention
 
-- Cloud Storage versioning (Terraform module enables it by default)
-- Snapshot the sealed-material directory daily via
-  `restic` / `borgbackup` to an off-host, off-cloud location
+- Back up key files separately from bundles, to an off-host location with
+  its own access control.
+- Replicate bundles freely; they are sealed.
+
+`acpctl recover` is a different tool: it unseals a `VG-VAULT-01` envelope
+with the TEE backend the envelope names, and no shipped binary writes that
+format yet. Its `--dry-run` only decodes the envelope and probes whether that
+backend is available on the host (it reports `sealed_bytes` and
+`capability_available`); `--vault` is always required.
 
 ---
 
-## Scenario 8: Worker compromise (acp-compute MRENCLAVE mismatch)
+## Scenario 8: Worker compromise (acp-compute identity mismatch)
+
+sagvd pins exactly one worker TEE identity — `tee.peer.public_key_path` and
+`tee.peer.measurement_path` (for the simulated TEE, the SHA-256 of the
+worker's `tee.workload_descriptor`) — and accepts CandidateOutputFrame
+signatures only from the kids in `workers.registry_path`.
 
 ### Detection
 
-- `vg_tee_attestation_total{provider="<x>",result="error",role="verify"}`
-  spikes
-- sagvd's audit log shows handshake-failure events with
-  `phase=tee_verify` for one or more workers
-- Worker sends a candidate output signed by an unknown kid
+- `vg_tee_attestation_total{provider="simulated",result="error",role="verify"}`
+  and `sagvd_handshake_failures_total{phase="handshake"}` rise; sagvd logs
+  `sagvd return-path handshake failed`.
+- sagvd logs `sagvd worker signature verification failed` with a
+  `worker_kid` — a candidate signed by a key or kid it does not accept.
+- `sagvd job completed` lines show a `worker_signing_kid` you did not expect.
 
 ### Immediate containment
 
-1. **Refuse to issue further sessions to the worker**: deny-list the
-   worker's kid in the workers registry on sagvd.
-2. **Lock the bbolt audit log** (it stays append-only by construction;
-   nothing extra to do).
+1. **Stop accepting the worker**: remove its entry from
+   `workers.registry_path` and restart sagvd. The registry schema is
+   `{"workers": [{"kid", "signing_pubkey_hex", "note"}]}` and unknown fields
+   are rejected, so there is no deny-list field — deletion is the mechanism.
+   A registry with no entries stops sagvd from starting.
+2. If the worker's TEE seed is suspect, also stop sagvd from accepting that
+   TEE identity: until a rebuilt worker exists, keep sagvd stopped or its
+   Return Path unreachable.
 3. Notify security incident on-call.
 
 ### Investigation
 
-- Pull the offending worker's enclave image and rebuild — does the
-  expected MRENCLAVE match what was attested? If yes, attacker
-  forged an attestation (very high-skill); if no, the worker was
-  rebuilt under unauthorised changes.
+- Rebuild the worker host from a known-good image and compare its config
+  (`tee.workload_descriptor`, key files) with what sagvd pins.
 - Audit the worker host for unauthorised changes (file integrity
   monitoring, intrusion detection).
 
 ### Recovery
 
-- Rebuild the worker's enclave from a known-good source
-- Add the rebuilt MRENCLAVE to the verifier's `AcceptableMRENCLAVES`
-  set in `sagvd.yaml`
-- Remove the deny-listed kid from the registry; restart sagvd
+1. Give the rebuilt worker a new TEE seed and a new worker signing seed
+   (`tee.seed_path`, `keys.worker_signing`; `deploy/compose/keygen` shows how
+   the pinned files are produced).
+2. Put its TEE public key and measurement at sagvd's `tee.peer.public_key_path`
+   and `tee.peer.measurement_path`, and its new kid and public key (from the
+   worker's `worker signing identity` startup log line) in
+   `workers.registry_path`.
+3. Restart sagvd; confirm `sagvd accepted worker signing identity` names the
+   new kid and `sagvd session opened` follows.
 
 ---
 
 ## Scenario 9: Operator API credentials leaked
 
-(POST `/v1/jobs` requires bearer token + mTLS client cert.)
+`POST /v1/jobs` and `GET /v1/jobs/{id}` are served over plain HTTP — the
+`http_api` section has no TLS settings. A bearer token (`http_api.bearer_token`
+or `bearer_token_file`, at least 32 characters) is mandatory when
+`http_api.listen_address` is not loopback, optional on loopback. Anyone on the
+network path can read the token, so keep the API on loopback or behind your
+own TLS terminator.
 
 ### Detection
 
-- Unusual `/v1/jobs` POST volume from operator IPs not on the allowlist
-- `auditd` alert on the credentials file
-- Public dump (Pastebin / GitHub gist) discovery
+- `sagvd_jobs_submitted_total` or
+  `sagvd_http_requests_total{route="/v1/jobs",status="202"}` jumps without a
+  matching workload.
+- `auditd` alert on the token file.
+- Public dump (Pastebin / GitHub gist) discovery.
 
 ### Immediate containment
 
-1. Revoke the leaked credential at the ingress gateway (rate-limit to
-   zero, return 403). The operator's mTLS client cert can be revoked
-   via CRL / OCSP on the path between the operator and sagvd's HTTP
-   API.
-2. Lock down the credentials file mode (`chmod 0000`) until rotation
+1. **Collect the job history first**: it lives in sagvd's memory and a
+   restart clears it. There is no job-listing endpoint (`GET /v1/jobs`
+   answers 405); read the `job_id` values from the `sagvd dispatching job`
+   log lines and fetch each with `GET /v1/jobs/{id}`.
+2. Write a new token to `bearer_token_file` and restart sagvd — the token
+   is read only at startup. The old token stops working at that restart.
+3. Lock down the old credentials file mode (`chmod 0000`) until rotation
    completes — prevents accidental further use.
 
 ### Recovery
 
-1. Issue a fresh credential to the legitimate operator out-of-band
-2. Update the workers registry / ingress gateway CRL with the
-   revoked cert's serial number
-3. Audit `/v1/jobs` POST history for the revoked credential's lifetime
-   to determine which jobs were submitted under it; cross-check with
-   the operator's expected workload. Any unexpected submission is a
+1. Issue the new token to the legitimate operator out-of-band.
+2. Review the jobs submitted during the credential's lifetime against
+   the operator's expected workload. sagvd does not log REST API client
+   addresses; use your proxy or network logs for that. Any unexpected submission is a
    data-exposure incident — escalate per BAA notification clause.
 
 ---
@@ -455,11 +525,11 @@ raises an Integrity event.
 
 ### Recovery
 
-1. Rotate every secret in GitHub Actions: pull-request token, deploy
-   keys, AWS / GCP / Azure deployment credentials.
-2. Force-rotate every signing-key reference; cosign keyless means
-   there is no long-lived signing key, so the rotation here is
-   confined to the pull/push tokens used by the workflow itself.
+1. Rotate every secret the workflows can read (repository and
+   organisation Actions secrets, deploy keys).
+2. cosign keyless means there is no long-lived signing key to rotate;
+   the rotation here is confined to the tokens and secrets the workflows
+   use.
 3. Replay the most recent legitimate release through a fresh
    workflow run; bump the patch version (`vX.Y.Z+1`) to make
    downstream cache invalidation clean.
@@ -474,10 +544,14 @@ Once a quarter, run the following in staging:
 
 | Scenario | Procedure | Pass criterion |
 |----------|-----------|-----------------|
-| 1 (auth-signing rotation) | Generate new key, update config, restart, confirm new kid in startup log | New kid visible; old kid in deny list |
-| 7 (sealed material restore) | Wipe a sealed vault, restore from backup, run `acpctl recover --dry-run --json` | OK status, plaintext_bytes > 0 |
-| 4 (sagvd unreachable) | Stop the daemon, observe Prometheus alerts firing, restart, confirm recovery | `up{job="sagvd"} == 1` within 60 s of restart |
+| 1 (auth-signing rotation) | Generate a new seed, update the config, run `sagvd identity`, re-pin a destination, restart both | Startup log shows the new kid; a `crosscloud-restore` to the re-pinned destination succeeds |
+| 7 (sealed genome restore) | Delete a bundle copy, restore it from its replica, run `acpctl genome verify --bundle … --key-file …` | Exit 0 |
+| 4 (sagvd unreachable) | Stop the daemon, observe the workers' `return-path cycle failed` lines and any alerts, restart | `/readyz` answers `ready` and `sagvd session opened` appears within 60 s of restart |
 
-Record the results in `business/dr-exercises/QQ-YYYY.md` (private
-repo). The first failed exercise produces an INC ticket; the
-runbook is updated and the exercise re-run within 30 days.
+Record the results with your incident records. The first failed exercise
+produces an incident ticket; the runbook is updated and the exercise re-run
+within 30 days.
+
+---
+
+_Document history: 2026-09-14 — checked line by line against the code; commands and names the binaries do not have were removed._

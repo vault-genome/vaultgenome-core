@@ -169,9 +169,14 @@ config:
   "enabled": true,
   "audit_log_path": "/var/lib/acp/xcc-audit.db",
   "policy_version": "xcc-2026-09-14",
-  "insecure_simulated_destinations": true,
   "policy_allow_list_path": "/etc/acp/crosscloud/allow.json",
   "verifier_registry_path": "/etc/acp/crosscloud/verifiers.json",
+  "operator_stop": {
+    "kid": "operator-1",
+    "public_key_path": "/etc/acp/crosscloud/operator.pem",
+    "list_path": "/etc/acp/crosscloud/stop.json"
+  },
+  "key_escrow_path": "/etc/acp/secrets/sagvd/escrow.key",
   "transport_bearer_token": "<the destination's bearer token>",
   "request_timeout_seconds": 30,
   "transport_tls": {
@@ -183,15 +188,11 @@ config:
 }
 ```
 
-and point it at the operator's stop list:
-
-```json
-"operator_stop": {
-  "kid": "operator-1",
-  "public_key_path": "/etc/acp/crosscloud/operator.pem",
-  "list_path": "/etc/acp/crosscloud/stop.json"
-}
-```
+`operator_stop` points at the operator's signed stop list and is required.
+`key_escrow_path` is needed only to release escrowed genome keys (`-key-escrow`).
+To release to a simulated destination in development, add
+`"insecure_simulated_destinations": true`; without it a simulated entry in the
+verifier registry is refused.
 
 No key is released without a durable record: `audit_log_path` and
 `keys.audit_signing` are required. Every release writes its handshake,

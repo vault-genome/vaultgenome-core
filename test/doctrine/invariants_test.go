@@ -1364,8 +1364,8 @@ func TestInvariant_11_SupplyChainAttested(t *testing.T) {
 	require.Containsf(t, content, "verify-tag",
 		"release workflow must verify the tag's signature before building")
 
-	// Binary coverage — all three binaries participate in the supply chain.
-	for _, bin := range []string{"sagvd", "acp-compute", "acpctl"} {
+	// Binary coverage — every operational binary participates in the supply chain.
+	for _, bin := range []string{"sagvd", "acp-compute", "acpctl", "acp-bootstrap"} {
 		require.Containsf(t, content, bin,
 			"release workflow must include binary %q in the signed/SBOM'd set", bin)
 	}

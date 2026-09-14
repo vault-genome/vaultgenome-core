@@ -214,7 +214,8 @@ func (s *Service) runMVP(scenario Scenario, trig Trigger) (*Result, error) {
 	terminatedSealed, err := s.chain.Append(terminatedSkel, s.auditSigner)
 	if err != nil {
 		// Same survivorship rule: DETECTED + side effects happened,
-		// TERMINATED refused. Operator runbook §3 / §4 covers this.
+		// TERMINATED refused. docs/operator/03_incident_response.md §3
+		// (audit-append failure) covers this.
 		return nil, err
 	}
 	result.TerminatedEventID = terminatedSealed.EventID
