@@ -1,0 +1,68 @@
+# AI Continuity Platform — golangci-lint configuration (v2 schema).
+#
+# Pinned so lint results are reproducible and do not drift with the
+# linter's shifting defaults. Enforced in CI by vault-gate step 08
+# (golangci/golangci-lint-action, version pinned in the workflow).
+#
+# Scope: the "standard" linter set — errcheck, govet, ineffassign,
+# staticcheck, unused. These catch real defects (unchecked errors, dead
+# code, suspicious constructs) without the noise of opinionated style
+# linters. Widen deliberately, never by accident.
+
+version: "2"
+
+linters:
+  default: standard
+
+  settings:
+    errcheck:
+      # Writes to os.Stdout/os.Stderr in CLI commands: a failed terminal
+      # write is neither actionable nor recoverable, and checking it
+      # everywhere buries real unchecked-error findings in noise. This
+      # mirrors errcheck's own historical default exclusion.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+
+    staticcheck:
+      # Reproduce golangci-lint's default check set, then drop the
+      # opportunistic "quickfix" (QF*) refactors on top.
+      #   - The SA* bug checks and S* simplifications stay fully on —
+      #     these catch real defects and are the reason staticcheck earns
+      #     its place in the gate.
+      #   - The ST* style checks (package-comment phrasing, naming,
+      #     receiver-name consistency) are off, exactly as in the default
+      #     set: they are stylistic, not defects. Listing "all" without
+      #     these re-enables them, which is not what we want.
+      #   - QF* are opportunistic editor quickfixes (omit-inferred-type,
+      #     tagged-switch), not defects; we disable them for signal.
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        - -QF1001
+        - -QF1002
+        - -QF1003
+        - -QF1008
+        - -QF1011
+
+  exclusions:
+    # Operational hardware-attestation tooling (SEV-SNP / SGX / Nitro
+    # evidence capture) is Linux/hardware-gated and is not part of the
+    # deployable product that reviewers build and run. Lint the product,
+    # not the one-shot capture scripts.
+    paths:
+      - scripts/hardware-test
+
+    rules:
+      # Test setup/teardown routinely ignores cleanup-Close errors and
+      # constructor error returns on known-good in-memory fixtures.
+      # errcheck on production code stays fully strict.
+      - path: _test\.go
+        linters:
+          - errcheck

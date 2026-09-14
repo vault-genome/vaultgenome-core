@@ -3,7 +3,6 @@
 package cross_cloud_handshake_request
 
 import (
-	"crypto/ed25519"
 	"encoding/json"
 	"testing"
 	"time"
@@ -242,29 +241,3 @@ func TestCrossCloudHandshakeRequest_CanonicalBytes_ChangesWithFields(t *testing.
 	require.NoError(t, err)
 	require.NotEqual(t, b1, b2, "CanonicalBytes must reflect every signed field")
 }
-
-// --- Sign / Verify round-trip --------------------------------------
-
-// fakeSigner / fakeResolver: minimal in-memory implementations of the
-// keys.Signer / keys.Resolver interfaces backed by Ed25519, sufficient
-// to exercise SignWith → VerifySignature round-trips without bringing
-// in the full /internal/vault/keys/InMemoryStore (which has its own
-// test surface elsewhere).
-
-type fakeSigner struct {
-	kid     ids.KeyID
-	purpose int
-	priv    ed25519.PrivateKey
-}
-
-// fakeKeySigner adapts ed25519 to the keys.Signer interface; method
-// is package-internal to avoid coupling to /internal/vault/keys
-// internals in this contract test.
-//
-// keys.Signer.Sign signature is:
-//   Sign(kid ids.KeyID, purpose keys.Purpose, msg []byte) ([]byte, error)
-
-// We implement just enough of keys.Signer + keys.Resolver inline.
-
-// (Implementations live in the _sign_test.go alongside more
-// signature-flavored tests; this file focuses on Validate / JSON.)

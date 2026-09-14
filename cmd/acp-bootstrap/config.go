@@ -171,7 +171,7 @@ func LoadConfigFile(path string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("acp-bootstrap: open config %q: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return DecodeConfig(f)
 }
 

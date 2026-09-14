@@ -304,24 +304,6 @@ func sortProbesByID(probes []Probe) {
 	})
 }
 
-// probeIDsMatch returns true iff the two probe slices contain the
-// same set of IDs. Order-independent.
-func probeIDsMatch(a, b []Probe) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	seen := make(map[ProbeID]struct{}, len(a))
-	for i := range a {
-		seen[a[i].ID] = struct{}{}
-	}
-	for i := range b {
-		if _, ok := seen[b[i].ID]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
 // Compile-time check that ProbeID satisfies the platform ID interface
 // via the standard String/IsZero pair — not imported because the
 // shared ids package owns platform-wide IDs; ProbeID is content-

@@ -303,7 +303,7 @@ func unsealVault(env *VaultEnvelope, sealed []byte, enclaveSO, sevDev string) ([
 		if err != nil {
 			return nil, fmt.Errorf("azure-sgx: load enclave: %w", err)
 		}
-		defer p.Close()
+		defer func() { _ = p.Close() }()
 		if err := assertMeasurementMatches(p.Measurement(), env.SGXMRENCLAVE, "sgx_mrenclave"); err != nil {
 			return nil, err
 		}
@@ -325,7 +325,7 @@ func unsealVault(env *VaultEnvelope, sealed []byte, enclaveSO, sevDev string) ([
 		if err != nil {
 			return nil, fmt.Errorf("intel-sgx-dcap: load enclave: %w", err)
 		}
-		defer p.Close()
+		defer func() { _ = p.Close() }()
 		if err := assertMeasurementMatches(p.Measurement(), env.SGXMRENCLAVE, "sgx_mrenclave"); err != nil {
 			return nil, err
 		}
@@ -341,7 +341,7 @@ func unsealVault(env *VaultEnvelope, sealed []byte, enclaveSO, sevDev string) ([
 		if err != nil {
 			return nil, fmt.Errorf("gcp-sev-snp: open %s: %w", sevDev, err)
 		}
-		defer dev.Close()
+		defer func() { _ = dev.Close() }()
 		var measure tee.Measurement
 		if len(env.SEVMeasurement) != 32 {
 			return nil, fmt.Errorf("gcp-sev-snp: sev_measurement must be 32 bytes (got %d)", len(env.SEVMeasurement))

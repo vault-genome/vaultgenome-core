@@ -58,7 +58,7 @@ func lineageCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl lineage: open audit store: %v\n", err)
 		return 1
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	events, err := s.Load()
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl lineage: load: %v\n", err)

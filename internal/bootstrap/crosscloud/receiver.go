@@ -4,7 +4,6 @@ package crosscloud
 
 import (
 	"bytes"
-	"crypto/rand"
 	"fmt"
 
 	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
@@ -323,13 +322,3 @@ func zeroize(b []byte) {
 // (sha256OfBytes is implemented in receiver_crypto.go to keep this
 // file free of stdlib hashing imports — keeps the diff readable
 // when Phase 5 swaps in a hardware-backed digest engine.)
-
-// generateRandomBytes is exposed for tests that need a fresh-nonce
-// helper without importing crypto/rand directly.
-func generateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return nil, err
-	}
-	return b, nil
-}

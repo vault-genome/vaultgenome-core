@@ -122,10 +122,7 @@ func (t *HTTPTransport) SendHandshakeRequest(
 			nil,
 		)
 	}
-	return HandshakeResponse{
-		Evidence:        wire.Evidence,
-		MeasurementHint: wire.MeasurementHint,
-	}, nil
+	return HandshakeResponse(wire), nil
 }
 
 // SendKeyReleaseToken dispatches a signed token to

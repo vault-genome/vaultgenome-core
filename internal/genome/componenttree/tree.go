@@ -427,9 +427,7 @@ func combine(left, right []byte) ([]byte, error) {
 // node at odd-sized levels instead of duplicating.
 func computeRoot(leaves [][]byte) [crypto.HashSize]byte {
 	level := make([][]byte, len(leaves))
-	for i := range leaves {
-		level[i] = leaves[i]
-	}
+	copy(level, leaves)
 	for len(level) > 1 {
 		next := make([][]byte, 0, (len(level)+1)/2)
 		i := 0

@@ -97,7 +97,7 @@ func auditQueryCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl audit query: open audit store: %v\n", err)
 		return 1
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	events, err := s.Load()
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl audit query: load: %v\n", err)
@@ -221,7 +221,7 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl audit verify: open audit store: %v\n", err)
 		return 1
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	events, err := s.Load()
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl audit verify: load: %v\n", err)

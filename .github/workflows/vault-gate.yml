@@ -84,10 +84,12 @@ jobs:
 
       # 08 lint
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        # golangci-lint v2 (action v8): v1.x cannot read Go 1.25's export
+        # data and fails every package with a spurious "unsupported
+        # version: 2" typecheck error. Config: .golangci.yml (pinned).
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.59
-          working-directory: .
+          version: v2.13.2
           args: --timeout=5m
 
       # 09 terminology

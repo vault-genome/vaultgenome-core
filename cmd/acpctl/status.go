@@ -54,7 +54,7 @@ func statusCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl status: open audit store: %v\n", err)
 		return 1
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	events, err := s.Load()
 	if err != nil {
