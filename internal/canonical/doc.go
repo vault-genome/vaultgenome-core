@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// Package canonical holds the platform's deterministic, portable reference
+// compute kernels — the "converter" half of the cross-hardware regeneration
+// story, paired with the equivalence gate's "funnel" (internal/validation/
+// equivalence, ADR 0008).
+//
+// # The problem it solves
+//
+// The cross-hardware determinism experiments (docs/testing/
+// cross-hardware-determinism.md) established that a genome recomputed with a
+// stock BLAS is byte-identical across CPU architectures ONLY under a pinned
+// runtime version; a different BLAS build (e.g. a newer numpy pip wheel) makes
+// the output diverge across both version and architecture. The equivalence gate
+// can *detect* that drift, but detection alone would mean an emergency failover
+// onto mismatched hardware fails the gate and the business does not come back
+// up. The converter removes the dependence on a fragile external BLAS.
+//
+// # Determinism ladder
+//
+// The package implements two rungs of increasing portability guarantee:
+//
+//   - Rung 2 — float64 reference kernel (kernel.go). Pure Go, single-threaded,
+//     fixed ascending-index reduction order, no BLAS, no cross-statement FMA
+//     contraction. Bit-identical run to run within a pinned Go toolchain and
+//     expected byte-identical across architectures (IEEE-754 arithmetic,
+//     correctly-rounded SQRTSD, software math.Exp). The cross-architecture claim
+//     is validated on the arch matrix, not asserted by construction.
+//
+//   - Rung 3 — fixed-point foundation (fixedpoint.go). Integer arithmetic is
+//     byte-portable BY CONSTRUCTION: the same integer program yields the same
+//     bytes on any platform, under any BLAS, at any thread count. The only
+//     portability risk is overflow, which the primitives detect and reject. A
+//     fixed-point path is only approximately equal to the original float64 model
+//     (quantization error) — which is precisely what the gate's EQUIVALENT
+//     verdict certifies. The full fixed-point transformer block builds on these
+//     primitives and is future work.
+//
+// The two rungs compose with the gate: rung 2 targets EXACT (byte-identical) on
+// a pinned+attested+verified runtime; rung 3 guarantees the reconstruction
+// agrees with itself across hardware (availability) and relies on the gate to
+// certify EQUIVALENT against the original.
+package canonical
