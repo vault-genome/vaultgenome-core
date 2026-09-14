@@ -48,28 +48,27 @@ import (
 )
 
 // Test_Regression_TerminologyScriptCatchesStaleTerm creates a temp tree
-// containing a single .go file that uses the deprecated term "backup" in
-// prose, invokes the terminology check script against that tree, and
-// asserts that the script exits non-zero and names the offending
-// pattern.
+// containing a single .go file that uses the deprecated project name
+// "genome_vault" in prose, invokes the terminology check script against
+// that tree, and asserts that the script exits non-zero and names the
+// offending pattern.
 func Test_Regression_TerminologyScriptCatchesStaleTerm(t *testing.T) {
 	t.Parallel()
 	modRoot := locateModuleRoot(t)
 	script := filepath.Join(modRoot, "scripts", "terminology_check.sh")
 
 	staleTree := t.TempDir()
-	// Drop a .go file carrying a deprecated term. The term "backup" is
-	// on the §4 list because the doctrine treats "backup" and
-	// "restoration" as categorically distinct from continuity — a
-	// backup is a copy of bytes; continuity is the right-and-ability
-	// to reconstruct intelligence in a trusted environment.
+	// Drop a .go file carrying a deprecated project name. "genome_vault"
+	// is on the §4 list because it is a former name of the project; the
+	// rename to "VaultGenome" / "genome" must stay complete (see §2 of
+	// docs/doctrine/terminology.md).
 	stalePath := filepath.Join(staleTree, "stale.go")
 	staleContent := `// SPDX-License-Identifier: AGPL-3.0-or-later
 package stale
 
-// We run a backup of the weights every hour.
+// The genome_vault module used to live here.
 // This comment is DELIBERATELY WRONG for the regression harness — it
-// uses the deprecated term "backup" which is banned by
+// uses the deprecated project name "genome_vault" which is banned by
 // docs/doctrine/terminology.md §4.
 `
 	if err := os.WriteFile(stalePath, []byte(staleContent), 0o644); err != nil {
@@ -83,7 +82,7 @@ package stale
 	if !strings.Contains(out, "terminology_check: FAIL") {
 		t.Fatalf("terminology_check.sh failed but did not emit the 'FAIL' verdict line\noutput:\n%s", out)
 	}
-	if !strings.Contains(out, "backup") {
+	if !strings.Contains(out, "genome_vault") {
 		t.Fatalf("terminology_check.sh failed but did not name the offending term\noutput:\n%s", out)
 	}
 }
@@ -211,12 +210,10 @@ func Test_Regression_TerminologyScriptCatchesEachPattern(t *testing.T) {
 		{"NeuralSeedVault", "// NeuralSeedVault is the old name"},
 		{"neural_seed_vault", "// the neural_seed_vault module"},
 		{"genome_vault", "// the genome_vault service"},
-		{"restore", "// we restore the model from a snapshot"},
-		{"restoration", "// the restoration pipeline"},
-		{"backup", "// the backup is rotated daily"},
-		{"decrypt and load", "// we decrypt and load the weights on boot"},
-		{"model file", "// writes the model file to disk"},
-		{"weights file", "// load the weights file"},
+		// The vocabulary terms of terminology.md §5 (restore/restoration/
+		// backup/"decrypt and load"/"model file"/"weights file") are
+		// advisory house style, not gated — see §5 — so they are not
+		// probed here. Only the §4 project-name bans are enforced.
 	}
 
 	for _, probe := range probes {
