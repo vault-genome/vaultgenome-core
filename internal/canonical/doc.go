@@ -22,10 +22,16 @@
 //
 //   - Rung 2 — float64 reference kernel (kernel.go). Pure Go, single-threaded,
 //     fixed ascending-index reduction order, no BLAS, no cross-statement FMA
-//     contraction. Bit-identical run to run within a pinned Go toolchain and
-//     expected byte-identical across architectures (IEEE-754 arithmetic,
-//     correctly-rounded SQRTSD, software math.Exp). The cross-architecture claim
-//     is validated on the arch matrix, not asserted by construction.
+//     contraction. Bit-identical run to run and across CPU architectures WITHIN A
+//     PINNED GO TOOLCHAIN. It is NOT cross-runtime/cross-accelerator byte-
+//     identical: its transcendentals are Go's software math.Exp/math.Sqrt, which
+//     differ from a CPU libm or a CUDA runtime (exp measured at ~1 ULP on ~6% of
+//     values CPU vs GPU — see docs/testing/cross-hardware-determinism.md). So this
+//     is a self-contained deterministic REFERENCE, not the production cross-
+//     accelerator float path: for byte-identical float across heterogeneous CPUs
+//     and GPUs, the reproducible-float rung integrates an external RepDL/ReproBLAS
+//     backend (correct-rounded ops + fixed order) — borrowed, not ours; see
+//     docs/prior-art-and-attribution.md.
 //
 //   - Rung 3 — fixed-point path. Integer arithmetic is byte-portable BY
 //     CONSTRUCTION: the same integer program yields the same bytes on any

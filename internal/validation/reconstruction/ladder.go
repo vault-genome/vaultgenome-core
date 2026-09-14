@@ -23,12 +23,38 @@ var errEmptyLadder = shared_errors.Structural(
 // which is the fail-closed safety property: a corrupted or wrong genome fails
 // every door and is never brought up, while a healthy genome always finds a door.
 
+// StrategyKind names the class of a recompute door so the audit trail records
+// which technology actually regenerated the model — including, honestly, which
+// rungs are ours and which stand on external prior art. See
+// docs/prior-art-and-attribution.md.
+type StrategyKind string
+
+const (
+	// KindPinnedReplay — byte-exact replay of the sealed computation on a
+	// pinned + attested runtime of the same hardware class (highest fidelity,
+	// tol 0). Ours: the attestation + seal layer.
+	KindPinnedReplay StrategyKind = "pinned-replay"
+
+	// KindReproducibleFloat — byte-identical float across heterogeneous CPUs and
+	// GPUs via correct-rounded ops (incl. transcendentals) + a fixed reduction
+	// order. This rung is BORROWED: its reference implementations are RepDL and
+	// ReproBLAS (see the attribution doc); we integrate and attest it, we do not
+	// claim it.
+	KindReproducibleFloat StrategyKind = "reproducible-float"
+
+	// KindFixedPoint — the integer/fixed-point path (internal/canonical):
+	// byte-portable by construction across any CPU or GPU, EQUIVALENT to the
+	// original within quantization error. Ours.
+	KindFixedPoint StrategyKind = "fixed-point"
+)
+
 // Strategy is one door on the ladder: a named recompute path the destination can
 // try, plus the fidelity contract (tolerance/policy) the gate holds it to. Order
 // strategies from highest fidelity (byte-exact, tol 0) to most portable (integer
 // kernel, a small EQUIVALENT tolerance).
 type Strategy struct {
 	Rung      int                   // ladder rung (lower = higher fidelity)
+	Kind      StrategyKind          // door class, recorded for audit/attribution
 	Name      string                // human-readable door name, recorded for audit
 	Recompute RecomputeFunc         // how this door recomputes a fixture's output
 	Tol       equivalence.Tolerance // tolerance the gate enforces for this door
@@ -38,6 +64,7 @@ type Strategy struct {
 // Attempt records one door's outcome for the audit trail.
 type Attempt struct {
 	Rung      int               `json:"rung"`
+	Kind      StrategyKind      `json:"kind,omitempty"`
 	Name      string            `json:"name"`
 	Level     equivalence.Level `json:"level"` // gate level, or "ERROR" if recompute failed
 	Err       string            `json:"err,omitempty"`
@@ -49,11 +76,12 @@ const attemptError equivalence.Level = "ERROR"
 
 // LadderResult is the outcome of a descent.
 type LadderResult struct {
-	Opened   bool                `json:"opened"`   // did a door pass the gate?
-	Rung     int                 `json:"rung"`     // which rung opened (valid iff Opened)
-	Name     string              `json:"name"`     // which door opened
-	Verdict  equivalence.Verdict `json:"verdict"`  // the passing verdict (iff Opened)
-	Attempts []Attempt           `json:"attempts"` // every door tried, in order
+	Opened   bool                `json:"opened"`         // did a door pass the gate?
+	Rung     int                 `json:"rung"`           // which rung opened (valid iff Opened)
+	Kind     StrategyKind        `json:"kind,omitempty"` // which door class opened
+	Name     string              `json:"name"`           // which door opened
+	Verdict  equivalence.Verdict `json:"verdict"`        // the passing verdict (iff Opened)
+	Attempts []Attempt           `json:"attempts"`       // every door tried, in order
 }
 
 // Regenerate descends the ladder: it tries each strategy in order, gating its
@@ -79,16 +107,17 @@ func Regenerate(
 		v, err := Evaluate(genomeID, fixtures, s.Recompute, s.Tol, s.Pol)
 		if err != nil {
 			res.Attempts = append(res.Attempts, Attempt{
-				Rung: s.Rung, Name: s.Name, Level: attemptError, Err: err.Error(),
+				Rung: s.Rung, Kind: s.Kind, Name: s.Name, Level: attemptError, Err: err.Error(),
 			})
 			continue // a broken door is not a broken genome — try the next one
 		}
 		res.Attempts = append(res.Attempts, Attempt{
-			Rung: s.Rung, Name: s.Name, Level: v.Level, MaxAbsErr: v.MaxAbsErr,
+			Rung: s.Rung, Kind: s.Kind, Name: s.Name, Level: v.Level, MaxAbsErr: v.MaxAbsErr,
 		})
 		if v.Passed() {
 			res.Opened = true
 			res.Rung = s.Rung
+			res.Kind = s.Kind
 			res.Name = s.Name
 			res.Verdict = v
 			return res, nil

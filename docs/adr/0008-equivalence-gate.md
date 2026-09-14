@@ -94,14 +94,25 @@ behavioral scorecard (the model is the *right lineage*).
 - The gate is self-contained and independently testable (14 unit tests covering
   every verdict path, policy, NaN handling, signing, tamper detection, and hash
   binding). `gofmt` + `go vet` clean; `go test ./...` green.
-- **Determinism ladder (the converter, `internal/canonical`):** the gate proves
-  fidelity but does not *produce* it. The converter does, in two implemented
-  rungs: (2) a BLAS-free float64 reference kernel (fixed evaluation order, no
-  implicit FMA) — byte-identical within a pinned toolchain, gate-`EXACT`; and (3)
-  a **fully integer** transformer block (integer GEMM, i-BERT-style integer
-  exp/softmax, integer isqrt/LayerNorm) that is byte-portable **by construction**
-  and reproduces the float64 reference to ~3.6e-3 abs / ~1.2% rel, gate-
-  `EQUIVALENT`. Rung 1 (pinned + attested + *verified* runtime for byte-`EXACT`
-  off-the-integer-path) and wiring the verdict into `reconstitution_decision`
-  (via the receive-side `ValidationResult` → `ReasonValidationFailed`) are
-  tracked separately.
+- **Determinism ladder (the converter):** the gate proves fidelity but does not
+  *produce* it. The converter does, via ordered recompute "doors" (see
+  `internal/validation/reconstruction` and `docs/prior-art-and-attribution.md`):
+  - `pinned-replay` — byte-exact replay on a pinned + attested runtime of the
+    same hardware class (ours: the attestation/seal layer).
+  - `reproducible-float` — byte-identical float across heterogeneous CPUs/GPUs.
+    **Borrowed, not ours:** the reference implementations are RepDL (correct-
+    rounded ops incl. transcendentals + fixed reduction order) and ReproBLAS.
+    Our own `internal/canonical` float64 kernel is a *self-contained* deterministic
+    reference (fixed order, no implicit FMA) that is byte-identical only **within
+    a pinned Go toolchain** — it is not cross-runtime byte-identical, because
+    transcendentals diverge (`exp` measured at ~1 ULP on ~6% of values CPU vs
+    GPU; see cross-hardware-determinism.md). For true cross-accelerator byte
+    equality this rung integrates a RepDL/ReproBLAS-class backend.
+  - `fixed-point` — the integer block (`internal/canonical`, i-BERT-style integer
+    exp/softmax + integer isqrt/LayerNorm): byte-portable **by construction**
+    across any CPU or GPU, reproducing the float64 reference to ~3.6e-3 abs /
+    ~1.2% rel, gate-`EQUIVALENT`. Ours.
+  Wiring the verdict into `reconstitution_decision` (via the receive-side
+  `ValidationResult` → `ReasonValidationFailed`) is done in
+  `internal/recvvalidator`; a byte-exact reassembly "door 0" is tracked
+  separately.
