@@ -112,7 +112,12 @@ behavioral scorecard (the model is the *right lineage*).
     exp/softmax + integer isqrt/LayerNorm): byte-portable **by construction**
     across any CPU or GPU, reproducing the float64 reference to ~3.6e-3 abs /
     ~1.2% rel, gate-`EQUIVALENT`. Ours.
-  Wiring the verdict into `reconstitution_decision` (via the receive-side
-  `ValidationResult` → `ReasonValidationFailed`) is done in
-  `internal/recvvalidator`; a byte-exact reassembly "door 0" is tracked
-  separately.
+  The verdict is wired into `reconstitution_decision` (via the receive-side
+  `ValidationResult` → `ReasonValidationFailed`) in `internal/recvvalidator`, and
+  the whole path is asserted end to end through the real orchestrator by
+  `internal/bootstrap/regeneration_capstone_test.go` (healthy genome →
+  `reconstructed_ok`; corrupted → `validation_failed`). The top rung "door 0"
+  (`reconstruction.PinnedReplayDoor`, `KindPinnedReplay`) is the attestation-gated
+  byte-exact replay, included by the caller only when the destination's
+  attestation matches the sealed runtime; on a drift it FAILs at tol 0 and the
+  descent falls through to reproducible-float / fixed-point.
