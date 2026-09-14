@@ -61,16 +61,21 @@ import (
 // tee.Producer.Measurement() that equals the wrap input on the
 // source side. The receiver derives the same AES-256 key and unseals.
 // This pairing is documented in ADR 0006 §"Threat Model" point 5.
+// keyMaterial is the second argument: for the SimulatedKeyWrapper it is the
+// destination measurement (symmetric, SIMULATION ONLY — the measurement is not a
+// secret); for the production X25519KeyWrapper it is the destination's attested
+// X25519 PUBLIC key. The KEM path (kem.go, ADR 0009) is the honest replacement:
+// confidentiality rests on the destination TEE holding the private key, not on
+// the measurement being secret.
 type KeyWrapper interface {
-	Wrap(plaintext, destinationMeasurement, aad []byte) (ciphertext []byte, err error)
+	Wrap(plaintext, keyMaterial, aad []byte) (ciphertext []byte, err error)
 }
 
-// KeyUnwrapper is the destination-side counterpart to KeyWrapper. It
-// is implemented by the CrossCloudReceiver and consumes the same
-// derivation. Defined here so the symmetric pairing is visible from
-// one place.
+// KeyUnwrapper is the destination-side counterpart to KeyWrapper. keyMaterial is
+// the destination measurement for the SimulatedKeyUnwrapper, or the destination's
+// TEE-held X25519 PRIVATE key for the production X25519KeyUnwrapper.
 type KeyUnwrapper interface {
-	Unwrap(ciphertext, destinationMeasurement, aad []byte) (plaintext []byte, err error)
+	Unwrap(ciphertext, keyMaterial, aad []byte) (plaintext []byte, err error)
 }
 
 // SimulatedKeyWrapper implements KeyWrapper using deterministic

@@ -21,6 +21,7 @@ ADRs interact with the test-enforced invariant system.
 | 0006 | [Cross-cloud KMS-mediated restore](0006-cross-cloud-kms-mediated-restore.md) | Accepted | restore, kms, crosscloud |
 | 0007 | [Measurement is variable-length](0007-measurement-variable-length.md) | Accepted | tee, measurement |
 | 0008 | [Numerical equivalence gate for cross-hardware reconstruction](0008-equivalence-gate.md) | Accepted | reconstruction, equivalence, determinism |
+| 0009 | [X25519 KEM for cross-cloud DEK delivery (closes defect b)](0009-x25519-kem-cross-cloud-key-delivery.md) | Accepted | crosscloud, kms, crypto |
 
 ## Adding an ADR
 

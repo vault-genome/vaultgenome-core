@@ -55,6 +55,14 @@ type Config struct {
 	// MVP: kms.SimulatedKeyUnwrapper.
 	Unwrapper kms.KeyUnwrapper
 
+	// RecipientPrivateKey, when set, switches DEK unwrapping to the X25519 KEM
+	// (ADR 0009): the receiver decapsulates each DEK with this TEE-held X25519
+	// PRIVATE key instead of a measurement-derived symmetric key. It is the
+	// private counterpart of the attested public key the destination presents in
+	// its handshake evidence (REPORT_DATA = hash(pubkey || nonce)); it never
+	// leaves the TEE. When empty, the legacy symmetric measurement path is used.
+	RecipientPrivateKey []byte
+
 	// Registrar receives unwrapped DEKs and adds them to the local
 	// keystore for subsequent disclosure-message processing.
 	Registrar KeyRegistrar
@@ -64,10 +72,11 @@ type Config struct {
 // tokens on the destination side. Construct via NewReceiver; the
 // returned Receiver is safe for concurrent use.
 type Receiver struct {
-	sourceKeys keys.Resolver
-	localTEE   tee.Producer
-	unwrapper  kms.KeyUnwrapper
-	registrar  KeyRegistrar
+	sourceKeys    keys.Resolver
+	localTEE      tee.Producer
+	unwrapper     kms.KeyUnwrapper
+	recipientPriv []byte // X25519 KEM private key (ADR 0009); empty → symmetric path
+	registrar     KeyRegistrar
 
 	// localMeasurement is cached at construction; the local TEE's
 	// measurement does not change for the life of the daemon
@@ -95,6 +104,7 @@ func NewReceiver(cfg Config) (*Receiver, error) {
 		sourceKeys:       cfg.SourceAuthorityKeys,
 		localTEE:         cfg.LocalTEE,
 		unwrapper:        cfg.Unwrapper,
+		recipientPriv:    cfg.RecipientPrivateKey,
 		registrar:        cfg.Registrar,
 		localMeasurement: cfg.LocalTEE.Measurement(),
 	}, nil
@@ -213,7 +223,13 @@ func (r *Receiver) HandleKeyReleaseToken(token krt.KeyReleaseToken) (int, error)
 				nil,
 			)
 		}
-		plaintext, err := r.unwrapper.Unwrap(w.Ciphertext, token.DestinationMeasurement, w.AAD)
+		// X25519 KEM (ADR 0009): decapsulate with the TEE-held private key when
+		// present; otherwise the legacy measurement-derived symmetric path.
+		keyMaterial := token.DestinationMeasurement
+		if len(r.recipientPriv) > 0 {
+			keyMaterial = r.recipientPriv
+		}
+		plaintext, err := r.unwrapper.Unwrap(w.Ciphertext, keyMaterial, w.AAD)
 		if err != nil {
 			return registered, err
 		}

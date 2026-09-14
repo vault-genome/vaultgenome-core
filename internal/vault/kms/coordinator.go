@@ -178,6 +178,15 @@ type CoordinationRequest struct {
 	// deployments SHOULD supply both for defence-in-depth.
 	SourceEvidence    []byte
 	SourceMeasurement []byte
+
+	// RecipientPublicKey, when set, switches DEK delivery to the X25519 KEM
+	// (ADR 0009): each DEK is encapsulated to this attested X25519 PUBLIC key
+	// instead of sealed under the destination measurement. It MUST be the
+	// destination's in-TEE public key, bound to the verified Evidence
+	// (REPORT_DATA = hash(pubkey || handshake nonce)), so only the destination
+	// TEE — holding the private key — can unwrap. When empty, the legacy
+	// symmetric measurement path (SimulatedKeyWrapper, simulation only) is used.
+	RecipientPublicKey []byte
 }
 
 // CoordinationResult is returned on successful CoordinateRestore. All
@@ -467,7 +476,13 @@ func (c *Coordinator) CoordinateRestore(
 				)
 		}
 		aad := canonicalWrapAAD(tokenID, measurementBytes, m.KeyID)
-		ct, err := c.wrapper.Wrap(m.Plaintext, measurementBytes, aad)
+		// X25519 KEM (ADR 0009) when an attested recipient pubkey is present;
+		// otherwise the legacy symmetric measurement path.
+		keyMaterial := measurementBytes
+		if len(req.RecipientPublicKey) > 0 {
+			keyMaterial = req.RecipientPublicKey
+		}
+		ct, err := c.wrapper.Wrap(m.Plaintext, keyMaterial, aad)
 		if err != nil {
 			return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID, AttestationAuditID: avAuditID, DestinationMeasurement: measurementBytes}, err
 		}

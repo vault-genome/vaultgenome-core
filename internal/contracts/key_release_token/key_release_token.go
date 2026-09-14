@@ -23,12 +23,16 @@
 //     (KindKeyReleaseAuthorized audit event emitted).
 //
 // The token carries a list of WrappedKey entries — each one is a DEK
-// that has been sealed under a key derived from the destination's
-// verified measurement. Only a TEE matching that measurement can
-// unwrap it via its local Sealer.Unseal(). This is the cryptographic
-// gate that prevents an attacker who intercepts the token in transit
-// from extracting the DEKs: even with the bytes in hand, the attacker
-// lacks the destination TEE's hardware sealing capability.
+// encapsulated to the destination's attested X25519 public key via the
+// production KEM (ADR 0009). Only the destination TEE — which holds the
+// corresponding private key, bound to its attestation Evidence
+// (REPORT_DATA = hash(pubkey ‖ nonce)) — can decapsulate it. This is the
+// cryptographic gate that prevents an attacker who intercepts the token in
+// transit from extracting the DEKs: even with the bytes and the (public)
+// measurement in hand, the attacker lacks the TEE-held private key. (The
+// legacy symmetric measurement-derived wrap it replaced was defect b — the
+// measurement is a public reference value, not a secret — and remains only in
+// the simulation wrapper.)
 //
 // AuditEventID points at the KindKeyReleaseAuthorized audit record,
 // asserted before the token is dispatched. An un-evidenced token is
@@ -136,8 +140,9 @@ type WrappedKey struct {
 	// extend.
 	Purpose uint8 `json:"purpose"`
 
-	// Ciphertext is the AES-256-GCM sealed DEK material. Only a TEE
-	// matching DestinationMeasurement can unwrap.
+	// Ciphertext is the wrapped DEK material. Under the production KEM
+	// (ADR 0009) it is ephPub(32) ‖ nonce(12) ‖ AES-256-GCM ciphertext,
+	// decapsulable only with the destination TEE's X25519 private key.
 	Ciphertext []byte `json:"ciphertext"`
 
 	// AAD is the additional-authenticated-data binding the wrap to

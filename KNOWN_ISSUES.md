@@ -105,16 +105,16 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    (`internal/validation/behavioral/probes`) computes byte-statistics
    (entropy, histogram, run-length, …) on the raw blob; it never loads an
    adapter or runs inference. Semantic validation is `bytes.Equal`.
-4. **Cross-cloud key wrap is symmetric and insecure for production**
-   (`internal/vault/kms/wrapper.go`): the wrap key is derived from the
-   destination measurement, a public value. Correct fix = encapsulation
-   to a TEE-bound public key; coupled to real attestation.
-5. **Measurements are truncated 48→32 bytes** (`internal/shared/tee/tee.go`
-   `Measurement [32]byte`; truncation in `gcp_sev_snp.go`, `aws_nitro.go`).
-   SEV-SNP and Nitro measurements are 48-byte SHA-384, so the current type
-   cannot faithfully pin real hardware. TAP §6.3 (no prefix match)
-   contradicts Appendix A.3 (mandates 32-byte truncation). The fix requires
-   a deliberate frozen-interface amendment.
+4. **RESOLVED (ADR 0009).** Cross-cloud key wrap was symmetric and insecure —
+   the wrap key was derived from the destination measurement, a public value
+   (defect b). Now replaced by X25519 KEM: DEKs are encapsulated to the
+   destination's attested TEE-held public key (`kms.X25519KeyWrapper`, wired
+   through the Coordinator/Receiver; `crosscloud/kem_roundtrip_test.go`).
+   Remaining: verify the REPORT_DATA=hash(pubkey‖nonce) binding against live
+   Evidence in the Coordinator (needs a hardware run).
+5. **RESOLVED (ADR 0007).** Measurements were truncated 48→32 bytes and could not
+   pin real SEV-SNP/Nitro hardware (defect a). `tee.Measurement` is now
+   variable-length `[]byte` carrying full 48-byte digests without truncation.
 6. **`sagvd` REST API is unauthenticated by default** (`http_api.go`).
 7. **`genome seal` stores the simulated seed inside the bundle**
    (`genome.go`) → no confidentiality against a bundle-holder under the
