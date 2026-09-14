@@ -1,0 +1,33 @@
+title = "VaultGenome secret-scan configuration"
+
+# Keep the full built-in gitleaks ruleset active (AWS keys, private keys,
+# generic high-entropy tokens, cloud credentials, ...). We only add an
+# allowlist below; we do not weaken any detection rule.
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Hardware-attestation EVIDENCE, not secrets.
+
+scripts/hardware-test/*/evidence/ holds captured attestation results from real
+confidential-VM runs: Azure Attestation (MAA) JWTs, SEV-SNP reports, and the
+public AMD/Azure certificate chains that verify them. An MAA token is a signed,
+short-lived, already-expired assertion ABOUT an enclave (its measurements —
+sgx-mrenclave / sgx-mrsigner / report-data), issued by the attestation service.
+It grants no access and contains no key material; it is the proof the test
+produced, published on purpose. gitleaks' generic high-entropy rules (notably
+`jwt`) match these by shape, so they are allowlisted for the evidence paths
+ONLY. The product source, configuration, and all other tooling stay fully
+scanned for real credentials.
+"""
+paths = [
+  '''scripts/hardware-test/.*/evidence/.*''',
+]
+regexes = [
+  # `type PrivateKey = ed25519.PrivateKey` in internal/shared/crypto: a Go
+  # stdlib type alias, not a secret. gitleaks' generic-api-key rule matches
+  # it by shape (`...Key = <mixed-case token>`). The literal string
+  # "ed25519.PrivateKey" is only ever a type reference, never a credential.
+  '''ed25519\.PrivateKey''',
+]

@@ -115,11 +115,17 @@ jobs:
             --lockfile
             go.mod
 
-      # 12 gitleaks
+      # 12 gitleaks — secret scanning via the open-source gitleaks binary.
+      # The gitleaks-action wrapper now requires a paid GITLEAKS_LICENSE
+      # secret for organization repos; a public reference gate should not
+      # depend on a commercial licence, so we install and run the MIT-licensed
+      # gitleaks tool directly (pinned) with our .gitleaks.toml config. The
+      # checkout uses fetch-depth: 0, so this scans the full git history.
       - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          GOFLAGS=-mod=mod go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          "$(go env GOPATH)/bin/gitleaks" detect --source . \
+            --config .gitleaks.toml --redact --exit-code 1
 
       # 13 sbom (generated, uploaded as artifact; signed only in release.yml)
       - name: sbom
