@@ -1,0 +1,46 @@
+AI Continuity Platform — Core (Vault Genome)
+Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program. The full text is in the LICENSE file at the root of this
+repository, and at <https://www.gnu.org/licenses/agpl-3.0.txt>.
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+
+SCOPE
+
+Every source file in this repository carries the SPDX header
+`AGPL-3.0-or-later`; `make check-license` enforces it in CI. There is no
+feature gating: the AGPL build and any commercially licensed build are the
+same code. See [ADR-0003](docs/adr/0003-agpl-commercial-dual-licensing.md).
+
+If AGPL §13 (network source disclosure) is incompatible with your deployment,
+a separate commercial license is available on identical code — see
+[COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
+
+---
+
+THIRD-PARTY AND PRIOR ART
+
+This project stands on work by others. Borrowed ideas, cited standards and
+vendored dependencies — with what is ours and what is not — are recorded in
+[docs/prior-art-and-attribution.md](docs/prior-art-and-attribution.md) and
+[docs/dependencies/](docs/dependencies/). Vendored third-party source under
+`vendor/` remains under its own license; nothing in this NOTICE relicenses it.
+
+Trademarks referenced in documentation (AMD SEV-SNP, Intel SGX/TDX, AWS Nitro,
+NVIDIA, Azure, Google Cloud, Hugging Face, Qwen) belong to their respective
+owners and are used descriptively to identify measured hardware and software.
+Their mention is not an endorsement, affiliation or certification.

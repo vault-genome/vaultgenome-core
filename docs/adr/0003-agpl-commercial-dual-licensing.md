@@ -125,17 +125,29 @@ satisfy AGPL's network-distribution clause.
 
 - [x] SPDX header in every `.go`, `.ts`, `.tsx`, `.py` file (enforced
       in CI by `scripts/check-license.sh`).
-- [x] Top-level `LICENSE` file is AGPL-3.0-or-later.
-- [ ] `LICENSE-COMMERCIAL.md` template at repo root with placeholder
-      terms, replaced per-customer at sale time. **TODO: write the
-      template.**
+- [x] Top-level `LICENSE` file is AGPL-3.0-or-later. **Closed 2026-09-15**:
+      the file previously carried only the short-form notice plus a scaffold
+      note, which made GitHub's licence detection report `NOASSERTION`. It now
+      holds the verbatim AGPL-3.0 text; the copyright notice, licence scope and
+      third-party attribution moved to [`NOTICE`](../../NOTICE).
+- [x] Commercial-licence page at the repo root.
+      **Closed 2026-09-15**: [`COMMERCIAL-LICENSE.md`](../../COMMERCIAL-LICENSE.md)
+      (named `COMMERCIAL-LICENSE.md`, not `LICENSE-COMMERCIAL.md`, so it sorts
+      away from `LICENSE` and cannot be mistaken for the governing grant). It
+      is an offer to discuss terms, not the terms; per-customer agreements are
+      papered by counsel. It also records two public commitments: no feature
+      gating between the AGPL and commercial builds, and the ADR-0012 safety
+      invariants are not configurable for any customer.
 - [x] CLA signing in
       [`business/26_contributor_license_agreement.md`](../../business/26_contributor_license_agreement.md)
       (private repo).
 - [ ] OSI-approved CLA Bot configuration in `.github/workflows/cla.yml`.
-      **TODO.**
-- [ ] FAQ in repo README distinguishing AGPL from GPL and clarifying
-      "open core" stance. **TODO.**
+      **Open** — the CLA exists but is not yet automated at PR time.
+- [x] Reader-facing explanation of the AGPL obligation and the "open core"
+      stance. **Closed 2026-09-15**: covered by
+      [`COMMERCIAL-LICENSE.md`](../../COMMERCIAL-LICENSE.md) ("Do you need one?
+      Usually not.") rather than expanding the README, which keeps the
+      licensing discussion in one place.
 
 ## Reviews + sign-off
 

@@ -46,6 +46,14 @@ continuation on every sealed fixture; its logits are within 1.9e-4 of the
 reference. On the pinned runtime the genome comes back bit for bit
 ([scripts/hardware-test/gcp-drill](scripts/hardware-test/gcp-drill)).
 
+> **Evaluating this project?** Start with
+> **[VERIFIABLE-CLAIMS.md](VERIFIABLE-CLAIMS.md)** — every claim we make, the
+> evidence file that proves it, the command that reproduces it, and an explicit
+> [list of what we do not claim](VERIFIABLE-CLAIMS.md#what-we-do-not-claim).
+> Then **[docs/CONTINUITY-DRILL.md](docs/CONTINUITY-DRILL.md)** — a model is
+> fine-tuned inside a confidential VM, its machine is compromised, and it comes
+> back gated on another machine in **16.81 s**, on real hardware.
+
 ---
 
 ## Quickstart — see the flagship in one command
@@ -161,7 +169,11 @@ verify-reproducible).
   before the intrusion, or before a lost heartbeat, on the one standby the
   policy names. It confirms the restore by the standby's TEE-signed gate
   verdict. One policy allows one move, and the operator stop overrides it
-  (ADR 0012). Measured locally with the real binaries: RTO 0.63 s after an
+  (ADR 0012). Measured on **two live SEV-SNP VMs**
+  ([gcp-failover](scripts/hardware-test/gcp-failover)): detect 2.53 s, RPO
+  9.0 s, **RTO 16.81 s** from intrusion to a gated, confirmed model — and what
+  came back was the clean generation, gated **EXACT**, against a policy that
+  required only EQUIVALENT. Locally with the real binaries: RTO 0.63 s after an
   intrusion; 3.5 s after a killed primary, with a 3 s heartbeat timeout.
 - **Real AMD SEV-SNP attestation** — a report from a live confidential VM is
   parsed, its ECDSA-P384 signature verified, and its VCEK chained to AMD
@@ -174,11 +186,21 @@ verify-reproducible).
   GPUs (NVIDIA L4/T4) — `docs/testing/cross-hardware-determinism.md`, ADR 0008.
 - **Honest boundaries** — the `acp-compute` worker's reconstruction backend is a
   labelled placeholder. Attested GPU destinations need confidential GPUs, which
-  have not been tested yet. The reproducible-float rung stands on RepDL /
-  ReproBLAS (`docs/prior-art-and-attribution.md`). KNOWN_ISSUES.md lists every
+  have not been tested yet. Every hardware number here is 0.5B scale. **We
+  measured against ourselves that byte-identical float inference across CPU and
+  GPU is not achievable** — divergence enters at the first transformer block in
+  both float32 and float64, while top-1 tokens still agree 16/16
+  ([gpu-exact](scripts/hardware-test/gpu-exact)). The reproducible-float rung
+  stands on RepDL / ReproBLAS (`docs/prior-art-and-attribution.md`).
+  [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and
+  [What we do not claim](VERIFIABLE-CLAIMS.md#what-we-do-not-claim) list every
   limit.
+
 **Minimum Go version:** 1.25.
-**License:** AGPL-3.0-or-later (see `LICENSE`).
+**License:** AGPL-3.0-or-later — full text in [LICENSE](LICENSE), scope and
+attribution in [NOTICE](NOTICE). The same code is available under a
+[commercial license](COMMERCIAL-LICENSE.md) for deployments that cannot satisfy
+AGPL §13; there is no feature gating between the two.
 
 The **What works today** section above is the authoritative maturity
 summary for this repository; component-level design rationale lives in the
@@ -204,6 +226,13 @@ records kept in the repo:
   builds on (RepDL / ReproBLAS) versus the project's own prior art.
 - `test/doctrine/` — the eleven doctrinal invariants, asserted as tests so a
   violating change fails CI (ADR 0004).
+- [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md) — the claims register: claim →
+  evidence file → reproduction command, and what we refuse to claim.
+- [`MAINTAINERS.md`](MAINTAINERS.md) — the founders, their roles, and where
+  release authority is pinned; [`.github/CODEOWNERS`](.github/CODEOWNERS)
+  requires dual-founder review on every governed surface.
+- [`CHANGELOG.md`](CHANGELOG.md) — what changed in each release, and which
+  bundle and schema versions it can still open.
 
 Every pull request is reviewed against these records. Silent substitution of
 terminology, weakening of operational validation, or introduction of a code
