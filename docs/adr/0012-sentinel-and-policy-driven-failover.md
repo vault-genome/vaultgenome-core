@@ -272,6 +272,18 @@ restorer ignores the outbox's other files.
   - A primary killed with SIGKILL: failover after the 3 s timeout. Detection
     3.05 s, RTO 3.53 s.
 
+- Live on hardware (`scripts/hardware-test/gcp-failover`, run
+  `20260915T021334Z`): two AMD SEV-SNP Confidential VMs. The primary
+  fine-tunes Qwen2.5-0.5B (two generations), the sentinel seals each with its
+  key escrowed to the authority; then the primary is attacked — a canary is
+  touched and the adapter overwritten. The sentinel reports the compromise and
+  exits 3, never sealing the tampered state. `sagvd failover` restores
+  generation 1 (the last clean one) on the standby, whose gate comes back
+  **EXACT** (max abs err 0, 16 fixtures) before it signs the receipt; the
+  authority confirms it. Detect 2.5 s, RPO 9.0 s, RTO 16.8 s (13.5 s of it the
+  standby's gate proving the model); the audit log verifies with 5 events. The
+  standby attests with its own chip on the release hop.
+
 ## Alternatives considered
 
 - **The sentinel seals the state at the moment of compromise.** Rejected. That

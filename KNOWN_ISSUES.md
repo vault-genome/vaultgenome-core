@@ -181,7 +181,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     host's TEE, whose provider is still `simulated` (#1). At the destination a
     released genome key is wiped from memory once its restore is signed for.
 12. **Automatic failover trusts the primary until a wire fires (ADR 0012,
-    2026-09-15).** The sentinel (`acpctl sentinel watch`) keeps a running
+    2026-09-15).** Proven on hardware: two AMD SEV-SNP Confidential VMs
+    (`scripts/hardware-test/gcp-failover`), a real fine-tune attacked on the
+    primary, restored on the standby with the gate EXACT, RTO 16.8 s / RPO
+    9.0 s. The sentinel (`acpctl sentinel watch`) keeps a running
     model's state sealed and reports compromise, and `sagvd failover` moves the
     last trustworthy genome to a standby under the operator's signed policy
     (one policy, one move; the stop list overrides it). The limits:

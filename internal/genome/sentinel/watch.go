@@ -339,5 +339,13 @@ func (s *Sentinel) compromised(trips []Trip) (Compromise, error) {
 	for _, t := range trips {
 		s.log.Error("tripwire fired", slog.String("wire", t.Wire), slog.String("target", t.Target), slog.String("got", t.Got))
 	}
-	return c, s.heartbeat(StatusCompromised)
+	// The compromise report is the artifact that matters and it is written.
+	// The closing "compromised" heartbeat is a courtesy for a watcher that
+	// reads heartbeats rather than the report; if it cannot be written, the
+	// compromise still stands — do not turn a detected-and-reported
+	// compromise into an error (which would read as "the sentinel failed").
+	if err := s.heartbeat(StatusCompromised); err != nil {
+		s.log.Warn("closing heartbeat after compromise not written", slog.String("err", err.Error()))
+	}
+	return c, nil
 }

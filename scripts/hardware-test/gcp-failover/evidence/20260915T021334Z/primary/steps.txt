@@ -1,0 +1,13 @@
+== 02:15:15 inputs
+== 02:15:16 python runtime (CPU) and base model
+== 02:17:54 wait for the release authority's escrow key
+== 02:17:54 the sentinel's key; the operator pins its public half
+== 02:17:54 fine-tune generation 0 (120 steps)
+== 02:19:31 arm a tripwire and start the sentinel
+== 02:19:31 wait for generation 0 to be sealed
+== 02:19:39 wait for the authority to arm its failover watch
+== 02:19:39 keep training: fine-tune generation 1 (160 steps)
+== 02:21:42 wait for generation 1 to be sealed and replicated
+== 02:21:56 ATTACK: touch the canary, then tamper with the model
+== 02:21:56 the sentinel must stop sealing, report, and exit 3
+sentinel exit=3

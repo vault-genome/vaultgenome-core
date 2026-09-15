@@ -1,0 +1,1 @@
+escrow key c6916f5a3cfd91d2: private /root/escrow.key (keep it on the release host), public /root/escrow-local.pem (give it to sealers)

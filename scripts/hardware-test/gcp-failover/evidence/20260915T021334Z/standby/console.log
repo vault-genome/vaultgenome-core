@@ -1,0 +1,31 @@
+== 02:15:02 inputs
+== 02:15:04 provision (keygen), escrow key, operator stop key
+== 02:15:04 python runtime (CPU) and base model — the gate runs the model here
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart chrony.service cron.service google-guest-agent.service google-osconfig-agent.service multipathd.service packagekit.service polkit.service rsyslog.service snapd.service ssh.service systemd-journald.service systemd-networkd.service systemd-resolved.service systemd-udevd.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart getty@tty1.service
+ systemctl restart google-startup-scripts.service
+ systemctl restart networkd-dispatcher.service
+ systemctl restart serial-getty@ttyS0.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 20.44it/s]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.10s/it]
+== 02:17:21 configfs-tsm (real SEV-SNP reports)
+== 02:17:21 sagvd identity
+== 02:17:21 acp-bootstrap on SEV-SNP (destination + gate)
+== 02:17:22 sagvd failover config: verifier registry, allow-list, operator stop, escrow
+== 02:17:22 wait for the primary's sentinel key, then sign the failover policy
+== 02:17:58 pull the primary's outbox replica, continuously
+== 02:17:58 arm: sagvd failover watches the replica
+== 02:22:15 audit log verify (offline, as an auditor would)

@@ -1,0 +1,29 @@
+{
+  "compromise": {
+    "schema": "vault-genome/compromise/v1",
+    "sentinel": "sentinel-3be4126546baf1f8",
+    "detected_at": "2026-09-15T02:21:58.495783419Z",
+    "tripped": [
+      {
+        "wire": "path",
+        "target": "/root/canary",
+        "want": "e91a347f5d68f56c7ab031b9dcbed288f4cb929c401c315c1d270e3ba7fcda7d",
+        "got": "45bb370196d1e59e368ab5f98cd6e27353963d8607d93e47e13bb418db172170"
+      }
+    ],
+    "last": {
+      "generation": 1,
+      "bundle_sha256": "093b597933e67d23caad68ad632bdd124382017e424d175f8e20f561d5c5f7de",
+      "sealed_at": "2026-09-15T02:21:49.496367672Z"
+    },
+    "signature": "ZBV5Wrj8RwgSFwRfgdy1atWP/oKmC28RyILjAETP4kZYIaU7/Ainj8WWHz3E/vsSHQ1Lu5jqam8jVPE3LoPIDw=="
+  },
+  "generations_sealed": 2,
+  "last": {
+    "generation": 1,
+    "bundle_sha256": "093b597933e67d23caad68ad632bdd124382017e424d175f8e20f561d5c5f7de",
+    "sealed_at": "2026-09-15T02:21:49.496367672Z"
+  },
+  "outcome": "compromised",
+  "sentinel": "sentinel-3be4126546baf1f8"
+}
