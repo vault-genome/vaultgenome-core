@@ -22,7 +22,8 @@ binaries and a demo:
   genome, proves the restored model works, and signs a receipt with its TEE.
 - **`acpctl`**, the administrative CLI. It seals genomes, and runs the sentinel
   that keeps a running model sealed.
-- **`acp-compute`**, the external-compute worker.
+- **`acp-compute`**, the external-compute worker. It restores a sealed genome's
+  model in memory and answers the authority's questions about it.
 - **`acp-demo`**, a one-command demonstration.
 
 The nine-stage governed reconstruction flow of the foundation architecture —
@@ -95,9 +96,11 @@ go run ./cmd/acp-demo --model ./path/to/your-model.safetensors
 - automatic failover of a running model under the operator's signed policy
   (ADR 0012).
 
-**What is a labelled placeholder:** the `acp-compute` worker's reconstruction
-backend, and generating a model from a recipe alone, without its sealed delta.
-We say which is which, on purpose.
+**What we do not do:** generate a model from a recipe alone, without its
+sealed delta. The `acp-compute` worker restores the sealed delta onto the
+public base model, in memory, and the authority proves the result with the
+gate (ADR 0013); it does not invent weights. We say which is which, on
+purpose.
 
 ### Protect a real model (CLI)
 
@@ -184,9 +187,31 @@ verify-reproducible).
   finds a working door (pinned float → reproducible float → byte-portable
   integer) or fails closed. Determinism measured on real CPUs (AMD/Intel) and
   GPUs (NVIDIA L4/T4) — `docs/testing/cross-hardware-determinism.md`, ADR 0008.
-- **Honest boundaries** — the `acp-compute` worker's reconstruction backend is a
-  labelled placeholder. Attested GPU destinations need confidential GPUs, which
-  have not been tested yet. Every hardware number here is 0.5B scale. **We
+- **A worker that restores the model, judged by the authority** — a job on
+  `sagvd`'s REST API names a sealed genome; the authority ships its model side
+  sealed over the Return Path, `acp-compute` brings the model back in memory
+  through the `vg_genome` door and answers the genome's own reference prompts,
+  and the authority holds the answers to the sealed references through the
+  determinism ladder, signing the verdict (ADR 0013). Nothing of the genome
+  touches the worker's disk. Proven live over mutual TLS in
+  `test/integration`, and with the real fine-tune and real torch in the
+  `genome-worker` workflow.
+- **Every decision of the authority is on the record first** — `sagvd` writes
+  a job accepted, a peer refused or a worker admitted, a candidate received
+  and the gate's findings and verdict to a signed, hash-chained audit log
+  before any of it takes effect; a log that cannot take the record stops the
+  decision, and `acpctl audit verify` checks the log under the published key
+  (ADR 0014).
+- **Both ends of the Return Path attest with the chip** — `sagvd` and
+  `acp-compute` run on AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`), each
+  pinning the other's launch measurement and verifying to the AMD root; a
+  worker whose Evidence is not the pinned identity gets no job. Run on a GCP
+  SEV-SNP Confidential VM with the real `vg_genome` door
+  ([returnpath-e2e](scripts/hardware-test/gcp-sev-snp/returnpath-e2e)).
+- **Honest boundaries** — off hardware the daemons run a simulated TEE that
+  announces itself; no Intel TDX, AWS Nitro or SGX adapter attests. Attested GPU destinations need
+  confidential GPUs, which have not been tested yet. Every hardware number
+  here is 0.5B scale. **We
   measured against ourselves that byte-identical float inference across CPU and
   GPU is not achievable** — divergence enters at the first transformer block in
   both float32 and float64, while top-1 tokens still agree 16/16
@@ -215,13 +240,14 @@ records kept in the repo:
 
 - `docs/doctrine/terminology.md` — canonical vocabulary and the frozen
   deprecated-name list; enforced by the terminology gate (vault-gate 09).
-- `docs/adr/` — twelve architecture decision records (ADR 0001–0012),
+- `docs/adr/` — thirteen architecture decision records (ADR 0001–0013),
   among them the frozen producer / verifier / sealer interface (0001),
   multi-TEE adapter dispatch (0002), doctrine-invariants-as-tests (0004),
   cross-cloud KMS-mediated recovery (0006), the equivalence gate (0008), the
   X25519 KEM cross-cloud key delivery (0009), the operator stop and recorded
-  refusals (0010), genome v3 with attested self-restore (0011), and the
-  sentinel with policy-driven failover (0012).
+  refusals (0010), genome v3 with attested self-restore (0011), the sentinel
+  with policy-driven failover (0012), and the worker that restores the genome
+  (0013).
 - `docs/prior-art-and-attribution.md` — what the reproducible-float rung
   builds on (RepDL / ReproBLAS) versus the project's own prior art.
 - `test/doctrine/` — the eleven doctrinal invariants, asserted as tests so a

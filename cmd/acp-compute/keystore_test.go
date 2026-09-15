@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 	"github.com/ai-continuity-platform/core/internal/vault/keys"
 	"github.com/stretchr/testify/require"
@@ -46,6 +48,7 @@ func testKeyDir(t *testing.T) (Config, string) {
 	cfg.Keys.WorkerSigning.SeedPath = writeBytes("worker.seed", workerSeed)
 	cfg.Keys.SessionSealing.KeyID = "session-seal-1"
 	cfg.Keys.SessionSealing.MaterialPath = writeBytes("session.key", sessionKey)
+	cfg.Genome.Door.Command = []string{"/nonexistent/vg-door"}
 	return cfg, dir
 }
 
@@ -144,4 +147,70 @@ func TestLoadMaterials_MissingFileReportsFieldName(t *testing.T) {
 	_, err := LoadMaterials(cfg, testClock(t))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "keys.worker_signing.seed_path")
+}
+
+// A SEV-SNP peer is pinned by its 48-byte launch measurement and the
+// AMD chain its VCEK must chain to; no attestation key file exists for
+// it. The verifier is built without hardware.
+func TestLoadMaterials_SEVSNPPeerVerifier(t *testing.T) {
+	t.Parallel()
+	cfg, dir := testKeyDir(t)
+	chain := filepath.Join(dir, "amd-chain.pem")
+	require.NoError(t, os.WriteFile(chain, []byte("-----BEGIN CERTIFICATE-----\nMA==\n-----END CERTIFICATE-----\n"), 0o644))
+	meas := filepath.Join(dir, "peer.sev.meas")
+	require.NoError(t, os.WriteFile(meas, bytes.Repeat([]byte{0x66}, 48), 0o600))
+	cfg.TEE.Peer = PeerTEEConfig{Provider: "gcp-sev-snp", MeasurementPath: meas, AMDCertChainPath: chain, VCEKCacheDir: filepath.Join(dir, "vcek")}
+	require.NoError(t, cfg.Validate())
+
+	mat, err := LoadMaterials(cfg, testClock(t))
+	require.NoError(t, err)
+	require.Equal(t, tee.ProviderSimulated, mat.Provider)
+	require.Equal(t, tee.ProviderGCPSEVSNP, mat.PeerProvider)
+	require.IsType(t, &tee.GCPSEVVerifier{}, mat.Verifier)
+
+	// A 32-byte measurement is not a SEV-SNP launch measurement.
+	require.NoError(t, os.WriteFile(meas, bytes.Repeat([]byte{0x66}, 32), 0o600))
+	_, err = LoadMaterials(cfg, testClock(t))
+	require.ErrorContains(t, err, "48-byte SEV-SNP launch measurement")
+
+	// The chain file must be there.
+	require.NoError(t, os.WriteFile(meas, bytes.Repeat([]byte{0x66}, 48), 0o600))
+	cfg.TEE.Peer.AMDCertChainPath = filepath.Join(dir, "absent.pem")
+	_, err = LoadMaterials(cfg, testClock(t))
+	require.ErrorContains(t, err, "amd_cert_chain_path")
+}
+
+// Off a Confidential VM the SEV-SNP producer cannot start: there is no
+// configfs-tsm to ask for a report, and the daemon says so.
+func TestLoadMaterials_SEVSNPProducerNeedsConfigfsTSM(t *testing.T) {
+	t.Parallel()
+	cfg, dir := testKeyDir(t)
+	cfg.TEE.Provider = "gcp-sev-snp"
+	cfg.TEE.SeedPath = ""
+	cfg.TEE.InsecureSimulation = false
+	cfg.TEE.TSMReportDir = filepath.Join(dir, "no-such-tsm")
+	require.NoError(t, cfg.Validate())
+	_, err := LoadMaterials(cfg, testClock(t))
+	require.ErrorContains(t, err, "configfs-tsm")
+}
+
+// identity prints what sagvd pins for this worker.
+func TestIdentity_PrintsWhatTheVaultPins(t *testing.T) {
+	t.Parallel()
+	cfg, dir := testKeyDir(t)
+	raw, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	path := filepath.Join(dir, "acp-compute.json")
+	require.NoError(t, os.WriteFile(path, raw, 0o600))
+	var out bytes.Buffer
+	require.NoError(t, runIdentityCmd([]string{"-config", path}, &out))
+	var id workerIdentity
+	require.NoError(t, json.Unmarshal(out.Bytes(), &id))
+	require.Equal(t, "worker-sign-1", id.SigningKID)
+	require.Equal(t, "simulated", id.TEEProvider)
+	require.Len(t, id.TEEMeasurementHex, 64)
+	require.Contains(t, id.TEEPublicKeyPEM, "BEGIN PUBLIC KEY")
+	require.Contains(t, id.SigningPublicKeyPEM, "BEGIN PUBLIC KEY")
+	require.Len(t, id.SigningPublicKeyHex, 64)
+	require.Error(t, runIdentityCmd(nil, &out), "-config required")
 }

@@ -18,15 +18,14 @@ code path with different assertions.
 
 | # | Area | Tests skipped | Symptom | Root cause | Fix path | Phase | Owner |
 |---|---|---|---|---|---|---|---|
-| 1 | `internal/compute/worker` | `TestGenerative_PartialGenomeDegradation` | Partial-genome L1 distance is *less* than full-genome distance on the test fixture (3-component corpus), inverting the expected ordering | The statistical-degradation property holds asymptotically and on production-shape (kilobyte-class) corpora; on this 3-component, ~50-byte-each fixture the Markov-o3 transition table has too few non-empty contexts for the property to be reliable. The test asserts an inequality the V2 backend does not guarantee at fixture scale | (a) tighten assertion to "distance non-zero" and add a separate property test on production-shape corpora, or (b) extend the fixture to 8+ components of ≥256 bytes each | Phase 2 | tbd |
-| 2 | `internal/contracts/continuity_proof` | `TestContinuityProof_Verify_TamperedSTHRejected` (`continuity_proof_sign_test.go:137`) | Expected error category `0x4` (Integrity) but got `0x1` (Structural) | The continuity-proof verify path now classifies tampered-STH as Structural before reaching the integrity check. Either the verify pipeline needs to swap order (integrity check first), or the test needs to assert the new classification | Decide spec: should tampered STH be Structural ("payload doesn't parse") or Integrity ("payload parses but doesn't verify")? The latter is doctrinally correct; fix verify-path order accordingly | Phase 2 | tbd |
-| 3 | `internal/contracts/continuity_proof` | `TestContinuityProof_Verify_NilResolverRejected` | Same root cause as #2; nil-resolver path also reports Structural where Integrity was expected | Same fix as #2 | Phase 2 | tbd |
-| 4 | `internal/contracts/witness` | `TestWitnessReceipt_Verify_RoundTrip` (`witness_receipt_test.go:55`) | Cross-field validator rejects test fixture with `sth.timestamp before entry.timestamp` | Test fixtures construct `WitnessReceipt` directly with inconsistent timestamps. The validator is correct (STH must temporally cover all entries it commits to); the fixture violates the invariant | Update fixtures to advance STH timestamp past the latest covered entry; alternatively add an explicit `WithMonotonicTimestamps()` test helper that constructs valid fixtures by default | Phase 2 | tbd |
-| 5 | `internal/contracts/witness` | `TestWitnessReceipt_UnmarshalJSON_RoundTrip` | Same root cause as #4 — fixture-level STH/entry timestamp drift after JSON round-trip | Same fix as #4 plus determinism check on the JSON round-trip path | Phase 2 | tbd |
-| 6 | `internal/contracts/witness` | `TestWitnessReceipt_Validate_TamperedInclusionPath` | Enum mismatch: expected `0x4` got `0x1` on tamper detection path | Inclusion-path tamper now classifies as Structural where Integrity was expected. Same family of issue as #2/#3 | Same as #2 — pick spec, align test | Phase 2 | tbd |
-| 7 | `internal/contracts/witness` | `TestWitnessReceipt_Validate_ChainHeadMismatchAtTail` | Same enum mismatch as #6 | Same as #6 | Phase 2 | tbd |
-| 8 | `internal/genome/witness` | `TestReceipt_RoundTripVerify` (`log_test.go:377`) | STH timestamp lands earlier than covered entries when the log is built with a non-advancing FakeClock | `headLocked` uses `l.clock.Now()`; entries may carry caller-supplied future timestamps. A `max(now, latestEntry.Timestamp)` guard fixes the live test but breaks #4/#5/#6/#7 fixture-validator tests. Needs a coordinated change across both surfaces | Resolve as one PR: (a) introduce STH builder that takes max(now, latestEntry.Timestamp); (b) update §4–§7 fixtures to construct compatible STH/entry pairs; (c) re-enable all five tests in the same commit | Phase 2 | tbd |
-| 9 | `internal/genome/witness` | `TestInMemoryLog_ConcurrentReadsStayConsistent` | Same root cause as #8 — concurrent read flakes when readers race the clock vs writer's caller-supplied timestamp | Same fix as #8 | Phase 2 | tbd |
+| 1 | `internal/contracts/continuity_proof` | `TestContinuityProof_Verify_TamperedSTHRejected` (`continuity_proof_sign_test.go:137`) | Expected error category `0x4` (Integrity) but got `0x1` (Structural) | The continuity-proof verify path now classifies tampered-STH as Structural before reaching the integrity check. Either the verify pipeline needs to swap order (integrity check first), or the test needs to assert the new classification | Decide spec: should tampered STH be Structural ("payload doesn't parse") or Integrity ("payload parses but doesn't verify")? The latter is doctrinally correct; fix verify-path order accordingly | Phase 2 | tbd |
+| 2 | `internal/contracts/continuity_proof` | `TestContinuityProof_Verify_NilResolverRejected` | Same root cause as #1; nil-resolver path also reports Structural where Integrity was expected | Same fix as #1 | Phase 2 | tbd |
+| 3 | `internal/contracts/witness` | `TestWitnessReceipt_Verify_RoundTrip` (`witness_receipt_test.go:55`) | Cross-field validator rejects test fixture with `sth.timestamp before entry.timestamp` | Test fixtures construct `WitnessReceipt` directly with inconsistent timestamps. The validator is correct (STH must temporally cover all entries it commits to); the fixture violates the invariant | Update fixtures to advance STH timestamp past the latest covered entry; alternatively add an explicit `WithMonotonicTimestamps()` test helper that constructs valid fixtures by default | Phase 2 | tbd |
+| 4 | `internal/contracts/witness` | `TestWitnessReceipt_UnmarshalJSON_RoundTrip` | Same root cause as #3 — fixture-level STH/entry timestamp drift after JSON round-trip | Same fix as #3 plus determinism check on the JSON round-trip path | Phase 2 | tbd |
+| 5 | `internal/contracts/witness` | `TestWitnessReceipt_Validate_TamperedInclusionPath` | Enum mismatch: expected `0x4` got `0x1` on tamper detection path | Inclusion-path tamper now classifies as Structural where Integrity was expected. Same family of issue as #1/#2 | Same as #1 — pick spec, align test | Phase 2 | tbd |
+| 6 | `internal/contracts/witness` | `TestWitnessReceipt_Validate_ChainHeadMismatchAtTail` | Same enum mismatch as #5 | Same as #5 | Phase 2 | tbd |
+| 7 | `internal/genome/witness` | `TestReceipt_RoundTripVerify` (`log_test.go:377`) | STH timestamp lands earlier than covered entries when the log is built with a non-advancing FakeClock | `headLocked` uses `l.clock.Now()`; entries may carry caller-supplied future timestamps. A `max(now, latestEntry.Timestamp)` guard fixes the live test but breaks #3/#4/#5/#6 fixture-validator tests. Needs a coordinated change across both surfaces | Resolve as one PR: (a) introduce STH builder that takes max(now, latestEntry.Timestamp); (b) update §4–§7 fixtures to construct compatible STH/entry pairs; (c) re-enable all five tests in the same commit | Phase 2 | tbd |
+| 8 | `internal/genome/witness` | `TestInMemoryLog_ConcurrentReadsStayConsistent` | Same root cause as #7 — concurrent read flakes when readers race the clock vs writer's caller-supplied timestamp | Same fix as #7 | Phase 2 | tbd |
 
 ## Why these are skipped, not deleted
 
@@ -48,10 +47,11 @@ regression introduced by the same root causes:
 - **Doctrinal invariants** in `test/doctrine/` — 11 architectural
   invariants enforced at build / test time. All pass.
 - **Live daemons** in `test/integration/` — `sagvd`, `acp-compute` and
-  `acp-bootstrap` run as real processes over mutual TLS: job round
-  trips, cross-cloud key release, and the refusals (wrong token,
-  untrusted certificate, unpinned worker, unlisted or impostor
-  destination).
+  `acp-bootstrap` run as real processes over mutual TLS: gate-job round
+  trips with the verdict signed, a model that misses its references
+  refused, cross-cloud key release, and the refusals (wrong token, wrong
+  genome key, untrusted certificate, unpinned worker, unlisted or
+  impostor destination).
 
 ## Re-enabling
 
@@ -62,7 +62,7 @@ the same PR, the test runs, and the row is deleted from this table.
 
 ## Audit posture
 
-These nine skipped tests do not impact:
+These eight skipped tests do not impact:
 
 - The runtime behaviour of `sagvd`, `acp-compute`, or `acpctl`.
 - The signature-verification chain on AuditEvent / DisclosureMessage / ReleaseDecision / SessionObject.
@@ -91,34 +91,47 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    offline against genuine GCP and Azure reports. Still scaffolding: the SEV-SNP
    sealer's derived key, and the AWS Nitro, Azure SGX and Intel SGX DCAP
    adapters — `sagvd`'s verifier registry and `acp-bootstrap` refuse those
-   families rather than trust them. `sagvd`'s own TEE, and `acp-compute`'s, are
-   still the simulated one, whose sealing key is intentionally weak
-   (recoverable from the measurement); both daemons refuse to start unless
-   their config says `tee.insecure_simulation: true`, and a simulated
-   cross-cloud destination is trusted only with
+   families rather than trust them. `sagvd` and `acp-compute` attest with
+   SEV-SNP the same way since ADR 0014 (`tee.provider: "gcp-sev-snp"`, each
+   pinning the other's launch measurement); off hardware they run the
+   simulated TEE, whose sealing key is intentionally weak (recoverable from
+   the measurement), and refuse to start unless their config says
+   `tee.provider: "simulated"` with `tee.insecure_simulation: true`; a
+   simulated cross-cloud destination is trusted only with
    `crosscloud.insecure_simulated_destinations: true`. No Intel TDX adapter
    exists. A cross-cloud key release, and the restore of a sealed genome with
    the released key, have run end to end on a GCP SEV-SNP Confidential VM with
-   the shipping binaries (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`);
-   the older captures under `evidence/` were produced by standalone tooling.
-2. **The acp-compute worker's "reconstruction" is still a placeholder.**
-   V1 (`internal/compute/worker/reconstruction.go`) is SHA-256 digest
-   expansion; V2 (`generative.go`, the worker default) is a byte-level
-   order-3 Markov chain — both self-documented as "not a neural-network
-   inference", and the older "byte-identical restore" in `evidence/` is a
-   seal→unseal round-trip, not model regeneration. A real model path now
-   exists beside it (2026-09-14): `workers/genome` fine-tunes a real model
-   (Qwen2.5-0.5B-Instruct) deterministically and writes its genome — base
-   model manifest, LoRA delta, recipe, fixtures — and `acpctl genome gate`
-   brings it back and proves it (EXACT on the CPU that sealed it, EQUIVALENT
-   on a GPU with the error measured). The worker daemon does not use that
-   path yet.
+   the shipping binaries (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`),
+   and so has a gate job over the Return Path with both daemons on the chip
+   (`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/`); the older captures
+   under `evidence/` were produced by standalone tooling.
+2. **RESOLVED (ADR 0013, 2026-09-15).** The acp-compute worker's
+   "reconstruction" was a placeholder: SHA-256 digest expansion (V1), then a
+   byte-level order-3 Markov chain (V2), both self-documented as "not a
+   neural-network inference". The Markov backend is deleted. A job now names
+   a sealed model genome; `sagvd` opens it, keeps the fixtures' references and
+   ships the model side sealed over the Return Path; `acp-compute` restores
+   the model in memory through the `vg_genome` door (`workers/genome`) —
+   nothing of the genome touches its disk — and answers the genome's own
+   prompts; `sagvd` holds the answers to the references through the
+   determinism ladder and records a signed verdict on the job. Live over
+   mutual TLS in `test/integration` (a door that speaks the protocol), and
+   with the real fine-tune, real torch, in the `genome-worker` workflow
+   (`TestGenomeReconstructor_RealDoor`: EXACT on the runtime that sealed it).
+   The deterministic V1 backend remains only as a test fixture behind the
+   frozen R-11 interface; no binary builds it. What is still not done: the
+   worker's TEE is the simulated one (#1), and a job carries at most one
+   Return Path frame of adapter (~11 MiB; `runtime.max_payload_bytes`), so a
+   full-weight fine-tune goes by key release (ADR 0011), not by job. The older
+   "byte-identical restore" in `evidence/` is a seal→unseal round-trip, not
+   model regeneration.
 3. **The 40-probe behavioral suite does not run the model.** It computes
    byte-statistics on the raw blob (`internal/validation/behavioral/probes`);
    semantic validation is `bytes.Equal`. What does run the model is the
    equivalence gate over a genome's fixtures (`acpctl genome gate`,
-   `acp-bootstrap` `genome.gate`, ADR 0011): logits at the reference top-k
-   tokens and greedy continuations, recomputed on the destination.
+   `acp-bootstrap` `genome.gate`, ADR 0011, and every `sagvd` gate job,
+   ADR 0013): logits at the reference top-k tokens, recomputed where the
+   model was restored, and greedy continuations in `vg_genome measure`.
 4. **RESOLVED (ADR 0009, 2026-09-14).** Cross-cloud key wrap was symmetric and
    insecure — the wrap key was derived from the destination measurement, a
    public value (defect b). An earlier fix added an X25519 KEM to the library

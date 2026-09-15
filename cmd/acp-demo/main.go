@@ -19,8 +19,9 @@
 //	⑤ a corrupted genome → no door opens → reconstitution is blocked (fail-closed).
 //
 // What is real here: attested byte-exact continuity and the cross-hardware
-// equivalence gate. What is NOT claimed: rebuilding a real model from a compact
-// "generative" recipe — that backend is still a placeholder (see README/STATUS).
+// equivalence gate. What is NOT claimed: rebuilding a model from a compact
+// recipe alone — the platform restores a sealed delta and proves it, it does
+// not invent weights (see README, VERIFIABLE-CLAIMS).
 package main
 
 import (
@@ -305,7 +306,7 @@ Done. This ran the real platform code: simulated TEE seal/unseal, the
 canonical kernels, the equivalence gate, and the determinism ladder.
 For REAL SEV-SNP attestation, run the daemon inside a confidential VM
 (see docs). Byte-exact continuity + the cross-hardware gate are real;
-generative rebuild from a compact recipe is a labelled placeholder.
+nothing here rebuilds a model from a recipe alone: the delta is sealed.
 ────────────────────────────────────────────────────────────────────────
 `
 

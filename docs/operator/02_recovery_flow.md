@@ -33,13 +33,19 @@ The **State machine** lines quote the transition table in
 **Checked** lines are what the tests assert — a deployment offers no surface
 on which to check them.
 
-The shipped daemons cover part of stages 5 and 6 only: `POST /v1/jobs` on
-sagvd's REST API queues a job whose payload sagvd seals under the
-session-sealing key; `acp-compute` collects it over the Return Path, runs the
-placeholder reconstruction and returns a signed CandidateOutputFrame, which
-`GET /v1/jobs/{id}` shows. The job's `session_id` and `manifest_id` are
-labels supplied by the caller: sagvd issues no SessionObject or manifest, and
-nothing validates the result or issues a release decision.
+The shipped daemons cover stages 5 and 6 and the behavioural check of stage
+7: `POST /v1/jobs` on sagvd's REST API names a sealed genome; sagvd opens it,
+keeps its reference fixtures and seals its model side under the
+session-sealing key; `acp-compute` collects the job over the Return Path,
+restores the model in memory through the `vg_genome` door, answers the
+genome's prompts and returns a signed CandidateOutputFrame; sagvd holds the
+answers to the references through the determinism ladder and records the
+signed verdict, which `GET /v1/jobs/{id}` shows (ADR 0013). Every step is on
+sagvd's Return Path audit log before it takes effect — the job accepted, the
+worker admitted or a peer refused, the candidate received, the gate run and
+its verdict (ADR 0014). sagvd names the job's `manifest_id` and `session_id`
+itself, but issues no SessionObject or signed manifest, and no release
+decision follows the verdict.
 
 ---
 
@@ -154,12 +160,14 @@ plaintext zeroized on every path, including every short-circuit.
 **Code:** a signed ReconstructionJobManifest
 (`internal/contracts/reconstruction_job_manifest`) names the session, genome,
 policy version, disclosures, expected output and deadline; the tests append
-`MANIFEST_ISSUED`. The worker's Reconstructor (`internal/compute/worker`) runs
-the step — a placeholder today (a byte-level order-3 Markov model,
-KNOWN_ISSUES #2). The shipped `acp-compute` receives a JobRequest over the
-Return Path rather than DisclosureMessages, opens its sealed payload with the
-session-sealing key, runs the Reconstructor and returns a CandidateOutputFrame
-signed with its worker key.
+`MANIFEST_ISSUED`. The worker's Reconstructor (`internal/compute/worker`,
+`GenomeReconstructor`) runs the step: it checks every component against the
+job's descriptor, hands the genome's description, adapter and prompts to the
+`vg_genome` door on stdin, and returns the restored model's logits at the
+reference tokens (ADR 0013). The shipped `acp-compute` receives a JobRequest
+over the Return Path rather than DisclosureMessages, opens its sealed
+components with the session-sealing key, runs the Reconstructor and returns a
+CandidateOutputFrame signed with its worker key.
 
 **State machine:** `StateExternalCompute → StateReturn` on
 `candidate.received`.

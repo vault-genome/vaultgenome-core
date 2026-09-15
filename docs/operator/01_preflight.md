@@ -58,10 +58,10 @@ load:
 | Key | Config | Loaded by | Used for |
 | - | - | - | - |
 | Authority signing (32-byte Ed25519 seed) | sagvd `keys.authority_signing` (`kid`, `seed_path`) | `sagvd` and all its subcommands | Signs cross-cloud handshake requests and key-release tokens, which each destination verifies against its `source_authority`. The daemon loads it; the Return Path does not use it. |
-| Session sealing (32-byte AES-256 key) | `keys.session_sealing` (`kid`, `material_path`) — the same kid and bytes in sagvd and every acp-compute | both daemons | sagvd seals the payload of every `POST /v1/jobs` job under it; the worker opens it |
-| Audit signing (32-byte Ed25519 seed) | sagvd `keys.audit_signing` (`kid`, `seed_path`) | `sagvd crosscloud-restore` and `crosscloud-confirm` only (required when `crosscloud.enabled`); `sagvd identity` prints its public key | Signs the cross-cloud audit log. It must stay the same for the life of the log |
+| Session sealing (32-byte AES-256 key) | `keys.session_sealing` (`kid`, `material_path`) — the same kid and bytes in sagvd and every acp-compute | both daemons | sagvd seals every component of a gate job under it — the genome's description, adapter and prompts; the worker opens them |
+| Audit signing (32-byte Ed25519 seed) | sagvd `keys.audit_signing` (`kid`, `seed_path`) | the `sagvd` daemon (required with `audit.log_path`, which gate jobs require), `sagvd crosscloud-restore` and `crosscloud-confirm` (required when `crosscloud.enabled`); `sagvd identity` prints its public key | Signs the Return Path audit log and the cross-cloud audit log. It must stay the same for the life of the logs |
 | Worker signing (32-byte Ed25519 seed) | acp-compute `keys.worker_signing` | `acp-compute` | Signs every CandidateOutputFrame; sagvd checks it against `workers.registry_path` |
-| Simulated TEE seeds (32 bytes) | `tee.seed_path` in sagvd and acp-compute | both daemons | Sign each side's Return Path Evidence |
+| Simulated TEE seeds (32 bytes) | `tee.seed_path` in sagvd and acp-compute, with `tee.provider: "simulated"` | both daemons, off hardware | Sign each side's Return Path Evidence. On a SEV-SNP guest (`tee.provider: "gcp-sev-snp"`) there is no seed: the chip signs |
 
 No binary loads a witness key.
 

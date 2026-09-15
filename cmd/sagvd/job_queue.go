@@ -15,6 +15,7 @@ import (
 	"github.com/ai-continuity-platform/core/internal/compute/returnpath/transport"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/ai-continuity-platform/core/internal/validation/reconstruction"
 )
 
 // ---- public status / types -----------------------------------------------
@@ -107,6 +108,19 @@ type Job struct {
 	// Err is the classified error for Failed jobs; zero JobError
 	// otherwise.
 	Err JobError
+
+	// Genome describes the sealed genome a gate job carries; nil for a
+	// job without one.
+	Genome *GenomeView
+
+	// Gate is what judges a gate job's answer: the sealed references and
+	// the operator's tolerance. Kept in memory for the job's lifetime and
+	// never shown. nil for a job without a gate.
+	Gate *gateSpec
+
+	// GateResult is the verdict once the answer was judged; nil until
+	// then.
+	GateResult *GateView
 }
 
 // JobView is the JSON-serialisable projection GET /v1/jobs/{id}
@@ -123,6 +137,8 @@ type JobView struct {
 	Deadline           time.Time      `json:"deadline"`
 	Result             *CandidateView `json:"result,omitempty"`
 	Error              *JobError      `json:"error,omitempty"`
+	Genome             *GenomeView    `json:"genome,omitempty"`
+	Gate               *GateView      `json:"gate,omitempty"`
 }
 
 // CandidateView is the subset of a successful CandidateOutput the
@@ -168,6 +184,15 @@ func (j *Job) toView() JobView {
 	if j.Status == JobStatusFailed {
 		err := j.Err
 		view.Error = &err
+	}
+	if j.Genome != nil {
+		g := *j.Genome
+		view.Genome = &g
+	}
+	if j.GateResult != nil {
+		g := *j.GateResult
+		g.Attempts = append([]reconstruction.Attempt(nil), j.GateResult.Attempts...)
+		view.Gate = &g
 	}
 	return view
 }
@@ -225,12 +250,38 @@ func NewJobQueue(clock shared_time.Clock, pollInterval time.Duration) *JobQueue 
 // already carry the correctly-sealed SealedMaterial — this layer does
 // not seal on the caller's behalf; the HTTP layer does.
 func (q *JobQueue) Submit(req transport.JobRequest) (string, JobView, error) {
-	if err := req.Validate(); err != nil {
+	return q.SubmitGenome(req, nil, nil)
+}
+
+// SubmitGenome enqueues a gate job: req carries the sealed model side of
+// genome, and gate is what will judge the worker's answer.
+func (q *JobQueue) SubmitGenome(req transport.JobRequest, genome *GenomeView, gate *gateSpec) (string, JobView, error) {
+	id, err := NewJobID()
+	if err != nil {
 		return "", JobView{}, err
 	}
+	view, err := q.SubmitGenomeWithID(id, req, genome, gate)
+	return id, view, err
+}
+
+// NewJobID mints a job id ahead of submission, so the audit record of
+// a job can name it before the job exists.
+func NewJobID() (string, error) {
 	id, err := newJobID()
 	if err != nil {
-		return "", JobView{}, fmt.Errorf("sagvd: allocate job id: %w", err)
+		return "", fmt.Errorf("sagvd: allocate job id: %w", err)
+	}
+	return id, nil
+}
+
+// SubmitGenomeWithID is SubmitGenome under a pre-minted id (NewJobID).
+// An id already in the queue is refused.
+func (q *JobQueue) SubmitGenomeWithID(id string, req transport.JobRequest, genome *GenomeView, gate *gateSpec) (JobView, error) {
+	if err := req.Validate(); err != nil {
+		return JobView{}, err
+	}
+	if id == "" {
+		return JobView{}, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "sagvd: job id required", nil)
 	}
 	now := q.clock.Now().UTC()
 	j := &Job{
@@ -238,13 +289,19 @@ func (q *JobQueue) Submit(req transport.JobRequest) (string, JobView, error) {
 		Status:      JobStatusQueued,
 		Req:         req,
 		SubmittedAt: now,
+		Genome:      genome,
+		Gate:        gate,
 	}
 	q.mu.Lock()
+	if _, dup := q.jobs[id]; dup {
+		q.mu.Unlock()
+		return JobView{}, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "sagvd: job id already queued", nil)
+	}
 	q.jobs[id] = j
 	q.pending = append(q.pending, id)
 	view := j.toView() // render under the lock; Next may flip j.Status concurrently
 	q.mu.Unlock()
-	return id, view, nil
+	return view, nil
 }
 
 // Get returns the view for a job by ID. The bool is false if no such
@@ -317,6 +374,17 @@ func (q *JobQueue) Next(ctx context.Context) (string, transport.JobRequest, erro
 	}
 }
 
+// GateFor returns what judges the job's answer, or nil for a job without
+// a gate. The spec does not change after submission.
+func (q *JobQueue) GateFor(id string) *gateSpec {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if j, ok := q.jobs[id]; ok {
+		return j.Gate
+	}
+	return nil
+}
+
 // CompleteSuccess records a successful outcome.
 func (q *JobQueue) CompleteSuccess(id string, out returnpath.CandidateOutput, workerKID string) {
 	q.mu.Lock()
@@ -329,6 +397,28 @@ func (q *JobQueue) CompleteSuccess(id string, out returnpath.CandidateOutput, wo
 	j.CompletedAt = q.clock.Now().UTC()
 	j.Candidate = out
 	j.WorkerSigningKeyID = workerKID
+}
+
+// CompleteGated records a gate job's outcome: the verdict, and with a
+// nil err the worker's output as the result; with err the job failed on
+// that classified error, the verdict still on record.
+func (q *JobQueue) CompleteGated(id string, out returnpath.CandidateOutput, workerKID string, gate GateView, err error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	j, ok := q.jobs[id]
+	if !ok {
+		return
+	}
+	j.CompletedAt = q.clock.Now().UTC()
+	j.GateResult = &gate
+	j.WorkerSigningKeyID = workerKID
+	if err != nil {
+		j.Status = JobStatusFailed
+		j.Err = newJobError(err)
+		return
+	}
+	j.Status = JobStatusSucceeded
+	j.Candidate = out
 }
 
 // CompleteFailure records a classified failure. err is mapped through

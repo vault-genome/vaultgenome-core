@@ -74,11 +74,11 @@ type daemonMetrics struct {
 // defaults to net.Dialer{}; tests pass an in-memory stub.
 //
 // The caller is responsible for building the Reconstructor. Production
-// uses worker.NewGenerativeReconstructor(clock) as of iteration 7
-// (task #78); tests that want reproducibility against a fixed
-// hash-expansion reference still pass worker.NewDeterministicReconstructor.
-// Both implement the frozen R-11 interface, so this field's type
-// (worker.Reconstructor) is invariant across the V1→V2 swap.
+// uses worker.NewGenomeReconstructor (the vg_genome door behind the
+// frozen R-11 interface); tests that want reproducibility against a
+// fixed hash-expansion reference pass worker.NewDeterministicReconstructor.
+// Both implement the interface, so this field's type
+// (worker.Reconstructor) does not change with the backend.
 func NewDaemon(
 	cfg Config,
 	mat *materials,

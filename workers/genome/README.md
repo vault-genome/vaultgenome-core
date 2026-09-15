@@ -50,6 +50,23 @@ door within tolerance (`native-float`, `--atol`/`--rtol`), and fails closed
 (exit 5) if neither opens. `measure` adds what a tensor comparison cannot:
 whether the restored model says the same thing, token for token.
 
+The `acp-compute` worker runs the same door with the genome delivered on
+stdin, in memory (ADR 0013): the authority ships `genome.json`, the adapter
+and the fixtures' prompts — never the reference outputs — and the door
+answers without writing anything to disk. The base model stays on the
+worker's disk and must hash to the genome's manifest.
+
+```bash
+python -m vg_genome door --stdin-genome --base BASE_DIR --device cuda   # acp-compute's genome.door.command
+```
+
+```
+stdin : {"schema": "vault-genome/door-request/v1", "genome_id": "...",
+         "files": {"genome.json": <base64>, "adapter/adapter_config.json": <base64>,
+                   "adapter/adapter_model.safetensors": <base64>, "prompts.json": <base64>}}
+stdout: {"outputs": {"fx-000": {"dtype": "f32", "shape": [k], "raw_b64": "..."}, ...}}
+```
+
 ## Determinism
 
 `determinism.pin` seeds every RNG, fixes the thread count, and requires
@@ -79,4 +96,5 @@ knowledge; the drill recipe trains gentler.
 ```bash
 PYTHONPATH=. python -m pytest -q tests/        # a tiny random Llama, built locally
 VG_GENOME_WORKER=$PWD go test -run TestGenomeGate_RealWorker ../../cmd/acpctl/
+VG_GENOME_WORKER=$PWD go test -run TestGenomeReconstructor_RealDoor ../../internal/compute/worker/
 ```

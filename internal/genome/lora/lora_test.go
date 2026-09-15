@@ -135,3 +135,52 @@ func TestFixtures_RefusesWhatTheGenomeDidNotSeal(t *testing.T) {
 	_, err = Fixtures(d, g)
 	require.Error(t, err, "digest matches but JSON does not parse")
 }
+
+func TestParseFixtures_CarriesPromptsAndChecksShapes(t *testing.T) {
+	fx := twoFixtures()
+	items := fx["fixtures"].([]map[string]any)
+	items[0]["input_ids"] = []int{3, 5, 8}
+	items[0]["topk_index"] = []int{7, 1}
+	items[1]["input_ids"] = []int{4}
+	items[1]["topk_index"] = []int{0, 9}
+	dir := writeGenome(t, fx, nil)
+	g, err := Load(dir)
+	require.NoError(t, err)
+	raw, err := os.ReadFile(filepath.Join(dir, "fixtures.json"))
+	require.NoError(t, err)
+	refs, prompts, err := ParseFixtures(g, raw)
+	require.NoError(t, err)
+	require.Len(t, refs, 2)
+	require.Equal(t, []Prompt{
+		{ID: "fx-000", InputIDs: []int{3, 5, 8}, TopKIndex: []int{7, 1}},
+		{ID: "fx-001", InputIDs: []int{4}, TopKIndex: []int{0, 9}},
+	}, prompts)
+
+	// Fixtures written without their prompt side judge but do not travel.
+	dir = writeGenome(t, twoFixtures(), nil)
+	g, err = Load(dir)
+	require.NoError(t, err)
+	raw, err = os.ReadFile(filepath.Join(dir, "fixtures.json"))
+	require.NoError(t, err)
+	_, prompts, err = ParseFixtures(g, raw)
+	require.NoError(t, err)
+	require.Empty(t, prompts)
+
+	// A reference whose raw bytes do not fill its shape is refused.
+	bad := twoFixtures()
+	bad["fixtures"].([]map[string]any)[0]["expected"] = map[string]any{"dtype": "f32", "shape": []int{3}, "raw_b64": f32(1, 2)}
+	dir = writeGenome(t, bad, nil)
+	g, err = Load(dir)
+	require.NoError(t, err)
+	_, err = Fixtures(dir, g)
+	require.ErrorContains(t, err, "do not fill shape")
+
+	// Parse reads the same genome.json Load does.
+	genomeJSON, err := os.ReadFile(filepath.Join(dir, "genome.json"))
+	require.NoError(t, err)
+	parsed, err := Parse(genomeJSON)
+	require.NoError(t, err)
+	require.Equal(t, g, parsed)
+	_, err = Parse([]byte("{"))
+	require.Error(t, err)
+}

@@ -138,11 +138,12 @@ sign handshakes and tokens that every destination pinning that key accepts.
 ## Scenario 2: Session sealing key compromised
 
 The session sealing key (`keys.session_sealing`: `kid`, `material_path`) is
-the AES-256 key shared by sagvd and every `acp-compute`. sagvd seals the
-payload of every `POST /v1/jobs` job under it into the JobRequest's
-`SealedMaterialRef`; the worker opens it with the same kid. A compromise
-means anyone who captured JobRequest bytes from the Return Path can decrypt
-the payloads.
+the AES-256 key shared by sagvd and every `acp-compute`. sagvd seals every
+component of a gate job under it into the JobRequest's `SealedMaterialRef`s —
+the genome's description, its LoRA adapter, the fixtures' prompts; the worker
+opens them with the same kid. A compromise means anyone who captured
+JobRequest bytes from the Return Path can decrypt the adapters that were
+shipped.
 
 ### Detection
 
@@ -174,13 +175,13 @@ the payloads.
    ```
 2. Point `keys.session_sealing.material_path` at it and change
    `keys.session_sealing.kid` — in sagvd **and** in every acp-compute. The
-   kid and the bytes must match on both sides: the worker opens each payload
-   with the kid carried on the wire.
+   kid and the bytes must match on both sides: the worker opens each
+   component with the kid carried on the wire.
 3. Start sagvd and the workers. sagvd logs `sagvd session sealing identity`
    with the new kid.
-4. **Everything sealed under the old key is suspect** — surface to
-   customers per BAA, and resubmit any job whose payload must stay
-   confidential.
+4. **Every adapter shipped under the old key is suspect** — surface to
+   customers per BAA; the genomes themselves stay sealed under their own
+   keys in `genome.bundle_dir`, which this key never opened.
 
 ---
 

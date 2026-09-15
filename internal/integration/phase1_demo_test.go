@@ -13,7 +13,7 @@ package integration
 //	                          session A invalidated, no zeroization (Error severity).
 //	4. Recovery request     → fresh RecoveryRequest, attestation, session B,
 //	                          disclosure, signed ReconstructionJobManifest.
-//	5. Reconstruction       → DeterministicReconstructor (R-11 frozen interface)
+//	5. Reconstruction       → the R-11 frozen interface (deterministic reference backend)
 //	                          produces a CandidateOutput over the worker's
 //	                          unsealed ComponentMaterial.
 //	6. Three-dim validation → release-side service.ValidationService runs
@@ -33,12 +33,14 @@ package integration
 // package reads as a live end-to-end demo even while the wire protocol
 // (task #73) and the daemons (tasks #74, #75) are still being written.
 //
-// The Reconstructor is intentionally the V1 MVP placeholder
-// (worker.DeterministicReconstructor). Task #78 later swaps the concrete
-// type for the real generative backend; R-11 freezes the interface so
-// that swap is a one-line constructor change and nothing else in this
-// file has to move. The frozen-interface test in /internal/compute/worker
-// enforces that promise from the compiler's side.
+// The Reconstructor here is the deterministic reference backend
+// (worker.DeterministicReconstructor): the production backend,
+// worker.GenomeReconstructor, restores a real model through the vg_genome
+// door and needs a genome, a base model and a Python runtime, which this
+// in-process trace does without. R-11 freezes the interface, so the two
+// are interchangeable behind it and nothing else in this file moves. The
+// frozen-interface test in /internal/compute/worker enforces that promise
+// from the compiler's side.
 //
 // Determinism discipline
 //
@@ -617,11 +619,16 @@ func TestPhase1Demo_LoRAAdapter_FullLifecycle(t *testing.T) {
 	//
 	// This is the single most doctrinally-significant line in the
 	// demo: the worker is invoked through the interface, not the
-	// concrete type. Iteration 7 (task #78) flipped the production
-	// backend from DeterministicReconstructor (V1 hash-expansion MVP)
-	// to GenerativeReconstructor (real byte-level Markov backend); every
-	// other line in this test kept working — that is the entire point
-	// of freezing the R-11 shape in iteration 5.
+	// concrete type. The production backend is worker.GenomeReconstructor
+	// (genome.go): it restores a sealed genome's model through the
+	// vg_genome door and returns the model's outputs on the genome's
+	// reference prompts, which the authority gates. It needs a genome, a
+	// base model and a Python runtime, so this in-process demo drives
+	// the same interface with the deterministic reference backend
+	// (worker.DeterministicReconstructor); every other line of the
+	// pipeline is the same either way — that is the point of freezing
+	// the R-11 shape in iteration 5. The real backend runs end to end in
+	// test/integration (a gate job over mutual TLS).
 	//
 	// We also pre-compute the expected bytes with a SECOND call to the
 	// same reconstructor. The purity contract of the Reconstructor
@@ -631,13 +638,13 @@ func TestPhase1Demo_LoRAAdapter_FullLifecycle(t *testing.T) {
 	// property test and the source of the semantic-dimension expected
 	// fixture, regardless of which backend is installed.
 
-	narrate(t, "S.5", "Reconstruction: the external compute worker unseals the disclosure and invokes the R-11 Reconstructor interface. The production backing is worker.GenerativeReconstructor (iteration 7); the iteration-5 freeze guaranteed that only the constructor line in cmd/acp-compute had to change.")
+	narrate(t, "S.5", "Reconstruction: the external compute worker unseals the disclosure and invokes the R-11 Reconstructor interface. Production backing is worker.GenomeReconstructor (a real model behind the vg_genome door); this in-process demo drives the same frozen interface with the deterministic reference backend.")
 
 	var reconstructor worker.Reconstructor
 	{
-		genRec, err := worker.NewGenerativeReconstructor(clk)
+		refRec, err := worker.NewDeterministicReconstructor(clk)
 		require.NoError(t, err)
-		reconstructor = genRec
+		reconstructor = refRec
 	}
 
 	// Worker-side materials: the plaintext came out of the unseal

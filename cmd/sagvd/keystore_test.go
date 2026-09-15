@@ -167,3 +167,44 @@ func TestIdentity_PrintsTheAuthorityKeyDestinationsPin(t *testing.T) {
 		t.Fatal("identity with a missing config succeeded")
 	}
 }
+
+// A SEV-SNP worker is pinned by its 48-byte launch measurement and the
+// AMD chain its VCEK must chain to; the verifier is built without
+// hardware, and identity names the vault's own provider.
+func TestLoadMaterials_SEVSNPPeerVerifier(t *testing.T) {
+	f := newMaterialFixture(t)
+	chain := filepath.Join(f.dir, "amd-chain.pem")
+	if err := os.WriteFile(chain, []byte("-----BEGIN CERTIFICATE-----\nMA==\n-----END CERTIFICATE-----\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.rewrite(t, f.cfg.TEE.Peer.MeasurementPath, bytes.Repeat([]byte{0x77}, 48))
+	f.cfg.TEE.Peer = PeerTEEConfig{Provider: "gcp-sev-snp", MeasurementPath: f.cfg.TEE.Peer.MeasurementPath, AMDCertChainPath: chain}
+	if err := f.cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	mat, err := LoadMaterials(f.cfg, shared_time.NewSystemClock())
+	if err != nil {
+		t.Fatalf("LoadMaterials: %v", err)
+	}
+	defer mat.Store.Zeroize()
+	if mat.Provider != tee.ProviderSimulated || mat.PeerProvider != tee.ProviderGCPSEVSNP {
+		t.Fatalf("providers: local %s, peer %s", mat.Provider, mat.PeerProvider)
+	}
+	if _, ok := mat.Verifier.(*tee.GCPSEVVerifier); !ok {
+		t.Fatalf("verifier is %T, want the SEV-SNP verifier", mat.Verifier)
+	}
+	f.rewrite(t, f.cfg.TEE.Peer.MeasurementPath, bytes.Repeat([]byte{0x77}, 32))
+	if _, err := LoadMaterials(f.cfg, shared_time.NewSystemClock()); err == nil || !strings.Contains(err.Error(), "48-byte SEV-SNP launch measurement") {
+		t.Fatalf("a 32-byte measurement was accepted for a SEV-SNP peer: %v", err)
+	}
+
+	// Off a Confidential VM the SEV-SNP producer cannot start.
+	g := newMaterialFixture(t)
+	g.cfg.TEE = TEEConfig{Provider: "gcp-sev-snp", WorkloadDescriptor: "sagvd-sev", TSMReportDir: filepath.Join(g.dir, "no-tsm"), Peer: g.cfg.TEE.Peer}
+	if err := g.cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if _, err := LoadMaterials(g.cfg, shared_time.NewSystemClock()); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("SEV-SNP producer started without configfs-tsm: %v", err)
+	}
+}

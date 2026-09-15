@@ -19,6 +19,7 @@ import (
 	"github.com/ai-continuity-platform/core/internal/observability/health"
 	"github.com/ai-continuity-platform/core/internal/observability/metrics"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 )
 
@@ -47,6 +48,7 @@ type Daemon struct {
 	cfg       Config
 	mat       *materials
 	queue     *JobQueue
+	audit     *returnPathAudit // nil when no audit.log_path is configured
 	clock     shared_time.Clock
 	log       *slog.Logger
 	tlsConfig *tls.Config
@@ -66,6 +68,7 @@ type Daemon struct {
 // are exposed together on /metrics.
 type daemonMetrics struct {
 	jobsCompleted    *metrics.Counter // labels: outcome={success|reject|fail}
+	gateVerdicts     *metrics.Counter // labels: level={EXACT|EQUIVALENT|FAIL|ERROR}
 	sessionsOpened   *metrics.Counter // unlabeled
 	handshakeFailure *metrics.Counter // labels: phase
 	queueDepth       *metrics.Gauge   // set on every dispatcher tick
@@ -76,11 +79,14 @@ type daemonMetrics struct {
 // NewDaemon wires every piece the daemon needs. cfg is expected to
 // have already been validated; mat was produced by LoadMaterials;
 // queue is shared with the HTTP API so submissions flow in and
-// results flow out atomically.
+// results flow out atomically; audit is the Return Path log (nil only
+// when audit.log_path is not configured, which Validate refuses once
+// gate jobs are enabled).
 func NewDaemon(
 	cfg Config,
 	mat *materials,
 	queue *JobQueue,
+	audit *returnPathAudit,
 	clock shared_time.Clock,
 	logger *slog.Logger,
 	registry *metrics.Registry,
@@ -117,6 +123,7 @@ func NewDaemon(
 		cfg:       cfg,
 		mat:       mat,
 		queue:     queue,
+		audit:     audit,
 		clock:     clock,
 		log:       logger,
 		tlsConfig: tlsConfig,
@@ -237,6 +244,7 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 			d.log.Warn("sagvd TLS handshake failed",
 				"remote_addr", raw.RemoteAddr().String(),
 				"err", err)
+			d.recordRefusal("tls", raw.RemoteAddr().String(), shared_errors.Authority("tls_handshake_failed", "TLS handshake failed", err))
 			return
 		}
 		cancel()
@@ -286,9 +294,14 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 			"remote_addr", conn.RemoteAddr().String(),
 			"code", shared_errors.CodeOf(err),
 			"err", err)
+		d.recordRefusal("handshake", conn.RemoteAddr().String(), err)
 		return
 	}
 	defer func() { _ = sess.Close() }()
+	var peerMeasurement tee.Measurement
+	if state := sess.State(); state != nil {
+		peerMeasurement = state.PeerMeasurement
+	}
 
 	// Bound the whole job cycle (Next + ServeOneJob) by JobTimeout.
 	sessCtx, cancel := context.WithTimeout(parent, d.cfg.Runtime.JobTimeout())
@@ -307,21 +320,18 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		"job_id", jobID,
 		"manifest_id", req.ManifestID,
 		"session_id", req.SessionID,
+		"peer_measurement", hex.EncodeToString(peerMeasurement),
 	)
+	// The trust decision on record before the job leaves the vault: this
+	// worker, this measurement, this job.
+	if err := d.audit.TrustAdmitted(jobID, req, conn.RemoteAddr().String(), d.mat.PeerProvider, peerMeasurement); err != nil {
+		d.failJob(jobID, req, "dispatch", "", err, sess)
+		return
+	}
 
 	verified, err := sess.ServeOneJobVerified(sessCtx, req)
 	if err != nil {
-		d.queue.CompleteFailure(jobID, err)
-		d.metrics.jobsCompleted.Inc(
-			metrics.Label{Name: "outcome", Value: outcomeFromError(err)},
-		)
-		_ = sess.WriteShutdown(shared_errors.CodeOf(err), "sagvd: job failed")
-		d.log.Warn("sagvd job failed",
-			"job_id", jobID,
-			"category", shared_errors.CategoryOf(err).String(),
-			"code", shared_errors.CodeOf(err),
-			"err", err,
-		)
+		d.failJob(jobID, req, "serve", "", err, sess)
 		return
 	}
 
@@ -329,7 +339,71 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 	// CandidateOutputFrame signature under, so it is recorded as the
 	// authenticated provenance of the result.
 	out := verified.Output
-	d.queue.CompleteSuccess(jobID, out, string(verified.WorkerSigningKeyID))
+	workerKID := string(verified.WorkerSigningKeyID)
+
+	// The candidate on record before it is judged.
+	if err := d.audit.CandidateReceived(jobID, req, out, workerKID); err != nil {
+		d.failJob(jobID, req, "judge", workerKID, err, sess)
+		return
+	}
+
+	// A gate job is judged before it is a result: the worker's outputs are
+	// held to the sealed references, and the verdict — signed by the
+	// authority when a door opened — goes on the job (ADR 0013).
+	if spec := d.queue.GateFor(jobID); spec != nil {
+		gate, gateErr := evaluateGate(spec, out)
+		if gateErr == nil {
+			if err := signVerdict(&gate, d.mat.Store, d.mat.AuthoritySigningKeyID, d.mat.AuthoritySigningPublicKey); err != nil {
+				gateErr = shared_errors.Authority("verdict_sign_failed", "sign the gate verdict", err)
+			}
+		}
+		d.metrics.gateVerdicts.Inc(metrics.Label{Name: "level", Value: gate.Level})
+		// The verdict on record before it is surfaced (VALIDATION_FINDING
+		// before a failed verdict, doctrine invariant #08).
+		if err := d.audit.Judged(jobID, req, spec, gate, gateErr); err != nil {
+			d.failJob(jobID, req, "judge", workerKID, err, sess)
+			return
+		}
+		if gateErr != nil {
+			d.queue.CompleteGated(jobID, out, workerKID, gate, gateErr)
+			d.metrics.jobsCompleted.Inc(
+				metrics.Label{Name: "outcome", Value: outcomeFromError(gateErr)},
+			)
+			_ = sess.WriteShutdown(transport.CodeShutdownNormal, "sagvd: job judged")
+			d.log.Warn("sagvd gate refused the restored model",
+				"job_id", jobID,
+				"manifest_id", req.ManifestID,
+				"genome_id", spec.GenomeID,
+				"level", gate.Level,
+				"fixtures", gate.Fixtures,
+				"category", shared_errors.CategoryOf(gateErr).String(),
+				"code", shared_errors.CodeOf(gateErr),
+				"err", gateErr,
+				"worker_signing_kid", workerKID,
+			)
+			return
+		}
+		d.queue.CompleteGated(jobID, out, workerKID, gate, nil)
+		d.metrics.jobsCompleted.Inc(metrics.Label{Name: "outcome", Value: "success"})
+		d.metrics.lastSuccessUnix.Set(float64(d.clock.Now().Unix()))
+		_ = sess.WriteShutdown(transport.CodeShutdownNormal, "sagvd: job complete")
+		d.log.Info("sagvd gate opened",
+			"job_id", jobID,
+			"manifest_id", req.ManifestID,
+			"genome_id", spec.GenomeID,
+			"level", gate.Level,
+			"door", gate.Door,
+			"rung", gate.Rung,
+			"fixtures", gate.Fixtures,
+			"max_abs_err", gate.SignedVerdict.Verdict.MaxAbsErr,
+			"max_rel_err", gate.SignedVerdict.Verdict.MaxRelErr,
+			"output_bytes", len(out.Bytes),
+			"worker_signing_kid", workerKID,
+		)
+		return
+	}
+
+	d.queue.CompleteSuccess(jobID, out, workerKID)
 	d.metrics.jobsCompleted.Inc(metrics.Label{Name: "outcome", Value: "success"})
 	d.metrics.lastSuccessUnix.Set(float64(d.clock.Now().Unix()))
 	_ = sess.WriteShutdown(transport.CodeShutdownNormal, "sagvd: job complete")
@@ -338,8 +412,36 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		"manifest_id", req.ManifestID,
 		"output_kind", string(out.OutputKind),
 		"output_bytes", len(out.Bytes),
-		"worker_signing_kid", string(verified.WorkerSigningKeyID),
+		"worker_signing_kid", workerKID,
 	)
+}
+
+// failJob ends a job on a classified error: on record first, then in the
+// queue, then on the wire.
+func (d *Daemon) failJob(jobID string, req transport.JobRequest, stage, workerKID string, err error, sess *server.Session) {
+	if auditErr := d.audit.JobEnded(jobID, req, stage, workerKID, err); auditErr != nil {
+		d.log.Error("sagvd audit log refused a record", "job_id", jobID, "stage", stage, "err", auditErr)
+	}
+	d.queue.CompleteFailure(jobID, err)
+	d.metrics.jobsCompleted.Inc(
+		metrics.Label{Name: "outcome", Value: outcomeFromError(err)},
+	)
+	_ = sess.WriteShutdown(shared_errors.CodeOf(err), "sagvd: job failed")
+	d.log.Warn("sagvd job failed",
+		"job_id", jobID,
+		"stage", stage,
+		"category", shared_errors.CategoryOf(err).String(),
+		"code", shared_errors.CodeOf(err),
+		"err", err,
+	)
+}
+
+// recordRefusal puts a refused peer on record. A log that cannot take
+// it is logged loudly; there is no job to fail.
+func (d *Daemon) recordRefusal(phase, remote string, err error) {
+	if auditErr := d.audit.TrustRefused(phase, remote, d.mat.PeerProvider, err); auditErr != nil {
+		d.log.Error("sagvd audit log refused a record", "phase", phase, "err", auditErr)
+	}
 }
 
 // ---- listener setup -----------------------------------------------------
@@ -391,6 +493,10 @@ func registerDaemonMetrics(r *metrics.Registry, clock shared_time.Clock) *daemon
 		jobsCompleted: r.NewCounter(
 			"sagvd_jobs_completed_total",
 			"Total jobs that reached a terminal state, labelled by outcome.",
+		),
+		gateVerdicts: r.NewCounter(
+			"sagvd_gate_verdicts_total",
+			"Gate verdicts on restored models, labelled by level (EXACT, EQUIVALENT, FAIL, ERROR).",
 		),
 		sessionsOpened: r.NewCounter(
 			"sagvd_sessions_opened_total",
