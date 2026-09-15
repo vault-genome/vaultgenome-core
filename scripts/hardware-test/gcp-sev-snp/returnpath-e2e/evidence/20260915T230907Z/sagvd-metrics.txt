@@ -1,0 +1,16 @@
+sagvd_audit_events_total{kind="TRUST_EVALUATED"} 2
+sagvd_audit_events_total{kind="MANIFEST_ISSUED"} 1
+sagvd_audit_events_total{kind="CANDIDATE_RECEIVED"} 1
+sagvd_audit_events_total{kind="VALIDATION_STARTED"} 1
+sagvd_audit_events_total{kind="VALIDATION_DIMENSION_EVALUATED"} 1
+sagvd_audit_events_total{kind="VALIDATION_COMPLETED"} 1
+sagvd_jobs_completed_total{outcome="success"} 1
+sagvd_gate_verdicts_total{level="EXACT"} 1
+sagvd_sessions_opened_total 2
+sagvd_handshake_failures_total{phase="handshake"} 1
+sagvd_queue_depth 0
+sagvd_last_success_unix 1789513923
+sagvd_start_unix 1789513915
+sagvd_http_requests_total{route="/v1/jobs",status="202"} 1
+sagvd_http_requests_total{route="/v1/jobs/{id}",status="200"} 5
+sagvd_jobs_submitted_total 1

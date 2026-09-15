@@ -46,15 +46,20 @@ type materials struct {
 	// on the wire equals this string form.
 	SessionSealingKeyID ids.KeyID
 
-	// Producer is the vault's simulated TEE (Phase 1). In Phase 3
-	// this is replaced by a hardware-backed tee.Producer; the daemon
-	// wiring does not change.
+	// Producer is the vault's TEE: the chip (gcp-sev-snp) or the
+	// simulated one, per tee.provider. The daemon wiring is the same.
 	Producer tee.Producer
 
+	// Provider names what Producer is.
+	Provider tee.Provider
+
 	// Verifier verifies the worker's TEE evidence during the 4-frame
-	// handshake. Pinned to the peer's measurement and public key
-	// loaded from disk.
+	// handshake, built for the peer's provider and pinned to its
+	// measurement (and, for a simulated peer, its key).
 	Verifier tee.Verifier
+
+	// PeerProvider names what Verifier verifies.
+	PeerProvider tee.Provider
 
 	// WorkerResolver is the read-only keys.Resolver that produces a
 	// VerifyingKey for each CandidateOutputFrame.WorkerSigningKeyID
@@ -89,28 +94,18 @@ type materials struct {
 // inspected here — operator hygiene is a deployment concern, not a
 // runtime one.
 func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
-	// 1. Local TEE seed → Simulated producer.
-	teeSeed, err := readExactly(cfg.TEE.SeedPath, crypto.Ed25519SeedSize, "tee.seed_path")
+	// 1. Local TEE producer per tee.provider.
+	provider, producer, err := buildTEEProducer(cfg.TEE)
 	if err != nil {
 		return nil, err
-	}
-	producer, err := tee.NewSimulated([]byte(cfg.TEE.WorkloadDescriptor), teeSeed)
-	if err != nil {
-		return nil, fmt.Errorf("sagvd: construct simulated TEE: %w", err)
 	}
 
-	// 2. Peer TEE pubkey + measurement → SimulatedVerifier pinned to
-	//    them. In Phase 1 we pin exactly one expected worker TEE;
-	//    Phase 2 generalises to a policy-driven verifier.
-	peerPub, err := readExactly(cfg.TEE.Peer.PublicKeyPath, crypto.Ed25519PublicKeySize, "tee.peer.public_key_path")
+	// 2. Peer verifier per tee.peer.provider, pinned to the worker's
+	//    measurement. The vault accepts exactly one worker TEE identity.
+	peerProvider, verifier, err := buildPeerVerifier(cfg.TEE.Peer)
 	if err != nil {
 		return nil, err
 	}
-	peerMeasurement, err := readMeasurement(cfg.TEE.Peer.MeasurementPath, "tee.peer.measurement_path")
-	if err != nil {
-		return nil, err
-	}
-	verifier := tee.NewSimulatedVerifier(crypto.PublicKey(peerPub), peerMeasurement)
 
 	// 3. Authority signing seed → register under cfg.Keys.AuthoritySigning.KeyID.
 	authSeed, err := readExactly(cfg.Keys.AuthoritySigning.SeedPath, crypto.Ed25519SeedSize, "keys.authority_signing.seed_path")
@@ -153,10 +148,85 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 		AuthoritySigningPublicKey: vk.PublicKey,
 		SessionSealingKeyID:       sealingKID,
 		Producer:                  producer,
+		Provider:                  provider,
 		Verifier:                  verifier,
+		PeerProvider:              peerProvider,
 		WorkerResolver:            resolver,
 		WorkerEntries:             entries,
 	}, nil
+}
+
+// buildTEEProducer constructs the local TEE producer per cfg.Provider:
+// the chip through configfs-tsm, or the simulated one from its seed.
+func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
+	provider, err := cfg.ProviderKind()
+	if err != nil {
+		return "", nil, fmt.Errorf("sagvd: tee.provider: %w", err)
+	}
+	switch provider {
+	case tee.ProviderGCPSEVSNP:
+		p, err := tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: tee.provider=gcp-sev-snp: %w", err)
+		}
+		return provider, p, nil
+	case tee.ProviderSimulated:
+		seed, err := readExactly(cfg.SeedPath, crypto.Ed25519SeedSize, "tee.seed_path")
+		if err != nil {
+			return "", nil, err
+		}
+		p, err := tee.NewSimulated([]byte(cfg.WorkloadDescriptor), seed)
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: construct simulated TEE: %w", err)
+		}
+		return provider, p, nil
+	default:
+		return "", nil, fmt.Errorf("sagvd: tee.provider %q is not available in this build (supported: %v)", cfg.Provider, supportedProviders)
+	}
+}
+
+// buildPeerVerifier constructs the verifier for the worker's TEE per
+// cfg.Provider, pinned to the measurement file: by attestation key for a
+// simulated peer, by the AMD certificate chain for a SEV-SNP peer.
+func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
+	provider, err := cfg.ProviderKind()
+	if err != nil {
+		return "", nil, fmt.Errorf("sagvd: tee.peer.provider: %w", err)
+	}
+	measurement, err := readMeasurement(cfg.MeasurementPath, "tee.peer.measurement_path")
+	if err != nil {
+		return "", nil, err
+	}
+	spec := tee.VerifierSpec{Provider: provider, ExpectedMeasurement: measurement}
+	switch provider {
+	case tee.ProviderSimulated:
+		pub, err := readExactly(cfg.PublicKeyPath, crypto.Ed25519PublicKeySize, "tee.peer.public_key_path")
+		if err != nil {
+			return "", nil, err
+		}
+		spec.AttestorPubKey = crypto.PublicKey(pub)
+	case tee.ProviderGCPSEVSNP:
+		if len(measurement) != 48 {
+			return "", nil, fmt.Errorf("sagvd: tee.peer.measurement_path (%q) must hold a 48-byte SEV-SNP launch measurement (got %d bytes)", cfg.MeasurementPath, len(measurement))
+		}
+		chain, err := os.ReadFile(cfg.AMDCertChainPath)
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: read tee.peer.amd_cert_chain_path (%q): %w", cfg.AMDCertChainPath, err)
+		}
+		spec.GCPSEV = tee.GCPSEVVerifierConfig{
+			AMDRootPEM:     chain,
+			AMDKDSURL:      cfg.AMDKDSURL,
+			VCEKCacheDir:   cfg.VCEKCacheDir,
+			MinReportedTCB: cfg.MinReportedTCB,
+		}
+	default:
+		return "", nil, fmt.Errorf("sagvd: tee.peer.provider %q: no verifier this build can run end to end (supported: %v)", cfg.Provider, supportedProviders)
+	}
+	v, err := tee.BuildVerifier(spec)
+	if err != nil {
+		return "", nil, fmt.Errorf("sagvd: build verifier for tee.peer.provider=%s: %w", provider, err)
+	}
+	return provider, v, nil
 }
 
 // InstrumentTEE wraps the materials' Producer and Verifier with the

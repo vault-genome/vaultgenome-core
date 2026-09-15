@@ -142,6 +142,7 @@ another address on a shared host), next to `/healthz` (`ok`) and `/readyz`
 | `sagvd_jobs_submitted_total` | Jobs accepted by `POST /v1/jobs` |
 | `sagvd_jobs_completed_total{outcome}` | Jobs finished: `success`, `reject` (operational or structural error, including a gate that refused the model), `fail` |
 | `sagvd_gate_verdicts_total{level}` | Gate verdicts on restored models: `EXACT`, `EQUIVALENT`, `FAIL`, `ERROR` (the answer could not be judged) |
+| `sagvd_audit_events_total{kind}` | Return Path audit events written to `audit.log_path`, by kind (ADR 0014) |
 | `sagvd_sessions_opened_total` | Return Path handshakes completed |
 | `sagvd_handshake_failures_total{phase}` | `tls` or `handshake` |
 | `sagvd_queue_depth` | Jobs waiting for a worker |

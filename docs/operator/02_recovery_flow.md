@@ -40,9 +40,12 @@ session-sealing key; `acp-compute` collects the job over the Return Path,
 restores the model in memory through the `vg_genome` door, answers the
 genome's prompts and returns a signed CandidateOutputFrame; sagvd holds the
 answers to the references through the determinism ladder and records the
-signed verdict, which `GET /v1/jobs/{id}` shows (ADR 0013). sagvd names the
-job's `manifest_id` and `session_id` itself, but issues no SessionObject or
-signed manifest, and no release decision follows the verdict.
+signed verdict, which `GET /v1/jobs/{id}` shows (ADR 0013). Every step is on
+sagvd's Return Path audit log before it takes effect — the job accepted, the
+worker admitted or a peer refused, the candidate received, the gate run and
+its verdict (ADR 0014). sagvd names the job's `manifest_id` and `session_id`
+itself, but issues no SessionObject or signed manifest, and no release
+decision follows the verdict.
 
 ---
 

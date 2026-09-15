@@ -196,8 +196,20 @@ verify-reproducible).
   touches the worker's disk. Proven live over mutual TLS in
   `test/integration`, and with the real fine-tune and real torch in the
   `genome-worker` workflow.
-- **Honest boundaries** — the worker attests with the simulated TEE; the real
-  SEV-SNP binary is `acp-bootstrap`. Attested GPU destinations need
+- **Every decision of the authority is on the record first** — `sagvd` writes
+  a job accepted, a peer refused or a worker admitted, a candidate received
+  and the gate's findings and verdict to a signed, hash-chained audit log
+  before any of it takes effect; a log that cannot take the record stops the
+  decision, and `acpctl audit verify` checks the log under the published key
+  (ADR 0014).
+- **Both ends of the Return Path attest with the chip** — `sagvd` and
+  `acp-compute` run on AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`), each
+  pinning the other's launch measurement and verifying to the AMD root; a
+  worker whose Evidence is not the pinned identity gets no job. Run on a GCP
+  SEV-SNP Confidential VM with the real `vg_genome` door
+  ([returnpath-e2e](scripts/hardware-test/gcp-sev-snp/returnpath-e2e)).
+- **Honest boundaries** — off hardware the daemons run a simulated TEE that
+  announces itself; no Intel TDX, AWS Nitro or SGX adapter attests. Attested GPU destinations need
   confidential GPUs, which have not been tested yet. Every hardware number
   here is 0.5B scale. **We
   measured against ourselves that byte-identical float inference across CPU and

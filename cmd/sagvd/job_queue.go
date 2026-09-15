@@ -256,12 +256,32 @@ func (q *JobQueue) Submit(req transport.JobRequest) (string, JobView, error) {
 // SubmitGenome enqueues a gate job: req carries the sealed model side of
 // genome, and gate is what will judge the worker's answer.
 func (q *JobQueue) SubmitGenome(req transport.JobRequest, genome *GenomeView, gate *gateSpec) (string, JobView, error) {
-	if err := req.Validate(); err != nil {
+	id, err := NewJobID()
+	if err != nil {
 		return "", JobView{}, err
 	}
+	view, err := q.SubmitGenomeWithID(id, req, genome, gate)
+	return id, view, err
+}
+
+// NewJobID mints a job id ahead of submission, so the audit record of
+// a job can name it before the job exists.
+func NewJobID() (string, error) {
 	id, err := newJobID()
 	if err != nil {
-		return "", JobView{}, fmt.Errorf("sagvd: allocate job id: %w", err)
+		return "", fmt.Errorf("sagvd: allocate job id: %w", err)
+	}
+	return id, nil
+}
+
+// SubmitGenomeWithID is SubmitGenome under a pre-minted id (NewJobID).
+// An id already in the queue is refused.
+func (q *JobQueue) SubmitGenomeWithID(id string, req transport.JobRequest, genome *GenomeView, gate *gateSpec) (JobView, error) {
+	if err := req.Validate(); err != nil {
+		return JobView{}, err
+	}
+	if id == "" {
+		return JobView{}, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "sagvd: job id required", nil)
 	}
 	now := q.clock.Now().UTC()
 	j := &Job{
@@ -273,11 +293,15 @@ func (q *JobQueue) SubmitGenome(req transport.JobRequest, genome *GenomeView, ga
 		Gate:        gate,
 	}
 	q.mu.Lock()
+	if _, dup := q.jobs[id]; dup {
+		q.mu.Unlock()
+		return JobView{}, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "sagvd: job id already queued", nil)
+	}
 	q.jobs[id] = j
 	q.pending = append(q.pending, id)
 	view := j.toView() // render under the lock; Next may flip j.Status concurrently
 	q.mu.Unlock()
-	return id, view, nil
+	return view, nil
 }
 
 // Get returns the view for a job by ID. The bool is false if no such

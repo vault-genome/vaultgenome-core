@@ -19,3 +19,4 @@ vendor
 # genomes, their keys and the base model are bind-mounted, never built in
 deploy/compose/genomes
 deploy/compose/models
+deploy/compose/audit

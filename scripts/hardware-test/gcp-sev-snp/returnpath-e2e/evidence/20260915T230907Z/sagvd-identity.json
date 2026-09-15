@@ -1,0 +1,8 @@
+{
+  "authority_kid": "sagvd-authority-e2e",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAGea86cW3+AipuEM1DDEHCMhZng9EFswH+AbzDnx1Mdo=\n-----END PUBLIC KEY-----\n",
+  "tee_provider": "gcp-sev-snp",
+  "tee_measurement_hex": "7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc",
+  "audit_kid": "sagvd-audit-e2e",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAviVDLOaEhLkl4zYYn+ARHL+CQW7MA39GTE5nwHRR4ak=\n-----END PUBLIC KEY-----\n"
+}

@@ -91,16 +91,20 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    offline against genuine GCP and Azure reports. Still scaffolding: the SEV-SNP
    sealer's derived key, and the AWS Nitro, Azure SGX and Intel SGX DCAP
    adapters — `sagvd`'s verifier registry and `acp-bootstrap` refuse those
-   families rather than trust them. `sagvd`'s own TEE, and `acp-compute`'s, are
-   still the simulated one, whose sealing key is intentionally weak
-   (recoverable from the measurement); both daemons refuse to start unless
-   their config says `tee.insecure_simulation: true`, and a simulated
-   cross-cloud destination is trusted only with
+   families rather than trust them. `sagvd` and `acp-compute` attest with
+   SEV-SNP the same way since ADR 0014 (`tee.provider: "gcp-sev-snp"`, each
+   pinning the other's launch measurement); off hardware they run the
+   simulated TEE, whose sealing key is intentionally weak (recoverable from
+   the measurement), and refuse to start unless their config says
+   `tee.provider: "simulated"` with `tee.insecure_simulation: true`; a
+   simulated cross-cloud destination is trusted only with
    `crosscloud.insecure_simulated_destinations: true`. No Intel TDX adapter
    exists. A cross-cloud key release, and the restore of a sealed genome with
    the released key, have run end to end on a GCP SEV-SNP Confidential VM with
-   the shipping binaries (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`);
-   the older captures under `evidence/` were produced by standalone tooling.
+   the shipping binaries (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`),
+   and so has a gate job over the Return Path with both daemons on the chip
+   (`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/`); the older captures
+   under `evidence/` were produced by standalone tooling.
 2. **RESOLVED (ADR 0013, 2026-09-15).** The acp-compute worker's
    "reconstruction" was a placeholder: SHA-256 digest expansion (V1), then a
    byte-level order-3 Markov chain (V2), both self-documented as "not a

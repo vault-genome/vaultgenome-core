@@ -23,8 +23,9 @@
 // # Phase 1 status
 //
 // Production-shape daemon. Dials sagvd over TCP (optionally wrapped
-// in mTLS v1.3), runs the 4-frame Return Path handshake backed by a
-// simulated TEE, serves exactly one gate job per session, signs the
+// in mTLS v1.3), runs the 4-frame Return Path handshake with its TEE —
+// AMD SEV-SNP through configfs-tsm, or the simulated one (ADR 0014) —
+// serves exactly one gate job per session, signs the
 // resulting CandidateOutputFrame under an operator-provisioned Ed25519
 // key, then closes and reconnects. Reconstruction is
 // worker.GenomeReconstructor (/internal/compute/worker, ADR 0013): the
@@ -43,9 +44,13 @@
 //
 //   - vault.address          host:port of sagvd's Return Path listener
 //   - vault.tls              mTLS material when TLS is enabled
-//   - tee.workload_descriptor string hashed into the simulator's measurement
-//   - tee.seed_path          32-byte Ed25519 seed for TEE attestation
-//   - tee.peer.*             peer's pinned pubkey + measurement files
+//   - tee.provider           "gcp-sev-snp" (the chip signs) or "simulated"
+//     (+insecure_simulation; development and tests)
+//   - tee.workload_descriptor names the workload; the simulator hashes it
+//   - tee.seed_path          32-byte Ed25519 seed (simulated only)
+//   - tee.peer.*             the vault's TEE pin: provider, measurement (48
+//     bytes for SEV-SNP), amd_cert_chain_path for a
+//     SEV-SNP vault or public_key_path for a simulated one
 //   - keys.worker_signing    kid + 32-byte Ed25519 seed for frame signing
 //   - keys.session_sealing   kid + 32-byte AES-256 key for unsealing
 //   - genome.door.command    the door: argv of the program that restores a

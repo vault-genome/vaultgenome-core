@@ -279,3 +279,53 @@ func TestLoadConfigFile_MissingFileErrors(t *testing.T) {
 	_, err := LoadConfigFile("/no/such/path/acp-compute.json")
 	require.Error(t, err)
 }
+
+func TestConfig_Validate_TEEProviders(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		mutate func(c *Config)
+		want   []string
+	}{
+		"simulated by default":              {func(c *Config) {}, nil},
+		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "tdx" }, []string{"tee.provider invalid"}},
+		"unsupported provider":              {func(c *Config) { c.TEE.Provider = "aws-nitro" }, []string{"not available in this build"}},
+		"simulated without acknowledgement": {func(c *Config) { c.TEE.InsecureSimulation = false }, []string{"tee.insecure_simulation=true"}},
+		"simulated without seed":            {func(c *Config) { c.TEE.SeedPath = "" }, []string{"tee.seed_path required"}},
+		"tsm dir on simulated":              {func(c *Config) { c.TEE.TSMReportDir = "/sys/kernel/config/tsm/report" }, []string{"tsm_report_dir applies to gcp-sev-snp"}},
+		"sev-snp with simulated leftovers": {func(c *Config) { c.TEE.Provider = "gcp-sev-snp" },
+			[]string{"tee.seed_path applies to the simulated provider", "tee.insecure_simulation applies to the simulated provider"}},
+		"sev-snp clean":                  {func(c *Config) { c.TEE.Provider = "gcp-sev-snp"; c.TEE.SeedPath = ""; c.TEE.InsecureSimulation = false }, nil},
+		"peer unknown":                   {func(c *Config) { c.TEE.Peer.Provider = "sgx?" }, []string{"tee.peer.provider invalid"}},
+		"peer unsupported":               {func(c *Config) { c.TEE.Peer.Provider = "azure-sgx" }, []string{"no verifier this build can run"}},
+		"simulated peer without key":     {func(c *Config) { c.TEE.Peer.PublicKeyPath = "" }, []string{"tee.peer.public_key_path required"}},
+		"simulated peer with AMD fields": {func(c *Config) { c.TEE.Peer.AMDCertChainPath = "/x/chain.pem" }, []string{"apply to a gcp-sev-snp peer only"}},
+		"sev-snp peer without chain": {func(c *Config) { c.TEE.Peer.Provider = "gcp-sev-snp"; c.TEE.Peer.PublicKeyPath = "" },
+			[]string{"tee.peer.amd_cert_chain_path required"}},
+		"sev-snp peer with a key": {func(c *Config) {
+			c.TEE.Peer.Provider = "gcp-sev-snp"
+			c.TEE.Peer.AMDCertChainPath = "/x/chain.pem"
+		}, []string{"tee.peer.public_key_path applies to a simulated peer"}},
+		"sev-snp peer clean": {func(c *Config) {
+			c.TEE.Peer.Provider = "gcp-sev-snp"
+			c.TEE.Peer.PublicKeyPath = ""
+			c.TEE.Peer.AMDCertChainPath = "/x/chain.pem"
+			c.TEE.Peer.VCEKCacheDir = "/var/lib/acp/vcek"
+			c.TEE.Peer.MinReportedTCB = 7
+		}, nil},
+		"no peer measurement": {func(c *Config) { c.TEE.Peer.MeasurementPath = "" }, []string{"tee.peer.measurement_path required"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := goodConfig()
+			tc.mutate(&c)
+			err := c.Validate()
+			if len(tc.want) == 0 {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			for _, w := range tc.want {
+				require.Contains(t, err.Error(), w)
+			}
+		})
+	}
+}

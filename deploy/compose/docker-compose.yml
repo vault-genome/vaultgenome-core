@@ -54,6 +54,10 @@ services:
       # them (make demo-genome, or acpctl genome seal). Read-only: sagvd
       # opens a genome in memory and writes nothing.
       - ./genomes:/var/lib/acp/genomes:ro
+      # The Return Path audit log: every decision about a job, signed and
+      # hash-linked, before it takes effect (ADR 0014). The one thing
+      # sagvd writes. Verify it with `acpctl audit verify`.
+      - ./audit:/var/lib/acp/audit
     # REST API and health are published on loopback only. The Return
     # Path (9443) is deliberately not published: only the worker speaks
     # the wire protocol, over the internal network.

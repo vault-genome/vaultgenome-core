@@ -55,7 +55,8 @@ type HTTPAPIServer struct {
 	queue   *JobQueue
 	sealer  keys.Sealer
 	sealKID ids.KeyID
-	genomes *genomeJobs // nil: gate jobs are not configured
+	genomes *genomeJobs      // nil: gate jobs are not configured
+	audit   *returnPathAudit // nil: no log; only allowed with genomes nil
 	clock   shared_time.Clock
 	log     *slog.Logger
 
@@ -80,7 +81,8 @@ type httpMetrics struct {
 // produce SealedMaterialRef. We fail fast at construction so a
 // misconfigured daemon cannot silently accept submissions. genomes may
 // be nil (genome.bundle_dir not configured): then POST /v1/jobs refuses
-// every submission with gate_jobs_disabled.
+// every submission with gate_jobs_disabled. With genomes, audit is
+// required: a job is recorded before it is queued.
 func NewHTTPAPIServer(
 	cfg HTTPAPIConfig,
 	runtime RuntimeConfig,
@@ -88,12 +90,16 @@ func NewHTTPAPIServer(
 	sealer keys.Sealer,
 	sealKID ids.KeyID,
 	genomes *genomeJobs,
+	audit *returnPathAudit,
 	clock shared_time.Clock,
 	registry *metrics.Registry,
 	logger *slog.Logger,
 ) (*HTTPAPIServer, error) {
 	if queue == nil {
 		return nil, errors.New("sagvd: HTTPAPIServer requires non-nil JobQueue")
+	}
+	if genomes != nil && audit == nil {
+		return nil, errors.New("sagvd: HTTPAPIServer requires the Return Path audit log when gate jobs are enabled")
 	}
 	if sealer == nil {
 		return nil, errors.New("sagvd: HTTPAPIServer requires non-nil Sealer")
@@ -118,6 +124,7 @@ func NewHTTPAPIServer(
 		sealer:  sealer,
 		sealKID: sealKID,
 		genomes: genomes,
+		audit:   audit,
 		clock:   clock,
 		log:     logger,
 		metrics: &httpMetrics{
@@ -304,8 +311,20 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 			shared_errors.CodeOf(err), err.Error())
 		return
 	}
-	jobID, _, err := s.queue.SubmitGenome(job.Req, &job.Genome, job.Gate)
+	jobID, err := NewJobID()
 	if err != nil {
+		writeError(w, http.StatusInternalServerError, "operational", shared_errors.CodeResourceExhausted, err.Error())
+		return
+	}
+	// On the record before it is queued: a job the log did not take is
+	// not a job.
+	if err := s.audit.JobAccepted(jobID, job); err != nil {
+		s.log.Error("sagvd audit log refused a job", "job_id", jobID, "err", err)
+		writeError(w, http.StatusServiceUnavailable, shared_errors.CategoryOf(err).String(),
+			shared_errors.CodeOf(err), err.Error())
+		return
+	}
+	if _, err := s.queue.SubmitGenomeWithID(jobID, job.Req, &job.Genome, job.Gate); err != nil {
 		writeError(w, http.StatusBadRequest, shared_errors.CategoryOf(err).String(),
 			shared_errors.CodeOf(err), err.Error())
 		return

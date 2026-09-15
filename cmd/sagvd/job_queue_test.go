@@ -434,3 +434,24 @@ func TestJobQueue_GateJobs_CarryTheirGenomeAndVerdict(t *testing.T) {
 	}
 	q.CompleteGated("no-such-id", out, "k", GateView{}, nil) // no panic
 }
+
+func TestJobQueue_PreMintedIDs(t *testing.T) {
+	q := NewJobQueue(nil, 10*time.Millisecond)
+	id, err := NewJobID()
+	if err != nil || len(id) != 32 {
+		t.Fatalf("NewJobID: %q %v", id, err)
+	}
+	view, err := q.SubmitGenomeWithID(id, testJobRequest(time.Now().UTC(), "m-pre"), nil, nil)
+	if err != nil || view.ID != id {
+		t.Fatalf("SubmitGenomeWithID: %+v %v", view, err)
+	}
+	if _, err := q.SubmitGenomeWithID(id, testJobRequest(time.Now().UTC(), "m-pre-2"), nil, nil); err == nil {
+		t.Fatal("a job id was queued twice")
+	}
+	if _, err := q.SubmitGenomeWithID("", testJobRequest(time.Now().UTC(), "m-pre-3"), nil, nil); err == nil {
+		t.Fatal("an empty job id was accepted")
+	}
+	if q.Depth() != 1 {
+		t.Fatalf("Depth = %d want 1", q.Depth())
+	}
+}

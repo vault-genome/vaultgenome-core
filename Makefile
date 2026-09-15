@@ -274,8 +274,12 @@ demo-certs-force:
 demo-genome: bin/acpctl
 	@ACPCTL=$(CURDIR)/bin/acpctl bash $(DEMO_DIR)/scripts/make_genome.sh
 
+# demo-up needs somewhere for sagvd to keep its Return Path audit log.
+$(DEMO_DIR)/audit:
+	@mkdir -p $@
+
 .PHONY: demo-up
-demo-up: demo-certs
+demo-up: demo-certs $(DEMO_DIR)/audit
 	@echo "==> building + starting compose stack"
 	@cd $(DEMO_DIR) && $(DEMO_COMPOSE_CMD) -f $(DEMO_COMPOSE) up -d --build
 	@echo "==> waiting for sagvd /readyz (up to $(DEMO_READY_TIMEOUT)s)"

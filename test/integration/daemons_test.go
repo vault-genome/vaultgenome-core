@@ -166,6 +166,25 @@ func TestLiveDaemons_JobRoundTripOverMTLS(t *testing.T) {
 	if got := v.counter(t, `sagvd_sessions_opened_total`); got < 1 {
 		t.Fatalf("sagvd_sessions_opened_total = %d, want >= 1", got)
 	}
+	if got := v.counter(t, `sagvd_audit_events_total{kind="VALIDATION_COMPLETED"}`); got != 1 {
+		t.Fatalf("sagvd_audit_events_total{kind=\"VALIDATION_COMPLETED\"} = %d, want 1", got)
+	}
+
+	// Every decision is on the record, in order, and the log verifies
+	// under the audit key the vault publishes.
+	kinds, events := v.auditLogAfterStop(t)
+	want := []string{"MANIFEST_ISSUED", "TRUST_EVALUATED", "CANDIDATE_RECEIVED", "VALIDATION_STARTED", "VALIDATION_DIMENSION_EVALUATED", "VALIDATION_COMPLETED"}
+	if strings.Join(kinds, ",") != strings.Join(want, ",") {
+		t.Fatalf("audit kinds %v, want %v", kinds, want)
+	}
+	for _, e := range events {
+		if e.ManifestID != accepted.ManifestID || e.SessionID != accepted.SessionID {
+			t.Fatalf("event %s is not correlated to the job: %+v", e.Kind, e)
+		}
+	}
+	if !strings.Contains(string(events[1].Payload), `"outcome":"allow"`) || !strings.Contains(string(events[5].Payload), `"overall":"pass"`) || !strings.Contains(string(events[5].Payload), `"level":"EXACT"`) {
+		t.Fatalf("audit payloads: trust %s / completed %s", events[1].Payload, events[5].Payload)
+	}
 }
 
 // A genome whose sealed references the restored model does not reproduce
@@ -205,6 +224,18 @@ func TestLiveDaemons_GateRefusesAModelThatMissesItsReferences(t *testing.T) {
 	status, resp := v.do(t, http.MethodPost, "/v1/jobs", v.token, body)
 	if status != http.StatusForbidden || !bytes.Contains(resp, []byte("genome_key_invalid")) {
 		t.Fatalf("wrong key: status %d body %s", status, resp)
+	}
+
+	// On the record: the findings before the failed verdict, and no job
+	// for the refused submission.
+	kinds, events := v.auditLogAfterStop(t)
+	want := []string{"MANIFEST_ISSUED", "TRUST_EVALUATED", "CANDIDATE_RECEIVED", "VALIDATION_STARTED", "VALIDATION_DIMENSION_EVALUATED",
+		"VALIDATION_FINDING", "VALIDATION_FINDING", "VALIDATION_FINDING", "VALIDATION_COMPLETED"}
+	if strings.Join(kinds, ",") != strings.Join(want, ",") {
+		t.Fatalf("audit kinds %v, want %v", kinds, want)
+	}
+	if !strings.Contains(string(events[8].Payload), `"overall":"fail"`) || !strings.Contains(string(events[8].Payload), `"code":"gate_failed"`) {
+		t.Fatalf("VALIDATION_COMPLETED payload: %s", events[8].Payload)
 	}
 }
 
@@ -348,6 +379,33 @@ func TestLiveDaemons_UnpinnedWorkerIsRefusedWork(t *testing.T) {
 	if job.Result == nil || job.Result.WorkerSigningKeyID != workerSigningKID {
 		t.Fatalf("held job not delivered by the pinned worker: %+v", job)
 	}
+
+	// The refusal is on the record, ahead of the admission.
+	if took, killed := rogue.stop(); killed {
+		t.Fatalf("rogue worker had to be killed after %s", took)
+	}
+	kinds, events := v.auditLogAfterStop(t)
+	var denied, allowed int
+	for i, e := range events {
+		if e.Kind != "TRUST_EVALUATED" {
+			continue
+		}
+		switch {
+		case strings.Contains(string(e.Payload), `"outcome":"deny"`):
+			denied++
+			if e.SessionID != "" {
+				t.Fatalf("a refused peer is not a job: %+v", e)
+			}
+		case strings.Contains(string(e.Payload), `"outcome":"allow"`):
+			allowed++
+			if denied == 0 {
+				t.Fatalf("admission before any refusal at event %d: %v", i, kinds)
+			}
+		}
+	}
+	if denied == 0 || allowed != 1 {
+		t.Fatalf("trust decisions on record: %d denied, %d allowed (%v)", denied, allowed, kinds)
+	}
 }
 
 // Both daemons honour SIGTERM promptly while a Return Path session is
@@ -436,6 +494,7 @@ type vault struct {
 	apiURL    string
 	healthURL string
 	bundleDir string // genome.bundle_dir
+	auditLog  string // audit.log_path
 	proc      *proc
 }
 
@@ -444,13 +503,24 @@ func vaultConfig(secrets, vaultAddr, apiAddr, healthAddr string) map[string]any 
 }
 
 func vaultConfigWithGenomes(secrets, vaultAddr, apiAddr, healthAddr, bundleDir string) map[string]any {
+	return vaultConfigWithAudit(secrets, vaultAddr, apiAddr, healthAddr, bundleDir, "")
+}
+
+// vaultConfigWithAudit is vaultConfigWithGenomes with the Return Path
+// audit log at auditLog; gate jobs need one.
+func vaultConfigWithAudit(secrets, vaultAddr, apiAddr, healthAddr, bundleDir, auditLog string) map[string]any {
 	sec := func(p ...string) string { return filepath.Join(append([]string{secrets}, p...)...) }
 	genome := map[string]any{"gate": map[string]any{"atol": 1e-2, "rtol": 1e-3, "max_non_critical_outliers": 0}}
 	if bundleDir != "" {
 		genome["bundle_dir"] = bundleDir
 	}
+	audit := map[string]any{}
+	if auditLog != "" {
+		audit["log_path"] = auditLog
+	}
 	return map[string]any{
 		"genome": genome,
+		"audit":  audit,
 		"vault": map[string]any{
 			"listen_address": vaultAddr,
 			"tls": map[string]any{
@@ -517,8 +587,9 @@ func startVaultWith(t *testing.T, secrets string, mutate func(cfg map[string]any
 		apiURL:    "http://" + apiAddr,
 		healthURL: "http://" + healthAddr,
 		bundleDir: t.TempDir(),
+		auditLog:  filepath.Join(t.TempDir(), "returnpath-audit.db"),
 	}
-	cfg := vaultConfigWithGenomes(secrets, vaultAddr, apiAddr, healthAddr, v.bundleDir)
+	cfg := vaultConfigWithAudit(secrets, vaultAddr, apiAddr, healthAddr, v.bundleDir, v.auditLog)
 	if mutate != nil {
 		mutate(cfg)
 	}
@@ -818,6 +889,71 @@ func (v *vault) waitJob(t *testing.T, id, want string, timeout time.Duration) jo
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// auditEvent is what `acpctl audit query --json` prints per event.
+type auditEvent struct {
+	Kind       string          `json:"kind"`
+	SessionID  string          `json:"session_id"`
+	ManifestID string          `json:"manifest_id"`
+	Payload    json.RawMessage `json:"payload"`
+}
+
+// auditLogAfterStop stops the vault (its bbolt log is held open while it
+// runs), verifies the Return Path audit log with the audit key `sagvd
+// identity` publishes, and returns its events in order.
+func (v *vault) auditLogAfterStop(t *testing.T) ([]string, []auditEvent) {
+	t.Helper()
+	if took, killed := v.proc.stop(); killed {
+		t.Fatalf("sagvd had to be killed after %s", took)
+	}
+	cfgPath := filepath.Join(t.TempDir(), "sagvd-identity.json")
+	cfg := vaultConfigWithAudit(v.secrets, v.vaultAddr, "", "", v.bundleDir, v.auditLog)
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	id := identityOf(t, bins.sagvd, cfgPath)
+	pem := filepath.Join(t.TempDir(), "audit.pem")
+	if id["audit_public_key_pem"] == "" {
+		t.Fatalf("sagvd identity publishes no audit key: %v", id)
+	}
+	if err := os.WriteFile(pem, []byte(id["audit_public_key_pem"]), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var verified struct {
+		OK         bool   `json:"ok"`
+		EventCount int    `json:"event_count"`
+		Error      string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(acpctl(t, "audit", "verify", "--audit", v.auditLog, "--audit-pubkey", pem, "--audit-kid", "sagvd-audit-demo", "--json")), &verified); err != nil {
+		t.Fatal(err)
+	}
+	if !verified.OK {
+		t.Fatalf("audit log does not verify: %s", verified.Error)
+	}
+	var events []auditEvent
+	for _, line := range strings.Split(strings.TrimSpace(acpctl(t, "audit", "query", "--audit", v.auditLog, "--json")), "\n") {
+		if line == "" {
+			continue
+		}
+		var e auditEvent
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("audit query line %q: %v", line, err)
+		}
+		events = append(events, e)
+	}
+	if len(events) != verified.EventCount {
+		t.Fatalf("audit query listed %d events, verify counted %d", len(events), verified.EventCount)
+	}
+	kinds := make([]string, len(events))
+	for i, e := range events {
+		kinds[i] = e.Kind
+	}
+	return kinds, events
 }
 
 // counter reads one series from sagvd's Prometheus exposition; an absent
