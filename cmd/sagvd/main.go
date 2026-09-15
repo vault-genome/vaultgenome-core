@@ -60,6 +60,16 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "failover":
+			// Carries out the operator's failover policy (ADR 0012).
+			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			code, err := runFailoverCmd(ctx, os.Args[2:])
+			stop()
+			if err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
+					Error("sagvd failover: terminated with error", "err", err.Error())
+			}
+			os.Exit(code)
 		case "crosscloud-confirm":
 			// Confirms a released genome's restore from the
 			// destination's TEE-signed receipt and records it
@@ -236,6 +246,7 @@ func printUsage() {
 	fmt.Println("        -destination-endpoint URL {-key-file KID:PATH | -key-escrow ENVELOPE}... [-session-id ID] [-manifest-id ID]")
 	fmt.Println("  sagvd crosscloud-confirm -config PATH -decision-id ID -destination-endpoint URL \\")
 	fmt.Println("        {-bundle PATH | -key-id KID} [-require-gate EQUIVALENT|EXACT] [-wait DURATION]")
+	fmt.Println("  sagvd failover -config PATH -policy POLICY.json -outbox DIR [-poll 2s] [-confirm-wait 15m] [-report PATH]")
 	fmt.Println("  sagvd version")
 	fmt.Println("  sagvd help")
 	fmt.Println()
@@ -248,7 +259,11 @@ func printUsage() {
 	fmt.Println("  hosts pin, as JSON. crosscloud-restore releases DEKs to an attested,")
 	fmt.Println("  allow-listed acp-bootstrap destination (docs/operator/06_cross_cloud_restore.md);")
 	fmt.Println("  crosscloud-confirm records its restore once the destination's TEE-signed")
-	fmt.Println("  receipt checks out against that release (ADR 0011).")
+	fmt.Println("  receipt checks out against that release (ADR 0011). failover carries out")
+	fmt.Println("  the operator's signed failover policy: when the primary's sentinel reports")
+	fmt.Println("  a compromise or its heartbeat stops, it releases the last trustworthy")
+	fmt.Println("  genome's escrowed key to the standby the policy names and confirms the")
+	fmt.Println("  restore (ADR 0012).")
 	fmt.Println()
 	fmt.Println("Flags:")
 	fmt.Println("  -config PATH   JSON config file; see cmd/sagvd/doc.go for schema.")

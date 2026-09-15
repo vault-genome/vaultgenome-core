@@ -124,6 +124,8 @@ func TestAuditEvent_AllKindsAreValidated(t *testing.T) {
 		KindKeyReleaseAuthorized, KindCrossCloudRestoreCompleted,
 		// Recorded refusals (SchemaVersion 5). See ADR 0010.
 		KindKeyReleaseDenied,
+		// Policy-driven failover (SchemaVersion 6). See ADR 0012.
+		KindFailoverDecided,
 	}
 	for _, k := range all {
 		t.Run(string(k), func(t *testing.T) {
@@ -168,7 +170,7 @@ func TestAuditEvent_SchemaVersion_V3BackwardCompatible(t *testing.T) {
 
 // TestAuditEvent_SchemaVersion_V4BackwardCompatible asserts that a v4
 // record (the four cross-cloud kinds of ADR 0006) is still readable by a
-// v5 reader.
+// v6 reader.
 func TestAuditEvent_SchemaVersion_V4BackwardCompatible(t *testing.T) {
 	t.Parallel()
 	e := validFixture()
@@ -176,14 +178,23 @@ func TestAuditEvent_SchemaVersion_V4BackwardCompatible(t *testing.T) {
 	require.NoError(t, e.Validate())
 }
 
-// TestAuditEvent_SchemaVersion_V5CurrentAccepted asserts the current
-// write-side schema version is accepted. ADR 0010 bumps
-// SchemaVersionCurrent from 4 → 5 with KindKeyReleaseDenied.
-func TestAuditEvent_SchemaVersion_V5CurrentAccepted(t *testing.T) {
+// TestAuditEvent_SchemaVersion_V5BackwardCompatible asserts that a v5
+// record (KindKeyReleaseDenied, ADR 0010) is still readable by a v6 reader.
+func TestAuditEvent_SchemaVersion_V5BackwardCompatible(t *testing.T) {
+	t.Parallel()
+	e := validFixture()
+	e.SchemaVersion = 5
+	require.NoError(t, e.Validate())
+}
+
+// TestAuditEvent_SchemaVersion_V6CurrentAccepted asserts the current
+// write-side schema version is accepted. ADR 0012 bumps
+// SchemaVersionCurrent from 5 → 6 with KindFailoverDecided.
+func TestAuditEvent_SchemaVersion_V6CurrentAccepted(t *testing.T) {
 	t.Parallel()
 	e := validFixture()
 	e.SchemaVersion = SchemaVersionCurrent
-	require.Equal(t, uint16(5), SchemaVersionCurrent,
-		"ADR 0010 sets SchemaVersionCurrent to 5; a change here MUST be reflected in an ADR")
+	require.Equal(t, uint16(6), SchemaVersionCurrent,
+		"ADR 0012 sets SchemaVersionCurrent to 6; a change here MUST be reflected in an ADR")
 	require.NoError(t, e.Validate())
 }

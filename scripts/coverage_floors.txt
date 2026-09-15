@@ -8,9 +8,10 @@
 # package meets its target. `total` is the floor for the whole product.
 #
 # Recorded 2026-09-14 from `make coverage`, rounded down to whole percent;
-# raised later that day (total 82, cmd/sagvd 60; cmd/acpctl met its target).
+# raised later that day (total 82, cmd/sagvd 60; cmd/acpctl met its target)
+# and on 2026-09-15 (total 83).
 
-total 82
+total 83
 
 # target 70%
 cmd/acp-compute 56

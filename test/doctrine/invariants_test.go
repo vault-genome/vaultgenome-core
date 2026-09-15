@@ -714,6 +714,12 @@ var forbiddenWriteSelectors = map[string]struct{}{
 //     and safetar — out of the sagvd authority and the acp-compute worker.
 //   - restore receipts (genome/receipt): public statements — digests,
 //     identifiers and TEE Evidence — that carry no genome material.
+//   - the sentinel's outbox (genome/sentinel, ADR 0012): escrow envelopes —
+//     a genome key encapsulated to the release authority, ciphertext to
+//     everyone else — and signed seal records, heartbeats and compromise
+//     reports, which are public statements of digests, generations and
+//     times. The genomes it seals are written by genome/bundle, sealed; its
+//     io.Copy feeds tripwire hashes. It never materialises an opened genome.
 //
 // Anything outside these prefixes must route writes through the sealer
 // in /internal/vault/disclosure or through one of the allowlisted
@@ -722,12 +728,13 @@ var allowedWriteSinkPrefixes = []string{
 	"internal/vault/storage/",
 	"internal/audit/store/",
 	"internal/shared/tee/",
-	"internal/contentdir/",     // client-side restore: directory-tree materialisation
-	"internal/ollama/",         // client-side restore: OLLAMA_MODELS materialisation
-	"internal/shared/safetar/", // extraction step of the restore packages
-	"internal/genome/bundle/",  // sealed ciphertext only
-	"internal/genome/restore/", // materialisation of an authenticated, opened genome
-	"internal/genome/receipt/", // restore receipts: public, no genome material
+	"internal/contentdir/",      // client-side restore: directory-tree materialisation
+	"internal/ollama/",          // client-side restore: OLLAMA_MODELS materialisation
+	"internal/shared/safetar/",  // extraction step of the restore packages
+	"internal/genome/bundle/",   // sealed ciphertext only
+	"internal/genome/restore/",  // materialisation of an authenticated, opened genome
+	"internal/genome/receipt/",  // restore receipts: public, no genome material
+	"internal/genome/sentinel/", // outbox: escrow envelopes (ciphertext) and signed records
 }
 
 // safetarImporters are the only packages permitted to import

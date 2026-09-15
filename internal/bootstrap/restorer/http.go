@@ -48,6 +48,9 @@ func (r *Restorer) Routes(bearerToken string) map[string]http.HandlerFunc {
 			switch {
 			case !ok:
 				writeError(w, http.StatusNotFound, "no key "+kid+" was released to this destination")
+			case signed.Receipt == nil && rec.State == StateFailed:
+				// Final: asking again will not bring a receipt.
+				writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": "restore failed: " + rec.Error, "restore": rec})
 			case signed.Receipt == nil:
 				writeJSON(w, http.StatusConflict, map[string]any{"error": "restore not complete", "restore": rec})
 			default:

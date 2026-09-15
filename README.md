@@ -11,22 +11,40 @@ platform is a governance-first continuity system: it treats AI continuity as a
 legal-authority problem first, a cryptographic-integrity problem second, and a
 computation problem third.
 
-This repository is the reference core of the platform: the **Secure AI Genome
-Vault** (SAGV) daemon, the external-compute worker, and the administrative
-CLI. Together they implement the nine-stage orchestrated reconstruction flow
-defined in the foundation architecture documents:
+This repository is the reference core of the platform. It ships four
+binaries and a demo:
 
-> Recovery Request → Trust Admission → Trusted Session → Staged Disclosure →
-> Delegated External Compute → Return Path → Validation → Release Decision →
-> Audit.
+- **`sagvd`**, the Secure AI Genome Vault authority. It releases a genome's key
+  only to an attested destination the operator's policy admits, confirms the
+  destination's signed restore, and records every decision in a signed,
+  hash-chained audit log.
+- **`acp-bootstrap`**, the destination. It attests with AMD SEV-SNP, restores the
+  genome, proves the restored model works, and signs a receipt with its TEE.
+- **`acpctl`**, the administrative CLI. It seals genomes, and runs the sentinel
+  that keeps a running model sealed.
+- **`acp-compute`**, the external-compute worker.
+- **`acp-demo`**, a one-command demonstration.
 
-Continuity is delivered not by storing and redeploying weights, but by storing
-the **AI Genome** — a compact, policy-gated representation — and rebuilding
-from it through a governed process every time. (The TEE layer runs in simulation
-by default, with a **real AMD SEV-SNP attestation path proven on live GCP and
-Azure hardware**; the *generative* rebuild from a compact recipe is still a
-statistical placeholder. Both sit behind frozen interfaces — see the Status
-section for exactly what works today.)
+The nine-stage governed reconstruction flow of the foundation architecture —
+Recovery Request → Trust Admission → Trusted Session → Staged Disclosure →
+Delegated External Compute → Return Path → Validation → Release Decision →
+Audit — is library code under `internal/`, exercised end to end by the tests.
+[docs/operator/00_overview.md](docs/operator/00_overview.md) says what each
+binary drives today.
+
+Continuity is delivered by sealing the **AI Genome** rather than a copy of the
+weights. A genome holds three things:
+
+- the content hash of the base model;
+- the fine-tune, as a sealed LoRA delta;
+- the deterministic recipe that produced it.
+
+For Qwen2.5-0.5B-Instruct, fine-tuned inside an AMD SEV-SNP confidential VM, the
+genome is 2.2 MB, one 447th of the base weights. Restored on an NVIDIA L4 in
+another region, the model gives the same top-1 token and the same greedy
+continuation on every sealed fixture; its logits are within 1.9e-4 of the
+reference. On the pinned runtime the genome comes back bit for bit
+([scripts/hardware-test/gcp-drill](scripts/hardware-test/gcp-drill)).
 
 ---
 
@@ -60,11 +78,18 @@ Point it at your own file for a byte-exact sealed-continuity proof:
 go run ./cmd/acp-demo --model ./path/to/your-model.safetensors
 ```
 
-**What is real today:** attested byte-exact continuity and the cross-hardware
-equivalence gate — the latter verified against genuine **AMD SEV-SNP** hardware
-on **GCP and Azure** (`scripts/hardware-test/`, `docs/adr/0008`, `0009`). **What
-is a labelled placeholder:** rebuilding a real model from a *compact generative
-recipe* (the reconstruction backend). We say which is which, on purpose.
+**What is real today:**
+
+- attested continuity of a real fine-tuned model, sealed on SEV-SNP and
+  restored on a GPU with its fidelity measured;
+- key release only to attested **AMD SEV-SNP** hardware, on **GCP and Azure**
+  (`scripts/hardware-test/`, `docs/adr/0008`, `0009`, `0011`);
+- automatic failover of a running model under the operator's signed policy
+  (ADR 0012).
+
+**What is a labelled placeholder:** the `acp-compute` worker's reconstruction
+backend, and generating a model from a recipe alone, without its sealed delta.
+We say which is which, on purpose.
 
 ### Protect a real model (CLI)
 
@@ -120,6 +145,24 @@ verify-reproducible).
   restores the genome by itself and signs a receipt with its TEE; the source
   verifies the receipt and records the restore (`sagvd crosscloud-confirm`,
   ADR 0011), under an operator stop that halts every release (ADR 0010).
+- **A real fine-tune survives the machine** — `workers/genome` fine-tunes a real
+  model deterministically and writes its genome. Measured on hardware
+  ([gcp-drill](scripts/hardware-test/gcp-drill)), for a genome sealed in a
+  SEV-SNP guest:
+  - on the pinned runtime it comes back bit for bit;
+  - on an NVIDIA L4 it comes back EQUIVALENT: 16/16 identical top-1 tokens and
+    greedy continuations, max |Δ logit| 1.9e-4;
+  - on an Intel CPU it also comes back EQUIVALENT;
+  - its recipe replays to a bit-identical adapter.
+- **Automatic failover, decided by the operator** — a sentinel on the primary
+  seals every new state with its key escrowed to the authority, and reports
+  when a tripwire fires (`acpctl sentinel watch`). Under a failover policy the
+  operator signed in advance, `sagvd failover` restores the last genome sealed
+  before the intrusion, or before a lost heartbeat, on the one standby the
+  policy names. It confirms the restore by the standby's TEE-signed gate
+  verdict. One policy allows one move, and the operator stop overrides it
+  (ADR 0012). Measured locally with the real binaries: RTO 0.63 s after an
+  intrusion; 3.5 s after a killed primary, with a 3 s heartbeat timeout.
 - **Real AMD SEV-SNP attestation** — a report from a live confidential VM is
   parsed, its ECDSA-P384 signature verified, and its VCEK chained to AMD
   ARK-Milan — proven on **two clouds, GCP and Azure** (`scripts/hardware-test/`,
@@ -129,9 +172,11 @@ verify-reproducible).
   finds a working door (pinned float → reproducible float → byte-portable
   integer) or fails closed. Determinism measured on real CPUs (AMD/Intel) and
   GPUs (NVIDIA L4/T4) — `docs/testing/cross-hardware-determinism.md`, ADR 0008.
-- **Honest boundaries** — the *generative* rebuild from a compact recipe is a
-  labelled placeholder; the reproducible-float rung stands on RepDL / ReproBLAS
-  (`docs/prior-art-and-attribution.md`).
+- **Honest boundaries** — the `acp-compute` worker's reconstruction backend is a
+  labelled placeholder. Attested GPU destinations need confidential GPUs, which
+  have not been tested yet. The reproducible-float rung stands on RepDL /
+  ReproBLAS (`docs/prior-art-and-attribution.md`). KNOWN_ISSUES.md lists every
+  limit.
 **Minimum Go version:** 1.25.
 **License:** AGPL-3.0-or-later (see `LICENSE`).
 
@@ -148,12 +193,13 @@ records kept in the repo:
 
 - `docs/doctrine/terminology.md` — canonical vocabulary and the frozen
   deprecated-name list; enforced by the terminology gate (vault-gate 09).
-- `docs/adr/` — eleven architecture decision records (ADR 0001–0011),
+- `docs/adr/` — twelve architecture decision records (ADR 0001–0012),
   among them the frozen producer / verifier / sealer interface (0001),
   multi-TEE adapter dispatch (0002), doctrine-invariants-as-tests (0004),
   cross-cloud KMS-mediated recovery (0006), the equivalence gate (0008), the
   X25519 KEM cross-cloud key delivery (0009), the operator stop and recorded
-  refusals (0010), and genome v3 with attested self-restore (0011).
+  refusals (0010), genome v3 with attested self-restore (0011), and the
+  sentinel with policy-driven failover (0012).
 - `docs/prior-art-and-attribution.md` — what the reproducible-float rung
   builds on (RepDL / ReproBLAS) versus the project's own prior art.
 - `test/doctrine/` — the eleven doctrinal invariants, asserted as tests so a
@@ -236,6 +282,8 @@ Operator-facing procedures live in `docs/operator/`:
 - `06_cross_cloud_restore.md` — releasing a genome's key to an attested
   destination, its restore, gate and receipt, key escrow and the operator
   stop.
+- `07_failover.md` — the sentinel on the primary, the operator's failover
+  policy, and the executor that moves a genome to the standby.
 
 The runbook assumes a reader familiar with the eleven doctrinal invariants
 (asserted in `test/doctrine/`) and the architecture decision records under

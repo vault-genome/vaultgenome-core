@@ -49,12 +49,16 @@ const (
 	//            key release is on the record as a decision of its own,
 	//            not only as the absence of an authorisation. Struct
 	//            shape unchanged.
+	//   v5 → v6: ADR 0012 added KindFailoverDecided: the release
+	//            authority's decision, under an operator-signed failover
+	//            policy, to move a genome to the standby — or to decline.
+	//            Struct shape unchanged.
 	// See docs/doctrine/bootstrap-contracts.md §5 (contract-frozen
 	// discipline), the Stage F.2 / Stage G doctrine notes in
 	// docs/internal/status-journal.md, ADR 0006 (cross-cloud KMS-mediated
 	// restore) and ADR 0010 (operator stop and recorded refusals).
-	SchemaVersionMax     uint16 = 5
-	SchemaVersionCurrent uint16 = 5
+	SchemaVersionMax     uint16 = 6
+	SchemaVersionCurrent uint16 = 6
 
 	// HashSize is the length in bytes of PrevHash and Hash (SHA-256).
 	HashSize = 32
@@ -201,6 +205,17 @@ const (
 	// KEY_RELEASE_DENIED. Pins the stage, the reason and the policy
 	// version (which carries the operator-stop serial).
 	KindKeyReleaseDenied Kind = "KEY_RELEASE_DENIED"
+
+	// KindFailoverDecided (v6, ADR 0012) records the release authority's
+	// decision on a failover trigger — a compromise report or a lost
+	// heartbeat from the primary's sentinel — under the operator-signed
+	// failover policy in force: fail over (to the standby the policy names,
+	// with the genome it chose) or decline (and why). Appended BEFORE any
+	// key moves; a failover then continues as an ordinary cross-cloud
+	// release under the decision ID it names, so the handshake, attestation,
+	// authorisation and restore that follow link back to it. At most one
+	// failover is decided per policy serial.
+	KindFailoverDecided Kind = "FAILOVER_DECIDED"
 )
 
 // AuditEvent is one record in the hash-chained audit log.

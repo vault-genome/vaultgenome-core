@@ -223,52 +223,16 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// --- The payload source (Ollama model OR generic dir) ---
-	var (
-		contentKind ContentKind
-		contentRef  string
-		capture     func(w io.Writer) (json.RawMessage, int64, error)
-	)
+	src := dirSource(*contentDir)
 	if *modelRef != "" {
-		contentKind, contentRef = ContentKindOllama, *modelRef
-		capture = func(w io.Writer) (json.RawMessage, int64, error) {
-			snap, n, err := ollama.Capture(*modelRef, *ollamaHome, w)
-			if err != nil {
-				return nil, 0, err
-			}
-			raw, err := json.Marshal(snap)
-			return raw, n, err
-		}
-	} else {
-		contentKind, contentRef = ContentKindDir, *contentDir
-		capture = func(w io.Writer) (json.RawMessage, int64, error) {
-			snap, n, err := contentdir.Capture(*contentDir, w)
-			if err != nil {
-				return nil, 0, err
-			}
-			raw, err := json.Marshal(snap)
-			return raw, n, err
-		}
+		src = ollamaSource(*modelRef, *ollamaHome)
 	}
 
 	// First pass: describe the payload without keeping it.
-	snapshot, payloadBytes, err := capture(io.Discard)
+	h, err := bundle.Describe(string(src.kind), src.ref, src.capture)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl genome seal: %v\n", err)
 		return 1
-	}
-	var probe struct {
-		PayloadSHA256 string `json:"payload_sha256"`
-	}
-	if err := json.Unmarshal(snapshot, &probe); err != nil {
-		fmt.Fprintf(stderr, "acpctl genome seal: snapshot: %v\n", err)
-		return 1
-	}
-	h := bundle.Header{
-		ContentKind:     string(contentKind),
-		ContentRef:      contentRef,
-		ContentSnapshot: snapshot,
-		PayloadSHA256:   probe.PayloadSHA256,
-		PayloadBytes:    payloadBytes,
 	}
 
 	// --- Resolve parent linkage (a parent may be v2 or v3) ---
@@ -287,14 +251,15 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 	// Second pass: stream the payload through the sealer into a staging
 	// file beside the output. Seal checks the stream is the payload the
 	// first pass described.
-	sealed, dek, bundleBytes, err := sealToFile(*outputPath, h, capture)
+	staged := *outputPath + ".partial"
+	out, err := bundle.SealFile(staged, h, src.capture)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl genome seal: %v\n", err)
 		return 1
 	}
+	sealed, dek, bundleBytes := out.Header, out.DEK, out.Size
 	// The key before the bundle: never leave a bundle on disk whose key
 	// was not written.
-	staged := *outputPath + ".partial"
 	if *keyOut != "" {
 		if err := writeKeyFile(*keyOut, dek, *force); err != nil {
 			_ = os.Remove(staged)
@@ -336,8 +301,8 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 		EscrowFile:         *escrowOut,
 		EscrowKey:          escrowTag,
 		KeyID:              sealed.KeyID,
-		ContentKind:        string(contentKind),
-		ContentRef:         contentRef,
+		ContentKind:        string(src.kind),
+		ContentRef:         src.ref,
 		Generation:         sealed.Generation,
 		ParentBundle:       *parentBundle,
 		ParentBundleSHA256: sealed.ParentBundleSHA256,
@@ -345,46 +310,52 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 		BundleBytes:        bundleBytes,
 		SegmentBytes:       sealed.SegmentBytes,
 		PayloadSHA256:      sealed.PayloadSHA256,
-		ComponentCount:     countComponents(contentKind, snapshot),
+		ComponentCount:     countComponents(src.kind, h.ContentSnapshot),
 		SealedAt:           sealed.SealedAt.Format(time.RFC3339),
 	})
 	return 0
 }
 
-// sealToFile seals the payload capture produces into output+".partial"
-// and returns the sealed header, the DEK and the bundle size. On error
-// the partial file is removed.
-func sealToFile(output string, h bundle.Header, capture func(io.Writer) (json.RawMessage, int64, error)) (bundle.Header, []byte, int64, error) {
-	staged := output + ".partial"
-	f, err := os.OpenFile(staged, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return bundle.Header{}, nil, 0, err
+// payloadSource is what a genome seals: an Ollama model or a directory.
+type payloadSource struct {
+	kind    ContentKind
+	ref     string
+	capture bundle.Capture
+	// fingerprint changes whenever the content may have changed, and is
+	// cheap: the sentinel asks for it every tick.
+	fingerprint func() (string, error)
+}
+
+func dirSource(dir string) payloadSource {
+	return payloadSource{
+		kind: ContentKindDir,
+		ref:  dir,
+		capture: func(w io.Writer) (json.RawMessage, int64, error) {
+			snap, n, err := contentdir.Capture(dir, w)
+			if err != nil {
+				return nil, 0, err
+			}
+			raw, err := json.Marshal(snap)
+			return raw, n, err
+		},
+		fingerprint: func() (string, error) { return contentdir.Fingerprint(dir) },
 	}
-	pr, pw := io.Pipe()
-	go func() {
-		_, _, err := capture(pw)
-		_ = pw.CloseWithError(err)
-	}()
-	sealed, dek, err := bundle.Seal(f, h, pr)
-	_ = pr.CloseWithError(errors.New("sealing stopped"))
-	if err == nil {
-		err = f.Sync()
+}
+
+func ollamaSource(ref, home string) payloadSource {
+	return payloadSource{
+		kind: ContentKindOllama,
+		ref:  ref,
+		capture: func(w io.Writer) (json.RawMessage, int64, error) {
+			snap, n, err := ollama.Capture(ref, home, w)
+			if err != nil {
+				return nil, 0, err
+			}
+			raw, err := json.Marshal(snap)
+			return raw, n, err
+		},
+		fingerprint: func() (string, error) { return ollama.Fingerprint(ref, home) },
 	}
-	var size int64
-	if err == nil {
-		var info os.FileInfo
-		if info, err = f.Stat(); err == nil {
-			size = info.Size()
-		}
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		_ = os.Remove(staged)
-		return bundle.Header{}, nil, 0, err
-	}
-	return sealed, dek, size, nil
 }
 
 // writeFileExclusive writes data with mode 0644, never over an existing

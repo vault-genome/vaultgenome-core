@@ -36,6 +36,8 @@ var validKinds = map[Kind]struct{}{
 	KindCrossCloudRestoreCompleted:    {},
 	// Recorded refusals (SchemaVersion 5). See ADR 0010.
 	KindKeyReleaseDenied: {},
+	// Policy-driven failover (SchemaVersion 6). See ADR 0012.
+	KindFailoverDecided: {},
 }
 
 // Validate runs static consistency checks. Chain continuity (PrevHash

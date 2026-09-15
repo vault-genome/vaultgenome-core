@@ -56,6 +56,11 @@ type crossCloudMaterials struct {
 	// StopSerial is the serial of the operator stop list in force.
 	StopSerial uint64
 
+	// AllowList and StopList are Policy's parts, for callers that put a
+	// narrower policy between them (sagvd failover).
+	AllowList kms.KeyReleasePolicy
+	StopList  revocation.List
+
 	// Transport is the HTTPTransport configured against
 	// CrossCloud.TransportTLS / TransportBearerToken /
 	// RequestTimeoutSeconds. Used by the Coordinator to dispatch
@@ -238,6 +243,8 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 		VerifierRegistry: registry,
 		Policy:           revocation.NewGate(policy, stopList),
 		StopSerial:       stopList.Serial,
+		AllowList:        policy,
+		StopList:         stopList,
 		Transport:        transport,
 		AuditChain:       auditChain,
 		AuditEmitter:     emitter,

@@ -180,3 +180,21 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     it is given, is a file on the release host; it is not yet sealed to that
     host's TEE, whose provider is still `simulated` (#1). At the destination a
     released genome key is wiped from memory once its restore is signed for.
+12. **Automatic failover trusts the primary until a wire fires (ADR 0012,
+    2026-09-15).** The sentinel (`acpctl sentinel watch`) keeps a running
+    model's state sealed and reports compromise, and `sagvd failover` moves the
+    last trustworthy genome to a standby under the operator's signed policy
+    (one policy, one move; the stop list overrides it). The limits:
+    - A compromised primary holds its sentinel's key. It can keep
+      heartbeating, or report `stopped`, so that no failover happens. It
+      cannot send a genome anywhere the policy does not name, and it cannot
+      decrypt one. Detection outside the primary (cloud monitoring, the
+      operator) has to be able to move the model too; the manual path is
+      `sagvd crosscloud-restore -key-escrow`.
+    - The sentinel seals whatever the state directory holds. It cannot tell
+      tampering from training: the tripwires, the policy's quarantine window
+      and the standby's gate are the defences.
+    - The RPO covers only generations that reached the authority's replica of
+      the outbox.
+    - The attested standby is a CPU confidential VM. An attested GPU standby
+      needs confidential GPUs (H100 CC), a TDX producer and a TDX verifier.

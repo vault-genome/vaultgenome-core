@@ -250,6 +250,12 @@ func TestRestorer_FailsClosed(t *testing.T) {
 	signed, _, ok := f.r.Receipt(kid)
 	require.True(t, ok)
 	require.Nil(t, signed.Receipt, "no receipt for a failed restore")
+	// Asked for its receipt, the destination says the restore failed — a
+	// final answer, so a confirming source stops waiting.
+	rr := httptest.NewRecorder()
+	f.r.Routes("")["/v1/genome/receipt"](rr, httptest.NewRequest(http.MethodGet, "/v1/genome/receipt?key_id="+kid, nil))
+	require.Equal(t, http.StatusUnprocessableEntity, rr.Code)
+	require.Contains(t, rr.Body.String(), "restore failed")
 
 	// The operator replaces the bundle and the source releases again.
 	require.NoError(t, os.WriteFile(filepath.Join(f.bundles, "g.genome"), blob, 0o644))

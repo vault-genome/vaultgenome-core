@@ -14,7 +14,7 @@ the shipped binaries run today.*
 | Binary | What it does | Built by `make build` |
 | - | - | - |
 | `sagvd` (daemon) | Return Path listener for `acp-compute` workers (mTLS required off loopback); operator REST API (`POST /v1/jobs`, `GET /v1/jobs/{id}`); health listener (`/healthz`, `/readyz`, `/metrics`). Attests with the simulated TEE only. Writes no audit log. | yes |
-| `sagvd identity`, `sagvd crosscloud-restore`, `sagvd crosscloud-confirm` | Print the keys other hosts pin; release genome keys to an attested destination and confirm its restore ([06](06_cross_cloud_restore.md)). The two cross-cloud subcommands write the only audit log any binary writes (`crosscloud.audit_log_path`). | same binary |
+| `sagvd identity`, `sagvd crosscloud-restore`, `sagvd crosscloud-confirm`, `sagvd failover` | Print the keys other hosts pin; release genome keys to an attested destination and confirm its restore ([06](06_cross_cloud_restore.md)); carry out the operator's failover policy when the primary is compromised or dies ([07](07_failover.md)). The cross-cloud subcommands write the only audit log any binary writes (`crosscloud.audit_log_path`). | same binary |
 | `acp-compute` | Worker: dials sagvd's Return Path and runs one job per session with the placeholder reconstruction backend (KNOWN_ISSUES #2). Simulated TEE only. | yes |
 | `acp-bootstrap` | Cross-cloud destination: attests with AMD SEV-SNP (or the simulator), receives genome keys, restores genomes, signs receipts. | yes |
 | `acpctl` | Administrative CLI (§1.3). | yes |
@@ -99,6 +99,8 @@ The commands that exist:
 | `acpctl genome seal \| open (alias rewind) \| verify \| inspect \| chain \| lineage \| gate` | Seal, restore and check genome bundles |
 | `acpctl stop keygen \| issue \| verify` | Create and check the operator's signed stop list (06) |
 | `acpctl escrow keygen` | Create the release authority's key-escrow key pair; `genome seal --escrow-to` seals genome keys to its public half (06) |
+| `acpctl sentinel keygen \| watch` | On the primary: keep a running model's state sealed, generation by generation, and report when a tripwire fires (07) |
+| `acpctl failover issue \| verify` | Sign and check the operator's failover policy: the sentinel, the standby, the triggers (07) |
 | `acpctl recover --vault PATH …` | Unseal a `VG-VAULT-01` envelope with the TEE backend it names; no shipped binary writes that format yet |
 
 The audit commands read any audit log file; in practice the one
@@ -163,6 +165,8 @@ avoided:
 - `05_release_procedure.md` — the signed-tag / SBOM / cosign / SLSA release loop.
 - `06_cross_cloud_restore.md` — releasing genome keys to an attested
   destination and confirming its restore.
+- `07_failover.md` — the sentinel on the primary, the operator's failover
+  policy, and the executor that moves a genome to the standby.
 - `triage_table.md` — from an observed signal to the first action.
 - `runbooks/` — disaster recovery, AWS and Azure notes, real AMD SEV-SNP.
 

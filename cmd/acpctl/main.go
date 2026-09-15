@@ -35,6 +35,10 @@ func main() {
 			os.Exit(stopCmd(os.Args[2:], os.Stdout, os.Stderr))
 		case "escrow":
 			os.Exit(escrowCmd(os.Args[2:], os.Stdout, os.Stderr))
+		case "sentinel":
+			os.Exit(sentinelCmd(os.Args[2:], os.Stdout, os.Stderr))
+		case "failover":
+			os.Exit(failoverCmd(os.Args[2:], os.Stdout, os.Stderr))
 		}
 	}
 
@@ -65,6 +69,10 @@ func printUsage() {
 	fmt.Println("  stop issue    Sign a list that stops all key releases or revokes destinations")
 	fmt.Println("  stop verify   Check a stop list against the operator public key")
 	fmt.Println("  escrow keygen Create the release authority's key-escrow key pair")
+	fmt.Println("  sentinel keygen  Create the sentinel's signing key")
+	fmt.Println("  sentinel watch   Keep a running model's state sealed; report when a tripwire fires")
+	fmt.Println("  failover issue   Sign the operator's failover policy: which standby, on which signs of failure")
+	fmt.Println("  failover verify  Check a failover policy against the operator public key")
 	fmt.Println()
 	fmt.Println("Run `acpctl <command> --help` for per-subcommand flags.")
 }
