@@ -430,3 +430,49 @@ func TestRuntimeConfig_DurationAccessors(t *testing.T) {
 		t.Errorf("DefaultJobDeadline = %v", r.DefaultJobDeadline())
 	}
 }
+
+func TestValidate_GenomeSection(t *testing.T) {
+	c := DefaultConfig()
+	if c.Genome.Enabled() {
+		t.Fatal("gate jobs must be off until genome.bundle_dir is set")
+	}
+	if c.Genome.Gate.Atol != 1e-2 || c.Genome.Gate.Rtol != 1e-3 || c.Genome.Gate.MaxNonCriticalOutliers != 0 {
+		t.Fatalf("default gate tolerance: %+v", c.Genome.Gate)
+	}
+	c = minimalValidConfig()
+	c.Genome.BundleDir = "relative/genomes"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "genome.bundle_dir") {
+		t.Fatalf("relative bundle_dir accepted: %v", err)
+	}
+	c = minimalValidConfig()
+	c.Genome.BundleDir = "/var/lib/vg/genomes"
+	c.Genome.Gate.Atol = -1
+	c.Genome.Gate.MaxNonCriticalOutliers = -1
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "genome.gate.atol") || !strings.Contains(err.Error(), "genome.gate.max_non_critical_outliers") {
+		t.Fatalf("negative gate settings accepted: %v", err)
+	}
+	c = minimalValidConfig()
+	c.Genome.BundleDir = "/var/lib/vg/genomes"
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate(genome enabled): %v", err)
+	}
+	if !c.Genome.Enabled() {
+		t.Fatal("Enabled with a bundle_dir")
+	}
+}
+
+func TestEscrowKeyPath_FallsBackToCrossCloud(t *testing.T) {
+	c := DefaultConfig()
+	if got := c.EscrowKeyPath(); got != "" {
+		t.Fatalf("no escrow configured, got %q", got)
+	}
+	c.CrossCloud.KeyEscrowPath = "/keys/crosscloud-escrow.key"
+	if got := c.EscrowKeyPath(); got != "/keys/crosscloud-escrow.key" {
+		t.Fatalf("fallback: %q", got)
+	}
+	c.Genome.KeyEscrowPath = "/keys/genome-escrow.key"
+	if got := c.EscrowKeyPath(); got != "/keys/genome-escrow.key" {
+		t.Fatalf("genome.key_escrow_path must win: %q", got)
+	}
+}

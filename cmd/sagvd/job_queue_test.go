@@ -370,3 +370,67 @@ func TestJobQueue_Concurrent_SubmitAndNext(t *testing.T) {
 		t.Fatalf("got %d unique ids want %d", len(got), N)
 	}
 }
+
+func TestJobQueue_GateJobs_CarryTheirGenomeAndVerdict(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)}
+	q := NewJobQueue(clock, 10*time.Millisecond)
+	genome := GenomeView{Bundle: "gen-0.genome", KeyID: "genome-0123456789ab-g0-0123456789ab", Fixtures: 3}
+	spec := &gateSpec{GenomeID: genome.KeyID}
+
+	id, view, err := q.SubmitGenome(testJobRequest(clock.Now(), "m-gate"), &genome, spec)
+	if err != nil {
+		t.Fatalf("SubmitGenome: %v", err)
+	}
+	if view.Genome == nil || view.Genome.KeyID != genome.KeyID || view.Gate != nil {
+		t.Fatalf("queued view: %+v", view)
+	}
+	if got := q.GateFor(id); got != spec {
+		t.Fatalf("GateFor returned %p want %p", got, spec)
+	}
+	if q.GateFor("no-such-id") != nil {
+		t.Fatal("GateFor on an unknown id must be nil")
+	}
+	plain, _, err := q.Submit(testJobRequest(clock.Now(), "m-plain"))
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	if q.GateFor(plain) != nil {
+		t.Fatal("a job without a gate has no spec")
+	}
+
+	// Judged and passed: result and verdict on the view.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, _, err := q.Next(ctx); err != nil {
+		t.Fatalf("Next: %v", err)
+	}
+	out := returnpath.CandidateOutput{ManifestID: "m-gate", SessionID: "sess-m-gate", OutputKind: "text/plain", Bytes: []byte("{}"), ProducedAt: clock.Now()}
+	q.CompleteGated(id, out, "worker-kid-1", GateView{Level: "EXACT", Door: "pinned replay", Fixtures: 3}, nil)
+	view, _ = q.Get(id)
+	if view.Status != JobStatusSucceeded || view.Result == nil || view.Result.WorkerSigningKeyID != "worker-kid-1" {
+		t.Fatalf("passed gate job: %+v", view)
+	}
+	if view.Gate == nil || view.Gate.Level != "EXACT" || view.Gate.Door != "pinned replay" || view.Genome == nil {
+		t.Fatalf("passed gate job view lacks the verdict: %+v", view)
+	}
+
+	// Judged and refused: failed, with the verdict still on record and
+	// the worker that answered named.
+	id2, _, err := q.SubmitGenome(testJobRequest(clock.Now(), "m-gate-2"), &genome, spec)
+	if err != nil {
+		t.Fatalf("SubmitGenome: %v", err)
+	}
+	if _, _, err := q.Next(ctx); err != nil {
+		t.Fatalf("Next: %v", err)
+	}
+	q.CompleteGated(id2, out, "worker-kid-1", GateView{Level: "FAIL", Fixtures: 3},
+		shared_errors.Operational(CodeGateFailed, "missed", nil))
+	view, _ = q.Get(id2)
+	if view.Status != JobStatusFailed || view.Error == nil || view.Error.Code != CodeGateFailed || view.Result != nil {
+		t.Fatalf("refused gate job: %+v", view)
+	}
+	if view.Gate == nil || view.Gate.Level != "FAIL" {
+		t.Fatalf("refused gate job view lacks the verdict: %+v", view)
+	}
+	q.CompleteGated("no-such-id", out, "k", GateView{}, nil) // no panic
+}

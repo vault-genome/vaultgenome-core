@@ -92,10 +92,10 @@ func runIdentityCmd(args []string, w io.Writer) error {
 		}
 		id.AuditKID, id.AuditPublicKeyPEM = a.KeyID, string(auditPEM)
 	}
-	if p := cfg.CrossCloud.KeyEscrowPath; p != "" {
+	if p := cfg.EscrowKeyPath(); p != "" {
 		priv, err := escrow.ReadPrivate(p)
 		if err != nil {
-			return fmt.Errorf("identity: crosscloud.key_escrow_path: %w", err)
+			return fmt.Errorf("identity: key_escrow_path: %w", err)
 		}
 		pemBytes, err := escrow.PublicPEM(priv.PublicKey())
 		if err != nil {

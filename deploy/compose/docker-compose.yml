@@ -3,14 +3,17 @@
 # Docker Compose deployment of the authority/worker pair.
 #
 #   sagvd       — authority daemon: Return Path listener (mTLS) + operator
-#                 REST API (bearer token) + health/metrics
+#                 REST API (bearer token) + health/metrics; opens the named
+#                 genome, ships its model side sealed, judges the answer
 #   acp-compute — external compute worker: dials sagvd over mTLS, proves
-#                 its pinned TEE identity, serves one job per session
+#                 its pinned TEE identity, serves one gate job per session —
+#                 restores the model in memory through the vg_genome door
 #
 # Run order (from the repository root):
 #   make demo-certs    # provision ./deploy/compose/secrets with keygen
+#   make demo-genome   # fine-tune a tiny model and seal its genome into ./deploy/compose/genomes
 #   make demo-up       # build + start, wait for sagvd /readyz
-#   make demo-submit   # POST /v1/jobs with the bearer token, poll the result
+#   make demo-submit   # POST /v1/jobs naming the genome, poll the gate's verdict
 #   make demo-down     # stop and remove
 #
 # Security posture: every channel is authenticated. The Return Path is
@@ -47,6 +50,10 @@ services:
       - ./sagvd/config.json:/etc/acp/config/sagvd.json:ro
       - ./secrets/sagvd:/etc/acp/secrets/sagvd:ro
       - ./secrets/shared:/etc/acp/secrets/shared:ro
+      # The sealed genomes a job may name, with their key files beside
+      # them (make demo-genome, or acpctl genome seal). Read-only: sagvd
+      # opens a genome in memory and writes nothing.
+      - ./genomes:/var/lib/acp/genomes:ro
     # REST API and health are published on loopback only. The Return
     # Path (9443) is deliberately not published: only the worker speaks
     # the wire protocol, over the internal network.
@@ -82,10 +89,16 @@ services:
       - ./acp-compute/config.json:/etc/acp/config/acp-compute.json:ro
       - ./secrets/acp-compute:/etc/acp/secrets/acp-compute:ro
       - ./secrets/shared:/etc/acp/secrets/shared:ro
+      # The public base model the genome names (its files must hash to the
+      # genome's manifest). Read-only: the door loads it and writes nothing.
+      - ${ACP_BASE_MODEL:-./models/base}:/models/base:ro
+    # Python needs a writable /tmp; the root filesystem stays read-only.
+    tmpfs:
+      - /tmp:size=256m
     ports:
       - "127.0.0.1:9092:9092"
-    # Start order only: distroless images carry no probe tool, and the
-    # worker's dial loop backs off until sagvd's listener is up.
+    # Start order only: the images carry no probe tool, and the worker's
+    # dial loop backs off until sagvd's listener is up.
     depends_on:
       - sagvd
     restart: unless-stopped

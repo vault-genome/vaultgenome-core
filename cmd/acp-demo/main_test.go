@@ -64,7 +64,7 @@ func TestRun_EveryPrintedClaimHolds(t *testing.T) {
 		`door opened: "integer-portable"`, "verdict EQUIVALENT",
 		"signature verifies: true",
 		"model is NOT brought up (fail-closed)",
-		"generative rebuild from a compact recipe is a labelled placeholder",
+		"nothing here rebuilds a model from a recipe alone: the delta is sealed",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("narration lacks %q", want)

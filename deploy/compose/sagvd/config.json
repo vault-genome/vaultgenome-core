@@ -34,13 +34,21 @@
   "workers": {
     "registry_path": "/etc/acp/secrets/shared/workers.json"
   },
+  "genome": {
+    "bundle_dir": "/var/lib/acp/genomes",
+    "gate": {
+      "atol": 0.01,
+      "rtol": 0.001,
+      "max_non_critical_outliers": 0
+    }
+  },
   "runtime": {
-    "job_timeout_seconds": 120,
+    "job_timeout_seconds": 900,
     "handshake_timeout_seconds": 10,
     "queue_poll_ms": 250,
     "http_read_header_timeout_seconds": 5,
     "http_write_timeout_seconds": 30,
-    "default_job_deadline_seconds": 60,
+    "default_job_deadline_seconds": 600,
     "max_payload_bytes": 4194304
   },
   "health": {

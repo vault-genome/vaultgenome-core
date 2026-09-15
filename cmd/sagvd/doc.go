@@ -24,20 +24,24 @@
 //
 //   - vault.listen_address — Return Path inbound: acp-compute workers
 //     dial here, complete the 4-frame handshake, and receive one
-//     JobRequest per session backed by a pre-sealed ReconstructionJobManifest.
-//   - http_api.listen_address — operator REST API: POST /v1/jobs
-//     enqueues a job, GET /v1/jobs/{id} reports status plus the
-//     worker's CandidateOutput on success.
+//     JobRequest per session.
+//   - http_api.listen_address — operator REST API: POST /v1/jobs names a
+//     sealed genome in genome.bundle_dir and enqueues a gate job for it;
+//     GET /v1/jobs/{id} reports status, the genome, and — once the
+//     worker has answered — the gate's signed verdict and the worker's
+//     CandidateOutput.
 //
 // Dispatch is single-worker in Phase 1 (one handshake in flight at a
 // time). A bounded dispatcher pool lands in Phase 2 when multi-tenant
 // parallelism is on the critical path.
 //
-// Candidate validation in Phase 1 is the conservative stub in
-// /internal/compute/worker: the CandidateOutputFrame is checked for
-// signature integrity, manifest binding, and output-kind binding, but
-// the full R-13..R-15 semantic/behavioural battery is wired in under
-// task #78. Phase 1 is enough for the investor-demo round trip.
+// A job is a gate job (ADR 0013, genome_job.go): sagvd opens the named
+// genome with its key, keeps the fixtures' references, ships the model
+// side sealed to the worker, and — after the CandidateOutputFrame's
+// signature, manifest binding, output-kind binding and size budget have
+// been checked — holds the worker's outputs to the references through
+// the determinism ladder (byte-exact first, then within genome.gate's
+// tolerance). No door opening fails the job with gate_failed.
 //
 // # Configuration
 //
@@ -54,7 +58,14 @@
 //   - keys.authority_signing    kid + seed for authority-bound signatures (Phase-3 forward)
 //   - keys.session_sealing      kid + AES-256 key for SealedMaterial (pre-shared with worker)
 //   - workers.registry_path     JSON file of {kid, signing_pubkey_hex}
-//   - runtime.*                 handshake / job / http timeouts
+//   - genome.bundle_dir         the .genome bundles a job may name, with
+//     their key files or escrow envelopes beside them
+//   - genome.key_escrow_path    escrow private key that opens <bundle>.escrow
+//     (falls back to crosscloud.key_escrow_path)
+//   - genome.gate               atol, rtol, max_non_critical_outliers of the
+//     native-float door (defaults 1e-2, 1e-3, 0)
+//   - runtime.*                 handshake / job / http timeouts; max_payload_bytes
+//     bounds the model side of one job
 //   - health.listen_address     HTTP listener for /healthz /readyz /metrics
 //   - log.level, log.format     debug|info|warn|error, json|text
 //
@@ -62,11 +73,13 @@
 //
 // Operator REST API (configured by http_api.listen_address):
 //
-//   - POST /v1/jobs                 → {"job_id":"..."}
-//     Body: {manifest_id, session_id, expected_output_kind,
-//     expected_output_max_bytes, deadline_seconds_from_now,
-//     payload_base64}
-//   - GET  /v1/jobs/{id}            → status + candidate (if done)
+//   - POST /v1/jobs                 → {"job_id","manifest_id","session_id","genome"}
+//     Body: {"genome": {"bundle": "<name in genome.bundle_dir>",
+//     "key_file": "<name>" (omit to use <bundle>.escrow)},
+//     "deadline_seconds_from_now": N}
+//   - GET  /v1/jobs/{id}            → status, genome, and when done the
+//     gate verdict (level, door, attempts, signed_verdict) and the
+//     candidate
 //
 // Health / observability (configured by health.listen_address):
 //
@@ -79,6 +92,7 @@
 //
 //   - jobs_submitted_total            (counter)
 //   - jobs_completed_total{outcome}   (counter: success|reject|fail)
+//   - gate_verdicts_total{level}      (counter: EXACT|EQUIVALENT|FAIL|ERROR)
 //   - sessions_opened_total           (counter)
 //   - handshake_failures_total        (counter)
 //   - http_requests_total{route,status} (counter)

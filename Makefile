@@ -266,6 +266,14 @@ demo-certs-force:
 	@echo "==> regenerating demo secrets (force) under $(DEMO_SECRETS_DIR)"
 	@cd $(DEMO_DIR)/keygen && $(GO) run . -out $(DEMO_SECRETS_DIR) -force
 
+# demo-genome fine-tunes a tiny model with the real vg_genome worker and
+# seals its genome into deploy/compose/genomes (with the base model under
+# deploy/compose/models): what `make demo-submit` asks the worker to
+# restore. Needs the worker runtime on the host (workers/genome/README.md).
+.PHONY: demo-genome
+demo-genome: bin/acpctl
+	@ACPCTL=$(CURDIR)/bin/acpctl bash $(DEMO_DIR)/scripts/make_genome.sh
+
 .PHONY: demo-up
 demo-up: demo-certs
 	@echo "==> building + starting compose stack"

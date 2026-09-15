@@ -20,7 +20,7 @@ in the table is honest about what we don't do.
 |----------------------------------|:----------------:|:--------------:|:---------------------------:|:------------------------------:|:------------------:|
 | TEE-agnostic abstraction         | 🟡 frozen interface; 1 sim + 4 HW stubs | ❌ NVIDIA-only | ❌ Apple-only               | 🟡 multi but coarse           | 🟡 SGX-centric    |
 | Frozen interface (V1↔V2 swap)    | ✅                | ❌             | ❌                          | ❌                             | ❌                 |
-| AI continuity / model recovery   | ✅ governance-first (recon backend is a placeholder) | ❌             | ❌                          | ❌                             | ❌                 |
+| AI continuity / model recovery   | ✅ governance-first; the worker restores the sealed delta and the authority gates it | ❌             | ❌                          | ❌                             | ❌                 |
 | Hardware-rooted attestation      | 🟡 captured by side tooling, not yet in-product | ✅ NVIDIA only | ✅ Apple only               | ✅                             | ✅                 |
 | Open conformance suite           | ✅ pkg/teeconformance | ❌         | ❌ closed                   | 🟡 partial                    | ❌                 |
 | Open source                      | ✅ AGPL-3.0       | ❌ proprietary | ❌ proprietary              | ✅ Apache-2.0                 | 🟡 OSS + commercial |

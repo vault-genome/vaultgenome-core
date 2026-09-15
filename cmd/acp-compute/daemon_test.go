@@ -118,6 +118,9 @@ func newTestFixture(t *testing.T) *testFixture {
 	f.cfg.Keys.WorkerSigning.SeedPath = write("worker.seed", f.workerSeed)
 	f.cfg.Keys.SessionSealing.KeyID = "session-seal-1"
 	f.cfg.Keys.SessionSealing.MaterialPath = write("session.key", f.sealingKey)
+	// The daemon under test is driven with the deterministic reference
+	// backend (see NewDaemon); the config still has to name a door.
+	f.cfg.Genome.Door.Command = []string{"/nonexistent/vg-door"}
 
 	// Test defaults: disable HTTP; very short backoff so the cancel
 	// path doesn't have to wait a second.

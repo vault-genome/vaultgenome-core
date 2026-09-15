@@ -1,35 +1,36 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# submit_job.sh — POST a demo job to the running sagvd and poll the
-# result. Invoked by the `demo-submit` Makefile target, but safe to
-# run standalone once `make demo-up` has brought the stack up.
+# submit_job.sh — POST a gate job to the running sagvd and poll the
+# result: the job names a sealed genome in sagvd's genome.bundle_dir
+# (deploy/compose/genomes, see make_genome.sh); the worker restores it in
+# memory and answers its prompts; sagvd judges the answer and the job view
+# carries the signed verdict. Invoked by the `demo-submit` Makefile target,
+# but safe to run standalone once `make demo-up` has brought the stack up.
 #
 # Usage:
-#   ./submit_job.sh                  # defaults: 1 KiB payload, 60 s poll
+#   ./submit_job.sh                  # defaults: gen-0.genome / gen-0.key, 600 s deadline
 #   SAGVD_URL=http://... ./submit_job.sh
-#   PAYLOAD_SIZE=4096 DEADLINE=30 ./submit_job.sh
+#   GENOME_BUNDLE=gen-1.genome GENOME_KEY=gen-1.key ./submit_job.sh
 #
 # Environment (all optional):
 #   SAGVD_URL      base URL of sagvd's HTTP API (default http://127.0.0.1:9080)
-#   MANIFEST_ID    JobRequest.ManifestID (default demo-manifest-<ts>)
-#   SESSION_ID     JobRequest.SessionID (default demo-session-<ts>)
-#   OUTPUT_KIND    ExpectedOutputKind   (default "lora-adapter-demo")
-#   OUTPUT_MAX     ExpectedOutputMaxBytes (default 4096)
-#   PAYLOAD_SIZE   bytes of /dev/urandom to seal as the job payload (default 1024)
-#   DEADLINE       deadline_seconds_from_now (default 60)
+#   GENOME_BUNDLE  the bundle's file name in genome.bundle_dir (default gen-0.genome)
+#   GENOME_KEY     its key file's name there (default gen-0.key; empty = use
+#                  the escrow envelope <bundle>.escrow)
+#   DEADLINE       deadline_seconds_from_now (default 600; a model load counts)
 #   POLL_INTERVAL  seconds between GET polls (default 1)
-#   POLL_TIMEOUT   total seconds to wait before giving up (default 60)
+#   POLL_TIMEOUT   total seconds to wait before giving up (default 600)
 #   BEARER_TOKEN   REST API token; defaults to the contents of
 #                  $SECRETS_DIR/sagvd/api_token (written by keygen)
 #   SECRETS_DIR    secrets tree (default: ../secrets relative to this script)
 #
 # Exit codes:
-#   0  — job reached JobStatusSucceeded, result printed as JSON
+#   0  — job reached JobStatusSucceeded: the gate opened; job view printed as JSON
 #   1  — submission failed (HTTP != 202)
 #   2  — poll timed out (job neither succeeded nor failed in POLL_TIMEOUT)
-#   3  — job reached JobStatusFailed
-#   4  — prerequisites missing (curl / jq / base64, or no bearer token)
+#   3  — job reached JobStatusFailed (a gate that refused the model prints its attempts)
+#   4  — prerequisites missing (curl / jq, or no bearer token)
 
 set -o errexit
 set -o pipefail
@@ -41,7 +42,7 @@ set -o nounset
 # plain shell script with ad-hoc grep/sed over JSON would be fragile
 # and silently lose negative test signal (e.g., a 202 body with an
 # unexpected shape).
-for tool in curl jq base64; do
+for tool in curl jq; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "submit_job.sh: missing prerequisite: $tool" >&2
     exit 4
@@ -51,15 +52,11 @@ done
 # ---- defaults -------------------------------------------------------------
 
 SAGVD_URL="${SAGVD_URL:-http://127.0.0.1:9080}"
-NOW_EPOCH="$(date +%s)"
-MANIFEST_ID="${MANIFEST_ID:-demo-manifest-${NOW_EPOCH}}"
-SESSION_ID="${SESSION_ID:-demo-session-${NOW_EPOCH}}"
-OUTPUT_KIND="${OUTPUT_KIND:-lora-adapter-demo}"
-OUTPUT_MAX="${OUTPUT_MAX:-4096}"
-PAYLOAD_SIZE="${PAYLOAD_SIZE:-1024}"
-DEADLINE="${DEADLINE:-60}"
+GENOME_BUNDLE="${GENOME_BUNDLE:-gen-0.genome}"
+GENOME_KEY="${GENOME_KEY-gen-0.key}"
+DEADLINE="${DEADLINE:-600}"
 POLL_INTERVAL="${POLL_INTERVAL:-1}"
-POLL_TIMEOUT="${POLL_TIMEOUT:-60}"
+POLL_TIMEOUT="${POLL_TIMEOUT:-600}"
 
 # Trim any trailing slash on SAGVD_URL so the /v1 concatenation below
 # never produces double slashes (which sagvd's router would 404).
@@ -76,30 +73,18 @@ if [[ -z "${BEARER_TOKEN:-}" ]]; then
   exit 4
 fi
 
-# ---- payload --------------------------------------------------------------
+# ---- body -----------------------------------------------------------------
 
-# We generate PAYLOAD_SIZE bytes of randomness and base64-encode them.
-# On macOS and Linux, `base64` differs in line-wrapping defaults:
-# macOS wraps at 76; GNU base64 wraps unless -w0 is passed. We
-# normalise the output with a tr to strip any newlines so the JSON
-# body is a single line and we don't trip strict JSON lexers that
-# reject unescaped newlines in strings.
-PAYLOAD_B64="$(head -c "$PAYLOAD_SIZE" /dev/urandom | base64 | tr -d '\n')"
-
+# The job names files in sagvd's genome.bundle_dir; nothing of the genome
+# travels in the request. An empty GENOME_KEY leaves key_file out, so
+# sagvd opens the escrow envelope beside the bundle instead.
 REQUEST_BODY="$(jq -nc \
-  --arg manifest_id "$MANIFEST_ID" \
-  --arg session_id "$SESSION_ID" \
-  --arg kind "$OUTPUT_KIND" \
-  --argjson max "$OUTPUT_MAX" \
+  --arg bundle "$GENOME_BUNDLE" \
+  --arg key "$GENOME_KEY" \
   --argjson deadline "$DEADLINE" \
-  --arg payload "$PAYLOAD_B64" \
   '{
-     manifest_id: $manifest_id,
-     session_id: $session_id,
-     expected_output_kind: $kind,
-     expected_output_max_bytes: $max,
+     genome: ({bundle: $bundle} + (if $key == "" then {} else {key_file: $key} end)),
      deadline_seconds_from_now: $deadline,
-     payload_base64: $payload,
    }')"
 
 # ---- submit ---------------------------------------------------------------
@@ -114,10 +99,9 @@ fi
 auth_args() { if [[ ${#AUTH_HEADER[@]} -gt 0 ]]; then printf '%s\n' "${AUTH_HEADER[@]}"; fi; }
 
 echo "submit_job.sh: submitting to ${SAGVD_URL}/v1/jobs ..."
-echo "  manifest_id = ${MANIFEST_ID}"
-echo "  session_id  = ${SESSION_ID}"
-echo "  output_kind = ${OUTPUT_KIND}"
-echo "  payload     = ${PAYLOAD_SIZE} bytes of /dev/urandom"
+echo "  genome   = ${GENOME_BUNDLE}"
+echo "  key      = ${GENOME_KEY:-<escrow envelope>}"
+echo "  deadline = ${DEADLINE}s"
 
 # Capture body and status separately so we can act on non-202s.
 HTTP_RESPONSE="$(mktemp)"
@@ -151,6 +135,7 @@ if [[ -z "$JOB_ID" || "$JOB_ID" == "null" ]]; then
 fi
 
 echo "submit_job.sh: accepted as job_id=${JOB_ID}"
+jq -r '"  manifest_id = \(.manifest_id)\n  session_id  = \(.session_id)\n  genome_id   = \(.genome.key_id) (\(.genome.fixtures) fixtures, \(.genome.bytes) bytes shipped)"' < "$HTTP_RESPONSE"
 
 # ---- poll -----------------------------------------------------------------
 
@@ -173,14 +158,14 @@ while : ; do
     STATUS="$(jq -r '.status // empty' <<<"$GET_OUTPUT")"
     case "$STATUS" in
       succeeded)
-        echo "submit_job.sh: job succeeded"
+        echo "submit_job.sh: job succeeded — gate $(jq -r '.gate.level' <<<"$GET_OUTPUT") at door \"$(jq -r '.gate.door' <<<"$GET_OUTPUT")\" over $(jq -r '.gate.fixtures' <<<"$GET_OUTPUT") fixtures, verdict signed by $(jq -r '.gate.signer_key_id' <<<"$GET_OUTPUT")"
         # Pretty-print the final job view. The JSON is intentionally
-        # stable across runs (sagvd writes it via CandidateView).
+        # stable across runs (sagvd writes it via JobView).
         jq . <<<"$GET_OUTPUT"
         exit 0
         ;;
       failed)
-        echo "submit_job.sh: job failed" >&2
+        echo "submit_job.sh: job failed — $(jq -r '.error.code' <<<"$GET_OUTPUT"): $(jq -r '.error.message' <<<"$GET_OUTPUT")" >&2
         jq . <<<"$GET_OUTPUT" >&2
         exit 3
         ;;
