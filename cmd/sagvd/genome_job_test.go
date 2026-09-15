@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,6 +176,23 @@ func TestGenomeJobs_RefusesWhatItShould(t *testing.T) {
 		})
 	}
 
+	// A name that still points outside the bundle dir — through a symlink
+	// — is refused by the root the files are opened in.
+	outside := t.TempDir()
+	escaped := sealTestGenome(t, outside, genomeOptions{name: "escaped"})
+	require.NoError(t, os.Symlink(filepath.Join(outside, escaped.Bundle), filepath.Join(dir, "link.genome")))
+	require.NoError(t, os.Symlink(filepath.Join(outside, escaped.KeyFile), filepath.Join(dir, "link.key")))
+	_, err := g.build(genomeRef{Bundle: "link.genome", KeyFile: "link.key"}, time.Minute)
+	require.Equal(t, CodeGenomeNotFound, shared_errors.CodeOf(err), err.Error())
+	_, err = g.build(genomeRef{Bundle: sealed.Bundle, KeyFile: "link.key"}, time.Minute)
+	require.Equal(t, CodeGenomeNotFound, shared_errors.CodeOf(err), err.Error())
+	// A bundle dir that is not there is the vault's problem, not the caller's.
+	gone := *g // a copy: the builder under test keeps its directory
+	gone.cfg.BundleDir = filepath.Join(t.TempDir(), "absent")
+	_, err = gone.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, time.Minute)
+	require.Equal(t, CodeBundleDirUnavailable, shared_errors.CodeOf(err))
+	require.Equal(t, http.StatusInternalServerError, statusForBuildError(err))
+
 	// Genomes that open but cannot be gated.
 	for name, opts := range map[string]genomeOptions{
 		"fixtures without prompts":  {name: "noprompts", noPrompts: true},
@@ -192,12 +210,12 @@ func TestGenomeJobs_RefusesWhatItShould(t *testing.T) {
 	}
 
 	// A genome the Return Path cannot carry.
-	small := g
+	small := *g
 	small.maxPayload = 4096
-	_, err := small.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, time.Minute)
+	_, err = small.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, time.Minute)
 	require.Equal(t, CodeGenomeTooLarge, shared_errors.CodeOf(err))
 	require.Equal(t, shared_errors.CategoryOperational, shared_errors.CategoryOf(err))
-	tiny := g
+	tiny := *g
 	tiny.maxPayload = 1
 	_, err = tiny.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, time.Minute)
 	require.Equal(t, CodeGenomeTooLarge, shared_errors.CodeOf(err), "refused before the bundle is read")
@@ -347,15 +365,16 @@ func TestUntarFiles_ReadsRegularFilesAndRefusesEscapes(t *testing.T) {
 }
 
 func TestBundleFileName(t *testing.T) {
-	for _, ok := range []string{"gen-0.genome", "a.key", "x"} {
+	for _, ok := range []string{"gen-0.genome", "a.key", "x", "Model_7B.v2.genome.escrow", "a..b"} {
 		got, err := bundleFileName(ok)
 		require.NoError(t, err)
 		require.Equal(t, ok, got)
 	}
-	for _, bad := range []string{"", ".", "..", "a/b", "/abs", `a\b`, "../x"} {
+	for _, bad := range []string{"", ".", "..", ".hidden", "a/b", "/abs", `a\b`, "../x", "a b", "a\nb", "ключ", strings.Repeat("a", 256)} {
 		_, err := bundleFileName(bad)
 		require.Error(t, err, bad)
 	}
+	require.Equal(t, "a b c", logSafe("a\nb\rc"))
 }
 
 func TestBuildComponentAAD_BindsJobAndIndex(t *testing.T) {

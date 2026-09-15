@@ -316,7 +316,7 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 		"manifest_id", job.Req.ManifestID,
 		"session_id", job.Req.SessionID,
 		"genome_id", job.Genome.KeyID,
-		"bundle", job.Genome.Bundle,
+		"bundle", logSafe(job.Genome.Bundle),
 		"key_source", job.Genome.KeySource,
 		"fixtures", job.Genome.Fixtures,
 		"shipped_bytes", job.Genome.Bytes,

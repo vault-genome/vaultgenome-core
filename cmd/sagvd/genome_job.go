@@ -13,7 +13,7 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -63,6 +63,10 @@ const (
 	// CodeGenomeNotFound (Structural): the named bundle, key file or
 	// escrow envelope is not in genome.bundle_dir.
 	CodeGenomeNotFound = "genome_not_found"
+
+	// CodeBundleDirUnavailable (Operational): genome.bundle_dir cannot be
+	// opened on the vault.
+	CodeBundleDirUnavailable = "bundle_dir_unavailable"
 
 	// CodeGenomeKeyInvalid (Authority): the key file or envelope does not
 	// open the named bundle.
@@ -184,20 +188,24 @@ func (g *genomeJobs) build(ref genomeRef, deadline time.Duration) (builtJob, err
 	if err != nil {
 		return zero, err
 	}
-	bundlePath := filepath.Join(g.cfg.BundleDir, name)
-	info, err := os.Stat(bundlePath)
+	// Every file a job names is opened relative to genome.bundle_dir
+	// through an os.Root: a name that still pointed outside it — a
+	// symlink, say — is refused by the kernel, not by string checks.
+	root, err := os.OpenRoot(g.cfg.BundleDir)
 	if err != nil {
-		return zero, shared_errors.Structural(CodeGenomeNotFound, fmt.Sprintf("genome %s is not in genome.bundle_dir", name), nil)
+		return zero, shared_errors.Operational(CodeBundleDirUnavailable, "genome.bundle_dir cannot be opened", err)
 	}
+	defer func() { _ = root.Close() }()
+
 	// A bundle the Return Path could not carry is refused before it is
 	// read into memory.
-	if limit := int64(g.maxPayload) + bundle.MaxHeaderBytes + 1<<20; info.Size() > limit {
+	blob, size, err := readInRoot(root, name, int64(g.maxPayload)+bundle.MaxHeaderBytes+1<<20)
+	switch {
+	case errors.Is(err, errFileTooLarge):
 		return zero, shared_errors.Operational(CodeGenomeTooLarge,
-			fmt.Sprintf("genome %s is %d bytes; a gate job carries at most runtime.max_payload_bytes (%d)", name, info.Size(), g.maxPayload), nil)
-	}
-	blob, err := os.ReadFile(bundlePath)
-	if err != nil {
-		return zero, shared_errors.Structural(CodeGenomeNotFound, fmt.Sprintf("genome %s: %v", name, err), nil)
+			fmt.Sprintf("genome %s is %d bytes; a gate job carries at most runtime.max_payload_bytes (%d)", name, size, g.maxPayload), nil)
+	case err != nil:
+		return zero, shared_errors.Structural(CodeGenomeNotFound, fmt.Sprintf("genome %s is not in genome.bundle_dir", name), nil)
 	}
 	rd, err := bundle.NewReader(bytes.NewReader(blob))
 	if err != nil {
@@ -209,7 +217,7 @@ func (g *genomeJobs) build(ref genomeRef, deadline time.Duration) (builtJob, err
 	}
 	bundleSum := sha256.Sum256(blob)
 
-	dek, keySource, err := g.openKey(ref, name, rd.Header.KeyID)
+	dek, keySource, err := g.openKey(root, ref, name, rd.Header.KeyID)
 	if err != nil {
 		return zero, err
 	}
@@ -343,24 +351,29 @@ func (g *genomeJobs) build(ref genomeRef, deadline time.Duration) (builtJob, err
 }
 
 // openKey finds the genome's key: the named key file, or the escrow
-// envelope beside the bundle opened with the authority's escrow key. The
-// key is checked against the bundle's key ID before anything is opened.
-func (g *genomeJobs) openKey(ref genomeRef, bundleName, keyID string) ([]byte, string, error) {
+// envelope beside the bundle opened with the authority's escrow key. Both
+// are read through root; the key is checked against the bundle's key ID
+// before anything is opened.
+func (g *genomeJobs) openKey(root *os.Root, ref genomeRef, bundleName, keyID string) ([]byte, string, error) {
 	if ref.KeyFile != "" {
 		name, err := bundleFileName(ref.KeyFile)
 		if err != nil {
 			return nil, "", err
 		}
-		p := filepath.Join(g.cfg.BundleDir, name)
-		info, err := os.Stat(p)
+		f, err := root.Open(name)
 		if err != nil {
 			return nil, "", shared_errors.Structural(CodeGenomeNotFound, fmt.Sprintf("key file %s is not in genome.bundle_dir", name), nil)
+		}
+		defer func() { _ = f.Close() }()
+		info, err := f.Stat()
+		if err != nil {
+			return nil, "", shared_errors.Structural(CodeGenomeNotFound, fmt.Sprintf("key file %s: %v", name, err), nil)
 		}
 		if perm := info.Mode().Perm(); perm&0o077 != 0 {
 			return nil, "", shared_errors.Authority(CodeGenomeKeyInvalid,
 				fmt.Sprintf("key file %s is open to other users (mode %04o); chmod 600 it", name, perm), nil)
 		}
-		dek, err := os.ReadFile(p)
+		dek, err := io.ReadAll(io.LimitReader(f, crypto.AES256KeySize+1))
 		if err != nil {
 			return nil, "", shared_errors.Structural(CodeGenomeNotFound, fmt.Sprintf("key file %s: %v", name, err), nil)
 		}
@@ -374,8 +387,7 @@ func (g *genomeJobs) openKey(ref genomeRef, bundleName, keyID string) ([]byte, s
 		return nil, "", shared_errors.Structural(CodeGenomeNotFound,
 			"no key_file named and no escrow key configured (genome.key_escrow_path)", nil)
 	}
-	envPath := filepath.Join(g.cfg.BundleDir, bundleName+".escrow")
-	raw, err := os.ReadFile(envPath)
+	raw, _, err := readInRoot(root, bundleName+".escrow", maxEnvelopeBytes)
 	if err != nil {
 		return nil, "", shared_errors.Structural(CodeGenomeNotFound,
 			fmt.Sprintf("no key_file named and no envelope %s.escrow in genome.bundle_dir", bundleName), nil)
@@ -401,6 +413,38 @@ func (g *genomeJobs) openKey(ref genomeRef, bundleName, keyID string) ([]byte, s
 		return nil, "", shared_errors.Authority(CodeGenomeKeyInvalid, fmt.Sprintf("envelope %s.escrow: %v", bundleName, err), nil)
 	}
 	return dek, "escrow", nil
+}
+
+// maxEnvelopeBytes bounds an escrow envelope: a key ID, two tags and a
+// wrapped 32-byte key.
+const maxEnvelopeBytes = 16 << 10
+
+var errFileTooLarge = errors.New("file too large")
+
+// readInRoot reads the regular file name inside root, refusing one larger
+// than limit before reading it. It returns the file's size with the error
+// so a refusal can name it.
+func readInRoot(root *os.Root, name string, limit int64) ([]byte, int64, error) {
+	f, err := root.Open(name)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, 0, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, info.Size(), fmt.Errorf("%s is not a regular file", name)
+	}
+	if info.Size() > limit {
+		return nil, info.Size(), errFileTooLarge
+	}
+	data := make([]byte, info.Size())
+	if _, err := io.ReadFull(f, data); err != nil {
+		return nil, info.Size(), err
+	}
+	return data, info.Size(), nil
 }
 
 // modelGenome is the model side of an opened genome.
@@ -566,17 +610,28 @@ func untarFiles(payload []byte) (map[string][]byte, error) {
 	return files, nil
 }
 
+// bundleFileNameRE is what a job may name: a file name of letters,
+// digits, dots, dashes and underscores, starting with a letter or digit.
+// No separators, no ".", no "..", no control characters.
+var bundleFileNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+
 // bundleFileName accepts a bare file name inside genome.bundle_dir and
-// refuses anything that could reach outside it.
+// refuses anything else, so the name can be joined, opened and logged.
 func bundleFileName(name string) (string, error) {
 	if name == "" {
 		return "", shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "genome.bundle required", nil)
 	}
-	if name != filepath.Base(name) || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+	if !bundleFileNameRE.MatchString(name) {
 		return "", shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("%q is not a file name in genome.bundle_dir (paths are not accepted)", name), nil)
+			fmt.Sprintf("%q is not a file name in genome.bundle_dir (letters, digits, '.', '-', '_'; no paths)", name), nil)
 	}
 	return name, nil
+}
+
+// logSafe strips line breaks from a value before it goes into a log line,
+// so a log entry is one line whatever the request carried.
+func logSafe(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\r", " ")
 }
 
 // buildComponentAAD is the associated data the vault binds into every
