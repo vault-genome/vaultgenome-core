@@ -26,7 +26,34 @@ func goodConfig() Config {
 	c.Keys.WorkerSigning.SeedPath = "/tmp/acp-compute-test/worker.seed"
 	c.Keys.SessionSealing.KeyID = "session-seal-1"
 	c.Keys.SessionSealing.MaterialPath = "/tmp/acp-compute-test/session.key"
+	c.Genome.Door.Command = []string{"python3", "-m", "vg_genome", "door", "--stdin-genome", "--base", "/models/base"}
 	return c
+}
+
+func TestConfig_Validate_RequiresADoor(t *testing.T) {
+	t.Parallel()
+	c := goodConfig()
+	c.Genome.Door.Command = nil
+	err := c.Validate()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "genome.door.command required")
+
+	c = goodConfig()
+	c.Genome.Door.Command = []string{"  "}
+	require.ErrorContains(t, c.Validate(), "genome.door.command required")
+
+	c = goodConfig()
+	c.Genome.Door.Env = []string{"PYTHONPATH=/opt/vg", "BROKEN"}
+	require.ErrorContains(t, c.Validate(), `genome.door.env entry "BROKEN"`)
+
+	c = goodConfig()
+	c.Genome.Door.TimeoutSeconds = -1
+	require.ErrorContains(t, c.Validate(), "genome.door.timeout_seconds")
+
+	c = goodConfig()
+	c.Genome.Door.TimeoutSeconds = 90
+	require.NoError(t, c.Validate())
+	require.Equal(t, 90*time.Second, c.Genome.Door.Timeout())
 }
 
 func TestDefaultConfig_IsSelfConsistent(t *testing.T) {
@@ -226,6 +253,10 @@ func TestLoadConfigFile_RoundTrip(t *testing.T) {
 		"keys": {
 			"worker_signing":  {"kid": "wk-1", "seed_path": "/x/w.seed"},
 			"session_sealing": {"kid": "ss-1", "material_path": "/x/ss.key"}
+		},
+		"genome": {
+			"door": {"command": ["python3", "-m", "vg_genome", "door", "--stdin-genome", "--base", "/x/base"],
+			         "env": ["PYTHONPATH=/x/workers/genome"], "timeout_seconds": 600}
 		}
 	}`
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
@@ -234,6 +265,9 @@ func TestLoadConfigFile_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "127.0.0.1:6443", c.Vault.Address)
 	require.Equal(t, "wk-1", c.Keys.WorkerSigning.KeyID)
+	require.Equal(t, []string{"python3", "-m", "vg_genome", "door", "--stdin-genome", "--base", "/x/base"}, c.Genome.Door.Command)
+	require.Equal(t, []string{"PYTHONPATH=/x/workers/genome"}, c.Genome.Door.Env)
+	require.Equal(t, 600, c.Genome.Door.TimeoutSeconds)
 
 	// End-to-end with validation: default timeouts + supplied paths
 	// must pass the full check.

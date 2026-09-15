@@ -24,12 +24,17 @@
 //
 // Production-shape daemon. Dials sagvd over TCP (optionally wrapped
 // in mTLS v1.3), runs the 4-frame Return Path handshake backed by a
-// simulated TEE, serves exactly one ReconstructionJob per session,
-// signs the resulting CandidateOutputFrame under an operator-
-// provisioned Ed25519 key, then closes and reconnects. Reconstruction
-// is handled by the deterministic R-11 placeholder in
-// /internal/compute/worker; Phase 3 swaps that implementation for the
-// real generative backend without touching this daemon's wiring.
+// simulated TEE, serves exactly one gate job per session, signs the
+// resulting CandidateOutputFrame under an operator-provisioned Ed25519
+// key, then closes and reconnects. Reconstruction is
+// worker.GenomeReconstructor (/internal/compute/worker, ADR 0013): the
+// job's components — a sealed genome's description, its LoRA adapter and
+// the prompts of its fixtures — go to the door genome.door.command names
+// (python3 -m vg_genome door --stdin-genome --base BASE_DIR), which
+// restores the model in memory over the public base model on this host
+// and answers the prompts; the outputs are the candidate, and sagvd
+// judges them against the sealed references. Nothing of the genome is
+// written to this host's disk.
 //
 // # Configuration
 //
@@ -43,6 +48,10 @@
 //   - tee.peer.*             peer's pinned pubkey + measurement files
 //   - keys.worker_signing    kid + 32-byte Ed25519 seed for frame signing
 //   - keys.session_sealing   kid + 32-byte AES-256 key for unsealing
+//   - genome.door.command    the door: argv of the program that restores a
+//     genome from stdin and answers its prompts (required)
+//   - genome.door.env        extra KEY=VALUE for the door (PYTHONPATH, ...)
+//   - genome.door.timeout_seconds  bound on one door run (0: the job's deadline)
 //   - runtime.*              dial / handshake / job timeouts and backoff
 //   - health.listen_address  HTTP listener for /healthz /readyz /metrics
 //   - log.level, log.format  debug|info|warn|error, json|text

@@ -3,7 +3,9 @@
 # The model-side worker (workers/genome): deterministic LoRA fine-tuning,
 # the base-model manifest, fixtures and the gate door, tested on a tiny
 # random model built in the test itself — nothing is downloaded but the
-# pinned libraries. Then the Go gate runs against the real door.
+# pinned libraries. Then the Go gate runs against the real door on disk,
+# and the acp-compute reconstructor runs the real door on a genome
+# delivered in memory (ADR 0013).
 name: genome-worker
 
 on:
@@ -12,6 +14,7 @@ on:
       - "workers/genome/**"
       - "internal/genome/**"
       - "internal/validation/**"
+      - "internal/compute/worker/**"
       - "cmd/acpctl/**"
       - ".github/workflows/genome-worker.yml"
   pull_request:
@@ -19,6 +22,7 @@ on:
       - "workers/genome/**"
       - "internal/genome/**"
       - "internal/validation/**"
+      - "internal/compute/worker/**"
       - "cmd/acpctl/**"
       - ".github/workflows/genome-worker.yml"
 
@@ -52,3 +56,7 @@ jobs:
         env:
           VG_GENOME_WORKER: ${{ github.workspace }}/workers/genome
         run: go test -count=1 -run TestGenomeGate_RealWorker ./cmd/acpctl/
+      - name: acp-compute reconstructor against the real door, genome in memory
+        env:
+          VG_GENOME_WORKER: ${{ github.workspace }}/workers/genome
+        run: go test -count=1 -v -run TestGenomeReconstructor_RealDoor ./internal/compute/worker/

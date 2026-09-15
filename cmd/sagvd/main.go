@@ -169,9 +169,23 @@ func runDaemon(args []string) error {
 		return err
 	}
 
+	genomes := newGenomeJobs(cfg, mat.Store, mat.SessionSealingKeyID, clock)
+	switch {
+	case genomes != nil:
+		logger.Info("sagvd gate jobs enabled",
+			"bundle_dir", cfg.Genome.BundleDir,
+			"escrow_key_configured", cfg.EscrowKeyPath() != "",
+			"gate_atol", cfg.Genome.Gate.Atol,
+			"gate_rtol", cfg.Genome.Gate.Rtol,
+			"gate_max_non_critical_outliers", cfg.Genome.Gate.MaxNonCriticalOutliers,
+		)
+	case cfg.HTTPAPI.ListenAddress != "":
+		logger.Warn("sagvd REST API accepts no jobs: genome.bundle_dir is not configured")
+	}
+
 	httpAPI, err := NewHTTPAPIServer(
 		cfg.HTTPAPI, cfg.Runtime, queue,
-		mat.Store, mat.SessionSealingKeyID,
+		mat.Store, mat.SessionSealingKeyID, genomes,
 		clock, registry, logger,
 	)
 	if err != nil {
