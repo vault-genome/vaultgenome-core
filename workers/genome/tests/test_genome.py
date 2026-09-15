@@ -59,7 +59,7 @@ def test_the_same_recipe_yields_the_same_adapter_byte_for_byte(base_dir, data_pa
 
 def test_replay_reproduces_the_sealed_adapter(genome_dir, base_dir):
     r = replay(genome_dir, base_dir)
-    assert r["exact"] and r["max_abs_diff"] == 0.0 and r["losses_equal"]
+    assert r["exact"] and r["max_abs_diff"] == 0.0 and r["max_rel_l2"] == 0.0 and r["losses_equal"]
 
 
 def test_an_untrained_adapter_changes_nothing(base_dir):

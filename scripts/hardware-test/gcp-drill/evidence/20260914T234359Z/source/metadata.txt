@@ -1,0 +1,3 @@
+instance=vg-drill-src-20260914t234359z
+zone=us-central1-c
+machine=n2d-standard-8

@@ -168,7 +168,10 @@ def replay(genome_dir: str, base_dir: str, device: str = "cpu", log=None) -> dic
     replayed = lora.state_dict(model)
     if set(sealed) != set(replayed):
         raise ValueError("replayed adapter has different tensors")
-    max_abs, max_rel, exact = 0.0, 0.0, True
+    # max_rel_diff is element-wise and blows up on weights near zero;
+    # max_rel_l2 (||sealed - replayed|| / ||sealed|| per tensor) is the
+    # figure that says how far the replayed adapter is from the sealed one.
+    max_abs, max_rel, max_rel_l2, exact = 0.0, 0.0, 0.0, True
     for k in sorted(sealed):
         a, b = sealed[k], replayed[k]
         if not torch.equal(a, b):
@@ -176,12 +179,14 @@ def replay(genome_dir: str, base_dir: str, device: str = "cpu", log=None) -> dic
             d = (a - b).abs()
             max_abs = max(max_abs, float(d.max()))
             max_rel = max(max_rel, float((d / a.abs().clamp_min(1e-12)).max()))
+            max_rel_l2 = max(max_rel_l2, float(torch.linalg.vector_norm(a - b) / torch.linalg.vector_norm(a).clamp_min(1e-12)))
     loss_diff = max(abs(x - y) for x, y in zip(losses, r["losses"]))
     return {
         "device": device,
         "exact": exact,
         "max_abs_diff": max_abs,
         "max_rel_diff": max_rel,
+        "max_rel_l2": max_rel_l2,
         "losses_equal": losses == r["losses"],
         "max_loss_diff": loss_diff,
         "final_loss": {"sealed": r["losses"][-1], "replayed": losses[-1]},

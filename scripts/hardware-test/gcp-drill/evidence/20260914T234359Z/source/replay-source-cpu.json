@@ -1,0 +1,23 @@
+{
+  "device": "cpu",
+  "exact": true,
+  "max_abs_diff": 0.0,
+  "max_rel_diff": 0.0,
+  "losses_equal": true,
+  "max_loss_diff": 0.0,
+  "final_loss": {
+    "sealed": 0.0008955135708674788,
+    "replayed": 0.0008955135708674788
+  },
+  "train_seconds": 77.764,
+  "runtime": {
+    "python": "3.12.3",
+    "torch": "2.7.1+cpu",
+    "numpy": "2.3.1",
+    "platform": "Linux-7.0.0-1011-gcp-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "AMD EPYC 7B13",
+    "threads": 8,
+    "transformers": "4.53.2"
+  }
+}
