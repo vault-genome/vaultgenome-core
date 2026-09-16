@@ -424,7 +424,19 @@ func TestStoppedSentinelIsOverdueAfterTheGrace(t *testing.T) {
 	time.Sleep(600 * time.Millisecond)
 	ctx, cancel = context.WithCancel(context.Background())
 	results = d2.runSentinel(ctx)
-	time.Sleep(100 * time.Millisecond)
+	// The returning sentinel's first watching heartbeat, whenever the
+	// scheduler lets it write one (well inside the grace).
+	pub := d2.sentinelKey.Public().(ed25519.PublicKey)
+	back := false
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if h, _, err := sentinel.ReadHeartbeat(d2.outbox, pub); err == nil && h.Status == sentinel.StatusWatching {
+			back = true
+			break
+		}
+	}
+	if !back {
+		t.Fatal("the returning sentinel wrote no watching heartbeat")
+	}
 	if tr := w.Observe(); tr != nil || w.State != "watching" {
 		t.Fatalf("trigger %+v state %q", tr, w.State)
 	}
