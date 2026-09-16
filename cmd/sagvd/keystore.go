@@ -103,6 +103,14 @@ func (m *materials) TEESealer() (tee.Sealer, error) {
 		}
 		m.closers = append(m.closers, dev)
 		m.sealer = tee.NewGCPSEVSealer(dev, p.Measurement(), p.Policy())
+	case *tee.GCPTDXProducer, *tee.AzureCGPUProducer:
+		// No sealing key from the TEE itself: the guest's vTPM holds it,
+		// under a policy only this boot's PCRs satisfy (ADR 0022).
+		s, err := tee.NewVTPMSealer(tee.VTPMSealerConfig{TPM2ToolsDir: m.tee.TPM2ToolsDir, PCRs: m.tee.VTPMSealPCRs})
+		if err != nil {
+			return nil, fmt.Errorf("sagvd: tee.vtpm_seal_pcrs: %w", err)
+		}
+		m.sealer = s
 	default:
 		return nil, fmt.Errorf("sagvd: tee.provider %s has no sealer in this build", m.Provider)
 	}

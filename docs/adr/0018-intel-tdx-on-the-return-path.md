@@ -102,11 +102,12 @@ like a fresh one on every use, so a burst of handshakes asks Intel once.
 ### No sealer
 
 TDX gives a guest no sealing key of its own; a sealed escrow key (ADR 0016)
-needs one. The TDX adapter has a Producer and a Verifier and no Sealer; the
-capability says so, and `sagvd` on a TDX host runs gate jobs but cannot
-hold an escrow key — the plaintext key is refused on any hardware TEE, and
-there is nothing to seal it to. Sealing through the guest's vTPM is the
-way, and it is not wired.
+needs one. The TDX adapter has a Producer and a Verifier and no Sealer of
+the TEE's own; the plaintext key is refused on any hardware TEE. *Amended
+2026-09-16:* sealing through the guest's vTPM is wired (ADR 0022) — the
+escrow key is held by the vTPM under a policy of this boot's PCRs — and an
+authority on a TDX host holds its key that way, proven on hardware
+(`scripts/hardware-test/failover-tdx-authority`).
 
 ### Wiring
 

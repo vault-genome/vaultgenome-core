@@ -13,6 +13,30 @@ given release can still open.
 
 ### Added
 
+- **The escrow key sealed to the guest's vTPM where the TEE gives no
+  sealing key** ([ADR-0022](docs/adr/0022-the-escrow-key-sealed-to-the-vtpm.md))
+  — `sagvd` on `gcp-tdx` and `azure-cgpu` seals the escrow key to the
+  vTPM: a fresh AES-256 key per seal held by the TPM as a sealed object
+  under a policy of this boot's PCRs (`tee.vtpm_seal_pcrs`, default
+  sha256:0-14), the plaintext under it with AES-256-GCM; tpm2-tools as
+  processes, no TPM library; the recovery ceremony unchanged. Proven on a
+  GCP `c3` Trust Domain as the release authority of a failover
+  (`scripts/hardware-test/failover-tdx-authority`, `20260916T200841Z`,
+  VERIFIABLE-CLAIMS C23): sealed, opened, re-sealed through the ceremony,
+  unsealed at start, the model moved (RTO 20.27 s).
+- **The manifests' XML signatures verified, and `own` admitted**
+  ([ADR-0021](docs/adr/0021-the-verifiers-own-evaluation-of-the-gpu.md),
+  amended) — `VerifyRIMSignature` verifies each NVIDIA reference
+  manifest's enveloped XML signature (Canonical XML 1.1, ECDSA-SHA384,
+  nothing else admitted) under the certificate chained to the pinned
+  CoRIM root, with goxmldsig as the canonicaliser
+  (`docs/dependencies/goxmldsig.md`); a complete evaluation now includes
+  both signatures. `gpu_policy.evaluation: "own"` rests the verdict on
+  this verifier's evaluation alone — NVIDIA's tokens not required — and
+  holds the policy's model and version pins against the report; the
+  secure-boot and debug claims stay NVIDIA-token claims (`both`). The
+  GPU's model is named as NVIDIA's tokens name it (`GH100`), from the
+  chain's per-model identity CA.
 - **The negatives drill** (`scripts/hardware-test/failover-negatives`,
   VERIFIABLE-CLAIMS C22, CONTINUITY-DRILL Drill V) — the failover drill's
   two SEV-SNP machines, one attack, eight operator-signed policies against

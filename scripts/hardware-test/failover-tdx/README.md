@@ -163,9 +163,10 @@ through the run's private bucket, and the bucket was deleted with the VMs.
 This proves a governed key release to an attested Intel TDX Trust Domain
 and a gated restore on it, from an AMD SEV-SNP authority under one
 operator policy, on real hardware — with the 0.5B model of the failover
-drill, once. What it does not change: a TDX host holds no sealed escrow
-key (no sealer, ADR 0018), so the standby can receive a model and cannot
-itself become an authority; Intel PCS is on the path at verification time
+drill, once. What it does not change: in this run the standby held no
+sealed escrow key (since ADR 0022 a TDX host seals one to its vTPM —
+[failover-tdx-authority](../failover-tdx-authority) is the authority on
+TDX); Intel PCS is on the path at verification time
 (cached here; without it and without a cache the verifier refuses); the
 pin is the image's, and a kernel update re-issues it; the gate is a float
 door, so the level across AMD training and Intel restore is EQUIVALENT,

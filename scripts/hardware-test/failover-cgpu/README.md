@@ -218,7 +218,8 @@ gated restore on it, across two clouds and two TEE families, on real
 hardware — with the 0.5B model of the failover drill. What it does not
 change: the GPU's own measurements are evaluated by NVIDIA's service and
 the authority verifies NVIDIA's signed word (KNOWN_ISSUES #1); the
-standby holds no sealed escrow key (no sealer on that host); the gate is a
+standby held no sealed escrow key in this run (since ADR 0022 it seals one
+to its vTPM); the gate is a
 float door, so the level across CPU training and GPU restore is
 EQUIVALENT, not EXACT — the pinned-runtime EXACT of the failover drill is
 a same-device property.

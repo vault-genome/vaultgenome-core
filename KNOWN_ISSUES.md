@@ -70,8 +70,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    quote: the attestation key and the PCK chain to the pinned Intel SGX Root
    CA, Intel's signed TCB info and QE identity verified before use, the
    platform, TDX-module and QE TCB statuses, no DEBUG, the challenge binding
-   — proven offline against a genuine GCP c3 quote. TDX has no sealer, so an
-   escrow key cannot be sealed to a TDX host (ADR 0016 is SEV-SNP only).
+   — proven offline against a genuine GCP c3 quote. TDX gives a guest no
+   sealing key; since ADR 0022 the escrow key is sealed to the guest's vTPM
+   under a policy of this boot's PCRs (tpm2-tools; proven on a c3 Trust
+   Domain, `scripts/hardware-test/failover-tdx-authority`).
    The Azure confidential GPU adapter (ADR 0019, `tee.provider:
    "azure-cgpu"`, NCC H100 v5) carries the SEV-SNP report from the vTPM's
    HCL report, a TPM quote by the vTPM's attestation key binding the
@@ -87,16 +89,22 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    fetched from NVIDIA's RIM service (their chains verified to the pinned
    NVIDIA CoRIM signing root, their bytes to the service's SHA-256) —
    proven offline on the captured H100 report and manifests
-   (`internal/shared/tee/testdata/nvidia`). What it still trusts NVIDIA
-   for: the manifests' XML signatures (an enveloped signature over
-   Canonical XML 1.1, which this build cannot canonicalise without a
-   dependency the policy has not admitted) and revocation (NVIDIA's OCSP);
-   so `own` — the verdict on this verifier's evaluation alone — is refused,
-   and `both` is the strongest policy. What it polices only when the
+   (`internal/shared/tee/testdata/nvidia`). Since later that day the
+   manifests' XML signatures are verified too — an enveloped signature
+   over Canonical XML 1.1, ECDSA-SHA384, under the certificate chained to
+   the pinned CoRIM root; the canonicaliser is goxmldsig
+   (`docs/dependencies/goxmldsig.md`), the trusted certificate this
+   verifier's — and `own`, the verdict on this verifier's evaluation
+   alone with no NVIDIA service on the path, is admitted (ADR 0021,
+   amended). What it still trusts NVIDIA for: revocation (NVIDIA's OCSP,
+   not consulted), and under `own` the secure-boot and debug-mode claims,
+   which only NVIDIA's tokens carry — `both` asserts them, `own` does
+   not. What it polices only when the
    operator asks: the vTPM's PCRs
    (`pcr_digests`, a per-boot digest — the launch measurement covers
-   Azure's paravisor and firmware, not the OS). No sealer on that host
-   either. A key release to the confidential-GPU destination has run on
+   Azure's paravisor and firmware, not the OS). The escrow key on that
+   host is sealed to the same vTPM under the same PCRs (ADR 0022). A key
+   release to the confidential-GPU destination has run on
    hardware (`scripts/hardware-test/failover-cgpu`, 2026-09-16: a failover
    from a GCP SEV-SNP primary to the Azure H100 host, the boot pinned, the
    gate EQUIVALENT on the GPU), and so has a key release to a TDX
@@ -228,6 +236,12 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
       until the operator runs the recovery ceremony; nothing re-provisions
       itself. At the destination a released genome key is wiped from memory
       once its restore is signed for, as before.
+    Since 2026-09-16 (ADR 0022) a `gcp-tdx` or `azure-cgpu` host seals the
+    escrow key too — to the guest's vTPM under a policy of the pinned
+    boot's PCRs, proven on a TDX Trust Domain as the authority of a
+    failover (`scripts/hardware-test/failover-tdx-authority`). What that
+    rests on: the cloud provider's vTPM inside the confidential VM and its
+    hierarchy seed staying with the VM, not the TEE's own key.
 12. **REDUCED (2026-09-16): the primary's word is bounded (ADR 0017), and a
     root intruder inside the primary's TEE is still caught only by the
     wires.** Failover (ADR 0012, proven on hardware: two AMD SEV-SNP

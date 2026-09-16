@@ -98,8 +98,13 @@ GPU verifier):
   against the driver and VBIOS manifests from NVIDIA's RIM service, kept
   under `rim_cache_dir`; `rim_service_url` overrides the service;
   `nvidia_device_root_path` / `nvidia_rim_root_path` replace the pinned
-  roots). `own` is refused by this build (the manifests' XML signatures
-  are not verified). With `both`, the guest's `gpu_attest_command` must
+  roots), or `own`: this verifier's evaluation alone, NVIDIA's tokens
+  not required and no NVIDIA service on the path but the RIM service (or
+  a warm `rim_cache_dir`) — the manifests' XML signatures are verified
+  (goxmldsig, `docs/dependencies/goxmldsig.md`); note that the
+  secure-boot and debug-mode claims come only from NVIDIA's tokens, so
+  `own` does not assert them and `both` remains the stronger policy where
+  NRAS is reachable. With `both` or `own`, the guest's `gpu_attest_command` must
   print the full form (`{"nras": …, "gpu_evidence": […]}`, as the kit's
   `gpu-token.py` does), or the handshake is refused for want of a report.
 - `gpu_policy`: `hw_models`, `driver_versions`, `vbios_versions` pin what
@@ -143,7 +148,9 @@ the failover of a model from a GCP SEV-SNP primary to this destination
 across the Internet — the key released on the chip's, the vTPM's and
 NVIDIA's word, the genome gated EQUIVALENT on the H100, RTO 24.99 s.
 
-## F. No sealer; cleanup
+## F. The escrow key: sealed to the vTPM; cleanup
 
-No derived-key interface, no sealer, no sealed escrow key on this host.
+No derived-key interface from the TEE; the escrow key is sealed to the
+guest's vTPM under a policy of the pinned PCRs (ADR 0022,
+`tee.vtpm_seal_pcrs`, default sha256:0-14), with tpm2-tools on the guest.
 The VM bills about $9 an hour while it exists; delete it after the run.

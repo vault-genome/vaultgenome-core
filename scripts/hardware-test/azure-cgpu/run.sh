@@ -22,7 +22,7 @@
 # seed leaves it. The VM's resources are deleted at the end — after the
 # evidence has been read back and checked.
 #
-# Usage: run.sh [resource-group] [location]      (about 60 minutes; ~$9/h)
+# Usage: run.sh [resource-group] [location]      (about 60 minutes; ~$9/h): the capture, then the Return Path
 set -euo pipefail
 RG="${1:-vg-cgpu-weu}"
 LOC="${2:-westeurope}"
@@ -62,7 +62,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-ssh_vm() { ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -o ConnectTimeout=20 "$ADMIN@$IP" "$@"; }
+ssh_vm() { ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -o ServerAliveCountMax=8 -o ConnectTimeout=20 "$ADMIN@$IP" "$@"; }
 scp_to() { scp -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -q "$@" "$ADMIN@$IP:"; }
 wait_ssh() { # wait_ssh <minutes>
   local deadline=$(( $(date +%s) + $1 * 60 ))
@@ -113,25 +113,48 @@ echo "step 1: the NVIDIA open driver in confidential-computing mode"
 # Ubuntu's signed kernel modules for the 595 server driver are built against
 # one userspace version; noble-updates carries a newer one that apt would
 # pick and fail on. Pin the userspace to the version the modules need.
+# The X driver package is a strict "=" dependency of the driver meta-package
+# and is not matched by the nvidia-* patterns, so it is pinned by name too
+# (seen 2026-09-16: a newer 595 build in noble-updates left it unpinned and
+# the install unresolvable).
 ssh_vm 'MOD=$(apt-cache show linux-modules-nvidia-595-server-open-$(uname -r) 2>/dev/null | sed -n "s/.*nvidia-kernel-common-595-server (<= \([^)]*\)).*/\1/p" | head -1); \
   V=$(apt-cache madison nvidia-kernel-common-595-server | awk "{print \$3}" | sort -V | while read x; do dpkg --compare-versions "$x" le "${MOD:-999}" && echo "$x"; done | tail -1); \
   echo "modules want nvidia-kernel-common-595-server <= ${MOD:-?}; pinning userspace ${V:-?}"; \
-  [ -n "$V" ] && printf "Package: nvidia-*-595-server* libnvidia-*-595-server* nvidia-kernel-common-595-server nvidia-kernel-source-595-server-open nvidia-driver-595-server-open nvidia-utils-595-server nvidia-compute-utils-595-server nvidia-firmware-595-server*\nPin: version %s\nPin-Priority: 1001\n" "$V" | sudo tee /etc/apt/preferences.d/nvidia-595-userspace.pref >/dev/null'
+  [ -n "$V" ] && printf "Package: nvidia-*-595-server* libnvidia-*-595-server* xserver-xorg-video-nvidia-595-server nvidia-kernel-common-595-server nvidia-kernel-source-595-server-open nvidia-driver-595-server-open nvidia-utils-595-server nvidia-compute-utils-595-server nvidia-firmware-595-server*\nPin: version %s\nPin-Priority: 1001\n" "$V" | sudo tee /etc/apt/preferences.d/nvidia-595-userspace.pref >/dev/null'
 ssh_vm 'cd cgpu-onboarding-package && sudo bash step-1-install-gpu-driver.sh 2>&1 | tail -30'
 ssh_vm 'nvidia-smi -L && nvidia-smi conf-compute -q' || { echo "no working NVIDIA driver after step 1"; exit 1; }
 echo "step 2: Microsoft's attestation tools (the local GPU verifier, azure-guest-attest)"
 ssh_vm 'cd cgpu-onboarding-package && sudo bash step-2-attestation.sh --install-to-usr-local 2>&1 | tail -40'
 
 echo "capture + the 7B genome path on the confidential GPU (this takes a while)"
+# The guest's sshd can be away for a minute after Microsoft's attestation
+# step (seen 2026-09-16: a banner-exchange timeout right after step 2);
+# wait for it rather than fail the run on the first dropped connection.
+wait_ssh 5 || { echo "the guest did not answer SSH before the capture"; exit 1; }
 ssh_vm "sudo env VG_STAMP=$STAMP bash cgpu-capture.sh 2>&1 | tail -60"
 
 echo "read the evidence back"
 mkdir -p "$EVIDENCE"
 scp -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -q "$ADMIN@$IP:out/$STAMP.tgz" "$BUILD/"
-tar -xzf "$BUILD/$STAMP.tgz" -C "$EVIDENCE"
+tar -xzf "$BUILD/$STAMP.tgz" -C "$EVIDENCE" --strip-components=1   # the guest packs out/<stamp>/
 ( cd "$EVIDENCE" && grep -v ' sha256sums.txt$' sha256sums.txt | shasum -a 256 -c --quiet ) && echo "evidence checksums: ok"
 ls "$EVIDENCE" | wc -l
 grep -q 'CAPTURE DONE' "$EVIDENCE/steps.txt" || { echo "the capture did not finish cleanly"; cat "$EVIDENCE/steps.txt"; exit 1; }
 for f in gate-gpu.json nras-response.json snp-report.bin quote1.msg; do [ -s "$EVIDENCE/$f" ] || { echo "the capture has no $f"; exit 1; }; done
+echo "capture evidence: $EVIDENCE"
+
+echo "the Return Path on the guest: sagvd and acp-compute as azure-cgpu, the escrow key sealed to the vTPM, the handshake under gpu_policy.evaluation both"
+( cd "$ROOT" && for b in sagvd acp-compute; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
+( cd "$ROOT/deploy/compose/keygen" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" . )
+wait_ssh 5 || { echo "the guest did not answer SSH before the Return Path"; exit 1; }
+scp_to "$BUILD/sagvd" "$BUILD/acp-compute" "$BUILD/keygen" "$HERE/returnpath-cgpu.sh" "$HERE/gpu-token.py"
+ssh_vm "sudo env VG_STAMP=$STAMP VG_CAPTURE_STAMP=$STAMP bash returnpath-cgpu.sh 2>&1 | tail -40"
+wait_ssh 5 || { echo "the guest did not answer SSH after the Return Path"; exit 1; }
+mkdir -p "$EVIDENCE-returnpath"
+scp -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -q "$ADMIN@$IP:out/$STAMP-returnpath.tgz" "$BUILD/"
+tar -xzf "$BUILD/$STAMP-returnpath.tgz" -C "$EVIDENCE-returnpath" --strip-components=1
+( cd "$EVIDENCE-returnpath" && grep -v ' sha256sums.txt$' sha256sums.txt | shasum -a 256 -c --quiet ) && echo "return path checksums: ok"
+grep -q 'RETURNPATH DONE' "$EVIDENCE-returnpath/steps.txt" || { echo "the Return Path did not finish cleanly"; cat "$EVIDENCE-returnpath/steps.txt"; exit 1; }
+for f in escrow-provision.json escrow-reprovision.json job.json audit-verify.json; do [ -s "$EVIDENCE-returnpath/$f" ] || { echo "the Return Path run has no $f"; exit 1; }; done
 OK=1
-echo "evidence: $EVIDENCE"
+echo "evidence: $EVIDENCE and $EVIDENCE-returnpath"

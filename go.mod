@@ -12,13 +12,16 @@ go 1.25.0
 //   - go.etcd.io/bbolt              — append-only audit store (docs/dependencies/bbolt.md)
 
 require (
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.3.10
 )
 
 require (
+	github.com/beevik/etree v1.7.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/russellhaering/goxmldsig v1.6.1 // indirect
 	golang.org/x/sys v0.44.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
