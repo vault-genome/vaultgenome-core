@@ -293,6 +293,13 @@ func (b *ProbeBattery) SignWith(signer keys.Signer) error {
 // MerkleRoot that disagrees with the probes is caught before the
 // signature gate even runs.
 func (b *ProbeBattery) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"probe_battery: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := b.CanonicalBytes()
 	if err != nil {
 		return err

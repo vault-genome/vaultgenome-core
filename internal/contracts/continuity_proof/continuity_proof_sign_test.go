@@ -122,20 +122,37 @@ func TestContinuityProof_Verify_TamperedWitnessEntryRejected(t *testing.T) {
 	require.Equal(t, shared_errors.CategoryIntegrity, shared_errors.CategoryOf(err))
 }
 
-// Swapping the STH's TreeHash after sign — STH signature fails.
+// An STH that commits to another tree after signing — the fixture's
+// witness tree has one leaf, so a well-formed forgery moves TreeHash and
+// TreeChainHead together — no longer covers the witnessed entry: the
+// receipt's chain-head and Merkle gates refuse it (Integrity), and the
+// STH signature would fail too (Integrity). Either way, Integrity.
+//
+// A TreeHash that is all zeros for a non-empty tree, or that differs from
+// the chain head of a one-leaf tree, is not a tampered value that fails to
+// verify but a value the STH's shape rules exclude before anything is
+// verified: that is refused as Structural, the same way a wrong-length
+// hash is. Shape gates run before cryptographic ones throughout the
+// contracts, on purpose — no verifier runs over input it has not first
+// found well formed.
 func TestContinuityProof_Verify_TamperedSTHRejected(t *testing.T) {
-	t.Skip("KNOWN: error category code drifted from Integrity to Operational — see KNOWN_ISSUES.md §2.")
 	t.Parallel()
 	f := newFixture(t)
 	p := buildProof(t, f)
 
-	p.WitnessReceipt.STH.TreeHash = repeat(0x00, len(p.WitnessReceipt.STH.TreeHash))
+	forged := repeat(0xAB, len(p.WitnessReceipt.STH.TreeHash))
+	p.WitnessReceipt.STH.TreeHash = append([]byte(nil), forged...)
+	p.WitnessReceipt.STH.TreeChainHead = append([]byte(nil), forged...)
 	err := p.Verify(f.Store)
 	require.Error(t, err)
-	// The STH-level Merkle reconstruction fails first (Integrity) OR
-	// the STH signature fails (Integrity). Either way, category is
-	// Integrity.
 	require.Equal(t, shared_errors.CategoryIntegrity, shared_errors.CategoryOf(err))
+
+	degenerate := buildProof(t, f)
+	degenerate.WitnessReceipt.STH.TreeHash = repeat(0x00, len(degenerate.WitnessReceipt.STH.TreeHash))
+	err = degenerate.Verify(f.Store)
+	require.Error(t, err)
+	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
+	require.Equal(t, shared_errors.CodeCrossFieldInconsistent, shared_errors.CodeOf(err))
 }
 
 // ---- resolver negatives ---------------------------------------------------
@@ -158,7 +175,6 @@ func TestContinuityProof_Verify_UnknownOuterKeyRejected(t *testing.T) {
 
 // Verify rejects a nil resolver up front with Structural.
 func TestContinuityProof_Verify_NilResolverRejected(t *testing.T) {
-	t.Skip("KNOWN: nil-resolver path returns Operational not Integrity — see KNOWN_ISSUES.md §2.")
 	t.Parallel()
 	f := newFixture(t)
 	p := buildProof(t, f)

@@ -50,6 +50,13 @@ func (r *ReceivedDisclosure) SignWith(signer keys.Signer) error {
 // VerifySignature resolves r.SigningKeyID under
 // keys.PurposeSigningAuthority and checks the stored signature.
 func (r *ReceivedDisclosure) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"received_disclosure: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := r.CanonicalBytes()
 	if err != nil {
 		return err

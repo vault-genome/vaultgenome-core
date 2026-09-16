@@ -47,6 +47,13 @@ func (d *DisclosureMessage) SignWith(signer keys.Signer) error {
 // VerifySignature resolves d.SigningKeyID under
 // keys.PurposeSigningAuthority and checks the stored signature.
 func (d *DisclosureMessage) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"disclosure_message: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := d.CanonicalBytes()
 	if err != nil {
 		return err

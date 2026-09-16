@@ -117,6 +117,20 @@ given release can still open.
   release authority is pinned.
 - This changelog.
 
+### Fixed
+
+- **No test is skipped.** The eight `t.Skip("KNOWN: …")` tests run again,
+  each for its real reason (KNOWN_ISSUES, "The eight that were skipped"):
+  the in-memory witness log stamped every signed tree head with its clock,
+  so a log whose entries carried timestamps ahead of the clock issued heads
+  that predated what they covered and its own receipts failed the receipt
+  contract — a head is now stamped no earlier than the newest entry it
+  covers; `ContinuityProof.Verify(nil)` dereferenced the nil resolver — every
+  contract's `VerifySignature` now refuses a nil resolver as Structural;
+  the witness fixtures stamped heads before the entries they covered; and
+  the tampered-STH test tampers as an adversary would, with the all-zero
+  hash named as the Structural refusal the shape rules make it.
+
 ### Changed
 
 - `key_escrow_path` (`genome`, `crosscloud`) names the sealed escrow key

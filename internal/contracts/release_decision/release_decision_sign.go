@@ -46,6 +46,13 @@ func (r *ReleaseDecision) SignWith(signer keys.Signer) error {
 // VerifySignature resolves r.SigningKeyID under
 // keys.PurposeSigningAuthority and checks the stored signature.
 func (r *ReleaseDecision) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"release_decision: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := r.CanonicalBytes()
 	if err != nil {
 		return err

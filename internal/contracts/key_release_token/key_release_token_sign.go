@@ -46,6 +46,13 @@ func (t *KeyReleaseToken) SignWith(signer keys.Signer) error {
 // VerifySignature resolves t.SigningKeyID under
 // keys.PurposeSigningAuthority and checks the stored signature.
 func (t *KeyReleaseToken) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"key_release_token: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := t.CanonicalBytes()
 	if err != nil {
 		return err

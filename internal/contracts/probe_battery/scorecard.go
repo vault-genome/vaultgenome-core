@@ -293,6 +293,13 @@ func (s *Scorecard) SignWith(signer keys.Signer) error {
 // VerifySignature resolves s.SigningKeyID and checks the signature
 // against canonical cover bytes. Calls Validate up-front.
 func (s *Scorecard) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"scorecard: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := s.CanonicalBytes()
 	if err != nil {
 		return err

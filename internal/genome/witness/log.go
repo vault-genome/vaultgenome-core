@@ -32,7 +32,9 @@ type Log interface {
 	Append(entry contract.LogEntry) (*contract.LogEntry, error)
 
 	// Head returns a freshly-signed STH covering the current tree.
-	// Timestamp is set from the Log's clock at call time.
+	// Timestamp is the Log's clock at call time, and never earlier than
+	// the newest entry the STH covers: a head cannot predate what it
+	// commits to, and the receipt contract refuses one that does.
 	Head() (*contract.SignedTreeHead, error)
 
 	// Size returns the number of entries committed.
@@ -310,10 +312,22 @@ func (l *InMemoryLog) headLocked(size uint64) (*contract.SignedTreeHead, error) 
 		)
 	}
 
+	// The STH's timestamp is the clock's, and never earlier than the
+	// newest entry it covers: an entry may carry a caller-supplied
+	// timestamp ahead of this log's clock (a batch stamped by the
+	// producer, a clock that lags), and a head that claims to predate
+	// what it commits to is nonsensical — the receipt contract refuses
+	// it. Entries are monotonic at Append, so the newest is the latest.
+	ts := l.clock.Now().UTC()
+	if size > 0 {
+		if newest := l.entries[size-1].Timestamp.UTC(); newest.After(ts) {
+			ts = newest
+		}
+	}
 	sth := &contract.SignedTreeHead{
 		SchemaVersion: contract.SchemaVersionCurrent,
 		TreeSize:      size,
-		Timestamp:     l.clock.Now().UTC(),
+		Timestamp:     ts,
 		SigningKeyID:  l.kid,
 	}
 	if size == 0 {

@@ -74,3 +74,21 @@ func TestManifest_VerifySignature_DeadlineTamperRejected(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, shared_errors.CategoryIntegrity, shared_errors.CategoryOf(err))
 }
+
+// A verifier handed no key resolver is a malformed call, refused up front
+// as Structural — never a nil dereference inside the signature check.
+func TestManifest_VerifySignature_NilResolverRefused(t *testing.T) {
+	t.Parallel()
+	kid := ids.KeyID("nil-resolver-key")
+	store := newAuthStore(t, kid)
+	m := validFixture()
+	m.SigningKeyID = kid
+	m.Signature = nil
+	require.NoError(t, m.SignWith(store))
+
+	err := m.VerifySignature(nil)
+	require.Error(t, err)
+	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
+	require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(err))
+	require.NoError(t, m.VerifySignature(store))
+}

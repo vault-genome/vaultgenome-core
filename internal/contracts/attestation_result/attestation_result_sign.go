@@ -49,6 +49,13 @@ func (a *AttestationResult) SignWith(signer keys.Signer) error {
 // keys.PurposeSigningAuthority and verifies the stored signature against
 // canonical cover-bytes.
 func (a *AttestationResult) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"attestation_result: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := a.CanonicalBytes()
 	if err != nil {
 		return err

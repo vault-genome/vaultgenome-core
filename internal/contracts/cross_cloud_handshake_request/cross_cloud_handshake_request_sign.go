@@ -50,6 +50,13 @@ func (r *CrossCloudHandshakeRequest) SignWith(signer keys.Signer) error {
 // keys.PurposeSigningAuthority and checks the stored signature
 // against the canonical cover-bytes.
 func (r *CrossCloudHandshakeRequest) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"cross_cloud_handshake_request: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := r.CanonicalBytes()
 	if err != nil {
 		return err

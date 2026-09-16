@@ -263,6 +263,13 @@ func (s *SignedTreeHead) SignWith(signer keys.Signer) error {
 // bytes. Calls Validate first — cross-field inconsistencies surface
 // before signature gate runs.
 func (s *SignedTreeHead) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"sth: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := s.CanonicalBytes()
 	if err != nil {
 		return err
