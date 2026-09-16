@@ -9,8 +9,8 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), then [What we do not claim](#what-we-do-not-claim) — that last section is the
-one we would want to read first if we were evaluating someone else.
+[C11](#c11), [C12](#c12), then [What we do not claim](#what-we-do-not-claim) — that last
+section is the one we would want to read first if we were evaluating someone else.
 
 ---
 
@@ -285,10 +285,70 @@ cd workers/genome && pip install -r requirements.txt && cd ../..
 VG_GENOME_WORKER=$PWD/workers/genome go test -count=1 -v -run TestGenomeReconstructor_RealDoor ./internal/compute/worker/
 ```
 
-**Scope.** The worker attests with the simulated TEE (KNOWN_ISSUES #1); the
-job carries an adapter of at most one Return Path frame, so a full-weight
-fine-tune goes by key release ([C7](#c7), ADR 0011), not by job. No hardware
-number is claimed for this path yet.
+**Scope.** The job carries an adapter of at most one Return Path frame, so a
+full-weight fine-tune goes by key release ([C7](#c7), ADR 0011), not by job.
+The same path on real SEV-SNP, with both daemons attesting with the chip and
+every decision on the record, is [C12](#c12).
+
+<a id="c12"></a>
+### C12 — Both ends of the Return Path attest with real SEV-SNP, and every decision of the authority is on a verifiable record before it takes effect
+
+**Claim.** `sagvd` and `acp-compute` run on an AMD SEV-SNP guest with
+`tee.provider: "gcp-sev-snp"`, each pinning the other's 48-byte launch
+measurement and verifying the other's Evidence to the AMD root during the
+Return Path handshake. A worker whose Evidence is not the pinned identity is
+refused at the handshake and gets no job. Every decision `sagvd` takes about
+a job — accepted, worker admitted, candidate received, gate started, judged,
+verdict signed — is written to its signed, hash-chained audit log **before**
+the decision takes effect, and the log verifies offline under the key
+`sagvd identity` publishes ([ADR 0014](docs/adr/0014-return-path-on-the-record-and-on-hardware.md)).
+
+**Evidence.**
+[`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20260915T230907Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20260915T230907Z/)
+— `n2d-standard-4`, us-central1-c, kernel `7.0.0-1011-gcp`, `tsm.txt`
+showing SEV-SNP active at VMPL0.
+`sagvd-identity.json` and `acp-compute-identity.json`: `tee_provider:
+gcp-sev-snp`, `tee_measurement_hex: 7dc7c12e…25acc` on both (one guest).
+`sagvd.log`: the simulated-TEE worker's handshake refused
+(`client TEE evidence verification failed … evidence shorter than SEV-SNP
+report`), then `session opened` with `peer_measurement` equal to the pin.
+`job.json`: `status: succeeded`, gate `EXACT`, `pinned replay`, rung 0,
+`n_exact: 6` of 6, `max_abs_err: 0`, signed by `sagvd-authority-e2e`;
+accepted 23:11:59.017Z, verdict 23:12:03.321Z — **4.30 s**.
+`audit-verify.json`: `ok: true`, `event_count: 7`, tip `f6e1dc8f…1874`.
+`audit-events.jsonl`, in order: `TRUST_EVALUATED` deny (`handshake`) ·
+`MANIFEST_ISSUED` · `TRUST_EVALUATED` allow (`peer_measurement_hex` = the
+pin) · `CANDIDATE_RECEIVED` · `VALIDATION_STARTED` ·
+`VALIDATION_DIMENSION_EVALUATED` (EXACT) · `VALIDATION_COMPLETED` (pass,
+`verdict_sha256`). `sagvd-metrics.txt`:
+`sagvd_handshake_failures_total{phase="handshake"} 1`,
+`sagvd_gate_verdicts_total{level="EXACT"} 1`.
+
+The ordering is enforced in code, not only observed:
+[`cmd/sagvd/http_api_test.go`](cmd/sagvd/http_api_test.go)
+(`TestHTTPAPI_PostJobs_IsOnTheRecordFirst`) shows a job is on the log under
+its id before it is queued and that a closed log refuses the submission;
+[`cmd/sagvd/audit_returnpath_test.go`](cmd/sagvd/audit_returnpath_test.go)
+shows a closed log stops the decision and an edited log is refused;
+[`test/integration/daemons_test.go`](test/integration/daemons_test.go) reads
+the same event sequence back from the shipping binaries.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-sev-snp/returnpath-e2e/run.sh <gcp-project>
+make test-integration
+go test -count=1 -run 'TestReturnPathAudit|TestHTTPAPI_PostJobs_IsOnTheRecordFirst' ./cmd/sagvd/
+```
+
+**Scope.** Both daemons ran in one guest, so the measurement each pins is its
+own; the run proves genuine hardware Evidence on both sides and the pin being
+enforced, not two machines. The model is a tiny random Llama built on the
+guest so the run fits in minutes; the scale claims stay with [C1](#c1)–[C5](#c5).
+The log records the peer's provider and measurement, not the SEV-SNP report
+itself; the report that verifies offline is the receipt in [C7](#c7)'s
+key-release evidence. Simulated TEEs remain available off hardware and
+announce themselves at start (KNOWN_ISSUES #1).
 
 ---
 
@@ -350,8 +410,9 @@ sentence we cannot defend.
 4. **We do not claim TDX, Nitro or SGX verification.** SEV-SNP only. Adapter
    dispatch for others exists (ADR 0002); the offline verifiers do not.
 5. **We do not claim this at frontier scale.** Every hardware number here is
-   Qwen2.5-0.5B. A 7B+ run is the obvious next measurement and it has not been
-   made.
+   Qwen2.5-0.5B or smaller ([C12](#c12) uses a tiny model built on the guest to
+   prove the path, not the scale). A 7B+ run is the obvious next measurement
+   and it has not been made.
 6. **We do not claim production operation.** Stage E, MVP maturity, zero
    external deployments. Receive-side self-bootstrapping is deferred to V2.
 7. **We do not claim a granted patent.** The patent family is filed, not

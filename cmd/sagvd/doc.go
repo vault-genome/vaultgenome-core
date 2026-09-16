@@ -41,7 +41,9 @@
 // signature, manifest binding, output-kind binding and size budget have
 // been checked — holds the worker's outputs to the references through
 // the determinism ladder (byte-exact first, then within genome.gate's
-// tolerance). No door opening fails the job with gate_failed.
+// tolerance). No door opening fails the job with gate_failed. Every one of
+// those decisions is on audit.log_path first (ADR 0014): a log that cannot
+// take a record stops the decision.
 //
 // # Configuration
 //
@@ -52,11 +54,19 @@
 //   - vault.tls                 mTLS material when TLS is enabled
 //   - http_api.listen_address   TCP listener for the operator REST API
 //   - http_api.bearer_token     optional Bearer token for POST /v1/jobs
-//   - tee.workload_descriptor   hashed into the simulator's measurement
-//   - tee.seed_path             32-byte Ed25519 seed for TEE attestation
-//   - tee.peer.*                worker TEE pubkey + measurement (pinned)
-//   - keys.authority_signing    kid + seed for authority-bound signatures (Phase-3 forward)
+//   - tee.provider              "gcp-sev-snp" (the chip signs, reports through
+//     configfs-tsm) or "simulated" (+insecure_simulation)
+//   - tee.workload_descriptor   names the workload; the simulator hashes it
+//   - tee.seed_path             32-byte Ed25519 seed (simulated only)
+//   - tee.peer.*                the worker's TEE pin: provider, measurement
+//     (48 bytes for SEV-SNP), amd_cert_chain_path
+//     for a SEV-SNP peer or public_key_path for a
+//     simulated one
+//   - keys.authority_signing    kid + seed for authority-bound signatures (signs gate verdicts)
+//   - keys.audit_signing        kid + seed that signs the audit logs
 //   - keys.session_sealing      kid + AES-256 key for SealedMaterial (pre-shared with worker)
+//   - audit.log_path            the Return Path audit log: every decision about a
+//     job, before it takes effect (required with gate jobs)
 //   - workers.registry_path     JSON file of {kid, signing_pubkey_hex}
 //   - genome.bundle_dir         the .genome bundles a job may name, with
 //     their key files or escrow envelopes beside them
@@ -93,6 +103,7 @@
 //   - jobs_submitted_total            (counter)
 //   - jobs_completed_total{outcome}   (counter: success|reject|fail)
 //   - gate_verdicts_total{level}      (counter: EXACT|EQUIVALENT|FAIL|ERROR)
+//   - audit_events_total{kind}        (counter)
 //   - sessions_opened_total           (counter)
 //   - handshake_failures_total        (counter)
 //   - http_requests_total{route,status} (counter)

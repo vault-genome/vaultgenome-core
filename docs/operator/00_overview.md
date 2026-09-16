@@ -13,9 +13,9 @@ the shipped binaries run today.*
 
 | Binary | What it does | Built by `make build` |
 | - | - | - |
-| `sagvd` (daemon) | Return Path listener for `acp-compute` workers (mTLS required off loopback); operator REST API (`POST /v1/jobs` names a sealed genome in `genome.bundle_dir`, `GET /v1/jobs/{id}` shows the gate's signed verdict); health listener (`/healthz`, `/readyz`, `/metrics`). Attests with the simulated TEE only. Writes no audit log. | yes |
+| `sagvd` (daemon) | Return Path listener for `acp-compute` workers (mTLS required off loopback); operator REST API (`POST /v1/jobs` names a sealed genome in `genome.bundle_dir`, `GET /v1/jobs/{id}` shows the gate's signed verdict); health listener (`/healthz`, `/readyz`, `/metrics`). Attests with AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`) or the simulated TEE. Writes every decision about a job to its signed audit log (`audit.log_path`, ADR 0014). | yes |
 | `sagvd identity`, `sagvd crosscloud-restore`, `sagvd crosscloud-confirm`, `sagvd failover` | Print the keys other hosts pin; release genome keys to an attested destination and confirm its restore ([06](06_cross_cloud_restore.md)); carry out the operator's failover policy when the primary is compromised or dies ([07](07_failover.md)). The cross-cloud subcommands write the only audit log any binary writes (`crosscloud.audit_log_path`). | same binary |
-| `acp-compute` | Worker: dials sagvd's Return Path and runs one gate job per session — restores the sealed genome's model in memory through the `vg_genome` door named by `genome.door.command` and answers the genome's prompts (ADR 0013). Needs Python, the pinned torch and the public base model on its host. Simulated TEE only. | yes |
+| `acp-compute` | Worker: dials sagvd's Return Path and runs one gate job per session — restores the sealed genome's model in memory through the `vg_genome` door named by `genome.door.command` and answers the genome's prompts (ADR 0013). Needs Python, the pinned torch and the public base model on its host. Attests with AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`) or the simulated TEE (ADR 0014). | yes |
 | `acp-bootstrap` | Cross-cloud destination: attests with AMD SEV-SNP (or the simulator), receives genome keys, restores genomes, signs receipts. | yes |
 | `acpctl` | Administrative CLI (§1.3). | yes |
 | `acp-demo` | Self-contained cross-hardware regeneration demo. | yes |
@@ -73,17 +73,18 @@ signed with its worker key (ADR 0013). It never sees the reference outputs
 and writes nothing of the genome. It gains no continuity authority and cannot
 issue a ReleaseDecision; sagvd judges what it returns.
 
-**Must have:** `tee.insecure_simulation: true` in its config — `acp-compute`
-attests with the simulated TEE only and refuses to start otherwise (it has no
-hardware backend, and no Intel TDX adapter exists anywhere in this
-repository); the same `keys.session_sealing` kid and key as sagvd; a worker
-signing key whose kid and public key are listed in sagvd's
+**Must have:** a TEE to attest with — `tee.provider: "gcp-sev-snp"` on an
+AMD SEV-SNP guest (the chip signs; see
+[runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md)), or
+`"simulated"` with `tee.insecure_simulation: true` on a laptop or in CI; a
+pin of the vault's TEE (`tee.peer`: its 48-byte launch measurement and the
+AMD chain for a SEV-SNP vault, its attestation key and measurement for a
+simulated one); the same `keys.session_sealing` kid and key as sagvd; a
+worker signing key whose kid and public key are listed in sagvd's
 `workers.registry_path`; a `genome.door.command` that runs the `vg_genome`
 door (`workers/genome`: Python 3.12, the pinned torch and transformers) and a
 local copy of the public base model whose files hash to the genome's
-manifest. The only binary that attests with real hardware is
-`acp-bootstrap` on AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`, see
-[runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md)).
+manifest. No Intel TDX, AWS Nitro or SGX adapter attests in this repository.
 
 **Must NOT:** log, persist, or forward plaintext disclosed material outside
 the bounds of the session. A worker that caches plaintext past session

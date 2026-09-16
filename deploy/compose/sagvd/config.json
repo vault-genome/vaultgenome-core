@@ -29,6 +29,10 @@
     "session_sealing": {
       "kid": "session-sealing-demo",
       "material_path": "/etc/acp/secrets/shared/sealing.key"
+    },
+    "audit_signing": {
+      "kid": "sagvd-audit-demo",
+      "seed_path": "/etc/acp/secrets/sagvd/audit_signing_seed"
     }
   },
   "workers": {
@@ -41,6 +45,9 @@
       "rtol": 0.001,
       "max_non_critical_outliers": 0
     }
+  },
+  "audit": {
+    "log_path": "/var/lib/acp/audit/returnpath-audit.db"
   },
   "runtime": {
     "job_timeout_seconds": 900,

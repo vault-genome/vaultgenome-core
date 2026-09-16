@@ -454,6 +454,8 @@ func TestValidate_GenomeSection(t *testing.T) {
 	}
 	c = minimalValidConfig()
 	c.Genome.BundleDir = "/var/lib/vg/genomes"
+	c.Audit.LogPath = "/var/lib/vg/audit/returnpath.db"
+	c.Keys.AuditSigning = SigningKeyConfig{KeyID: "audit-1", SeedPath: "/keys/audit.seed"}
 	if err := c.Validate(); err != nil {
 		t.Fatalf("Validate(genome enabled): %v", err)
 	}
@@ -474,5 +476,72 @@ func TestEscrowKeyPath_FallsBackToCrossCloud(t *testing.T) {
 	c.Genome.KeyEscrowPath = "/keys/genome-escrow.key"
 	if got := c.EscrowKeyPath(); got != "/keys/genome-escrow.key" {
 		t.Fatalf("genome.key_escrow_path must win: %q", got)
+	}
+}
+
+func TestValidate_TEEProviders(t *testing.T) {
+	for name, tc := range map[string]struct {
+		mutate func(c *Config)
+		want   []string
+	}{
+		"simulated by default":              {func(c *Config) {}, nil},
+		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "tdx" }, []string{"tee.provider invalid"}},
+		"unsupported provider":              {func(c *Config) { c.TEE.Provider = "intel-sgx-dcap" }, []string{"not available in this build"}},
+		"simulated without acknowledgement": {func(c *Config) { c.TEE.InsecureSimulation = false }, []string{"tee.insecure_simulation=true"}},
+		"simulated without seed":            {func(c *Config) { c.TEE.SeedPath = "" }, []string{"tee.seed_path required"}},
+		"sev-snp with simulated leftovers": {func(c *Config) { c.TEE.Provider = "gcp-sev-snp" },
+			[]string{"tee.seed_path applies to the simulated provider", "tee.insecure_simulation applies to the simulated provider"}},
+		"sev-snp clean":              {func(c *Config) { c.TEE.Provider = "gcp-sev-snp"; c.TEE.SeedPath = ""; c.TEE.InsecureSimulation = false }, nil},
+		"simulated peer without key": {func(c *Config) { c.TEE.Peer.PublicKeyPath = "" }, []string{"tee.peer.public_key_path required"}},
+		"sev-snp peer without chain": {func(c *Config) { c.TEE.Peer.Provider = "gcp-sev-snp"; c.TEE.Peer.PublicKeyPath = "" },
+			[]string{"tee.peer.amd_cert_chain_path required"}},
+		"sev-snp peer clean": {func(c *Config) {
+			c.TEE.Peer.Provider = "gcp-sev-snp"
+			c.TEE.Peer.PublicKeyPath = ""
+			c.TEE.Peer.AMDCertChainPath = "/x/chain.pem"
+		}, nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := minimalValidConfig()
+			tc.mutate(&c)
+			err := c.Validate()
+			if len(tc.want) == 0 {
+				if err != nil {
+					t.Fatalf("Validate: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("Validate accepted the config")
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(err.Error(), w) {
+					t.Fatalf("error lacks %q: %v", w, err)
+				}
+			}
+		})
+	}
+}
+
+func TestValidate_AuditLogIsRequiredForGateJobs(t *testing.T) {
+	c := minimalValidConfig()
+	c.Genome.BundleDir = "/var/lib/vg/genomes"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "audit.log_path required") {
+		t.Fatalf("gate jobs without an audit log accepted: %v", err)
+	}
+	c.Audit.LogPath = "/var/lib/vg/audit/returnpath.db"
+	err = c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "keys.audit_signing") {
+		t.Fatalf("audit log without a signing key accepted: %v", err)
+	}
+	c.Keys.AuditSigning = SigningKeyConfig{KeyID: "audit-1", SeedPath: "/keys/audit.seed"}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	c.CrossCloud.AuditLogPath = "/var/lib/vg/audit/../audit/returnpath.db"
+	err = c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "must be different files") {
+		t.Fatalf("one file for both logs accepted: %v", err)
 	}
 }

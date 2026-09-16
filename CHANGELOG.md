@@ -13,6 +13,25 @@ given release can still open.
 
 ### Added
 
+- **The Return Path on the record, and on hardware**
+  ([ADR-0014](docs/adr/0014-return-path-on-the-record-and-on-hardware.md)) —
+  `sagvd` keeps a Return Path audit log (`audit.log_path`, signed with
+  `keys.audit_signing`, verified end to end at start, required with gate
+  jobs): a job accepted, a peer refused or a worker admitted, a candidate
+  received, the gate's dimensions, findings and verdict, a session ended —
+  each on the record **before** it takes effect, and a log that cannot take
+  the record stops the decision (`audit_unavailable`). Existing audit kinds,
+  no schema bump; payloads `vault-genome/returnpath-audit/v1`;
+  `acpctl audit verify` checks the log under the key `sagvd identity`
+  prints; `sagvd_audit_events_total{kind}`. `sagvd` and `acp-compute` attest
+  with AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`, reports through
+  configfs-tsm) and pin a SEV-SNP peer by its 48-byte launch measurement and
+  the AMD chain (`tee.peer.provider`, `amd_cert_chain_path`, `vcek_cache_dir`,
+  `amd_kds_url`, `min_reported_tcb`); the simulated backend stays, explicit.
+  `acp-compute identity` prints the worker's signing key, provider and
+  measurement. Run on a GCP SEV-SNP Confidential VM with the shipping
+  binaries and the real `vg_genome` door
+  (`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/`).
 - **The worker restores the genome** ([ADR-0013](docs/adr/0013-worker-restores-the-genome.md))
   — a job on `sagvd`'s REST API names a sealed model genome in
   `genome.bundle_dir`; `sagvd` opens it (key file, or escrow envelope opened
@@ -45,6 +64,13 @@ given release can still open.
 
 ### Changed
 
+- **`acpctl audit query --json` embeds each event's payload** (`payload`, or
+  `payload_base64` when it is not JSON), so a reader sees the decision's
+  fields without a second tool.
+- **`sagvd` and `acp-compute` name their TEE.** `tee.provider` and
+  `tee.peer.provider` default to `simulated`, which still needs
+  `tee.insecure_simulation: true`; a SEV-SNP pin without the AMD chain, or a
+  simulated pin with one, is refused at start.
 - **`POST /v1/jobs` names a genome instead of carrying a payload.** The body is
   `{"genome": {"bundle", "key_file"}, "deadline_seconds_from_now"}`;
   `manifest_id`, `session_id`, `expected_output_kind`,

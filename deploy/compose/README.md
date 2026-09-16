@@ -60,7 +60,8 @@ secrets/
 ```
 
 `secrets/` is git-ignored and docker-ignored, and so are `genomes/` (the
-sealed bundles and their key files) and `models/` (the base model). keygen
+sealed bundles and their key files), `models/` (the base model) and
+`audit/` (the Return Path audit log sagvd writes). keygen
 refuses to overwrite an existing tree without `-force`, because regenerating
 under a running pair desynchronises it (sealed material stops opening,
 evidence stops pinning, TLS stops verifying). Files are mode 0644 so the
@@ -100,6 +101,18 @@ files and `keygen/main.go`: peer measurements are SHA-256 of those strings.
    by sagvd's authority key — and `result.worker_signing_key_id`, the key the
    signature was verified under. A model that misses its references fails
    the job with `gate_failed`, the attempts on record.
+5. Every one of those decisions is in `audit/returnpath-audit.db` before it
+   took effect — the job accepted, the worker admitted (or a peer refused),
+   the candidate received, the gate started, judged, every finding, the
+   verdict — signed under `keys.audit_signing` and hash-linked. Read and
+   verify it (the daemon holds the file while it runs; stop it or copy the
+   file first):
+
+   ```bash
+   docker compose -f deploy/compose/docker-compose.yml exec sagvd sagvd identity -config /etc/acp/config/sagvd.json | jq -r .audit_public_key_pem > audit.pem
+   ./bin/acpctl audit verify --audit deploy/compose/audit/returnpath-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-demo
+   ./bin/acpctl audit query  --audit deploy/compose/audit/returnpath-audit.db --json | jq .
+   ```
 
 On the same runtime the genome was sealed on (the worker image's pinned
 CPU torch, when `make demo-genome` ran with the same wheel) the verdict is

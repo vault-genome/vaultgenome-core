@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/compute/worker"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 )
 
@@ -35,6 +36,13 @@ func main() {
 			return
 		case "help", "--help", "-h":
 			printUsage()
+			return
+		case "identity":
+			if err := runIdentityCmd(os.Args[2:], os.Stdout); err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
+					Error("acp-compute identity: terminated with error", "err", err.Error())
+				os.Exit(1)
+			}
 			return
 		}
 	}
@@ -92,6 +100,14 @@ func runDaemon(args []string) error {
 		"kid", string(mat.SigningKeyID),
 		"pubkey_hex", hex.EncodeToString(mat.SigningPublicKey),
 	)
+	logger.Info("worker TEE identity",
+		"tee_provider", string(mat.Provider),
+		"measurement_hex", hex.EncodeToString(mat.Producer.Measurement()),
+		"peer_provider", string(mat.PeerProvider),
+	)
+	if mat.Provider == tee.ProviderSimulated {
+		logger.Warn("SIMULATED TEE: no hardware isolation — this worker's Return Path Evidence is signed by a key read from a file; development and tests only")
+	}
 
 	// R-11 swap point. The Reconstructor interface was frozen in
 	// iteration 5, so the backend is the only production line that
@@ -173,12 +189,16 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  acp-compute -config PATH")
+	fmt.Println("  acp-compute identity -config PATH")
 	fmt.Println("  acp-compute version")
 	fmt.Println("  acp-compute help")
 	fmt.Println()
 	fmt.Println("Description:")
 	fmt.Println("  Long-lived worker daemon. Dials sagvd over the Return Path,")
-	fmt.Println("  serves one reconstruction job per session, then reconnects.")
+	fmt.Println("  serves one gate job per session, then reconnects.")
+	fmt.Println()
+	fmt.Println("  identity prints what sagvd pins for this worker — its signing key,")
+	fmt.Println("  its TEE provider and launch measurement — as JSON.")
 	fmt.Println()
 	fmt.Println("Flags:")
 	fmt.Println("  -config PATH   JSON config file; see cmd/acp-compute/doc.go for schema.")

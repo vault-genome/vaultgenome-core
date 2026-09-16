@@ -33,6 +33,7 @@ type testHTTPFixture struct {
 	base   string
 	dir    string     // genome.bundle_dir
 	genome testGenome // a sealed genome in dir
+	audit  *returnPathAudit
 }
 
 // newTestFixture starts an HTTPAPIServer listening on 127.0.0.1:0
@@ -66,13 +67,15 @@ func newTestFixtureWith(t *testing.T, bearer string, gateJobs bool) *testHTTPFix
 	dir := t.TempDir()
 	sealed := sealTestGenome(t, dir, genomeOptions{})
 	var genomes *genomeJobs
+	var audit *returnPathAudit
 	if gateJobs {
 		full := DefaultConfig()
 		full.Genome.BundleDir = dir
 		full.Runtime = runtime
 		genomes = newGenomeJobs(full, store, sealKID, clock)
+		audit, _ = newTestAudit(t)
 	}
-	srv, err := NewHTTPAPIServer(cfg, runtime, queue, store, sealKID, genomes, clock, registry, logger)
+	srv, err := NewHTTPAPIServer(cfg, runtime, queue, store, sealKID, genomes, audit, clock, registry, logger)
 	if err != nil {
 		t.Fatalf("NewHTTPAPIServer: %v", err)
 	}
@@ -92,6 +95,7 @@ func newTestFixtureWith(t *testing.T, bearer string, gateJobs bool) *testHTTPFix
 		base:   "http://" + srv.Addr(),
 		dir:    dir,
 		genome: sealed,
+		audit:  audit,
 	}
 }
 
@@ -302,6 +306,52 @@ func TestHTTPAPI_PostJobs_RejectsUnknownFieldsAndOversizedBodies(t *testing.T) {
 	}
 }
 
+// A job is on the audit record before it is queued, under its own id;
+// a log that cannot take it refuses the job.
+func TestHTTPAPI_PostJobs_IsOnTheRecordFirst(t *testing.T) {
+	fx := newTestFixture(t, "")
+	_, body := fx.post(t, fx.goodSubmit().marshal(t))
+	var out submitResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatalf("decode: %v (%s)", err, body)
+	}
+	events := fx.audit.chain.Events()
+	if len(events) != 1 || events[0].Kind != "MANIFEST_ISSUED" || string(events[0].ManifestID) != out.ManifestID {
+		t.Fatalf("audit log after one job: %+v", events)
+	}
+	var p jobAcceptedPayload
+	if err := json.Unmarshal(events[0].Payload, &p); err != nil || p.JobID != out.JobID || p.GenomeID != fx.genome.KeyID {
+		t.Fatalf("MANIFEST_ISSUED payload: %+v (%v)", p, err)
+	}
+
+	if err := fx.audit.Close(); err != nil {
+		t.Fatal(err)
+	}
+	resp, data := fx.post(t, fx.goodSubmit().marshal(t))
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d want 503 (%s)", resp.StatusCode, data)
+	}
+	if env := decodeErrorEnvelope(t, bytes.NewReader(data)); env.Error.Code != CodeAuditUnavailable {
+		t.Fatalf("code = %s", env.Error.Code)
+	}
+	if got := fx.queue.Depth(); got != 1 {
+		t.Fatalf("a job the log did not take was queued: depth %d", got)
+	}
+}
+
+func TestHTTPAPI_RequiresTheAuditLogWithGateJobs(t *testing.T) {
+	clock := shared_time.NewSystemClock()
+	store := keys.NewInMemoryStore(clock)
+	sealKID := testRegisterSealing(t, store)
+	full := DefaultConfig()
+	full.Genome.BundleDir = t.TempDir()
+	genomes := newGenomeJobs(full, store, sealKID, clock)
+	_, err := NewHTTPAPIServer(HTTPAPIConfig{}, full.Runtime, NewJobQueue(clock, time.Second), store, sealKID, genomes, nil, clock, metrics.NewRegistry(), nil)
+	if err == nil {
+		t.Fatal("gate jobs without an audit log were accepted")
+	}
+}
+
 func TestHTTPAPI_PostJobs_GateJobsDisabledIs503(t *testing.T) {
 	fx := newTestFixtureWith(t, "", false)
 	resp, data := fx.post(t, fx.goodSubmit().marshal(t))
@@ -421,7 +471,7 @@ func TestHTTPAPI_EmptyListenIsNoOp(t *testing.T) {
 	_ = testRegisterSealing(t, store)
 
 	srv, err := NewHTTPAPIServer(cfg, runtime, NewJobQueue(clock, runtime.QueuePoll()),
-		store, "test-sealing-kid-1", nil, clock, metrics.NewRegistry(), nil)
+		store, "test-sealing-kid-1", nil, nil, clock, metrics.NewRegistry(), nil)
 	if err != nil {
 		t.Fatalf("NewHTTPAPIServer: %v", err)
 	}

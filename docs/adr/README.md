@@ -26,6 +26,7 @@ ADRs interact with the test-enforced invariant system.
 | 0011 | [Genome v3 and attested self-restore](0011-genome-v3-and-attested-self-restore.md) | Accepted | genome, crosscloud, restore, doctrine |
 | 0012 | [Sentinel and policy-driven failover](0012-sentinel-and-policy-driven-failover.md) | Accepted | genome, failover, crosscloud, audit, governance |
 | 0013 | [The worker restores the genome](0013-worker-restores-the-genome.md) | Accepted | worker, returnpath, genome, equivalence |
+| 0014 | [The Return Path on the record, and on hardware](0014-return-path-on-the-record-and-on-hardware.md) | Accepted | audit, returnpath, tee, sev-snp |
 
 ## Adding an ADR
 
