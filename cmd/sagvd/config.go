@@ -6,13 +6,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ai-continuity-platform/core/internal/contracts/attestation_result"
 	"io"
 	"net"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/shared/exposure"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 )
 
 // Config is the full on-disk configuration for the sagvd authority
@@ -59,6 +63,94 @@ type Config struct {
 	//
 	// See ADR 0006, ADR 0009 and docs/operator/06_cross_cloud_restore.md.
 	CrossCloud CrossCloudConfig `json:"crosscloud,omitempty"`
+
+	// Genome configures the gate jobs the REST API accepts: a job names
+	// a sealed genome in Genome.BundleDir; sagvd opens it with its key,
+	// keeps the genome's reference fixtures, ships the model side to the
+	// worker, and holds what the worker computes to the references with
+	// the equivalence gate. Without a BundleDir the REST API accepts no
+	// jobs (ADR 0013).
+	Genome GenomeConfig `json:"genome,omitempty"`
+
+	// Audit is the daemon's Return Path audit log: every decision about
+	// a job — accepted, worker admitted or refused, candidate received,
+	// judged — on a durable, signed, hash-linked record before it takes
+	// effect (ADR 0014). Required when gate jobs are enabled.
+	Audit AuditConfig `json:"audit,omitempty"`
+
+	// OperatorStop is the operator's signed stop list (ADR 0010) as Trust
+	// Admission consults it for gate jobs (ADR 0015): a stop-all list
+	// denies every job, a list revoking the worker's measurement denies
+	// that worker, and every denial is a signed, recorded decision. The
+	// list is re-read at every admission, so the operator stops the
+	// daemon's releases by writing a new list. Optional; when set, all
+	// three fields are required.
+	OperatorStop OperatorStopConfig `json:"operator_stop,omitempty"`
+}
+
+// PolicyProfileGate is the one policy profile the daemon serves: restore
+// the named genome in an attested worker and hold it to its sealed
+// references under genome.gate. A RecoveryRequest naming another profile
+// is denied at Trust Admission.
+const PolicyProfileGate = "gate"
+
+// PolicyVersion is the policy every session is pinned to and validation
+// checks alignment with (op.policy_alignment): the gate's tolerance, in
+// full, so a tolerance changed under a live session is a recorded
+// operational failure rather than a silent drift.
+func (c Config) PolicyVersion() string {
+	g := c.Genome.Gate
+	return fmt.Sprintf("gate-policy/v1;atol=%g;rtol=%g;outliers=%d", g.Atol, g.Rtol, g.MaxNonCriticalOutliers)
+}
+
+// OperatorStopEnabled reports whether trust consults a stop list.
+func (c Config) OperatorStopEnabled() bool {
+	return c.OperatorStop.KeyID != "" || c.OperatorStop.PublicKeyPath != "" || c.OperatorStop.ListPath != ""
+}
+
+// GenomeConfig is where the sealed genomes a job may name live, how
+// their keys are found, and the tolerance the gate holds a restored model
+// to.
+type GenomeConfig struct {
+	// BundleDir holds the .genome bundles a job may name, with their key
+	// files (acpctl genome seal --key-out) or escrow envelopes (--escrow-to,
+	// as <bundle>.escrow) beside them. A job names files in it; paths are
+	// refused.
+	BundleDir string `json:"bundle_dir,omitempty"`
+
+	// KeyEscrowPath is the authority's escrow private key that opens the
+	// escrow envelopes in BundleDir: the file `sagvd escrow-provision`
+	// writes, sealed to this host's TEE (ADR 0016). Under
+	// tee.insecure_simulation a raw 32-byte key (acpctl escrow keygen,
+	// mode 0600) is accepted too. Empty falls back to
+	// crosscloud.key_escrow_path; without either, jobs must name a key
+	// file.
+	KeyEscrowPath string `json:"key_escrow_path,omitempty"`
+
+	// Gate is the tolerance every gate job is held to. The byte-exact door
+	// is always tried first; this is the tolerance of the native-float
+	// door behind it. Declared here, by the operator, in advance — not by
+	// the job.
+	Gate GateConfig `json:"gate"`
+}
+
+// GateConfig is the native-float door's tolerance and outlier policy.
+type GateConfig struct {
+	Atol                   float64 `json:"atol"`
+	Rtol                   float64 `json:"rtol"`
+	MaxNonCriticalOutliers int     `json:"max_non_critical_outliers"`
+}
+
+// Enabled reports whether gate jobs can be built.
+func (g GenomeConfig) Enabled() bool { return g.BundleDir != "" }
+
+// EscrowKeyPath is the escrow private key that opens envelopes in
+// BundleDir: genome.key_escrow_path, or crosscloud.key_escrow_path.
+func (c Config) EscrowKeyPath() string {
+	if c.Genome.KeyEscrowPath != "" {
+		return c.Genome.KeyEscrowPath
+	}
+	return c.CrossCloud.KeyEscrowPath
 }
 
 // VaultConfig aggregates how sagvd accepts Return Path connections.
@@ -109,37 +201,170 @@ type TLSConfig struct {
 	ClientCAs  string `json:"client_cas"`
 }
 
-// TEEConfig holds the local simulated TEE seed plus the peer's
-// (worker's) expected public key and measurement.
+// TEEConfig names the TEE this vault attests with on the Return Path
+// and pins the worker's TEE it will accept.
 type TEEConfig struct {
-	// WorkloadDescriptor is hashed to derive the local measurement.
-	// Workers' Verifiers pin this through their operator config.
+	// Provider is the local TEE backend: "gcp-sev-snp" (AMD SEV-SNP
+	// reports through the kernel's configfs-tsm, on any SEV-SNP guest
+	// with Linux 6.7 or later — the chip signs) or "simulated" (a key
+	// read from SeedPath signs; no hardware isolation; development and
+	// tests only). Default "simulated". The cross-cloud release path
+	// (sagvd crosscloud-*) does not depend on it.
+	Provider string `json:"provider,omitempty"`
+
+	// WorkloadDescriptor names this workload. The simulated provider
+	// hashes it into its measurement; a hardware provider records it
+	// and attests with the launch measurement the chip reports.
 	WorkloadDescriptor string `json:"workload_descriptor"`
 
-	// SeedPath is a 32-byte file holding the Ed25519 seed used to
-	// derive this vault's attestation key. Sensitive — chmod 0600.
-	SeedPath string `json:"seed_path"`
+	// SeedPath is a 32-byte file holding the Ed25519 seed the simulated
+	// provider signs Evidence with. Sensitive — chmod 0600. Simulated
+	// only.
+	SeedPath string `json:"seed_path,omitempty"`
 
-	// Peer holds the trust-anchor material for the worker's TEE
-	// side: pubkey + measurement. In Phase 1 the vault accepts
-	// exactly one expected worker measurement; Phase 2 extends to a
-	// policy set pulling from Workers.RegistryPath.
+	// TSMReportDir overrides the configfs-tsm report directory (default
+	// /sys/kernel/config/tsm/report). gcp-sev-snp only.
+	TSMReportDir string `json:"tsm_report_dir,omitempty"`
+
+	// SEVGuestDevice is the sev-guest character device the sealer asks
+	// for this guest's derived key (default /dev/sev-guest): what seals
+	// the escrow key to this host (ADR 0016). gcp-sev-snp only.
+	SEVGuestDevice string `json:"sev_guest_device,omitempty"`
+
+	// Peer holds the trust-anchor material for the worker's TEE side.
+	// The vault accepts exactly one worker TEE identity: a Return Path
+	// session opens only for a worker whose Evidence verifies under it.
 	Peer PeerTEEConfig `json:"peer"`
 
-	// InsecureSimulation must be true: this build's vault attests with
-	// the simulated TEE only — Evidence signed by a key read from
-	// SeedPath, no hardware isolation. The flag puts that in the config
-	// itself; the release-side cross-cloud path does not depend on it.
-	InsecureSimulation bool `json:"insecure_simulation"`
+	// InsecureSimulation must be true to run the simulated provider:
+	// its Evidence is signed by a key read from SeedPath, with no
+	// hardware isolation. The flag puts that in the config itself.
+	// Simulated only.
+	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
 }
 
 // PeerTEEConfig pins the worker-side TEE the vault will accept.
 type PeerTEEConfig struct {
-	// PublicKeyPath is a 32-byte raw Ed25519 public key.
-	PublicKeyPath string `json:"public_key_path"`
+	// Provider is the worker's TEE backend: "simulated" (default) or
+	// "gcp-sev-snp". The verifier for it runs here; verification never
+	// needs hardware.
+	Provider string `json:"provider,omitempty"`
 
-	// MeasurementPath is a 32-byte raw SHA-256 measurement.
+	// PublicKeyPath is the worker's 32-byte raw Ed25519 attestation key.
+	// Simulated peers only; a SEV-SNP report is signed by the chip's
+	// VCEK, which chains to AMD.
+	PublicKeyPath string `json:"public_key_path,omitempty"`
+
+	// MeasurementPath is the worker's launch measurement, raw: 32 bytes
+	// for a simulated peer, 48 for SEV-SNP (never truncated, ADR 0007).
 	MeasurementPath string `json:"measurement_path"`
+
+	// AMDCertChainPath is the AMD ASK+ARK certificate chain (PEM) the
+	// worker's VCEK must chain to. gcp-sev-snp peers only; required.
+	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
+
+	// AMDKDSURL overrides the AMD KDS base URL (a mirror). gcp-sev-snp
+	// peers only.
+	AMDKDSURL string `json:"amd_kds_url,omitempty"`
+
+	// VCEKCacheDir keeps fetched VCEK certificates on disk so each chip
+	// is asked of AMD KDS once; a cached certificate is still checked
+	// against the pinned chain on every use. gcp-sev-snp peers only.
+	VCEKCacheDir string `json:"vcek_cache_dir,omitempty"`
+
+	// MinReportedTCB is the lowest REPORTED_TCB accepted from the
+	// worker. gcp-sev-snp peers only.
+	MinReportedTCB uint64 `json:"min_reported_tcb,omitempty"`
+}
+
+// supportedProviders are the TEE backends this build can attest with
+// on the Return Path, and verify a peer's Evidence for.
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderSimulated}
+
+// DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
+const DefaultSEVGuestDevice = "/dev/sev-guest"
+
+// SEVDevice is the sev-guest device the sealer opens.
+func (t TEEConfig) SEVDevice() string {
+	if t.SEVGuestDevice != "" {
+		return t.SEVGuestDevice
+	}
+	return DefaultSEVGuestDevice
+}
+
+// ProviderKind parses TEEConfig.Provider, defaulting to simulated.
+func (t TEEConfig) ProviderKind() (tee.Provider, error) {
+	if strings.TrimSpace(t.Provider) == "" {
+		return tee.ProviderSimulated, nil
+	}
+	return tee.ParseProvider(t.Provider)
+}
+
+// ProviderKind parses PeerTEEConfig.Provider, defaulting to simulated.
+func (p PeerTEEConfig) ProviderKind() (tee.Provider, error) {
+	if strings.TrimSpace(p.Provider) == "" {
+		return tee.ProviderSimulated, nil
+	}
+	return tee.ParseProvider(p.Provider)
+}
+
+// validateTEE checks the local provider and the peer pin as a pair of
+// choices: a simulated producer needs its seed and the operator's
+// acknowledgement; a hardware producer signs with the chip and refuses
+// both; a simulated peer is pinned by key and measurement; a SEV-SNP
+// peer by measurement and the AMD chain.
+func validateTEE(t TEEConfig) []error {
+	var errs []error
+	switch provider, err := t.ProviderKind(); {
+	case err != nil:
+		errs = append(errs, fmt.Errorf("tee.provider invalid: %w", err))
+	case !slices.Contains(supportedProviders, provider):
+		errs = append(errs, fmt.Errorf("tee.provider %q is not available in this build (supported: %v)", provider, supportedProviders))
+	case provider == tee.ProviderSimulated:
+		if t.SeedPath == "" {
+			errs = append(errs, errors.New("tee.seed_path required when tee.provider=simulated"))
+		}
+		if !t.InsecureSimulation {
+			errs = append(errs, errors.New("tee.provider=simulated has no hardware isolation: set tee.insecure_simulation=true to run it, for development and tests only"))
+		}
+		if t.TSMReportDir != "" {
+			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp only"))
+		}
+		if t.SEVGuestDevice != "" {
+			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp only"))
+		}
+	case provider == tee.ProviderGCPSEVSNP:
+		if t.SeedPath != "" {
+			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
+		}
+		if t.InsecureSimulation {
+			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
+		}
+	}
+	if t.Peer.MeasurementPath == "" {
+		errs = append(errs, errors.New("tee.peer.measurement_path required"))
+	}
+	switch peer, err := t.Peer.ProviderKind(); {
+	case err != nil:
+		errs = append(errs, fmt.Errorf("tee.peer.provider invalid: %w", err))
+	case !slices.Contains(supportedProviders, peer):
+		errs = append(errs, fmt.Errorf("tee.peer.provider %q: no verifier this build can run end to end (supported: %v)", peer, supportedProviders))
+	case peer == tee.ProviderSimulated:
+		if t.Peer.PublicKeyPath == "" {
+			errs = append(errs, errors.New("tee.peer.public_key_path required when tee.peer.provider=simulated"))
+		}
+		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp peer only"))
+		}
+	case peer == tee.ProviderGCPSEVSNP:
+		if t.Peer.PublicKeyPath != "" {
+			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a SEV-SNP report is signed by the chip's VCEK"))
+		}
+		if t.Peer.AMDCertChainPath == "" {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=gcp-sev-snp (the AMD ASK+ARK chain the VCEK must chain to)"))
+		}
+	}
+	return errs
 }
 
 // KeysConfig bundles the key-material slots sagvd uses.
@@ -219,6 +444,13 @@ type RuntimeConfig struct {
 	// MaxPayloadBytes caps base64-decoded POST /v1/jobs payload
 	// size. Prevents a single client from exhausting vault memory.
 	MaxPayloadBytes uint64 `json:"max_payload_bytes"`
+
+	// EvidenceMaxAgeSeconds is how old a worker's Return Path Evidence
+	// may be when a job is handed to it. A session whose handshake is
+	// older is closed with re_attest and the job stays queued (the worker
+	// dials again, attests again). 0 takes the attestation default
+	// (5 minutes).
+	EvidenceMaxAgeSeconds int `json:"evidence_max_age_seconds,omitempty"`
 }
 
 // JobTimeout returns RuntimeConfig.JobTimeoutSeconds as a Duration.
@@ -248,6 +480,15 @@ func (r RuntimeConfig) HTTPWriteTimeout() time.Duration {
 }
 
 // DefaultJobDeadline returns the default per-job deadline.
+// EvidenceMaxAge is RuntimeConfig.EvidenceMaxAgeSeconds as a duration,
+// the attestation default when unset.
+func (r RuntimeConfig) EvidenceMaxAge() time.Duration {
+	if r.EvidenceMaxAgeSeconds <= 0 {
+		return attestation_result.DefaultTTL
+	}
+	return time.Duration(r.EvidenceMaxAgeSeconds) * time.Second
+}
+
 func (r RuntimeConfig) DefaultJobDeadline() time.Duration {
 	return time.Duration(r.DefaultJobDeadlineSeconds) * time.Second
 }
@@ -359,11 +600,14 @@ type CrossCloudConfig struct {
 	// crosscloud-restore run holds its lock at a time.
 	AuditLogPath string `json:"audit_log_path,omitempty"`
 
-	// KeyEscrowPath is the release authority's key-escrow private key
-	// (acpctl escrow keygen; 32 raw bytes, mode 0600). Sealers
-	// encapsulate genome keys to its public half, which `sagvd identity`
-	// prints; `crosscloud-restore -key-escrow` opens an envelope with it
-	// only to release the key. Optional.
+	// KeyEscrowPath is the release authority's escrow private key: the
+	// file `sagvd escrow-provision` writes, sealed to this host's TEE and
+	// opened in memory at start (ADR 0016). Under tee.insecure_simulation
+	// a raw 32-byte key (acpctl escrow keygen, mode 0600) is accepted
+	// too; on a hardware TEE it is refused. Sealers encapsulate genome
+	// keys to its public half, which `sagvd identity` prints;
+	// `crosscloud-restore -key-escrow` and `failover` open envelopes with
+	// it only to release the key. Optional.
 	KeyEscrowPath string `json:"key_escrow_path,omitempty"`
 
 	// InsecureSimulatedDestinations must be true for the verifier
@@ -440,6 +684,12 @@ func DefaultConfig() Config {
 		Log: LogConfig{
 			Level:  "info",
 			Format: "json",
+		},
+		Genome: GenomeConfig{
+			// The tolerance the hardware drills declared in advance
+			// (VERIFIABLE-CLAIMS C5): measured cross-hardware error is
+			// ~50x inside it.
+			Gate: GateConfig{Atol: 1e-2, Rtol: 1e-3},
 		},
 	}
 }
@@ -549,18 +799,7 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.TEE.WorkloadDescriptor) == "" {
 		errs = append(errs, errors.New("tee.workload_descriptor required"))
 	}
-	if c.TEE.SeedPath == "" {
-		errs = append(errs, errors.New("tee.seed_path required"))
-	}
-	if !c.TEE.InsecureSimulation {
-		errs = append(errs, errors.New("tee.insecure_simulation must be true: this build's vault attests with the simulated TEE only (no hardware isolation) — set it to acknowledge that"))
-	}
-	if c.TEE.Peer.PublicKeyPath == "" {
-		errs = append(errs, errors.New("tee.peer.public_key_path required"))
-	}
-	if c.TEE.Peer.MeasurementPath == "" {
-		errs = append(errs, errors.New("tee.peer.measurement_path required"))
-	}
+	errs = append(errs, validateTEE(c.TEE)...)
 
 	if c.Keys.AuthoritySigning.KeyID == "" {
 		errs = append(errs, errors.New("keys.authority_signing.kid required"))
@@ -610,6 +849,35 @@ func (c Config) Validate() error {
 	case "json", "text":
 	default:
 		errs = append(errs, fmt.Errorf("log.format %q invalid (want json|text)", c.Log.Format))
+	}
+
+	if g := c.Genome.Gate; g.Atol < 0 || g.Rtol < 0 {
+		errs = append(errs, errors.New("genome.gate.atol and rtol must be >= 0"))
+	}
+	if c.Genome.Gate.MaxNonCriticalOutliers < 0 {
+		errs = append(errs, errors.New("genome.gate.max_non_critical_outliers must be >= 0"))
+	}
+	if c.Genome.BundleDir != "" && !filepath.IsAbs(c.Genome.BundleDir) {
+		errs = append(errs, fmt.Errorf("genome.bundle_dir %q must be an absolute path", c.Genome.BundleDir))
+	}
+	if c.Genome.Enabled() && c.Audit.LogPath == "" {
+		errs = append(errs, errors.New("audit.log_path required when genome.bundle_dir is set: a gate job is a decision, and no decision is taken off the record"))
+	}
+	if c.OperatorStopEnabled() {
+		if s := c.OperatorStop; s.KeyID == "" || s.PublicKeyPath == "" || s.ListPath == "" {
+			errs = append(errs, errors.New("operator_stop.kid, public_key_path and list_path are all required when any is set"))
+		}
+	}
+	if c.Runtime.EvidenceMaxAgeSeconds < 0 {
+		errs = append(errs, errors.New("runtime.evidence_max_age_seconds must be >= 0 (0 = the attestation default)"))
+	}
+	if c.Audit.LogPath != "" {
+		if c.Keys.AuditSigning.KeyID == "" || c.Keys.AuditSigning.SeedPath == "" {
+			errs = append(errs, errors.New("keys.audit_signing.kid and seed_path required when audit.log_path is set"))
+		}
+		if c.CrossCloud.AuditLogPath != "" && filepath.Clean(c.CrossCloud.AuditLogPath) == filepath.Clean(c.Audit.LogPath) {
+			errs = append(errs, errors.New("audit.log_path and crosscloud.audit_log_path must be different files: the daemon holds its log open, and one process holds a log at a time"))
+		}
 	}
 
 	// CrossCloud is opt-in; only validate fields when enabled.

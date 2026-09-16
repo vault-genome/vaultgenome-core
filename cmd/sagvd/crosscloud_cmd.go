@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/ecdh"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -110,8 +111,14 @@ func runCrossCloudRestoreCmd(args []string) error {
 	if !cfg.CrossCloud.Enabled {
 		return errors.New("crosscloud-restore: crosscloud.enabled=false in config — refusing to run")
 	}
+	clock := shared_time.NewSystemClock()
+	mat, err := LoadMaterials(cfg, clock)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = mat.Close() }()
 	if len(escrows) > 0 {
-		escrowed, err := openEscrows(cfg.CrossCloud.KeyEscrowPath, escrows)
+		escrowed, err := openEscrows(mat.Escrow, escrows)
 		if err != nil {
 			return err
 		}
@@ -123,12 +130,6 @@ func runCrossCloudRestoreCmd(args []string) error {
 			}
 		}
 		keyMaterials = append(keyMaterials, escrowed...)
-	}
-
-	clock := shared_time.NewSystemClock()
-	mat, err := LoadMaterials(cfg, clock)
-	if err != nil {
-		return err
 	}
 	xcc, err := LoadCrossCloudMaterials(cfg, clock)
 	if err != nil {
@@ -255,14 +256,11 @@ func readKeyFiles(in []string) ([]kms.KeyMaterial, error) {
 	return out, nil
 }
 
-// openEscrows opens each escrow envelope with the authority's escrow key.
-func openEscrows(keyPath string, paths []string) ([]kms.KeyMaterial, error) {
-	if keyPath == "" {
+// openEscrows opens each escrow envelope with the authority's escrow key,
+// as the materials hold it in memory.
+func openEscrows(priv *ecdh.PrivateKey, paths []string) ([]kms.KeyMaterial, error) {
+	if priv == nil {
 		return nil, errors.New("crosscloud-restore: -key-escrow needs crosscloud.key_escrow_path")
-	}
-	priv, err := escrow.ReadPrivate(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("crosscloud-restore: crosscloud.key_escrow_path: %w", err)
 	}
 	out := make([]kms.KeyMaterial, 0, len(paths))
 	for i, p := range paths {

@@ -45,6 +45,9 @@ type Config struct {
 	Outbox string
 	// Escrow is the release authority's escrow key.
 	Escrow *ecdh.PrivateKey
+	// Primary verifies the primary TEE's reports on the outbox's records;
+	// required when the policy pins the primary (ADR 0017).
+	Primary tee.Verifier
 	// Coordinator releases keys under a release policy that includes this
 	// failover policy's Gate, and confirms receipts (Config.Receipts set).
 	Coordinator *kms.Coordinator
@@ -79,6 +82,9 @@ func New(cfg Config) (*Executor, error) {
 	if err := cfg.Policy.validate(); err != nil {
 		return nil, err
 	}
+	if cfg.Policy.PinsPrimary() && cfg.Primary == nil {
+		return nil, fmt.Errorf("failover: the policy pins the primary's %s TEE, and no verifier for it was given", cfg.Policy.Primary.Kind)
+	}
 	if err := CheckNotSpent(cfg.Policy, cfg.Events()); err != nil {
 		return nil, err
 	}
@@ -97,7 +103,7 @@ func New(cfg Config) (*Executor, error) {
 // ctx ends first. A release authority that should not hold its audit log
 // open while it waits watches with a Watcher and calls Failover itself.
 func (e *Executor) Run(ctx context.Context) (Report, error) {
-	t, err := NewWatcher(e.cfg.Policy, e.cfg.Outbox, e.cfg.Clock.Now).Watch(ctx, e.cfg.Poll, e.log)
+	t, err := NewWatcher(e.cfg.Policy, e.cfg.Outbox, e.cfg.Clock.Now, e.cfg.Primary).Watch(ctx, e.cfg.Poll, e.log)
 	if err != nil {
 		return Report{}, err
 	}
@@ -106,25 +112,28 @@ func (e *Executor) Run(ctx context.Context) (Report, error) {
 
 // decidedPayload is the JSON payload of a KindFailoverDecided audit event.
 type decidedPayload struct {
-	Decision        string         `json:"decision"`
-	Reason          string         `json:"reason"`
-	PolicySerial    uint64         `json:"policy_serial"`
-	PolicySHA256    []byte         `json:"policy_sha256"`
-	Sentinel        string         `json:"sentinel"`
-	Trigger         TriggerKind    `json:"trigger"`
-	TriggerAt       time.Time      `json:"trigger_at"`
-	EvidenceSHA256  []byte         `json:"evidence_sha256"`
-	DecisionID      ids.DecisionID `json:"decision_id,omitempty"`
-	Generation      *uint64        `json:"generation,omitempty"`
-	BundleSHA256    string         `json:"bundle_sha256,omitempty"`
-	KeyID           ids.KeyID      `json:"key_id,omitempty"`
-	SealedAt        *time.Time     `json:"sealed_at,omitempty"`
-	RPOSeconds      *float64       `json:"rpo_seconds,omitempty"`
-	ChainEnd        *uint64        `json:"chain_end,omitempty"`
-	ReportedLast    *uint64        `json:"reported_last,omitempty"`
-	StandbyKind     tee.Provider   `json:"standby_kind"`
-	StandbyEndpoint string         `json:"standby_endpoint"`
-	DecidedAt       time.Time      `json:"decided_at"`
+	Decision       string      `json:"decision"`
+	Reason         string      `json:"reason"`
+	PolicySerial   uint64      `json:"policy_serial"`
+	PolicySHA256   []byte      `json:"policy_sha256"`
+	Sentinel       string      `json:"sentinel"`
+	Trigger        TriggerKind `json:"trigger"`
+	TriggerAt      time.Time   `json:"trigger_at"`
+	EvidenceSHA256 []byte      `json:"evidence_sha256"`
+	// PrimaryMeasurementHex is what the trigger's record's TEE report
+	// attests, when the policy pins the primary.
+	PrimaryMeasurementHex string         `json:"primary_measurement_hex,omitempty"`
+	DecisionID            ids.DecisionID `json:"decision_id,omitempty"`
+	Generation            *uint64        `json:"generation,omitempty"`
+	BundleSHA256          string         `json:"bundle_sha256,omitempty"`
+	KeyID                 ids.KeyID      `json:"key_id,omitempty"`
+	SealedAt              *time.Time     `json:"sealed_at,omitempty"`
+	RPOSeconds            *float64       `json:"rpo_seconds,omitempty"`
+	ChainEnd              *uint64        `json:"chain_end,omitempty"`
+	ReportedLast          *uint64        `json:"reported_last,omitempty"`
+	StandbyKind           tee.Provider   `json:"standby_kind"`
+	StandbyEndpoint       string         `json:"standby_endpoint"`
+	DecidedAt             time.Time      `json:"decided_at"`
 }
 
 // Failover acts on a trigger: choose the genome, record the decision,
@@ -135,7 +144,7 @@ func (e *Executor) Failover(ctx context.Context, t Trigger) (Report, error) {
 	evidence := sha256.Sum256(t.Evidence)
 	rep := newReport(p, sid, t, evidence[:], t.Ignored)
 
-	choice, why, err := Choose(e.cfg.Outbox, p, t, escrow.KeyTag(e.cfg.Escrow.PublicKey()))
+	choice, why, err := Choose(e.cfg.Outbox, p, t, escrow.KeyTag(e.cfg.Escrow.PublicKey()), e.cfg.Primary)
 	if err != nil {
 		return rep.fail(err), err
 	}
@@ -157,6 +166,9 @@ func (e *Executor) Failover(ctx context.Context, t Trigger) (Report, error) {
 		StandbyKind:     tee.Provider(p.Standby.Kind),
 		StandbyEndpoint: p.Standby.Endpoint,
 		DecidedAt:       decidedAt,
+	}
+	if len(t.PrimaryMeasurement) > 0 {
+		payload.PrimaryMeasurementHex = hex.EncodeToString(t.PrimaryMeasurement)
 	}
 	payload.ChainEnd = choice.ChainEnd
 	if l := t.reportedLast(); l != nil {
@@ -276,13 +288,16 @@ type Report struct {
 
 // TriggerReport describes the trigger.
 type TriggerReport struct {
-	Kind            TriggerKind     `json:"kind"`
-	At              time.Time       `json:"at"`
-	ObservedAt      time.Time       `json:"observed_at"`
-	AliveObservedAt *time.Time      `json:"alive_observed_at,omitempty"`
-	EvidenceSHA256  string          `json:"evidence_sha256"`
-	Tripped         []sentinel.Trip `json:"tripped,omitempty"`
-	ReportedLast    *sentinel.Link  `json:"reported_last,omitempty"`
+	Kind            TriggerKind `json:"kind"`
+	At              time.Time   `json:"at"`
+	ObservedAt      time.Time   `json:"observed_at"`
+	AliveObservedAt *time.Time  `json:"alive_observed_at,omitempty"`
+	EvidenceSHA256  string      `json:"evidence_sha256"`
+	// PrimaryMeasurementHex is what the record's TEE report attests, when
+	// the policy pins the primary.
+	PrimaryMeasurementHex string          `json:"primary_measurement_hex,omitempty"`
+	Tripped               []sentinel.Trip `json:"tripped,omitempty"`
+	ReportedLast          *sentinel.Link  `json:"reported_last,omitempty"`
 }
 
 // DecisionReport is the recorded decision.
@@ -373,6 +388,9 @@ func newReport(p Policy, sid string, t Trigger, evidence []byte, ignored []strin
 	if !t.AliveObservedAt.IsZero() {
 		at := t.AliveObservedAt
 		rep.Trigger.AliveObservedAt = &at
+	}
+	if len(t.PrimaryMeasurement) > 0 {
+		rep.Trigger.PrimaryMeasurementHex = hex.EncodeToString(t.PrimaryMeasurement)
 	}
 	if t.Compromise != nil {
 		rep.Trigger.Tripped = t.Compromise.Tripped

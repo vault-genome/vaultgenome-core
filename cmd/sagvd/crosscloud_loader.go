@@ -259,6 +259,18 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 // tee.Registry with one Verifier per entry. A simulated entry is
 // accepted only with allowSimulated (crosscloud.insecure_simulated_destinations).
 func loadVerifierRegistry(path string, allowSimulated bool) (*tee.Registry, error) {
+	specs, err := loadVerifierSpecs(path, allowSimulated)
+	if err != nil {
+		return nil, err
+	}
+	return tee.NewRegistry(specs)
+}
+
+// loadVerifierSpecs reads the registry file into the specs the registry
+// is built from: the anchors of each TEE kind (the AMD chain, the KDS
+// mirror, the VCEK cache; a simulated attestor's key), which the failover
+// executor also borrows to verify a pinned primary of the same kind.
+func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("sagvd: read verifier_registry_path %q: %w", path, err)
@@ -318,7 +330,7 @@ func loadVerifierRegistry(path string, allowSimulated bool) (*tee.Registry, erro
 		}
 		specs = append(specs, tee.RegistrySpec{Provider: provider, Spec: spec})
 	}
-	return tee.NewRegistry(specs)
+	return specs, nil
 }
 
 // loadAttestorPubKey reads a public key from disk, accepting either a

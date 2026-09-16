@@ -38,7 +38,9 @@ func newFailoverFixture(t *testing.T) *failoverFixture {
 	f := &failoverFixture{dir: dir, outbox: filepath.Join(dir, "outbox")}
 	require.NoError(t, os.MkdirAll(f.outbox, 0o755))
 	xc := simulatedCrossCloudConfig(t, dir)
-	f.cfg = minimalValidConfig()
+	// Real key material: the executor loads the authority's keys, the
+	// escrow key among them, before it watches.
+	f.cfg = newMaterialFixture(t).cfg
 	f.cfg.CrossCloud = xc.CrossCloud
 	f.cfg.Keys.AuditSigning = xc.Keys.AuditSigning
 	f.operator = withAuditLog(t, dir, &f.cfg) // a fresh operator key the test holds

@@ -3,6 +3,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -635,4 +636,58 @@ func itoaTest(n int) string {
 		n /= 10
 	}
 	return string(buf[i:])
+}
+
+// An evaluator that ran the model hands its semantic and behavioral
+// verdicts in; the service records them as it records its own — one
+// DIMENSION event naming the evaluator, one FINDING per finding — and
+// aggregates them under the same rule.
+func TestValidate_EvaluatedDimensionsAreRecordedAndAggregated(t *testing.T) {
+	t.Parallel()
+	f := newServiceFixtures(t)
+	in := f.inputs
+	in.Semantic = semantic.Inputs{}     // would fail: no fixture
+	in.Behavioral = behavioral.Inputs{} // would fail: empty suite
+	in.Evaluated = map[validation_result.Dimension]EvaluatedDimension{
+		validation_result.DimensionSemantic: {
+			Evaluator: "top1-agreement",
+			Verdict:   validation_result.DimensionVerdict{Verdict: validation_result.VerdictPass, Score: 1.0, Threshold: 1.0},
+			Detail:    []byte(`{"agreed":6,"total":6}`),
+		},
+		validation_result.DimensionBehavioral: {
+			Evaluator: "equivalence-ladder",
+			Verdict: validation_result.DimensionVerdict{Verdict: validation_result.VerdictFail, Score: 0, Threshold: 1.0, Details: []validation_result.Finding{
+				{Code: "reconstruction_no_door_opened", Severity: validation_result.SeverityError, Message: "no door opened"},
+			}},
+		},
+	}
+	vr, err := f.service.Validate(in)
+	require.NoError(t, err)
+	require.Equal(t, validation_result.VerdictFail, vr.OverallVerdict)
+	require.Equal(t, 1.0, vr.Dimensions[validation_result.DimensionSemantic].Score)
+	require.Equal(t, validation_result.VerdictFail, vr.Dimensions[validation_result.DimensionBehavioral].Verdict)
+
+	var sawSemantic, sawFinding bool
+	for _, e := range f.chain.Events() {
+		switch e.Kind {
+		case audit_event.KindValidationDimension:
+			if strings.Contains(string(e.Payload), `"dimension":"semantic"`) {
+				sawSemantic = true
+				require.Contains(t, string(e.Payload), `"evaluator":"top1-agreement"`)
+				require.Contains(t, string(e.Payload), `"detail":{"agreed":6,"total":6}`)
+			}
+		case audit_event.KindValidationFinding:
+			if strings.Contains(string(e.Payload), "reconstruction_no_door_opened") {
+				sawFinding = true
+			}
+		}
+	}
+	require.True(t, sawSemantic && sawFinding)
+	require.NoError(t, f.chain.Verify(f.store))
+
+	// Operational is always the service's own.
+	in.Evaluated[validation_result.DimensionOperational] = EvaluatedDimension{Verdict: validation_result.DimensionVerdict{Verdict: validation_result.VerdictPass, Score: 1, Threshold: 1}}
+	_, err = f.service.Validate(in)
+	require.Error(t, err)
+	require.Equal(t, CodeServiceDimensionNotEvaluable, shared_errors.CodeOf(err))
 }

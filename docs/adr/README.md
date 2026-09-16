@@ -25,6 +25,11 @@ ADRs interact with the test-enforced invariant system.
 | 0010 | [Operator stop and recorded refusals](0010-operator-stop-and-recorded-refusals.md) | Accepted | crosscloud, audit, governance |
 | 0011 | [Genome v3 and attested self-restore](0011-genome-v3-and-attested-self-restore.md) | Accepted | genome, crosscloud, restore, doctrine |
 | 0012 | [Sentinel and policy-driven failover](0012-sentinel-and-policy-driven-failover.md) | Accepted | genome, failover, crosscloud, audit, governance |
+| 0013 | [The worker restores the genome](0013-worker-restores-the-genome.md) | Accepted | worker, returnpath, genome, equivalence |
+| 0014 | [The Return Path on the record, and on hardware](0014-return-path-on-the-record-and-on-hardware.md) | Accepted | audit, returnpath, tee, sev-snp |
+| 0015 | [One binary drives the nine stages](0015-one-binary-drives-the-nine-stages.md) | Accepted | orchestration, sagvd, audit, trust, release |
+| 0016 | [The escrow key is sealed to the release host's TEE](0016-escrow-key-sealed-to-the-release-host.md) | Accepted | escrow, tee, sev-snp, sagvd, custody |
+| 0017 | [Limits on the primary's word](0017-limits-on-the-primarys-word.md) | Accepted | failover, sentinel, tee, attestation, governance |
 
 ## Adding an ADR
 

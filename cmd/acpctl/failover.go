@@ -43,7 +43,7 @@ func failoverCmd(args []string, stdout, stderr io.Writer) int {
 func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("failover issue", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	var measurements repeatedFlag
+	var measurements, primaryMeasurements repeatedFlag
 	var (
 		seedPath    = fs.String("key", "", "Operator seed file (acpctl stop keygen) (required)")
 		kid         = fs.String("kid", "", "Operator key ID the release host trusts (required)")
@@ -59,14 +59,37 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 		validFor    = fs.Duration("valid-for", 30*24*time.Hour, "How long the policy stands")
 		reason      = fs.String("reason", "", "Why; recorded with the policy")
 		out         = fs.String("out", "", "Where to write the signed policy (required)")
+		stopGrace   = fs.Duration("stopped-grace", 0, "Fail over when a sentinel that said `stopped` is not back within this long (0: honour `stopped` indefinitely)")
+		primaryKind = fs.String("primary-kind", "", "Pin the primary's TEE kind (acpctl sentinel identity): every record must carry its report")
+		primaryPub  = fs.String("primary-attestor-pub", "", "A simulated primary's attestation key (PEM or 32 raw bytes); hardware kinds need none")
 	)
 	fs.Var(&measurements, "standby-measurement", "A measurement (hex) the standby must attest (repeatable; at least one)")
+	fs.Var(&primaryMeasurements, "primary-measurement", "A measurement (hex) the primary's TEE must attest (repeatable; with --primary-kind)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if *seedPath == "" || *kid == "" || *serial == 0 || *sentinelPub == "" || *kind == "" || *endpoint == "" || len(measurements) == 0 || *out == "" {
 		fmt.Fprintln(stderr, "acpctl failover issue: --key, --kid, --serial, --sentinel-pub, --standby-kind, --standby-endpoint, --standby-measurement and --out are required")
 		return 2
+	}
+	if (*primaryKind == "") != (len(primaryMeasurements) == 0) {
+		fmt.Fprintln(stderr, "acpctl failover issue: --primary-kind and --primary-measurement go together")
+		return 2
+	}
+	var primary *failover.Primary
+	if *primaryKind != "" {
+		for i, m := range primaryMeasurements {
+			primaryMeasurements[i] = strings.ToLower(m)
+		}
+		primary = &failover.Primary{Kind: *primaryKind, Measurements: primaryMeasurements}
+		if *primaryPub != "" {
+			pub, err := readEd25519PublicKey(*primaryPub)
+			if err != nil {
+				fmt.Fprintf(stderr, "acpctl failover issue: --primary-attestor-pub: %v\n", err)
+				return 1
+			}
+			primary.AttestorPublicKey = pub
+		}
 	}
 	if *gate == "none" {
 		*gate = ""
@@ -90,8 +113,9 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 		IssuedAt:          now,
 		NotAfter:          now.Add(*validFor),
 		SentinelPublicKey: spub,
+		Primary:           primary,
 		Standby:           failover.Standby{Kind: *kind, Endpoint: *endpoint, Measurements: measurements},
-		Triggers:          failover.Triggers{CompromiseReport: !*noReport, HeartbeatTimeoutSeconds: int64(timeout.Seconds())},
+		Triggers:          failover.Triggers{CompromiseReport: !*noReport, HeartbeatTimeoutSeconds: int64(timeout.Seconds()), StoppedGraceSeconds: int64(stopGrace.Seconds())},
 		QuarantineSeconds: int64(quarantine.Seconds()),
 		MaxRPOSeconds:     int64(maxRPO.Seconds()),
 		RequireGate:       *gate,
@@ -155,6 +179,11 @@ func failoverVerifyCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "valid failover policy, serial %d, issued %s, until %s: %s\n", p.Serial, p.IssuedAt.Format(time.RFC3339), p.NotAfter.Format(time.RFC3339), standing)
 	fmt.Fprintf(stdout, "  primary sentinel: %s\n", sid)
+	if p.Primary != nil {
+		fmt.Fprintf(stdout, "  primary TEE:      %s, measurements %s (every record must carry its report)\n", p.Primary.Kind, strings.Join(p.Primary.Measurements, ", "))
+	} else {
+		fmt.Fprintln(stdout, "  primary TEE:      not pinned (the sentinel's key alone is trusted)")
+	}
 	fmt.Fprintf(stdout, "  standby:          %s %s, measurements %s\n", p.Standby.Kind, p.Standby.Endpoint, strings.Join(p.Standby.Measurements, ", "))
 	var triggers []string
 	if p.Triggers.CompromiseReport {
@@ -162,6 +191,9 @@ func failoverVerifyCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	if p.Triggers.HeartbeatTimeoutSeconds > 0 {
 		triggers = append(triggers, fmt.Sprintf("no heartbeat for %ds", p.Triggers.HeartbeatTimeoutSeconds))
+	}
+	if p.Triggers.StoppedGraceSeconds > 0 {
+		triggers = append(triggers, fmt.Sprintf("stopped and not back within %ds", p.Triggers.StoppedGraceSeconds))
 	}
 	fmt.Fprintf(stdout, "  triggers:         %s\n", strings.Join(triggers, ", "))
 	gate := p.RequireGate

@@ -11,32 +11,11 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/compute/returnpath"
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/transport"
+	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 )
-
-// testJobRequest builds a minimal valid transport.JobRequest for
-// queue tests. The queue never unseals or verifies the request —
-// it just carries it — so the SealedMaterial values are
-// placeholders.
-func testJobRequest(now time.Time, manifestID string) transport.JobRequest {
-	return transport.JobRequest{
-		Type:                   transport.FrameTypeJobRequest,
-		SchemaVersion:          1,
-		ManifestID:             manifestID,
-		SessionID:              "sess-" + manifestID,
-		ExpectedOutputKind:     "text/plain",
-		ExpectedOutputMaxBytes: 1024,
-		Deadline:               now.Add(60 * time.Second),
-		IssuedAt:               now,
-		SealedMaterial: []transport.SealedMaterialRef{{
-			RecipientKeyID: "kid-test",
-			Nonce:          []byte("nonce-12-bytes"),
-			Ciphertext:     []byte("ciphertext-placeholder"),
-		}},
-	}
-}
 
 // testClock is a controllable clock so tests can assert that
 // SubmittedAt / StartedAt / CompletedAt carry the expected values.
@@ -69,96 +48,121 @@ func (c *testClock) advance(d time.Duration) {
 // rather than at compile time.
 var _ shared_time.Clock = (*testClock)(nil)
 
-func TestJobQueue_SubmitAssignsIDAndQueuedStatus(t *testing.T) {
-	clock := &testClock{now: time.Date(2026, 4, 22, 12, 0, 0, 0, time.UTC)}
-	q := NewJobQueue(clock, 50*time.Millisecond)
+const testGenomeID = "genome-0123456789ab-g0-0123456789ab"
 
-	id, view, err := q.Submit(testJobRequest(clock.Now(), "m-1"))
+// submit queues a fresh job under a minted id with a flow admitted for
+// it.
+func submit(t *testing.T, q *JobQueue, ta *testAuthority, requestID string) (string, JobView) {
+	t.Helper()
+	id, err := NewJobID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := q.Submit(id, ta.flow(t, requestID, testGenomeID), testInfo(testGenomeID), aMinute)
 	if err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
-	if id == "" {
-		t.Fatal("Submit returned empty id")
-	}
+	return id, view
+}
+
+func TestJobQueue_SubmitQueuesTheFlow(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 4, 22, 12, 0, 0, 0, time.UTC)}
+	q := NewJobQueue(clock, 50*time.Millisecond)
+	ta := newTestAuthority(t, nil)
+
+	id, view := submit(t, q, ta, "req-1")
 	if len(id) != 32 {
 		t.Fatalf("id len = %d want 32", len(id))
 	}
-	if view.Status != JobStatusQueued {
-		t.Fatalf("view.Status = %s want queued", view.Status)
-	}
-	if view.ID != id {
-		t.Fatalf("view.ID = %s want %s", view.ID, id)
+	if view.Status != JobStatusQueued || view.ID != id || view.RequestID != "req-1" || view.State != "trust" {
+		t.Fatalf("queued view: %+v", view)
 	}
 	if !view.SubmittedAt.Equal(clock.Now()) {
 		t.Fatalf("view.SubmittedAt = %v want %v", view.SubmittedAt, clock.Now())
 	}
-	if view.StartedAt != nil {
-		t.Fatalf("view.StartedAt should be nil for queued job, got %v", view.StartedAt)
+	if view.StartedAt != nil || view.Deadline != nil || view.ManifestID != "" || view.SessionID != "" {
+		t.Fatalf("a queued job has no start, deadline, manifest or session: %+v", view)
+	}
+	if view.Genome == nil || view.Genome.KeyID != testGenomeID || view.Gate != nil || view.Result != nil {
+		t.Fatalf("queued view genome/gate: %+v", view)
+	}
+	if view.Flow == nil || view.Flow.Request.RequestID != "req-1" || len(view.Flow.Steps) != 2 {
+		t.Fatalf("queued view flow: %+v", view.Flow)
+	}
+	if view.ExpectedOutputKind != string(rjm.OutputKindBytesFixedLength) {
+		t.Fatalf("expected_output_kind = %q", view.ExpectedOutputKind)
 	}
 	if q.Depth() != 1 {
 		t.Fatalf("Depth = %d want 1", q.Depth())
 	}
 }
 
-func TestJobQueue_SubmitRejectsInvalidRequest(t *testing.T) {
+func TestJobQueue_SubmitRefusesWhatItCannotCarry(t *testing.T) {
 	q := NewJobQueue(nil, 50*time.Millisecond)
-
-	// Missing ManifestID → invalid.
-	bad := transport.JobRequest{
-		Type:                   transport.FrameTypeJobRequest,
-		SchemaVersion:          1,
-		SessionID:              "s",
-		ExpectedOutputKind:     "k",
-		ExpectedOutputMaxBytes: 1,
-		Deadline:               time.Now().Add(time.Second),
-		IssuedAt:               time.Now(),
-		SealedMaterial: []transport.SealedMaterialRef{{
-			RecipientKeyID: "kid", Nonce: []byte("n"), Ciphertext: []byte("c"),
-		}},
+	ta := newTestAuthority(t, nil)
+	flow := ta.flow(t, "req-2", testGenomeID)
+	for name, tc := range map[string]struct {
+		id       string
+		info     genomeInfo
+		deadline time.Duration
+	}{
+		"no id":        {"", testInfo(testGenomeID), aMinute},
+		"no gate":      {"a", genomeInfo{Budget: 1}, aMinute},
+		"no budget":    {"b", genomeInfo{Gate: &gateSpec{}}, aMinute},
+		"no deadline":  {"c", testInfo(testGenomeID), 0},
+		"bad deadline": {"d", testInfo(testGenomeID), -time.Second},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := q.Submit(tc.id, flow, tc.info, tc.deadline); err == nil {
+				t.Fatal("accepted")
+			}
+		})
 	}
-	if _, _, err := q.Submit(bad); err == nil {
-		t.Fatal("Submit with missing ManifestID: want error, got nil")
+	if _, err := q.Submit("e", nil, testInfo(testGenomeID), aMinute); err == nil {
+		t.Fatal("a job without a flow was accepted")
 	}
 	if q.Depth() != 0 {
-		t.Fatalf("Depth = %d want 0 after rejected Submit", q.Depth())
+		t.Fatalf("Depth = %d want 0 after refused submits", q.Depth())
+	}
+
+	// An id is queued once.
+	if _, err := q.Submit("dup", flow, testInfo(testGenomeID), aMinute); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.Submit("dup", flow, testInfo(testGenomeID), aMinute); err == nil {
+		t.Fatal("a job id was queued twice")
 	}
 }
 
-func TestJobQueue_Next_PopsFIFO(t *testing.T) {
+func TestJobQueue_Next_PopsFIFOAndReturnsTheJob(t *testing.T) {
 	clock := &testClock{now: time.Date(2026, 4, 22, 12, 0, 0, 0, time.UTC)}
 	q := NewJobQueue(clock, 10*time.Millisecond)
+	ta := newTestAuthority(t, nil)
 
 	ids := make([]string, 3)
 	for i := range ids {
-		id, _, err := q.Submit(testJobRequest(clock.Now(), fmt.Sprintf("m-%d", i)))
-		if err != nil {
-			t.Fatalf("Submit[%d]: %v", i, err)
-		}
-		ids[i] = id
+		ids[i], _ = submit(t, q, ta, fmt.Sprintf("req-%d", i))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	for i, want := range ids {
-		gotID, gotReq, err := q.Next(ctx)
+		job, err := q.Next(ctx)
 		if err != nil {
 			t.Fatalf("Next[%d]: %v", i, err)
 		}
-		if gotID != want {
-			t.Fatalf("Next[%d] id = %s want %s (not FIFO)", i, gotID, want)
+		if job.ID != want {
+			t.Fatalf("Next[%d] id = %s want %s (not FIFO)", i, job.ID, want)
 		}
-		if gotReq.ManifestID != fmt.Sprintf("m-%d", i) {
-			t.Fatalf("Next[%d] manifest_id = %s", i, gotReq.ManifestID)
+		if job.Flow == nil || job.Flow.Request().RequestID.String() != fmt.Sprintf("req-%d", i) || job.Info.Budget != 666 || job.DeadlineFor != aMinute {
+			t.Fatalf("Next[%d] job = %+v", i, job)
 		}
-		view, ok := q.Get(gotID)
+		view, ok := q.Get(job.ID)
 		if !ok {
 			t.Fatalf("Get after Next: job missing")
 		}
-		if view.Status != JobStatusRunning {
-			t.Fatalf("Status after Next = %s want running", view.Status)
-		}
-		if view.StartedAt == nil {
-			t.Fatal("StartedAt not set after Next")
+		if view.Status != JobStatusRunning || view.StartedAt == nil {
+			t.Fatalf("after Next: %+v", view)
 		}
 	}
 	if q.Depth() != 0 {
@@ -169,6 +173,7 @@ func TestJobQueue_Next_PopsFIFO(t *testing.T) {
 func TestJobQueue_Next_BlocksUntilSubmit(t *testing.T) {
 	clock := &testClock{now: time.Date(2026, 4, 22, 12, 0, 0, 0, time.UTC)}
 	q := NewJobQueue(clock, 20*time.Millisecond)
+	ta := newTestAuthority(t, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -179,16 +184,13 @@ func TestJobQueue_Next_BlocksUntilSubmit(t *testing.T) {
 	}
 	done := make(chan nextResult, 1)
 	go func() {
-		id, _, err := q.Next(ctx)
-		done <- nextResult{id, err}
+		job, err := q.Next(ctx)
+		done <- nextResult{job.ID, err}
 	}()
 
 	// Give Next a chance to spin through at least one empty poll.
 	time.Sleep(50 * time.Millisecond)
-	submitted, _, err := q.Submit(testJobRequest(clock.Now(), "m-wait"))
-	if err != nil {
-		t.Fatalf("Submit: %v", err)
-	}
+	submitted, _ := submit(t, q, ta, "req-wait")
 
 	select {
 	case res := <-done:
@@ -207,98 +209,112 @@ func TestJobQueue_Next_ContextCancelReturnsErrQueueClosed(t *testing.T) {
 	q := NewJobQueue(nil, 10*time.Millisecond)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, _, err := q.Next(ctx)
+	_, err := q.Next(ctx)
 	if !errors.Is(err, ErrQueueClosed) {
 		t.Fatalf("Next err = %v want ErrQueueClosed", err)
 	}
 }
 
-func TestJobQueue_CompleteSuccess_RecordsCandidate(t *testing.T) {
+// A job whose worker must attest again goes back to the head of the
+// queue untouched; dispatch records the deadline.
+func TestJobQueue_RequeueAndDispatch(t *testing.T) {
 	clock := &testClock{now: time.Date(2026, 4, 22, 12, 0, 0, 0, time.UTC)}
 	q := NewJobQueue(clock, 10*time.Millisecond)
+	ta := newTestAuthority(t, nil)
+	first, _ := submit(t, q, ta, "req-first")
+	second, _ := submit(t, q, ta, "req-second")
 
-	id, _, err := q.Submit(testJobRequest(clock.Now(), "m-ok"))
-	if err != nil {
-		t.Fatalf("Submit: %v", err)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if _, _, err := q.Next(ctx); err != nil {
+	job, err := q.Next(ctx)
+	if err != nil || job.ID != first {
+		t.Fatalf("Next: %v %+v", err, job)
+	}
+	q.Requeue(first)
+	view, _ := q.Get(first)
+	if view.Status != JobStatusQueued || view.StartedAt != nil || q.Depth() != 2 {
+		t.Fatalf("requeued: %+v depth %d", view, q.Depth())
+	}
+	job, err = q.Next(ctx)
+	if err != nil || job.ID != first {
+		t.Fatalf("a requeued job keeps its place: got %s want %s", job.ID, first)
+	}
+	q.Requeue("no-such-id") // no panic
+	q.Requeue(second)       // not running: untouched
+	if q.Depth() != 1 {
+		t.Fatalf("Depth = %d want 1", q.Depth())
+	}
+
+	due := clock.Now().Add(aMinute)
+	q.MarkDispatched(first, due)
+	view, _ = q.Get(first)
+	if view.Deadline == nil || !view.Deadline.Equal(due) {
+		t.Fatalf("deadline not recorded: %+v", view.Deadline)
+	}
+}
+
+func TestJobQueue_CompleteGated_RecordsVerdictsAndWithholdsRefusedOutput(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)}
+	q := NewJobQueue(clock, 10*time.Millisecond)
+	ta := newTestAuthority(t, nil)
+	id, _ := submit(t, q, ta, "req-gate")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := q.Next(ctx); err != nil {
 		t.Fatalf("Next: %v", err)
 	}
 
 	clock.advance(100 * time.Millisecond)
-	out := returnpath.CandidateOutput{
-		ManifestID: "m-ok",
-		SessionID:  "sess-m-ok",
-		OutputKind: "text/plain",
-		Bytes:      []byte("hello"),
-		ProducedAt: clock.Now(),
+	out := returnpath.CandidateOutput{ManifestID: "m", SessionID: "s", OutputKind: rjm.OutputKindBytesFixedLength, Bytes: []byte("{}"), ProducedAt: clock.Now()}
+	top1 := &equivalence.Top1Report{Total: 3, Agreed: 3, Results: []equivalence.Top1Result{{ID: "fx-000", Agree: true}}}
+	q.CompleteGated(id, out, "worker-kid-1", GateView{Level: "EXACT", Door: "pinned replay", Fixtures: 3}, top1, nil)
+	view, _ := q.Get(id)
+	if view.Status != JobStatusSucceeded || view.Result == nil || view.Result.WorkerSigningKeyID != "worker-kid-1" || view.Result.ByteCount != 2 {
+		t.Fatalf("released job: %+v", view)
 	}
-	q.CompleteSuccess(id, out, "worker-kid-1")
+	if view.Gate == nil || view.Gate.Level != "EXACT" || view.Top1 == nil || view.Top1.Agreed != 3 || view.CompletedAt == nil {
+		t.Fatalf("released job view lacks its verdicts: %+v", view)
+	}
+	view.Top1.Results[0].ID = "edited"
+	if again, _ := q.Get(id); again.Top1.Results[0].ID != "fx-000" {
+		t.Fatal("the view shares the queue's top-1 results")
+	}
 
-	view, ok := q.Get(id)
-	if !ok {
-		t.Fatal("Get after CompleteSuccess: missing")
+	// Judged and refused: failed, with the verdicts still on record, the
+	// worker that answered named, and the output withheld.
+	id2, _ := submit(t, q, ta, "req-gate-2")
+	if _, err := q.Next(ctx); err != nil {
+		t.Fatalf("Next: %v", err)
 	}
-	if view.Status != JobStatusSucceeded {
-		t.Fatalf("Status = %s want succeeded", view.Status)
+	q.CompleteGated(id2, out, "worker-kid-1", GateView{Level: "FAIL", Fixtures: 3}, top1,
+		shared_errors.Operational(CodeGateFailed, "missed", nil))
+	view, _ = q.Get(id2)
+	if view.Status != JobStatusFailed || view.Error == nil || view.Error.Code != CodeGateFailed || view.Result != nil {
+		t.Fatalf("refused gate job: %+v", view)
 	}
-	if view.Result == nil {
-		t.Fatal("Result nil on succeeded job")
+	if view.Gate == nil || view.Gate.Level != "FAIL" {
+		t.Fatalf("refused gate job view lacks the verdict: %+v", view)
 	}
-	if view.Result.ByteCount != len(out.Bytes) {
-		t.Fatalf("ByteCount = %d want %d", view.Result.ByteCount, len(out.Bytes))
-	}
-	if view.Result.WorkerSigningKeyID != "worker-kid-1" {
-		t.Fatalf("WorkerSigningKeyID = %s", view.Result.WorkerSigningKeyID)
-	}
-	if view.CompletedAt == nil {
-		t.Fatal("CompletedAt nil on succeeded job")
-	}
+	q.CompleteGated("no-such-id", out, "k", GateView{}, nil, nil) // no panic
 }
 
 func TestJobQueue_CompleteFailure_RecordsClassifiedError(t *testing.T) {
 	q := NewJobQueue(nil, 10*time.Millisecond)
+	ta := newTestAuthority(t, nil)
+	id, _ := submit(t, q, ta, "req-fail")
 
-	id, _, err := q.Submit(testJobRequest(time.Now().UTC(), "m-fail"))
-	if err != nil {
-		t.Fatalf("Submit: %v", err)
-	}
-
-	failErr := shared_errors.Authority("worker_rejected_job",
-		"queue_test: simulated reject", nil)
+	failErr := shared_errors.Authority("worker_rejected_job", "queue_test: simulated reject", nil)
 	q.CompleteFailure(id, failErr)
 
 	view, ok := q.Get(id)
 	if !ok {
 		t.Fatal("Get missing")
 	}
-	if view.Status != JobStatusFailed {
-		t.Fatalf("Status = %s want failed", view.Status)
+	if view.Status != JobStatusFailed || view.Error == nil || view.Error.Category != "authority" || view.Error.Code != "worker_rejected_job" {
+		t.Fatalf("failed job: %+v", view)
 	}
-	if view.Error == nil {
-		t.Fatal("Error nil on failed job")
-	}
-	if view.Error.Category != "authority" {
-		t.Fatalf("Error.Category = %s want authority", view.Error.Category)
-	}
-	if view.Error.Code != "worker_rejected_job" {
-		t.Fatalf("Error.Code = %s", view.Error.Code)
-	}
-}
-
-func TestJobQueue_Complete_UnknownID_IsNoop(t *testing.T) {
-	q := NewJobQueue(nil, 10*time.Millisecond)
-	// Should not panic.
-	q.CompleteSuccess("no-such-id", returnpath.CandidateOutput{}, "k")
-	q.CompleteFailure("no-such-id", errors.New("dummy"))
-}
-
-func TestJobQueue_Get_UnknownID(t *testing.T) {
-	q := NewJobQueue(nil, 10*time.Millisecond)
-	_, ok := q.Get("no-such-id")
-	if ok {
+	q.CompleteFailure("no-such-id", errors.New("dummy")) // no panic
+	if _, ok := q.Get("no-such-id"); ok {
 		t.Fatal("Get on missing id returned ok=true")
 	}
 }
@@ -317,15 +333,20 @@ func TestJobQueue_Concurrent_SubmitAndNext(t *testing.T) {
 	const M = 4
 
 	q := NewJobQueue(nil, 5*time.Millisecond)
+	ta := newTestAuthority(t, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	submitted := make([]string, 0, N)
 	var submittedMu sync.Mutex
+	submitted := make([]string, 0, N)
 	go func() {
 		for i := 0; i < N; i++ {
-			id, _, err := q.Submit(testJobRequest(time.Now().UTC(), fmt.Sprintf("m-%d", i)))
+			id, err := NewJobID()
 			if err != nil {
+				t.Errorf("NewJobID: %v", err)
+				return
+			}
+			if _, err := q.Submit(id, ta.flow(t, fmt.Sprintf("req-c-%d", i), testGenomeID), testInfo(testGenomeID), aMinute); err != nil {
 				t.Errorf("Submit[%d]: %v", i, err)
 				return
 			}
@@ -342,11 +363,11 @@ func TestJobQueue_Concurrent_SubmitAndNext(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for {
-				id, _, err := q.Next(ctx)
+				job, err := q.Next(ctx)
 				if err != nil {
 					return
 				}
-				gotCh <- id
+				gotCh <- job.ID
 			}
 		}()
 	}

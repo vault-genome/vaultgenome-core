@@ -472,7 +472,7 @@ func TestStoppedSentinelIsNoFailure(t *testing.T) {
 	d.waitChain(1)
 	cancel()
 	<-results
-	w := NewWatcher(d.policy(), d.outbox, time.Now)
+	w := NewWatcher(d.policy(), d.outbox, time.Now, nil)
 	wctx, wcancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 	defer wcancel()
 	if tr, err := w.Watch(wctx, 20*time.Millisecond, nil); tr != nil || err == nil {
@@ -503,7 +503,7 @@ func TestForgedReportIsIgnored(t *testing.T) {
 	must(t, err)
 	must(t, os.WriteFile(filepath.Join(d.outbox, sentinel.CompromiseFile), raw, 0o644))
 
-	w := NewWatcher(d.policy(), d.outbox, time.Now)
+	w := NewWatcher(d.policy(), d.outbox, time.Now, nil)
 	wctx, wcancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer wcancel()
 	if tr, _ := w.Watch(wctx, 20*time.Millisecond, nil); tr != nil {

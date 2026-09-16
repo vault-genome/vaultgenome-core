@@ -28,8 +28,15 @@
       "material_path": "/etc/acp/secrets/shared/sealing.key"
     }
   },
+  "genome": {
+    "door": {
+      "command": ["python3", "-m", "vg_genome", "door", "--stdin-genome", "--base", "/models/base", "--device", "cpu"],
+      "env": ["PYTHONPATH=/opt/vg/workers/genome", "TOKENIZERS_PARALLELISM=false"],
+      "timeout_seconds": 600
+    }
+  },
   "runtime": {
-    "job_timeout_seconds": 120,
+    "job_timeout_seconds": 900,
     "handshake_timeout_seconds": 10,
     "dial_backoff_initial_ms": 500,
     "dial_backoff_max_ms": 30000,

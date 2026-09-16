@@ -4,9 +4,10 @@ Without hardware the platform runs with the **simulated** TEE backend
 (`ProviderSimulated`) — good for local testing and the `cmd/acp-demo`
 walkthrough, and never silent: `sagvd`, `acp-compute` and `acp-bootstrap`
 each refuse to start on it unless their config sets
-`"tee": { "insecure_simulation": true }` (for `sagvd` and `acp-compute` it is
-the only backend), and `sagvd`'s verifier registry accepts a simulated
-destination only with `"crosscloud": { "insecure_simulated_destinations": true }`.
+`"tee": { "provider": "simulated", "insecure_simulation": true }`, and
+`sagvd`'s verifier registry accepts a simulated destination only with
+`"crosscloud": { "insecure_simulated_destinations": true }`. All three attest
+with the chip on a SEV-SNP guest (`"tee": { "provider": "gcp-sev-snp" }`).
 This runbook brings up **real AMD SEV-SNP**
 attestation on a confidential VM, on either **GCP** or **Azure** — both proven
 end to end and chained to the AMD root of trust (`ADR 0007`, `0009`;
@@ -179,11 +180,38 @@ is off the allow-list or under an operator stop:
 [`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`](../../../scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/README.md)
 (`run.sh <project>` reproduces it).
 
-What is still simulated: the TEEs of `sagvd` and `acp-compute` (both sides of
-the Return Path). Not wired: the SEV-SNP sealer
-(`SEV_SNP_GUEST_MSG_DERIVED_KEY`), whose Seal and Unseal return an error.
-Families other than SEV-SNP are refused by the registry and by `acp-bootstrap`
-until their verifiers run end to end.
+## E. Run the Return Path on real SEV-SNP
+
+`sagvd` and `acp-compute` attest with the chip the same way (ADR 0014). Each
+names its own provider and pins the other's launch measurement:
+
+```json
+"tee": {
+  "provider": "gcp-sev-snp", "workload_descriptor": "sagvd-v1",
+  "peer": { "provider": "gcp-sev-snp",
+            "measurement_path": "/etc/acp/pins/worker.measurement",
+            "amd_cert_chain_path": "/etc/acp/crosscloud/amd-milan-cert_chain.pem",
+            "vcek_cache_dir": "/var/lib/acp/vcek-cache" } }
+```
+
+`sagvd identity` and `acp-compute identity` print each side's 48-byte
+`tee_measurement_hex`; write the bytes to the other side's
+`tee.peer.measurement_path` (48 raw bytes). No seed, no attestation key file:
+the chip signs, and the verifier fetches the VCEK from AMD KDS (cached in
+`vcek_cache_dir`), checks the ECDSA-P384 signature, the VCEK → ASK → ARK
+chain, no DEBUG, VMPL 0, the TCB floor, and REPORT_DATA binding the
+handshake's transcript challenge. A peer whose Evidence does not verify never
+receives a job, and the refusal is on `audit.log_path`.
+
+This exact configuration has run end to end on a GCP SEV-SNP Confidential VM
+— both daemons on the chip, the real `vg_genome` door, a genome fine-tuned on
+the guest, a signed verdict and a verified audit log:
+[`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/`](../../../scripts/hardware-test/gcp-sev-snp/returnpath-e2e/README.md)
+(`run.sh <project>` reproduces it).
+
+Not wired: the SEV-SNP sealer (`SEV_SNP_GUEST_MSG_DERIVED_KEY`), whose Seal
+and Unseal return an error. Families other than SEV-SNP are refused by the
+registry and by all three daemons until their verifiers run end to end.
 
 ## Cleanup (cost hygiene)
 

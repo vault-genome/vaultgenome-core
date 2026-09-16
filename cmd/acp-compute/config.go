@@ -9,8 +9,11 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 )
 
 // Config is the full on-disk configuration for the acp-compute
@@ -29,6 +32,11 @@ type Config struct {
 	// Keys points at the on-disk material the worker uses to sign
 	// CandidateOutputFrame and to unseal SealedMaterial.
 	Keys KeysConfig `json:"keys"`
+
+	// Genome configures the reconstruction backend: the door the worker
+	// runs to bring a sealed genome's model back in memory and recompute
+	// its reference fixtures (internal/compute/worker.GenomeReconstructor).
+	Genome GenomeConfig `json:"genome"`
 
 	// Runtime tunables for the dial/serve loop.
 	Runtime RuntimeConfig `json:"runtime"`
@@ -62,36 +70,92 @@ type TLSConfig struct {
 	ServerName string `json:"server_name"`
 }
 
-// TEEConfig holds the local simulated TEE seed plus the peer's
-// expected public key and measurement.
+// TEEConfig names the TEE this worker attests with on the Return Path
+// and pins the vault's TEE it will accept.
 type TEEConfig struct {
-	// WorkloadDescriptor is hashed to derive the local measurement.
-	// Must match what the operator provisioned on the vault side
-	// (otherwise the vault's Verifier will reject this worker's
-	// evidence).
+	// Provider is the local TEE backend: "gcp-sev-snp" (AMD SEV-SNP
+	// reports through the kernel's configfs-tsm, on any SEV-SNP guest
+	// with Linux 6.7 or later — the chip signs) or "simulated" (a key
+	// read from SeedPath signs; no hardware isolation; development and
+	// tests only). Default "simulated".
+	Provider string `json:"provider,omitempty"`
+
+	// WorkloadDescriptor names this workload. The simulated provider
+	// hashes it into its measurement; a hardware provider records it
+	// and attests with the launch measurement the chip reports.
 	WorkloadDescriptor string `json:"workload_descriptor"`
 
-	// SeedPath is a 32-byte file holding the Ed25519 seed used to
-	// derive this worker's attestation key. Sensitive — chmod 0600.
-	SeedPath string `json:"seed_path"`
+	// SeedPath is a 32-byte file holding the Ed25519 seed the simulated
+	// provider signs Evidence with. Sensitive — chmod 0600. Simulated
+	// only.
+	SeedPath string `json:"seed_path,omitempty"`
+
+	// TSMReportDir overrides the configfs-tsm report directory (default
+	// /sys/kernel/config/tsm/report). gcp-sev-snp only.
+	TSMReportDir string `json:"tsm_report_dir,omitempty"`
 
 	// Peer holds the trust-anchor material for sagvd's side.
 	Peer PeerTEEConfig `json:"peer"`
 
-	// InsecureSimulation must be true: this build's worker attests with
-	// the simulated TEE only — Evidence signed by a key read from
-	// SeedPath, no hardware isolation. The flag puts that in the config
-	// itself.
-	InsecureSimulation bool `json:"insecure_simulation"`
+	// InsecureSimulation must be true to run the simulated provider:
+	// its Evidence is signed by a key read from SeedPath, with no
+	// hardware isolation. The flag puts that in the config itself.
+	// Simulated only.
+	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
 }
 
 // PeerTEEConfig pins the vault-side TEE the worker will accept.
 type PeerTEEConfig struct {
-	// PublicKeyPath is a 32-byte raw Ed25519 public key.
-	PublicKeyPath string `json:"public_key_path"`
+	// Provider is the vault's TEE backend: "simulated" (default) or
+	// "gcp-sev-snp". The verifier for it runs here; verification never
+	// needs hardware.
+	Provider string `json:"provider,omitempty"`
 
-	// MeasurementPath is a 32-byte raw SHA-256 measurement.
+	// PublicKeyPath is the vault's 32-byte raw Ed25519 attestation key.
+	// Simulated peers only; a SEV-SNP report is signed by the chip's
+	// VCEK, which chains to AMD.
+	PublicKeyPath string `json:"public_key_path,omitempty"`
+
+	// MeasurementPath is the vault's launch measurement, raw: 32 bytes
+	// for a simulated peer, 48 for SEV-SNP (never truncated, ADR 0007).
 	MeasurementPath string `json:"measurement_path"`
+
+	// AMDCertChainPath is the AMD ASK+ARK certificate chain (PEM) the
+	// vault's VCEK must chain to. gcp-sev-snp peers only; required.
+	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
+
+	// AMDKDSURL overrides the AMD KDS base URL (a mirror). gcp-sev-snp
+	// peers only.
+	AMDKDSURL string `json:"amd_kds_url,omitempty"`
+
+	// VCEKCacheDir keeps fetched VCEK certificates on disk so each chip
+	// is asked of AMD KDS once; a cached certificate is still checked
+	// against the pinned chain on every use. gcp-sev-snp peers only.
+	VCEKCacheDir string `json:"vcek_cache_dir,omitempty"`
+
+	// MinReportedTCB is the lowest REPORTED_TCB accepted from the vault.
+	// gcp-sev-snp peers only.
+	MinReportedTCB uint64 `json:"min_reported_tcb,omitempty"`
+}
+
+// supportedProviders are the TEE backends this build can attest with
+// on the Return Path, and verify a peer's Evidence for.
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderSimulated}
+
+// ProviderKind parses TEEConfig.Provider, defaulting to simulated.
+func (t TEEConfig) ProviderKind() (tee.Provider, error) {
+	if strings.TrimSpace(t.Provider) == "" {
+		return tee.ProviderSimulated, nil
+	}
+	return tee.ParseProvider(t.Provider)
+}
+
+// ProviderKind parses PeerTEEConfig.Provider, defaulting to simulated.
+func (p PeerTEEConfig) ProviderKind() (tee.Provider, error) {
+	if strings.TrimSpace(p.Provider) == "" {
+		return tee.ProviderSimulated, nil
+	}
+	return tee.ParseProvider(p.Provider)
 }
 
 // KeysConfig bundles the two key-material slots the worker uses.
@@ -118,6 +182,41 @@ type SigningKeyConfig struct {
 type SealingKeyConfig struct {
 	KeyID        string `json:"kid"`
 	MaterialPath string `json:"material_path"`
+}
+
+// GenomeConfig configures the model side of a job.
+type GenomeConfig struct {
+	// Door is the program that restores a genome and answers its
+	// prompts: the vg_genome door (workers/genome).
+	Door DoorConfig `json:"door"`
+}
+
+// DoorConfig is the door command and its bounds.
+type DoorConfig struct {
+	// Command runs the door. It reads the job — the genome's
+	// description, its adapter and the fixtures' prompts, as one JSON
+	// document — on stdin, loads the public base model from this
+	// worker's disk, applies the adapter in memory, and writes the
+	// model's outputs to stdout. The reference door:
+	//
+	//	["python3", "-m", "vg_genome", "door", "--stdin-genome",
+	//	 "--base", "/models/Qwen2.5-0.5B-Instruct", "--device", "cpu"]
+	//
+	// Required: a worker with no door cannot serve a job.
+	Command []string `json:"command"`
+
+	// Env is extra environment for the door, KEY=VALUE — for example
+	// PYTHONPATH=/opt/vg/workers/genome.
+	Env []string `json:"env,omitempty"`
+
+	// TimeoutSeconds bounds one door run. 0 leaves the job's own
+	// deadline and runtime.job_timeout_seconds as the only bounds.
+	TimeoutSeconds int `json:"timeout_seconds"`
+}
+
+// Timeout returns DoorConfig.TimeoutSeconds as a Duration.
+func (d DoorConfig) Timeout() time.Duration {
+	return time.Duration(d.TimeoutSeconds) * time.Second
 }
 
 // RuntimeConfig bounds the dial and serve loop timings.
@@ -166,6 +265,62 @@ type HealthConfig struct {
 type LogConfig struct {
 	Level  string `json:"level"`
 	Format string `json:"format"`
+}
+
+// validateTEE checks the local provider and the peer pin as a pair of
+// choices: a simulated producer needs its seed and the operator's
+// acknowledgement; a hardware producer signs with the chip and refuses
+// both; a simulated peer is pinned by key and measurement; a SEV-SNP
+// peer by measurement and the AMD chain.
+func validateTEE(t TEEConfig) []error {
+	var errs []error
+	switch provider, err := t.ProviderKind(); {
+	case err != nil:
+		errs = append(errs, fmt.Errorf("tee.provider invalid: %w", err))
+	case !slices.Contains(supportedProviders, provider):
+		errs = append(errs, fmt.Errorf("tee.provider %q is not available in this build (supported: %v)", provider, supportedProviders))
+	case provider == tee.ProviderSimulated:
+		if t.SeedPath == "" {
+			errs = append(errs, errors.New("tee.seed_path required when tee.provider=simulated"))
+		}
+		if !t.InsecureSimulation {
+			errs = append(errs, errors.New("tee.provider=simulated has no hardware isolation: set tee.insecure_simulation=true to run it, for development and tests only"))
+		}
+		if t.TSMReportDir != "" {
+			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp only"))
+		}
+	case provider == tee.ProviderGCPSEVSNP:
+		if t.SeedPath != "" {
+			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
+		}
+		if t.InsecureSimulation {
+			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
+		}
+	}
+	if t.Peer.MeasurementPath == "" {
+		errs = append(errs, errors.New("tee.peer.measurement_path required"))
+	}
+	switch peer, err := t.Peer.ProviderKind(); {
+	case err != nil:
+		errs = append(errs, fmt.Errorf("tee.peer.provider invalid: %w", err))
+	case !slices.Contains(supportedProviders, peer):
+		errs = append(errs, fmt.Errorf("tee.peer.provider %q: no verifier this build can run end to end (supported: %v)", peer, supportedProviders))
+	case peer == tee.ProviderSimulated:
+		if t.Peer.PublicKeyPath == "" {
+			errs = append(errs, errors.New("tee.peer.public_key_path required when tee.peer.provider=simulated"))
+		}
+		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp peer only"))
+		}
+	case peer == tee.ProviderGCPSEVSNP:
+		if t.Peer.PublicKeyPath != "" {
+			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a SEV-SNP report is signed by the chip's VCEK"))
+		}
+		if t.Peer.AMDCertChainPath == "" {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=gcp-sev-snp (the AMD ASK+ARK chain the VCEK must chain to)"))
+		}
+	}
+	return errs
 }
 
 // DefaultConfig returns a Config populated with sensible defaults.
@@ -253,18 +408,7 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.TEE.WorkloadDescriptor) == "" {
 		errs = append(errs, errors.New("tee.workload_descriptor required"))
 	}
-	if c.TEE.SeedPath == "" {
-		errs = append(errs, errors.New("tee.seed_path required"))
-	}
-	if !c.TEE.InsecureSimulation {
-		errs = append(errs, errors.New("tee.insecure_simulation must be true: this build's worker attests with the simulated TEE only (no hardware isolation) — set it to acknowledge that"))
-	}
-	if c.TEE.Peer.PublicKeyPath == "" {
-		errs = append(errs, errors.New("tee.peer.public_key_path required"))
-	}
-	if c.TEE.Peer.MeasurementPath == "" {
-		errs = append(errs, errors.New("tee.peer.measurement_path required"))
-	}
+	errs = append(errs, validateTEE(c.TEE)...)
 
 	if c.Keys.WorkerSigning.KeyID == "" {
 		errs = append(errs, errors.New("keys.worker_signing.kid required"))
@@ -277,6 +421,18 @@ func (c Config) Validate() error {
 	}
 	if c.Keys.SessionSealing.MaterialPath == "" {
 		errs = append(errs, errors.New("keys.session_sealing.material_path required"))
+	}
+
+	if len(c.Genome.Door.Command) == 0 || strings.TrimSpace(c.Genome.Door.Command[0]) == "" {
+		errs = append(errs, errors.New("genome.door.command required: the worker restores a genome through the vg_genome door (python3 -m vg_genome door --stdin-genome --base BASE_DIR)"))
+	}
+	for _, kv := range c.Genome.Door.Env {
+		if !strings.Contains(kv, "=") {
+			errs = append(errs, fmt.Errorf("genome.door.env entry %q must be KEY=VALUE", kv))
+		}
+	}
+	if c.Genome.Door.TimeoutSeconds < 0 {
+		errs = append(errs, errors.New("genome.door.timeout_seconds must be >= 0"))
 	}
 
 	if c.Runtime.JobTimeoutSeconds <= 0 {

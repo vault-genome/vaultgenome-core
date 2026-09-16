@@ -7,8 +7,8 @@
 // Secure Nested Paging) enabled. The producer requests attestation
 // reports (1184 bytes) through the kernel's configfs-tsm interface
 // (tsm_configfs.go; Linux ≥ 6.7), which fronts the sev-guest driver
-// with plain file I/O. The sealer's derived-key request
-// (SEV_SNP_GUEST_MSG_DERIVED_KEY on /dev/sev-guest) is not wired yet.
+// with plain file I/O. The sealer asks the firmware for a derived key
+// through /dev/sev-guest (SNP_GET_DERIVED_KEY; gcp_sev_snp_seal.go).
 //
 // The attestation report contains:
 //
@@ -120,6 +120,7 @@ type GCPSEVVerifierConfig struct {
 type GCPSEVProducer struct {
 	cfg         GCPSEVProducerConfig
 	measurement Measurement // launch MEASUREMENT (full 48-byte SHA-384)
+	policy      uint64      // guest POLICY, as the launch report carries it
 
 	mu  sync.Mutex
 	tsm tsmReporter // nil once closed
@@ -137,11 +138,14 @@ type GCPSEVVerifier struct {
 	vcekCache map[string][]byte // CHIP_ID+TCB → VCEK PEM
 }
 
-// GCPSEVSealer implements Sealer using SEV_SNP_GUEST_MSG_DERIVED_KEY.
+// GCPSEVSealer implements Sealer with a key the firmware derives for
+// this guest (SNP_GET_DERIVED_KEY on /dev/sev-guest): bound to the chip,
+// the launch measurement and the guest policy, derived for every call
+// and never stored. See gcp_sev_snp_seal.go.
 type GCPSEVSealer struct {
 	device  *os.File
 	measure Measurement
-	policy  uint64 // guest policy bits embedded into derived key
+	policy  uint64 // guest policy, as the launch report carries it
 }
 
 // ----------------------------------------------------------------------------
@@ -189,6 +193,7 @@ func newGCPSEVProducer(cfg GCPSEVProducerConfig, tsm tsmReporter) (*GCPSEVProduc
 	// SEV-SNP MEASUREMENT is a fixed 48-byte SHA-384 field; carry it at full
 	// length (no truncation to 32 — ADR-0007).
 	p.measurement = append(Measurement(nil), report.Measurement[:]...)
+	p.policy = report.Policy
 	return p, nil
 }
 
@@ -214,9 +219,9 @@ func NewGCPSEVVerifier(_ crypto.PublicKey, expected Measurement, cfg GCPSEVVerif
 	}, nil
 }
 
-// NewGCPSEVSealer constructs a sealer that derives an AEAD key from the
-// SEV-SNP platform sealing root, bound to the launch measurement +
-// guest policy.
+// NewGCPSEVSealer constructs a sealer over an open /dev/sev-guest: its
+// AEAD key is derived by the firmware for this chip, launch measurement
+// and guest policy (the producer's Measurement and Policy).
 func NewGCPSEVSealer(device *os.File, measure Measurement, policy uint64) *GCPSEVSealer {
 	return &GCPSEVSealer{device: device, measure: measure, policy: policy}
 }
@@ -264,6 +269,12 @@ func (p *GCPSEVProducer) Quote(nonce Nonce) (Evidence, error) {
 // Measurement returns the cached launch MEASUREMENT.
 func (p *GCPSEVProducer) Measurement() Measurement {
 	return p.measurement
+}
+
+// Policy returns the guest POLICY the launch report carries: what the
+// sealer binds its key to, with the measurement.
+func (p *GCPSEVProducer) Policy() uint64 {
+	return p.policy
 }
 
 // Close stops the producer; later Quote calls fail.
@@ -472,8 +483,8 @@ func writeFileAtomic(path string, data []byte) error {
 	return os.Rename(tmp.Name(), path)
 }
 
-// Seal implements Sealer using a derived AES-256 key bound to the
-// platform sealing root + measurement + policy.
+// Seal implements Sealer: AES-256-GCM under the key the firmware derives
+// for this chip, measurement and policy, with aad bound in.
 func (s *GCPSEVSealer) Seal(plaintext, aad []byte) ([]byte, error) {
 	key, err := sevSNPDerivedKey(s.device, s.measure, s.policy)
 	if err != nil {
@@ -580,17 +591,13 @@ var verifySEVReportSignature = func(_ *sevSNPReport, _ []byte) error {
 	return errors.New("verifySEVReportSignature: not yet wired (Phase 2 — ECDSA-P384 over report excluding signature)")
 }
 
-var sevSNPDerivedKey = func(_ *os.File, _ Measurement, _ uint64) ([]byte, error) {
-	return nil, errors.New("sevSNPDerivedKey: not yet wired (Phase 2 — SEV_SNP_GUEST_MSG_DERIVED_KEY ioctl)")
-}
-
-var sevAEADSeal = func(_, _, _ []byte) ([]byte, error) {
-	return nil, errors.New("sevAEADSeal: not yet wired (Phase 2 — crypto/cipher AES-256-GCM)")
-}
-
-var sevAEADOpen = func(_, _, _ []byte) ([]byte, error) {
-	return nil, errors.New("sevAEADOpen: not yet wired (Phase 2)")
-}
+// The sealer's primitives, wired to gcp_sev_snp_seal.go by its init;
+// vars so tests can substitute them.
+var (
+	sevSNPDerivedKey func(device *os.File, measure Measurement, policy uint64) ([]byte, error)
+	sevAEADSeal      func(key, plaintext, aad []byte) ([]byte, error)
+	sevAEADOpen      func(key, sealed, aad []byte) ([]byte, error)
+)
 
 func nonceMatchesReportDataSEV(reportData [64]byte, nonce []byte) bool {
 	expected := computeReportDataPrefix(nonce)

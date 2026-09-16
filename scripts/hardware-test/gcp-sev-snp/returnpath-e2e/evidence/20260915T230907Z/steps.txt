@@ -1,0 +1,29 @@
+== binaries from gs://rats-probe-vg-rp-20260915t230730z/e2e
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== provision (keygen)
+== identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+worker_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-cbb574c0be4a-g0-a34d19f47e2a
+== sagvd on SEV-SNP
+sagvd ready after 1s
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+rogue refused after 1s
+== acp-compute on SEV-SNP, the real door
+session opened after 0s
+== the gate job over the Return Path
+job_id=306e9d3eef9a6883706441aaff03de92
+job status=succeeded after 5s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-e2e
+== metrics
+== stop both; verify the audit log with the published key
+audit verify exit=0
+audit query exit=0
+elapsed_seconds=176.7
+== emit

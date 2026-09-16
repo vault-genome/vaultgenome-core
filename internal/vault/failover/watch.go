@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/genome/sentinel"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 )
 
 // TriggerKind names a sign of failure.
@@ -21,6 +22,9 @@ const (
 	TriggerCompromise TriggerKind = "compromise-report"
 	// TriggerHeartbeatTimeout: the sentinel's heartbeat stopped rising.
 	TriggerHeartbeatTimeout TriggerKind = "heartbeat-timeout"
+	// TriggerStoppedOverdue: the sentinel said it was stopped and did not
+	// come back within the policy's grace.
+	TriggerStoppedOverdue TriggerKind = "stopped-overdue"
 )
 
 // Trigger is a sign of failure the policy acts on.
@@ -40,6 +44,9 @@ type Trigger struct {
 	Evidence   []byte
 	Compromise *sentinel.Compromise
 	Heartbeat  *sentinel.Heartbeat
+	// PrimaryMeasurement is what the record's TEE report attests, when
+	// the policy pins the primary.
+	PrimaryMeasurement tee.Measurement
 	// Ignored lists the outbox records seen before the trigger that did not
 	// count: unsigned, signed by another key, or put back out of order.
 	Ignored []string
@@ -60,15 +67,18 @@ func (t Trigger) reportedLast() *sentinel.Link {
 // only what verifies under the policy's sentinel key; everything else it
 // notes, once, as ignored.
 type Watcher struct {
-	policy Policy
-	outbox string
-	pub    ed25519.PublicKey
-	now    func() time.Time
+	policy  Policy
+	outbox  string
+	pub     ed25519.PublicKey
+	primary tee.Verifier
+	now     func() time.Time
 
-	hb      *sentinel.Heartbeat
-	hbRaw   []byte
-	aliveAt time.Time
-	seen    map[string]bool
+	hb        *sentinel.Heartbeat
+	hbRaw     []byte
+	hbAt      tee.Measurement
+	aliveAt   time.Time
+	stoppedAt time.Time // when the executor first saw the sentinel say stopped
+	seen      map[string]bool
 
 	// Ignored lists the records that were present but did not count.
 	Ignored []string
@@ -76,10 +86,32 @@ type Watcher struct {
 	State string
 }
 
-// NewWatcher watches outbox under p.
-func NewWatcher(p Policy, outbox string, now func() time.Time) *Watcher {
+// NewWatcher watches outbox under p. primary verifies the records' TEE
+// reports when p pins the primary; it is ignored otherwise.
+func NewWatcher(p Policy, outbox string, now func() time.Time, primary tee.Verifier) *Watcher {
 	pub, _ := p.Sentinel()
-	return &Watcher{policy: p, outbox: outbox, pub: pub, now: now, seen: map[string]bool{}}
+	return &Watcher{policy: p, outbox: outbox, pub: pub, primary: primary, now: now, seen: map[string]bool{}}
+}
+
+// attestedRecord is a record that can show its TEE report.
+type attestedRecord interface {
+	Attested(tee.Verifier) (tee.Measurement, error)
+}
+
+// attested checks a record's TEE report against the pinned primary and
+// returns the measurement it attests; nil when the policy pins none.
+func (w *Watcher) attested(rec attestedRecord) (tee.Measurement, error) {
+	if !w.policy.PinsPrimary() {
+		return nil, nil
+	}
+	m, err := rec.Attested(w.primary)
+	if err != nil {
+		return nil, err
+	}
+	if !w.policy.PrimaryAllows(m) {
+		return nil, fmt.Errorf("attested by %s measurement %x, which the policy does not pin as the primary", w.policy.Primary.Kind, m)
+	}
+	return m, nil
 }
 
 func (w *Watcher) ignore(file string, err error) {
@@ -129,17 +161,30 @@ func (w *Watcher) observe() *Trigger {
 	now := w.now().UTC()
 	if w.policy.Triggers.CompromiseReport {
 		c, raw, err := sentinel.ReadCompromise(w.outbox, w.pub)
+		var m tee.Measurement
+		if err == nil {
+			m, err = w.attested(c)
+		}
 		switch {
 		case err == nil:
-			return &Trigger{Kind: TriggerCompromise, At: c.DetectedAt, ObservedAt: now, AliveObservedAt: w.aliveAt, Evidence: raw, Compromise: &c, Heartbeat: w.hb}
+			return &Trigger{Kind: TriggerCompromise, At: c.DetectedAt, ObservedAt: now, AliveObservedAt: w.aliveAt, Evidence: raw, Compromise: &c, Heartbeat: w.hb, PrimaryMeasurement: m}
 		case !errors.Is(err, sentinel.ErrAbsent):
 			w.ignore(sentinel.CompromiseFile, err)
 		}
 	}
 	h, raw, err := sentinel.ReadHeartbeat(w.outbox, w.pub)
+	var m tee.Measurement
+	if err == nil && (w.hb == nil || h.Seq > w.hb.Seq) {
+		m, err = w.attested(h)
+	}
 	switch {
 	case err == nil && (w.hb == nil || h.Seq > w.hb.Seq):
-		w.hb, w.hbRaw, w.aliveAt = &h, raw, now
+		w.hb, w.hbRaw, w.hbAt, w.aliveAt = &h, raw, m, now
+		if h.Status != sentinel.StatusStopped {
+			w.stoppedAt = time.Time{}
+		} else if w.stoppedAt.IsZero() {
+			w.stoppedAt = now
+		}
 	case err == nil && h.Seq < w.hb.Seq:
 		w.ignore(sentinel.HeartbeatFile, fmt.Errorf("sequence %d after %d: an older heartbeat was put back", h.Seq, w.hb.Seq))
 	case err != nil && !errors.Is(err, sentinel.ErrAbsent):
@@ -149,17 +194,28 @@ func (w *Watcher) observe() *Trigger {
 		w.State = "waiting for the primary's first heartbeat"
 		return nil
 	}
+	trigger := func(kind TriggerKind) *Trigger {
+		return &Trigger{Kind: kind, At: w.hb.At, ObservedAt: now, AliveObservedAt: w.aliveAt, Evidence: w.hbRaw, Heartbeat: w.hb, PrimaryMeasurement: w.hbAt}
+	}
 	switch w.hb.Status {
 	case sentinel.StatusCompromised:
 		if w.policy.Triggers.CompromiseReport {
-			return &Trigger{Kind: TriggerCompromise, At: w.hb.At, ObservedAt: now, AliveObservedAt: w.aliveAt, Evidence: w.hbRaw, Heartbeat: w.hb}
+			return trigger(TriggerCompromise)
 		}
 	case sentinel.StatusStopped:
-		w.State = "the primary's sentinel was stopped by its operator: standing down"
+		grace := time.Duration(w.policy.Triggers.StoppedGraceSeconds) * time.Second
+		if grace <= 0 {
+			w.State = "the primary's sentinel was stopped by its operator: standing down"
+			return nil
+		}
+		if now.Sub(w.stoppedAt) >= grace {
+			return trigger(TriggerStoppedOverdue)
+		}
+		w.State = fmt.Sprintf("the primary's sentinel was stopped by its operator: standing down for %s more", (grace - now.Sub(w.stoppedAt)).Round(time.Second))
 		return nil
 	}
 	if t := w.policy.Triggers.HeartbeatTimeoutSeconds; t > 0 && now.Sub(w.aliveAt) >= time.Duration(t)*time.Second {
-		return &Trigger{Kind: TriggerHeartbeatTimeout, At: w.hb.At, ObservedAt: now, AliveObservedAt: w.aliveAt, Evidence: w.hbRaw, Heartbeat: w.hb}
+		return trigger(TriggerHeartbeatTimeout)
 	}
 	w.State = "watching"
 	return nil
