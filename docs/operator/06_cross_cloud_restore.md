@@ -29,10 +29,12 @@ What the shipping binaries do today, stated exactly:
   SEV-SNP settings are in
   [runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md) §D, the TDX
   settings in [runbooks/real-tee-tdx.md](runbooks/real-tee-tdx.md). `sagvd`'s
-  verifier registry accepts `simulated`, `gcp-sev-snp` and `gcp-tdx` and
+  verifier registry accepts `simulated`, `gcp-sev-snp`, `gcp-tdx` and
+  `azure-cgpu` (an Azure confidential GPU VM, ADR 0019, settings in
+  [runbooks/real-tee-azure-cgpu.md](runbooks/real-tee-azure-cgpu.md)) and
   refuses every other family until its verifier runs end to end. A key
-  release to a TDX destination has not been run on hardware yet; the Return
-  Path on TDX has.
+  release to a TDX or confidential-GPU destination has not been run on
+  hardware yet; the Return Path on both has.
 - Genomes are sealed with `acpctl genome seal` into v3 bundles whose key is
   in a separate 0600 file. Bundles are opaque without their keys, so they can
   be replicated to the destination ahead of any release. With a `genome`

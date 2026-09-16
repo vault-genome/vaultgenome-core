@@ -124,10 +124,20 @@ type TEEConfig struct {
 	// destination has no hardware isolation — its "Evidence" is signed
 	// by a key read from a file — and is for development and tests.
 	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
+
+	// GPUAttestCommand, TPM2ToolsDir and AKHandle configure the
+	// azure-cgpu producer: the command that obtains NVIDIA's signed
+	// attestation tokens for a nonce (the nonce is appended; required),
+	// where tpm2-tools live (default PATH), and the vTPM handle of the
+	// HCL attestation key (default: found by its public key). azure-cgpu
+	// only.
+	GPUAttestCommand []string `json:"gpu_attest_command,omitempty"`
+	TPM2ToolsDir     string   `json:"tpm2_tools_dir,omitempty"`
+	AKHandle         string   `json:"ak_handle,omitempty"`
 }
 
 // supportedProviders are the TEE backends this build can run.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderSimulated}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated}
 
 // SourceAuthorityConfig points at the source-authority signing
 // public key file. Used by the receiver to verify every handshake +
@@ -363,6 +373,19 @@ func (c Config) Validate() error {
 		if c.TEE.InsecureSimulation {
 			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
 		}
+	case provider == tee.ProviderAzureCGPU:
+		if c.TEE.SeedPath != "" || c.TEE.InsecureSimulation {
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only"))
+		}
+		if c.TEE.TSMReportDir != "" {
+			errs = append(errs, errors.New("tee.tsm_report_dir does not apply to azure-cgpu (the report comes from the vTPM)"))
+		}
+		if len(c.TEE.GPUAttestCommand) == 0 {
+			errs = append(errs, errors.New("tee.gpu_attest_command required when tee.provider=azure-cgpu (the command that obtains NVIDIA's attestation tokens for a nonce)"))
+		}
+	}
+	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderAzureCGPU && (len(c.TEE.GPUAttestCommand) > 0 || c.TEE.TPM2ToolsDir != "" || c.TEE.AKHandle != "") {
+		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu only"))
 	}
 	if strings.TrimSpace(c.TEE.WorkloadDescriptor) == "" {
 		errs = append(errs, errors.New("tee.workload_descriptor required"))

@@ -13,6 +13,24 @@ given release can still open.
 
 ### Added
 
+- **A confidential GPU worker on Azure**
+  ([ADR-0019](docs/adr/0019-a-confidential-gpu-worker-on-azure.md)) —
+  `tee.provider: "azure-cgpu"` for `sagvd`, `acp-compute` and
+  `acp-bootstrap`, `azure-cgpu` peers and verifier-registry entries. On an
+  Azure NCC H100 v5 (AMD SEV-SNP under the paravisor, an H100 in
+  confidential-computing mode) the producer reads the SEV-SNP report from
+  the vTPM's HCL report, quotes the PCRs with the vTPM's attestation key
+  and `SHA-256(nonce)` in `extraData` (tpm2-tools), and runs
+  `gpu_attest_command` for NVIDIA's signed attestation tokens under the same
+  value; the verifier takes the report to AMD for the chip's product
+  (Genoa), checks `REPORT_DATA` names the runtime data and the quote
+  verifies under the key it carries, verifies NVIDIA's tokens ES384 under
+  NVIDIA's key set (`nras_jwks_url`, `nras_cache_dir`) and applies
+  `gpu_policy` (secure boot, no debug, signed manifests, matched
+  measurements, pinned model/driver/VBIOS). No sealer.
+  `scripts/hardware-test/azure-cgpu/` captures a genuine machine and runs
+  the Return Path on it with the 7B genome on the H100 (VERIFIABLE-CLAIMS
+  C17). AMD KDS fetches are product-aware (`realAMDKDSGetVCEKFor`).
 - **The recipe names its device and dtype** — `python -m vg_genome finetune
   --device cuda --dtype bfloat16` trains the adapter on a GPU with the base
   in bfloat16 (the adapter stays float32, and so does every measurement);

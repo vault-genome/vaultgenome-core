@@ -1,0 +1,22 @@
+== 13:46:04 inputs
+== 13:46:04 provision (keygen); the pins start as placeholders
+== 13:46:04 identities: each daemon reads the launch measurement from the vTPM's HCL report
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef
+worker_measurement=aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef
+== 13:46:04 the 7B genome trained here, sealed for sagvd
+seal exit=0
+== 13:46:04 sagvd on the confidential GPU VM
+sagvd ready after 1s
+== 13:46:05 a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+rogue refused after 2s
+== 13:46:07 acp-compute on the confidential GPU VM, the door on the H100
+session opened after 1s
+== 13:46:09 the gate job over the Return Path: the 7B genome restored on the H100
+job_id=bcfc401ead8e1811d90d3847d39fd728
+job status=succeeded after 18s
+gate_level=EXACT door=pinned replay rung=0 fixtures=16 n_exact=16 max_abs_err=0 signer=sagvd-authority-e2e
+== 13:46:28 metrics; stop both; verify the audit log with the published key
+audit verify exit=0
+== RETURNPATH DONE

@@ -23,6 +23,7 @@ func TestParseProvider_Valid(t *testing.T) {
 		{"gcp-sev-snp", ProviderGCPSEVSNP},
 		{"intel-sgx-dcap", ProviderIntelSGXDCAP},
 		{"gcp-tdx", ProviderGCPTDX},
+		{"azure-cgpu", ProviderAzureCGPU},
 	}
 	for _, c := range cases {
 		got, err := ParseProvider(c.input)
@@ -65,6 +66,7 @@ func TestAllProviders_StableOrder(t *testing.T) {
 		ProviderGCPSEVSNP,
 		ProviderIntelSGXDCAP,
 		ProviderGCPTDX,
+		ProviderAzureCGPU,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("AllProviders length = %d, want %d", len(got), len(want))

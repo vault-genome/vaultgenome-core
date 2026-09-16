@@ -236,6 +236,12 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 			return "", nil, fmt.Errorf("sagvd: tee.provider=gcp-tdx: %w", err)
 		}
 		return provider, p, nil
+	case tee.ProviderAzureCGPU:
+		p, err := tee.NewAzureCGPUProducer(tee.AzureCGPUProducerConfig{GPUAttestCommand: cfg.GPUAttestCommand, TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: tee.provider=azure-cgpu: %w", err)
+		}
+		return provider, p, nil
 	case tee.ProviderSimulated:
 		seed, err := readExactly(cfg.SeedPath, crypto.Ed25519SeedSize, "tee.seed_path")
 		if err != nil {
@@ -290,6 +296,16 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 			return "", nil, fmt.Errorf("sagvd: tee.peer.measurement_path (%q) must hold the 48-byte TDX measurement (SHA-384 of MRTD and RTMR0..3, as `identity` prints it; got %d bytes)", cfg.MeasurementPath, len(measurement))
 		}
 		spec.GCPTDX = tee.GCPTDXVerifierConfig{PCSURL: cfg.PCSURL, PCSCacheDir: cfg.PCSCacheDir, AcceptableTCBStatuses: cfg.AcceptableTCBStatuses}
+	case tee.ProviderAzureCGPU:
+		if len(measurement) != 48 {
+			return "", nil, fmt.Errorf("sagvd: tee.peer.measurement_path (%q) must hold a 48-byte SEV-SNP launch measurement (got %d bytes)", cfg.MeasurementPath, len(measurement))
+		}
+		chain, err := os.ReadFile(cfg.AMDCertChainPath)
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: read tee.peer.amd_cert_chain_path (%q): %w", cfg.AMDCertChainPath, err)
+		}
+		spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: cfg.AMDKDSURL, VCEKCacheDir: cfg.VCEKCacheDir, MinReportedTCB: cfg.MinReportedTCB,
+			NRASJWKSURL: cfg.NRASJWKSURL, NRASCacheDir: cfg.NRASCacheDir, GPU: cfg.GPUPolicy.policy()}
 	default:
 		return "", nil, fmt.Errorf("sagvd: tee.peer.provider %q: no verifier this build can run end to end (supported: %v)", cfg.Provider, supportedProviders)
 	}
