@@ -156,3 +156,50 @@ records: a handshake test, a trust test, a flow test (the TRUST_EVALUATED
 payload) and a coordinator test (the CROSS_CLOUD_ATTESTATION_VERIFIED
 payload) with a verifier that says more; a verifier that does not leaves
 the field off.
+
+## Amendment (2026-09-16, later still): revocation is consulted
+
+The evaluation trusted NVIDIA for one more thing: that a certificate in
+the GPU's chain had not been revoked. Now the evaluator asks NVIDIA's
+OCSP responder (`http://ocsp.ndis.nvidia.com`, the URL the
+intermediates carry in their authority information access; overridable)
+about every certificate between the leaf and the pinned root — on an
+H100 the "GH100 A01 GSP BROM" certificate, the "NVIDIA GH100 Provisioner
+ICA 1" and the "NVIDIA GH100 Identity" CA — each by its issuer, with a
+SHA-256 certificate id and a nonce (RFC 6960; the request is encoded
+in-house, x/crypto's writes no nonce). An answer is held to what a
+verifier must: the responder's status successful; the signature under
+the delegated responder certificate the answer carries — NVIDIA delegates
+one per level of the chain, "OCSP Responder L3 GH100 ICA1 Identity",
+"L2 GH100 Identity", "L1-A 02" — which the certificate's issuer must have
+signed and marked for OCSP signing, or under the issuer itself; the
+certificate id the issuer's; the nonce echoed; the answer inside its
+validity (NVIDIA's are a day). A good answer is cached under the RIM cache
+directory until its nextUpdate, so a verifier asks once a day per
+certificate and rides out a responder outage inside that day; nothing but
+a good answer is cached. The per-GPU leaf is not served: the responder
+answers `unauthorized` for it in every request form, and its issuers'
+status stands for it, which the record says (`not served`).
+
+`gpu_policy.revocation` is `ocsp` by default under `both` and `own`;
+`off` leaves revocation unchecked and the evaluation says so
+(`revocation_checked: false`). A revoked, unknown, stale, unsigned or
+unreachable answer makes the evaluation incomplete, and under `both` or
+`own` the handshake is refused. Parsing and verifying the answers is
+`golang.org/x/crypto/ocsp` (`docs/dependencies/x-crypto.md`); the
+document model goxmldsig verifies the manifests over, `etree`, imported
+directly since the signature amendment, is recorded on the allowlist
+(`docs/dependencies/etree.md`). `sagvd`'s config validation now admits
+`own`, as the verifier has since the signature amendment; it had gone on
+refusing it.
+
+Proven offline on NVIDIA's own answers for the captured chain, stored as
+test material with their provenance (`internal/shared/tee/testdata/nvidia/ocsp/`):
+the three answers verify under their delegated responders and are good,
+the evaluation of the captured report with revocation checked is
+complete; an answer for one certificate is refused for another; past
+their day they are stale. A synthetic responder answering revoked,
+unknown, without the nonce, expired, from a certificate not marked for
+OCSP signing, or HTTP 500 is refused each way, and a good answer is asked
+once.
+

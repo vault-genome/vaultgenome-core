@@ -60,7 +60,11 @@ func azureCGPUCapturedVerifier(t *testing.T, chain []byte, mutate func(*AzureCGP
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(cache, "nras-jwks.json"), jwks, 0o600))
 	cfg := AzureCGPUVerifierConfig{AMDRootPEM: chain, NRASCacheDir: cache, VCEKCacheDir: t.TempDir(),
-		Now: func() time.Time { return time.Date(2026, 9, 16, 13, 36, 0, 0, time.UTC) }}
+		Now: func() time.Time { return time.Date(2026, 9, 16, 13, 36, 0, 0, time.UTC) },
+		// Revocation is checked in its own tests (nvidia_ocsp_test.go), from
+		// NVIDIA's stored answers; the captured verifier leaves it off so no
+		// test reaches for the responder.
+		GPURevocation: GPURevocationOff}
 	if mutate != nil {
 		mutate(&cfg)
 	}

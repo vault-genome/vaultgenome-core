@@ -118,9 +118,9 @@ func (k *jsonWebKey) ecdsaKey() (*ecdsa.PublicKey, error) {
 	if len(x) != 48 || len(y) != 48 {
 		return nil, fmt.Errorf("JWK %q: coordinates of %d and %d bytes", k.KID, len(x), len(y))
 	}
-	pub := &ecdsa.PublicKey{Curve: elliptic.P384(), X: new(big.Int).SetBytes(x), Y: new(big.Int).SetBytes(y)}
-	if !pub.Curve.IsOnCurve(pub.X, pub.Y) { //nolint:staticcheck // the coordinates come from a JWK, not from an ECDH exchange
-		return nil, fmt.Errorf("JWK %q is not a point on P-384", k.KID)
+	pub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P384(), append(append([]byte{4}, x...), y...))
+	if err != nil {
+		return nil, fmt.Errorf("JWK %q is not a point on P-384: %w", k.KID, err)
 	}
 	if len(k.X5C) > 0 {
 		der, err := base64.StdEncoding.DecodeString(k.X5C[0])
