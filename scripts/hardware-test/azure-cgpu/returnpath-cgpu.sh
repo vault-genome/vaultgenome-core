@@ -80,6 +80,12 @@ PY
 ZEROS=$(printf '%096d' 0)
 write_configs "$ZEROS" "$ZEROS"
 
+step "the key files sealed to the vTPM (ADR 0023): sagvd's and acp-compute's seeds and the session sealing key, in place"
+./sagvd seal-keys -config sagvd.json > "$OUT/seal-keys-sagvd.json" 2> "$OUT/seal-keys-sagvd.err"
+echo "sagvd seal-keys exit=$?" >> "$OUT/steps.txt"
+./acp-compute seal-keys -config worker.json > "$OUT/seal-keys-worker.json" 2> "$OUT/seal-keys-worker.err"
+echo "acp-compute seal-keys exit=$?" >> "$OUT/steps.txt"
+
 step "identities: each daemon reads the launch measurement from the vTPM's HCL report"
 mark identity_start
 ./sagvd identity -config sagvd.json > "$OUT/sagvd-identity.json" 2> "$OUT/sagvd-identity.err"; echo "sagvd identity exit=$?" >> "$OUT/steps.txt"

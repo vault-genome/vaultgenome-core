@@ -73,6 +73,11 @@ c={"vault":{"listen_address":"127.0.0.1:9443","tls":{"enabled":True,"server_cert
 json.dump(c,open("/root/sagvd-base.json","w"),indent=2)
 PY
 gcs_get in/amd-milan-cert_chain.pem /root/amd-milan-cert_chain.pem
+# The key files the config names — the authority's signing seed, the audit
+# seed, the session sealing key — sealed to this host's TEE in place (ADR
+# 0023); every sagvd from here on reads them sealed.
+sagvd seal-keys -config /root/sagvd-base.json > "$OUT/seal-keys.json" 2> "$OUT/seal-keys.err"
+echo "seal-keys exit=$? sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/seal-keys.json" 2>/dev/null)" >> "$OUT/steps.txt"
 sagvd identity -config /root/sagvd-base.json > /root/identity-0.json 2> "$OUT/identity-0.err"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); open("/root/peer.meas","wb").write(bytes.fromhex(d["tee_measurement_hex"]))' /root/identity-0.json
 sagvd escrow-provision -config /root/sagvd-base.json -out /root/escrow.sealed -pub /root/escrow.pem -recovery-to /root/recovery.pem -recovery-out /root/escrow.recovery.json > "$OUT/escrow-provision.json" 2> "$OUT/escrow-provision.err"

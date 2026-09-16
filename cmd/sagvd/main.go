@@ -76,6 +76,12 @@ func main() {
 					Error("sagvd failover: terminated with error", "err", err.Error())
 			}
 			os.Exit(code)
+		case "seal-keys":
+			if err := runSealKeysCmd(os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).Error("sagvd seal-keys: terminated with error", "err", err.Error())
+				os.Exit(1)
+			}
+			return
 		case "escrow-provision":
 			// The escrow key, made in this process and sealed to this
 			// host's TEE before it is written (ADR 0016).
@@ -345,6 +351,7 @@ func printUsage() {
 	fmt.Println("        {-bundle PATH | -key-id KID} [-require-gate EQUIVALENT|EXACT] [-wait DURATION]")
 	fmt.Println("  sagvd failover -config PATH -policy POLICY.json -outbox DIR [-poll 2s] [-confirm-wait 15m] [-report PATH]")
 	fmt.Println("  sagvd escrow-provision -config PATH -out SEALED -pub PUBLIC.pem [-recovery-to RECOVERY.pem -recovery-out ENVELOPE] [-stdin]")
+	fmt.Println("  sagvd seal-keys -config PATH")
 	fmt.Println("  sagvd version")
 	fmt.Println("  sagvd help")
 	fmt.Println()

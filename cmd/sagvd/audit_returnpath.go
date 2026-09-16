@@ -73,7 +73,7 @@ func openReturnPathAudit(cfg Config, clock shared_time.Clock, registry *metrics.
 	if cfg.Keys.AuditSigning.KeyID == "" || cfg.Keys.AuditSigning.SeedPath == "" {
 		return nil, errors.New("sagvd: audit.log_path needs keys.audit_signing.kid and seed_path")
 	}
-	seed, err := readExactly(cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
+	seed, err := readSecret(cfg.TEE, cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
 	if err != nil {
 		return nil, err
 	}

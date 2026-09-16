@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1101,6 +1101,45 @@ of this boot, not the TEE's own key; the attestation is still Intel's. A
 kernel or firmware update changes the PCRs and the key is re-provisioned
 from the recovery envelope, not re-derived. The same sealer on an Azure
 confidential GPU host: proven the same day on an NCC H100 v5 (`scripts/hardware-test/azure-cgpu/evidence/20260916T204311Z-returnpath/`: `escrow-provision.json` `tee: azure-cgpu`, key `11e87307c4f33f8c`, `escrow-sealed-shape.txt` the same blob shape under the same fifteen PCRs, `escrow-reprovision.json` the same key re-sealed through the ceremony).
+
+---
+
+<a id="c24"></a>
+### C24 — A live SEV-SNP host runs the release authority from key files sealed to its chip: every seed and the session sealing key sealed in place, opened at start, and the failover drill completed from them
+
+**Claim.** ADR 0023 on hardware: on the failover drill's standby (a GCP
+n2d SEV-SNP VM), `sagvd seal-keys` sealed the authority's signing seed,
+the audit seed and the session sealing key in place to the chip's
+derived key, each bound to its name; `sagvd identity`, `sagvd
+escrow-provision`, the recovery ceremony, `sagvd failover` and the audit
+verify then ran from the sealed files, and the drill completed — the
+attacked primary's model restored on the standby, the audit log verified,
+the stolen-seed negative declined.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-failover/evidence/20260916T212752Z/`](scripts/hardware-test/gcp-failover/evidence/20260916T212752Z/)
+— `standby/seal-keys.json`: `tee: gcp-sev-snp`, measurement `21199b36…9546`,
+`sealed`: `keys.authority_signing.seed_path`, `keys.session_sealing.material_path`, `keys.audit_signing.seed_path`; `standby/steps.txt`: `seal-keys exit=0`, then `sagvd
+identity exit=0`, `escrow-provision exit=0`, `sagvd failover exit=0`;
+`standby/report.json`: `status: restored`, generation 1, gate
+EXACT, RTO 22.10 s, RPO 9.00 s; `standby/audit-verify.json`: `ok:
+true`, 5 events, tip `bb9fa06c…fa62`; `standby/rogue-report.json`: the
+stolen seed declined.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-failover/run.sh <gcp-project> europe-west4-a   # ~25 min: two GCP n2d Milan CVMs
+go test -count=1 -run 'SealKeys|SealedSecret|SealerFor' ./cmd/sagvd/ ./cmd/acp-compute/ ./internal/shared/tee/
+```
+
+**Scope.** One run, SEV-SNP; the sealer on TDX and the Azure confidential
+GPU host is the vTPM one of [C23](#c23), the same code path
+(`readSecret` → `tee.OpenSecret`), exercised there for the escrow key
+and here for the key files. Still files on a host: `acp-bootstrap`'s TLS
+key and bearer token, the sentinel's seed on the primary (bounded by the
+chip's report, ADR 0017), and a `-key-file` given to
+`crosscloud-restore`.
 
 ---
 

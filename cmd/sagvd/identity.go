@@ -102,7 +102,7 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	id.TDX = tdxIdentityOf(mat.Producer)
 	id.VTPM = vtpmIdentityOf(mat.Producer)
 	if a := cfg.Keys.AuditSigning; a.KeyID != "" && a.SeedPath != "" {
-		seed, err := readExactly(a.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
+		seed, err := readSecret(cfg.TEE, a.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
 		if err != nil {
 			return err
 		}

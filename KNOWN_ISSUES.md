@@ -225,9 +225,15 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     (`acpctl escrow recovery-keygen`, `acpctl escrow recover` piped into
     `sagvd escrow-provision -stdin`). Proven on hardware in the failover
     drill (`scripts/hardware-test/gcp-failover`). What remains:
-    - The authority's signing seed, audit seed and session-sealing key, and
-      any `-key-file` given to `crosscloud-restore`, are still files on the
-      release host (#1's scope).
+    - *Resolved 2026-09-16 (ADR 0023):* the authority's signing seed, audit
+      seed and session-sealing key, and the worker's signing seed, are
+      sealed to the host in place by `sagvd seal-keys` and `acp-compute
+      seal-keys` (the chip's derived key on SEV-SNP, the vTPM on TDX and
+      the Azure confidential GPU host), each bound to its name, and opened
+      at start; the kits seal them before the first start. Still files: a
+      `-key-file` given to `crosscloud-restore`, `acp-bootstrap`'s TLS key
+      and bearer token on a destination, and the sentinel's seed on the
+      primary (its word is bounded by the chip's report, ADR 0017).
     - The unsealed escrow key sits in the process's memory for its lifetime
       (Go's `ecdh` keeps its own copy; zeroization on exit covers the
       keystore, not that object). The host is a confidential VM for that

@@ -187,7 +187,9 @@ verify-reproducible).
   the chip is silence, and silence is a trigger — `stopped` stands the
   authority down only for a grace, and nothing past the generation the
   trigger's record names is restored (ADR 0017). The authority's escrow key
-  is made in its own process and written only sealed to its chip (ADR 0016).
+  is made in its own process and written only sealed to its chip (ADR 0016),
+  and every other key file the daemons read is sealed to the host too
+  (`seal-keys`, ADR 0023).
   Measured on **two live SEV-SNP VMs**
   ([gcp-failover](scripts/hardware-test/gcp-failover)): detect 2.53 s, RPO
   9.0 s, **RTO 16.81 s** from intrusion to a gated, confirmed model — and what

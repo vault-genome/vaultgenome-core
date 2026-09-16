@@ -93,27 +93,17 @@ func (m *materials) TEESealer() (tee.Sealer, error) {
 	if m.sealer != nil {
 		return m.sealer, nil
 	}
-	switch p := m.Producer.(type) {
-	case *tee.Simulated:
-		m.sealer = p
-	case *tee.GCPSEVProducer:
-		dev, err := os.OpenFile(m.tee.SEVDevice(), os.O_RDWR, 0)
-		if err != nil {
-			return nil, fmt.Errorf("sagvd: tee.sev_guest_device: open %s (the sev-guest driver must be loaded; the daemon needs access to it): %w", m.tee.SEVDevice(), err)
-		}
-		m.closers = append(m.closers, dev)
-		m.sealer = tee.NewGCPSEVSealer(dev, p.Measurement(), p.Policy())
-	case *tee.GCPTDXProducer, *tee.AzureCGPUProducer:
-		// No sealing key from the TEE itself: the guest's vTPM holds it,
-		// under a policy only this boot's PCRs satisfy (ADR 0022).
-		s, err := tee.NewVTPMSealer(tee.VTPMSealerConfig{TPM2ToolsDir: m.tee.TPM2ToolsDir, PCRs: m.tee.VTPMSealPCRs})
-		if err != nil {
-			return nil, fmt.Errorf("sagvd: tee.vtpm_seal_pcrs: %w", err)
-		}
-		m.sealer = s
-	default:
-		return nil, fmt.Errorf("sagvd: tee.provider %s has no sealer in this build", m.Provider)
+	// The chip's derived key on SEV-SNP (ADR 0016), the guest's vTPM under a
+	// policy of this boot's PCRs on TDX and the Azure confidential GPU host
+	// (ADR 0022), the simulated TEE's weak key off hardware.
+	s, closer, err := tee.SealerFor(m.Producer, tee.SealerOptions{SEVGuestDevice: m.tee.SEVDevice(), TPM2ToolsDir: m.tee.TPM2ToolsDir, VTPMSealPCRs: m.tee.VTPMSealPCRs})
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: tee.provider %s (tee.sev_guest_device, tee.tpm2_tools_dir, tee.vtpm_seal_pcrs): %w", m.Provider, err)
 	}
+	if closer != nil {
+		m.closers = append(m.closers, closer)
+	}
+	m.sealer = s
 	return m.sealer, nil
 }
 
@@ -164,7 +154,7 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 	}
 
 	// 3. Authority signing seed → register under cfg.Keys.AuthoritySigning.KeyID.
-	authSeed, err := readExactly(cfg.Keys.AuthoritySigning.SeedPath, crypto.Ed25519SeedSize, "keys.authority_signing.seed_path")
+	authSeed, err := readSecret(cfg.TEE, cfg.Keys.AuthoritySigning.SeedPath, crypto.Ed25519SeedSize, "keys.authority_signing.seed_path")
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +166,7 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 	}
 
 	// 4. Session sealing key → register under cfg.Keys.SessionSealing.KeyID.
-	sealingMat, err := readExactly(cfg.Keys.SessionSealing.MaterialPath, crypto.AES256KeySize, "keys.session_sealing.material_path")
+	sealingMat, err := readSecret(cfg.TEE, cfg.Keys.SessionSealing.MaterialPath, crypto.AES256KeySize, "keys.session_sealing.material_path")
 	if err != nil {
 		return nil, err
 	}

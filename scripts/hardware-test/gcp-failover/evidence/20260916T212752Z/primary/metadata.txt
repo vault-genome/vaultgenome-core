@@ -1,0 +1,3 @@
+instance=vg-failover-primary-20260916t212752z
+zone=europe-west4-a
+machine=n2d-standard-8

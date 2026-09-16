@@ -105,6 +105,13 @@ type TEEConfig struct {
 	TPM2ToolsDir     string   `json:"tpm2_tools_dir,omitempty"`
 	AKHandle         string   `json:"ak_handle,omitempty"`
 
+	// SEVGuestDevice is the sev-guest device a gcp-sev-snp host seals its
+	// key files through (default /dev/sev-guest); VTPMSealPCRs the PCR
+	// selection a gcp-tdx or azure-cgpu host seals them to (default
+	// sha256:0-14). ADR 0023: `acp-compute seal-keys`.
+	SEVGuestDevice string `json:"sev_guest_device,omitempty"`
+	VTPMSealPCRs   string `json:"vtpm_seal_pcrs,omitempty"`
+
 	// Peer holds the trust-anchor material for sagvd's side.
 	Peer PeerTEEConfig `json:"peer"`
 
@@ -255,6 +262,17 @@ func (g *GPUPolicyConfig) apply(cfg *tee.AzureCGPUVerifierConfig) error {
 // supportedProviders are the TEE backends this build can attest with
 // on the Return Path, and verify a peer's Evidence for.
 var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated}
+
+// DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
+const DefaultSEVGuestDevice = "/dev/sev-guest"
+
+// SEVDevice is the sev-guest device the sealer opens.
+func (t TEEConfig) SEVDevice() string {
+	if t.SEVGuestDevice != "" {
+		return t.SEVGuestDevice
+	}
+	return DefaultSEVGuestDevice
+}
 
 // ProviderKind parses TEEConfig.Provider, defaulting to simulated.
 func (t TEEConfig) ProviderKind() (tee.Provider, error) {

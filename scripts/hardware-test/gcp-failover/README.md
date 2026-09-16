@@ -155,6 +155,23 @@ The earlier run of this kit, `20260915T021334Z` (plaintext escrow key, the
 authority simulated, no primary pin), is kept beside this one: RTO 16.81 s,
 RPO 9.0 s, gate EXACT.
 
+## The key files sealed to the chip — run `20260916T212752Z` (evidence/20260916T212752Z)
+
+The same drill, run once more with ADR 0023 in the kit: right after the
+authority's config is written, `sagvd seal-keys -config sagvd-base.json`
+seals its key files in place — `keys.authority_signing.seed_path`, `keys.session_sealing.material_path`, `keys.audit_signing.seed_path` — to this chip's derived key
+(`standby/seal-keys.json`: `tee: gcp-sev-snp`, measurement `21199b36…9546`),
+and every `sagvd` from then on reads them sealed: `sagvd identity` and
+`sagvd escrow-provision` (key `4f2ac49d2919c37e`, exit 0), the recovery
+ceremony, `sagvd failover` (exit 0), the audit log's verify. The failover
+itself: generation 1 restored and gated **EXACT**, RTO **22.10 s**,
+RPO 9.00 s, 5 audit events verified (tip `bb9fa06c…fa62`); the negative
+leg as before — `rogue: sagvd failover exit=3 (want 3: declined) status=declined`.
+
+No plaintext seed is on the standby's disk after the seal step, and none
+is in the evidence: `seal-keys.json` names the files, `steps.txt` says
+`seal-keys exit=0`.
+
 ## Evidence files
 
 - `primary/` — `finetune-0.json`, `finetune-1.json` (the two fine-tunes),

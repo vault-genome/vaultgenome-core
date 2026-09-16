@@ -13,6 +13,18 @@ given release can still open.
 
 ### Added
 
+- **The daemons' key files sealed to the host**
+  ([ADR-0023](docs/adr/0023-the-daemons-key-files-sealed-to-the-host.md))
+  — `sagvd seal-keys` and `acp-compute seal-keys` seal, in place, every
+  key file the config names (the authority's signing seed, the audit
+  seed, the worker's signing seed, the session sealing key) to the host's
+  TEE — the chip's derived key on SEV-SNP, the vTPM on TDX and the Azure
+  confidential GPU host — as `vault-genome/sealed-secret/v1`, with the
+  key's name bound into the AEAD so a file sealed as one key does not open
+  as another; the daemons open sealed files at start through the same
+  paths. The hardware kits seal before the first start; proven on a SEV-SNP
+  host running the failover drill from sealed files
+  (`scripts/hardware-test/gcp-failover`, `20260916T212752Z`, VERIFIABLE-CLAIMS C24).
 - **The escrow key sealed to the guest's vTPM where the TEE gives no
   sealing key** ([ADR-0022](docs/adr/0022-the-escrow-key-sealed-to-the-vtpm.md))
   — `sagvd` on `gcp-tdx` and `azure-cgpu` seals the escrow key to the

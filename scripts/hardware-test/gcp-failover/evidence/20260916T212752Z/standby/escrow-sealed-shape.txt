@@ -1,0 +1,1 @@
+{'schema': 'vault-genome/sealed-escrow-key/v1', 'tee': 'gcp-sev-snp', 'measurement_hex': '21199b36f500cc26a5d26c92c699fe2820ce217458bf219be18efd761f636b4145fdecbd7249c4b566797b4afd339546', 'escrow_key': '4f2ac49d2919c37e', 'sealed': '<80 bytes>'}
