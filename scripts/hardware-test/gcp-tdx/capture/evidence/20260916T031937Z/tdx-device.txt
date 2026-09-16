@@ -1,0 +1,1 @@
+crw------- 1 root root 10, 263 Sep 16 03:20 /dev/tdx_guest

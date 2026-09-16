@@ -1,0 +1,2 @@
+model name	: Intel TDX
+tdx_guest

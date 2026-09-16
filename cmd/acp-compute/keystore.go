@@ -141,6 +141,12 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 			return "", nil, fmt.Errorf("acp-compute: tee.provider=gcp-sev-snp: %w", err)
 		}
 		return provider, p, nil
+	case tee.ProviderGCPTDX:
+		p, err := tee.NewGCPTDXProducer(tee.GCPTDXProducerConfig{TSMReportDir: cfg.TSMReportDir})
+		if err != nil {
+			return "", nil, fmt.Errorf("acp-compute: tee.provider=gcp-tdx: %w", err)
+		}
+		return provider, p, nil
 	case tee.ProviderSimulated:
 		seed, err := readExactly(cfg.SeedPath, crypto.Ed25519SeedSize, "tee.seed_path")
 		if err != nil {
@@ -190,6 +196,11 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 			VCEKCacheDir:   cfg.VCEKCacheDir,
 			MinReportedTCB: cfg.MinReportedTCB,
 		}
+	case tee.ProviderGCPTDX:
+		if len(measurement) != 48 {
+			return "", nil, fmt.Errorf("acp-compute: tee.peer.measurement_path (%q) must hold the 48-byte TDX measurement (SHA-384 of MRTD and RTMR0..3, as `identity` prints it; got %d bytes)", cfg.MeasurementPath, len(measurement))
+		}
+		spec.GCPTDX = tee.GCPTDXVerifierConfig{PCSURL: cfg.PCSURL, PCSCacheDir: cfg.PCSCacheDir, AcceptableTCBStatuses: cfg.AcceptableTCBStatuses}
 	default:
 		return "", nil, fmt.Errorf("acp-compute: tee.peer.provider %q: no verifier this build can run end to end (supported: %v)", cfg.Provider, supportedProviders)
 	}

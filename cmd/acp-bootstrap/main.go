@@ -322,6 +322,8 @@ func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 	switch cfg.Provider {
 	case string(tee.ProviderGCPSEVSNP):
 		return tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})
+	case string(tee.ProviderGCPTDX):
+		return tee.NewGCPTDXProducer(tee.GCPTDXProducerConfig{TSMReportDir: cfg.TSMReportDir})
 	case string(tee.ProviderSimulated):
 		seed, err := readExactly(cfg.SeedPath, crypto.Ed25519SeedSize, "tee.seed_path")
 		if err != nil {
