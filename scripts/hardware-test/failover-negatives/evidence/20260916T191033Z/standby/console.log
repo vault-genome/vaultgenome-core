@@ -1,0 +1,40 @@
+== 19:12:03 inputs
+== 19:12:12 provision (keygen), the operator's stop key and recovery key, stop list serial 1 (nothing stopped)
+== 19:12:12 python runtime (CPU) and base model — the gate runs the model here
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart chrony.service cron.service google-guest-agent.service google-osconfig-agent.service multipathd.service packagekit.service polkit.service rsyslog.service snapd.service ssh.service systemd-journald.service systemd-networkd.service systemd-resolved.service systemd-udevd.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart getty@tty1.service
+ systemctl restart google-startup-scripts.service
+ systemctl restart networkd-dispatcher.service
+ systemctl restart serial-getty@ttyS0.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 18.89it/s]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.03s/it]
+== 19:13:36 configfs-tsm (real SEV-SNP reports)
+== 19:13:36 sagvd on SEV-SNP: identity from the chip
+== 19:13:37 the escrow key: made in the authority's process, sealed to this chip, wrapped to the recovery key
+== 19:13:37 acp-bootstrap on SEV-SNP (destination + gate)
+== 19:13:38 sagvd failover config: verifier registry, allow-list, operator stop, the sealed escrow key
+== 19:13:38 wait for the primary's sentinel key and chip identity (the operator pins both)
+== 19:13:45 pull the primary's outbox replica, continuously
+== 19:13:45 1/8 arm under a policy that stands 45 s: it will have expired when the attack comes, and the trigger must be declined on the record
+== 19:21:57 the primary's last word: wait for it to finish, take the final replica, stop pulling
+== 19:21:59 2/8 a policy allowing at most 1 s of lost state: declined on the record
+== 19:21:59 3/8 a policy quarantining a day: no genome checks out, declined on the record
+== 19:22:00 4/8 a good policy under an operator stop (stop list serial 2, everything): the chip verifies, the release is denied on the record
+== 19:22:00 5/8 a policy pinning another machine as the standby (the primary's measurement): the chip verifies, the release is denied on the record
+== 19:22:00 6/8 a good policy, the newest bundle corrupted in the replica: generation 1 set aside on the record, generation 0 restored
+== 19:22:23 7/8 the spent policy again: refused at the door
+== 19:22:23 8/8 a policy signed by a stranger: refused at the door
+== 19:22:23 audit log verify (offline, as an auditor would), and every event

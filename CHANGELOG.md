@@ -13,6 +13,15 @@ given release can still open.
 
 ### Added
 
+- **The negatives drill** (`scripts/hardware-test/failover-negatives`,
+  VERIFIABLE-CLAIMS C22, CONTINUITY-DRILL Drill V) — the failover drill's
+  two SEV-SNP machines, one attack, eight operator-signed policies against
+  the same compromise report: an expired policy, an RPO bound, a
+  quarantine, an operator stop, a foreign standby, a corrupted replica
+  bundle, the spent policy again and a stranger's signature. Measured
+  (`20260916T191033Z`): seven refusals, each for its own reason — two of them after
+  the standby's chip verified — six on one 16-event audit log; the one move
+  restores generation 0 EXACT with generation 1 set aside on the record.
 - **The continuity drill's TDX leg**
   (`scripts/hardware-test/failover-tdx`, VERIFIABLE-CLAIMS C21) — the
   failover of the drill with the standby a GCP `c3` Intel TDX Trust

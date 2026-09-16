@@ -204,7 +204,15 @@ verify-reproducible).
   clean generation gated **EQUIVALENT** on Intel CPUs against references
   sealed on AMD (max abs err 1.45e-4), **RTO 24.09 s**, RPO 12.0 s. Locally with
   the real binaries: RTO 0.63 s after an intrusion; 3.5 s after a killed
-  primary, with a 3 s heartbeat timeout.
+  primary, with a 3 s heartbeat timeout. And asked eight times against one
+  attack on two live SEV-SNP VMs
+  ([failover-negatives](scripts/hardware-test/failover-negatives)): an
+  expired policy, an RPO bound, a quarantine, an operator stop, a foreign
+  standby, a spent policy and a stranger's signature are each **refused**
+  for their own stated reason — the stop and the foreign standby *after*
+  the standby's chip verified — and the one move goes to the generation
+  whose bytes match the sentinel's word, the corrupted newer bundle set
+  aside on the record.
 - **Real AMD SEV-SNP attestation** — a report from a live confidential VM is
   parsed, its ECDSA-P384 signature verified, and its VCEK chained to AMD
   ARK-Milan — proven on **two clouds, GCP and Azure** (`scripts/hardware-test/`,
