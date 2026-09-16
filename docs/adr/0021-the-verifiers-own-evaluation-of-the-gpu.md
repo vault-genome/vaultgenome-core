@@ -121,3 +121,38 @@ and the policy's model and version pins are held against the report. What
 NVIDIA's tokens carry; `both` asserts them, and stays the stronger policy
 where NRAS is reachable. Revocation (NVIDIA's OCSP) is not consulted
 under either.
+
+## Amendment (2026-09-16, later still): the evaluation is on the audit record
+
+The verifier's word was in its verdict, and the verdict stayed inside the
+verifier: the `Verifier` contract returns a measurement, and the audit
+records that rest on that measurement — `TRUST_EVALUATED` when `sagvd`
+admits a worker, `CROSS_CLOUD_ATTESTATION_VERIFIED` when the authority
+releases a key to a destination — named the peer by provider and
+measurement alone. An auditor reading the chain could see that a
+confidential GPU host was admitted, not what was checked on it.
+
+Now a verifier that can say more implements `tee.DetailedVerifier`
+(`VerifyDetailed`, the measurement with a `tee.AttestationDetail`), and the
+handshake, the trust admission and the key-release coordinator take the
+detail through `tee.VerifyDetailed`, which falls back to `Verify` for a
+verifier with nothing more to say. The `azure-cgpu` verifier's detail is
+its verdict: the chip's product and id, the reported TCB, the vTPM quote's
+PCR selection and digest the pin was held against, each GPU with who
+vouched for it (NVIDIA's token, or "own evaluation"), and this verifier's
+own evaluations of the GPUs' reports, check by check. It lands as
+`peer_detail` on `TRUST_EVALUATED` (allow or deny) and as
+`destination_detail` on `CROSS_CLOUD_ATTESTATION_VERIFIED`; the field is
+absent when the verifier had only a measurement, so the records of the
+other providers are unchanged. The metrics wrapper and the failover
+command's verifier-of-any forward the detail. The session-opened log line
+carries the operator's glance of it (provider, product, PCRs, the GPUs,
+how many evaluations were complete); the record is the audit event.
+
+Proven offline on the captured H100 evidence — the detail the verifier
+produces under `both` names Genoa, the sha256 bank, GPU-0 as GH100 with
+the driver the evaluation saw, the evaluation complete — and on the
+records: a handshake test, a trust test, a flow test (the TRUST_EVALUATED
+payload) and a coordinator test (the CROSS_CLOUD_ATTESTATION_VERIFIED
+payload) with a verifier that says more; a verifier that does not leaves
+the field off.

@@ -116,6 +116,16 @@ func NewRegistry(specs []RegistrySpec) (*Registry, error) {
 	return &Registry{verifiers: verifiers}, nil
 }
 
+// NewRegistryOf holds verifiers built elsewhere — instrumented ones, or a
+// test's — keyed by the provider each verifies for.
+func NewRegistryOf(verifiers map[Provider]Verifier) *Registry {
+	m := make(map[Provider]Verifier, len(verifiers))
+	for p, v := range verifiers {
+		m[p] = v
+	}
+	return &Registry{verifiers: m}
+}
+
 // Resolve returns the Verifier registered for the given Provider, or
 // a Structural error if the Provider is unknown. The error diagnostic
 // lists the registered Providers so operators can spot configuration

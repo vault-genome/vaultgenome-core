@@ -328,6 +328,13 @@ one JSON report and exits 0 on success, 1 on any refusal:
 }
 ```
 
+The `CROSS_CLOUD_ATTESTATION_VERIFIED` event behind `attestation_audit_id`
+names the destination by kind and measurement and, for a destination whose
+verifier says more than a measurement (the Azure confidential GPU host),
+carries `destination_detail`: the chip's product and id, the reported TCB,
+the vTPM quote's PCR selection and digest, each GPU with who vouched for it,
+and the verifier's own evaluations of the GPUs' reports (ADR 0021, amended).
+
 **Confirm it landed.** The destination logs `crosscloud handshake answered` with
 a `recipient_key_sha256`, then `crosscloud token accepted` with the same
 `request_id` and `registered_keys`. The digest must equal the report's

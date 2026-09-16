@@ -22,6 +22,7 @@ import (
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 	"github.com/ai-continuity-platform/core/internal/validation/operational"
 	valservice "github.com/ai-continuity-platform/core/internal/validation/service"
@@ -297,9 +298,12 @@ type trustEvaluatedPayload struct {
 	TTLSeconds         float64           `json:"ttl_seconds"`
 	PeerProvider       string            `json:"peer_provider,omitempty"`
 	PeerMeasurementHex string            `json:"peer_measurement_hex,omitempty"`
-	RemoteAddr         string            `json:"remote_addr,omitempty"`
-	EvidenceAt         *time.Time        `json:"evidence_at,omitempty"`
-	StopSerial         uint64            `json:"stop_serial,omitempty"`
+	// PeerDetail is what the peer's verifier said beyond the measurement
+	// (the platform, the GPUs and their evaluations), when it had more.
+	PeerDetail *tee.AttestationDetail `json:"peer_detail,omitempty"`
+	RemoteAddr string                 `json:"remote_addr,omitempty"`
+	EvidenceAt *time.Time             `json:"evidence_at,omitempty"`
+	StopSerial uint64                 `json:"stop_serial,omitempty"`
 }
 
 type sessionIssuedPayload struct {
@@ -468,7 +472,7 @@ func (f *Flow) Admit(peer trust.Peer, ttl time.Duration) (trust.Decision, error)
 	p := trustEvaluatedPayload{
 		Schema: AuditPayloadSchema, Outcome: string(d.Result.Outcome), Reason: d.Reason, Detail: d.Detail,
 		AttestationID: d.Result.AttestationID, TTLSeconds: d.Result.TTL.Seconds(), PeerProvider: string(d.PeerProvider),
-		PeerMeasurementHex: d.PeerMeasurementHex, RemoteAddr: peer.RemoteAddr, StopSerial: d.StopSerial,
+		PeerMeasurementHex: d.PeerMeasurementHex, PeerDetail: d.PeerDetail, RemoteAddr: peer.RemoteAddr, StopSerial: d.StopSerial,
 	}
 	if !peer.EvidenceAt.IsZero() {
 		at := peer.EvidenceAt.UTC()

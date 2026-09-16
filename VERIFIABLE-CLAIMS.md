@@ -914,6 +914,26 @@ report. What this verifier does not check: revocation (NVIDIA's OCSP),
 and under `own` the secure-boot and debug-mode claims only NVIDIA's
 tokens carry — `both` asserts them, `own` says so. A live handshake under
 `both` on hardware is on the record: run `scripts/hardware-test/azure-cgpu/evidence/20260916T204311Z-returnpath/` — the pinned worker's session opened on the H100 host with the evaluation complete (`vg_tee_attestation_total{provider="azure-cgpu",result="success",role="verify"} 1` in `sagvd-metrics.txt`; a complete evaluation includes both manifests' signatures), the manifests fetched from NVIDIA's service during the handshake (`cache-rim-NV_GPU_DRIVER_GH100_595.71.05.json`, `cache-rim-NV_GPU_VBIOS_1010_0210_886_96009F0004.json`), the 7B genome then restored on the H100 and gated EXACT (`job.json`), 17 audit events verified.
+Since later that day the evaluation is *on* the record, not only behind
+it: a verifier that can say more than a measurement (`tee.DetailedVerifier`;
+the `azure-cgpu` verifier does) puts its detail — the chip's product and
+id, the reported TCB, the vTPM quote's PCR selection and digest the pin
+was held against, each GPU with who vouched for it, the verifier's own
+evaluations check by check — on `TRUST_EVALUATED` as `peer_detail` when
+`sagvd` admits the worker and on `CROSS_CLOUD_ATTESTATION_VERIFIED` as
+`destination_detail` when the authority releases a key to it; absent for
+a verifier with only a measurement. Proven in process on the captured
+evidence and the records: [`internal/shared/tee/detail_test.go`](internal/shared/tee/detail_test.go)
+(the detail the verifier produces under `both`: Genoa, the sha256 bank,
+GPU-0 as GH100, the evaluation complete),
+[`internal/compute/returnpath/transport/handshake_detail_test.go`](internal/compute/returnpath/transport/handshake_detail_test.go),
+[`internal/vault/trust/trust_test.go`](internal/vault/trust/trust_test.go),
+[`internal/vault/orchestration/flow_test.go`](internal/vault/orchestration/flow_test.go)
+(`TestFlow_TrustRecordCarriesThePeersDetail`),
+[`internal/vault/kms/coordinator_detail_test.go`](internal/vault/kms/coordinator_detail_test.go).
+A live record from a confidential GPU host with `peer_detail` on it is
+not yet captured; the next hardware run of `scripts/hardware-test/azure-cgpu`
+or `failover-cgpu` will carry it.
 
 ---
 

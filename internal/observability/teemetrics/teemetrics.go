@@ -127,6 +127,15 @@ func (v *instrumentedVerifier) Verify(ev tee.Evidence, nonce tee.Nonce) (tee.Mea
 	return m, err
 }
 
+// VerifyDetailed keeps the inner verifier's detail (tee.DetailedVerifier)
+// beside the measurement; a plain inner verifier gives none.
+func (v *instrumentedVerifier) VerifyDetailed(ev tee.Evidence, nonce tee.Nonce) (tee.Measurement, *tee.AttestationDetail, error) {
+	start := time.Now()
+	m, d, err := tee.VerifyDetailed(v.inner, ev, nonce)
+	v.rec.observeAttest(v.provider, "verify", time.Since(start), err)
+	return m, d, err
+}
+
 // ---- sealer wrapper -------------------------------------------------------
 
 type instrumentedSealer struct {

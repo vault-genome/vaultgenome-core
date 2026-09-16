@@ -186,6 +186,14 @@ type fixture struct {
 
 func makeFixture(t *testing.T) *fixture {
 	t.Helper()
+	return makeFixtureWith(t, nil)
+}
+
+// makeFixtureWith builds the fixture with the destination's verifier
+// wrapped — a verifier that says more than the measurement, for the
+// audit record tests — or as it is when wrap is nil.
+func makeFixtureWith(t *testing.T, wrap func(tee.Verifier) tee.Verifier) *fixture {
+	t.Helper()
 	clock := shared_time.NewFakeClock(stdtime.Date(2026, 5, 9, 12, 0, 0, 0, stdtime.UTC))
 
 	// Source-authority signing key.
@@ -207,15 +215,11 @@ func makeFixture(t *testing.T) *fixture {
 	destMeasurementBytes := make([]byte, 32)
 	copy(destMeasurementBytes, destMeasurement[:])
 
-	registry, err := tee.NewRegistry([]tee.RegistrySpec{{
-		Provider: tee.ProviderSimulated,
-		Spec: tee.VerifierSpec{
-			Provider:            tee.ProviderSimulated,
-			AttestorPubKey:      destProducer.PublicKey(),
-			ExpectedMeasurement: destMeasurement,
-		},
-	}})
-	require.NoError(t, err)
+	var verifier tee.Verifier = tee.NewSimulatedVerifier(destProducer.PublicKey(), destMeasurement)
+	if wrap != nil {
+		verifier = wrap(verifier)
+	}
+	registry := tee.NewRegistryOf(map[tee.Provider]tee.Verifier{tee.ProviderSimulated: verifier})
 
 	policy, err := NewAllowListPolicy("policy-test-v1", map[tee.Provider][][]byte{
 		tee.ProviderSimulated: {destMeasurementBytes},

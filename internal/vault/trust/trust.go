@@ -48,6 +48,9 @@ type Peer struct {
 	// ReadyAt). Recorded in the decision; staleness is the caller's
 	// pre-check (a stale session is closed, not admitted).
 	EvidenceAt time.Time
+	// Detail is what the verifier said beyond the measurement, carried
+	// onto the decision's audit record; nil when there was nothing more.
+	Detail *tee.AttestationDetail
 }
 
 // StopListSource returns the operator's current stop list (ADR 0010).
@@ -140,9 +143,11 @@ type Decision struct {
 	Detail string
 	// StopSerial is the serial of the stop list consulted, 0 without one.
 	StopSerial uint64
-	// PeerProvider and PeerMeasurementHex name the attested peer.
+	// PeerProvider and PeerMeasurementHex name the attested peer;
+	// PeerDetail is what its verifier said beyond the measurement.
 	PeerProvider       tee.Provider
 	PeerMeasurementHex string
+	PeerDetail         *tee.AttestationDetail
 }
 
 // Evaluate decides trust for req against peer. ttl is the attestation's
@@ -161,7 +166,7 @@ func (a *Admission) Evaluate(req recovery_request.RecoveryRequest, peer Peer, tt
 		return Decision{}, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "vault/trust: ttl must be positive", nil)
 	}
 
-	d := Decision{PeerProvider: peer.Provider, PeerMeasurementHex: hex.EncodeToString(peer.Measurement)}
+	d := Decision{PeerProvider: peer.Provider, PeerMeasurementHex: hex.EncodeToString(peer.Measurement), PeerDetail: peer.Detail}
 	outcome := attestation_result.OutcomeAllow
 	switch {
 	case len(peer.Measurement) == 0:

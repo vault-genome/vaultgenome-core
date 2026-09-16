@@ -259,18 +259,24 @@ func primaryVerifier(cfg Config, pol failover.Policy) (tee.Verifier, error) {
 type anyVerifier []tee.Verifier
 
 func (a anyVerifier) Verify(ev tee.Evidence, nonce tee.Nonce) (tee.Measurement, error) {
+	m, _, err := a.VerifyDetailed(ev, nonce)
+	return m, err
+}
+
+// VerifyDetailed keeps the accepting verifier's detail.
+func (a anyVerifier) VerifyDetailed(ev tee.Evidence, nonce tee.Nonce) (tee.Measurement, *tee.AttestationDetail, error) {
 	var last error
 	for _, v := range a {
-		m, err := v.Verify(ev, nonce)
+		m, d, err := tee.VerifyDetailed(v, ev, nonce)
 		if err == nil {
-			return m, nil
+			return m, d, nil
 		}
 		last = err
 	}
 	if last == nil {
 		last = errors.New("no verifier")
 	}
-	return nil, last
+	return nil, nil, last
 }
 
 func preflightFailover(cfg Config, clock shared_time.Clock, pol failover.Policy) error {
