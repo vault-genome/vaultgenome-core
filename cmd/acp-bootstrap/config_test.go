@@ -168,7 +168,7 @@ func TestValidate_TEEProvider(t *testing.T) {
 
 	c = minimalValidConfig()
 	c.TEE.TSMReportDir = "/sys/kernel/config/tsm/report"
-	requireInvalid(t, c, "tee.tsm_report_dir applies to gcp-sev-snp only")
+	requireInvalid(t, c, "tee.tsm_report_dir applies to gcp-sev-snp and gcp-tdx only")
 
 	// Real SEV-SNP: the chip signs; there is no seed to configure, and
 	// nothing to acknowledge.

@@ -29,6 +29,8 @@ type authorityIdentity struct {
 	TEEProvider       string `json:"tee_provider"`
 	TEEMeasurementHex string `json:"tee_measurement_hex"`
 	TEEPublicKeyPEM   string `json:"tee_public_key_pem,omitempty"`
+	// TDX is what a gcp-tdx measurement is made of.
+	TDX *tdxIdentity `json:"tdx,omitempty"`
 	// The key auditors verify the cross-cloud audit log with, when
 	// keys.audit_signing is configured.
 	AuditKID          string `json:"audit_kid,omitempty"`
@@ -95,6 +97,7 @@ func runIdentityCmd(args []string, w io.Writer) error {
 		}
 		id.TEEPublicKeyPEM = string(teePEM)
 	}
+	id.TDX = tdxIdentityOf(mat.Producer)
 	if a := cfg.Keys.AuditSigning; a.KeyID != "" && a.SeedPath != "" {
 		seed, err := readExactly(a.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
 		if err != nil {
@@ -129,4 +132,25 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(id)
+}
+
+// tdxIdentity is what a TDX guest's measurement is made of: MRTD and the
+// four RTMRs, hashed together (SHA-384) into the measurement above.
+type tdxIdentity struct {
+	MRTDHex string   `json:"mrtd_hex"`
+	RTMRHex []string `json:"rtmr_hex"`
+}
+
+func tdxIdentityOf(p tee.Producer) *tdxIdentity {
+	t, ok := p.(*tee.GCPTDXProducer)
+	if !ok {
+		return nil
+	}
+	mrtd := t.MRTD()
+	rtmr := t.RTMRs()
+	out := &tdxIdentity{MRTDHex: hex.EncodeToString(mrtd[:])}
+	for i := range rtmr {
+		out.RTMRHex = append(out.RTMRHex, hex.EncodeToString(rtmr[i][:]))
+	}
+	return out
 }

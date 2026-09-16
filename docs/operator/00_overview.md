@@ -80,11 +80,13 @@ issue a ReleaseDecision; sagvd judges what it returns.
 
 **Must have:** a TEE to attest with — `tee.provider: "gcp-sev-snp"` on an
 AMD SEV-SNP guest (the chip signs; see
-[runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md)), or
-`"simulated"` with `tee.insecure_simulation: true` on a laptop or in CI; a
-pin of the vault's TEE (`tee.peer`: its 48-byte launch measurement and the
-AMD chain for a SEV-SNP vault, its attestation key and measurement for a
-simulated one); the same `keys.session_sealing` kid and key as sagvd; a
+[runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md)), `"gcp-tdx"`
+on an Intel TDX guest (a TDX quote; see
+[runbooks/real-tee-tdx.md](runbooks/real-tee-tdx.md)), or `"simulated"`
+with `tee.insecure_simulation: true` on a laptop or in CI; a pin of the
+vault's TEE (`tee.peer`: its 48-byte measurement and the AMD chain for a
+SEV-SNP vault, its 48-byte measurement and a PCS cache directory for a TDX
+vault, its attestation key and measurement for a simulated one); the same `keys.session_sealing` kid and key as sagvd; a
 worker signing key whose kid and public key are listed in sagvd's
 `workers.registry_path`; a `genome.door.command` that runs the `vg_genome`
 door (`workers/genome`: Python 3.12, the pinned torch and transformers) and a

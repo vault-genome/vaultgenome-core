@@ -275,11 +275,20 @@ type PeerTEEConfig struct {
 	// MinReportedTCB is the lowest REPORTED_TCB accepted from the
 	// worker. gcp-sev-snp peers only.
 	MinReportedTCB uint64 `json:"min_reported_tcb,omitempty"`
+
+	// PCSURL overrides the Intel PCS base URL (a mirror, a PCCS); PCSCacheDir
+	// keeps the TCB info and QE identity documents between runs, each
+	// checked like a fresh one on every use; AcceptableTCBStatuses lists
+	// the Intel TCB statuses accepted (default UpToDate only; OutOfDate and
+	// Revoked never). gcp-tdx peers only.
+	PCSURL                string   `json:"pcs_url,omitempty"`
+	PCSCacheDir           string   `json:"pcs_cache_dir,omitempty"`
+	AcceptableTCBStatuses []string `json:"acceptable_tcb_statuses,omitempty"`
 }
 
 // supportedProviders are the TEE backends this build can attest with
 // on the Return Path, and verify a peer's Evidence for.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderSimulated}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderSimulated}
 
 // DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
 const DefaultSEVGuestDevice = "/dev/sev-guest"
@@ -328,17 +337,20 @@ func validateTEE(t TEEConfig) []error {
 			errs = append(errs, errors.New("tee.provider=simulated has no hardware isolation: set tee.insecure_simulation=true to run it, for development and tests only"))
 		}
 		if t.TSMReportDir != "" {
-			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp only"))
+			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp and gcp-tdx only"))
 		}
 		if t.SEVGuestDevice != "" {
 			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp only"))
 		}
-	case provider == tee.ProviderGCPSEVSNP:
+	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
 		if t.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
 		}
 		if t.InsecureSimulation {
 			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
+		}
+		if provider == tee.ProviderGCPTDX && t.SEVGuestDevice != "" {
+			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp only"))
 		}
 	}
 	if t.Peer.MeasurementPath == "" {
@@ -356,12 +368,25 @@ func validateTEE(t TEEConfig) []error {
 		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
 			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp peer only"))
 		}
+		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
+			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
+		}
 	case peer == tee.ProviderGCPSEVSNP:
 		if t.Peer.PublicKeyPath != "" {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a SEV-SNP report is signed by the chip's VCEK"))
 		}
 		if t.Peer.AMDCertChainPath == "" {
 			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=gcp-sev-snp (the AMD ASK+ARK chain the VCEK must chain to)"))
+		}
+		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
+			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
+		}
+	case peer == tee.ProviderGCPTDX:
+		if t.Peer.PublicKeyPath != "" {
+			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a TDX quote chains to the Intel SGX Root CA"))
+		}
+		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp peer only"))
 		}
 	}
 	return errs

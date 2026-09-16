@@ -1,0 +1,7 @@
+total 28
+drwxr-xr-x  2 root root 4096 Sep 16 04:05 .
+drwxr-xr-x 11 root root 4096 Sep 16 04:05 ..
+-rw-r--r--  1 root root 1892 Sep 16 04:05 tdx-qe-identity.issuer-chain.pem
+-rw-r--r--  1 root root  624 Sep 16 04:05 tdx-qe-identity.json
+-rw-r--r--  1 root root 1892 Sep 16 04:05 tdx-tcb-00806f050000.issuer-chain.pem
+-rw-r--r--  1 root root 7953 Sep 16 04:05 tdx-tcb-00806f050000.json

@@ -44,13 +44,16 @@
 //
 //   - vault.address          host:port of sagvd's Return Path listener
 //   - vault.tls              mTLS material when TLS is enabled
-//   - tee.provider           "gcp-sev-snp" (the chip signs) or "simulated"
-//     (+insecure_simulation; development and tests)
+//   - tee.provider           "gcp-sev-snp" (the chip signs), "gcp-tdx" (a
+//     TDX quote; the measurement is SHA-384 of MRTD and RTMR0..3) or
+//     "simulated" (+insecure_simulation; development and tests)
 //   - tee.workload_descriptor names the workload; the simulator hashes it
 //   - tee.seed_path          32-byte Ed25519 seed (simulated only)
 //   - tee.peer.*             the vault's TEE pin: provider, measurement (48
-//     bytes for SEV-SNP), amd_cert_chain_path for a
-//     SEV-SNP vault or public_key_path for a simulated one
+//     bytes for SEV-SNP and TDX), amd_cert_chain_path for a
+//     SEV-SNP vault, pcs_cache_dir (pcs_url,
+//     acceptable_tcb_statuses) for a TDX vault, or
+//     public_key_path for a simulated one
 //   - keys.worker_signing    kid + 32-byte Ed25519 seed for frame signing
 //   - keys.session_sealing   kid + 32-byte AES-256 key for unsealing
 //   - genome.door.command    the door: argv of the program that restores a

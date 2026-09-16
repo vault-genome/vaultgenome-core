@@ -1,0 +1,4 @@
+instance=vg-tdx-rp-20260916t040319z
+zone=us-central1-a
+machine=c3-standard-4
+captured=20260916T040416Z

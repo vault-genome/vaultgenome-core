@@ -127,7 +127,7 @@ type TEEConfig struct {
 }
 
 // supportedProviders are the TEE backends this build can run.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderSimulated}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderSimulated}
 
 // SourceAuthorityConfig points at the source-authority signing
 // public key file. Used by the receiver to verify every handshake +
@@ -354,9 +354,9 @@ func (c Config) Validate() error {
 			errs = append(errs, errors.New("tee.seed_path required when tee.provider=simulated"))
 		}
 		if c.TEE.TSMReportDir != "" {
-			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp only"))
+			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp and gcp-tdx only"))
 		}
-	case provider == tee.ProviderGCPSEVSNP:
+	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
 		if c.TEE.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
 		}

@@ -1,0 +1,13 @@
+== binaries from gs://rats-probe-vg-tdxrp-20260916t040319z/e2e
+== the Trust Domain: configfs-tsm (tdx_guest)
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== provision (keygen)
+== identities: each daemon reads MRTD and RTMR0..3 from a quote of this Trust Domain
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+== sagvd on TDX
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+== acp-compute on TDX, the real door
+== the gate job over the Return Path
+== metrics
+== stop both; verify the audit log with the published key
+== the Intel PCS documents both verifiers fetched (public), for offline re-verification

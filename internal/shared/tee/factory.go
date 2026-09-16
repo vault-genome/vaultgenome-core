@@ -52,6 +52,12 @@ const (
 	// operator runs their own Provisioning Certificate Caching Service
 	// (PCCS). See intel_sgx_dcap.go.
 	ProviderIntelSGXDCAP Provider = "intel-sgx-dcap"
+
+	// ProviderGCPTDX is the GCP Confidential VMs backend on Intel TDX (c3,
+	// and a3 with an H100 in confidential mode). Quotes come through
+	// configfs-tsm and chain to the Intel SGX Root CA; the platform's TCB
+	// is evaluated against Intel PCS. See gcp_tdx.go.
+	ProviderGCPTDX Provider = "gcp-tdx"
 )
 
 // AllProviders returns every Provider compiled into this binary, in
@@ -63,6 +69,7 @@ func AllProviders() []Provider {
 		ProviderAzureSGX,
 		ProviderGCPSEVSNP,
 		ProviderIntelSGXDCAP,
+		ProviderGCPTDX,
 	}
 }
 
@@ -109,6 +116,7 @@ type ProducerSpec struct {
 	AzureSGX AzureSGXProducerConfig
 	GCPSEV   GCPSEVProducerConfig
 	IntelSGX IntelSGXProducerConfig
+	GCPTDX   GCPTDXProducerConfig
 }
 
 // VerifierSpec is the verifier-side counterpart to ProducerSpec.
@@ -128,6 +136,7 @@ type VerifierSpec struct {
 	AzureSGX AzureSGXVerifierConfig
 	GCPSEV   GCPSEVVerifierConfig
 	IntelSGX IntelSGXVerifierConfig
+	GCPTDX   GCPTDXVerifierConfig
 }
 
 // BuildProducer constructs a Producer for the given Provider. This is the
@@ -159,6 +168,8 @@ func BuildProducer(spec ProducerSpec) (Producer, error) {
 		return NewGCPSEVProducer(spec.GCPSEV)
 	case ProviderIntelSGXDCAP:
 		return NewIntelSGXProducer(spec.IntelSGX)
+	case ProviderGCPTDX:
+		return NewGCPTDXProducer(spec.GCPTDX)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -186,6 +197,8 @@ func BuildVerifier(spec VerifierSpec) (Verifier, error) {
 		return NewGCPSEVVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.GCPSEV)
 	case ProviderIntelSGXDCAP:
 		return NewIntelSGXVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.IntelSGX)
+	case ProviderGCPTDX:
+		return NewGCPTDXVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.GCPTDX)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -216,6 +229,8 @@ func Capability(p Provider) (available bool, reason string) {
 		return gcpSEVCapability()
 	case ProviderIntelSGXDCAP:
 		return intelSGXCapability()
+	case ProviderGCPTDX:
+		return gcpTDXCapability()
 	default:
 		return false, fmt.Sprintf("unknown provider %q", p)
 	}

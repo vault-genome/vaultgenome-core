@@ -138,6 +138,14 @@ type verifierEntry struct {
 	// VCEKCacheDir keeps fetched VCEK certificates between runs so each
 	// chip's certificate is asked of AMD KDS once (KDS rate-limits).
 	VCEKCacheDir string `json:"vcek_cache_dir,omitempty"`
+
+	// TDX (provider "gcp-tdx"): the Intel PCS base URL (a mirror, a
+	// PCCS), the directory the TCB info and QE identity documents are
+	// kept in between runs, and the Intel TCB statuses accepted (default
+	// UpToDate only).
+	PCSURL                string   `json:"pcs_url,omitempty"`
+	PCSCacheDir           string   `json:"pcs_cache_dir,omitempty"`
+	AcceptableTCBStatuses []string `json:"acceptable_tcb_statuses,omitempty"`
 }
 
 // allowListFile is the on-disk JSON schema for
@@ -323,10 +331,12 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 				MinReportedTCB: e.MinReportedTCB,
 				VCEKCacheDir:   e.VCEKCacheDir,
 			}
+		case tee.ProviderGCPTDX:
+			spec.GCPTDX = tee.GCPTDXVerifierConfig{PCSURL: e.PCSURL, PCSCacheDir: e.PCSCacheDir, AcceptableTCBStatuses: e.AcceptableTCBStatuses}
 		default:
 			// Fail closed: a family whose verifier this build cannot run
 			// end to end must not be trusted with key releases.
-			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp)", i, provider)
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx)", i, provider)
 		}
 		specs = append(specs, tee.RegistrySpec{Provider: provider, Spec: spec})
 	}
