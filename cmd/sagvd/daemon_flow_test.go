@@ -101,7 +101,7 @@ func newDaemonFixture(t *testing.T, mutate func(*Config)) *daemonFixture {
 		mutate(&f.cfg)
 	}
 	f.sealed = sealTestGenome(t, f.dir, genomeOptions{})
-	f.genomes = newGenomeJobs(f.cfg, clock)
+	f.genomes = newGenomeJobs(f.cfg, clock, nil)
 	f.audit, _ = newTestAuditWith(t, f.registry)
 	f.authority, err = orchestration.NewAuthority(orchestration.AuthorityOptions{
 		Clock: clock, Signer: store, Sealer: store, Resolver: store, AuthorityKeyID: authKID, RecipientKeyID: sealKID,

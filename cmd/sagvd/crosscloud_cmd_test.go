@@ -175,7 +175,7 @@ func TestOpenEscrows(t *testing.T) {
 		return kid, p, dek
 	}
 	kid, p, dek := envelope(authority.PublicKey())
-	got, err := openEscrows(keyPath, []string{p})
+	got, err := openEscrows(authority, []string{p})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	require.Equal(t, kid, string(got[0].KeyID))
@@ -187,16 +187,15 @@ func TestOpenEscrows(t *testing.T) {
 	garbage := filepath.Join(dir, "garbage.escrow")
 	require.NoError(t, os.WriteFile(garbage, []byte("{"), 0o644))
 	for name, tc := range map[string]struct {
-		key   string
+		key   *ecdh.PrivateKey
 		paths []string
 		want  string
 	}{
-		"no escrow key":   {"", []string{p}, "needs crosscloud.key_escrow_path"},
-		"missing key":     {filepath.Join(dir, "absent"), []string{p}, "key_escrow_path"},
-		"other authority": {keyPath, []string{foreign}, "this authority holds"},
-		"not an envelope": {keyPath, []string{garbage}, "escrow"},
-		"missing file":    {keyPath, []string{filepath.Join(dir, "absent.escrow")}, "no such file"},
-		"twice":           {keyPath, []string{p, p}, "given twice"},
+		"no escrow key":   {nil, []string{p}, "needs crosscloud.key_escrow_path"},
+		"other authority": {authority, []string{foreign}, "this authority holds"},
+		"not an envelope": {authority, []string{garbage}, "escrow"},
+		"missing file":    {authority, []string{filepath.Join(dir, "absent.escrow")}, "no such file"},
+		"twice":           {authority, []string{p, p}, "given twice"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := openEscrows(tc.key, tc.paths)

@@ -5,6 +5,7 @@ package main
 import (
 	"archive/tar"
 	"bytes"
+	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -153,20 +154,24 @@ type GateView struct {
 
 // genomeJobs opens the genomes in genome.bundle_dir for gate jobs.
 type genomeJobs struct {
-	cfg        GenomeConfig
-	escrowPath string
+	cfg GenomeConfig
+	// escrow is the authority's escrow private key, held in memory (it
+	// was unsealed from the TEE at start, ADR 0016); nil when none.
+	escrow     *ecdh.PrivateKey
 	maxPayload uint64
 	clock      shared_time.Clock
 }
 
 // newGenomeJobs wires an opener; nil when gate jobs are not configured.
-func newGenomeJobs(cfg Config, clock shared_time.Clock) *genomeJobs {
+// escrowKey opens <bundle>.escrow envelopes; nil when the authority has
+// no escrow key.
+func newGenomeJobs(cfg Config, clock shared_time.Clock, escrowKey *ecdh.PrivateKey) *genomeJobs {
 	if !cfg.Genome.Enabled() {
 		return nil
 	}
 	return &genomeJobs{
 		cfg:        cfg.Genome,
-		escrowPath: cfg.EscrowKeyPath(),
+		escrow:     escrowKey,
 		maxPayload: cfg.Runtime.MaxPayloadBytes,
 		clock:      clock,
 	}
@@ -406,7 +411,7 @@ func (g *genomeJobs) openKey(root *os.Root, ref genomeRef, bundleName, keyID str
 		}
 		return dek, "key_file", nil
 	}
-	if g.escrowPath == "" {
+	if g.escrow == nil {
 		return nil, "", shared_errors.Structural(CodeGenomeNotFound,
 			"no key_file named and no escrow key configured (genome.key_escrow_path)", nil)
 	}
@@ -423,11 +428,7 @@ func (g *genomeJobs) openKey(root *os.Root, ref genomeRef, bundleName, keyID str
 		return nil, "", shared_errors.Authority(CodeGenomeKeyInvalid,
 			fmt.Sprintf("envelope %s.escrow holds key %s, the bundle is sealed under %s", bundleName, env.KeyID, keyID), nil)
 	}
-	priv, err := escrow.ReadPrivate(g.escrowPath)
-	if err != nil {
-		return nil, "", shared_errors.Authority(CodeGenomeKeyInvalid, fmt.Sprintf("genome.key_escrow_path: %v", err), nil)
-	}
-	dek, err := escrow.Open(env, priv)
+	dek, err := escrow.Open(env, g.escrow)
 	if err != nil {
 		return nil, "", shared_errors.Authority(CodeGenomeKeyInvalid, fmt.Sprintf("envelope %s.escrow: %v", bundleName, err), nil)
 	}

@@ -13,6 +13,39 @@ given release can still open.
 
 ### Added
 
+- **The escrow key is sealed to the release host's TEE**
+  ([ADR-0016](docs/adr/0016-escrow-key-sealed-to-the-release-host.md)) —
+  the SEV-SNP sealer is real: a key the firmware derives for this chip,
+  launch measurement and guest policy (`SNP_GET_DERIVED_KEY` on
+  `/dev/sev-guest`, pure Go), expanded with a label of its own, AES-256-GCM,
+  derived for every call and never stored. `sagvd escrow-provision` makes
+  the authority's escrow key inside its own process and writes it only
+  sealed (`vault-genome/sealed-escrow-key/v1`), with `-recovery-to` wrapped
+  to the operator's recovery key (`vault-genome/escrow-recovery/v1`); `-stdin`
+  re-seals a recovered key on a new host. `acpctl escrow recovery-keygen`
+  and `acpctl escrow recover` are the operator's side. `sagvd` unseals the
+  key in memory at start and refuses a plaintext `key_escrow_path` on a
+  hardware TEE; `sagvd identity` prints `key_escrow_storage`. Config:
+  `tee.sev_guest_device`.
+- **Limits on the primary's word**
+  ([ADR-0017](docs/adr/0017-limits-on-the-primarys-word.md)) — the sentinel
+  attests every record it writes with the primary's TEE
+  (`acpctl sentinel watch --tee`, records carry `attestation`), and
+  `acpctl sentinel identity` prints what the operator pins. The failover
+  policy pins the primary (`primary.kind`, `primary.measurements`,
+  `primary.attestor_public_key` for a simulated one; `acpctl failover issue
+  --primary-kind --primary-measurement --primary-attestor-pub`): a record
+  without a verifying report at a pinned measurement is ignored, so a stolen
+  seed off the chip is silence. `triggers.stopped_grace_seconds`
+  (`--stopped-grace`) bounds how long `stopped` stands the authority down;
+  overdue, it is the trigger `stopped-overdue`. The executor restores
+  nothing past the generation the trigger's record names and declines an
+  outbox that contradicts it. `FAILOVER_DECIDED` and the report carry
+  `primary_measurement_hex`; the report lists `ignored` records.
+- The failover drill kit (`scripts/hardware-test/gcp-failover`) runs the
+  authority on SEV-SNP with its escrow key sealed to the chip, the recovery
+  ceremony, the primary attesting with its chip, and a rogue sentinel with
+  the stolen seed on the standby's chip, declined.
 - **One binary drives the nine stages**
   ([ADR-0015](docs/adr/0015-one-binary-drives-the-nine-stages.md)) — `sagvd`
   takes every gate job through the flow with the library's own
@@ -85,6 +118,17 @@ given release can still open.
 - This changelog.
 
 ### Changed
+
+- `key_escrow_path` (`genome`, `crosscloud`) names the sealed escrow key
+  `sagvd escrow-provision` writes; a raw 32-byte key from
+  `acpctl escrow keygen` is accepted under `tee.insecure_simulation` only.
+- `sagvd failover` loads the authority's keys, the escrow key among them,
+  before it watches, so a key that will not open on this host is known
+  before any trigger.
+- The executor's choice of genome is bounded by the trigger record's last
+  word (ADR 0017): generations after it are set aside.
+- `acpctl recover` takes the 48-byte SEV-SNP launch measurement for a
+  `gcp-sev-snp` envelope, as the chip reports it (it demanded 32 bytes).
 
 - **`release_decision` is schema v2:** `ReasonTrustDenied` and an
   `attestation_id` field, so a denial at Trust Admission is a signed,

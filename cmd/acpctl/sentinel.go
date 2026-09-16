@@ -7,7 +7,9 @@ import (
 	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -22,6 +24,7 @@ import (
 	"github.com/ai-continuity-platform/core/internal/genome/escrow"
 	"github.com/ai-continuity-platform/core/internal/genome/sentinel"
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 )
 
 // sentinelCmd dispatches `acpctl sentinel <keygen|watch>` (ADR 0012): the
@@ -35,6 +38,8 @@ func sentinelCmd(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "keygen":
 		return sentinelKeygenCmd(args[1:], stdout, stderr)
+	case "identity":
+		return sentinelIdentityCmd(args[1:], stdout, stderr)
 	case "watch":
 		return sentinelWatchCmd(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
@@ -48,14 +53,18 @@ func sentinelCmd(args []string, stdout, stderr io.Writer) int {
 }
 
 func printSentinelUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: acpctl sentinel <keygen|watch> [flags]")
+	fmt.Fprintln(w, "usage: acpctl sentinel <keygen|identity|watch> [flags]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  keygen  create the sentinel's signing key (seed file + PEM public key)")
-	fmt.Fprintln(w, "  watch   seal the state as it changes, watch tripwires, report compromise")
+	fmt.Fprintln(w, "  keygen    create the sentinel's signing key (seed file + PEM public key)")
+	fmt.Fprintln(w, "  identity  print the primary TEE's identity (--tee ...) for the operator to pin")
+	fmt.Fprintln(w, "  watch     seal the state as it changes, watch tripwires, report compromise")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The operator pins the sentinel's public key in the failover policy")
 	fmt.Fprintln(w, "(acpctl failover issue --sentinel-pub); the release authority accepts")
-	fmt.Fprintln(w, "nothing from the outbox that this key did not sign.")
+	fmt.Fprintln(w, "nothing from the outbox that this key did not sign. With --tee, every")
+	fmt.Fprintln(w, "record also carries the primary TEE's report over its content, and a")
+	fmt.Fprintln(w, "policy that pins the primary (--primary-kind, --primary-measurement)")
+	fmt.Fprintln(w, "accepts nothing without one (ADR 0017).")
 }
 
 func sentinelKeygenCmd(args []string, stdout, stderr io.Writer) int {
@@ -108,6 +117,120 @@ func readSeed(path string) (ed25519.PrivateKey, error) {
 	return ed25519.NewKeyFromSeed(seed), nil
 }
 
+// teeFlags are the flags that name the primary's TEE, shared by
+// `sentinel identity` and `sentinel watch`.
+type teeFlags struct {
+	kind, seed, descriptor, tsmDir *string
+}
+
+func addTEEFlags(fs *flag.FlagSet) teeFlags {
+	return teeFlags{
+		kind:       fs.String("tee", "", "The primary's TEE: gcp-sev-snp (reports through configfs-tsm) or simulated (a seed signs; tests only)"),
+		seed:       fs.String("tee-seed", "", "simulated only: the 32-byte seed file (mode 0600) that signs its reports"),
+		descriptor: fs.String("workload-descriptor", "sentinel", "simulated only: the descriptor hashed into its measurement"),
+		tsmDir:     fs.String("tsm-report-dir", "", "gcp-sev-snp only: the configfs-tsm report directory (default /sys/kernel/config/tsm/report)"),
+	}
+}
+
+// producer builds the primary's TEE producer, or nil when --tee is unset.
+func (f teeFlags) producer() (tee.Provider, tee.Producer, error) {
+	if *f.kind == "" {
+		return "", nil, nil
+	}
+	provider, err := tee.ParseProvider(*f.kind)
+	if err != nil {
+		return "", nil, fmt.Errorf("--tee: %w", err)
+	}
+	switch provider {
+	case tee.ProviderGCPSEVSNP:
+		p, err := tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: *f.tsmDir})
+		if err != nil {
+			return "", nil, fmt.Errorf("--tee gcp-sev-snp: %w", err)
+		}
+		return provider, p, nil
+	case tee.ProviderSimulated:
+		if *f.seed == "" {
+			return "", nil, errors.New("--tee simulated needs --tee-seed")
+		}
+		seed, err := readSeedBytes(*f.seed)
+		if err != nil {
+			return "", nil, fmt.Errorf("--tee-seed: %w", err)
+		}
+		p, err := tee.NewSimulated([]byte(*f.descriptor), seed)
+		if err != nil {
+			return "", nil, err
+		}
+		return provider, p, nil
+	default:
+		return "", nil, fmt.Errorf("--tee %s: no producer this build can run (supported: gcp-sev-snp, simulated)", provider)
+	}
+}
+
+// readSeedBytes reads a 32-byte seed file, refusing one other users can read.
+func readSeedBytes(path string) ([]byte, error) {
+	key, err := readSeed(path)
+	if err != nil {
+		return nil, err
+	}
+	return key.Seed(), nil
+}
+
+// sentinelIdentity is what `acpctl sentinel identity` prints: what the
+// operator pins with --primary-kind and --primary-measurement.
+type sentinelIdentity struct {
+	TEE                  string `json:"tee"`
+	MeasurementHex       string `json:"measurement_hex"`
+	AttestorPublicKeyPEM string `json:"attestor_public_key_pem,omitempty"`
+	SentinelKeyID        string `json:"sentinel,omitempty"`
+	SentinelPublicKeyPEM string `json:"sentinel_public_key_pem,omitempty"`
+}
+
+func sentinelIdentityCmd(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("sentinel identity", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	tf := addTEEFlags(fs)
+	keyPath := fs.String("key", "", "Also print the sentinel key's ID and public half (seed file, mode 0600)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *tf.kind == "" {
+		fmt.Fprintln(stderr, "acpctl sentinel identity: --tee is required")
+		return 2
+	}
+	provider, producer, err := tf.producer()
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl sentinel identity: %v\n", err)
+		return 1
+	}
+	id := sentinelIdentity{TEE: string(provider), MeasurementHex: hex.EncodeToString(producer.Measurement())}
+	if sim, ok := producer.(*tee.Simulated); ok {
+		pemBytes, err := crypto.PublicKeyPEM(sim.PublicKey())
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl sentinel identity: %v\n", err)
+			return 1
+		}
+		id.AttestorPublicKeyPEM = string(pemBytes)
+	}
+	if *keyPath != "" {
+		key, err := readSeed(*keyPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl sentinel identity: --key: %v\n", err)
+			return 2
+		}
+		pub := key.Public().(ed25519.PublicKey)
+		pemBytes, err := crypto.PublicKeyPEM(crypto.PublicKey(pub))
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl sentinel identity: %v\n", err)
+			return 1
+		}
+		id.SentinelKeyID, id.SentinelPublicKeyPEM = sentinel.KeyID(pub), string(pemBytes)
+	}
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(id)
+	return 0
+}
+
 // sentinelSource adapts a payload source to the sentinel.
 type sentinelSource struct{ payloadSource }
 
@@ -132,11 +255,13 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 		settle       = fs.Duration("settle", 3*time.Second, "How long the state must stay unchanged before it is sealed")
 		probeTimeout = fs.Duration("probe-timeout", 10*time.Second, "How long a probe may run")
 	)
+	tf := addTEEFlags(fs)
 	fs.Var(&tripwires, "tripwire", "A file or directory that must not change (repeatable)")
 	fs.Var(&probes, "probe", "A command that must keep exiting 0, split on spaces (repeatable)")
 	fs.Usage = func() {
 		fmt.Fprintln(stderr, "usage: acpctl sentinel watch {--content-dir DIR | --model REF} --outbox DIR --escrow-to AUTHORITY.pem --key SEED")
 		fmt.Fprintln(stderr, "                             [--tripwire PATH]... [--probe CMD]... [--interval 5s] [--settle 3s] [--parent BUNDLE]")
+		fmt.Fprintln(stderr, "                             [--tee gcp-sev-snp|simulated [--tee-seed SEED] [--tsm-report-dir DIR]]")
 		fmt.Fprintln(stderr)
 		fmt.Fprintln(stderr, "Every tick: check the tripwires; if the state settled into something new, seal it as")
 		fmt.Fprintln(stderr, "the next generation (its key sealed only to the release authority); write a signed")
@@ -171,6 +296,11 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl sentinel watch: --escrow-to: %v\n", err)
 		return 2
 	}
+	attestorKind, attestor, err := tf.producer()
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl sentinel watch: %v\n", err)
+		return 2
+	}
 	src := dirSource(*contentDir)
 	if *modelRef != "" {
 		src = ollamaSource(*modelRef, *ollamaHome)
@@ -188,14 +318,16 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 		wires = append(wires, &sentinel.ProbeWire{Argv: argv, Timeout: *probeTimeout})
 	}
 	cfg := sentinel.Config{
-		Source:   sentinelSource{src},
-		Outbox:   *outbox,
-		Escrow:   escrowPub,
-		Key:      key,
-		Wires:    wires,
-		Interval: *interval,
-		Settle:   *settle,
-		Log:      slog.New(slog.NewJSONHandler(stderr, nil)),
+		Source:       sentinelSource{src},
+		Outbox:       *outbox,
+		Escrow:       escrowPub,
+		Key:          key,
+		Attestor:     attestor,
+		AttestorKind: attestorKind,
+		Wires:        wires,
+		Interval:     *interval,
+		Settle:       *settle,
+		Log:          slog.New(slog.NewJSONHandler(stderr, nil)),
 	}
 	if *parentPath != "" {
 		id, err := bundle.Identify(*parentPath)
@@ -210,10 +342,17 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl sentinel watch: %v\n", err)
 		return 1
 	}
+	if attestor != nil {
+		cfg.Log.Info("sentinel attests every record with the primary's TEE", slog.String("tee", string(attestorKind)), slog.String("measurement_hex", hex.EncodeToString(attestor.Measurement())))
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	res, err := s.Run(ctx)
 	out := map[string]any{"sentinel": s.ID(), "outcome": res.Outcome, "generations_sealed": res.Generations, "last": res.Last}
+	if attestor != nil {
+		out["tee"] = string(attestorKind)
+		out["measurement_hex"] = hex.EncodeToString(attestor.Measurement())
+	}
 	if res.Compromise != nil {
 		out["compromise"] = res.Compromise
 	}

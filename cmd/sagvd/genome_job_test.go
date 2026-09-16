@@ -5,6 +5,7 @@ package main
 import (
 	"archive/tar"
 	"bytes"
+	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 	"github.com/ai-continuity-platform/core/internal/compute/returnpath"
 	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
 	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
+	"github.com/ai-continuity-platform/core/internal/genome/escrow"
 	"github.com/ai-continuity-platform/core/internal/genome/gatejob"
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
@@ -32,9 +34,14 @@ func newTestGenomeJobs(t *testing.T, bundleDir, escrowKey string) *genomeJobs {
 	t.Helper()
 	cfg := DefaultConfig()
 	cfg.Genome.BundleDir = bundleDir
-	cfg.Genome.KeyEscrowPath = escrowKey
 	cfg.Runtime.MaxPayloadBytes = 1 << 20
-	g := newGenomeJobs(cfg, shared_time.NewSystemClock())
+	var priv *ecdh.PrivateKey
+	if escrowKey != "" {
+		var err error
+		priv, err = escrow.ReadPrivate(escrowKey)
+		require.NoError(t, err)
+	}
+	g := newGenomeJobs(cfg, shared_time.NewSystemClock(), priv)
 	require.NotNil(t, g)
 	return g
 }
@@ -210,7 +217,7 @@ func TestGenomeJobs_RefusesWhatItShould(t *testing.T) {
 	require.Equal(t, CodeGenomeTooLarge, shared_errors.CodeOf(err), "refused before the bundle is read")
 
 	// Not configured at all.
-	require.Nil(t, newGenomeJobs(DefaultConfig(), nil))
+	require.Nil(t, newGenomeJobs(DefaultConfig(), nil, nil))
 }
 
 func candidate(genomeID string, out []byte) returnpath.CandidateOutput {

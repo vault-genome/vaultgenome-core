@@ -12,9 +12,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/genome/escrow"
+	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 	"github.com/ai-continuity-platform/core/internal/vault/failover"
@@ -93,23 +95,42 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 	if err := checkDestinationEndpoint(pol.Standby.Endpoint); err != nil {
 		return failoverExitFailed, err
 	}
-	escrowKey, err := escrow.ReadPrivate(cfg.CrossCloud.KeyEscrowPath)
-	if err != nil {
-		return failoverExitFailed, fmt.Errorf("failover: crosscloud.key_escrow_path: %w", err)
-	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	clock := shared_time.NewSystemClock()
+	// The authority's keys, the escrow key unsealed among them: held for
+	// the whole watch, so a key that will not open is known before a
+	// trigger, not at it.
+	mat, err := LoadMaterials(cfg, clock)
+	if err != nil {
+		return failoverExitFailed, err
+	}
+	defer func() { mat.Store.Zeroize(); _ = mat.Close() }()
+	if mat.Escrow == nil {
+		return failoverExitFailed, errors.New("failover: crosscloud.key_escrow_path required: genome keys reach the release authority only through escrow")
+	}
+	logger.Info("failover escrow key", slog.String("escrow_key", escrow.KeyTag(mat.Escrow.PublicKey())), slog.String("storage", mat.EscrowSource))
 
 	// Before watching: the policy stands, is not spent, and names a
 	// standby this authority can verify.
 	if err := preflightFailover(cfg, clock, pol); err != nil {
 		return failoverExitFailed, err
 	}
+	// The verifier for the primary's TEE, when the policy pins it: its
+	// records count only with the chip's report (ADR 0017).
+	primary, err := primaryVerifier(cfg, pol)
+	if err != nil {
+		return failoverExitFailed, err
+	}
 	_, sid := pol.Sentinel()
-	logger.Info("failover armed", slog.Uint64("policy_serial", pol.Serial), slog.String("sentinel", sid),
+	primaryPin := "none: the sentinel's key alone is trusted"
+	if pol.PinsPrimary() {
+		primaryPin = pol.Primary.Kind + " " + strings.Join(pol.Primary.Measurements, ",")
+	}
+	logger.Info("failover armed", slog.Uint64("policy_serial", pol.Serial), slog.String("sentinel", sid), slog.String("primary_tee", primaryPin),
+		slog.Int64("stopped_grace_seconds", pol.Triggers.StoppedGraceSeconds),
 		slog.String("standby", pol.Standby.Kind+" "+pol.Standby.Endpoint), slog.String("outbox", outbox))
 
-	trig, err := failover.NewWatcher(pol, outbox, clock.Now).Watch(ctx, poll, logger)
+	trig, err := failover.NewWatcher(pol, outbox, clock.Now, primary).Watch(ctx, poll, logger)
 	if err != nil {
 		if ctx.Err() != nil {
 			return failoverExitRestored, printFailover(failoverOutput{Report: failover.Report{Status: "stopped", PolicySerial: pol.Serial, Sentinel: sid}}, reportPath)
@@ -119,10 +140,6 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 
 	// A trigger fired: open the audit log again, verified end to end, and
 	// act on it.
-	mat, err := LoadMaterials(cfg, clock)
-	if err != nil {
-		return failoverExitFailed, err
-	}
 	xcc, err := LoadCrossCloudMaterials(cfg, clock)
 	if err != nil {
 		return failoverExitFailed, err
@@ -144,7 +161,7 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 		return failoverExitFailed, err
 	}
 	ex, err := failover.New(failover.Config{
-		Policy: pol, Outbox: outbox, Escrow: escrowKey, Coordinator: coord,
+		Policy: pol, Outbox: outbox, Escrow: mat.Escrow, Primary: primary, Coordinator: coord,
 		Audit: xcc.AuditEmitter, Events: xcc.AuditChain.Events, IDs: xcc.IDGenerator, Clock: clock,
 		Poll: poll, ConfirmWait: confirmWait, Log: logger,
 	})
@@ -177,6 +194,83 @@ func loadFailoverPolicy(op OperatorStopConfig, path string) (failover.Policy, er
 		return failover.Policy{}, fmt.Errorf("failover: -policy: %w", err)
 	}
 	return failover.Parse(raw, ed25519.PublicKey(pub), op.KeyID)
+}
+
+// primaryVerifier builds the verifier for the primary's TEE the policy
+// pins, from the anchors this authority's verifier registry holds for
+// that kind (the AMD chain, KDS mirror and VCEK cache of a SEV-SNP entry)
+// and the measurements — and, for a simulated primary, the attestation
+// key — the policy pins. Nil when the policy pins no primary.
+func primaryVerifier(cfg Config, pol failover.Policy) (tee.Verifier, error) {
+	if !pol.PinsPrimary() {
+		return nil, nil
+	}
+	kind, err := tee.ParseProvider(pol.Primary.Kind)
+	if err != nil {
+		return nil, fmt.Errorf("failover: primary kind: %w", err)
+	}
+	specs, err := loadVerifierSpecs(cfg.CrossCloud.VerifierRegistryPath, cfg.CrossCloud.InsecureSimulatedDestinations)
+	if err != nil {
+		return nil, err
+	}
+	var anchor *tee.VerifierSpec
+	for i := range specs {
+		if specs[i].Provider == kind {
+			anchor = &specs[i].Spec
+		}
+	}
+	if anchor == nil {
+		return nil, fmt.Errorf("failover: the policy pins a %s primary, and this authority's verifier registry has no %s entry to take its anchors from", kind, kind)
+	}
+	measurements := make([]tee.Measurement, 0, len(pol.Primary.Measurements))
+	for _, m := range pol.Primary.Measurements {
+		b, err := hex.DecodeString(m)
+		if err != nil {
+			return nil, fmt.Errorf("failover: primary measurement: %w", err)
+		}
+		measurements = append(measurements, tee.Measurement(b))
+	}
+	switch kind {
+	case tee.ProviderGCPSEVSNP:
+		spec := *anchor
+		spec.ExpectedMeasurement = measurements[0]
+		spec.GCPSEV.AcceptableMeasurements = measurements
+		return tee.BuildVerifier(spec)
+	case tee.ProviderSimulated:
+		// One verifier per measurement; a record verifies under any.
+		verifiers := make([]tee.Verifier, 0, len(measurements))
+		for _, m := range measurements {
+			spec := *anchor
+			spec.AttestorPubKey = crypto.PublicKey(pol.Primary.AttestorPublicKey)
+			spec.ExpectedMeasurement = m
+			v, err := tee.BuildVerifier(spec)
+			if err != nil {
+				return nil, err
+			}
+			verifiers = append(verifiers, v)
+		}
+		return anyVerifier(verifiers), nil
+	default:
+		return nil, fmt.Errorf("failover: the policy pins a %s primary; no verifier this build can run for it (supported: gcp-sev-snp, simulated)", kind)
+	}
+}
+
+// anyVerifier accepts evidence any of its verifiers accepts.
+type anyVerifier []tee.Verifier
+
+func (a anyVerifier) Verify(ev tee.Evidence, nonce tee.Nonce) (tee.Measurement, error) {
+	var last error
+	for _, v := range a {
+		m, err := v.Verify(ev, nonce)
+		if err == nil {
+			return m, nil
+		}
+		last = err
+	}
+	if last == nil {
+		last = errors.New("no verifier")
+	}
+	return nil, last
 }
 
 func preflightFailover(cfg Config, clock shared_time.Clock, pol failover.Policy) error {

@@ -342,12 +342,10 @@ func unsealVault(env *VaultEnvelope, sealed []byte, enclaveSO, sevDev string) ([
 			return nil, fmt.Errorf("gcp-sev-snp: open %s: %w", sevDev, err)
 		}
 		defer func() { _ = dev.Close() }()
-		var measure tee.Measurement
-		if len(env.SEVMeasurement) != 32 {
-			return nil, fmt.Errorf("gcp-sev-snp: sev_measurement must be 32 bytes (got %d)", len(env.SEVMeasurement))
+		if len(env.SEVMeasurement) != 48 {
+			return nil, fmt.Errorf("gcp-sev-snp: sev_measurement must be the 48-byte launch measurement (got %d bytes)", len(env.SEVMeasurement))
 		}
-		copy(measure[:], env.SEVMeasurement)
-		s := tee.NewGCPSEVSealer(dev, measure, env.SEVPolicy)
+		s := tee.NewGCPSEVSealer(dev, tee.Measurement(env.SEVMeasurement), env.SEVPolicy)
 		return s.Unseal(sealed, env.AAD)
 
 	default:

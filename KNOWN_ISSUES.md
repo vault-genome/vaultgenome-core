@@ -190,31 +190,57 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     release and the operator's bundle before it records the restore
     (`CROSS_CLOUD_RESTORE_COMPLETED`, ADR 0011). Live in
     `test/integration/genome_drill_test.go`.
-11. **The release host holds its escrow key, or key files, on disk.** With
-    key escrow (`acpctl genome seal --escrow-to`) a sealing machine keeps no
-    genome key: each is encapsulated to the release authority. The authority's
-    escrow private key (`crosscloud.key_escrow_path`, 0600), or any `-key-file`
-    it is given, is a file on the release host; it is not yet sealed to that
-    host's TEE, whose provider is still `simulated` (#1). At the destination a
-    released genome key is wiped from memory once its restore is signed for.
-12. **Automatic failover trusts the primary until a wire fires (ADR 0012,
-    2026-09-15).** Proven on hardware: two AMD SEV-SNP Confidential VMs
-    (`scripts/hardware-test/gcp-failover`), a real fine-tune attacked on the
-    primary, restored on the standby with the gate EXACT, RTO 16.8 s / RPO
-    9.0 s. The sentinel (`acpctl sentinel watch`) keeps a running
-    model's state sealed and reports compromise, and `sagvd failover` moves the
-    last trustworthy genome to a standby under the operator's signed policy
-    (one policy, one move; the stop list overrides it). The limits:
-    - A compromised primary holds its sentinel's key. It can keep
-      heartbeating, or report `stopped`, so that no failover happens. It
-      cannot send a genome anywhere the policy does not name, and it cannot
-      decrypt one. Detection outside the primary (cloud monitoring, the
-      operator) has to be able to move the model too; the manual path is
-      `sagvd crosscloud-restore -key-escrow`.
+11. **PARTLY RESOLVED (2026-09-16): the escrow key is sealed to the release
+    host's TEE; the other key files are not.** The authority's escrow private
+    key is made inside `sagvd escrow-provision` and written only sealed to
+    the host's TEE — on SEV-SNP with a key the firmware derives for that
+    chip, launch measurement and guest policy (`SNP_GET_DERIVED_KEY`), never
+    stored — and unsealed in memory at start; a plaintext key at
+    `key_escrow_path` is refused on a hardware TEE (ADR 0016). It survives
+    its chip through the operator's recovery envelope
+    (`acpctl escrow recovery-keygen`, `acpctl escrow recover` piped into
+    `sagvd escrow-provision -stdin`). Proven on hardware in the failover
+    drill (`scripts/hardware-test/gcp-failover`). What remains:
+    - The authority's signing seed, audit seed and session-sealing key, and
+      any `-key-file` given to `crosscloud-restore`, are still files on the
+      release host (#1's scope).
+    - The unsealed escrow key sits in the process's memory for its lifetime
+      (Go's `ecdh` keeps its own copy; zeroization on exit covers the
+      keystore, not that object). The host is a confidential VM for that
+      reason.
+    - A restart that lands on another chip, or a new VM image, fails closed
+      until the operator runs the recovery ceremony; nothing re-provisions
+      itself. At the destination a released genome key is wiped from memory
+      once its restore is signed for, as before.
+12. **REDUCED (2026-09-16): the primary's word is bounded (ADR 0017), and a
+    root intruder inside the primary's TEE is still caught only by the
+    wires.** Failover (ADR 0012, proven on hardware: two AMD SEV-SNP
+    Confidential VMs, `scripts/hardware-test/gcp-failover`, a real fine-tune
+    attacked on the primary and restored on the standby with the gate EXACT)
+    now takes the primary's word only with its chip's report on it: the
+    sentinel attests every record it writes (`acpctl sentinel watch --tee`),
+    a policy that pins the primary's TEE (`--primary-kind`,
+    `--primary-measurement`) ignores every record without a verifying report
+    at a pinned measurement, so a stolen sentinel seed used off the chip is
+    silence, and silence is a trigger; `stopped` stands the authority down
+    only for the policy's grace (`--stopped-grace`); and nothing past the
+    generation the trigger's own record names is restored. Proven on
+    hardware: a rogue sentinel with the stolen seed on the standby's real
+    SEV-SNP chip, declined on the record. The limits that remain:
+    - An intruder with root inside the primary's guest holds the seed and
+      the chip. They can keep heartbeating, with the chip's word, until a
+      wire fires. They cannot send a genome anywhere the policy does not
+      name, and cannot decrypt one. Detection outside the primary (cloud
+      monitoring, the operator) has to be able to move the model too; the
+      manual path is `sagvd crosscloud-restore -key-escrow`.
     - The sentinel seals whatever the state directory holds. It cannot tell
       tampering from training: the tripwires, the policy's quarantine window
       and the standby's gate are the defences.
     - The RPO covers only generations that reached the authority's replica of
-      the outbox.
+      the outbox; whoever writes the replica can hide generations, never add
+      one, and the trigger record's last word bounds what is restored.
+    - A verifier that cannot verify (the VCEK cache empty, AMD KDS
+      unreachable) makes every heartbeat silence and fails over on a healthy
+      primary; the runbook says to fill the cache at arm time.
     - The attested standby is a CPU confidential VM. An attested GPU standby
       needs confidential GPUs (H100 CC), a TDX producer and a TDX verifier.

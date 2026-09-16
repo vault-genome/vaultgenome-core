@@ -16,6 +16,7 @@ import (
 
 	"github.com/ai-continuity-platform/core/internal/genome/bundle"
 	"github.com/ai-continuity-platform/core/internal/genome/escrow"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 )
 
 // Source is the state a sentinel keeps sealed.
@@ -39,6 +40,12 @@ type Config struct {
 	Escrow *ecdh.PublicKey
 	// Key signs every record.
 	Key ed25519.PrivateKey
+	// Attestor, when set, is the primary's TEE: every record also carries
+	// its report, bound to the record's content, and AttestorKind names
+	// it (ADR 0017). A policy that pins the primary's measurement accepts
+	// nothing without one.
+	Attestor     tee.Producer
+	AttestorKind tee.Provider
 	// Parent, for an empty outbox, is the genome this state was restored
 	// from: the first generation sealed here follows it.
 	Parent *bundle.Identity
@@ -95,6 +102,8 @@ func New(cfg Config) (*Sentinel, error) {
 		return nil, errors.New("sentinel: interval must be positive")
 	case cfg.Settle < 0:
 		return nil, errors.New("sentinel: settle must not be negative")
+	case (cfg.Attestor == nil) != (cfg.AttestorKind == ""):
+		return nil, errors.New("sentinel: attestor and attestor kind go together")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
@@ -253,7 +262,7 @@ func (s *Sentinel) seal(fp string) error {
 		_ = os.Remove(staged)
 		return err
 	}
-	rec, err := SignRecord(SealRecord{
+	rec := SealRecord{
 		Sentinel:           s.id,
 		Generation:         gen,
 		Bundle:             BundleName(gen),
@@ -265,7 +274,17 @@ func (s *Sentinel) seal(fp string) error {
 		PayloadSHA256:      out.Header.PayloadSHA256,
 		ParentBundleSHA256: out.Header.ParentBundleSHA256,
 		SealedAt:           out.Header.SealedAt,
-	}, s.cfg.Key)
+	}
+	if s.cfg.Attestor != nil {
+		// The chip's word over the record, before the key's: a seal the
+		// chip will not vouch for is not committed.
+		if rec, err = AttestRecord(rec, s.cfg.Attestor, s.cfg.AttestorKind); err != nil {
+			_ = os.Remove(filepath.Join(s.cfg.Outbox, BundleName(gen)))
+			_ = os.Remove(filepath.Join(s.cfg.Outbox, EscrowName(gen)))
+			return err
+		}
+	}
+	rec, err = SignRecord(rec, s.cfg.Key)
 	var raw []byte
 	if err == nil {
 		raw, err = encode(rec)
@@ -295,23 +314,37 @@ func (s *Sentinel) lastLink() *Link {
 	return &l
 }
 
+// heartbeat writes the next heartbeat. With an attestor, a heartbeat the
+// chip will not vouch for is not written: the sequence does not move, the
+// authority sees silence, and a primary whose chip stops answering times
+// out like a dead one.
 func (s *Sentinel) heartbeat(status string) error {
-	s.seq++
-	h, err := SignHeartbeat(Heartbeat{
+	h := Heartbeat{
 		Sentinel:  s.id,
-		Seq:       s.seq,
+		Seq:       s.seq + 1,
 		At:        s.now(),
 		StartedAt: s.started,
 		Status:    status,
 		Last:      s.lastLink(),
 		Wires:     len(s.cfg.Wires),
-	}, s.cfg.Key)
+	}
+	if s.cfg.Attestor != nil {
+		var err error
+		if h, err = AttestHeartbeat(h, s.cfg.Attestor, s.cfg.AttestorKind); err != nil {
+			s.log.Warn("heartbeat not attested by the TEE; not written", slog.String("err", err.Error()))
+			return nil
+		}
+	}
+	h, err := SignHeartbeat(h, s.cfg.Key)
 	var raw []byte
 	if err == nil {
 		raw, err = encode(h)
 	}
 	if err == nil {
 		err = writeAtomic(s.cfg.Outbox, HeartbeatFile, raw, false)
+	}
+	if err == nil {
+		s.seq = h.Seq
 	}
 	return err
 }
@@ -320,12 +353,23 @@ func (s *Sentinel) heartbeat(status string) error {
 // says so. Sealing has already stopped: tick never reaches maybeSeal once
 // a wire fires.
 func (s *Sentinel) compromised(trips []Trip) (Compromise, error) {
-	c, err := SignCompromise(Compromise{
+	c := Compromise{
 		Sentinel:   s.id,
 		DetectedAt: s.now(),
 		Tripped:    trips,
 		Last:       s.lastLink(),
-	}, s.cfg.Key)
+	}
+	if s.cfg.Attestor != nil {
+		// The report is written even if the chip will not vouch for it:
+		// a pinning authority ignores it and times out on the silence
+		// that follows, which is the same failover, later.
+		var err error
+		if c, err = AttestCompromise(c, s.cfg.Attestor, s.cfg.AttestorKind); err != nil {
+			s.log.Warn("compromise report not attested by the TEE; written unattested", slog.String("err", err.Error()))
+			c.Attestation = nil
+		}
+	}
+	c, err := SignCompromise(c, s.cfg.Key)
 	var raw []byte
 	if err == nil {
 		raw, err = encode(c)
