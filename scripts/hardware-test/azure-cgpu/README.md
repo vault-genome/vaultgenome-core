@@ -93,3 +93,11 @@ The Return Path run needs the daemons built for linux/amd64 and
 `returnpath-cgpu.sh`, `gpu-token.py` uploaded to the guest after the
 capture: `sudo env VG_STAMP=<stamp> VG_CAPTURE_STAMP=<stamp> bash
 returnpath-cgpu.sh`.
+
+Since ADR 0021 `gpu-token.py` prints one JSON object — NRAS's response
+under `nras` and, under `gpu_evidence`, the attestation report and
+certificate chain it sent NRAS — and `returnpath-cgpu.sh` sets
+`gpu_policy.evaluation: "both"` on both peers, so each daemon evaluates
+the other's GPU report itself (the manifests it fetches land in
+`rim-cache/` and come back as `cache-rim-*.json`). The recorded Return
+Path run above predates that policy.

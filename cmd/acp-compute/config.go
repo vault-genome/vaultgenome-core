@@ -190,6 +190,22 @@ type GPUPolicyConfig struct {
 	HWModels           []string `json:"hw_models,omitempty"`
 	DriverVersions     []string `json:"driver_versions,omitempty"`
 	VBIOSVersions      []string `json:"vbios_versions,omitempty"`
+	// Evaluation says whose evaluation of the GPU's report the verdict
+	// rests on: "nras" (default) takes NVIDIA's signed tokens; "both"
+	// requires them and the verifier's own evaluation of the attestation
+	// report the evidence carries — the chain to NVIDIA's device root,
+	// the report's signature and nonce, the firmware id, and the runtime
+	// measurements against NVIDIA's reference manifests (ADR 0021).
+	// "own" is refused by this build (the manifests' XML signatures are
+	// not verified). With "both", RIMServiceURL and RIMCacheDir say where
+	// the manifests come from and are kept; the NVIDIA roots are pinned in
+	// the binary unless NVIDIADeviceRootPath / NVIDIARIMRootPath name
+	// other PEM files.
+	Evaluation           string `json:"evaluation,omitempty"`
+	RIMServiceURL        string `json:"rim_service_url,omitempty"`
+	RIMCacheDir          string `json:"rim_cache_dir,omitempty"`
+	NVIDIADeviceRootPath string `json:"nvidia_device_root_path,omitempty"`
+	NVIDIARIMRootPath    string `json:"nvidia_rim_root_path,omitempty"`
 }
 
 func (g *GPUPolicyConfig) policy() tee.GPUClaimsPolicy {
@@ -198,6 +214,42 @@ func (g *GPUPolicyConfig) policy() tee.GPUClaimsPolicy {
 	}
 	return tee.GPUClaimsPolicy{AllowSecureBootOff: g.AllowSecureBootOff, AllowDebug: g.AllowDebug, AllowUnsignedRIM: g.AllowUnsignedRIM,
 		AcceptableHWModels: g.HWModels, AcceptableDriverVersions: g.DriverVersions, AcceptableVBIOSVersions: g.VBIOSVersions}
+}
+
+// validate checks the evaluation named, if any.
+func (g *GPUPolicyConfig) validate() error {
+	if g == nil {
+		return nil
+	}
+	switch g.Evaluation {
+	case "", tee.GPUEvaluationNRAS, tee.GPUEvaluationBoth:
+		return nil
+	case tee.GPUEvaluationOwn:
+		return errors.New("gpu_policy.evaluation \"own\" would rest the verdict on the verifier's evaluation alone, and this build does not verify the manifests' XML signatures; use \"both\"")
+	default:
+		return fmt.Errorf("gpu_policy.evaluation %q (one of nras, both)", g.Evaluation)
+	}
+}
+
+// apply sets the evaluation fields of a verifier config from the policy,
+// reading the root PEM files it names.
+func (g *GPUPolicyConfig) apply(cfg *tee.AzureCGPUVerifierConfig) error {
+	if g == nil {
+		return nil
+	}
+	cfg.GPUEvaluation, cfg.RIMServiceURL, cfg.RIMCacheDir = g.Evaluation, g.RIMServiceURL, g.RIMCacheDir
+	var err error
+	if g.NVIDIADeviceRootPath != "" {
+		if cfg.NVIDIADeviceRootPEM, err = os.ReadFile(g.NVIDIADeviceRootPath); err != nil {
+			return fmt.Errorf("gpu_policy.nvidia_device_root_path: %w", err)
+		}
+	}
+	if g.NVIDIARIMRootPath != "" {
+		if cfg.NVIDIARIMRootPEM, err = os.ReadFile(g.NVIDIARIMRootPath); err != nil {
+			return fmt.Errorf("gpu_policy.nvidia_rim_root_path: %w", err)
+		}
+	}
+	return nil
 }
 
 // supportedProviders are the TEE backends this build can attest with
@@ -417,6 +469,9 @@ func validateTEE(t TEEConfig) []error {
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
 		}
+	}
+	if err := t.Peer.GPUPolicy.validate(); err != nil {
+		errs = append(errs, fmt.Errorf("tee.peer.%w", err))
 	}
 	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderAzureCGPU && (t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil || len(t.Peer.PCRDigests) > 0) {
 		errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir, gpu_policy and pcr_digests apply to an azure-cgpu peer only"))

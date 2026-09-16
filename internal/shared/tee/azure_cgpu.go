@@ -79,6 +79,21 @@ type AzureCGPUVerifierConfig struct {
 	NRASCacheDir string
 	// GPU is the per-GPU claims policy.
 	GPU GPUClaimsPolicy
+	// GPUEvaluation says whose evaluation of the GPU's report the verdict
+	// rests on: GPUEvaluationNRAS (the default) takes NVIDIA's signed
+	// tokens; GPUEvaluationBoth requires them and this verifier's own
+	// evaluation of the report and certificate chain the evidence carries
+	// (nvidia_gpu_report.go, nvidia_rim.go); GPUEvaluationOwn would rest
+	// on the own evaluation alone and is refused by this build, which does
+	// not verify the manifests' XML signatures.
+	GPUEvaluation string
+	// NVIDIADeviceRootPEM and NVIDIARIMRootPEM override the pinned NVIDIA
+	// roots (nvidia_roots.go); RIMServiceURL overrides NVIDIA's RIM
+	// service and RIMCacheDir keeps the manifests fetched.
+	NVIDIADeviceRootPEM []byte
+	NVIDIARIMRootPEM    []byte
+	RIMServiceURL       string
+	RIMCacheDir         string
 	// AcceptablePCRDigests, when set, pins the quote's PCR digest — the
 	// SHA-256 over the selected PCRs' values, as TPM2_Quote computes it —
 	// to one of these, so the OS and driver measured into the vTPM are
@@ -93,6 +108,13 @@ type AzureCGPUVerifierConfig struct {
 	Now func() time.Time
 }
 
+// The evaluations a verifier may be configured for.
+const (
+	GPUEvaluationNRAS = "nras"
+	GPUEvaluationBoth = "both"
+	GPUEvaluationOwn  = "own"
+)
+
 // azureCGPUEvidence is the Evidence envelope.
 type azureCGPUEvidence struct {
 	Schema         string          `json:"schema"`
@@ -100,6 +122,46 @@ type azureCGPUEvidence struct {
 	QuoteMessage   []byte          `json:"quote_message"`
 	QuoteSignature []byte          `json:"quote_signature"`
 	GPUToken       json.RawMessage `json:"gpu_token"`
+	// GPUEvidence is what NVIDIA's service evaluated, one entry per GPU:
+	// the attestation report and the certificate chain, so a verifier can
+	// evaluate them itself. Absent from evidence made by an older producer.
+	GPUEvidence []gpuEvidenceItem `json:"gpu_evidence,omitempty"`
+}
+
+// gpuEvidenceItem is one GPU's raw evidence as NVIDIA's collector hands
+// it out: the SPDM attestation report and the PEM certificate chain,
+// both base64 on the wire.
+type gpuEvidenceItem struct {
+	Report    []byte `json:"evidence"`
+	CertChain []byte `json:"certificate"`
+}
+
+// gpuAttestOutput is the GPU attestation command's output in its full
+// form: NVIDIA's response and the raw evidence it was given. A command
+// that prints NVIDIA's response alone (the older contract) still works;
+// the evidence then carries no gpu_evidence.
+type gpuAttestOutput struct {
+	NRAS        json.RawMessage   `json:"nras"`
+	GPUEvidence []gpuEvidenceItem `json:"gpu_evidence"`
+}
+
+// parseGPUAttestOutput reads the command's output in either form.
+func parseGPUAttestOutput(out []byte) (token json.RawMessage, items []gpuEvidenceItem, err error) {
+	var full gpuAttestOutput
+	if json.Unmarshal(out, &full) == nil && len(full.NRAS) > 0 {
+		token, items = full.NRAS, full.GPUEvidence
+	} else {
+		token = out
+	}
+	if _, err := parseNRASResponse(token); err != nil {
+		return nil, nil, err
+	}
+	for i, it := range items {
+		if len(it.Report) == 0 || len(it.CertChain) == 0 {
+			return nil, nil, fmt.Errorf("gpu_evidence[%d] lacks the report or the certificate chain", i)
+		}
+	}
+	return token, items, nil
 }
 
 // AzureCGPUProducer implements Producer on the guest.
@@ -119,6 +181,7 @@ type AzureCGPUVerifier struct {
 	cfg        AzureCGPUVerifierConfig
 	acceptable []Measurement
 	jwks       *nrasJWKS
+	gpuEval    *GPUEvaluator // nil unless the policy asks for the own evaluation
 
 	mu        sync.Mutex
 	vcekCache map[string][]byte
@@ -133,6 +196,9 @@ type AzureCGPUVerdict struct {
 	PCRSelections []tpmPCRSelection
 	PCRDigest     []byte
 	GPUs          []GPUVerdict
+	// Evaluations are this verifier's own evaluations of the GPUs'
+	// reports, one per gpu_evidence entry, when the policy asked for them.
+	Evaluations []GPUEvaluation
 }
 
 // runCommand runs argv with a timeout and returns stdout; stderr goes
@@ -291,14 +357,15 @@ func (p *AzureCGPUProducer) Quote(nonce Nonce) (Evidence, error) {
 		return nil, fmt.Errorf("azure-cgpu: %w", err)
 	}
 	argv := append(append([]string(nil), p.cfg.GPUAttestCommand...), challengeHex)
-	token, err := runCommand(p.cfg.Timeout, argv...)
+	out, err := runCommand(p.cfg.Timeout, argv...)
 	if err != nil {
 		return nil, fmt.Errorf("azure-cgpu: GPU attestation: %w", err)
 	}
-	if _, err := parseNRASResponse(token); err != nil {
+	token, items, err := parseGPUAttestOutput(out)
+	if err != nil {
 		return nil, fmt.Errorf("azure-cgpu: GPU attestation command output: %w", err)
 	}
-	ev, err := json.Marshal(azureCGPUEvidence{Schema: AzureCGPUEvidenceSchema, HCLReport: p.hcl.Raw, QuoteMessage: quoteMsg, QuoteSignature: quoteSig, GPUToken: token})
+	ev, err := json.Marshal(azureCGPUEvidence{Schema: AzureCGPUEvidenceSchema, HCLReport: p.hcl.Raw, QuoteMessage: quoteMsg, QuoteSignature: quoteSig, GPUToken: token, GPUEvidence: items})
 	if err != nil {
 		return nil, err
 	}
@@ -342,12 +409,32 @@ func NewAzureCGPUVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureCGP
 	if len(acc) == 0 {
 		acc = []Measurement{expected}
 	}
-	return &AzureCGPUVerifier{
+	v := &AzureCGPUVerifier{
 		cfg:        cfg,
 		acceptable: acc,
 		jwks:       &nrasJWKS{url: cfg.NRASJWKSURL, dir: cfg.NRASCacheDir, get: nrasHTTPGet},
 		vcekCache:  map[string][]byte{},
-	}, nil
+	}
+	switch cfg.GPUEvaluation {
+	case "", GPUEvaluationNRAS:
+	case GPUEvaluationOwn:
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			"azure-cgpu: GPUEvaluation \"own\" would rest the verdict on this verifier's evaluation alone, and this build does not verify the manifests' XML signatures; use \"both\"", nil)
+	case GPUEvaluationBoth:
+		device, err := parseNVIDIARoot(cfg.NVIDIADeviceRootPEM, NVIDIADeviceRootPEM)
+		if err != nil {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: NVIDIA device root: "+err.Error(), err)
+		}
+		rimRoot, err := parseNVIDIARoot(cfg.NVIDIARIMRootPEM, NVIDIARIMRootPEM)
+		if err != nil {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: NVIDIA RIM root: "+err.Error(), err)
+		}
+		v.gpuEval = &GPUEvaluator{DeviceRoot: device, RIMRoot: rimRoot, Now: cfg.Now,
+			RIMs: &RIMFetcher{BaseURL: cfg.RIMServiceURL, CacheDir: cfg.RIMCacheDir}}
+	default:
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, fmt.Sprintf("azure-cgpu: GPUEvaluation %q (one of nras, both)", cfg.GPUEvaluation), nil)
+	}
+	return v, nil
 }
 
 // nrasHTTPGet fetches NVIDIA's key set; a var so tests run without network.
@@ -458,6 +545,32 @@ func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPU
 		return nil, integrity(shared_errors.CodeAttestationDenied, "GPU: "+err.Error(), err)
 	}
 
+	// The GPU, evaluated here: the report and chain NVIDIA was given, held
+	// to NVIDIA's roots and manifests by this verifier, for the same
+	// challenge. Every GPU NVIDIA spoke for must be in the evidence, and
+	// what the report says of it must be what NVIDIA said.
+	var evaluations []GPUEvaluation
+	if v.gpuEval != nil {
+		if len(env.GPUEvidence) == 0 {
+			return nil, integrity(shared_errors.CodeAttestationDenied, "GPU: the evidence carries no report to evaluate (gpu_evidence), and the policy requires the verifier's own evaluation", nil)
+		}
+		if len(env.GPUEvidence) != len(gpus) {
+			return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("GPU: %d reports in the evidence, %d GPUs in NVIDIA's tokens", len(env.GPUEvidence), len(gpus)), nil)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		for i, item := range env.GPUEvidence {
+			e := v.gpuEval.Evaluate(ctx, item.Report, item.CertChain, challenge[:])
+			evaluations = append(evaluations, e)
+			if !e.Complete() {
+				return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("GPU %d, own evaluation: %s", i, strings.Join(e.Errors, "; ")), nil)
+			}
+			if e.DriverVersion != gpus[i].DriverVersion || !strings.EqualFold(e.VBIOSVersion, gpus[i].VBIOSVersion) {
+				return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("GPU %d: the report names driver %s and VBIOS %s, NVIDIA's token %s and %s", i, e.DriverVersion, e.VBIOSVersion, gpus[i].DriverVersion, gpus[i].VBIOSVersion), nil)
+			}
+		}
+	}
+
 	// The pin.
 	m, err := MeasurementFromBytes(report.Measurement[:])
 	if err != nil {
@@ -474,7 +587,7 @@ func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPU
 		return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("MEASUREMENT %x not in acceptable set", m), nil)
 	}
 	return &AzureCGPUVerdict{Measurement: m, Product: product, ChipID: report.ChipID, ReportedTCB: report.ReportedTCB,
-		PCRSelections: quote.PCRSelections, PCRDigest: quote.PCRDigest, GPUs: gpus}, nil
+		PCRSelections: quote.PCRSelections, PCRDigest: quote.PCRDigest, GPUs: gpus, Evaluations: evaluations}, nil
 }
 
 // fetchVCEK is the GCP verifier's cache, per product.

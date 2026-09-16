@@ -260,8 +260,11 @@ verify-reproducible).
   announces itself; no AWS Nitro or SGX adapter attests, and a TDX host holds
   no sealed escrow key (no TDX or Azure confidential-GPU sealer). An attested
   GPU has been a Return Path worker and, once, the standby of a failover;
-  the GPU's measurements are NVIDIA's evaluation, verified by NVIDIA's
-  signature, not ours. The largest model measured is 7B, on one GPU and on
+  the GPU's measurements are evaluated by NVIDIA and, under the `both`
+  policy, by this verifier too (the report's signature and chain, the
+  firmware id, every measurement against NVIDIA's manifests, ADR 0021) —
+  what stays NVIDIA's word is the manifests' XML signatures and revocation,
+  so no verdict rests on our evaluation alone. The largest model measured is 7B, on one GPU and on
   an attested confidential GPU VM; every failover number is 0.5B scale. **We
   measured against ourselves that byte-identical float inference across CPU and
   GPU is not achievable** — divergence enters at the first transformer block in

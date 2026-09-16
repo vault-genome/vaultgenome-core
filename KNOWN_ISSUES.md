@@ -74,10 +74,21 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    verifier checks the chip to AMD (Genoa), the quote under the key the
    chip named, and NVIDIA's tokens under NVIDIA's key set with a claims
    policy — proven offline against a genuine capture and live on the
-   Return Path. What it trusts NVIDIA for: the evaluation of the GPU's
-   SPDM report against NVIDIA's reference manifests and revocation; the
-   report and chain are in the evidence, an independent evaluation is not
-   in this build. What it polices only when the operator asks: the vTPM's PCRs
+   Return Path. Since 2026-09-16 (ADR 0021) the verifier also evaluates
+   the GPU's report itself when `gpu_policy.evaluation` is `both`: the
+   SPDM report's structure, nonce and signature, the chain to the NVIDIA
+   Device Identity CA pinned in the binary, the firmware id, and every
+   runtime measurement against the driver and VBIOS reference manifests
+   fetched from NVIDIA's RIM service (their chains verified to the pinned
+   NVIDIA CoRIM signing root, their bytes to the service's SHA-256) —
+   proven offline on the captured H100 report and manifests
+   (`internal/shared/tee/testdata/nvidia`). What it still trusts NVIDIA
+   for: the manifests' XML signatures (an enveloped signature over
+   Canonical XML 1.1, which this build cannot canonicalise without a
+   dependency the policy has not admitted) and revocation (NVIDIA's OCSP);
+   so `own` — the verdict on this verifier's evaluation alone — is refused,
+   and `both` is the strongest policy. What it polices only when the
+   operator asks: the vTPM's PCRs
    (`pcr_digests`, a per-boot digest — the launch measurement covers
    Azure's paravisor and firmware, not the OS). No sealer on that host
    either. A key release to the confidential-GPU destination has run on
