@@ -191,7 +191,7 @@ func TestLoadClientTLS_Refusals(t *testing.T) {
 		"empty bundle":    {TLSConfig{ClientCert: m.clientCert, ClientKey: m.clientKey, CABundle: empty}, "CA bundle empty"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := loadClientTLS(tc.cfg)
+			_, err := loadClientTLS(TEEConfig{}, tc.cfg)
 			require.ErrorContains(t, err, tc.want)
 		})
 	}

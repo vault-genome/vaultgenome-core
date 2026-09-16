@@ -40,6 +40,8 @@ func sentinelCmd(args []string, stdout, stderr io.Writer) int {
 		return sentinelKeygenCmd(args[1:], stdout, stderr)
 	case "identity":
 		return sentinelIdentityCmd(args[1:], stdout, stderr)
+	case "seal-key":
+		return sentinelSealKeyCmd(args[1:], stdout, stderr)
 	case "watch":
 		return sentinelWatchCmd(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
@@ -53,10 +55,11 @@ func sentinelCmd(args []string, stdout, stderr io.Writer) int {
 }
 
 func printSentinelUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: acpctl sentinel <keygen|identity|watch> [flags]")
+	fmt.Fprintln(w, "usage: acpctl sentinel <keygen|identity|seal-key|watch> [flags]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "  keygen    create the sentinel's signing key (seed file + PEM public key)")
 	fmt.Fprintln(w, "  identity  print the primary TEE's identity (--tee ...) for the operator to pin")
+	fmt.Fprintln(w, "  seal-key  seal the seed file in place to the primary's TEE: no seed elsewhere")
 	fmt.Fprintln(w, "  watch     seal the state as it changes, watch tripwires, report compromise")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The operator pins the sentinel's public key in the failover policy")
@@ -100,14 +103,7 @@ func sentinelKeygenCmd(args []string, stdout, stderr io.Writer) int {
 
 // readSeed reads an Ed25519 seed file, refusing one other users can read.
 func readSeed(path string) (ed25519.PrivateKey, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-	if perm := info.Mode().Perm(); perm&0o077 != 0 {
-		return nil, fmt.Errorf("%s is open to other users (mode %04o); chmod 600 it", path, perm)
-	}
-	seed, err := os.ReadFile(path)
+	seed, err := readPrivateFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +116,7 @@ func readSeed(path string) (ed25519.PrivateKey, error) {
 // teeFlags are the flags that name the primary's TEE, shared by
 // `sentinel identity` and `sentinel watch`.
 type teeFlags struct {
-	kind, seed, descriptor, tsmDir *string
+	kind, seed, descriptor, tsmDir, sevDevice *string
 }
 
 func addTEEFlags(fs *flag.FlagSet) teeFlags {
@@ -129,6 +125,7 @@ func addTEEFlags(fs *flag.FlagSet) teeFlags {
 		seed:       fs.String("tee-seed", "", "simulated only: the 32-byte seed file (mode 0600) that signs its reports"),
 		descriptor: fs.String("workload-descriptor", "sentinel", "simulated only: the descriptor hashed into its measurement"),
 		tsmDir:     fs.String("tsm-report-dir", "", "gcp-sev-snp only: the configfs-tsm report directory (default /sys/kernel/config/tsm/report)"),
+		sevDevice:  fs.String("sev-guest-device", "/dev/sev-guest", "gcp-sev-snp only: the sev-guest device a sealed --key is opened through (acpctl sentinel seal-key)"),
 	}
 }
 
@@ -189,7 +186,7 @@ func sentinelIdentityCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("sentinel identity", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	tf := addTEEFlags(fs)
-	keyPath := fs.String("key", "", "Also print the sentinel key's ID and public half (seed file, mode 0600)")
+	keyPath := fs.String("key", "", "Also print the sentinel key's ID and public half (seed file, mode 0600, bare or sealed by seal-key)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -212,7 +209,7 @@ func sentinelIdentityCmd(args []string, stdout, stderr io.Writer) int {
 		id.AttestorPublicKeyPEM = string(pemBytes)
 	}
 	if *keyPath != "" {
-		key, err := readSeed(*keyPath)
+		key, err := readSentinelSeed(*keyPath, tf, provider, producer)
 		if err != nil {
 			fmt.Fprintf(stderr, "acpctl sentinel identity: --key: %v\n", err)
 			return 2
@@ -249,7 +246,7 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 		ollamaHome   = fs.String("ollama-home", defaultOllamaHome(), "Path to OLLAMA root")
 		outbox       = fs.String("outbox", "", "Directory the sentinel writes genomes, escrow envelopes and records to (required)")
 		escrowTo     = fs.String("escrow-to", "", "The release authority's escrow public key (PEM): every genome key is sealed to it (required)")
-		keyPath      = fs.String("key", "", "The sentinel's seed file, mode 0600 (acpctl sentinel keygen) (required)")
+		keyPath      = fs.String("key", "", "The sentinel's seed file, mode 0600 (acpctl sentinel keygen; sealed by seal-key opens with --tee) (required)")
 		parentPath   = fs.String("parent", "", "For an empty outbox: the genome this state was restored from; the chain continues it")
 		interval     = fs.Duration("interval", 5*time.Second, "Time between ticks: tripwires, seal, heartbeat")
 		settle       = fs.Duration("settle", 3*time.Second, "How long the state must stay unchanged before it is sealed")
@@ -261,7 +258,7 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 	fs.Usage = func() {
 		fmt.Fprintln(stderr, "usage: acpctl sentinel watch {--content-dir DIR | --model REF} --outbox DIR --escrow-to AUTHORITY.pem --key SEED")
 		fmt.Fprintln(stderr, "                             [--tripwire PATH]... [--probe CMD]... [--interval 5s] [--settle 3s] [--parent BUNDLE]")
-		fmt.Fprintln(stderr, "                             [--tee gcp-sev-snp|simulated [--tee-seed SEED] [--tsm-report-dir DIR]]")
+		fmt.Fprintln(stderr, "                             [--tee gcp-sev-snp|simulated [--tee-seed SEED] [--tsm-report-dir DIR] [--sev-guest-device DEV]]")
 		fmt.Fprintln(stderr)
 		fmt.Fprintln(stderr, "Every tick: check the tripwires; if the state settled into something new, seal it as")
 		fmt.Fprintln(stderr, "the next generation (its key sealed only to the release authority); write a signed")
@@ -282,7 +279,12 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	key, err := readSeed(*keyPath)
+	attestorKind, attestor, err := tf.producer()
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl sentinel watch: %v\n", err)
+		return 2
+	}
+	key, err := readSentinelSeed(*keyPath, tf, attestorKind, attestor)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl sentinel watch: --key: %v\n", err)
 		return 2
@@ -294,11 +296,6 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl sentinel watch: --escrow-to: %v\n", err)
-		return 2
-	}
-	attestorKind, attestor, err := tf.producer()
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl sentinel watch: %v\n", err)
 		return 2
 	}
 	src := dirSource(*contentDir)

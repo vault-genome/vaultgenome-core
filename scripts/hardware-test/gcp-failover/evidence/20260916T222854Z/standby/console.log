@@ -1,0 +1,31 @@
+== 22:30:27 inputs
+== 22:30:28 provision (keygen), operator stop key, operator recovery key
+== 22:30:29 python runtime (CPU) and base model — the gate runs the model here
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart chrony.service cron.service google-guest-agent.service google-osconfig-agent.service multipathd.service packagekit.service polkit.service rsyslog.service snapd.service ssh.service systemd-journald.service systemd-networkd.service systemd-resolved.service systemd-udevd.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart getty@tty1.service
+ systemctl restart google-startup-scripts.service
+ systemctl restart networkd-dispatcher.service
+ systemctl restart serial-getty@ttyS0.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 18.11it/s]Fetching 10 files: 100%|██████████| 10/10 [00:11<00:00,  1.17s/it]
+== 22:32:06 configfs-tsm (real SEV-SNP reports)
+== 22:32:06 sagvd on SEV-SNP: identity from the chip
+== 22:32:16 the escrow key: made in the authority's process, sealed to this chip, wrapped to the recovery key
+== 22:32:27 the recovery ceremony: the envelope opened with the recovery key, the key re-sealed on this chip
+== 22:32:27 acp-bootstrap on SEV-SNP (destination + gate)
+== 22:32:28 sagvd failover config: verifier registry, allow-list, operator stop, the sealed escrow key
+== 22:32:38 wait for the primary's sentinel key and chip identity, then sign the failover policy pinning both
+no sentinel identity after 15 minutes

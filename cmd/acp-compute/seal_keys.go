@@ -32,19 +32,24 @@ type sealedKeyEntry struct {
 
 // keyFiles are the daemon's key files that seal-keys seals and the daemon
 // opens: name (the config field), path, and the bare length.
-func keyFiles(cfg Config) []struct {
+// keyFile is one secret file the config names: its config name (the
+// name it is sealed under), its path, and its exact length in bytes — 0
+// for a file of any length (PEM keys).
+type keyFile struct {
 	name string
 	path string
 	n    int
-} {
-	return []struct {
-		name string
-		path string
-		n    int
-	}{
+}
+
+func keyFiles(cfg Config) []keyFile {
+	files := []keyFile{
 		{"keys.worker_signing.seed_path", cfg.Keys.WorkerSigning.SeedPath, crypto.Ed25519SeedSize},
 		{"keys.session_sealing.material_path", cfg.Keys.SessionSealing.MaterialPath, crypto.AES256KeySize},
 	}
+	if cfg.Vault.TLS.Enabled && cfg.Vault.TLS.ClientKey != "" {
+		files = append(files, keyFile{"vault.tls.client_key", cfg.Vault.TLS.ClientKey, 0})
+	}
+	return files
 }
 
 // runSealKeysCmd implements `acp-compute seal-keys -config <path>`: every key
@@ -99,7 +104,7 @@ func runSealKeysCmd(args []string, stdout, stderr io.Writer) error {
 			out.AlreadySealed = append(out.AlreadySealed, sealedKeyEntry{Name: f.name, Path: f.path})
 			continue
 		}
-		if len(raw) != f.n {
+		if (f.n > 0 && len(raw) != f.n) || len(raw) == 0 {
 			return fmt.Errorf("seal-keys: %s (%q) must be exactly %d bytes (got %d)", f.name, f.path, f.n, len(raw))
 		}
 		sealed, err := tee.SealSecret(raw, sealer, mat.Provider, measurement, f.name)

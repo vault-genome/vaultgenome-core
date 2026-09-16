@@ -47,6 +47,18 @@ mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
 n=0; while [ ! -d /sys/kernel/config/tsm/report ] && [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done
 { ls -la /sys/kernel/config/tsm/report 2>&1; ls -la /dev/tdx_guest 2>&1; grep -m1 'model name' /proc/cpuinfo; dmesg | grep -i -E "tdx|tsm" | head -20; } > "$OUT/tsm.txt" 2>&1
 
+step "the vTPM (tpm2-tools): acp-bootstrap seals its TLS key and token to it (ADR 0022, 0023)"
+# apt at boot: cloud-init and unattended-upgrades may hold the lock, and
+# the lists may be stale — update, then retry until tpm2-tools are there.
+export DEBIAN_FRONTEND=noninteractive
+for i in $(seq 1 12); do
+  apt-get update -qq >/dev/null 2>&1 || true
+  apt-get install -y -qq tpm2-tools >/dev/null 2>&1 && break
+  sleep 10
+done
+command -v tpm2_createprimary >/dev/null || { echo "tpm2-tools did not install"; false; }
+{ ls -la /dev/tpm0 /dev/tpmrm0 2>&1; tpm2_getcap properties-fixed 2>&1 | grep -A1 -E "TPM2_PT_MANUFACTURER|TPM2_PT_VENDOR_STRING_1" | head -4; } > "$OUT/vtpm.txt" 2>&1
+
 step "python runtime (CPU) and the base model the genome names — the gate runs the model here"
 python_runtime https://download.pytorch.org/whl/cpu
 base_model
@@ -71,6 +83,8 @@ c = {
  "health": {"listen_address": "127.0.0.1:8444"}, "log": {"level": "info", "format": "json"}}
 json.dump(c, open("/root/dest.json", "w"), indent=2)
 PY
+acp-bootstrap seal-keys -config /root/dest.json > "$OUT/dest-seal-keys.json" 2> "$OUT/dest-seal-keys.err"
+echo "acp-bootstrap seal-keys exit=$? sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/dest-seal-keys.json" 2>/dev/null)" >> "$OUT/steps.txt"
 acp-bootstrap identity -config /root/dest.json > "$OUT/destination-identity.json" 2> "$OUT/destination-identity.err"
 echo "acp-bootstrap identity exit=$?" >> "$OUT/steps.txt"
 nohup acp-bootstrap -config /root/dest.json > /root/acp-bootstrap.log 2>&1 &

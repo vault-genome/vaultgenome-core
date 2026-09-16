@@ -169,8 +169,9 @@ the escrow key to the guest's vTPM: `tpm2-tools` on the guest (`apt-get
 install tpm2-tools`; `/dev/tpmrm0` on a GCP `c3` Trust Domain), the key
 held by the vTPM under a policy of this boot's PCRs
 (`tee.vtpm_seal_pcrs`, default sha256:0-14), the recovery ceremony
-unchanged, and `sagvd seal-keys` / `acp-compute seal-keys` seal the
-daemons' other key files the same way (ADR 0023). A TDX host is a worker,
+unchanged, and `sagvd seal-keys` / `acp-compute seal-keys` /
+`acp-bootstrap seal-keys` seal the daemons' other secret files — seeds,
+TLS keys, tokens — the same way (ADR 0023). A TDX host is a worker,
 a destination, or the release
 authority — proven as the authority of a failover in
 [`scripts/hardware-test/failover-tdx-authority/`](../../../scripts/hardware-test/failover-tdx-authority/README.md).

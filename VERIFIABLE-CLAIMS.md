@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -910,9 +910,24 @@ form XMLDSig prescribes to DER outside the signed bytes. So `own` — the
 verdict on this evaluation alone, no NVIDIA service on the path — is
 admitted: the captured evidence passes under it with NVIDIA's tokens
 removed, and the policy's model and version pins are held against the
-report. What this verifier does not check: revocation (NVIDIA's OCSP),
-and under `own` the secure-boot and debug-mode claims only NVIDIA's
-tokens carry — `both` asserts them, `own` says so. A live handshake under
+report. Since later that day the evaluation checks revocation too:
+NVIDIA's OCSP responder is asked about the BROM certificate, the
+Provisioner ICA and the GH100 Identity CA, each by its issuer, with a
+nonce; each answer's delegated responder certificate is verified under
+the issuer and marked for OCSP signing, the answer inside its day, and a
+good answer is kept a day (`gpu_policy.revocation`, default `ocsp`;
+`off` leaves it unchecked, on the record). NVIDIA's answers for the
+captured chain are stored (`internal/shared/tee/testdata/nvidia/ocsp/`,
+provenance in its README) and the evaluation on them is complete with
+`revocation_checked` and `revocation_good` on the record
+([`nvidia_ocsp_test.go`](internal/shared/tee/nvidia_ocsp_test.go): also a
+synthetic responder answering revoked, unknown, without the nonce,
+expired, from a certificate not marked for OCSP signing, or HTTP 500 —
+each refused, nothing but a good answer cached). The per-GPU leaf is not
+served by the responder (it answers `unauthorized` for it); its issuers'
+status stands for it. What this verifier does not check: under `own` the
+secure-boot and debug-mode claims only NVIDIA's tokens carry — `both`
+asserts them, `own` says so. A live handshake under
 `both` on hardware is on the record: run `scripts/hardware-test/azure-cgpu/evidence/20260916T204311Z-returnpath/` — the pinned worker's session opened on the H100 host with the evaluation complete (`vg_tee_attestation_total{provider="azure-cgpu",result="success",role="verify"} 1` in `sagvd-metrics.txt`; a complete evaluation includes both manifests' signatures), the manifests fetched from NVIDIA's service during the handshake (`cache-rim-NV_GPU_DRIVER_GH100_595.71.05.json`, `cache-rim-NV_GPU_VBIOS_1010_0210_886_96009F0004.json`), the 7B genome then restored on the H100 and gated EXACT (`job.json`), 17 audit events verified.
 Since later that day the evaluation is *on* the record, not only behind
 it: a verifier that can say more than a measurement (`tee.DetailedVerifier`;
@@ -1156,10 +1171,65 @@ go test -count=1 -run 'SealKeys|SealedSecret|SealerFor' ./cmd/sagvd/ ./cmd/acp-c
 **Scope.** One run, SEV-SNP; the sealer on TDX and the Azure confidential
 GPU host is the vTPM one of [C23](#c23), the same code path
 (`readSecret` → `tee.OpenSecret`), exercised there for the escrow key
-and here for the key files. Still files on a host: `acp-bootstrap`'s TLS
-key and bearer token, the sentinel's seed on the primary (bounded by the
-chip's report, ADR 0017), and a `-key-file` given to
-`crosscloud-restore`.
+and here for the key files. The sentinel's seed on the primary is sealed
+the same way since later that day (`acpctl sentinel seal-key`, ADR 0023
+amended — see [C25](#c25)), and so are the daemons' TLS keys and tokens
+(`sagvd`'s server key, cross-cloud client key and REST token,
+`acp-compute`'s client key, `acp-bootstrap`'s server key and bearer
+token). Still a file on a host: a `-key-file` given to
+`crosscloud-restore`, the operator's input for one command.
+
+---
+
+<a id="c25"></a>
+### C25 — The sentinel on a live SEV-SNP primary runs from a seed sealed to its chip: sealed in place before the first record, the same key from the sealed file, the drill failed over on its word, and the sealed file taken to another chip does not open
+
+**Claim.** ADR 0023, amended, on hardware: on the failover drill's
+primary (a GCP n2d SEV-SNP VM), `acpctl sentinel seal-key` sealed the
+sentinel's seed in place to the chip's derived key under the name
+`sentinel.seed`; `acpctl sentinel identity` read the same key from the
+sealed file, and `acpctl sentinel watch` ran from it — two generations
+sealed, the attack caught, the compromise report signed on the chip's
+word. The authority failed over on that word. On the standby's chip —
+a real SEV-SNP chip, the wrong one — the sealed file did not open, and
+the bare seed stolen there was declined as in [C14](#c14). On the same
+run the authority ran from its 5 sealed files — its seeds, its mTLS
+server key, its REST API token — and the destination on that host from
+its own sealed TLS key and bearer token (`acp-bootstrap seal-keys`). The
+cross-cloud transport's client key was still bare in this run (sealed
+since by a second `seal-keys` after the failover config is written;
+proven in the next cross-cloud run).
+
+**Evidence.**
+[`scripts/hardware-test/gcp-failover/evidence/20260916T231442Z/`](scripts/hardware-test/gcp-failover/evidence/20260916T231442Z/)
+— `primary/sentinel-seal-key.json`: `tee: gcp-sev-snp`, measurement
+`10f5ac22…4519`, `sealed: true`; `primary/sentinel-identity.json` and
+`primary/sentinel-identity-sealed.json`: the same key `sentinel-aa5c0c595b883fe0` before and
+after; `primary/steps.txt`: `sentinel seal-key exit=0`, `sentinel exit=3`;
+`standby/report.json`: `status: restored`, generation 1, gate
+EXACT, RTO 18.53 s, RPO 9.00 s; `standby/audit-verify.json`: `ok:
+true`, 5 events, tip `17876233…1c5f`; `standby/steps.txt`:
+`stolen sealed seed: acpctl sentinel identity exit=2 (want 2: does not open off the primary's chip): acpctl sentinel identity: --key: /root/stolen.sealed: integrity[signature_invalid]: sealed secret "sentinel.seed": this host does not open it (sealed at 10f5ac22cef1db0a… on gcp-sev-snp): integrity[signature_invalid]: `; `standby/stolen-sealed-identity.err`: `acpctl sentinel identity: --key: /root/stolen.sealed: integrity[signature_invalid]: sealed secret "sentinel.seed": this host does not open it (sealed at 10f5ac22cef1db0a… on gcp-sev-snp): integrity[si`;
+`standby/seal-keys.json`: 5 files sealed (`keys.authority_signing.seed_path`, `keys.session_sealing.material_path`, `keys.audit_signing.seed_path`, `vault.tls.server_key`, `http_api.bearer_token_file`);
+`standby/dest-seal-keys.json`: `http.tls.server_key`, `http.bearer_token_file`.
+In process:
+[`cmd/acpctl/sentinel_seal_test.go`](cmd/acpctl/sentinel_seal_test.go)
+(sealed once, mode 0600, the same key from the sealed file, refused on
+another host and without `--tee`, the watch from the sealed file).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-failover/run.sh <gcp-project> europe-west4-a   # ~25 min: two GCP n2d Milan CVMs
+go test -count=1 -run 'SealKey' ./cmd/acpctl/
+go test -count=1 -run 'SealKeys' ./cmd/sagvd/ ./cmd/acp-compute/ ./cmd/acp-bootstrap/
+```
+
+**Scope.** One run, SEV-SNP (the sentinel's TEEs are `gcp-sev-snp` and
+the simulated one). The seed's word was already bounded by the chip's
+report (ADR 0017, [C14](#c14)); sealing removes the file as a thing to
+steal. Still a file on a host: a `-key-file` given to
+`crosscloud-restore`, the operator's input for one command.
 
 ---
 
@@ -1225,9 +1295,10 @@ sentence we cannot defend.
    NVIDIA's service and, since [C20](#c20), by this verifier as well — the
    report's signature, chain, firmware id and every measurement against
    NVIDIA's signed manifests, offline on the captured report — and the
-   verdict may rest on that evaluation alone (`own`); what stays NVIDIA's
-   word is revocation, and under `own` the secure-boot and debug claims
-   only its tokens carry. The GPU leg ran once, at 0.5B, with an EQUIVALENT
+   verdict may rest on that evaluation alone (`own`), and revocation is
+   asked of NVIDIA's responder with each answer verified here; what stays
+   NVIDIA's word is, under `own`, the secure-boot and debug claims only
+   its tokens carry. The GPU leg ran once, at 0.5B, with an EQUIVALENT
    gate, and so did the TDX leg ([C21](#c21)): each other-family standby
    has taken one key release, once, at 0.5B.
 4. **We do not claim Nitro or SGX verification.** SEV-SNP and Intel TDX only

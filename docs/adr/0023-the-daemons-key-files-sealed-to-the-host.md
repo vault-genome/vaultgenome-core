@@ -66,3 +66,49 @@ key file and is not sealed.
   sealed its three key files in place and ran the whole drill from them —
   identity, escrow provisioning, the recovery ceremony, the failover
   (RTO 22.10 s), the audit verify.
+
+## Amendment (2026-09-16, later): the sentinel's seed on the primary
+
+The one key file this decision left bare was the sentinel's seed on the
+primary — its word bounded by the chip's report (ADR 0017), so a stolen
+seed moves nothing, but a file all the same. Now `acpctl sentinel seal-key
+--key SEED --tee gcp-sev-snp` seals it in place, under the name
+`sentinel.seed`, to the primary's TEE — the chip's derived key on SEV-SNP,
+the simulated TEE's weak key off hardware — after opening it once from the
+sealed form; `acpctl sentinel identity --key` and `acpctl sentinel watch
+--key` take the bare seed or the sealed file, opened with the TEE `--tee`
+names (a sealed file without `--tee` is refused, as is one sealed on
+another host). The failover kit seals the seed right after the operator
+pins the key, keeps a bare copy in the run's private bucket for the
+standby's negative as before, and adds a second negative: the sealed file
+taken to the standby's chip — a real SEV-SNP chip, the wrong one — does
+not open.
+
+Proven on hardware (`scripts/hardware-test/gcp-failover/evidence/20260916T231442Z`,
+VERIFIABLE-CLAIMS C25): the primary sealed the seed, read the same key
+from the sealed file, ran the sentinel from it through the attack; the
+authority failed over on its word (RTO 18.53 s); on the standby's chip the
+sealed file did not open.
+
+## Amendment (2026-09-16, later still): the TLS keys and the tokens
+
+What the daemons read from files beyond their seeds: `sagvd`'s mTLS
+server key (`vault.tls.server_key`), its cross-cloud transport's client
+key (`crosscloud.transport_tls.client_key`) and its REST API token
+(`http_api.bearer_token_file`); `acp-compute`'s mTLS client key
+(`vault.tls.client_key`); `acp-bootstrap`'s TLS server key
+(`http.tls.server_key`) and bearer token (`http.bearer_token_file`).
+Each `seal-keys` command now seals those too — the same sealed-secret
+form, each file under its config name, any length (a PEM key, a token) —
+and each loader takes the bare file or the sealed one: the TLS
+configurations are assembled from bytes read through the daemon's
+`readSecret` (`tls.X509KeyPair`, not `LoadX509KeyPair`), the tokens
+trimmed after opening. `acp-bootstrap` gains `seal-keys -config` and the
+`tee.sev_guest_device` / `tee.vtpm_seal_pcrs` fields its sealer needs.
+
+A file two daemons read must be two files: the hardware kits give a
+destination that shares a host with the authority its own copies of the
+TLS pair and the token before the authority seals its own, and an
+authority hands its destination bare copies taken before sealing. What
+stays a file on a host: a `-key-file` given to `crosscloud-restore`, which
+is the operator's input for one command, not a daemon's key.

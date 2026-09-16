@@ -40,7 +40,10 @@ operator runbook [07](../../../docs/operator/07_failover.md).
 
 1. The standby provisions the authority and publishes its escrow public key.
 2. The primary fine-tunes generation 0 (Qwen2.5-0.5B-Instruct, LoRA r8, 120
-   steps); the sentinel seals it and replicates the outbox.
+   steps); the sentinel seals it and replicates the outbox. Before it
+   starts, the sentinel's seed is sealed in place to the primary's chip
+   (`acpctl sentinel seal-key`, ADR 0023): the sentinel runs from the
+   sealed file, and the operator pins the same key.
 3. The operator signs a failover policy pinning the primary's sentinel key and
    the standby's SEV-SNP measurement, requiring an EQUIVALENT gate. The
    authority arms `sagvd failover`.
@@ -59,7 +62,10 @@ operator runbook [07](../../../docs/operator/07_failover.md).
    own, every record attested by the wrong chip. A second policy watches its
    outbox: the rogue's records are ignored, the silence after the primary's
    last genuine word is the trigger, nothing past that word is trusted, and
-   the decision is declined on the record.
+   the decision is declined on the record. A second negative takes the
+   *sealed* seed file to the standby's chip: a real SEV-SNP chip, the wrong
+   one — `acpctl sentinel identity --key` refuses it (exit 2). The thief
+   who takes the file the sentinel runs from takes nothing.
 
 ## Results — run `20260916T021933Z`
 
@@ -171,6 +177,36 @@ leg as before — `rogue: sagvd failover exit=3 (want 3: declined) status=declin
 No plaintext seed is on the standby's disk after the seal step, and none
 is in the evidence: `seal-keys.json` names the files, `steps.txt` says
 `seal-keys exit=0`.
+
+## The sentinel's seed sealed to the chip — run `20260916T231442Z` (evidence/20260916T231442Z)
+
+The same drill with the sentinel's seed sealed (ADR 0023, amended): right
+after the operator pinned the key, `acpctl sentinel seal-key --key
+/root/sentinel.seed --tee gcp-sev-snp` sealed the seed in place to the
+primary's chip (`primary/sentinel-seal-key.json`: `tee: gcp-sev-snp`,
+measurement `10f5ac22…4519`, `sealed: true`), `acpctl sentinel identity --key`
+read the same key `sentinel-aa5c0c595b883fe0` from the sealed file
+(`primary/sentinel-identity-sealed.json`), and the sentinel ran from it:
+two generations sealed, the attack, the compromise report, exit 3. The
+authority failed over on that word — generation 1 restored and gated
+**EXACT**, RTO **18.53 s**, RPO 9.00 s, 5 audit events
+verified (tip `17876233…1c5f`) — and the two negatives on the standby's chip:
+the bare seed stolen there declined as before (`rogue: sagvd failover exit=3 (want 3: declined) status=declined`), and the sealed
+file taken there refused to open (`stolen sealed seed: acpctl sentinel identity exit=2 (want 2: does not open off the primary's chip): acpctl sentinel identity: --key: /root/stolen.sealed: integrity[signature_invalid]: sealed secret "sentinel.seed": this host does not open it (sealed at 10f5ac22cef1db0a… on gcp-sev-snp): integrity[signature_invalid]: `).
+
+On the standby every secret file was sealed too (ADR 0023, amended
+twice): `sagvd seal-keys` sealed the authority's 5 files —
+`keys.authority_signing.seed_path`, `keys.session_sealing.material_path`, `keys.audit_signing.seed_path`, `vault.tls.server_key`, `http_api.bearer_token_file` — and `acp-bootstrap seal-keys` the destination's own copies
+on the same host — `http.tls.server_key`, `http.bearer_token_file` (`standby/dest-seal-keys.json`); the
+whole drill ran from them. The one file the authority still read bare
+in this run is the cross-cloud transport's client key: the kit sealed
+the base config's files before the failover config that names it was
+written; the kits now seal again after writing it (`seal-keys` skips
+what is sealed), and the next cross-cloud run carries the proof.
+
+No plaintext seed is on the primary's disk after the seal step; the bare
+copy the standby's negative used lived in the run's private bucket,
+deleted with the run. None is in the evidence.
 
 ## Evidence files
 

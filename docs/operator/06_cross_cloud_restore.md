@@ -82,6 +82,7 @@ jq -r .authority_kid authority.json                               # the kid the 
 acp-bootstrap identity -config /etc/acp/acp-bootstrap.json > destination.json
 jq -r .attestor_public_key_pem destination.json > destination-attestor.pem   # give to the source
 jq -r .measurement_hex destination.json                                      # goes on the allow-list
+acp-bootstrap seal-keys -config /etc/acp/acp-bootstrap.json                  # on a hardware TEE: the TLS key and the token sealed in place (ADR 0023)
 ```
 
 Compare the SHA-256 of each file over a second channel before pinning it.

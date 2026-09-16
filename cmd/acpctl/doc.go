@@ -24,7 +24,7 @@
 //     with `sagvd escrow-provision`, wrapped to the recovery key
 //     recovery-keygen makes, and recover opens that envelope off the host
 //     for `sagvd escrow-provision -stdin` on a new one.
-//   - sentinel keygen|identity|watch: on the primary, keep a running model's
+//   - sentinel keygen|identity|seal-key|watch: on the primary, keep a running model's
 //     state sealed generation by generation, attest every record with the
 //     primary's TEE (--tee, ADR 0017), report when a tripwire fires
 //     (ADR 0012); identity prints what the operator pins.
