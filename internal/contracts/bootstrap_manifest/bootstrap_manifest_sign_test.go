@@ -72,3 +72,21 @@ func TestBootstrapManifest_SignWith_MissingSigningKeyID(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(err))
 }
+
+// A verifier handed no key resolver is a malformed call, refused up front
+// as Structural — never a nil dereference inside the signature check.
+func TestBootstrapManifest_VerifySignature_NilResolverRefused(t *testing.T) {
+	t.Parallel()
+	kid := ids.KeyID("nil-resolver-key")
+	store := newRecvStore(t, kid)
+	b := validFixture()
+	b.SigningKeyID = kid
+	b.Signature = nil
+	require.NoError(t, b.SignWith(store))
+
+	err := b.VerifySignature(nil)
+	require.Error(t, err)
+	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
+	require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(err))
+	require.NoError(t, b.VerifySignature(store))
+}

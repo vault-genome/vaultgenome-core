@@ -240,6 +240,13 @@ func (a *ProbeAttestation) SignWith(signer keys.Signer) error {
 // VerifySignature resolves a.SigningKeyID and verifies the stored
 // signature against canonical cover bytes.
 func (a *ProbeAttestation) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"probe_attestation: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := a.CanonicalBytes()
 	if err != nil {
 		return err

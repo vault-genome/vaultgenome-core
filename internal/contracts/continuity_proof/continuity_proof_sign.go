@@ -59,6 +59,13 @@ func (p *ContinuityProof) SignWith(signer keys.Signer) error {
 // (structural + inner AGDs + scorecard + witness receipt + this
 // signature), use Verify.
 func (p *ContinuityProof) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"continuity_proof: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := p.CanonicalBytes()
 	if err != nil {
 		return err

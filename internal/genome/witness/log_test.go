@@ -367,7 +367,6 @@ func TestConsistencyProof_RejectsNewOutOfRange(t *testing.T) {
 // -------------------------------------------------------------------
 
 func TestReceipt_RoundTripVerify(t *testing.T) {
-	t.Skip("KNOWN: STH timestamp uses clock.Now() but covered entries can carry future timestamps — see KNOWN_ISSUES.md §4.")
 	t.Parallel()
 	log, store, _ := newLog(t)
 	entries := appendN(t, log, 5)
@@ -452,7 +451,6 @@ func TestTwoLogs_DifferentContent_DetectedAsFork(t *testing.T) {
 // -------------------------------------------------------------------
 
 func TestInMemoryLog_ConcurrentReadsStayConsistent(t *testing.T) {
-	t.Skip("KNOWN: same root cause as TestReceipt_RoundTripVerify — see KNOWN_ISSUES.md §4.")
 	t.Parallel()
 	log, store, _ := newLog(t)
 	appendN(t, log, 8)

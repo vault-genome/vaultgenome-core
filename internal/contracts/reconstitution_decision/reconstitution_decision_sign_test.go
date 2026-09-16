@@ -74,3 +74,21 @@ func TestReconstitutionDecision_SignWith_MissingSigningKeyID(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(err))
 }
+
+// A verifier handed no key resolver is a malformed call, refused up front
+// as Structural — never a nil dereference inside the signature check.
+func TestReconstitutionDecision_VerifySignature_NilResolverRefused(t *testing.T) {
+	t.Parallel()
+	kid := ids.KeyID("nil-resolver-key")
+	store := newRecvAuthStore(t, kid)
+	r := validAcceptFixture()
+	r.SigningKeyID = kid
+	r.Signature = nil
+	require.NoError(t, r.SignWith(store))
+
+	err := r.VerifySignature(nil)
+	require.Error(t, err)
+	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
+	require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(err))
+	require.NoError(t, r.VerifySignature(store))
+}

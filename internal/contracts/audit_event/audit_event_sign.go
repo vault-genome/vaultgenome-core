@@ -68,6 +68,13 @@ func (e *AuditEvent) SignWith(signer keys.Signer) error {
 //
 // Either failure is returned as an Integrity-classified error.
 func (e *AuditEvent) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"audit_event: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := e.CanonicalBytes()
 	if err != nil {
 		return err

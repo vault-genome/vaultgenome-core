@@ -50,6 +50,13 @@ func (b *BootstrapManifest) SignWith(signer keys.Signer) error {
 // VerifySignature resolves b.SigningKeyID under
 // keys.PurposeSigningAuthority and checks the stored signature.
 func (b *BootstrapManifest) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"bootstrap_manifest: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := b.CanonicalBytes()
 	if err != nil {
 		return err

@@ -252,6 +252,15 @@ func (p *ContinuityProof) validateCrossBindings() error {
 // keystore satisfies both purposes under one object; nothing in this
 // package requires the resolvers to be separate instances.
 func (p *ContinuityProof) Verify(resolver keys.Resolver) error {
+	// A verifier without keys is a malformed call, refused before any
+	// work — never a nil dereference somewhere inside.
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"continuity_proof: key resolver required",
+			nil,
+		)
+	}
 	if err := p.Validate(); err != nil {
 		return err
 	}

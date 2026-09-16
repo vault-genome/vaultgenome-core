@@ -1,79 +1,49 @@
 # Known Issues
 
-Tests temporarily skipped with `t.Skip("KNOWN: …")` plus the
-governing reason. This document is the source of truth; reading it
-gives a complete picture of what is *deferred* (skipped tests) versus
-what is a *known limitation or defect*. The latter are listed candidly
-in "Known limitations & security caveats" below (2026-09-13
-honest-reference audit) — they are real and openly tracked, not hidden.
+Two kinds of entry live here. First, tests that were skipped with
+`t.Skip("KNOWN: …")` and the reason — none remain as of 2026-09-16; the
+record of the eight that were, and what each one turned out to be, is kept
+below so the intent behind them is not lost. Second, the known limitations
+and security caveats of the shipped code, listed candidly in the section
+that follows — they are real and openly tracked, not hidden.
 
-Production code paths exercised by these tests are still covered by
-the integration suite (`core/internal/integration/`) and the
-doctrinal invariants (`core/test/doctrine/`); the skipped tests are
-diagnostic surfaces, not invariant guarantees. Every skipped test is
-mirrored by a passing integration scenario that exercises the same
-code path with different assertions.
+## Skipped tests: none
 
-## Triage table
+Every test in the tree runs. `go test ./...` reports no `KNOWN:` skips; the
+only conditional skips left are for hardware evidence that is not present,
+a worker that is not installed, or a fuzz input that is out of range.
 
-| # | Area | Tests skipped | Symptom | Root cause | Fix path | Phase | Owner |
-|---|---|---|---|---|---|---|---|
-| 1 | `internal/contracts/continuity_proof` | `TestContinuityProof_Verify_TamperedSTHRejected` (`continuity_proof_sign_test.go:137`) | Expected error category `0x4` (Integrity) but got `0x1` (Structural) | The continuity-proof verify path now classifies tampered-STH as Structural before reaching the integrity check. Either the verify pipeline needs to swap order (integrity check first), or the test needs to assert the new classification | Decide spec: should tampered STH be Structural ("payload doesn't parse") or Integrity ("payload parses but doesn't verify")? The latter is doctrinally correct; fix verify-path order accordingly | Phase 2 | tbd |
-| 2 | `internal/contracts/continuity_proof` | `TestContinuityProof_Verify_NilResolverRejected` | Same root cause as #1; nil-resolver path also reports Structural where Integrity was expected | Same fix as #1 | Phase 2 | tbd |
-| 3 | `internal/contracts/witness` | `TestWitnessReceipt_Verify_RoundTrip` (`witness_receipt_test.go:55`) | Cross-field validator rejects test fixture with `sth.timestamp before entry.timestamp` | Test fixtures construct `WitnessReceipt` directly with inconsistent timestamps. The validator is correct (STH must temporally cover all entries it commits to); the fixture violates the invariant | Update fixtures to advance STH timestamp past the latest covered entry; alternatively add an explicit `WithMonotonicTimestamps()` test helper that constructs valid fixtures by default | Phase 2 | tbd |
-| 4 | `internal/contracts/witness` | `TestWitnessReceipt_UnmarshalJSON_RoundTrip` | Same root cause as #3 — fixture-level STH/entry timestamp drift after JSON round-trip | Same fix as #3 plus determinism check on the JSON round-trip path | Phase 2 | tbd |
-| 5 | `internal/contracts/witness` | `TestWitnessReceipt_Validate_TamperedInclusionPath` | Enum mismatch: expected `0x4` got `0x1` on tamper detection path | Inclusion-path tamper now classifies as Structural where Integrity was expected. Same family of issue as #1/#2 | Same as #1 — pick spec, align test | Phase 2 | tbd |
-| 6 | `internal/contracts/witness` | `TestWitnessReceipt_Validate_ChainHeadMismatchAtTail` | Same enum mismatch as #5 | Same as #5 | Phase 2 | tbd |
-| 7 | `internal/genome/witness` | `TestReceipt_RoundTripVerify` (`log_test.go:377`) | STH timestamp lands earlier than covered entries when the log is built with a non-advancing FakeClock | `headLocked` uses `l.clock.Now()`; entries may carry caller-supplied future timestamps. A `max(now, latestEntry.Timestamp)` guard fixes the live test but breaks #3/#4/#5/#6 fixture-validator tests. Needs a coordinated change across both surfaces | Resolve as one PR: (a) introduce STH builder that takes max(now, latestEntry.Timestamp); (b) update §4–§7 fixtures to construct compatible STH/entry pairs; (c) re-enable all five tests in the same commit | Phase 2 | tbd |
-| 8 | `internal/genome/witness` | `TestInMemoryLog_ConcurrentReadsStayConsistent` | Same root cause as #7 — concurrent read flakes when readers race the clock vs writer's caller-supplied timestamp | Same fix as #7 | Phase 2 | tbd |
+### The eight that were skipped, and what they were (resolved 2026-09-16)
 
-## Why these are skipped, not deleted
+| # | Test | What was wrong | What changed |
+|---|---|---|---|
+| 1 | `continuity_proof` `TestContinuityProof_Verify_TamperedSTHRejected` | The test zeroed the STH's `TreeHash`; an all-zero hash for a non-empty tree is a value the STH's shape rules exclude before anything is verified, so the refusal is Structural, as for a wrong-length hash. Shape gates run before cryptographic ones throughout the contracts, on purpose | The test now tampers as an adversary would (a hash of the right shape that does not reconstruct: Integrity) and names the degenerate all-zero case as the Structural refusal it is |
+| 2 | `continuity_proof` `TestContinuityProof_Verify_NilResolverRejected` | A real defect: `Verify(nil)` dereferenced the nil resolver and panicked | Every contract's `VerifySignature`, and `ContinuityProof.Verify`, refuse a nil resolver up front as Structural (`required_field_missing`) |
+| 3 | `witness` `TestWitnessReceipt_Verify_RoundTrip` | The fixture stamped the STH at the base time while the entries it covered were stamped one second apart after it; the receipt validator is right to refuse a head that predates what it commits to | The fixture stamps an STH at its newest covered entry (`coverTime`) |
+| 4 | `witness` `TestWitnessReceipt_UnmarshalJSON_RoundTrip` | Same fixture | Same |
+| 5 | `witness` `TestWitnessReceipt_Validate_TamperedInclusionPath` | Same fixture: the timestamp check fired (Structural) before the tampered path reached the Merkle reconstruction (Integrity) | Same; the test reaches the Merkle gate and asserts Integrity |
+| 6 | `witness` `TestWitnessReceipt_Validate_ChainHeadMismatchAtTail` | Same | Same |
+| 7 | `genome/witness` `TestReceipt_RoundTripVerify` | A real defect: the in-memory log stamped every STH with `clock.Now()`, so a log whose entries carried caller-supplied timestamps ahead of its clock issued heads that predated the entries they covered, and its own receipts failed the receipt contract | `headLocked` stamps an STH at the later of the clock and the newest covered entry; the `Log` interface says so |
+| 8 | `genome/witness` `TestInMemoryLog_ConcurrentReadsStayConsistent` | Same defect, seen by concurrent readers | Same |
 
-Each skipped test asserts an invariant we *want* to hold — either
-exactly as written, or in a slightly relaxed form. Deleting the test
-loses the intent; skipping with the reason string preserves it as a
-TODO embedded in the test body. CI reports skipped counts separately
-from passing counts so the skip total is observable and tracked.
+The classification question the first entry raised is settled as the
+contracts already behave: a value the shape rules exclude is Structural; a
+well-formed value that does not verify is Integrity. No verifier runs over
+input it has not first found well formed.
 
-## What is NOT in this table
-
-These three surfaces are green end-to-end and would catch any
-regression introduced by the same root causes:
+## What covers these paths besides the unit tests
 
 - **Integration scenarios** in `internal/integration/` —
   `TestVerticalSlice` and `TestRoundtripSlice` exercise the same
-  cryptographic primitives and error-classification pipelines that
-  the skipped tests probe. Both pass.
-- **Doctrinal invariants** in `test/doctrine/` — 11 architectural
-  invariants enforced at build / test time. All pass.
+  cryptographic primitives and error-classification pipelines.
+- **Doctrinal invariants** in `test/doctrine/` — the architectural
+  invariants enforced at build / test time, contract shapes among them.
 - **Live daemons** in `test/integration/` — `sagvd`, `acp-compute` and
   `acp-bootstrap` run as real processes over mutual TLS: gate-job round
   trips with the verdict signed, a model that misses its references
-  refused, cross-cloud key release, and the refusals (wrong token, wrong
-  genome key, untrusted certificate, unpinned worker, unlisted or
-  impostor destination).
-
-## Re-enabling
-
-Each entry's "Phase" maps to the Phase 2 backlog (`00_Phase2_Plan.md`,
-to be authored after the seed round closes). When the underlying code
-path is adjusted, the corresponding `t.Skip(...)` line is removed in
-the same PR, the test runs, and the row is deleted from this table.
-
-## Audit posture
-
-These eight skipped tests do not impact:
-
-- The runtime behaviour of `sagvd`, `acp-compute`, or `acpctl`.
-- The signature-verification chain on AuditEvent / DisclosureMessage / ReleaseDecision / SessionObject.
-- The two-tier integrity split (tier-1 wire-hash + tier-2 plaintext-hash).
-- The R-11 swap discipline.
-- Any of the 11 doctrinal invariants enforced in CI.
-- The live-daemon suite in `test/integration/`.
-
-They are all *unit-level diagnostic tests* of fixture construction or
-error-category classification. Phase 2 work picks each up
-deliberately rather than under firefighting pressure.
+  refused, cross-cloud key release, failover, and the refusals (wrong
+  token, wrong genome key, untrusted certificate, unpinned worker, unlisted
+  or impostor destination).
 
 ## Known limitations & security caveats (2026-09-13 honest-reference audit)
 

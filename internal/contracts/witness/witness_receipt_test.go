@@ -29,7 +29,7 @@ func buildReceipt(
 	require.Less(t, leafIndex, len(entries))
 	leaves := leafHashes(entries)
 	path := buildInclusionPath(t, leaves, leafIndex)
-	sth := newSignedSTH(t, store, kid, entries, defaultBaseTime())
+	sth := newSignedSTH(t, store, kid, entries, coverTime(entries))
 
 	receipt := &witness.WitnessReceipt{
 		SchemaVersion: witness.SchemaVersionCurrent,
@@ -45,7 +45,6 @@ func buildReceipt(
 }
 
 func TestWitnessReceipt_Verify_RoundTrip(t *testing.T) {
-	t.Skip("KNOWN: cross-field STH/entry timestamp invariant — see KNOWN_ISSUES.md §3.")
 	t.Parallel()
 	kid := ids.KeyID("witness-op-7")
 	store := newWitnessStore(t, kid)
@@ -85,7 +84,6 @@ func TestWitnessReceipt_Validate_ProofSizeMismatchesSTH(t *testing.T) {
 }
 
 func TestWitnessReceipt_Validate_ChainHeadMismatchAtTail(t *testing.T) {
-	t.Skip("KNOWN: enum mismatch 0x4 vs 0x1 in fixture — see KNOWN_ISSUES.md §3.")
 	t.Parallel()
 	// When the entry IS the tail (index == TreeSize-1), receipt
 	// enforces STH.TreeChainHead == Entry.LeafHash. Swap to mismatch.
@@ -115,7 +113,6 @@ func TestWitnessReceipt_Validate_TamperedEntry(t *testing.T) {
 }
 
 func TestWitnessReceipt_Validate_TamperedInclusionPath(t *testing.T) {
-	t.Skip("KNOWN: enum mismatch 0x4 vs 0x1 in fixture — see KNOWN_ISSUES.md §3.")
 	t.Parallel()
 	kid := ids.KeyID("witness-op-7")
 	store := newWitnessStore(t, kid)
@@ -159,7 +156,6 @@ func TestWitnessReceipt_VerifySignature_RejectsBrokenSTH(t *testing.T) {
 }
 
 func TestWitnessReceipt_UnmarshalJSON_RoundTrip(t *testing.T) {
-	t.Skip("KNOWN: receipt fixture STH timestamp drift — see KNOWN_ISSUES.md §3.")
 	t.Parallel()
 	kid := ids.KeyID("witness-op-7")
 	store := newWitnessStore(t, kid)
@@ -189,4 +185,25 @@ func TestWitnessReceipt_UnmarshalJSON_RejectsUnknownFields(t *testing.T) {
 	err = decoded.UnmarshalJSON(tampered)
 	require.Error(t, err)
 	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
+}
+
+// A verifier handed no key resolver is a malformed call, refused up front
+// as Structural — never a nil dereference inside the signature check.
+func TestWitnessReceipt_Verify_NilResolverRefused(t *testing.T) {
+	t.Parallel()
+	kid := ids.KeyID("witness-op-7")
+	store := newWitnessStore(t, kid)
+	entries := buildChain(t, 2)
+	receipt := buildReceipt(t, store, kid, entries, 1)
+
+	for name, err := range map[string]error{
+		"receipt.Verify":          receipt.Verify(nil),
+		"receipt.VerifySignature": receipt.VerifySignature(nil),
+		"sth.VerifySignature":     receipt.STH.VerifySignature(nil),
+	} {
+		require.Error(t, err, name)
+		require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err), name)
+		require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(err), name)
+	}
+	require.NoError(t, receipt.Verify(store))
 }

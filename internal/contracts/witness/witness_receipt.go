@@ -154,6 +154,13 @@ func (r *WitnessReceipt) Validate() error {
 // that lacks a key resolver can still run the internal-consistency
 // portion of the check.
 func (r *WitnessReceipt) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"witness_receipt: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	return r.STH.VerifySignature(resolver)
 }
 

@@ -48,6 +48,13 @@ func (m *ReconstructionJobManifest) SignWith(signer keys.Signer) error {
 // VerifySignature resolves m.SigningKeyID under
 // keys.PurposeSigningAuthority and checks the stored signature.
 func (m *ReconstructionJobManifest) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"reconstruction_job_manifest: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := m.CanonicalBytes()
 	if err != nil {
 		return err

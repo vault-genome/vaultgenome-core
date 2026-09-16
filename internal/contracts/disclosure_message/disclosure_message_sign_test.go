@@ -112,3 +112,21 @@ func TestDisclosureMessage_VerifySignature_FlippedSignatureRejected(t *testing.T
 	require.Equal(t, shared_errors.CategoryIntegrity, shared_errors.CategoryOf(err),
 		"truncated signature must classify as Integrity")
 }
+
+// A verifier handed no key resolver is a malformed call, refused up front
+// as Structural — never a nil dereference inside the signature check.
+func TestDisclosureMessage_VerifySignature_NilResolverRefused(t *testing.T) {
+	t.Parallel()
+	kid := ids.KeyID("nil-resolver-key")
+	store := newAuthStore(t, kid)
+	d := validFixture()
+	d.SigningKeyID = kid
+	d.Signature = nil
+	require.NoError(t, d.SignWith(store))
+
+	err := d.VerifySignature(nil)
+	require.Error(t, err)
+	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
+	require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(err))
+	require.NoError(t, d.VerifySignature(store))
+}

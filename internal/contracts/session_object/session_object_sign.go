@@ -58,6 +58,13 @@ func (s *SessionObject) SignWith(signer keys.Signer) error {
 // verification returns an Integrity-classified error; an unknown or
 // purpose-mismatched key returns the error classification of the resolver.
 func (s *SessionObject) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"session_object: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	cb, err := s.CanonicalBytes()
 	if err != nil {
 		return err

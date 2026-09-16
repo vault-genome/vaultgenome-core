@@ -214,6 +214,17 @@ func largestPow2Less(n int) int {
 // STH construction helpers
 // -------------------------------------------------------------------
 
+// coverTime is when an STH over entries is issued in these fixtures:
+// the newest entry's timestamp, since a head cannot predate what it
+// commits to (WitnessReceipt.Validate refuses one that does). Empty
+// entries fall back to the base time.
+func coverTime(entries []witness.LogEntry) time.Time {
+	if len(entries) == 0 {
+		return defaultBaseTime()
+	}
+	return entries[len(entries)-1].Timestamp
+}
+
 // newSignedSTH builds a SignedTreeHead covering the given entries,
 // signs it under kid, and returns the populated struct. Empty entries
 // is legal — produces an empty-tree STH.

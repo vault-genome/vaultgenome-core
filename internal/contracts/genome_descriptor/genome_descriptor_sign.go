@@ -75,6 +75,13 @@ func (g *GenomeDescriptor) SignWith(signer keys.Signer) error {
 // or purpose-mismatched key returns the error classification of the
 // resolver (Authority on unknown, Integrity on cross-purpose lookup).
 func (g *GenomeDescriptor) VerifySignature(resolver keys.Resolver) error {
+	if resolver == nil {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"genome_descriptor: key resolver required to verify the signature",
+			nil,
+		)
+	}
 	if err := g.Validate(); err != nil {
 		return err
 	}
