@@ -68,9 +68,30 @@ type Genome struct {
 		Count    int    `json:"count"`
 		Critical int    `json:"critical"`
 		TopK     int    `json:"top_k"`
+		// Integer describes the integer door's references the fixtures
+		// carry (workers/genome, integer.py): the scheme and how far its
+		// logits were from the float ones where the genome was made. Nil
+		// for a genome without them.
+		Integer *IntegerDoor `json:"integer"`
 	} `json:"fixtures"`
 	Runtime map[string]any `json:"runtime"`
 }
+
+// IntegerDoor is what a genome says about its integer door: the scheme
+// the references were computed under and the door's measured fidelity to
+// the float model.
+type IntegerDoor struct {
+	Scheme   string `json:"scheme"`
+	Fidelity struct {
+		Fixtures  int     `json:"fixtures"`
+		Top1Same  int     `json:"top1_same"`
+		MaxAbsErr float64 `json:"max_abs_err"`
+		MaxRelErr float64 `json:"max_rel_err"`
+	} `json:"fidelity"`
+}
+
+// IntegerDoorScheme is the integer door this build knows.
+const IntegerDoorScheme = "vg-integer-door/v1"
 
 type wireTensor struct {
 	DType  string `json:"dtype"`
@@ -87,6 +108,9 @@ type fixtureDoc struct {
 		InputIDs  []int      `json:"input_ids"`
 		TopKIndex []int      `json:"topk_index"`
 		Expected  wireTensor `json:"expected"`
+		// ExpectedInteger is the integer door's output for the fixture,
+		// absent from a genome made without that door.
+		ExpectedInteger *wireTensor `json:"expected_integer"`
 	} `json:"fixtures"`
 }
 
@@ -170,42 +194,104 @@ func ParseFixtures(g Genome, raw []byte) ([]equivalence.Fixture, []Prompt, error
 			return nil, nil, fmt.Errorf("lora: fixture id %q missing or repeated", f.ID)
 		}
 		seen[f.ID] = true
-		var elem int
-		switch equivalence.DType(f.Expected.DType) {
-		case equivalence.F32:
-			elem = 4
-		case equivalence.F64:
-			elem = 8
-		default:
-			return nil, nil, fmt.Errorf("lora: fixture %s: dtype %q", f.ID, f.Expected.DType)
-		}
-		data, err := base64.StdEncoding.DecodeString(f.Expected.RawB64)
+		t, err := f.Expected.tensor(f.ID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("lora: fixture %s: %w", f.ID, err)
+			return nil, nil, err
 		}
-		n := 1
-		for _, d := range f.Expected.Shape {
-			if d < 0 {
-				return nil, nil, fmt.Errorf("lora: fixture %s: negative dimension", f.ID)
-			}
-			n *= d
-		}
-		if len(f.Expected.Shape) == 0 {
-			n = 0
-		}
-		if len(data) != n*elem {
-			return nil, nil, fmt.Errorf("lora: fixture %s: %d raw bytes do not fill shape %v of %s", f.ID, len(data), f.Expected.Shape, f.Expected.DType)
-		}
-		out = append(out, equivalence.Fixture{
-			ID:       f.ID,
-			Critical: f.Critical,
-			Expected: equivalence.Tensor{DType: equivalence.DType(f.Expected.DType), Shape: f.Expected.Shape, Raw: data},
-		})
+		out = append(out, equivalence.Fixture{ID: f.ID, Critical: f.Critical, Expected: t})
 		if len(f.InputIDs) > 0 || len(f.TopKIndex) > 0 {
 			prompts = append(prompts, Prompt{ID: f.ID, InputIDs: f.InputIDs, TopKIndex: f.TopKIndex})
 		}
 	}
 	return out, prompts, nil
+}
+
+// IntegerFixtures reads the fixtures g names and returns the integer
+// door's references, in fixture order; nil, nil for a genome made without
+// the integer door.
+func IntegerFixtures(dir string, g Genome) ([]equivalence.Fixture, error) {
+	raw, err := os.ReadFile(filepath.Join(dir, g.Fixtures.File))
+	if err != nil {
+		return nil, err
+	}
+	return ParseIntegerFixtures(g, raw)
+}
+
+// ParseIntegerFixtures is IntegerFixtures for a fixtures document held in
+// memory: the integer door's references (`expected_integer`), which the
+// door is held to byte for byte on any device. A genome that carries them
+// says so in genome.json (fixtures.integer, the scheme this build knows)
+// and carries one for every fixture; a genome that carries none yields
+// nil, nil. Anything in between is refused.
+func ParseIntegerFixtures(g Genome, raw []byte) ([]equivalence.Fixture, error) {
+	sum := sha256.Sum256(raw)
+	if "sha256:"+hex.EncodeToString(sum[:]) != g.Fixtures.SHA256 {
+		return nil, errors.New("lora: fixtures do not match the genome")
+	}
+	var doc fixtureDoc
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("lora: fixtures: %w", err)
+	}
+	if doc.Schema != FixturesSchema {
+		return nil, fmt.Errorf("lora: fixtures schema %q, want %q", doc.Schema, FixturesSchema)
+	}
+	var with int
+	for _, f := range doc.Fixtures {
+		if f.ExpectedInteger != nil {
+			with++
+		}
+	}
+	switch {
+	case with == 0 && g.Fixtures.Integer == nil:
+		return nil, nil
+	case g.Fixtures.Integer == nil:
+		return nil, errors.New("lora: the fixtures carry integer references genome.json does not describe")
+	case with != len(doc.Fixtures):
+		return nil, fmt.Errorf("lora: %d of %d fixtures carry an integer reference", with, len(doc.Fixtures))
+	case g.Fixtures.Integer.Scheme != IntegerDoorScheme:
+		return nil, fmt.Errorf("lora: integer door scheme %q, want %q", g.Fixtures.Integer.Scheme, IntegerDoorScheme)
+	}
+	out := make([]equivalence.Fixture, 0, len(doc.Fixtures))
+	for _, f := range doc.Fixtures {
+		t, err := f.ExpectedInteger.tensor(f.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, equivalence.Fixture{ID: f.ID, Critical: f.Critical, Expected: t})
+	}
+	return out, nil
+}
+
+// tensor decodes a wire tensor, refusing an unknown dtype, bad base64 or
+// raw bytes that do not fill the shape.
+func (w wireTensor) tensor(id string) (equivalence.Tensor, error) {
+	var elem int
+	switch equivalence.DType(w.DType) {
+	case equivalence.F32:
+		elem = 4
+	case equivalence.F64:
+		elem = 8
+	default:
+		return equivalence.Tensor{}, fmt.Errorf("lora: fixture %s: dtype %q", id, w.DType)
+	}
+	data, err := base64.StdEncoding.DecodeString(w.RawB64)
+	if err != nil {
+		return equivalence.Tensor{}, fmt.Errorf("lora: fixture %s: %w", id, err)
+	}
+	n := 1
+	for _, d := range w.Shape {
+		if d < 0 {
+			return equivalence.Tensor{}, fmt.Errorf("lora: fixture %s: negative dimension", id)
+		}
+		n *= d
+	}
+	if len(w.Shape) == 0 {
+		n = 0
+	}
+	if len(data) != n*elem {
+		return equivalence.Tensor{}, fmt.Errorf("lora: fixture %s: %d raw bytes do not fill shape %v of %s", id, len(data), w.Shape, w.DType)
+	}
+	return equivalence.Tensor{DType: equivalence.DType(w.DType), Shape: w.Shape, Raw: data}, nil
 }
 
 // IDs lists fixture ids in order.

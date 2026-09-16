@@ -25,7 +25,8 @@ import (
 //
 // Protocol (the vg_genome door speaks both forms):
 //
-//	request : {"fixture_ids":["<id>", ...]}
+//	request : {"fixture_ids":["<id>", ...]}                       the model's float kernels
+//	request : {"fixture_ids":["<id>", ...], "door":"integer"}     the integer door
 //	response: {"outputs":{"<id>":{"dtype":"f32","shape":[k],"raw_b64":"..."}, ...}}
 //
 // Every requested id must come back; anything else — a non-zero exit, a
@@ -36,6 +37,9 @@ type BatchedExternalBackend struct {
 	Env     []string      // extra environment for the backend, KEY=VALUE
 	IDs     []string      // every fixture id the gate will ask for
 	Timeout time.Duration // for the whole batch; <=0 uses defaultBatchTimeout
+	// Which names the door the backend should answer with: empty for the
+	// model's float kernels, DoorInteger for the integer door.
+	Which string
 
 	once    sync.Once
 	outputs map[string]equivalence.Tensor
@@ -45,8 +49,12 @@ type BatchedExternalBackend struct {
 
 const defaultBatchTimeout = 30 * time.Minute
 
+// DoorInteger names the integer door in a batch request.
+const DoorInteger = "integer"
+
 type batchRequest struct {
 	FixtureIDs []string `json:"fixture_ids"`
+	Door       string   `json:"door,omitempty"`
 }
 
 type batchResponse struct {
@@ -79,7 +87,7 @@ func (b *BatchedExternalBackend) run() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), to)
 	defer cancel()
-	req, err := json.Marshal(batchRequest{FixtureIDs: b.IDs})
+	req, err := json.Marshal(batchRequest{FixtureIDs: b.IDs, Door: b.Which})
 	if err != nil {
 		b.err = shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "reconstruction: marshal batch request", err)
 		return
@@ -142,4 +150,11 @@ func tail(s string) string {
 // Door builds a ladder Strategy served by this backend.
 func (b *BatchedExternalBackend) Door(rung int, kind StrategyKind, name string, tol equivalence.Tolerance, pol equivalence.Policy) Strategy {
 	return Strategy{Rung: rung, Kind: kind, Name: name, Recompute: b.Recompute, Tol: tol, Pol: pol}
+}
+
+// IntegerDoor builds the fixed-point rung served by an integer-door
+// backend: held byte for byte (tol 0, strict) to refs, the references
+// that arithmetic sealed, not to the ladder's float ones.
+func (b *BatchedExternalBackend) IntegerDoor(rung int, name string, refs []equivalence.Fixture) Strategy {
+	return Strategy{Rung: rung, Kind: KindFixedPoint, Name: name, Recompute: b.Recompute, Tol: ExactTolerance, Pol: equivalence.StrictPolicy(), Fixtures: refs}
 }

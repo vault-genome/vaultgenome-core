@@ -149,10 +149,13 @@ type Prompt struct {
 	TopKIndex []int  `json:"topk_index"`
 }
 
-// Prompts is the prompts.json document.
+// Prompts is the prompts.json document. Integer asks the door for the
+// integer door's outputs as well (integer_outputs in its response): the
+// job's genome carries integer references the authority holds them to.
 type Prompts struct {
 	Schema  string   `json:"schema"`
 	Prompts []Prompt `json:"prompts"`
+	Integer bool     `json:"integer,omitempty"`
 }
 
 // Validate checks the schema and that every prompt has a distinct id, at
@@ -313,39 +316,69 @@ func (w Tensor) ToTensor() (equivalence.Tensor, error) {
 	return equivalence.Tensor{DType: equivalence.DType(w.DType), Shape: append([]int(nil), w.Shape...), Raw: raw}, nil
 }
 
-// DoorResponse is what the door writes to stdout: one output per prompt.
+// DoorResponse is what the door writes to stdout: one output per prompt,
+// and, when the prompts asked for the integer door, its outputs too.
 type DoorResponse struct {
-	Outputs map[string]Tensor `json:"outputs"`
+	Outputs        map[string]Tensor `json:"outputs"`
+	IntegerOutputs map[string]Tensor `json:"integer_outputs,omitempty"`
 }
 
-// DecodeDoorResponse parses the door's stdout and decodes every tensor.
-func DecodeDoorResponse(raw []byte) (map[string]equivalence.Tensor, error) {
+// DecodeDoorResponse parses the door's stdout and decodes every tensor:
+// the float outputs and the integer door's (nil when the door gave none).
+func DecodeDoorResponse(raw []byte) (outputs, integerOutputs map[string]equivalence.Tensor, err error) {
 	var r DoorResponse
 	if err := json.Unmarshal(bytes.TrimSpace(raw), &r); err != nil {
-		return nil, fmt.Errorf("gatejob: door response: %w", err)
+		return nil, nil, fmt.Errorf("gatejob: door response: %w", err)
 	}
 	if len(r.Outputs) == 0 {
-		return nil, errors.New("gatejob: door response carries no outputs")
+		return nil, nil, errors.New("gatejob: door response carries no outputs")
 	}
-	return decodeTensors(r.Outputs)
+	outputs, err = decodeTensors(r.Outputs)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(r.IntegerOutputs) > 0 {
+		integerOutputs, err = decodeTensors(r.IntegerOutputs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("gatejob: integer outputs: %w", err)
+		}
+	}
+	return outputs, integerOutputs, nil
 }
 
 // Output is the worker's candidate output: the door's outputs, bound to
-// the genome they were computed for.
+// the genome they were computed for, and the integer door's when the job
+// asked for them.
 type Output struct {
-	Schema   string            `json:"schema"`
-	GenomeID string            `json:"genome_id"`
-	Outputs  map[string]Tensor `json:"outputs"`
+	Schema         string            `json:"schema"`
+	GenomeID       string            `json:"genome_id"`
+	Outputs        map[string]Tensor `json:"outputs"`
+	IntegerOutputs map[string]Tensor `json:"integer_outputs,omitempty"`
 }
 
-// EncodeOutput renders the outputs canonically.
-func EncodeOutput(genomeID string, outputs map[string]equivalence.Tensor) ([]byte, error) {
+// EncodeOutput renders the outputs canonically; integerOutputs may be nil.
+func EncodeOutput(genomeID string, outputs, integerOutputs map[string]equivalence.Tensor) ([]byte, error) {
 	if strings.TrimSpace(genomeID) == "" {
 		return nil, errors.New("gatejob: output names no genome")
 	}
 	if len(outputs) == 0 {
 		return nil, errors.New("gatejob: no outputs")
 	}
+	wire, err := encodeTensors(outputs)
+	if err != nil {
+		return nil, err
+	}
+	o := Output{Schema: OutputSchema, GenomeID: genomeID, Outputs: wire}
+	if len(integerOutputs) > 0 {
+		if o.IntegerOutputs, err = encodeTensors(integerOutputs); err != nil {
+			return nil, err
+		}
+	}
+	// encoding/json sorts map keys and emits no whitespace: canonical.
+	return json.Marshal(o)
+}
+
+func encodeTensors(outputs map[string]equivalence.Tensor) (map[string]Tensor, error) {
 	wire := make(map[string]Tensor, len(outputs))
 	for id, t := range outputs {
 		if id == "" {
@@ -353,53 +386,73 @@ func EncodeOutput(genomeID string, outputs map[string]equivalence.Tensor) ([]byt
 		}
 		wire[id] = FromTensor(t)
 	}
-	// encoding/json sorts map keys and emits no whitespace: canonical.
-	return json.Marshal(Output{Schema: OutputSchema, GenomeID: genomeID, Outputs: wire})
+	return wire, nil
 }
 
-// DecodeOutput parses a candidate output and decodes every tensor.
-func DecodeOutput(raw []byte) (genomeID string, outputs map[string]equivalence.Tensor, err error) {
+// DecodeOutput parses a candidate output and decodes every tensor; the
+// integer door's outputs are nil when the output carries none.
+func DecodeOutput(raw []byte) (genomeID string, outputs, integerOutputs map[string]equivalence.Tensor, err error) {
 	var o Output
 	if err := decodeStrict(raw, &o); err != nil {
-		return "", nil, fmt.Errorf("gatejob: output: %w", err)
+		return "", nil, nil, fmt.Errorf("gatejob: output: %w", err)
 	}
 	if o.Schema != OutputSchema {
-		return "", nil, fmt.Errorf("gatejob: output schema %q, want %q", o.Schema, OutputSchema)
+		return "", nil, nil, fmt.Errorf("gatejob: output schema %q, want %q", o.Schema, OutputSchema)
 	}
 	if o.GenomeID == "" {
-		return "", nil, errors.New("gatejob: output names no genome")
+		return "", nil, nil, errors.New("gatejob: output names no genome")
 	}
 	if len(o.Outputs) == 0 {
-		return "", nil, errors.New("gatejob: output carries no tensors")
+		return "", nil, nil, errors.New("gatejob: output carries no tensors")
 	}
 	outputs, err = decodeTensors(o.Outputs)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
-	return o.GenomeID, outputs, nil
+	if len(o.IntegerOutputs) > 0 {
+		if integerOutputs, err = decodeTensors(o.IntegerOutputs); err != nil {
+			return "", nil, nil, fmt.Errorf("gatejob: integer outputs: %w", err)
+		}
+	}
+	return o.GenomeID, outputs, integerOutputs, nil
 }
 
 // OutputBudget is the exact size of the Output a worker returns for these
-// fixtures: the encoding depends on the ids, dtypes and shapes only, so an
-// output with the reference's shapes fills the same number of bytes
-// whatever its values. The authority sets the job's ExpectedOutputMaxBytes
-// to it; an output of any other size is refused.
-func OutputBudget(genomeID string, fixtures []equivalence.Fixture) (uint64, error) {
+// fixtures (and, when given, the integer references): the encoding
+// depends on the ids, dtypes and shapes only, so an output with the
+// reference's shapes fills the same number of bytes whatever its values.
+// The authority sets the job's ExpectedOutputMaxBytes to it; an output of
+// any other size is refused.
+func OutputBudget(genomeID string, fixtures, integerFixtures []equivalence.Fixture) (uint64, error) {
 	if len(fixtures) == 0 {
 		return 0, errors.New("gatejob: no fixtures")
 	}
-	blank := make(map[string]equivalence.Tensor, len(fixtures))
-	for _, f := range fixtures {
-		if _, dup := blank[f.ID]; dup {
-			return 0, fmt.Errorf("gatejob: fixture %q listed twice", f.ID)
-		}
-		blank[f.ID] = equivalence.Tensor{DType: f.Expected.DType, Shape: f.Expected.Shape, Raw: make([]byte, len(f.Expected.Raw))}
+	blank, err := blankOutputs(fixtures)
+	if err != nil {
+		return 0, err
 	}
-	out, err := EncodeOutput(genomeID, blank)
+	var blankInteger map[string]equivalence.Tensor
+	if len(integerFixtures) > 0 {
+		if blankInteger, err = blankOutputs(integerFixtures); err != nil {
+			return 0, err
+		}
+	}
+	out, err := EncodeOutput(genomeID, blank, blankInteger)
 	if err != nil {
 		return 0, err
 	}
 	return uint64(len(out)), nil
+}
+
+func blankOutputs(fixtures []equivalence.Fixture) (map[string]equivalence.Tensor, error) {
+	blank := make(map[string]equivalence.Tensor, len(fixtures))
+	for _, f := range fixtures {
+		if _, dup := blank[f.ID]; dup {
+			return nil, fmt.Errorf("gatejob: fixture %q listed twice", f.ID)
+		}
+		blank[f.ID] = equivalence.Tensor{DType: f.Expected.DType, Shape: f.Expected.Shape, Raw: make([]byte, len(f.Expected.Raw))}
+	}
+	return blank, nil
 }
 
 // SortedIDs lists the keys of outputs in order.

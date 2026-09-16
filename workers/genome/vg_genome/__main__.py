@@ -4,8 +4,10 @@
   finetune     train a LoRA adapter and write a genome directory
   replay       re-run a genome's recipe and compare the adapter it yields
   door         answer one gate request (stdin -> stdout) from a restored genome,
-               or, with --stdin-genome, from a genome delivered on stdin
-  measure      recompute every fixture and report fidelity as JSON
+               or, with --stdin-genome, from a genome delivered on stdin; a
+               request naming "door": "integer" is answered by the integer door
+  measure      recompute every fixture and report fidelity as JSON (--door integer:
+               the integer door against its own references and the float ones)
   verify-base  check a base model directory against a genome's manifest
 """
 
@@ -44,6 +46,7 @@ def main(argv=None) -> int:
     ft.add_argument("--device", default="cpu", help="cpu, cuda, mps or auto: where the adapter trains and the fixtures are recorded")
     ft.add_argument("--dtype", default="float32", choices=["float32", "bfloat16", "float16"],
                     help="the base model's dtype, recorded in the recipe (the adapter stays float32)")
+    ft.add_argument("--no-integer-door", action="store_true", help="record no integer-door references in the fixtures")
 
     rp = sub.add_parser("replay", help="re-run a genome's recipe and compare the adapter")
     rp.add_argument("--genome", required=True)
@@ -64,6 +67,9 @@ def main(argv=None) -> int:
     ms.add_argument("--base", required=True)
     ms.add_argument("--device", default="cpu")
     ms.add_argument("--dtype", choices=["float32", "bfloat16", "float16"], help="override the recipe's dtype (a measurement, not the pinned runtime)")
+    ms.add_argument("--door", choices=["float", "integer"], default="float",
+                    help="which door to measure: the model's float kernels, or the integer door against its own references")
+    ms.add_argument("--limit", type=int, default=0, help="measure the first N fixtures only (0: all)")
 
     vb = sub.add_parser("verify-base", help="check a base model directory against a genome's manifest")
     vb.add_argument("--genome", required=True)
@@ -79,7 +85,7 @@ def main(argv=None) -> int:
             a.base, a.data, a.out, base_name=a.base_name, targets=[t for t in a.targets.split(",") if t],
             rank=a.rank, alpha=a.alpha, steps=a.steps, lr=a.lr, max_len=a.max_len, seed=a.seed,
             threads=a.threads, prompts=prompts, top_k=a.top_k, new_tokens=a.new_tokens, critical=a.critical,
-            device=a.device, dtype=a.dtype, log=_log)
+            device=a.device, dtype=a.dtype, integer_door=not a.no_integer_door, log=_log)
         summary = {k: g[k] for k in ("schema", "created_at")}
         summary.update({
             "base_digest": g["base"]["manifest"]["digest"],
@@ -90,6 +96,7 @@ def main(argv=None) -> int:
             "loss_last": g["recipe"]["losses"][-1],
             "train_seconds": g["recipe"]["train_seconds"],
             "fixtures": g["fixtures"]["count"],
+            "integer_door": (g["fixtures"].get("integer") or {}).get("fidelity"),
         })
         print(json.dumps(summary, indent=2))
     elif a.cmd == "replay":
@@ -104,7 +111,7 @@ def main(argv=None) -> int:
         else:
             p.error("door needs --genome DIR or --stdin-genome")
     elif a.cmd == "measure":
-        print(json.dumps(door.measure(a.genome, a.base, a.device, dtype=a.dtype), indent=2))
+        print(json.dumps(door.measure(a.genome, a.base, a.device, dtype=a.dtype, door=a.door, limit=a.limit), indent=2))
     elif a.cmd == "verify-base":
         g = finetune.load_genome(a.genome)
         manifest.verify(a.base, g["base"]["manifest"])

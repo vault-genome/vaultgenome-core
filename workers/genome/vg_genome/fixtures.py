@@ -6,6 +6,10 @@ Each fixture is a prompt with
 * ``expected``: the float32 logits at the last prompt position, gathered at
   the reference model's top-k token indices (the part of the distribution
   that decides what the model says), in the gate's tensor format;
+* ``expected_integer``: the same logits as the integer door computes them
+  (``integer.IntegerModel``) — the reference the integer door is held to
+  byte for byte on any device; the document's ``integer`` section says
+  what that door computes and how far its logits are from the float ones;
 * ``greedy``: the reference greedy continuation, token by token.
 """
 
@@ -24,6 +28,12 @@ from .model import greedy, last_logits
 def tensor_to_wire(t: torch.Tensor) -> dict:
     """The gate's tensor format: dtype, shape, little-endian raw bytes."""
     a = np.ascontiguousarray(t.detach().cpu().numpy().astype("<f4"))
+    return {"dtype": "f32", "shape": list(a.shape), "raw_b64": base64.b64encode(a.tobytes()).decode("ascii")}
+
+
+def array_to_wire(a: np.ndarray) -> dict:
+    """The gate's tensor format for a float32 numpy array."""
+    a = np.ascontiguousarray(a.astype("<f4"))
     return {"dtype": "f32", "shape": list(a.shape), "raw_b64": base64.b64encode(a.tobytes()).decode("ascii")}
 
 
@@ -62,11 +72,45 @@ def build(model, tokenizer, prompts: list, device: torch.device, top_k: int, new
     return {"schema": FIXTURES_SCHEMA, "top_k": top_k, "new_tokens": new_tokens, "fixtures": out}
 
 
+def add_integer(doc: dict, integer_model) -> dict:
+    """Give every fixture of doc the integer door's logits (integer_model,
+    an integer.IntegerModel over the same model) and the document what
+    that door computes and how far its logits are from the float ones."""
+    from . import integer
+
+    fidelity = []
+    for fx in doc["fixtures"]:
+        acc, shift = integer_model.last_accumulator(fx["input_ids"])
+        got = integer_model.scaled(acc, shift, fx["topk_index"]).astype("<f4")
+        fx["expected_integer"] = array_to_wire(got)
+        want = wire_to_array(fx["expected"]).astype(np.float64)
+        diff = np.abs(got.astype(np.float64) - want)
+        fidelity.append({
+            "max_abs_err": float(diff.max()),
+            "max_rel_err": float((diff / np.maximum(np.abs(want), 1e-30)).max()),
+            "top1_same": int(np.argmax(integer_model.scaled(acc, shift, np.arange(integer_model.vocab)))) == fx["topk_index"][0],
+        })
+    doc["integer"] = dict(integer.describe(integer_model.act_bits), fidelity={
+        "fixtures": len(fidelity),
+        "top1_same": sum(f["top1_same"] for f in fidelity),
+        "max_abs_err": max(f["max_abs_err"] for f in fidelity),
+        "max_rel_err": max(f["max_rel_err"] for f in fidelity),
+    })
+    return doc
+
+
 def recompute(model, fixture: dict, device: torch.device) -> torch.Tensor:
     """What a restored model gives for a fixture: its last-position logits
     at the fixture's reference top-k indices."""
     logits = last_logits(model, fixture["input_ids"], device)
     return logits[torch.tensor(fixture["topk_index"], dtype=torch.long)]
+
+
+def recompute_integer(integer_model, fixture: dict) -> np.ndarray:
+    """What the integer door gives for a fixture on this machine: the
+    integer model's last-position logits at the reference top-k indices,
+    float32 — the same bytes on any device."""
+    return integer_model.last_logits(fixture["input_ids"], fixture["topk_index"])
 
 
 def load(path: str) -> dict:

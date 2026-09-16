@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 import torch
 
-from . import GENOME_SCHEMA, determinism, fixtures, lora, manifest
+from . import GENOME_SCHEMA, determinism, fixtures, integer, lora, manifest
 from .data import encode, file_digest, load_jsonl
 from .model import DEFAULT_DTYPE, load_base, torch_dtype
 
@@ -74,13 +74,15 @@ def train(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, 
 def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, targets: list, rank: int = 8,
              alpha: float = 16.0, steps: int = 60, lr: float = 2e-4, max_len: int = 128, seed: int = 1234,
              threads: int = 4, prompts=None, top_k: int = 64, new_tokens: int = 16, critical: int = 4,
-             device: str = "cpu", dtype: str = DEFAULT_DTYPE, log=None) -> dict:
+             device: str = "cpu", dtype: str = DEFAULT_DTYPE, integer_door: bool = True, log=None) -> dict:
     """Train an adapter and write a genome directory:
 
     out_dir/genome.json, adapter/, fixtures.json, data/train.jsonl
 
     device and dtype are recorded in the recipe: the fixtures are the
     model's behaviour there, and the door restores the base in that dtype.
+    With integer_door the fixtures also carry the integer door's logits,
+    the reference that door is held to byte for byte on any device.
     """
     if os.path.exists(out_dir) and os.listdir(out_dir):
         raise FileExistsError(f"{out_dir} exists and is not empty")
@@ -98,6 +100,18 @@ def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, tar
     shutil.copyfile(data_path, os.path.join(out_dir, "data", "train.jsonl"))
 
     fx = fixtures.build(model, tokenizer, prompts or _default_prompts(rows), dev, top_k, new_tokens, critical)
+    if integer_door:
+        # The float model has recorded its references; its integer form
+        # takes the device (a large model fits once, not twice).
+        if log is not None:
+            log("recording the integer door's references")
+        model.to("cpu")
+        integer_model = integer.IntegerModel(model, dev)
+        fixtures.add_integer(fx, integer_model)
+        del integer_model
+        if log is not None:
+            f = fx["integer"]["fidelity"]
+            log(f"integer door: top-1 the same on {f['top1_same']}/{f['fixtures']} fixtures, max abs err {f['max_abs_err']:.3g}")
     fx_path = os.path.join(out_dir, "fixtures.json")
     with open(fx_path, "w", encoding="utf-8") as f:
         json.dump(fx, f, sort_keys=True)
@@ -140,6 +154,7 @@ def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, tar
             "top_k": top_k,
             "new_tokens": new_tokens,
             "kind": f"last-position logits at the reference top-k tokens, float32, computed in {dtype} on {dev.type}",
+            "integer": fx.get("integer"),
         },
         "runtime": determinism.runtime(),
     }

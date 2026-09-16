@@ -302,8 +302,11 @@ point.
   and float64 — a property of the devices' kernels, not of depth, and double
   precision only shrinks it ~16×. Top-1 tokens and top-64 ordering agree 16/16
   regardless. The only byte-portable route is the integer door, which is
-  byte-identical by construction and computes its own arithmetic. See
-  [`scripts/hardware-test/gpu-exact/README.md`](../scripts/hardware-test/gpu-exact/README.md).
+  byte-identical by construction and computes its own arithmetic — built
+  for the real model since ADR 0020 and measured: the same bytes on a Xeon
+  and an L4 at 0.5B and 7B, EXACT at zero tolerance where the float doors
+  fail ([integer-door](../scripts/hardware-test/integer-door/README.md)).
+  See also [`scripts/hardware-test/gpu-exact/README.md`](../scripts/hardware-test/gpu-exact/README.md).
 - **No external security review** has been performed on this code.
 
 The complete list of limits is [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) and

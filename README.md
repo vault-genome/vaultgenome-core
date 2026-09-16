@@ -213,6 +213,12 @@ verify-reproducible).
   finds a working door (pinned float → reproducible float → byte-portable
   integer) or fails closed. Determinism measured on real CPUs (AMD/Intel) and
   GPUs (NVIDIA L4/T4) — `docs/testing/cross-hardware-determinism.md`, ADR 0008.
+  The integer door computes the real model's forward in integer arithmetic
+  (ADR 0020): a genome restored on an Intel Xeon and on an NVIDIA L4 gives
+  **the same bytes**, at 0.5B and at 7B, and at zero tolerance on the GPU
+  the float doors fail while the integer door opens **EXACT** — a different
+  arithmetic with a measured fidelity, the same top-1 token on every fixture
+  ([integer-door](scripts/hardware-test/integer-door)).
 - **A worker that restores the model, judged by the authority** — a job on
   `sagvd`'s REST API names a sealed genome; the authority ships its model side
   sealed over the Return Path, `acp-compute` brings the model back in memory

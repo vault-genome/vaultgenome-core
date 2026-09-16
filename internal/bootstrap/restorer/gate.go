@@ -22,8 +22,9 @@ const GenomePlaceholder = "{genome}"
 // GateConfig has the Restorer prove a restored model works before it signs
 // for it: a backend (the vg_genome door) recomputes the genome's sealed
 // fixtures on this machine, and the equivalence gate holds the outputs to
-// the references — byte-exact first, then within Tolerance. The verdict
-// goes into the receipt the TEE signs.
+// the references — byte-exact first, then within Tolerance, then the
+// integer door byte-exact against its own references when the genome
+// carries them. The verdict goes into the receipt the TEE signs.
 type GateConfig struct {
 	Command     []string // GenomePlaceholder in an argument becomes the restored tree
 	Env         []string // extra environment, KEY=VALUE
@@ -53,15 +54,27 @@ func (cfg *GateConfig) gate(dir string) (*receipt.Gate, error) {
 	if err != nil {
 		return nil, err
 	}
+	integerFixtures, err := lora.IntegerFixtures(dir, g)
+	if err != nil {
+		return nil, err
+	}
 	argv := make([]string, len(cfg.Command))
 	for i, a := range cfg.Command {
 		argv[i] = strings.ReplaceAll(a, GenomePlaceholder, dir)
 	}
 	be := &reconstruction.BatchedExternalBackend{Argv: argv, Env: cfg.Env, IDs: lora.IDs(fixtures), Timeout: cfg.Timeout}
-	res, err := reconstruction.Regenerate(g.Base.Manifest.Digest, fixtures, []reconstruction.Strategy{
+	ladder := []reconstruction.Strategy{
 		be.Door(0, reconstruction.KindPinnedReplay, "pinned replay", reconstruction.ExactTolerance, equivalence.StrictPolicy()),
 		be.Door(1, reconstruction.KindNativeFloat, "native float", cfg.Tolerance, equivalence.Policy{MaxNonCriticalOutliers: cfg.MaxOutliers}),
-	})
+	}
+	// The integer door: a second run of the backend, only when the float
+	// doors did not open — the same bytes on any device, held to the
+	// references the genome's integer door sealed.
+	ib := &reconstruction.BatchedExternalBackend{Argv: argv, Env: cfg.Env, IDs: lora.IDs(fixtures), Timeout: cfg.Timeout, Which: reconstruction.DoorInteger}
+	if integerFixtures != nil {
+		ladder = append(ladder, ib.IntegerDoor(2, "integer", integerFixtures))
+	}
+	res, err := reconstruction.Regenerate(g.Base.Manifest.Digest, fixtures, ladder)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +82,7 @@ func (cfg *GateConfig) gate(dir string) (*receipt.Gate, error) {
 		Fixtures:       len(fixtures),
 		Atol:           cfg.Tolerance.Atol,
 		Rtol:           cfg.Tolerance.Rtol,
-		BackendSeconds: be.Seconds,
+		BackendSeconds: be.Seconds + ib.Seconds,
 	}
 	if res.Opened {
 		out.Level, out.Door = string(res.Verdict.Level), res.Name

@@ -19,6 +19,7 @@ import (
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 )
 
 // Error codes the GenomeReconstructor returns, beside the shared ones.
@@ -239,23 +240,23 @@ func (r *GenomeReconstructor) Reconstruct(
 	if err != nil {
 		return zero, err
 	}
-	outputs, err := gatejob.DecodeDoorResponse(stdout)
+	outputs, integerOutputs, err := gatejob.DecodeDoorResponse(stdout)
 	if err != nil {
 		return zero, shared_errors.Operational(CodeDoorOutputInvalid, "worker: the door's answer does not parse", err)
 	}
 	want := prompts.IDs()
-	if len(outputs) != len(want) {
-		return zero, shared_errors.Operational(
-			CodeDoorOutputInvalid, fmt.Sprintf("worker: the door answered %d outputs for %d prompts", len(outputs), len(want)), nil)
+	if err := coversPrompts("output", outputs, want); err != nil {
+		return zero, err
 	}
-	for _, id := range want {
-		if _, ok := outputs[id]; !ok {
-			return zero, shared_errors.Operational(
-				CodeDoorOutputInvalid, fmt.Sprintf("worker: the door gave no output for prompt %q", id), nil)
+	if prompts.Integer {
+		if err := coversPrompts("integer output", integerOutputs, want); err != nil {
+			return zero, err
 		}
+	} else {
+		integerOutputs = nil // not asked for: not returned, so the output fills its budget
 	}
 
-	out, err := gatejob.EncodeOutput(desc.GenomeID, outputs)
+	out, err := gatejob.EncodeOutput(desc.GenomeID, outputs, integerOutputs)
 	if err != nil {
 		return zero, shared_errors.Operational(CodeDoorOutputInvalid, "worker: cannot encode the door's outputs", err)
 	}
@@ -271,6 +272,21 @@ func (r *GenomeReconstructor) Reconstruct(
 		Bytes:      out,
 		ProducedAt: r.clock.Now(),
 	}, nil
+}
+
+// coversPrompts checks the door answered every prompt, and nothing else.
+func coversPrompts(what string, outputs map[string]equivalence.Tensor, want []string) error {
+	if len(outputs) != len(want) {
+		return shared_errors.Operational(
+			CodeDoorOutputInvalid, fmt.Sprintf("worker: the door answered %d %ss for %d prompts", len(outputs), what, len(want)), nil)
+	}
+	for _, id := range want {
+		if _, ok := outputs[id]; !ok {
+			return shared_errors.Operational(
+				CodeDoorOutputInvalid, fmt.Sprintf("worker: the door gave no %s for prompt %q", what, id), nil)
+		}
+	}
+	return nil
 }
 
 // runDoor runs the door once with request on stdin and returns its

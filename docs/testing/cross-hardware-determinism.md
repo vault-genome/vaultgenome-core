@@ -120,7 +120,10 @@ GPU; separately, an exact int64 GEMM (seed 7) is computed on CPU and GPU. Probe:
    byte-portability guarantee to accelerators: an emergency failover from a CPU
    host onto a GPU host (or between GPU models) still comes up byte-identically on
    the integer path, and the gate certifies the float paths as `EQUIVALENT` where
-   byte-exactness is physically unattainable.
+   byte-exactness is physically unattainable. Measured on the real model on
+   2026-09-16: the LoRA worker's integer door (ADR 0020) gave the same bytes on
+   an Intel Xeon and an NVIDIA L4 for a 0.5B and a 7B genome
+   (`scripts/hardware-test/integer-door`).
 
 ## Reproduction
 

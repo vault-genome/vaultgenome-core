@@ -61,12 +61,14 @@ the token agreement.)
 **Conclusion.** "EXACT CPU→GPU" has a precise, honest meaning: EXACT on the
 pinned runtime (door 0), EQUIVALENT via native float across devices (door 1,
 behaviourally identical — same tokens), and byte-portable via the integer door
-(a deterministic-availability guarantee, its own arithmetic). Reimplementing a
-whole real model's forward in fixed-point would extend the integer door to the
-full model, but it buys byte-identity of an equivalent computation the gate
-already accepts — low return over the measured native-float EQUIVALENT. The
-open frontier for byte-identical *float* across accelerators is correct-rounding
-libraries (RepDL/ReproBLAS), tracked in
+(a deterministic-availability guarantee, its own arithmetic). Since ADR 0020
+the integer door computes the whole real model's forward — every layer of a
+Llama-family transformer with its LoRA delta, in integer arithmetic — and is
+held byte for byte to references sealed with the genome
+([integer-door](../integer-door/README.md)); what it buys is identity of the
+restored model across devices, not identity with the float model's own bytes,
+which (1) shows is impossible. The open frontier for byte-identical *float*
+across accelerators is correct-rounding libraries (RepDL/ReproBLAS), tracked in
 [`docs/prior-art-and-attribution.md`](../../../docs/prior-art-and-attribution.md).
 
 ## Evidence

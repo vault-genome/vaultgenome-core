@@ -260,9 +260,21 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     whose recipe computed in bfloat16 is held to, chosen by the genome's
     `recipe.dtype` and part of the policy version every session is pinned
     to — and `acpctl genome gate --atol/--rtol` for a local gate; nothing
-    is relaxed by default. What is still missing is the integer door for
-    the LoRA worker (ADR 0008 has it for the demo model only), the
-    byte-portable route. Until then a bfloat16 genome across devices is
-    **FAIL** under the float32 tolerance or EQUIVALENT under a bfloat16
-    tolerance the operator signed for — the honest reading of the tensors,
-    not a defect of the gate.
+    is relaxed by default. Since 2026-09-16 the byte-portable route
+    exists for the real model: the integer door (ADR 0020,
+    `workers/genome/vg_genome/integer.py`), held to references the genome
+    seals, opened EXACT on an L4 at zero tolerance where both float doors
+    failed, and byte-identical CPU↔GPU at 0.5B and 7B
+    (`scripts/hardware-test/integer-door`, VERIFIABLE-CLAIMS C19). What
+    remains honest about it: the integer door is a *different model*
+    (int8 weights, 14-bit activations, its own exponential) whose
+    fidelity to the float model is measured and recorded, not assumed —
+    on the two genomes measured the top-1 token was the same on every
+    fixture and the logits differed by up to 2.7 (0.5B) and 1.3 (7B) on
+    fine-tunes that drove them to magnitudes of tens; an operator who
+    relies on it across hardware relies on that fidelity, which the
+    gate's semantic dimension (top-1 agreement) checks. A bfloat16 genome
+    across devices is therefore **FAIL** under the float32 tolerance,
+    EQUIVALENT under a bfloat16 tolerance the operator signed for, or
+    EXACT through the integer door — each the honest reading of the
+    tensors, not a defect of the gate.

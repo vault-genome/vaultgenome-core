@@ -100,10 +100,30 @@ func testDoor(mode string) int {
 	if mode == "extra-id" {
 		outputs["fx-extra"] = gatejob.FromTensor(equivalence.Tensor{DType: equivalence.F32, Shape: []int{1}, Raw: f32(1)})
 	}
-	if err := json.NewEncoder(os.Stdout).Encode(gatejob.DoorResponse{Outputs: outputs}); err != nil {
+	resp := gatejob.DoorResponse{Outputs: outputs}
+	// The integer door answers when the prompts ask for it (its own
+	// arithmetic: a different value), or unasked in the "unasked-integer"
+	// mode; the "no-integer" mode ignores the request.
+	if (prompts.Integer && mode != "no-integer") || mode == "unasked-integer" {
+		resp.IntegerOutputs = map[string]gatejob.Tensor{}
+		for _, p := range prompts.Prompts {
+			vals := make([]float32, len(p.TopKIndex))
+			for j, idx := range p.TopKIndex {
+				vals[j] = integerDoorValue(p.InputIDs, idx)
+			}
+			resp.IntegerOutputs[p.ID] = gatejob.FromTensor(equivalence.Tensor{DType: equivalence.F32, Shape: []int{len(vals)}, Raw: f32(vals...)})
+		}
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(resp); err != nil {
 		return 2
 	}
 	return 0
+}
+
+// integerDoorValue is the test integer door's arithmetic: near the float
+// door's, never equal to it.
+func integerDoorValue(inputIDs []int, idx int) float32 {
+	return doorValue(inputIDs, idx) + 0.125
 }
 
 func f32(vals ...float32) []byte {
@@ -168,20 +188,31 @@ func (j *gateJob) rebuild(t *testing.T) {
 	require.NoError(t, err)
 	j.components = append([]worker.ComponentMaterial{{ComponentID: "c-0", SequenceIndex: 0, Plaintext: raw}}, j.components...)
 
-	var fixtures []equivalence.Fixture
+	var fixtures, integerFixtures []equivalence.Fixture
 	expected := map[string]equivalence.Tensor{}
+	var expectedInteger map[string]equivalence.Tensor
+	if j.prompts.Integer {
+		expectedInteger = map[string]equivalence.Tensor{}
+	}
 	for _, p := range j.prompts.Prompts {
 		vals := make([]float32, len(p.TopKIndex))
+		ivals := make([]float32, len(p.TopKIndex))
 		for k, idx := range p.TopKIndex {
 			vals[k] = doorValue(p.InputIDs, idx)
+			ivals[k] = integerDoorValue(p.InputIDs, idx)
 		}
 		tensor := equivalence.Tensor{DType: equivalence.F32, Shape: []int{len(vals)}, Raw: f32(vals...)}
 		fixtures = append(fixtures, equivalence.Fixture{ID: p.ID, Expected: tensor})
 		expected[p.ID] = tensor
+		if j.prompts.Integer {
+			itensor := equivalence.Tensor{DType: equivalence.F32, Shape: []int{len(ivals)}, Raw: f32(ivals...)}
+			integerFixtures = append(integerFixtures, equivalence.Fixture{ID: p.ID, Expected: itensor})
+			expectedInteger[p.ID] = itensor
+		}
 	}
-	budget, err := gatejob.OutputBudget(j.genomeID, fixtures)
+	budget, err := gatejob.OutputBudget(j.genomeID, fixtures, integerFixtures)
 	require.NoError(t, err)
-	j.expected, err = gatejob.EncodeOutput(j.genomeID, expected)
+	j.expected, err = gatejob.EncodeOutput(j.genomeID, expected, expectedInteger)
 	require.NoError(t, err)
 	j.manifest = rjm.ReconstructionJobManifest{
 		SchemaVersion:          rjm.SchemaVersionCurrent,
@@ -223,7 +254,7 @@ func TestGenome_RightDoorGivesTheCanonicalOutput(t *testing.T) {
 	require.Equal(t, j.manifest.ExpectedOutputMaxBytes, uint64(len(out.Bytes)), "the authority's budget is the output's exact size")
 	require.Equal(t, fixtureClock(t).Now(), out.ProducedAt, "ProducedAt comes from the injected clock")
 
-	gid, outputs, err := gatejob.DecodeOutput(out.Bytes)
+	gid, outputs, _, err := gatejob.DecodeOutput(out.Bytes)
 	require.NoError(t, err)
 	require.Equal(t, j.genomeID, gid)
 	require.Len(t, outputs, 3)
