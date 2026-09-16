@@ -173,7 +173,14 @@ verify-reproducible).
   before the intrusion, or before a lost heartbeat, on the one standby the
   policy names. It confirms the restore by the standby's TEE-signed gate
   verdict. One policy allows one move, and the operator stop overrides it
-  (ADR 0012). Measured on **two live SEV-SNP VMs**
+  (ADR 0012). The primary's word is bounded: every record the sentinel writes
+  carries the primary chip's report, a policy that pins the primary's
+  measurement ignores records without it — a stolen sentinel seed used off
+  the chip is silence, and silence is a trigger — `stopped` stands the
+  authority down only for a grace, and nothing past the generation the
+  trigger's record names is restored (ADR 0017). The authority's escrow key
+  is made in its own process and written only sealed to its chip (ADR 0016).
+  Measured on **two live SEV-SNP VMs**
   ([gcp-failover](scripts/hardware-test/gcp-failover)): detect 2.53 s, RPO
   9.0 s, **RTO 16.81 s** from intrusion to a gated, confirmed model — and what
   came back was the clean generation, gated **EXACT**, against a policy that
@@ -339,10 +346,11 @@ Operator-facing procedures live in `docs/operator/`:
 - `05_release_procedure.md` — signed tag against pinned keys, SBOM, SLSA
   provenance, the release.yml workflow, the four signed binaries.
 - `06_cross_cloud_restore.md` — releasing a genome's key to an attested
-  destination, its restore, gate and receipt, key escrow and the operator
-  stop.
-- `07_failover.md` — the sentinel on the primary, the operator's failover
-  policy, and the executor that moves a genome to the standby.
+  destination, its restore, gate and receipt, key escrow (the escrow key
+  sealed to the release host's TEE, and its recovery) and the operator stop.
+- `07_failover.md` — the sentinel on the primary attesting with its TEE, the
+  operator's failover policy pinning it, and the executor that moves a
+  genome to the standby.
 
 The runbook assumes a reader familiar with the eleven doctrinal invariants
 (asserted in `test/doctrine/`) and the architecture decision records under

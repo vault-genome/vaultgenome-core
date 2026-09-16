@@ -110,9 +110,9 @@ The commands that exist:
 | `acpctl lineage --audit PATH (--session-id ID \| --manifest-id ID) [--json]` | Events tied to one session or manifest |
 | `acpctl genome seal \| open (alias rewind) \| verify \| inspect \| chain \| lineage \| gate` | Seal, restore and check genome bundles |
 | `acpctl stop keygen \| issue \| verify` | Create and check the operator's signed stop list (06) |
-| `acpctl escrow keygen` | Create the release authority's key-escrow key pair; `genome seal --escrow-to` seals genome keys to its public half (06) |
-| `acpctl sentinel keygen \| watch` | On the primary: keep a running model's state sealed, generation by generation, and report when a tripwire fires (07) |
-| `acpctl failover issue \| verify` | Sign and check the operator's failover policy: the sentinel, the standby, the triggers (07) |
+| `acpctl escrow keygen \| recovery-keygen \| recover` | The operator's side of escrow custody: a plaintext escrow key for the simulated TEE only; the recovery key a sealed escrow key is wrapped to; opening a recovery envelope for `sagvd escrow-provision -stdin` (06, ADR 0016) |
+| `acpctl sentinel keygen \| identity \| watch` | On the primary: keep a running model's state sealed, generation by generation, every record attested by the primary's TEE (`--tee`), and report when a tripwire fires; `identity` prints what the operator pins (07) |
+| `acpctl failover issue \| verify` | Sign and check the operator's failover policy: the sentinel, the primary's TEE, the standby, the triggers and the `stopped` grace (07) |
 | `acpctl recover --vault PATH …` | Unseal a `VG-VAULT-01` envelope with the TEE backend it names; no shipped binary writes that format yet |
 
 The audit commands read any audit log file; in practice the one

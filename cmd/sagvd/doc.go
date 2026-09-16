@@ -80,8 +80,13 @@
 //   - workers.registry_path     JSON file of {kid, signing_pubkey_hex}
 //   - genome.bundle_dir         the .genome bundles a job may name, with
 //     their key files or escrow envelopes beside them
-//   - genome.key_escrow_path    escrow private key that opens <bundle>.escrow
-//     (falls back to crosscloud.key_escrow_path)
+//   - genome.key_escrow_path    the escrow private key that opens <bundle>.escrow,
+//     as `sagvd escrow-provision` wrote it: sealed to this host's TEE and
+//     unsealed in memory at start (ADR 0016); a plaintext key is accepted
+//     under tee.insecure_simulation only (falls back to
+//     crosscloud.key_escrow_path)
+//   - tee.sev_guest_device      the sev-guest device the sealer derives its key
+//     through (default /dev/sev-guest; gcp-sev-snp only)
 //   - genome.gate               atol, rtol, max_non_critical_outliers of the
 //     native-float door (defaults 1e-2, 1e-3, 0)
 //   - runtime.*                 handshake / job / http timeouts; max_payload_bytes

@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -409,6 +409,93 @@ round trip (§7 of the recovery-flow document) is still library code no
 binary drives. The semantic dimension is top-1 agreement at the reference
 positions, not a task-level evaluation; the behavioral dimension is the
 gate of [C4](#c4)/[C5](#c5). The model is the tiny one of [C12](#c12).
+
+---
+
+### C14 — The escrow key is sealed to the release host's SEV-SNP chip, and a failover takes the primary's word only with its chip's report on it
+
+**Claim.** The release authority's escrow private key — the one that opens
+every escrowed genome — is made inside the authority's process and written
+only sealed to its host's TEE: on AMD SEV-SNP, under a key the firmware
+derives for that chip, launch measurement and guest policy
+(`SNP_GET_DERIVED_KEY`), never stored; it is unsealed in memory at start
+and survives its chip only through the operator's recovery envelope
+([ADR 0016](docs/adr/0016-escrow-key-sealed-to-the-release-host.md)). And
+the sentinel on the primary puts the primary chip's report on every record
+it writes, so that under a policy pinning that chip a record without a
+verifying report is ignored, a sentinel that said `stopped` stands the
+authority down only for a grace, and nothing past the generation the
+trigger's own record names is restored
+([ADR 0017](docs/adr/0017-limits-on-the-primarys-word.md)). Both ran on
+two SEV-SNP guests, with a rogue sentinel holding the stolen seed refused.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-failover/evidence/20260916T021933Z/`](scripts/hardware-test/gcp-failover/evidence/20260916T021933Z/)
+— primary `n2d-standard-8` (measurement `10f5ac22…4519`), standby
+`n2d-standard-4` (measurement `7dc7c12e…5acc`), us-central1-c, both
+`Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP` with
+`/dev/sev-guest` (`tsm.txt`).
+`standby/escrow-provision.json`: `escrow_key: d2aac7b965c6ab76`,
+`tee: gcp-sev-snp`, `source: generated`, `recovery_key: 93b4bd0871bfacf6`;
+`escrow-sealed-shape.txt`: `vault-genome/sealed-escrow-key/v1`, the sealed
+field 80 base64 characters, no key file;
+`escrow-reprovision.json`: the recovery ceremony (`acpctl escrow recover`
+piped into `sagvd escrow-provision -stdin`) re-sealed the same key,
+`source: stdin`; `authority-identity.json`:
+`key_escrow_storage: sealed:gcp-sev-snp`; `failover.log`: `failover escrow
+key … storage: sealed:gcp-sev-snp` — the key that opened the genome's
+envelope was the unsealed one.
+`primary/sentinel.json`: `tee: gcp-sev-snp`, the compromise report with
+`attestation.kind: gcp-sev-snp`; `standby/failover-verify.txt`: the policy
+pins `primary TEE: gcp-sev-snp, measurements 10f5ac22…4519 (every record
+must carry its report)` and `stopped and not back within 60s`.
+`standby/report.json`: `status: restored`, trigger `compromise-report`
+with `primary_measurement_hex` = the primary's chip, generation 1 restored
+(`genome-134ad7e32883-g1-d9318608d0c0`), gate **EXACT** (16 fixtures,
+max abs err 0; required EQUIVALENT), detect 7.69 s, RPO 9.00 s, **RTO
+23.98 s**; `audit-verify.json`: `ok: true`, 5 events.
+`standby/rogue-report.json` — the stolen seed on the standby's own chip,
+every record a genuine SEV-SNP report from the wrong machine:
+`ignored: [heartbeat.json: … gcp-sev-snp attestation does not verify: …
+MEASUREMENT 7dc7c12e…5acc not in acceptable set]`, trigger
+`heartbeat-timeout` at the primary's last genuine heartbeat,
+`gen-000002.seal.json` set aside *after generation 1, the last the
+sentinel's heartbeat-timeout names*, `status: declined` on the record
+(audit chain length 6), no key moved.
+
+In process and with the shipping binaries:
+[`internal/shared/tee/gcp_sev_snp_seal_test.go`](internal/shared/tee/gcp_sev_snp_seal_test.go)
+(the derived-key request, the expansion, a different chip, image or policy
+opens nothing),
+[`internal/genome/escrow/sealed_test.go`](internal/genome/escrow/sealed_test.go),
+[`cmd/sagvd/escrow_key_test.go`](cmd/sagvd/escrow_key_test.go) (a
+plaintext key refused on hardware; the ceremony through stdin),
+[`internal/genome/sentinel/attest_test.go`](internal/genome/sentinel/attest_test.go)
+(the report binds the record; re-signed, borrowed or tampered records do
+not verify),
+[`internal/vault/failover/limits_test.go`](internal/vault/failover/limits_test.go)
+(the stolen seed as silence; only attested genomes; the chain trusted to
+the sentinel's last word; `stopped` overdue),
+[`test/integration/failover_test.go`](test/integration/failover_test.go)
+(`TestLiveFailover_AttestedPrimary`, `TestLiveFailover_StoppedOverdue`).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-failover/run.sh <gcp-project>
+go test -count=1 -run 'SEVSealer|Sealed|Recovery|Escrow|Attest|Pinned|StolenSeed|LastWord|Overdue' ./internal/shared/tee/ ./internal/genome/... ./internal/vault/failover/ ./cmd/sagvd/
+make test-integration
+```
+
+**Scope.** The escrow key alone is sealed; the authority's signing seed,
+audit seed and session-sealing key are still files (KNOWN_ISSUES #1, #11).
+The sealed key is bound to the chip and the launch measurement, so a
+restart on another host or a new image needs the operator's ceremony;
+nothing re-provisions itself. The chip's word bounds an attacker who holds
+the seed without the chip; an intruder with root inside the primary's
+guest holds both and is caught only by the wires (KNOWN_ISSUES #12). The
+model is Qwen2.5-0.5B-Instruct with a LoRA adapter; both machines are CPU
+confidential VMs.
 
 ---
 

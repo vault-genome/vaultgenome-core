@@ -14,15 +14,18 @@ linux/amd64, packs `workers/genome`, and boots two AMD SEV-SNP Confidential
 VMs in the same project:
 
 - The **standby** ([`standby.sh`](standby.sh)) hosts the **release authority**
-  (`sagvd failover`) and the **destination** (`acp-bootstrap`), on loopback
-  TLS. It generates the authority's escrow key, hands its public half to the
-  primary, and — under an operator-signed failover policy — waits, watching a
-  replica of the primary's outbox and holding a warm copy of every sealed
-  genome.
+  (`sagvd failover`, attesting with its chip) and the **destination**
+  (`acp-bootstrap`), on loopback TLS. The authority makes its escrow key in its
+  own process and writes it only sealed to its chip, wrapped to the operator's
+  recovery key (ADR 0016), hands the public half to the primary, and — under
+  an operator-signed failover policy that pins the primary's chip (ADR 0017) —
+  waits, watching a replica of the primary's outbox and holding a warm copy of
+  every sealed genome.
 - The **primary** ([`primary.sh`](primary.sh)) runs the workload and, beside
-  it, the **sentinel** (`acpctl sentinel watch`). It fine-tunes a real model,
-  the sentinel seals each state as the next generation of a genome chain —
-  each key encapsulated only to the authority's escrow key — and the outbox is
+  it, the **sentinel** (`acpctl sentinel watch --tee gcp-sev-snp`). It
+  fine-tunes a real model, the sentinel seals each state as the next
+  generation of a genome chain — each key encapsulated only to the authority's
+  escrow key, every record carrying the chip's report — and the outbox is
   replicated to a bucket. Then the machine is attacked.
 
 Reports come back to `evidence/<stamp>/`; both VMs and the bucket are deleted
@@ -46,70 +49,135 @@ operator runbook [07](../../../docs/operator/07_failover.md).
    with garbage. The sentinel checks its wires before it would seal, so it
    never seals the tampered state: it writes a signed compromise report naming
    generation 1 as the last good one, and exits 3.
-6. The authority sees the compromise in the replica, chooses generation 1,
-   records `FAILOVER_DECIDED`, releases its escrowed key to the standby — which
-   attests with its own chip, restores the genome, recomputes the sealed
-   fixtures to prove the model works, and signs a receipt — and confirms it.
+6. The authority sees the compromise in the replica — with the primary chip's
+   report on it — chooses generation 1, records `FAILOVER_DECIDED`, releases
+   its escrowed key to the standby — which attests with its own chip, restores
+   the genome, recomputes the sealed fixtures to prove the model works, and
+   signs a receipt — and confirms it.
+7. **The negative leg.** The sentinel seed is stolen and used off the
+   primary's chip: a rogue sentinel on the standby seals a generation of its
+   own, every record attested by the wrong chip. A second policy watches its
+   outbox: the rogue's records are ignored, the silence after the primary's
+   last genuine word is the trigger, nothing past that word is trusted, and
+   the decision is declined on the record.
 
-## Results — run `20260915T021334Z`
+## Results — run `20260916T021933Z`
 
-**Machines**, both AMD SEV-SNP Confidential VMs (`Memory Encryption Features
-active: AMD SEV SEV-ES SEV-SNP` in each `system.txt`):
+The same drill, with the escrow key sealed to the authority's chip
+([ADR 0016](../../../docs/adr/0016-escrow-key-sealed-to-the-release-host.md)),
+the primary attesting every record with its chip and the policy pinning it
+([ADR 0017](../../../docs/adr/0017-limits-on-the-primarys-word.md)), and a
+negative leg: a rogue sentinel with the stolen seed on the wrong chip.
+
+**Machines**, both AMD SEV-SNP Confidential VMs (`Memory Encryption
+Features active: AMD SEV SEV-ES SEV-SNP`, `/dev/sev-guest` present, in each
+`tsm.txt`):
 
 - Primary: GCP `n2d-standard-8`, us-central1-c — trains and runs the sentinel.
+  Launch measurement `10f5ac22…4519` (48 bytes; `primary/sentinel-identity.json`).
 - Standby: GCP `n2d-standard-4`, us-central1-c — the authority and the
-  destination. Its SEV-SNP measurement is 48 bytes (`7dc7c12e5599…`).
+  destination. Launch measurement `7dc7c12e…5acc`.
 
-The primary sealed two generations (120 then 160 steps), then was attacked at
-02:21:56Z. The sentinel's report: `outcome: compromised`, `generations_sealed:
-2`, last generation 1; it exited 3.
+**The escrow key, sealed** (`standby/escrow-provision.json`, `escrow-sealed-shape.txt`,
+`escrow-reprovision.json`, `authority-identity.json`)
+
+| | |
+| - | - |
+| `sagvd escrow-provision` | exit 0: key `d2aac7b965c6ab76`, `tee: gcp-sev-snp`, sealed at the standby's measurement, `source: generated`; wrapped to recovery key `93b4bd0871bfacf6` |
+| On disk | `vault-genome/sealed-escrow-key/v1` — the `sealed` field is 80 base64 characters (a 12-byte nonce, the 32-byte key, a 16-byte tag); no key file |
+| The derived key | `SNP_GET_DERIVED_KEY` on `/dev/sev-guest` answered on GCP: the seal round-tripped before the file was written, and every envelope below was opened with the key unsealed at start |
+| The recovery ceremony | `acpctl escrow recover` piped into `sagvd escrow-provision -stdin`: exit 0, the same key `d2aac7b965c6ab76`, `source: stdin`, re-sealed on this chip |
+| `sagvd identity` | `key_escrow_storage: sealed:gcp-sev-snp` |
+
+**The primary's word** (`primary/sentinel.json`, `standby/failover-verify.txt`)
+
+The sentinel ran with `--tee gcp-sev-snp` and put the chip's report on every
+record: the compromise report in `sentinel.json` carries
+`attestation.kind: gcp-sev-snp` with a 1184-byte report bound to the
+record. The policy (serial 1) pins `primary TEE: gcp-sev-snp,
+measurements 10f5ac22…4519 (every record must carry its report)`, and
+`stopped and not back within 60s` is a trigger beside the compromise report
+and the 120 s heartbeat timeout.
+
+The primary sealed two generations (120 then 160 steps of LoRA fine-tuning,
+51.8 s and 72.9 s), then was attacked at 02:26:44.92Z. The sentinel's
+report: `outcome: compromised`, `generations_sealed: 2`, last generation 1;
+it exited 3.
 
 **The failover** (`standby/report.json`)
 
 | | |
 | - | - |
-| Trigger | compromise report; tripwire `/root/canary` |
-| Genome restored | **generation 1** — the last sealed before the attack (key `genome-05902f943176-g1-fa3ca0af732e`), **not** the tampered state |
+| Trigger | compromise report; tripwire `/root/canary`; `primary_measurement_hex` = the primary's chip |
+| Genome restored | **generation 1** — the last sealed before the attack (key `genome-134ad7e32883-g1-d9318608d0c0`, 2,208,627 bytes), **not** the tampered state |
 | Gate on the standby | **EXACT** — door "pinned replay", 16 fixtures, max abs err 0 (required: EQUIVALENT) |
-| Restore | 5 files, 2,202,926 bytes, in **13.2 ms** |
-| Detect | **2.53 s** (last heartbeat seen → the authority acting) |
-| RPO | **9.0 s** (attack − generation-1 seal time) |
-| RTO | **16.81 s** (failure → a confirmed, gated restore on the standby) — of which the standby's gate ran the model for 13.5 s |
-| Audit | 5 events — `FAILOVER_DECIDED` → handshake → attestation → `KEY_RELEASE_AUTHORIZED` → `CROSS_CLOUD_RESTORE_COMPLETED`; `audit-verify.json` says the log verifies |
+| Restore | 5 files, 2,202,926 bytes, in **14.1 ms** |
+| Detect | **7.69 s** (the sentinel's detection → the authority acting, across the bucket replication) |
+| RPO | **9.00 s** (attack − generation-1 seal time) |
+| RTO | **23.98 s** (failure → a confirmed, gated restore on the standby), of which the gate ran the model for 14.4 s |
+| Audit | 5 events — `FAILOVER_DECIDED` (naming the primary's measurement) → handshake → attestation → `KEY_RELEASE_AUTHORIZED` → `CROSS_CLOUD_RESTORE_COMPLETED`; `audit-verify.json`: `ok: true`, tip `b20fc6d7…55b4` |
 
-`release.policy_version` is `failover-policy-v1;failover=1;revocation=1`: the
-release passed the operator stop, then the failover policy (standby only),
-then the allow-list. The restored adapter (`restored-adapter-head.txt`) is the
-generation-1 safetensors — binary weights, not the ASCII bytes the intruder
-planted.
+`release.policy_version` is `failover-policy-v1;failover=1;revocation=1`. The
+restored adapter (`restored-adapter-head.txt`) is the generation-1
+safetensors — binary weights, not the ASCII bytes the intruder planted.
 
-**Attestation on both ends.** The primary and the standby are both SEV-SNP
-confidential VMs. The release handshake verifies the standby's live SEV-SNP
-quote (VCEK → ASK → ARK, the ADR 0009 challenge binding its per-handshake
-key) before any key leaves the authority.
+**The negative leg: a stolen seed off the pinned chip** (`standby/rogue-report.json`,
+`rogue-sentinel.json`, `rogue-failover.log`, `failover-2-verify.txt`)
+
+The thief — here, the standby itself — copied the outbox, dropped the
+compromise report, and ran a sentinel with the stolen seed and `--tee
+gcp-sev-snp`: its own chip, so every record it wrote carried a genuine
+SEV-SNP report, from the wrong machine. It sealed a generation 2 of its own
+(the restored model with one file changed) and heartbeated. A second policy
+(serial 2) pinned the primary as before, acted on lost heartbeats only (30 s)
+and quarantined a day.
+
+| | |
+| - | - |
+| The rogue's records | **ignored**: `heartbeat.json: … gcp-sev-snp attestation does not verify: … MEASUREMENT 7dc7c12e…5acc not in acceptable set` — the standby's chip is not the primary |
+| The trigger | **heartbeat-timeout** at the primary's last genuine heartbeat (02:26:47.34Z, attested by `10f5ac22…4519`), 30.06 s after the executor armed — the rogue's heartbeats moved nothing |
+| The chain | `gen-000002.seal.json` set aside: *after generation 1, the last the sentinel's heartbeat-timeout names*; generations 1 and 0 set aside by the quarantine |
+| Decision | **declined**, on the record (`FAILOVER_DECIDED`, audit chain length 6): *no genome in the verified chain was sealed by the cutoff and checks out*. `sagvd failover` exited 3. No key moved |
+
+**Attestation on both ends, and on every record.** The release handshake
+verified the standby's live SEV-SNP quote before any key left the authority,
+as before; now the authority also verified the primary's report on the
+compromise report it acted on, and refused a real report from another chip.
 
 **RTO/RPO in context.** RPO is bounded by the sentinel's seal cadence and the
-outbox replication lag (here ~9 s of "newer" training the standby did not
-have). RTO is dominated by the gate: the standby spent 13.5 s proving the
-model works before it signed for it — a deliberate cost, not overhead. The
-key release and the restore themselves took under 0.3 s together.
+outbox replication lag. Detection here took 7.7 s (2.5 s in the earlier run):
+the compromise report reached the replica through a tar snapshot pushed every
+3 s and pulled every 3 s. RTO is dominated by the gate: the standby spent
+14.4 s proving the model works before it signed for it. The key release and
+the restore themselves took under 0.3 s together.
+
+The earlier run of this kit, `20260915T021334Z` (plaintext escrow key, the
+authority simulated, no primary pin), is kept beside this one: RTO 16.81 s,
+RPO 9.0 s, gate EXACT.
 
 ## Evidence files
 
 - `primary/` — `finetune-0.json`, `finetune-1.json` (the two fine-tunes),
+  `sentinel-identity.json` (the chip's measurement and the sentinel key id),
   `sentinel.json` (the sentinel's final report: outcome, the generation it
-  last sealed, the wires that fired), `attack-at.txt`, `system.txt` (with the
-  SEV-SNP boot lines), `steps.txt`, `console.log`.
-- `standby/` — `report.json` (the failover report), `authority-identity.json`
-  and `destination-identity.json`, `failover-verify.txt` (the signed policy),
-  `audit-verify.json` (the log checked offline), `restored-adapter-head.txt`
-  (the restored generation's bytes, to show it is the clean one),
-  `tsm.txt` (configfs-tsm), `steps.txt`, `console.log`, `acp-bootstrap.log`,
+  last sealed, the wires that fired, the attested compromise report),
+  `attack-at.txt`, `system.txt` and `tsm.txt` (SEV-SNP boot lines,
+  configfs-tsm, `/dev/sev-guest`), `steps.txt`, `console.log`.
+- `standby/` — `escrow-provision.json`, `escrow-sealed-shape.txt`,
+  `escrow-reprovision.json`, `recovery-keygen.txt` (the sealed key and the
+  ceremony), `authority-identity.json` and `destination-identity.json`,
+  `primary-identity.json` (what the operator pinned), `failover-verify.txt`
+  and `failover-2-verify.txt` (the signed policies), `report.json` (the
+  failover report), `audit-verify.json` (the log checked offline after the
+  failover), `restored-adapter-head.txt`, `rogue-report.json`,
+  `rogue-sentinel.json`, `rogue-outbox.txt`, `rogue-failover.log` (the
+  negative leg), `tsm.txt`, `steps.txt`, `console.log`, `acp-bootstrap.log`,
   `failover.log`.
 
-The evidence holds no key, seed, token or config. The genome key crossed only
-as an escrow envelope through the run's private bucket, which was deleted with
-the VMs; it was wiped on the standby once the restore was signed for.
+The evidence holds no key, seed, token or config. The sealed escrow key's
+bytes are not in it (only their length); the recovered key went through a
+pipe. The sentinel seed crossed to the standby only through the run's private
+bucket, for the negative leg, and the bucket was deleted with the VMs.
 
 ## Scope
 
