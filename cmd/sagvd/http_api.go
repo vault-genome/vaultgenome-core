@@ -12,32 +12,39 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 
+	"github.com/ai-continuity-platform/core/internal/contracts/recovery_request"
 	"github.com/ai-continuity-platform/core/internal/observability/metrics"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/ai-continuity-platform/core/internal/vault/intake"
+	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
 )
 
 // HTTPAPIServer is the operator-facing REST API in front of the
 // JobQueue. It owns one net/http.Server and one *metrics.Registry-
-// bound set of counters; the daemon hands it only the queue, the
-// sealer, and the runtime bounds.
+// bound set of counters.
 //
 // Routes:
 //
-//	POST /v1/jobs         → 202 + {job_id, manifest_id, session_id, genome}
+//	POST /v1/jobs         → 202 + {job_id, request_id, state, genome}
 //	GET  /v1/jobs/{id}    → 200 + JobView
 //
-// A job is a gate job (ADR 0013): its body names a sealed genome in
-// genome.bundle_dir, sagvd builds the JobRequest from it (genome_job.go)
-// and, once the worker has answered, records the gate's verdict on the
-// job. The authority names the job's manifest and session itself.
+// A job is a gate job (ADR 0013) and a RecoveryRequest into the
+// nine-stage flow (ADR 0015): its body names a sealed genome in
+// genome.bundle_dir; sagvd opens it, keeps its references, admits the
+// request at intake — on the record as REQUEST_RECEIVED before the job
+// exists — and queues it. Trust, session, disclosure, manifest, the
+// candidate, validation and the release decision follow when a worker
+// connects; GET /v1/jobs/{id} shows every stage and every signed
+// artifact.
 //
 // All other paths / methods are 404 / 405. Responses are JSON-only
 // (Content-Type: application/json) so SDKs do not have to handle two
@@ -50,15 +57,13 @@ import (
 // constant-time-matching token. Empty token = no auth — only safe
 // for loopback demos.
 type HTTPAPIServer struct {
-	cfg     HTTPAPIConfig
-	runtime RuntimeConfig
-	queue   *JobQueue
-	sealer  keys.Sealer
-	sealKID ids.KeyID
-	genomes *genomeJobs      // nil: gate jobs are not configured
-	audit   *returnPathAudit // nil: no log; only allowed with genomes nil
-	clock   shared_time.Clock
-	log     *slog.Logger
+	cfg       HTTPAPIConfig
+	runtime   RuntimeConfig
+	queue     *JobQueue
+	genomes   *genomeJobs              // nil: gate jobs are not configured
+	authority *orchestration.Authority // nil only with genomes nil
+	clock     shared_time.Clock
+	log       *slog.Logger
 
 	listener net.Listener
 	server   *http.Server
@@ -77,20 +82,16 @@ type httpMetrics struct {
 // expected to have already called cfg.Validate(); a non-host:port
 // listen address here is a programmer error.
 //
-// sealer + sealKID cannot be zero: POST /v1/jobs needs them to
-// produce SealedMaterialRef. We fail fast at construction so a
-// misconfigured daemon cannot silently accept submissions. genomes may
-// be nil (genome.bundle_dir not configured): then POST /v1/jobs refuses
-// every submission with gate_jobs_disabled. With genomes, audit is
-// required: a job is recorded before it is queued.
+// genomes may be nil (genome.bundle_dir not configured): then POST
+// /v1/jobs refuses every submission with gate_jobs_disabled. With
+// genomes, authority is required: a job is a request admitted into the
+// flow, on the record, before it is queued.
 func NewHTTPAPIServer(
 	cfg HTTPAPIConfig,
 	runtime RuntimeConfig,
 	queue *JobQueue,
-	sealer keys.Sealer,
-	sealKID ids.KeyID,
 	genomes *genomeJobs,
-	audit *returnPathAudit,
+	authority *orchestration.Authority,
 	clock shared_time.Clock,
 	registry *metrics.Registry,
 	logger *slog.Logger,
@@ -98,14 +99,8 @@ func NewHTTPAPIServer(
 	if queue == nil {
 		return nil, errors.New("sagvd: HTTPAPIServer requires non-nil JobQueue")
 	}
-	if genomes != nil && audit == nil {
-		return nil, errors.New("sagvd: HTTPAPIServer requires the Return Path audit log when gate jobs are enabled")
-	}
-	if sealer == nil {
-		return nil, errors.New("sagvd: HTTPAPIServer requires non-nil Sealer")
-	}
-	if sealKID == "" {
-		return nil, errors.New("sagvd: HTTPAPIServer requires session-sealing KeyID")
+	if genomes != nil && authority == nil {
+		return nil, errors.New("sagvd: HTTPAPIServer requires the orchestration authority (an audit log) when gate jobs are enabled")
 	}
 	if clock == nil {
 		clock = shared_time.NewSystemClock()
@@ -118,15 +113,13 @@ func NewHTTPAPIServer(
 	}
 
 	s := &HTTPAPIServer{
-		cfg:     cfg,
-		runtime: runtime,
-		queue:   queue,
-		sealer:  sealer,
-		sealKID: sealKID,
-		genomes: genomes,
-		audit:   audit,
-		clock:   clock,
-		log:     logger,
+		cfg:       cfg,
+		runtime:   runtime,
+		queue:     queue,
+		genomes:   genomes,
+		authority: authority,
+		clock:     clock,
+		log:       logger,
 		metrics: &httpMetrics{
 			requests: registry.NewCounter(
 				"sagvd_http_requests_total",
@@ -197,9 +190,9 @@ func (s *HTTPAPIServer) Close(ctx context.Context) error {
 // ---- handlers ------------------------------------------------------------
 
 // handleJobsCollection accepts POST /v1/jobs. GET on the collection
-// is not currently supported — listing queued jobs is a Phase-2
-// feature (pagination, filtering, ownership). In Phase 1 the operator
-// knows the job IDs they submitted.
+// is not currently supported — listing queued jobs is a later feature
+// (pagination, filtering, ownership). The operator knows the job IDs
+// they submitted.
 func (s *HTTPAPIServer) handleJobsCollection(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w, http.MethodPost)
@@ -232,17 +225,46 @@ func (s *HTTPAPIServer) handleJobByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // submitRequest is the body shape POST /v1/jobs accepts: which sealed
-// genome to bring back, and how long the worker has.
+// genome to bring back, how long the worker has, and how the request
+// names itself to the flow.
 type submitRequest struct {
 	// Genome names a bundle in genome.bundle_dir and, unless its escrow
 	// envelope is beside it, its key file.
 	Genome genomeRef `json:"genome"`
 
 	// DeadlineSecondsFromNow is how long the worker has to restore the
-	// model and answer; 0 takes runtime.default_job_deadline_seconds,
-	// which is also the ceiling.
+	// model and answer, from the moment the job is handed to it; 0 takes
+	// runtime.default_job_deadline_seconds, which is also the ceiling.
 	DeadlineSecondsFromNow int `json:"deadline_seconds_from_now,omitempty"`
+
+	// RequestID names the RecoveryRequest. Minted (req-<hex>) when
+	// empty; a request_id already admitted is refused (409).
+	RequestID string `json:"request_id,omitempty"`
+
+	// PolicyProfile is the policy envelope the request asks for. The
+	// daemon serves "gate" (the default); any other is denied at Trust
+	// Admission, on the record.
+	PolicyProfile string `json:"policy_profile,omitempty"`
+
+	// RequesterIdentity names who asks. Default "operator:rest".
+	RequesterIdentity string `json:"requester_identity,omitempty"`
+
+	// Contour is the request's own key/value context (jurisdiction,
+	// role, ...), carried verbatim on the RecoveryRequest and its audit
+	// record. Optional; at most 16 entries.
+	Contour map[string]string `json:"contour,omitempty"`
 }
+
+// Defaults of a submitted request.
+const (
+	DefaultRequesterIdentity = "operator:rest"
+	maxContourEntries        = 16
+	maxRequestField          = 128
+)
+
+// requestIDRE is what a caller may name a request: letters, digits and
+// a few separators, starting with a letter or digit.
+var requestIDRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 // maxSubmitBodyBytes bounds a POST /v1/jobs body: it names files, it
 // does not carry them.
@@ -250,15 +272,16 @@ const maxSubmitBodyBytes = 64 << 10
 
 // submitResponse is what POST /v1/jobs returns on success.
 type submitResponse struct {
-	JobID      string     `json:"job_id"`
-	ManifestID string     `json:"manifest_id"`
-	SessionID  string     `json:"session_id"`
-	Genome     GenomeView `json:"genome"`
+	JobID     string     `json:"job_id"`
+	RequestID string     `json:"request_id"`
+	State     string     `json:"state"`
+	Genome    GenomeView `json:"genome"`
 }
 
-// submitJob parses the body, builds the gate job from the named genome
-// — opens the bundle, keeps the references, seals the model side under
-// the session key — and enqueues it. Returns 202 Accepted on success.
+// submitJob parses the body, inspects the named genome — opens the
+// bundle, keeps the references, clears the plaintext — admits the
+// request at intake (REQUEST_RECEIVED on the record) and enqueues it.
+// Returns 202 Accepted on success.
 func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxSubmitBodyBytes)
 
@@ -304,8 +327,9 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 			"deadline_seconds_from_now must be > 0")
 		return
 	}
+	deadline := time.Duration(deadlineSecs) * time.Second
 
-	job, err := s.genomes.build(req.Genome, time.Duration(deadlineSecs)*time.Second)
+	info, err := s.genomes.inspect(req.Genome)
 	if err != nil {
 		writeError(w, statusForBuildError(err), shared_errors.CategoryOf(err).String(),
 			shared_errors.CodeOf(err), err.Error())
@@ -316,15 +340,46 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "operational", shared_errors.CodeResourceExhausted, err.Error())
 		return
 	}
-	// On the record before it is queued: a job the log did not take is
-	// not a job.
-	if err := s.audit.JobAccepted(jobID, job); err != nil {
-		s.log.Error("sagvd audit log refused a job", "job_id", jobID, "err", err)
-		writeError(w, http.StatusServiceUnavailable, shared_errors.CategoryOf(err).String(),
-			shared_errors.CodeOf(err), err.Error())
+
+	// Stage 1: the RecoveryRequest, admitted at intake and on the record
+	// before it is queued. A job the log did not take is not a job.
+	rr, err := req.recoveryRequest(info, s.clock.Now().UTC())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "operational", shared_errors.CodeResourceExhausted, err.Error())
 		return
 	}
-	if _, err := s.queue.SubmitGenomeWithID(jobID, job.Req, &job.Genome, job.Gate); err != nil {
+	detail, _ := json.Marshal(struct {
+		JobID           string `json:"job_id"`
+		Bundle          string `json:"bundle"`
+		BundleSHA256    string `json:"bundle_sha256"`
+		PayloadSHA256   string `json:"payload_sha256"`
+		KeySource       string `json:"key_source"`
+		Generation      uint64 `json:"generation"`
+		Base            string `json:"base"`
+		BaseDigest      string `json:"base_digest"`
+		Fixtures        int    `json:"fixtures"`
+		Critical        int    `json:"critical"`
+		ShippedFiles    int    `json:"shipped_files"`
+		ShippedBytes    int64  `json:"shipped_bytes"`
+		OutputBudget    uint64 `json:"output_budget_bytes"`
+		DeadlineSeconds int    `json:"deadline_seconds"`
+	}{jobID, info.View.Bundle, info.View.BundleSHA256, info.View.PayloadSHA256, info.View.KeySource, info.View.Generation,
+		info.View.Base, info.View.BaseDigest, info.View.Fixtures, info.View.Critical, info.View.Files, info.View.Bytes, info.Budget, deadlineSecs})
+	flow, err := s.authority.Intake(rr, detail)
+	if err != nil {
+		status := http.StatusBadRequest
+		switch shared_errors.CodeOf(err) {
+		case intake.CodeDuplicateRequest:
+			status = http.StatusConflict
+		case orchestration.CodeAuditUnavailable:
+			status = http.StatusServiceUnavailable
+			s.log.Error("sagvd audit log refused a request", "job_id", jobID, "request_id", rr.RequestID, "err", err)
+		}
+		writeError(w, status, shared_errors.CategoryOf(err).String(), shared_errors.CodeOf(err), err.Error())
+		return
+	}
+	view, err := s.queue.Submit(jobID, flow, info, deadline)
+	if err != nil {
 		writeError(w, http.StatusBadRequest, shared_errors.CategoryOf(err).String(),
 			shared_errors.CodeOf(err), err.Error())
 		return
@@ -332,22 +387,60 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 	s.metrics.jobsSubmitted.Inc()
 	s.log.Info("sagvd gate job accepted",
 		"job_id", jobID,
-		"manifest_id", job.Req.ManifestID,
-		"session_id", job.Req.SessionID,
-		"genome_id", job.Genome.KeyID,
-		"bundle", logSafe(job.Genome.Bundle),
-		"key_source", job.Genome.KeySource,
-		"fixtures", job.Genome.Fixtures,
-		"shipped_bytes", job.Genome.Bytes,
-		"output_budget_bytes", job.Req.ExpectedOutputMaxBytes,
+		"request_id", rr.RequestID,
+		"policy_profile", rr.PolicyProfile,
+		"requester", logSafe(rr.RequesterIdentity),
+		"genome_id", info.GenomeID,
+		"bundle", logSafe(info.View.Bundle),
+		"key_source", info.View.KeySource,
+		"fixtures", info.View.Fixtures,
+		"shipped_bytes", info.View.Bytes,
+		"output_budget_bytes", info.Budget,
+		"deadline_seconds", deadlineSecs,
 	)
 	writeJSON(w, http.StatusAccepted, submitResponse{
-		JobID: jobID, ManifestID: job.Req.ManifestID, SessionID: job.Req.SessionID, Genome: job.Genome,
+		JobID: jobID, RequestID: rr.RequestID.String(), State: view.State, Genome: info.View,
 	})
 }
 
-// statusForBuildError maps a gate-job build error to an HTTP status: what
-// the caller named is 4xx, what the vault cannot do is 5xx.
+// recoveryRequest is the RecoveryRequest a submission makes: the genome
+// the bundle holds, the profile and identity named (or their defaults),
+// and the bundle named as contour.
+func (r submitRequest) recoveryRequest(info genomeInfo, now time.Time) (recovery_request.RecoveryRequest, error) {
+	reqID := ids.RequestID(r.RequestID)
+	if reqID.IsZero() {
+		minted, err := orchestration.MintRequestID()
+		if err != nil {
+			return recovery_request.RecoveryRequest{}, err
+		}
+		reqID = minted
+	}
+	profile := r.PolicyProfile
+	if profile == "" {
+		profile = PolicyProfileGate
+	}
+	identity := r.RequesterIdentity
+	if identity == "" {
+		identity = DefaultRequesterIdentity
+	}
+	contour := map[string]string{"bundle": info.View.Bundle, "key_source": info.View.KeySource}
+	for k, v := range r.Contour {
+		contour[k] = v
+	}
+	return recovery_request.RecoveryRequest{
+		SchemaVersion:     recovery_request.SchemaVersionCurrent,
+		RequestID:         reqID,
+		GenomeID:          ids.GenomeID(info.GenomeID),
+		PolicyProfile:     profile,
+		RequesterIdentity: identity,
+		Contour:           contour,
+		CreatedAt:         now,
+	}, nil
+}
+
+// statusForBuildError maps a gate-job inspection error to an HTTP
+// status: what the caller named is 4xx, what the vault cannot do is
+// 5xx.
 func statusForBuildError(err error) int {
 	switch shared_errors.CodeOf(err) {
 	case CodeGenomeNotFound, CodeGenomeInvalid, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeFieldValueInvalid:
@@ -375,7 +468,46 @@ func (r submitRequest) validate() error {
 			shared_errors.CodeFieldValueInvalid,
 			"deadline_seconds_from_now must be >= 0", nil))
 	}
+	if r.RequestID != "" && !requestIDRE.MatchString(r.RequestID) {
+		errs = append(errs, shared_errors.Structural(
+			shared_errors.CodeFieldValueInvalid,
+			"request_id: letters, digits, '.', '_', ':', '-'; at most 128 characters", nil))
+	}
+	for name, v := range map[string]string{"policy_profile": r.PolicyProfile, "requester_identity": r.RequesterIdentity} {
+		if !printableField(v) {
+			errs = append(errs, shared_errors.Structural(
+				shared_errors.CodeFieldValueInvalid,
+				name+": printable characters only, at most 128", nil))
+		}
+	}
+	if len(r.Contour) > maxContourEntries {
+		errs = append(errs, shared_errors.Structural(
+			shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("contour: at most %d entries", maxContourEntries), nil))
+	}
+	for k, v := range r.Contour {
+		if k == "" || !printableField(k) || !printableField(v) {
+			errs = append(errs, shared_errors.Structural(
+				shared_errors.CodeFieldValueInvalid,
+				"contour: keys and values are printable, non-empty keys, at most 128 characters", nil))
+			break
+		}
+	}
 	return errors.Join(errs...)
+}
+
+// printableField accepts a short string of printable characters (an
+// empty one included), so what a caller names reads back as one line.
+func printableField(s string) bool {
+	if len(s) > maxRequestField {
+		return false
+	}
+	for _, r := range s {
+		if !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
 }
 
 // ---- middleware ----------------------------------------------------------

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ai-continuity-platform/core/internal/contracts/attestation_result"
 	"io"
 	"net"
 	"os"
@@ -76,6 +77,35 @@ type Config struct {
 	// judged — on a durable, signed, hash-linked record before it takes
 	// effect (ADR 0014). Required when gate jobs are enabled.
 	Audit AuditConfig `json:"audit,omitempty"`
+
+	// OperatorStop is the operator's signed stop list (ADR 0010) as Trust
+	// Admission consults it for gate jobs (ADR 0015): a stop-all list
+	// denies every job, a list revoking the worker's measurement denies
+	// that worker, and every denial is a signed, recorded decision. The
+	// list is re-read at every admission, so the operator stops the
+	// daemon's releases by writing a new list. Optional; when set, all
+	// three fields are required.
+	OperatorStop OperatorStopConfig `json:"operator_stop,omitempty"`
+}
+
+// PolicyProfileGate is the one policy profile the daemon serves: restore
+// the named genome in an attested worker and hold it to its sealed
+// references under genome.gate. A RecoveryRequest naming another profile
+// is denied at Trust Admission.
+const PolicyProfileGate = "gate"
+
+// PolicyVersion is the policy every session is pinned to and validation
+// checks alignment with (op.policy_alignment): the gate's tolerance, in
+// full, so a tolerance changed under a live session is a recorded
+// operational failure rather than a silent drift.
+func (c Config) PolicyVersion() string {
+	g := c.Genome.Gate
+	return fmt.Sprintf("gate-policy/v1;atol=%g;rtol=%g;outliers=%d", g.Atol, g.Rtol, g.MaxNonCriticalOutliers)
+}
+
+// OperatorStopEnabled reports whether trust consults a stop list.
+func (c Config) OperatorStopEnabled() bool {
+	return c.OperatorStop.KeyID != "" || c.OperatorStop.PublicKeyPath != "" || c.OperatorStop.ListPath != ""
 }
 
 // GenomeConfig is where the sealed genomes a job may name live, how
@@ -392,6 +422,13 @@ type RuntimeConfig struct {
 	// MaxPayloadBytes caps base64-decoded POST /v1/jobs payload
 	// size. Prevents a single client from exhausting vault memory.
 	MaxPayloadBytes uint64 `json:"max_payload_bytes"`
+
+	// EvidenceMaxAgeSeconds is how old a worker's Return Path Evidence
+	// may be when a job is handed to it. A session whose handshake is
+	// older is closed with re_attest and the job stays queued (the worker
+	// dials again, attests again). 0 takes the attestation default
+	// (5 minutes).
+	EvidenceMaxAgeSeconds int `json:"evidence_max_age_seconds,omitempty"`
 }
 
 // JobTimeout returns RuntimeConfig.JobTimeoutSeconds as a Duration.
@@ -421,6 +458,15 @@ func (r RuntimeConfig) HTTPWriteTimeout() time.Duration {
 }
 
 // DefaultJobDeadline returns the default per-job deadline.
+// EvidenceMaxAge is RuntimeConfig.EvidenceMaxAgeSeconds as a duration,
+// the attestation default when unset.
+func (r RuntimeConfig) EvidenceMaxAge() time.Duration {
+	if r.EvidenceMaxAgeSeconds <= 0 {
+		return attestation_result.DefaultTTL
+	}
+	return time.Duration(r.EvidenceMaxAgeSeconds) * time.Second
+}
+
 func (r RuntimeConfig) DefaultJobDeadline() time.Duration {
 	return time.Duration(r.DefaultJobDeadlineSeconds) * time.Second
 }
@@ -791,6 +837,14 @@ func (c Config) Validate() error {
 	}
 	if c.Genome.Enabled() && c.Audit.LogPath == "" {
 		errs = append(errs, errors.New("audit.log_path required when genome.bundle_dir is set: a gate job is a decision, and no decision is taken off the record"))
+	}
+	if c.OperatorStopEnabled() {
+		if s := c.OperatorStop; s.KeyID == "" || s.PublicKeyPath == "" || s.ListPath == "" {
+			errs = append(errs, errors.New("operator_stop.kid, public_key_path and list_path are all required when any is set"))
+		}
+	}
+	if c.Runtime.EvidenceMaxAgeSeconds < 0 {
+		errs = append(errs, errors.New("runtime.evidence_max_age_seconds must be >= 0 (0 = the attestation default)"))
 	}
 	if c.Audit.LogPath != "" {
 		if c.Keys.AuditSigning.KeyID == "" || c.Keys.AuditSigning.SeedPath == "" {

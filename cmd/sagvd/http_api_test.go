@@ -16,16 +16,17 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/observability/metrics"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/ai-continuity-platform/core/internal/vault/intake"
+	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
 )
 
 // --- test fixtures --------------------------------------------------------
 
 // testHTTPFixture bundles every piece a handler-level test needs:
-// a live HTTPAPIServer, the queue behind it, and a client that
-// talks to its bound listener. Cleanup closes the server.
+// a live HTTPAPIServer, the queue behind it, the authority and audit
+// log it admits requests through, and a client that talks to its bound
+// listener. Cleanup closes the server.
 type testHTTPFixture struct {
 	server *HTTPAPIServer
 	queue  *JobQueue
@@ -34,6 +35,7 @@ type testHTTPFixture struct {
 	dir    string     // genome.bundle_dir
 	genome testGenome // a sealed genome in dir
 	audit  *returnPathAudit
+	ta     *testAuthority
 }
 
 // newTestFixture starts an HTTPAPIServer listening on 127.0.0.1:0
@@ -47,9 +49,6 @@ func newTestFixtureWith(t *testing.T, bearer string, gateJobs bool) *testHTTPFix
 	t.Helper()
 
 	clock := shared_time.NewSystemClock()
-	store := keys.NewInMemoryStore(clock)
-	sealKID := testRegisterSealing(t, store)
-
 	queue := NewJobQueue(clock, 50*time.Millisecond)
 	registry := metrics.NewRegistry()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -66,16 +65,26 @@ func newTestFixtureWith(t *testing.T, bearer string, gateJobs bool) *testHTTPFix
 	}
 	dir := t.TempDir()
 	sealed := sealTestGenome(t, dir, genomeOptions{})
+	fx := &testHTTPFixture{
+		queue:  queue,
+		client: &http.Client{Timeout: 5 * time.Second},
+		dir:    dir,
+		genome: sealed,
+	}
 	var genomes *genomeJobs
-	var audit *returnPathAudit
 	if gateJobs {
 		full := DefaultConfig()
 		full.Genome.BundleDir = dir
 		full.Runtime = runtime
-		genomes = newGenomeJobs(full, store, sealKID, clock)
-		audit, _ = newTestAudit(t)
+		genomes = newGenomeJobs(full, clock)
+		fx.audit, _ = newTestAudit(t)
+		fx.ta = newTestAuthority(t, fx.audit)
 	}
-	srv, err := NewHTTPAPIServer(cfg, runtime, queue, store, sealKID, genomes, audit, clock, registry, logger)
+	var authority *orchestration.Authority
+	if fx.ta != nil {
+		authority = fx.ta.authority
+	}
+	srv, err := NewHTTPAPIServer(cfg, runtime, queue, genomes, authority, clock, registry, logger)
 	if err != nil {
 		t.Fatalf("NewHTTPAPIServer: %v", err)
 	}
@@ -87,34 +96,9 @@ func newTestFixtureWith(t *testing.T, bearer string, gateJobs bool) *testHTTPFix
 		defer cancel()
 		_ = srv.Close(shutCtx)
 	})
-
-	return &testHTTPFixture{
-		server: srv,
-		queue:  queue,
-		client: &http.Client{Timeout: 5 * time.Second},
-		base:   "http://" + srv.Addr(),
-		dir:    dir,
-		genome: sealed,
-		audit:  audit,
-	}
-}
-
-// testRegisterSealing registers a fresh 32-byte AES-256 sealing
-// material under a deterministic kid so sealing round-trips have
-// something to work against.
-func testRegisterSealing(t *testing.T, store *keys.InMemoryStore) ids.KeyID {
-	t.Helper()
-	kid := ids.KeyID("test-sealing-kid-1")
-	material := make([]byte, 32)
-	// Deterministic-but-non-zero pattern; keystore copies it
-	// defensively so wiping our caller-side buffer is a no-op.
-	for i := range material {
-		material[i] = byte(i ^ 0xA5)
-	}
-	if err := store.RegisterSealing(kid, material); err != nil {
-		t.Fatalf("RegisterSealing: %v", err)
-	}
-	return kid
+	fx.server = srv
+	fx.base = "http://" + srv.Addr()
+	return fx
 }
 
 // --- tests: happy path ----------------------------------------------------
@@ -123,6 +107,10 @@ func testRegisterSealing(t *testing.T, store *keys.InMemoryStore) ids.KeyID {
 type submitBody struct {
 	Genome                 map[string]string `json:"genome"`
 	DeadlineSecondsFromNow int               `json:"deadline_seconds_from_now,omitempty"`
+	RequestID              string            `json:"request_id,omitempty"`
+	PolicyProfile          string            `json:"policy_profile,omitempty"`
+	RequesterIdentity      string            `json:"requester_identity,omitempty"`
+	Contour                map[string]string `json:"contour,omitempty"`
 }
 
 func (b submitBody) marshal(t *testing.T) []byte {
@@ -168,7 +156,7 @@ func TestHTTPAPI_PostJobs_HappyPath(t *testing.T) {
 	if err := json.Unmarshal(body, &out); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if out.JobID == "" || !strings.HasPrefix(out.ManifestID, "rjm-") || !strings.HasPrefix(out.SessionID, "ses-") {
+	if len(out.JobID) != 32 || !strings.HasPrefix(out.RequestID, "req-") || out.State != "trust" {
 		t.Fatalf("response lacks identities: %+v", out)
 	}
 	if out.Genome.KeyID != fx.genome.KeyID || out.Genome.Fixtures != 3 || out.Genome.KeySource != "key_file" {
@@ -178,14 +166,66 @@ func TestHTTPAPI_PostJobs_HappyPath(t *testing.T) {
 	if !ok {
 		t.Fatal("queue missing submitted job")
 	}
-	if view.Genome == nil || view.Genome.KeyID != fx.genome.KeyID || view.Gate != nil {
+	if view.Genome == nil || view.Genome.KeyID != fx.genome.KeyID || view.Gate != nil || view.Result != nil {
 		t.Fatalf("queued view: %+v", view)
 	}
-	if spec := fx.queue.GateFor(out.JobID); spec == nil || len(spec.Fixtures) != 3 {
-		t.Fatalf("the queued job has no gate to judge it: %+v", spec)
-	}
-	if view.ManifestID != out.ManifestID || view.ExpectedOutputKind != "bytes/fixed-length" {
+	if view.RequestID != out.RequestID || view.State != "trust" || view.ManifestID != "" || view.SessionID != "" {
 		t.Fatalf("queued view identities: %+v", view)
+	}
+	if view.Flow == nil || len(view.Flow.Steps) != 2 || view.Flow.Request.GenomeID.String() != fx.genome.KeyID ||
+		view.Flow.Request.PolicyProfile != PolicyProfileGate || view.Flow.Request.RequesterIdentity != DefaultRequesterIdentity ||
+		view.Flow.Request.Contour["bundle"] != fx.genome.Bundle {
+		t.Fatalf("queued view flow: %+v", view.Flow)
+	}
+	if view.ExpectedOutputKind != "bytes/fixed-length" {
+		t.Fatalf("expected_output_kind = %q", view.ExpectedOutputKind)
+	}
+}
+
+// What the caller names — request_id, profile, identity, contour — is
+// what the flow carries; a request_id is admitted once.
+func TestHTTPAPI_PostJobs_NamesTheRequest(t *testing.T) {
+	fx := newTestFixture(t, "")
+	body := fx.goodSubmit()
+	body.RequestID = "req-ops:2026-09-16.1"
+	body.PolicyProfile = "gate"
+	body.RequesterIdentity = "operator:alice"
+	body.Contour = map[string]string{"jurisdiction": "eu"}
+
+	resp, data := fx.post(t, body.marshal(t))
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d want 202 (%s)", resp.StatusCode, data)
+	}
+	var out submitResponse
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.RequestID != body.RequestID {
+		t.Fatalf("request_id = %q want %q", out.RequestID, body.RequestID)
+	}
+	view, _ := fx.queue.Get(out.JobID)
+	if r := view.Flow.Request; r.RequesterIdentity != "operator:alice" || r.Contour["jurisdiction"] != "eu" || r.Contour["bundle"] != fx.genome.Bundle {
+		t.Fatalf("request carried: %+v", r)
+	}
+
+	// The same request_id again: refused as a duplicate, not queued.
+	resp, data = fx.post(t, body.marshal(t))
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("duplicate request_id: status = %d want 409 (%s)", resp.StatusCode, data)
+	}
+	if env := decodeErrorEnvelope(t, bytes.NewReader(data)); env.Error.Code != intake.CodeDuplicateRequest {
+		t.Fatalf("code = %s", env.Error.Code)
+	}
+	if got := fx.queue.Depth(); got != 1 {
+		t.Fatalf("depth = %d want 1", got)
+	}
+
+	// An unknown profile is admitted here — intake is structural — and
+	// denied later at trust, on the record.
+	body.RequestID = ""
+	body.PolicyProfile = "sovereign-x"
+	if resp, data = fx.post(t, body.marshal(t)); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("unknown profile at intake: status = %d want 202 (%s)", resp.StatusCode, data)
 	}
 }
 
@@ -211,11 +251,8 @@ func TestHTTPAPI_GetJobByID_HappyPath(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&view); err != nil {
 		t.Fatalf("decode view: %v", err)
 	}
-	if view.ID != submitted.JobID {
-		t.Fatalf("view.ID = %s want %s", view.ID, submitted.JobID)
-	}
-	if view.Status != JobStatusQueued {
-		t.Fatalf("view.Status = %s", view.Status)
+	if view.ID != submitted.JobID || view.Status != JobStatusQueued || view.State != "trust" || view.RequestID != submitted.RequestID {
+		t.Fatalf("view: %+v", view)
 	}
 	if view.Genome == nil || view.Genome.Bundle != fx.genome.Bundle {
 		t.Fatalf("view.Genome = %+v", view.Genome)
@@ -247,6 +284,10 @@ func TestHTTPAPI_PostJobs_RejectsWhatItCannotBuild(t *testing.T) {
 	if err := os.Rename(filepath.Join(otherDir, foreign.KeyFile), filepath.Join(fx.dir, "foreign.key")); err != nil {
 		t.Fatal(err)
 	}
+	big := map[string]string{}
+	for i := 0; i <= maxContourEntries; i++ {
+		big[strings.Repeat("k", i+1)] = "v"
+	}
 	cases := []struct {
 		name     string
 		mut      func(*submitBody)
@@ -263,6 +304,11 @@ func TestHTTPAPI_PostJobs_RejectsWhatItCannotBuild(t *testing.T) {
 		{"no key and no escrow", func(b *submitBody) { delete(b.Genome, "key_file") }, 400, "structural", CodeGenomeNotFound},
 		{"negative deadline", func(b *submitBody) { b.DeadlineSecondsFromNow = -1 }, 400, "structural", "field_value_invalid"},
 		{"deadline above ceiling", func(b *submitBody) { b.DeadlineSecondsFromNow = 3600 }, 400, "structural", "deadline_exceeds_ceiling"},
+		{"request_id with a slash", func(b *submitBody) { b.RequestID = "a/b" }, 400, "structural", "field_value_invalid"},
+		{"request_id too long", func(b *submitBody) { b.RequestID = strings.Repeat("a", 129) }, 400, "structural", "field_value_invalid"},
+		{"identity with a newline", func(b *submitBody) { b.RequesterIdentity = "a\nb" }, 400, "structural", "field_value_invalid"},
+		{"contour too big", func(b *submitBody) { b.Contour = big }, 400, "structural", "field_value_invalid"},
+		{"contour empty key", func(b *submitBody) { b.Contour = map[string]string{"": "v"} }, 400, "structural", "field_value_invalid"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -280,6 +326,9 @@ func TestHTTPAPI_PostJobs_RejectsWhatItCannotBuild(t *testing.T) {
 	}
 	if got := fx.queue.Depth(); got != 0 {
 		t.Fatalf("refused submissions enqueued work: depth %d", got)
+	}
+	if n := fx.audit.Len(); n != 0 {
+		t.Fatalf("refused submissions were recorded: %d events", n)
 	}
 }
 
@@ -306,8 +355,8 @@ func TestHTTPAPI_PostJobs_RejectsUnknownFieldsAndOversizedBodies(t *testing.T) {
 	}
 }
 
-// A job is on the audit record before it is queued, under its own id;
-// a log that cannot take it refuses the job.
+// A request is on the audit record before it is queued, under its own
+// id; a log that cannot take it refuses the job.
 func TestHTTPAPI_PostJobs_IsOnTheRecordFirst(t *testing.T) {
 	fx := newTestFixture(t, "")
 	_, body := fx.post(t, fx.goodSubmit().marshal(t))
@@ -316,12 +365,14 @@ func TestHTTPAPI_PostJobs_IsOnTheRecordFirst(t *testing.T) {
 		t.Fatalf("decode: %v (%s)", err, body)
 	}
 	events := fx.audit.chain.Events()
-	if len(events) != 1 || events[0].Kind != "MANIFEST_ISSUED" || string(events[0].ManifestID) != out.ManifestID {
+	if len(events) != 1 || events[0].Kind != "REQUEST_RECEIVED" || string(events[0].RequestID) != out.RequestID {
 		t.Fatalf("audit log after one job: %+v", events)
 	}
-	var p jobAcceptedPayload
-	if err := json.Unmarshal(events[0].Payload, &p); err != nil || p.JobID != out.JobID || p.GenomeID != fx.genome.KeyID {
-		t.Fatalf("MANIFEST_ISSUED payload: %+v (%v)", p, err)
+	payload := string(events[0].Payload)
+	for _, want := range []string{`"job_id":"` + out.JobID + `"`, `"genome_id":"` + fx.genome.KeyID + `"`, `"policy_profile":"gate"`, `"output_budget_bytes":`, `"deadline_seconds":30`} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("REQUEST_RECEIVED payload lacks %s: %s", want, payload)
+		}
 	}
 
 	if err := fx.audit.Close(); err != nil {
@@ -339,16 +390,14 @@ func TestHTTPAPI_PostJobs_IsOnTheRecordFirst(t *testing.T) {
 	}
 }
 
-func TestHTTPAPI_RequiresTheAuditLogWithGateJobs(t *testing.T) {
+func TestHTTPAPI_RequiresTheAuthorityWithGateJobs(t *testing.T) {
 	clock := shared_time.NewSystemClock()
-	store := keys.NewInMemoryStore(clock)
-	sealKID := testRegisterSealing(t, store)
 	full := DefaultConfig()
 	full.Genome.BundleDir = t.TempDir()
-	genomes := newGenomeJobs(full, store, sealKID, clock)
-	_, err := NewHTTPAPIServer(HTTPAPIConfig{}, full.Runtime, NewJobQueue(clock, time.Second), store, sealKID, genomes, nil, clock, metrics.NewRegistry(), nil)
+	genomes := newGenomeJobs(full, clock)
+	_, err := NewHTTPAPIServer(HTTPAPIConfig{}, full.Runtime, NewJobQueue(clock, time.Second), genomes, nil, clock, metrics.NewRegistry(), nil)
 	if err == nil {
-		t.Fatal("gate jobs without an audit log were accepted")
+		t.Fatal("gate jobs without an authority (an audit log) were accepted")
 	}
 }
 
@@ -467,11 +516,8 @@ func TestHTTPAPI_EmptyListenIsNoOp(t *testing.T) {
 	cfg := HTTPAPIConfig{ListenAddress: ""}
 	runtime := DefaultConfig().Runtime
 	clock := shared_time.NewSystemClock()
-	store := keys.NewInMemoryStore(clock)
-	_ = testRegisterSealing(t, store)
 
-	srv, err := NewHTTPAPIServer(cfg, runtime, NewJobQueue(clock, runtime.QueuePoll()),
-		store, "test-sealing-kid-1", nil, nil, clock, metrics.NewRegistry(), nil)
+	srv, err := NewHTTPAPIServer(cfg, runtime, NewJobQueue(clock, runtime.QueuePoll()), nil, nil, clock, metrics.NewRegistry(), nil)
 	if err != nil {
 		t.Fatalf("NewHTTPAPIServer: %v", err)
 	}

@@ -9,8 +9,8 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), then [What we do not claim](#what-we-do-not-claim) — that last
-section is the one we would want to read first if we were evaluating someone else.
+[C11](#c11), [C12](#c12), [C13](#c13), then [What we do not claim](#what-we-do-not-claim) —
+that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
 
@@ -350,6 +350,66 @@ itself; the report that verifies offline is the receipt in [C7](#c7)'s
 key-release evidence. Simulated TEEs remain available off hardware and
 announce themselves at start (KNOWN_ISSUES #1).
 
+<a id="c13"></a>
+### C13 — The vault daemon drives the nine-stage flow for a real job on real SEV-SNP, and every stage is a signed, recorded decision
+
+**Claim.** A gate job on `sagvd` is a RecoveryRequest that the daemon takes
+through the nine stages of the governed reconstruction flow with the
+library's own decision-makers — intake, Trust Admission, the session issuer,
+the staged disclosure sequencer, the manifest, the Return Path, the
+three-dimension validation service, the release decision, the audit seal —
+every transition the state machine's, every decision on the audit log
+before it takes effect, every artifact signed under the authority key
+([ADR 0015](docs/adr/0015-one-binary-drives-the-nine-stages.md)). On an
+AMD SEV-SNP guest with both daemons attesting with the chip, that flow ran
+end to end and released.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20260916T003940Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20260916T003940Z/)
+— `n2d-standard-4`, us-central1-c, both identities `tee_provider:
+gcp-sev-snp`, measurement `7dc7c12e…25acc`.
+`audit-verify.json`: `ok: true`, `event_count: 17`.
+`audit-events.jsonl`, in order: `TRUST_EVALUATED` deny (a simulated-TEE
+worker refused at the handshake) · `REQUEST_RECEIVED` · `TRUST_EVALUATED`
+allow (`trust.peer_attested`, `gcp-sev-snp`, the measurement) ·
+`SESSION_ISSUED` (`gate-policy/v1;atol=0.01;rtol=0.001;outliers=0`) ·
+`DISCLOSURE_AUTHORIZED` ×5 · `MANIFEST_ISSUED` (5 disclosures, budget 666) ·
+`CANDIDATE_RECEIVED` · `VALIDATION_STARTED` · `VALIDATION_DIMENSION_EVALUATED`
+×3 (operational pass; semantic `top1-agreement` 6/6; behavioral
+`equivalence-ladder` EXACT) · `VALIDATION_COMPLETED` (pass) ·
+`RELEASE_DECIDED` (`release: true`, `validation_pass`, citing the
+attestation).
+`job.json`: `state: release_authorized`, 10 transitions, the signed
+attestation, session, manifest, validation result and decision — the
+decision's `audit_event_id` is the `RELEASE_DECIDED` event's id — intake to
+seal **4.48 s**. `sagvd-metrics.txt`:
+`sagvd_release_decisions_total{decision="release"} 1`.
+
+The same flow, in process and with the shipping binaries:
+[`cmd/sagvd/daemon_flow_test.go`](cmd/sagvd/daemon_flow_test.go) (a release,
+a trust denial without a session, a refused model closed as an incident,
+an answer that is not an answer, a stale worker sent to attest again),
+[`internal/vault/orchestration/flow_test.go`](internal/vault/orchestration/flow_test.go)
+(every artifact verified, every stage order-checked, a chain that refuses
+a record stops the stage),
+[`test/integration/daemons_test.go`](test/integration/daemons_test.go)
+(the audit record read back through `acpctl`; the operator's stop-all
+denying a job at trust, on the record).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-sev-snp/returnpath-e2e/run.sh <gcp-project>
+go test -count=1 -run 'TestDaemon_|TestFlow_' ./cmd/sagvd/ ./internal/vault/orchestration/
+make test-integration
+```
+
+**Scope.** One guest, one worker, one job at a time; the receive-side
+round trip (§7 of the recovery-flow document) is still library code no
+binary drives. The semantic dimension is top-1 agreement at the reference
+positions, not a task-level evaluation; the behavioral dimension is the
+gate of [C4](#c4)/[C5](#c5). The model is the tiny one of [C12](#c12).
+
 ---
 
 ## Supply chain and build
@@ -414,7 +474,9 @@ sentence we cannot defend.
    prove the path, not the scale). A 7B+ run is the obvious next measurement
    and it has not been made.
 6. **We do not claim production operation.** Stage E, MVP maturity, zero
-   external deployments. Receive-side self-bootstrapping is deferred to V2.
+   external deployments. The vault daemon drives the release-side flow
+   ([C13](#c13)); the receive-side round trip is library code no binary
+   drives, and receive-side self-bootstrapping is deferred to V2.
 7. **We do not claim a granted patent.** The patent family is filed, not
    granted; a provisional application is not a patent and we never call it one.
 8. **We do not claim external security review.** No third-party audit or

@@ -6,13 +6,18 @@
 (`/internal/vault/incident`) handles per resolution R-15, the two
 "always-escalate" scenarios it defers, and what an operator does.
 
-**What runs where.** The incident module is a library. No shipped binary
-wires it, so on a deployment nothing detects these scenarios or appends
-incident events for you; it runs in its own tests and in
-`internal/integration/phase1_demo_test.go`. No operator command appends audit
-events either. On the shipped cross-cloud path, `sagvd crosscloud-restore`
-records its own refusals as `KEY_RELEASE_DENIED`
-([06](06_cross_cloud_restore.md), "When a release is refused").
+**What runs where.** The incident module is a library that `sagvd` wires
+for gate jobs (ADR 0015): a validation that does not pass ends the job's
+flow through `HandleValidationHardFail` — `INCIDENT_DETECTED`, the session
+invalidated on the record (`SESSION_INVALIDATED`), `INCIDENT_TERMINATED` —
+and a flow that cannot reach its decision is aborted with an
+`INCIDENT_DETECTED` for an Integrity failure (a worker's output that is not
+an answer, a wire integrity failure) and its session invalidated. The
+attestation-failure and audit-append scenarios run in the module's own
+tests and in `internal/integration/phase1_demo_test.go`. On the shipped
+cross-cloud path, `sagvd crosscloud-restore` records its own refusals as
+`KEY_RELEASE_DENIED` ([06](06_cross_cloud_restore.md), "When a release is
+refused").
 
 ---
 
@@ -122,8 +127,12 @@ behavioral dimensions once operational validation fails and returns a fail
 verdict. A caller invokes `HandleValidationHardFail`, which runs the sequence
 above at severity `error`: the session is invalidated, keys are not zeroized.
 
-No shipped binary validates candidates: sagvd returns a worker's output
-through `GET /v1/jobs/{id}` without validating it.
+`sagvd` validates every candidate through the validation service (ADR
+0015): the six sub-checks over the job's own attestation, session and
+manifest, and the gate's two dimensions over the worker's answer. A failing
+sub-check refuses release — `GET /v1/jobs/{id}` shows the finding in the
+flow's validation result and the signed refusal — and the worker's output is
+not surfaced.
 
 **What each sub-check means:**
 

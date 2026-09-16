@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,128 +16,116 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/compute/returnpath"
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/transport"
 	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
+	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
 	"github.com/ai-continuity-platform/core/internal/genome/gatejob"
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/ai-continuity-platform/core/internal/vault/keys"
 	"github.com/stretchr/testify/require"
 )
 
-// newGenomeJobs wires a builder over a temp bundle dir with a fresh
-// sealing key; the store is returned so a test can open what was sealed.
-func newTestGenomeJobs(t *testing.T, bundleDir, escrowKey string) (*genomeJobs, *keys.InMemoryStore) {
+// newTestGenomeJobs wires an opener over a temp bundle dir.
+func newTestGenomeJobs(t *testing.T, bundleDir, escrowKey string) *genomeJobs {
 	t.Helper()
-	clock := shared_time.NewSystemClock()
-	store := keys.NewInMemoryStore(clock)
-	sealKID := testRegisterSealing(t, store)
 	cfg := DefaultConfig()
 	cfg.Genome.BundleDir = bundleDir
 	cfg.Genome.KeyEscrowPath = escrowKey
 	cfg.Runtime.MaxPayloadBytes = 1 << 20
-	g := newGenomeJobs(cfg, store, sealKID, clock)
+	g := newGenomeJobs(cfg, shared_time.NewSystemClock())
 	require.NotNil(t, g)
-	return g, store
+	return g
 }
 
-func TestGenomeJobs_BuildSealsTheModelSideAndKeepsTheReferences(t *testing.T) {
+func TestGenomeJobs_InspectKeepsTheReferencesAndComponentsLayOutTheModelSide(t *testing.T) {
 	dir := t.TempDir()
 	sealed := sealTestGenome(t, dir, genomeOptions{})
-	g, store := newTestGenomeJobs(t, dir, "")
+	g := newTestGenomeJobs(t, dir, "")
 
-	job, err := g.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, 90*time.Second)
+	info, err := g.inspect(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile})
 	require.NoError(t, err)
-	req := job.Req
-	require.NoError(t, req.Validate())
-	require.True(t, strings.HasPrefix(req.ManifestID, "rjm-"))
-	require.True(t, strings.HasPrefix(req.SessionID, "ses-"))
-	require.Equal(t, string(rjm.OutputKindBytesFixedLength), req.ExpectedOutputKind)
-	require.Equal(t, req.IssuedAt.Add(90*time.Second), req.Deadline)
 
 	// The genome view is public and complete.
-	require.Equal(t, sealed.Bundle, job.Genome.Bundle)
-	require.Equal(t, sealed.KeyID, job.Genome.KeyID)
-	require.Equal(t, "key_file", job.Genome.KeySource)
-	require.Equal(t, "tiny-llama", job.Genome.Base)
-	require.Equal(t, 3, job.Genome.Fixtures)
-	require.Equal(t, 2, job.Genome.Critical)
-	require.Equal(t, 4, job.Genome.Files, "genome.json, two adapter files, prompts.json")
-	require.Len(t, job.Genome.BundleSHA256, 64)
+	require.Equal(t, sealed.Bundle, info.View.Bundle)
+	require.Equal(t, sealed.KeyID, info.View.KeyID)
+	require.Equal(t, sealed.KeyID, info.GenomeID)
+	require.Equal(t, "key_file", info.View.KeySource)
+	require.Equal(t, "tiny-llama", info.View.Base)
+	require.Equal(t, 3, info.View.Fixtures)
+	require.Equal(t, 2, info.View.Critical)
+	require.Equal(t, 4, info.View.Files, "genome.json, two adapter files, prompts.json")
+	require.Len(t, info.View.BundleSHA256, 64)
+	require.Equal(t, info.View.BundleSHA256, info.BundleSHA256)
 
 	// What is kept to judge: the references, under the operator's tolerance.
-	require.Equal(t, sealed.KeyID, job.Gate.GenomeID)
-	require.Equal(t, sealed.Fixtures, job.Gate.Fixtures)
-	require.Equal(t, equivalence.Tolerance{Atol: 1e-2, Rtol: 1e-3}, job.Gate.Tol)
+	require.Equal(t, sealed.KeyID, info.Gate.GenomeID)
+	require.Equal(t, sealed.Fixtures, info.Gate.Fixtures)
+	require.Equal(t, equivalence.Tolerance{Atol: 1e-2, Rtol: 1e-3}, info.Gate.Tol)
 
 	// The budget is the exact size of a right answer.
-	require.Equal(t, uint64(len(sealed.rightOutput(t, nil))), req.ExpectedOutputMaxBytes)
+	require.Equal(t, uint64(len(sealed.rightOutput(t, nil))), info.Budget)
 
-	// Open every component as the worker does and check the job shape:
-	// component 0 describes the rest; the fixtures' references and the
-	// training data are not shipped.
-	require.Len(t, req.SealedMaterial, 5)
-	var files [][]byte
-	for i, m := range req.SealedMaterial {
-		require.Equal(t, buildComponentAAD(req.ManifestID, req.SessionID, req.ExpectedOutputKind, uint32(i)), m.AAD)
-		pt, err := store.Open(ids.KeyID(m.RecipientKeyID), m.Nonce, m.Ciphertext, m.AAD)
-		require.NoError(t, err)
-		files = append(files, pt)
-	}
-	desc, err := gatejob.DecodeDescriptor(files[0])
+	// At dispatch the model side is laid out as components: component 0
+	// describes the rest; the fixtures' references and the training data
+	// are not shipped.
+	comps, err := g.components(info)
+	require.NoError(t, err)
+	require.Len(t, comps, 5)
+	require.Equal(t, ComponentIDDescriptor, string(comps[0].ID))
+	desc, err := gatejob.DecodeDescriptor(comps[0].Plaintext)
 	require.NoError(t, err)
 	require.Equal(t, sealed.KeyID, desc.GenomeID)
 	var paths []string
 	for _, f := range desc.Files {
 		paths = append(paths, f.Path)
-		sum := sha256.Sum256(files[f.Component])
+		require.Equal(t, f.Path, string(comps[f.Component].ID))
+		sum := sha256.Sum256(comps[f.Component].Plaintext)
 		require.Equal(t, hex.EncodeToString(sum[:]), f.SHA256)
-		require.Equal(t, int64(len(files[f.Component])), f.Bytes)
+		require.Equal(t, int64(len(comps[f.Component].Plaintext)), f.Bytes)
 	}
 	require.Equal(t, []string{"adapter/adapter_config.json", "adapter/adapter_model.safetensors", "genome.json", "prompts.json"}, paths)
-	require.Equal(t, sealed.Files["adapter/adapter_model.safetensors"], files[2])
-	prompts, err := gatejob.DecodePrompts(files[4])
+	require.Equal(t, sealed.Files["adapter/adapter_model.safetensors"], comps[2].Plaintext)
+	prompts, err := gatejob.DecodePrompts(comps[4].Plaintext)
 	require.NoError(t, err)
 	require.Equal(t, sealed.Prompts, prompts)
-	for _, f := range files {
-		require.NotContains(t, string(f), "raw_b64", "no reference output leaves the authority")
-		require.NotContains(t, string(f), `"completion"`, "the training data stays sealed")
+	for _, c := range comps {
+		require.NotContains(t, string(c.Plaintext), "raw_b64", "no reference output leaves the authority")
+		require.NotContains(t, string(c.Plaintext), `"completion"`, "the training data stays sealed")
 	}
 
-	// A component cannot be replayed at another index: the AAD differs.
-	_, err = store.Open(ids.KeyID(req.SealedMaterial[1].RecipientKeyID), req.SealedMaterial[1].Nonce, req.SealedMaterial[1].Ciphertext,
-		buildComponentAAD(req.ManifestID, req.SessionID, req.ExpectedOutputKind, 2))
-	require.Error(t, err)
-
-	// Two jobs for the same genome have their own identities.
-	again, err := g.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, 90*time.Second)
-	require.NoError(t, err)
-	require.NotEqual(t, req.ManifestID, again.Req.ManifestID)
+	// A bundle changed since submission is not the job's bundle.
+	changed := info
+	changed.BundleSHA256 = strings.Repeat("0", 64)
+	_, err = g.components(changed)
+	require.Equal(t, CodeGenomeChanged, shared_errors.CodeOf(err))
+	require.Equal(t, shared_errors.CategoryAuthority, shared_errors.CategoryOf(err))
 }
 
 func TestGenomeJobs_OpensAnEscrowedGenome(t *testing.T) {
 	dir := t.TempDir()
 	privPath, pubPath := escrowKeyPair(t, t.TempDir())
 	sealed := sealTestGenome(t, dir, genomeOptions{name: "esc", escrowPub: pubPath})
-	g, _ := newTestGenomeJobs(t, dir, privPath)
+	g := newTestGenomeJobs(t, dir, privPath)
 
-	job, err := g.build(genomeRef{Bundle: sealed.Bundle}, time.Minute)
+	info, err := g.inspect(genomeRef{Bundle: sealed.Bundle})
 	require.NoError(t, err)
-	require.Equal(t, "escrow", job.Genome.KeySource)
-	require.Equal(t, sealed.KeyID, job.Genome.KeyID)
+	require.Equal(t, "escrow", info.View.KeySource)
+	require.Equal(t, sealed.KeyID, info.View.KeyID)
+	comps, err := g.components(info)
+	require.NoError(t, err)
+	require.Len(t, comps, 5)
 
 	// Without the escrow key configured there is nothing to open it with.
-	noEscrow, _ := newTestGenomeJobs(t, dir, "")
-	_, err = noEscrow.build(genomeRef{Bundle: sealed.Bundle}, time.Minute)
+	noEscrow := newTestGenomeJobs(t, dir, "")
+	_, err = noEscrow.inspect(genomeRef{Bundle: sealed.Bundle})
 	require.Equal(t, CodeGenomeNotFound, shared_errors.CodeOf(err))
 
 	// An envelope for another genome is refused before it is opened.
 	other := sealTestGenome(t, dir, genomeOptions{name: "other", escrowPub: pubPath})
 	require.NoError(t, os.Rename(filepath.Join(dir, other.Bundle+".escrow"), filepath.Join(dir, sealed.Bundle+".escrow")))
-	_, err = g.build(genomeRef{Bundle: sealed.Bundle}, time.Minute)
+	_, err = g.inspect(genomeRef{Bundle: sealed.Bundle})
 	require.Equal(t, CodeGenomeKeyInvalid, shared_errors.CodeOf(err))
 	require.Equal(t, shared_errors.CategoryAuthority, shared_errors.CategoryOf(err))
 }
@@ -144,7 +133,7 @@ func TestGenomeJobs_OpensAnEscrowedGenome(t *testing.T) {
 func TestGenomeJobs_RefusesWhatItShould(t *testing.T) {
 	dir := t.TempDir()
 	sealed := sealTestGenome(t, dir, genomeOptions{})
-	g, _ := newTestGenomeJobs(t, dir, "")
+	g := newTestGenomeJobs(t, dir, "")
 	otherDir := t.TempDir()
 	foreign := sealTestGenome(t, otherDir, genomeOptions{name: "foreign"})
 	require.NoError(t, os.Rename(filepath.Join(otherDir, foreign.KeyFile), filepath.Join(dir, "foreign.key")))
@@ -169,7 +158,7 @@ func TestGenomeJobs_RefusesWhatItShould(t *testing.T) {
 		"no key, no escrow":  {genomeRef{Bundle: sealed.Bundle}, CodeGenomeNotFound, shared_errors.CategoryStructural},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := g.build(tc.ref, time.Minute)
+			_, err := g.inspect(tc.ref)
 			require.Error(t, err)
 			require.Equal(t, tc.code, shared_errors.CodeOf(err), err.Error())
 			require.Equal(t, tc.cat, shared_errors.CategoryOf(err), err.Error())
@@ -182,14 +171,14 @@ func TestGenomeJobs_RefusesWhatItShould(t *testing.T) {
 	escaped := sealTestGenome(t, outside, genomeOptions{name: "escaped"})
 	require.NoError(t, os.Symlink(filepath.Join(outside, escaped.Bundle), filepath.Join(dir, "link.genome")))
 	require.NoError(t, os.Symlink(filepath.Join(outside, escaped.KeyFile), filepath.Join(dir, "link.key")))
-	_, err := g.build(genomeRef{Bundle: "link.genome", KeyFile: "link.key"}, time.Minute)
+	_, err := g.inspect(genomeRef{Bundle: "link.genome", KeyFile: "link.key"})
 	require.Equal(t, CodeGenomeNotFound, shared_errors.CodeOf(err), err.Error())
-	_, err = g.build(genomeRef{Bundle: sealed.Bundle, KeyFile: "link.key"}, time.Minute)
+	_, err = g.inspect(genomeRef{Bundle: sealed.Bundle, KeyFile: "link.key"})
 	require.Equal(t, CodeGenomeNotFound, shared_errors.CodeOf(err), err.Error())
 	// A bundle dir that is not there is the vault's problem, not the caller's.
-	gone := *g // a copy: the builder under test keeps its directory
+	gone := *g // a copy: the opener under test keeps its directory
 	gone.cfg.BundleDir = filepath.Join(t.TempDir(), "absent")
-	_, err = gone.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, time.Minute)
+	_, err = gone.inspect(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile})
 	require.Equal(t, CodeBundleDirUnavailable, shared_errors.CodeOf(err))
 	require.Equal(t, http.StatusInternalServerError, statusForBuildError(err))
 
@@ -203,7 +192,7 @@ func TestGenomeJobs_RefusesWhatItShould(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := sealTestGenome(t, dir, opts)
-			_, err := g.build(genomeRef{Bundle: s.Bundle, KeyFile: s.KeyFile}, time.Minute)
+			_, err := g.inspect(genomeRef{Bundle: s.Bundle, KeyFile: s.KeyFile})
 			require.Error(t, err)
 			require.Equal(t, CodeGenomeInvalid, shared_errors.CodeOf(err), err.Error())
 		})
@@ -212,29 +201,33 @@ func TestGenomeJobs_RefusesWhatItShould(t *testing.T) {
 	// A genome the Return Path cannot carry.
 	small := *g
 	small.maxPayload = 4096
-	_, err = small.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, time.Minute)
+	_, err = small.inspect(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile})
 	require.Equal(t, CodeGenomeTooLarge, shared_errors.CodeOf(err))
 	require.Equal(t, shared_errors.CategoryOperational, shared_errors.CategoryOf(err))
 	tiny := *g
 	tiny.maxPayload = 1
-	_, err = tiny.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, time.Minute)
+	_, err = tiny.inspect(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile})
 	require.Equal(t, CodeGenomeTooLarge, shared_errors.CodeOf(err), "refused before the bundle is read")
 
 	// Not configured at all.
-	require.Nil(t, newGenomeJobs(DefaultConfig(), nil, "", nil))
+	require.Nil(t, newGenomeJobs(DefaultConfig(), nil))
 }
 
 func candidate(genomeID string, out []byte) returnpath.CandidateOutput {
 	return returnpath.CandidateOutput{ManifestID: "rjm-1", SessionID: "ses-1", OutputKind: rjm.OutputKindBytesFixedLength, Bytes: out, ProducedAt: time.Now()}
 }
 
-func TestEvaluateGate_LadderAndVerdicts(t *testing.T) {
+func inspectTestGenome(t *testing.T) (testGenome, *gateSpec) {
+	t.Helper()
 	dir := t.TempDir()
 	sealed := sealTestGenome(t, dir, genomeOptions{})
-	g, _ := newTestGenomeJobs(t, dir, "")
-	job, err := g.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, time.Minute)
+	info, err := newTestGenomeJobs(t, dir, "").inspect(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile})
 	require.NoError(t, err)
-	spec := job.Gate
+	return sealed, info.Gate
+}
+
+func TestEvaluateGate_LadderAndVerdicts(t *testing.T) {
+	sealed, spec := inspectTestGenome(t)
 
 	t.Run("byte-exact answer opens door 0", func(t *testing.T) {
 		view, err := evaluateGate(spec, candidate(sealed.KeyID, sealed.rightOutput(t, nil)))
@@ -305,15 +298,66 @@ func TestEvaluateGate_LadderAndVerdicts(t *testing.T) {
 	})
 }
 
+// judge answers both dimensions the validation service records: the
+// top-1 agreement (semantic) and the ladder (behavioral).
+func TestJudge_TwoDimensionsOfTheGate(t *testing.T) {
+	sealed, spec := inspectTestGenome(t)
+
+	t.Run("a right answer passes both", func(t *testing.T) {
+		j, err := judge(spec, candidate(sealed.KeyID, sealed.rightOutput(t, nil)))
+		require.NoError(t, err)
+		require.NoError(t, j.GateErr)
+		require.Equal(t, "EXACT", j.Gate.Level)
+		require.Equal(t, 3, j.Top1.Agreed)
+		require.Equal(t, "top1-agreement", j.Semantic.Evaluator)
+		require.Equal(t, validation_result.VerdictPass, j.Semantic.Verdict.Verdict)
+		require.Equal(t, 1.0, j.Semantic.Verdict.Score)
+		require.Equal(t, "equivalence-ladder", j.Behavioral.Evaluator)
+		require.Equal(t, validation_result.VerdictPass, j.Behavioral.Verdict.Verdict)
+		require.True(t, json.Valid(j.Semantic.Detail) && json.Valid(j.Behavioral.Detail))
+		require.Contains(t, string(j.Behavioral.Detail), `"level":"EXACT"`)
+		require.Contains(t, string(j.Semantic.Detail), `"agreed":3`)
+	})
+	t.Run("numbers within tolerance, same answers: both pass", func(t *testing.T) {
+		out := sealed.rightOutput(t, map[[2]int]float32{{0, 1}: 2e-3})
+		j, err := judge(spec, candidate(sealed.KeyID, out))
+		require.NoError(t, err)
+		require.NoError(t, j.GateErr)
+		require.Equal(t, "EQUIVALENT", j.Gate.Level)
+		require.Equal(t, validation_result.VerdictPass, j.Semantic.Verdict.Verdict)
+	})
+	t.Run("a different answer fails semantic even when the ladder cannot judge closeness", func(t *testing.T) {
+		// fx-001's reference is [4+... ] the largest at index 1 (9*0.5); a
+		// big bump at position 0 flips the top-1 and blows the tolerance.
+		out := sealed.rightOutput(t, map[[2]int]float32{{1, 0}: 10})
+		j, err := judge(spec, candidate(sealed.KeyID, out))
+		require.NoError(t, err)
+		require.Error(t, j.GateErr)
+		require.Equal(t, CodeGateFailed, shared_errors.CodeOf(j.GateErr))
+		require.Equal(t, validation_result.VerdictFail, j.Behavioral.Verdict.Verdict)
+		require.Equal(t, validation_result.VerdictFail, j.Semantic.Verdict.Verdict)
+		require.Equal(t, 2, j.Top1.Agreed)
+		require.Equal(t, 1, j.Top1.CriticalDisagreed)
+		require.Len(t, j.Semantic.Verdict.Details, 1)
+		require.Equal(t, "sem.top1_disagreement", j.Semantic.Verdict.Details[0].Code)
+		require.Equal(t, validation_result.SeverityError, j.Semantic.Verdict.Details[0].Severity, "fx-001 is critical")
+	})
+	t.Run("an output that is not an answer is not judged", func(t *testing.T) {
+		_, err := judge(spec, candidate(sealed.KeyID, []byte("nope")))
+		require.Equal(t, CodeGateOutputInvalid, shared_errors.CodeOf(err))
+		require.Equal(t, shared_errors.CategoryIntegrity, shared_errors.CategoryOf(err))
+		missing := []byte(`{"schema":"vault-genome/gate-output/v1","genome_id":"` + sealed.KeyID + `","outputs":{"fx-000":{"dtype":"f32","shape":[3],"raw_b64":"AAAAAAAAAAAAAAAA"}}}`)
+		_, err = judge(spec, candidate(sealed.KeyID, missing))
+		require.Equal(t, CodeGateOutputInvalid, shared_errors.CodeOf(err))
+	})
+}
+
 func TestSignVerdict_VerifiesUnderTheAuthorityKey(t *testing.T) {
-	dir := t.TempDir()
-	sealed := sealTestGenome(t, dir, genomeOptions{})
-	g, store := newTestGenomeJobs(t, dir, "")
-	job, err := g.build(genomeRef{Bundle: sealed.Bundle, KeyFile: sealed.KeyFile}, time.Minute)
-	require.NoError(t, err)
-	view, err := evaluateGate(job.Gate, candidate(sealed.KeyID, sealed.rightOutput(t, nil)))
+	sealed, spec := inspectTestGenome(t)
+	view, err := evaluateGate(spec, candidate(sealed.KeyID, sealed.rightOutput(t, nil)))
 	require.NoError(t, err)
 
+	store := keys.NewInMemoryStore(shared_time.NewSystemClock())
 	vk, err := store.RegisterSigningFromSeed("authority-1", keys.PurposeSigningAuthority, bytes.Repeat([]byte{7}, crypto.Ed25519SeedSize))
 	require.NoError(t, err)
 	require.NoError(t, signVerdict(&view, store, "authority-1", vk.PublicKey))
@@ -375,11 +419,4 @@ func TestBundleFileName(t *testing.T) {
 		require.Error(t, err, bad)
 	}
 	require.Equal(t, "a b c", logSafe("a\nb\rc"))
-}
-
-func TestBuildComponentAAD_BindsJobAndIndex(t *testing.T) {
-	a := buildComponentAAD("m", "s", string(rjm.OutputKindBytesFixedLength), 0)
-	require.Equal(t, "sagvd/v1|m=m|s=s|k=bytes/fixed-length|c=0", string(a))
-	require.NotEqual(t, a, buildComponentAAD("m", "s", string(rjm.OutputKindBytesFixedLength), 1))
-	var _ transport.JobRequest // the AAD travels in the JobRequest's SealedMaterial
 }

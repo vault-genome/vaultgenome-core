@@ -29,9 +29,10 @@ binaries and a demo:
 The nine-stage governed reconstruction flow of the foundation architecture —
 Recovery Request → Trust Admission → Trusted Session → Staged Disclosure →
 Delegated External Compute → Return Path → Validation → Release Decision →
-Audit — is library code under `internal/`, exercised end to end by the tests.
-[docs/operator/00_overview.md](docs/operator/00_overview.md) says what each
-binary drives today.
+Audit — is library code under `internal/`, and `sagvd` drives it for every
+gate job (ADR 0015): each stage's decision on the audit log before it takes
+effect, each artifact signed. [docs/operator/00_overview.md](docs/operator/00_overview.md)
+says what each binary drives today.
 
 Continuity is delivered by sealing the **AI Genome** rather than a copy of the
 weights. A genome holds three things:
@@ -196,12 +197,15 @@ verify-reproducible).
   touches the worker's disk. Proven live over mutual TLS in
   `test/integration`, and with the real fine-tune and real torch in the
   `genome-worker` workflow.
-- **Every decision of the authority is on the record first** — `sagvd` writes
-  a job accepted, a peer refused or a worker admitted, a candidate received
-  and the gate's findings and verdict to a signed, hash-chained audit log
-  before any of it takes effect; a log that cannot take the record stops the
-  decision, and `acpctl audit verify` checks the log under the published key
-  (ADR 0014).
+- **The vault daemon drives the nine stages** — every gate job is a
+  RecoveryRequest that `sagvd` takes through intake, Trust Admission (the
+  attested worker, the policy profile, the operator's stop list), a signed
+  session, staged disclosure of the model side to that session, a signed
+  manifest, the candidate, three-dimension validation and a signed release
+  decision, with every decision on a signed, hash-chained audit log before
+  it takes effect; a log that cannot take the record stops the stage;
+  `GET /v1/jobs/{id}` shows every stage and artifact, and `acpctl audit
+  verify` checks the log under the published key (ADR 0014, 0015).
 - **Both ends of the Return Path attest with the chip** — `sagvd` and
   `acp-compute` run on AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`), each
   pinning the other's launch measurement and verifying to the AMD root; a

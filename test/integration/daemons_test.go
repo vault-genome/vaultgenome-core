@@ -169,21 +169,57 @@ func TestLiveDaemons_JobRoundTripOverMTLS(t *testing.T) {
 	if got := v.counter(t, `sagvd_audit_events_total{kind="VALIDATION_COMPLETED"}`); got != 1 {
 		t.Fatalf("sagvd_audit_events_total{kind=\"VALIDATION_COMPLETED\"} = %d, want 1", got)
 	}
+	if got := v.counter(t, `sagvd_release_decisions_total{decision="release"}`); got != 1 {
+		t.Fatalf("sagvd_release_decisions_total{decision=\"release\"} = %d, want 1", got)
+	}
 
-	// Every decision is on the record, in order, and the log verifies
-	// under the audit key the vault publishes.
+	// The job view shows the whole flow: every stage taken, the signed
+	// artifacts, the release decision.
+	if job.RequestID != accepted.RequestID || job.State != "release_authorized" || job.ManifestID == "" || job.SessionID == "" {
+		t.Fatalf("job view identities: %+v", job)
+	}
+	f := job.Flow
+	if f == nil || f.State != "release_authorized" || len(f.Steps) != 10 || len(f.Disclosures) != 5 {
+		t.Fatalf("job view flow: %+v", f)
+	}
+	if f.Attestation == nil || f.Attestation.Outcome != "allow" || f.Session == nil || f.Session.State != "active" ||
+		f.Validation == nil || f.Validation.OverallVerdict != "pass" {
+		t.Fatalf("job view flow artifacts: %+v", f)
+	}
+	if f.Decision == nil || !f.Decision.Release || f.Decision.Reason != "validation_pass" || f.Decision.AuditEventID == "" || len(f.Decision.Signature) == 0 || len(f.AuditTip) != 64 {
+		t.Fatalf("job view decision: %+v", f.Decision)
+	}
+
+	// Every decision is on the record, in order, correlated to the
+	// request, and the log verifies under the audit key the vault
+	// publishes.
 	kinds, events := v.auditLogAfterStop(t)
-	want := []string{"MANIFEST_ISSUED", "TRUST_EVALUATED", "CANDIDATE_RECEIVED", "VALIDATION_STARTED", "VALIDATION_DIMENSION_EVALUATED", "VALIDATION_COMPLETED"}
+	want := append(append([]string{}, flowKinds...), "VALIDATION_COMPLETED", "RELEASE_DECIDED")
 	if strings.Join(kinds, ",") != strings.Join(want, ",") {
 		t.Fatalf("audit kinds %v, want %v", kinds, want)
 	}
-	for _, e := range events {
-		if e.ManifestID != accepted.ManifestID || e.SessionID != accepted.SessionID {
-			t.Fatalf("event %s is not correlated to the job: %+v", e.Kind, e)
+	for i, e := range events {
+		if e.RequestID != accepted.RequestID && e.Kind != "DISCLOSURE_AUTHORIZED" && !strings.HasPrefix(e.Kind, "VALIDATION_") {
+			t.Fatalf("event %d %s is not correlated to the request: %+v", i, e.Kind, e)
+		}
+		if i >= 3 && e.SessionID != job.SessionID {
+			t.Fatalf("event %d %s is not correlated to the session: %+v", i, e.Kind, e)
+		}
+		if i >= 8 && e.Kind != "DISCLOSURE_AUTHORIZED" && e.ManifestID != job.ManifestID {
+			t.Fatalf("event %d %s is not correlated to the manifest: %+v", i, e.Kind, e)
 		}
 	}
-	if !strings.Contains(string(events[1].Payload), `"outcome":"allow"`) || !strings.Contains(string(events[5].Payload), `"overall":"pass"`) || !strings.Contains(string(events[5].Payload), `"level":"EXACT"`) {
-		t.Fatalf("audit payloads: trust %s / completed %s", events[1].Payload, events[5].Payload)
+	trust, done, decided := events[1], lastOfKind(t, events, "VALIDATION_COMPLETED"), lastOfKind(t, events, "RELEASE_DECIDED")
+	if !strings.Contains(string(trust.Payload), `"outcome":"allow"`) || !strings.Contains(string(done.Payload), `"overall_verdict":"pass"`) ||
+		!strings.Contains(string(decided.Payload), `"release":true`) || !strings.Contains(string(decided.Payload), `"reason":"validation_pass"`) {
+		t.Fatalf("audit payloads: trust %s / completed %s / decided %s", trust.Payload, done.Payload, decided.Payload)
+	}
+	if !strings.Contains(string(events[12].Payload), `"evaluator":"top1-agreement"`) || !strings.Contains(string(events[13].Payload), `"evaluator":"equivalence-ladder"`) ||
+		!strings.Contains(string(events[13].Payload), `"level":"EXACT"`) {
+		t.Fatalf("dimension payloads: semantic %s / behavioral %s", events[12].Payload, events[13].Payload)
+	}
+	if decided.Payload == nil || f.Decision.AuditEventID == "" {
+		t.Fatalf("decision not evidenced: %s", decided.Payload)
 	}
 }
 
@@ -226,16 +262,29 @@ func TestLiveDaemons_GateRefusesAModelThatMissesItsReferences(t *testing.T) {
 		t.Fatalf("wrong key: status %d body %s", status, resp)
 	}
 
-	// On the record: the findings before the failed verdict, and no job
-	// for the refused submission.
+	// The refusal is a decision: the flow ends on a signed release=false,
+	// the session is closed as an incident.
+	if job.State != "incident_terminated" || job.Flow == nil || job.Flow.Decision == nil || job.Flow.Decision.Release ||
+		job.Flow.Decision.Reason != "validation_fail" || job.Flow.Incident == nil || job.Flow.Incident.Scenario != "validation_hard_fail" ||
+		job.Flow.Session == nil || job.Flow.Session.State != "invalidated" {
+		t.Fatalf("refused job flow: state %s %+v", job.State, job.Flow)
+	}
+
+	// On the record: the findings before the failed verdict, the refusal
+	// decided, the incident closed — and no job for the refused
+	// submission.
 	kinds, events := v.auditLogAfterStop(t)
-	want := []string{"MANIFEST_ISSUED", "TRUST_EVALUATED", "CANDIDATE_RECEIVED", "VALIDATION_STARTED", "VALIDATION_DIMENSION_EVALUATED",
-		"VALIDATION_FINDING", "VALIDATION_FINDING", "VALIDATION_FINDING", "VALIDATION_COMPLETED"}
+	want := append(append([]string{}, flowKinds...), "VALIDATION_FINDING", "VALIDATION_FINDING", "VALIDATION_FINDING",
+		"VALIDATION_COMPLETED", "RELEASE_DECIDED", "INCIDENT_DETECTED", "SESSION_INVALIDATED", "INCIDENT_TERMINATED")
 	if strings.Join(kinds, ",") != strings.Join(want, ",") {
 		t.Fatalf("audit kinds %v, want %v", kinds, want)
 	}
-	if !strings.Contains(string(events[8].Payload), `"overall":"fail"`) || !strings.Contains(string(events[8].Payload), `"code":"gate_failed"`) {
-		t.Fatalf("VALIDATION_COMPLETED payload: %s", events[8].Payload)
+	done, decided := lastOfKind(t, events, "VALIDATION_COMPLETED"), lastOfKind(t, events, "RELEASE_DECIDED")
+	if !strings.Contains(string(done.Payload), `"overall_verdict":"fail"`) || !strings.Contains(string(done.Payload), `"behavioral_verdict":"fail"`) {
+		t.Fatalf("VALIDATION_COMPLETED payload: %s", done.Payload)
+	}
+	if !strings.Contains(string(decided.Payload), `"release":false`) || !strings.Contains(string(decided.Payload), `"reason":"validation_fail"`) {
+		t.Fatalf("RELEASE_DECIDED payload: %s", decided.Payload)
 	}
 }
 
@@ -405,6 +454,65 @@ func TestLiveDaemons_UnpinnedWorkerIsRefusedWork(t *testing.T) {
 	}
 	if denied == 0 || allowed != 1 {
 		t.Fatalf("trust decisions on record: %d denied, %d allowed (%v)", denied, allowed, kinds)
+	}
+}
+
+// The operator's stop list reaches gate jobs at Trust Admission (ADR 0010,
+// 0015): with a stop-all in force, the attested worker's next job is denied
+// — a signed refusal citing the attestation, on the record, no session, no
+// disclosure.
+func TestLiveDaemons_OperatorStopDeniesAtTrust(t *testing.T) {
+	secrets := keygen(t)
+	opDir := t.TempDir()
+	opSeed, opPub, list := filepath.Join(opDir, "operator.seed"), filepath.Join(opDir, "operator.pem"), filepath.Join(opDir, "stop.json")
+	acpctl(t, "stop", "keygen", "-out", opSeed, "-pub", opPub)
+	acpctl(t, "stop", "issue", "-key", opSeed, "-kid", "operator-1", "-serial", "1", "-out", list)
+	v := startVaultWith(t, secrets, func(cfg map[string]any) {
+		cfg["operator_stop"] = map[string]any{"kid": "operator-1", "public_key_path": opPub, "list_path": list}
+	})
+	w, health := v.startWorker(t, "acp-compute", workerIdentity{tlsFrom: secrets, teeFrom: secrets})
+	waitReady(t, w, health+"/healthz")
+
+	// Nothing stopped: the job goes through.
+	sealed := v.sealGenome(t, "gen-stop", true)
+	id, _ := v.submitGenome(t, sealed)
+	v.waitJob(t, id, "succeeded", jobTimeout)
+
+	// The operator stops every release; the next job is denied at trust.
+	stopped := filepath.Join(opDir, "stop-2.json")
+	acpctl(t, "stop", "issue", "-key", opSeed, "-kid", "operator-1", "-serial", "2", "-all", "-reason", "drill", "-out", stopped)
+	if err := os.Rename(stopped, list); err != nil {
+		t.Fatal(err)
+	}
+	id2, accepted := v.submitGenome(t, sealed)
+	job := v.waitJob(t, id2, "failed", jobTimeout)
+	if job.Error == nil || job.Error.Code != "trust_denied" || job.Error.Category != "authority" || !strings.Contains(job.Error.Message, "operator stop in force") {
+		t.Fatalf("denied job error: %+v", job.Error)
+	}
+	f := job.Flow
+	if job.State != "incident_terminated" || f == nil || f.Attestation == nil || f.Attestation.Outcome != "deny" || f.Attestation.Reason != "trust.operator_stop" {
+		t.Fatalf("denied job attestation: state %s %+v", job.State, f)
+	}
+	if f.Decision == nil || f.Decision.Release || f.Decision.Reason != "trust_denied" || f.Decision.AttestationID == "" || len(f.Decision.Signature) == 0 || f.Session != nil || len(f.Disclosures) != 0 {
+		t.Fatalf("denied job decision: %+v", f)
+	}
+	if got := v.counter(t, `sagvd_release_decisions_total{decision="trust_denied"}`); got != 1 {
+		t.Fatalf("sagvd_release_decisions_total{decision=\"trust_denied\"} = %d, want 1", got)
+	}
+
+	// On the record: the request, the denial naming the stop list's
+	// serial, the refusal — and nothing after it.
+	kinds, events := v.auditLogAfterStop(t)
+	if n := len(kinds); n < 3 || strings.Join(kinds[n-3:], ",") != "REQUEST_RECEIVED,TRUST_EVALUATED,RELEASE_DECIDED" {
+		t.Fatalf("audit kinds %v, want …,REQUEST_RECEIVED,TRUST_EVALUATED,RELEASE_DECIDED", kinds)
+	}
+	deny, decided := events[len(events)-2], events[len(events)-1]
+	if deny.RequestID != accepted.RequestID || !strings.Contains(string(deny.Payload), `"outcome":"deny"`) ||
+		!strings.Contains(string(deny.Payload), `"reason":"trust.operator_stop"`) || !strings.Contains(string(deny.Payload), `"stop_serial":2`) {
+		t.Fatalf("TRUST_EVALUATED payload: %+v", deny)
+	}
+	if !strings.Contains(string(decided.Payload), `"release":false`) || !strings.Contains(string(decided.Payload), `"reason":"trust_denied"`) || decided.SessionID != "" {
+		t.Fatalf("RELEASE_DECIDED payload: %+v", decided)
 	}
 }
 
@@ -656,8 +764,38 @@ func (v *vault) startWorker(t *testing.T, name string, id workerIdentity) (*proc
 // ---- REST helpers -----------------------------------------------------------
 
 type jobView struct {
-	ID     string `json:"job_id"`
-	Status string `json:"status"`
+	ID         string `json:"job_id"`
+	RequestID  string `json:"request_id"`
+	Status     string `json:"status"`
+	State      string `json:"state"`
+	ManifestID string `json:"manifest_id"`
+	SessionID  string `json:"session_id"`
+	Flow       *struct {
+		State       string `json:"state"`
+		Steps       []any  `json:"steps"`
+		Disclosures []any  `json:"disclosures"`
+		Attestation *struct {
+			Outcome string `json:"outcome"`
+			Reason  string `json:"reason"`
+		} `json:"attestation"`
+		Session *struct {
+			State string `json:"state"`
+		} `json:"session"`
+		Validation *struct {
+			OverallVerdict string `json:"overall_verdict"`
+		} `json:"validation"`
+		Decision *struct {
+			Release       bool   `json:"release"`
+			Reason        string `json:"reason"`
+			AuditEventID  string `json:"audit_event_id"`
+			AttestationID string `json:"attestation_id"`
+			Signature     []byte `json:"signature"`
+		} `json:"decision"`
+		Incident *struct {
+			Scenario string `json:"scenario"`
+		} `json:"incident"`
+		AuditTip string `json:"audit_tip"`
+	} `json:"flow"`
 	Result *struct {
 		OutputKind         string `json:"output_kind"`
 		BytesHex           string `json:"bytes_hex"`
@@ -697,10 +835,10 @@ type genomeView struct {
 
 // submitView is what POST /v1/jobs returns.
 type submitView struct {
-	JobID      string     `json:"job_id"`
-	ManifestID string     `json:"manifest_id"`
-	SessionID  string     `json:"session_id"`
-	Genome     genomeView `json:"genome"`
+	JobID     string     `json:"job_id"`
+	RequestID string     `json:"request_id"`
+	State     string     `json:"state"`
+	Genome    genomeView `json:"genome"`
 }
 
 // sealedGenome is a genome sealed into the vault's bundle dir.
@@ -894,9 +1032,31 @@ func (v *vault) waitJob(t *testing.T, id, want string, timeout time.Duration) jo
 // auditEvent is what `acpctl audit query --json` prints per event.
 type auditEvent struct {
 	Kind       string          `json:"kind"`
+	RequestID  string          `json:"request_id"`
 	SessionID  string          `json:"session_id"`
 	ManifestID string          `json:"manifest_id"`
 	Payload    json.RawMessage `json:"payload"`
+}
+
+// flowKinds is the audit record of one gate job driven through the nine
+// stages (ADR 0015) up to its validation: the request, trust, the session,
+// one disclosure per component (a descriptor and four files), the
+// manifest, the candidate, and the three-dimension validation.
+var flowKinds = []string{"REQUEST_RECEIVED", "TRUST_EVALUATED", "SESSION_ISSUED",
+	"DISCLOSURE_AUTHORIZED", "DISCLOSURE_AUTHORIZED", "DISCLOSURE_AUTHORIZED", "DISCLOSURE_AUTHORIZED", "DISCLOSURE_AUTHORIZED",
+	"MANIFEST_ISSUED", "CANDIDATE_RECEIVED", "VALIDATION_STARTED",
+	"VALIDATION_DIMENSION_EVALUATED", "VALIDATION_DIMENSION_EVALUATED", "VALIDATION_DIMENSION_EVALUATED"}
+
+// lastOfKind returns the last event of kind k, failing when there is none.
+func lastOfKind(t *testing.T, events []auditEvent, k string) auditEvent {
+	t.Helper()
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Kind == k {
+			return events[i]
+		}
+	}
+	t.Fatalf("no %s event on record", k)
+	return auditEvent{}
 }
 
 // auditLogAfterStop stops the vault (its bbolt log is held open while it

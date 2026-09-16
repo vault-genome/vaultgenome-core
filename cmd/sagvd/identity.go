@@ -37,6 +37,11 @@ type authorityIdentity struct {
 	// --escrow-to), when crosscloud.key_escrow_path is configured.
 	KeyEscrowTag          string `json:"key_escrow_tag,omitempty"`
 	KeyEscrowPublicKeyPEM string `json:"key_escrow_public_key_pem,omitempty"`
+	// The policy every gate-job session is pinned to, and the policy
+	// profiles Trust Admission serves (ADR 0015), when gate jobs are
+	// enabled.
+	PolicyVersion  string   `json:"policy_version,omitempty"`
+	PolicyProfiles []string `json:"policy_profiles,omitempty"`
 }
 
 // runIdentityCmd implements `sagvd identity -config <path>`: it loads the
@@ -107,6 +112,9 @@ func runIdentityCmd(args []string, w io.Writer) error {
 			return err
 		}
 		id.KeyEscrowTag, id.KeyEscrowPublicKeyPEM = escrow.KeyTag(priv.PublicKey()), string(pemBytes)
+	}
+	if cfg.Genome.Enabled() {
+		id.PolicyVersion, id.PolicyProfiles = cfg.PolicyVersion(), []string{PolicyProfileGate}
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

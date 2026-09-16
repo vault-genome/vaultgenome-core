@@ -1,0 +1,8 @@
+{"time":"2026-09-16T00:41:16.860500926Z","level":"INFO","msg":"acp-compute starting","version":"0.0.0-dev","commit":"none","config_path":"rogue.json","vault_address":"127.0.0.1:9443","workload_descriptor":"rogue-worker-v1"}
+{"time":"2026-09-16T00:41:16.862544415Z","level":"INFO","msg":"worker signing identity","kid":"acp-compute-worker-demo","pubkey_hex":"4851d5a9bf9c14cb3ee574ab9f5129fb49403b7cde9a77f8efd510aa99822d10"}
+{"time":"2026-09-16T00:41:16.862557175Z","level":"INFO","msg":"worker TEE identity","tee_provider":"simulated","measurement_hex":"874a0079e2e89e9ca5567eeb3c0169ded06637744cbdcacfce7e68fbfe32ab23","peer_provider":"gcp-sev-snp"}
+{"time":"2026-09-16T00:41:16.862563595Z","level":"WARN","msg":"SIMULATED TEE: no hardware isolation — this worker's Return Path Evidence is signed by a key read from a file; development and tests only"}
+{"time":"2026-09-16T00:41:16.862571854Z","level":"INFO","msg":"genome door","command":["/root/e2e/venv/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/root/e2e/base","--device","cpu"],"timeout_seconds":300}
+{"time":"2026-09-16T00:41:16.863183711Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9083"}
+{"time":"2026-09-16T00:41:17.120561309Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: client TEE evidence verification failed: integrity[signature_invalid]: gcp-sev: evidence shorter than SEV-SNP report (1184 bytes)","category":"authority","code":"handshake_failure","backoff_ms":2000}
+{"time":"2026-09-16T00:41:17.863189115Z","level":"INFO","msg":"acp-compute stopped"}

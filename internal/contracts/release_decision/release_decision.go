@@ -14,6 +14,11 @@
 //	conditional_fail → Release=false (MVP), "conditional_fail_requires_review"
 //	fail             → Release=false, Reason="validation_fail"
 //
+// and, since schema v2 (ADR 0015), the decision Trust Admission's deny
+// short-circuits to — a release decision without a session:
+//
+//	trust deny       → Release=false, Reason="trust_denied", AttestationID set
+//
 // The ReleaseDecision is signed, audit-bound, and immutable once issued. It
 // is the terminal artifact of the nine-stage flow.
 //
@@ -27,9 +32,14 @@ import (
 )
 
 const (
-	SchemaVersionMin     uint16 = 1
-	SchemaVersionMax     uint16 = 1
-	SchemaVersionCurrent uint16 = 1
+	// SchemaVersionMin stays at 1: a v1 decision (the three validation
+	// reasons, every id set) is a valid v2 decision.
+	SchemaVersionMin uint16 = 1
+	// v1 → v2 (ADR 0015): ReasonTrustDenied, and the AttestationID it
+	// cites; session_id, manifest_id and validation_result_id are then
+	// empty, because the flow never reached them.
+	SchemaVersionMax     uint16 = 2
+	SchemaVersionCurrent uint16 = 2
 )
 
 // Reason enumerates the admissible reason codes. The set is closed; any
@@ -40,6 +50,9 @@ const (
 	ReasonValidationPass                Reason = "validation_pass"
 	ReasonValidationFail                Reason = "validation_fail"
 	ReasonConditionalFailRequiresReview Reason = "conditional_fail_requires_review"
+	// ReasonTrustDenied (schema v2): Trust Admission denied the request;
+	// no session was issued and nothing was validated. Release is false.
+	ReasonTrustDenied Reason = "trust_denied"
 )
 
 // ReleaseDecision is the terminal authority artifact.
@@ -50,6 +63,11 @@ type ReleaseDecision struct {
 	SessionID          ids.SessionID          `json:"session_id"`
 	ManifestID         ids.ManifestID         `json:"manifest_id"`
 	ValidationResultID ids.ValidationResultID `json:"validation_result_id"`
+
+	// AttestationID (schema v2) cites the Trust Admission outcome a
+	// trust_denied decision rests on. Required for that reason, optional
+	// otherwise.
+	AttestationID ids.AttestationID `json:"attestation_id,omitempty"`
 
 	// Release is the boolean outcome.
 	Release bool `json:"release"`
