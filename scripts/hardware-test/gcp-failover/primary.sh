@@ -6,10 +6,14 @@
 # fine-tunes a real model, the sentinel seals each state as the next
 # generation of a genome chain — each key encapsulated only to the release
 # authority's escrow key, so this machine keeps nothing that opens what it
-# sealed — and replicates its outbox to a bucket. Then it is attacked: a
-# tripwire fires, the sentinel seals nothing more, reports the compromise
-# and exits. Reports and logs go to out/primary/; keys and the model stay
-# on the VM and die with it.
+# sealed — and replicates its outbox to a bucket. The sentinel attests
+# every record with this guest's SEV-SNP chip (--tee gcp-sev-snp, ADR
+# 0017); the operator pins this machine's launch measurement in the
+# failover policy. Then it is attacked: a tripwire fires, the sentinel
+# seals nothing more, reports the compromise and exits. Reports and logs go
+# to out/primary/; the model stays on the VM and dies with it. The sentinel
+# seed is handed to the standby through the run's private bucket for one
+# purpose: to show, there, that the seed without this chip moves nothing.
 set -u
 exec > >(tee -a /root/primary.log) 2>&1
 BUCKET=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/vg-bucket")
@@ -32,6 +36,17 @@ gcs_get in/worker.tgz /root/worker.tgz && tar -xzf /root/worker.tgz -C /opt/work
 { echo "instance=$(md name)"; echo "zone=$(md zone | awk -F/ '{print $NF}')"; echo "machine=$(md machine-type | awk -F/ '{print $NF}')"; } > "$OUT/metadata.txt"
 { uname -a; lscpu; dmesg | grep -i -E "sev|snp" | head; } > "$OUT/system.txt" 2>&1
 
+step "configfs-tsm (the sentinel attests with this chip)"
+modprobe sev-guest 2>/dev/null || {
+  export DEBIAN_FRONTEND=noninteractive
+  for i in $(seq 1 60); do fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break; sleep 5; done
+  apt-get -o DPkg::Lock::Timeout=300 install -y -qq "linux-modules-extra-$(uname -r)" >/dev/null 2>&1
+  modprobe sev-guest 2>/dev/null || true
+}
+mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
+n=0; while [ ! -d /sys/kernel/config/tsm/report ] && [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done
+{ ls -la /sys/kernel/config/tsm/report 2>&1; ls -la /dev/sev-guest 2>&1; dmesg | grep -i -E "sev|snp|tsm" | tail; } > "$OUT/tsm.txt" 2>&1
+
 step "python runtime (CPU) and base model"
 python_runtime https://download.pytorch.org/whl/cpu
 base_model
@@ -40,9 +55,15 @@ step "wait for the release authority's escrow key"
 for i in $(seq 1 120); do gcs_get handoff/escrow.pem /root/escrow.pem 2>/dev/null && break; sleep 5; done
 [ -s /root/escrow.pem ] || { echo "no escrow key after 10 minutes"; false; }
 
-step "the sentinel's key; the operator pins its public half"
+step "the sentinel's key and this chip's identity; the operator pins both"
 acpctl sentinel keygen --out /root/sentinel.seed --pub /root/sentinel.pem > "$OUT/sentinel-keygen.txt"
+acpctl sentinel identity --tee gcp-sev-snp --key /root/sentinel.seed > "$OUT/sentinel-identity.json"
+echo "primary measurement=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["measurement_hex"])' "$OUT/sentinel-identity.json")" >> "$OUT/steps.txt"
 gcs_put /root/sentinel.pem handoff/sentinel.pem
+gcs_put "$OUT/sentinel-identity.json" handoff/sentinel-identity.json
+# For the standby's negative check only (a stolen seed off this chip); the
+# bucket is private and deleted with the run.
+gcs_put /root/sentinel.seed handoff/sentinel.seed
 
 step "fine-tune generation 0 (120 steps)"
 vg finetune --base /opt/base --base-name "$BASE_REPO" \
@@ -57,7 +78,7 @@ echo "no process reads this" > /root/canary
 ( while [ ! -e /root/sentinel.done ]; do push_outbox "$OUTBOX"; sleep 3; done ) &
 PUSH=$!
 acpctl sentinel watch --content-dir /root/genome --outbox "$OUTBOX" \
-  --escrow-to /root/escrow.pem --key /root/sentinel.seed \
+  --escrow-to /root/escrow.pem --key /root/sentinel.seed --tee gcp-sev-snp \
   --tripwire /root/canary --tripwire /usr/local/bin/acpctl \
   --interval 3s --settle 4s > "$OUT/sentinel.json" 2> "$OUT/sentinel.log" &
 SENTINEL=$!

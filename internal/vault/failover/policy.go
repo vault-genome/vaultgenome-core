@@ -62,9 +62,14 @@ type Policy struct {
 	NotAfter time.Time `json:"not_after"`
 	// SentinelPublicKey is the primary's sentinel key (Ed25519, 32 bytes):
 	// only records, heartbeats and reports it signed count.
-	SentinelPublicKey []byte   `json:"sentinel_public_key"`
-	Standby           Standby  `json:"standby"`
-	Triggers          Triggers `json:"triggers"`
+	SentinelPublicKey []byte `json:"sentinel_public_key"`
+	// Primary, when set, pins the primary's TEE (ADR 0017): a record from
+	// the outbox counts only when it carries a report from that TEE, at
+	// one of these measurements, bound to the record's content. The
+	// sentinel's key alone is then not enough to keep the authority quiet.
+	Primary  *Primary `json:"primary,omitempty"`
+	Standby  Standby  `json:"standby"`
+	Triggers Triggers `json:"triggers"`
 	// QuarantineSeconds distrusts genomes sealed within this long before
 	// the trigger: an intrusion may start before a wire sees it.
 	QuarantineSeconds int64 `json:"quarantine_seconds,omitempty"`
@@ -77,6 +82,17 @@ type Policy struct {
 	Reason       string `json:"reason,omitempty"`
 	SigningKeyID string `json:"signing_key_id"`
 	Signature    []byte `json:"signature,omitempty"`
+}
+
+// Primary is the primary's TEE, as the policy pins it.
+type Primary struct {
+	Kind string `json:"kind"`
+	// Measurements (hex) the primary's TEE must attest one of.
+	Measurements []string `json:"measurements"`
+	// AttestorPublicKey is the simulated primary's attestation key (32
+	// bytes); a hardware kind leaves it empty, its chain being the
+	// authority's own anchor.
+	AttestorPublicKey []byte `json:"attestor_public_key,omitempty"`
 }
 
 // Standby is the one destination the policy lets a genome go to.
@@ -94,6 +110,12 @@ type Triggers struct {
 	CompromiseReport bool `json:"compromise_report"`
 	// HeartbeatTimeoutSeconds: no new heartbeat for this long; 0 disables.
 	HeartbeatTimeoutSeconds int64 `json:"heartbeat_timeout_seconds,omitempty"`
+	// StoppedGraceSeconds bounds how long a heartbeat that says `stopped`
+	// stands the authority down: a sentinel that does not come back
+	// watching within this long is a trigger (stopped-overdue). 0 honours
+	// `stopped` indefinitely, as before ADR 0017. The primary's word
+	// should not disarm the authority for good.
+	StoppedGraceSeconds int64 `json:"stopped_grace_seconds,omitempty"`
 }
 
 func (p Policy) validate() error {
@@ -108,7 +130,7 @@ func (p Policy) validate() error {
 		return fmt.Errorf("failover: sentinel_public_key must be %d bytes", ed25519.PublicKeySize)
 	case !p.Triggers.CompromiseReport && p.Triggers.HeartbeatTimeoutSeconds <= 0:
 		return errors.New("failover: the policy names no trigger")
-	case p.Triggers.HeartbeatTimeoutSeconds < 0 || p.QuarantineSeconds < 0 || p.MaxRPOSeconds < 0:
+	case p.Triggers.HeartbeatTimeoutSeconds < 0 || p.Triggers.StoppedGraceSeconds < 0 || p.QuarantineSeconds < 0 || p.MaxRPOSeconds < 0:
 		return errors.New("failover: durations must not be negative")
 	case p.RequireGate != "" && p.RequireGate != receipt.GateEquivalent && p.RequireGate != receipt.GateExact:
 		return fmt.Errorf("failover: require_gate %q (want %s, %s or none)", p.RequireGate, receipt.GateEquivalent, receipt.GateExact)
@@ -124,16 +146,55 @@ func (p Policy) validate() error {
 	if len(p.Standby.Measurements) == 0 {
 		return errors.New("failover: the standby must be pinned to at least one measurement")
 	}
-	for _, m := range p.Standby.Measurements {
+	if err := checkMeasurements("standby", p.Standby.Measurements); err != nil {
+		return err
+	}
+	return p.Primary.validate()
+}
+
+func (pr *Primary) validate() error {
+	if pr == nil {
+		return nil
+	}
+	kind, err := tee.ParseProvider(pr.Kind)
+	if err != nil {
+		return fmt.Errorf("failover: primary kind: %w", err)
+	}
+	if len(pr.Measurements) == 0 {
+		return errors.New("failover: a pinned primary needs at least one measurement")
+	}
+	if err := checkMeasurements("primary", pr.Measurements); err != nil {
+		return err
+	}
+	switch {
+	case kind == tee.ProviderSimulated && len(pr.AttestorPublicKey) != ed25519.PublicKeySize:
+		return fmt.Errorf("failover: a simulated primary is pinned by its attestation key (%d bytes)", ed25519.PublicKeySize)
+	case kind != tee.ProviderSimulated && len(pr.AttestorPublicKey) != 0:
+		return fmt.Errorf("failover: a %s primary has no attestation key to pin; its chain is the authority's anchor", kind)
+	}
+	return nil
+}
+
+func checkMeasurements(who string, ms []string) error {
+	for _, m := range ms {
 		b, err := hex.DecodeString(m)
 		if err != nil || hex.EncodeToString(b) != m {
-			return fmt.Errorf("failover: standby measurement %q is not lower-case hex", m)
+			return fmt.Errorf("failover: %s measurement %q is not lower-case hex", who, m)
 		}
 		if _, err := tee.MeasurementFromBytes(b); err != nil {
-			return fmt.Errorf("failover: standby measurement: %w", err)
+			return fmt.Errorf("failover: %s measurement: %w", who, err)
 		}
 	}
 	return nil
+}
+
+// PinsPrimary reports whether the policy pins the primary's TEE.
+func (p Policy) PinsPrimary() bool { return p.Primary != nil }
+
+// PrimaryAllows reports whether measurement is one the policy pins the
+// primary at.
+func (p Policy) PrimaryAllows(measurement tee.Measurement) bool {
+	return p.Primary != nil && slices.Contains(p.Primary.Measurements, hex.EncodeToString(measurement))
 }
 
 // checkEndpoint accepts https, and plain http only to a loopback host.

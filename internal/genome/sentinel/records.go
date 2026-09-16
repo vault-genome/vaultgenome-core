@@ -34,6 +34,7 @@ import (
 
 	"github.com/ai-continuity-platform/core/internal/genome/bundle"
 	"github.com/ai-continuity-platform/core/internal/shared/crypto"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 )
 
 // Schemas of the three records a sentinel signs.
@@ -74,6 +75,22 @@ func KeyID(pub ed25519.PublicKey) string {
 	return "sentinel-" + hex.EncodeToString(sum[:8])
 }
 
+// Attestation is the primary's TEE report over a record (ADR 0017). The
+// report's REPORT_DATA binds the record's content — its canonical form
+// without signature and without this field — so the chip signs what the
+// sentinel key signs: a record forged with a stolen sentinel seed, off the
+// chip, carries no report a pinning policy accepts, and a report from an
+// earlier record does not fit a later one.
+type Attestation struct {
+	// Kind is the TEE provider that produced Evidence.
+	Kind     string `json:"kind"`
+	Evidence []byte `json:"evidence"`
+}
+
+// ErrUnattested reports a record without an attestation, under a policy
+// that pins the primary's TEE.
+var ErrUnattested = errors.New("sentinel: the record carries no attestation")
+
 // Link points at one sealed generation.
 type Link struct {
 	Generation   uint64    `json:"generation"`
@@ -107,7 +124,10 @@ type SealRecord struct {
 	PayloadSHA256      string    `json:"payload_sha256"`
 	ParentBundleSHA256 string    `json:"parent_bundle_sha256,omitempty"`
 	SealedAt           time.Time `json:"sealed_at"`
-	Signature          []byte    `json:"signature,omitempty"`
+	// Attestation is the primary's TEE report over this record, when the
+	// sentinel attests (acpctl sentinel watch --tee).
+	Attestation *Attestation `json:"attestation,omitempty"`
+	Signature   []byte       `json:"signature,omitempty"`
 }
 
 // Link returns the record's link.
@@ -138,6 +158,19 @@ func (r SealRecord) validate() error {
 	case r.SealedAt.IsZero():
 		return errors.New("sentinel: sealed_at required")
 	}
+	return r.Attestation.validate()
+}
+
+func (a *Attestation) validate() error {
+	if a == nil {
+		return nil
+	}
+	if _, err := tee.ParseProvider(a.Kind); err != nil {
+		return fmt.Errorf("sentinel: attestation kind: %w", err)
+	}
+	if len(a.Evidence) == 0 {
+		return errors.New("sentinel: attestation without evidence")
+	}
 	return nil
 }
 
@@ -153,8 +186,9 @@ type Heartbeat struct {
 	// Last is the newest generation sealed, nil before the first.
 	Last *Link `json:"last,omitempty"`
 	// Wires is how many tripwires are armed.
-	Wires     int    `json:"wires"`
-	Signature []byte `json:"signature,omitempty"`
+	Wires       int          `json:"wires"`
+	Attestation *Attestation `json:"attestation,omitempty"`
+	Signature   []byte       `json:"signature,omitempty"`
 }
 
 func (h Heartbeat) validate() error {
@@ -167,6 +201,9 @@ func (h Heartbeat) validate() error {
 		return errors.New("sentinel: heartbeat seq, at and started_at required")
 	case h.Status != StatusWatching && h.Status != StatusStopped && h.Status != StatusCompromised:
 		return fmt.Errorf("sentinel: heartbeat status %q", h.Status)
+	}
+	if err := h.Attestation.validate(); err != nil {
+		return err
 	}
 	return h.Last.validate()
 }
@@ -188,12 +225,13 @@ type Trip struct {
 // names the newest generation sealed before detection; the sentinel sealed
 // nothing after.
 type Compromise struct {
-	Schema     string    `json:"schema"`
-	Sentinel   string    `json:"sentinel"`
-	DetectedAt time.Time `json:"detected_at"`
-	Tripped    []Trip    `json:"tripped"`
-	Last       *Link     `json:"last,omitempty"`
-	Signature  []byte    `json:"signature,omitempty"`
+	Schema      string       `json:"schema"`
+	Sentinel    string       `json:"sentinel"`
+	DetectedAt  time.Time    `json:"detected_at"`
+	Tripped     []Trip       `json:"tripped"`
+	Last        *Link        `json:"last,omitempty"`
+	Attestation *Attestation `json:"attestation,omitempty"`
+	Signature   []byte       `json:"signature,omitempty"`
 }
 
 func (c Compromise) validate() error {
@@ -205,27 +243,126 @@ func (c Compromise) validate() error {
 	case c.DetectedAt.IsZero() || len(c.Tripped) == 0:
 		return errors.New("sentinel: a compromise report names when and which wires")
 	}
+	if err := c.Attestation.validate(); err != nil {
+		return err
+	}
 	return c.Last.validate()
 }
 
 // signable is a record that signs over its canonical form without its
-// signature.
+// signature, and attests over its canonical form without signature or
+// attestation.
 type signable interface {
 	validate() error
 	unsigned() any
+	unattested() any
+	attestation() *Attestation
 	signature() []byte
 	sentinel() string
 }
 
-func (r SealRecord) unsigned() any     { r.Signature = nil; return r }
-func (r SealRecord) signature() []byte { return r.Signature }
-func (r SealRecord) sentinel() string  { return r.Sentinel }
-func (h Heartbeat) unsigned() any      { h.Signature = nil; return h }
-func (h Heartbeat) signature() []byte  { return h.Signature }
-func (h Heartbeat) sentinel() string   { return h.Sentinel }
-func (c Compromise) unsigned() any     { c.Signature = nil; return c }
-func (c Compromise) signature() []byte { return c.Signature }
-func (c Compromise) sentinel() string  { return c.Sentinel }
+func (r SealRecord) unsigned() any             { r.Signature = nil; return r }
+func (r SealRecord) unattested() any           { r.Signature, r.Attestation = nil, nil; return r }
+func (r SealRecord) attestation() *Attestation { return r.Attestation }
+func (r SealRecord) signature() []byte         { return r.Signature }
+func (r SealRecord) sentinel() string          { return r.Sentinel }
+func (h Heartbeat) unsigned() any              { h.Signature = nil; return h }
+func (h Heartbeat) unattested() any            { h.Signature, h.Attestation = nil, nil; return h }
+func (h Heartbeat) attestation() *Attestation  { return h.Attestation }
+func (h Heartbeat) signature() []byte          { return h.Signature }
+func (h Heartbeat) sentinel() string           { return h.Sentinel }
+func (c Compromise) unsigned() any             { c.Signature = nil; return c }
+func (c Compromise) unattested() any           { c.Signature, c.Attestation = nil, nil; return c }
+func (c Compromise) attestation() *Attestation { return c.Attestation }
+func (c Compromise) signature() []byte         { return c.Signature }
+func (c Compromise) sentinel() string          { return c.Sentinel }
+
+// attestationNonce is what the TEE report binds: the record's canonical
+// form without signature or attestation.
+func attestationNonce(v signable) (tee.Nonce, error) {
+	msg, err := crypto.CanonicalJSON(v.unattested())
+	if err != nil {
+		return nil, err
+	}
+	return tee.Nonce(msg), nil
+}
+
+// attest asks the primary's TEE for a report over v.
+func attest(v signable, producer tee.Producer, kind tee.Provider) (*Attestation, error) {
+	if err := v.validate(); err != nil {
+		return nil, err
+	}
+	nonce, err := attestationNonce(v)
+	if err != nil {
+		return nil, err
+	}
+	ev, err := producer.Quote(nonce)
+	if err != nil {
+		return nil, fmt.Errorf("sentinel: attest: %w", err)
+	}
+	return &Attestation{Kind: string(kind), Evidence: ev}, nil
+}
+
+// verifyAttestation checks the record's report under verifier and returns
+// the measurement it attests. The caller decides whether that measurement
+// is the primary the policy pins.
+func verifyAttestation(v signable, verifier tee.Verifier) (tee.Measurement, error) {
+	att := v.attestation()
+	if att == nil {
+		return nil, ErrUnattested
+	}
+	if verifier == nil {
+		return nil, errors.New("sentinel: no verifier for the record's attestation")
+	}
+	nonce, err := attestationNonce(v)
+	if err != nil {
+		return nil, err
+	}
+	m, err := verifier.Verify(att.Evidence, nonce)
+	if err != nil {
+		return nil, fmt.Errorf("sentinel: the record's %s attestation does not verify: %w", att.Kind, err)
+	}
+	return m, nil
+}
+
+// AttestRecord, AttestHeartbeat and AttestCompromise attach the primary
+// TEE's report over the record; sign it afterwards, so the signature
+// covers the report.
+func AttestRecord(r SealRecord, producer tee.Producer, kind tee.Provider) (SealRecord, error) {
+	r.Schema = SealSchema
+	att, err := attest(r, producer, kind)
+	r.Attestation = att
+	return r, err
+}
+
+func AttestHeartbeat(h Heartbeat, producer tee.Producer, kind tee.Provider) (Heartbeat, error) {
+	h.Schema = HeartbeatSchema
+	att, err := attest(h, producer, kind)
+	h.Attestation = att
+	return h, err
+}
+
+func AttestCompromise(c Compromise, producer tee.Producer, kind tee.Provider) (Compromise, error) {
+	c.Schema = CompromiseSchema
+	att, err := attest(c, producer, kind)
+	c.Attestation = att
+	return c, err
+}
+
+// Attested verifies the record's attestation under verifier and returns
+// the measurement the primary's TEE attests; ErrUnattested when the
+// record carries none.
+func (r SealRecord) Attested(verifier tee.Verifier) (tee.Measurement, error) {
+	return verifyAttestation(r, verifier)
+}
+
+func (h Heartbeat) Attested(verifier tee.Verifier) (tee.Measurement, error) {
+	return verifyAttestation(h, verifier)
+}
+
+func (c Compromise) Attested(verifier tee.Verifier) (tee.Measurement, error) {
+	return verifyAttestation(c, verifier)
+}
 
 func signatureOver(v signable, priv ed25519.PrivateKey) ([]byte, error) {
 	if err := v.validate(); err != nil {
