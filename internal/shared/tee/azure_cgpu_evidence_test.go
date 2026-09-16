@@ -95,6 +95,14 @@ func TestAzureCGPUVerifierAcceptsTheCapturedConfidentialGPUVM(t *testing.T) {
 	_, err = strict.Verify(ev, Nonce(azureCGPUCaptureNonce))
 	require.NoError(t, err)
 
+	// The boot measured into the vTPM, pinned by its PCR digest.
+	pcrPinned := azureCGPUCapturedVerifier(t, chain, func(c *AzureCGPUVerifierConfig) { c.AcceptablePCRDigests = [][]byte{verdict.PCRDigest} })
+	_, err = pcrPinned.Verify(ev, Nonce(azureCGPUCaptureNonce))
+	require.NoError(t, err)
+	otherBoot := azureCGPUCapturedVerifier(t, chain, func(c *AzureCGPUVerifierConfig) { c.AcceptablePCRDigests = [][]byte{make([]byte, 32)} })
+	_, err = otherBoot.Verify(ev, Nonce(azureCGPUCaptureNonce))
+	require.ErrorContains(t, err, "PCR digest")
+
 	// Refusals on the genuine evidence.
 	_, err = v.Verify(ev, Nonce("vault-genome cgpu 20260916T133506Z challenge 2"))
 	require.ErrorContains(t, err, "TPM quote does not bind challenger nonce")

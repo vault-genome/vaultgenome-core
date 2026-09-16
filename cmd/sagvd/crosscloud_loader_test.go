@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"strings"
@@ -660,4 +661,36 @@ func TestLoadCrossCloudMaterials_RefusesStopListRollback(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "rollback refused") {
 		t.Fatalf("unexpected refusal: %v", err)
 	}
+}
+
+func TestLoadVerifierSpecs_AzureCGPU(t *testing.T) {
+	chain, err := os.ReadFile("../../scripts/hardware-test/azure-cgpu/evidence/20260916T133506Z/cert-chain.pem")
+	if err != nil {
+		t.Skip("azure-cgpu capture not present")
+	}
+	dir := t.TempDir()
+	chainPath := filepath.Join(dir, "genoa.pem")
+	require.NoError(t, os.WriteFile(chainPath, chain, 0o600))
+	meas := strings.Repeat("ab", 48)
+	write := func(entry string) string {
+		p := filepath.Join(dir, "verifiers.json")
+		require.NoError(t, os.WriteFile(p, []byte(`{"verifiers":[`+entry+`]}`), 0o600))
+		return p
+	}
+	specs, err := loadVerifierSpecs(write(`{"provider":"azure-cgpu","expected_measurement_hex":"`+meas+`","amd_cert_chain_path":"`+chainPath+`",
+		"vcek_cache_dir":"`+dir+`","nras_cache_dir":"`+dir+`","gpu_policy":{"hw_models":["GH100"]},"pcr_digests":["`+strings.Repeat("00", 32)+`"]}`), false)
+	require.NoError(t, err)
+	require.Len(t, specs, 1)
+	require.Equal(t, tee.ProviderAzureCGPU, specs[0].Provider)
+	require.Equal(t, []string{"GH100"}, specs[0].Spec.AzureCGPU.GPU.AcceptableHWModels)
+	require.Len(t, specs[0].Spec.AzureCGPU.AcceptablePCRDigests, 1)
+	require.NotEmpty(t, specs[0].Spec.AzureCGPU.AMDRootPEM)
+	v, err := tee.BuildVerifier(specs[0].Spec)
+	require.NoError(t, err)
+	require.NotNil(t, v)
+
+	_, err = loadVerifierSpecs(write(`{"provider":"azure-cgpu","expected_measurement_hex":"`+meas+`"}`), false)
+	require.ErrorContains(t, err, "amd_cert_chain_path")
+	_, err = loadVerifierSpecs(write(`{"provider":"azure-cgpu","expected_measurement_hex":"`+meas+`","amd_cert_chain_path":"`+chainPath+`","pcr_digests":["zz"]}`), false)
+	require.ErrorContains(t, err, "pcr_digests")
 }
