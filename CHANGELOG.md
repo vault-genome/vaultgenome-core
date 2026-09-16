@@ -13,6 +13,12 @@ given release can still open.
 
 ### Added
 
+- **The vTPM's boot, pinned; a destination by IP, named.** An `azure-cgpu`
+  peer or registry entry takes `pcr_digests` — the digest over the quoted
+  PCRs, printed by `identity` as `vtpm.pcr_digest_hex` — so what the vTPM
+  measured of the boot is policed and not only recorded; the transport TLS
+  client takes `server_name` for a destination whose certificate does not
+  name the host of its URL.
 - **A confidential GPU worker on Azure**
   ([ADR-0019](docs/adr/0019-a-confidential-gpu-worker-on-azure.md)) —
   `tee.provider: "azure-cgpu"` for `sagvd`, `acp-compute` and
@@ -169,6 +175,11 @@ given release can still open.
 - This changelog.
 
 ### Fixed
+
+- **`sagvd`'s verifier registry takes `azure-cgpu` entries.** ADR 0019 and
+  its runbook said it did; the loader had no case and refused the
+  provider. It takes the AMD fields (the Genoa chain), `nras_jwks_url`,
+  `nras_cache_dir`, `gpu_policy` and `pcr_digests` now.
 
 - **No test is skipped.** The eight `t.Skip("KNOWN: …")` tests run again,
   each for its real reason (KNOWN_ISSUES, "The eight that were skipped"):
