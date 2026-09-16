@@ -288,6 +288,12 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		if err := tlsConn.HandshakeContext(handshakeCtx); err != nil {
 			cancel()
 			_ = raw.Close()
+			if parent.Err() != nil {
+				// The daemon is stopping: a handshake it cut short is
+				// not a decision about the peer, and is not recorded as one.
+				d.log.Debug("sagvd TLS handshake cut short by shutdown", "remote_addr", raw.RemoteAddr().String())
+				return
+			}
 			d.metrics.handshakeFailure.Inc(
 				metrics.Label{Name: "phase", Value: "tls"},
 			)
@@ -344,6 +350,10 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 	})
 	if err != nil {
 		_ = conn.Close()
+		if parent.Err() != nil {
+			d.log.Debug("sagvd return-path handshake cut short by shutdown", "remote_addr", remote)
+			return
+		}
 		d.metrics.handshakeFailure.Inc(
 			metrics.Label{Name: "phase", Value: "handshake"},
 		)
