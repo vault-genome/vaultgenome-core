@@ -63,13 +63,23 @@ func genomeGateCmd(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	integerFixtures, err := lora.IntegerFixtures(*genomeDir, g)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl genome gate: %v\n", err)
+		return 1
+	}
 	be := &reconstruction.BatchedExternalBackend{Argv: backend, IDs: lora.IDs(fixtures), Timeout: *timeout}
+	ib := &reconstruction.BatchedExternalBackend{Argv: backend, IDs: lora.IDs(fixtures), Timeout: *timeout, Which: reconstruction.DoorInteger}
 	tol := equivalence.Tolerance{Atol: *atol, Rtol: *rtol}
 	pol := equivalence.Policy{MaxNonCriticalOutliers: *maxOutliers}
-	res, err := reconstruction.Regenerate(g.Base.Manifest.Digest, fixtures, []reconstruction.Strategy{
+	ladder := []reconstruction.Strategy{
 		be.Door(0, reconstruction.KindPinnedReplay, "pinned replay", reconstruction.ExactTolerance, equivalence.StrictPolicy()),
 		be.Door(1, reconstruction.KindNativeFloat, "native float", tol, pol),
-	})
+	}
+	if integerFixtures != nil {
+		ladder = append(ladder, ib.IntegerDoor(2, "integer", integerFixtures))
+	}
+	res, err := reconstruction.Regenerate(g.Base.Manifest.Digest, fixtures, ladder)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl genome gate: %v\n", err)
 		return 1
@@ -80,7 +90,8 @@ func genomeGateCmd(args []string, stdout, stderr io.Writer) int {
 		Base:           g.Base.Name,
 		BaseDigest:     g.Base.Manifest.Digest,
 		Fixtures:       len(fixtures),
-		BackendSeconds: be.Seconds,
+		IntegerDoor:    integerFixtures != nil,
+		BackendSeconds: be.Seconds + ib.Seconds,
 		Ladder:         res,
 	}
 	if res.Opened {
@@ -115,6 +126,7 @@ type gateResult struct {
 	Base           string                      `json:"base"`
 	BaseDigest     string                      `json:"base_digest"`
 	Fixtures       int                         `json:"fixtures"`
+	IntegerDoor    bool                        `json:"integer_door"` // the genome carries integer references: a third door
 	Level          string                      `json:"level"`
 	BackendSeconds float64                     `json:"backend_seconds"`
 	Ladder         reconstruction.LadderResult `json:"ladder"`

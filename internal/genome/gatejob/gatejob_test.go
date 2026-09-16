@@ -162,15 +162,15 @@ func TestOutput_CanonicalAndBudgetExact(t *testing.T) {
 		"fx-001": {DType: equivalence.F32, Shape: []int{2}, Raw: f32(0.25, 3)},
 		"fx-000": {DType: equivalence.F32, Shape: []int{2}, Raw: f32(1.5, -2)},
 	}
-	a, err := EncodeOutput("genome-1", outputs)
+	a, err := EncodeOutput("genome-1", outputs, nil)
 	require.NoError(t, err)
-	b, err := EncodeOutput("genome-1", outputs)
+	b, err := EncodeOutput("genome-1", outputs, nil)
 	require.NoError(t, err)
 	require.Equal(t, a, b, "canonical: the same outputs encode to the same bytes")
 	require.True(t, strings.Index(string(a), `"fx-000"`) < strings.Index(string(a), `"fx-001"`), "keys sorted")
 	require.NotContains(t, string(a), "\n")
 
-	gid, got, err := DecodeOutput(a)
+	gid, got, _, err := DecodeOutput(a)
 	require.NoError(t, err)
 	require.Equal(t, "genome-1", gid)
 	require.Equal(t, outputs, got)
@@ -179,7 +179,7 @@ func TestOutput_CanonicalAndBudgetExact(t *testing.T) {
 		{ID: "fx-000", Expected: outputs["fx-000"], Critical: true},
 		{ID: "fx-001", Expected: outputs["fx-001"]},
 	}
-	budget, err := OutputBudget("genome-1", fixtures)
+	budget, err := OutputBudget("genome-1", fixtures, nil)
 	require.NoError(t, err)
 	require.Equal(t, uint64(len(a)), budget, "the budget is the exact size of an output with the references' shapes")
 
@@ -188,7 +188,7 @@ func TestOutput_CanonicalAndBudgetExact(t *testing.T) {
 		"fx-000": {DType: equivalence.F32, Shape: []int{2}, Raw: f32(9e9, -9e9)},
 		"fx-001": {DType: equivalence.F32, Shape: []int{2}, Raw: f32(0, 0)},
 	}
-	c, err := EncodeOutput("genome-1", other)
+	c, err := EncodeOutput("genome-1", other, nil)
 	require.NoError(t, err)
 	require.Equal(t, len(a), len(c))
 
@@ -196,35 +196,35 @@ func TestOutput_CanonicalAndBudgetExact(t *testing.T) {
 }
 
 func TestOutput_RefusesMalformed(t *testing.T) {
-	_, err := EncodeOutput("", map[string]equivalence.Tensor{"a": {DType: equivalence.F32}})
+	_, err := EncodeOutput("", map[string]equivalence.Tensor{"a": {DType: equivalence.F32}}, nil)
 	require.Error(t, err)
-	_, err = EncodeOutput("g", nil)
+	_, err = EncodeOutput("g", nil, nil)
 	require.Error(t, err)
-	_, err = EncodeOutput("g", map[string]equivalence.Tensor{"": {DType: equivalence.F32}})
+	_, err = EncodeOutput("g", map[string]equivalence.Tensor{"": {DType: equivalence.F32}}, nil)
 	require.Error(t, err)
-	_, _, err = DecodeOutput([]byte(`{"schema":"vault-genome/gate-output/v0","genome_id":"g","outputs":{"a":{"dtype":"f32","shape":[1],"raw_b64":"AAAAAA=="}}}`))
+	_, _, _, err = DecodeOutput([]byte(`{"schema":"vault-genome/gate-output/v0","genome_id":"g","outputs":{"a":{"dtype":"f32","shape":[1],"raw_b64":"AAAAAA=="}}}`))
 	require.Error(t, err, "schema")
-	_, _, err = DecodeOutput([]byte(`{"schema":"vault-genome/gate-output/v1","genome_id":"","outputs":{"a":{"dtype":"f32","shape":[1],"raw_b64":"AAAAAA=="}}}`))
+	_, _, _, err = DecodeOutput([]byte(`{"schema":"vault-genome/gate-output/v1","genome_id":"","outputs":{"a":{"dtype":"f32","shape":[1],"raw_b64":"AAAAAA=="}}}`))
 	require.Error(t, err, "genome")
-	_, _, err = DecodeOutput([]byte(`{"schema":"vault-genome/gate-output/v1","genome_id":"g","outputs":{}}`))
+	_, _, _, err = DecodeOutput([]byte(`{"schema":"vault-genome/gate-output/v1","genome_id":"g","outputs":{}}`))
 	require.Error(t, err, "empty")
-	_, _, err = DecodeOutput([]byte(`{"schema":"vault-genome/gate-output/v1","genome_id":"g","outputs":{"a":{"dtype":"f32","shape":[2],"raw_b64":"AAAAAA=="}}}`))
+	_, _, _, err = DecodeOutput([]byte(`{"schema":"vault-genome/gate-output/v1","genome_id":"g","outputs":{"a":{"dtype":"f32","shape":[2],"raw_b64":"AAAAAA=="}}}`))
 	require.Error(t, err, "shape")
-	_, err = OutputBudget("g", nil)
+	_, err = OutputBudget("g", nil, nil)
 	require.Error(t, err)
-	_, err = OutputBudget("g", []equivalence.Fixture{{ID: "a"}, {ID: "a"}})
+	_, err = OutputBudget("g", []equivalence.Fixture{{ID: "a"}, {ID: "a"}}, nil)
 	require.Error(t, err)
 }
 
 func TestDoorResponse_Decode(t *testing.T) {
 	raw := []byte("\n" + `{"outputs":{"fx-000":{"dtype":"f32","shape":[2],"raw_b64":"` + base64.StdEncoding.EncodeToString(f32(1, 2)) + `"}}}` + "\n")
-	got, err := DecodeDoorResponse(raw)
+	got, _, err := DecodeDoorResponse(raw)
 	require.NoError(t, err)
 	require.Equal(t, f32(1, 2), got["fx-000"].Raw)
-	_, err = DecodeDoorResponse([]byte(`{"outputs":{}}`))
+	_, _, err = DecodeDoorResponse([]byte(`{"outputs":{}}`))
 	require.Error(t, err)
-	_, err = DecodeDoorResponse([]byte(`not json`))
+	_, _, err = DecodeDoorResponse([]byte(`not json`))
 	require.Error(t, err)
-	_, err = DecodeDoorResponse([]byte(`{"outputs":{"":{"dtype":"f32","shape":[0],"raw_b64":""}}}`))
+	_, _, err = DecodeDoorResponse([]byte(`{"outputs":{"":{"dtype":"f32","shape":[0],"raw_b64":""}}}`))
 	require.Error(t, err)
 }

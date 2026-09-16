@@ -89,7 +89,7 @@ open(sys.argv[2], "w").write("".join(json.dumps(e) + "\n" for e in conftest.EXAM
 	}
 	components[0].Plaintext, err = gatejob.EncodeDescriptor(desc)
 	require.NoError(t, err)
-	budget, err := gatejob.OutputBudget(genomeID, fixtures)
+	budget, err := gatejob.OutputBudget(genomeID, fixtures, nil)
 	require.NoError(t, err)
 
 	r, err := worker.NewGenomeReconstructor(worker.GenomeConfig{
@@ -110,7 +110,7 @@ open(sys.argv[2], "w").write("".join(json.dumps(e) + "\n" for e in conftest.EXAM
 	require.NoError(t, err)
 	t.Logf("real door answered %d prompts in %s", len(prompts), time.Since(start).Round(time.Millisecond))
 
-	gid, outputs, err := gatejob.DecodeOutput(cand.Bytes)
+	gid, outputs, _, err := gatejob.DecodeOutput(cand.Bytes)
 	require.NoError(t, err)
 	require.Equal(t, genomeID, gid)
 	v, err := equivalence.Evaluate(genomeID, fixtures, outputs, equivalence.Tolerance{}, equivalence.StrictPolicy())

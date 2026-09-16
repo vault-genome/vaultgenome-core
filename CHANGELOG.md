@@ -13,6 +13,31 @@ given release can still open.
 
 ### Added
 
+- **The integer door for the LoRA worker**
+  ([ADR-0020](docs/adr/0020-the-integer-door-for-the-lora-worker.md)) —
+  `vg_genome/integer.py` computes the restored model's forward pass in
+  integer arithmetic (int8 weights with the delta merged, 14-bit
+  activations, `torch._int_mm`, an integer RMSNorm, rotary tables from
+  big integers in `fixedmath.py`, an integer exponential for softmax and
+  SiLU; every division exact by a device self-test or by long division),
+  so the same genome gives the same bytes on any CPU or GPU. `finetune`
+  records that door's logits beside the float references
+  (`expected_integer`, `fixtures.integer` with the scheme and the
+  measured fidelity; `--no-integer-door` leaves them out); `measure
+  --door integer [--limit N]` holds the door to them; the door answers a
+  request naming `"door": "integer"`, and the in-memory door adds
+  `integer_outputs` when the prompts say `"integer": true`. The gate's
+  ladder has a third rung for a genome that carries the references —
+  `fixed-point`, name `integer`, tolerance zero against its own
+  references — in `acp-bootstrap`, `acpctl genome gate` (a second run of
+  the door, only when the float doors did not open) and `sagvd`'s gate
+  job (the worker is asked for the integer outputs, the budget counts
+  them, rung 2 judges them). `scripts/hardware-test/integer-door/` proves
+  it on an L4 and its host CPU (run `20260916T164511Z`): byte-identical
+  logits CPU↔GPU at 0.5B (16/16) and 7B (16/16 on the GPU, 3/3 on the
+  CPU against the GPU's references), the gate EXACT at rung 2 where both
+  float doors failed at zero tolerance — VERIFIABLE-CLAIMS C19,
+  KNOWN_ISSUES #13.
 - **The GPU leg of the failover drill** —
   `scripts/hardware-test/failover-cgpu/`: a model fine-tuned on a GCP
   SEV-SNP primary fails over, under the operator's signed policy, to an

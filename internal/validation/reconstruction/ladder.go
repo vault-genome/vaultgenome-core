@@ -66,6 +66,10 @@ type Strategy struct {
 	Recompute RecomputeFunc         // how this door recomputes a fixture's output
 	Tol       equivalence.Tolerance // tolerance the gate enforces for this door
 	Pol       equivalence.Policy    // aggregation policy for this door
+	// Fixtures, when set, are the references this door is held to instead
+	// of the ladder's: the integer door computes its own arithmetic and is
+	// held, byte for byte, to the references that arithmetic sealed.
+	Fixtures []equivalence.Fixture
 }
 
 // Attempt records one door's outcome for the audit trail.
@@ -111,7 +115,11 @@ func Regenerate(
 		return res, errEmptyLadder
 	}
 	for _, s := range ladder {
-		v, err := Evaluate(genomeID, fixtures, s.Recompute, s.Tol, s.Pol)
+		refs := fixtures
+		if s.Fixtures != nil {
+			refs = s.Fixtures
+		}
+		v, err := Evaluate(genomeID, refs, s.Recompute, s.Tol, s.Pol)
 		if err != nil {
 			res.Attempts = append(res.Attempts, Attempt{
 				Rung: s.Rung, Kind: s.Kind, Name: s.Name, Level: attemptError, Err: err.Error(),

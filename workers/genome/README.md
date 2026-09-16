@@ -53,9 +53,36 @@ acpctl genome gate --genome restored/ -- python -m vg_genome door --genome resto
 ```
 
 The gate tries the byte-exact door first (`pinned-replay`), then the float
-door within tolerance (`native-float`, `--atol`/`--rtol`), and fails closed
-(exit 5) if neither opens. `measure` adds what a tensor comparison cannot:
-whether the restored model says the same thing, token for token.
+door within tolerance (`native-float`, `--atol`/`--rtol`), then — for a
+genome that carries integer references — the **integer door**
+(`fixed-point`, ADR 0020), and fails closed (exit 5) if none opens.
+`measure` adds what a tensor comparison cannot: whether the restored model
+says the same thing, token for token.
+
+### The integer door
+
+Float kernels differ across devices in their last bits, so no float door is
+EXACT across hardware. `integer.py` is the model's forward pass in integer
+arithmetic — int8 weights with the LoRA delta merged, 14-bit activations,
+int8 GEMMs accumulated in int32, integer RMSNorm, RoPE tables computed
+without a float (`fixedmath.py`), an integer exponential for softmax and
+SiLU — so the same genome gives the same bytes on any CPU or GPU. `finetune`
+records that door's logits beside the float ones (`expected_integer` in
+`fixtures.json`, the scheme and its fidelity in `fixtures.integer`;
+`--no-integer-door` leaves them out), and the gate holds the door to *those*
+references at tolerance zero: EXACT on any device, or the door is broken.
+It is a different model from the float one — its fidelity to it (max abs
+error, top-1 agreement) is measured, not assumed.
+
+```bash
+python -m vg_genome measure --genome restored/ --base BASE_DIR --device cuda --door integer   # byte for byte against the references; fidelity to the float ones
+echo '{"fixture_ids": ["fx-000"], "door": "integer"}' | python -m vg_genome door --genome restored/ --base BASE_DIR --device cuda
+```
+
+The in-memory door answers with `integer_outputs` beside `outputs` when the
+prompts document says `"integer": true` — the authority asks for it when the
+genome carries the references, and judges them at rung 2 when the float
+doors do not open.
 
 The `acp-compute` worker runs the same door with the genome delivered on
 stdin, in memory (ADR 0013): the authority ships `genome.json`, the adapter
@@ -114,6 +141,18 @@ Training took 32.4 s and replays bit for bit on the same GPU. Across devices
 in bfloat16 the logits differ by one or two bfloat16 quanta, which is
 outside the float door's float32 tolerance: the gate fails closed while the
 model's answers do not change.
+
+The integer door on the same hardware class
+([`scripts/hardware-test/integer-door`](../../scripts/hardware-test/integer-door/README.md),
+run `20260916T164511Z`, an L4 and eight Xeon cores):
+
+| Genome, where its integer references were made | The door on the CPU | The door on the L4 | fidelity to the float model |
+|---|---|---|---|
+| Qwen2.5-0.5B-Instruct, float32, on the CPU | **exact 16/16** | **exact 16/16** (the same SHA-256s) | top-1 16/16, max \|Δ logit\| 2.72 |
+| Qwen2.5-7B-Instruct, bfloat16, on the L4 | **exact 3/3** (the first three) | **exact 16/16** | top-1 16/16, max \|Δ logit\| 1.32 |
+
+On the L4 at zero tolerance the float doors fail (1.52e-4) and the
+integer door opens EXACT.
 
 ## Tests
 

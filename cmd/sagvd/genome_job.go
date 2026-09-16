@@ -93,10 +93,14 @@ const (
 	CodeGateOutputInvalid = "gate_output_invalid"
 )
 
-// Names of the two ladder doors a gate job tries, recorded in verdicts.
+// Names of the ladder doors a gate job tries, recorded in verdicts: the
+// two float doors over the worker's outputs, and, for a genome that
+// carries integer references, the integer door over the worker's integer
+// outputs.
 const (
 	doorPinnedReplay = "pinned replay"
 	doorNativeFloat  = "native float"
+	doorInteger      = "integer"
 )
 
 // genomeRef is how POST /v1/jobs names a genome.
@@ -130,8 +134,11 @@ type GenomeView struct {
 type gateSpec struct {
 	GenomeID string
 	Fixtures []equivalence.Fixture
-	Tol      equivalence.Tolerance
-	Pol      equivalence.Policy
+	// IntegerFixtures are the integer door's references, held byte for
+	// byte against the worker's integer outputs; nil for a genome without.
+	IntegerFixtures []equivalence.Fixture
+	Tol             equivalence.Tolerance
+	Pol             equivalence.Policy
 }
 
 // GateView is a gate job's verdict, as GET /v1/jobs/{id} shows it.
@@ -242,10 +249,11 @@ func (g *genomeJobs) inspect(ref genomeRef) (genomeInfo, error) {
 			Critical:      o.model.critical,
 		},
 		Gate: &gateSpec{
-			GenomeID: o.header.KeyID,
-			Fixtures: o.model.fixtures,
-			Tol:      g.cfg.Gate.ToleranceFor(o.model.genome.RecipeDtype()),
-			Pol:      equivalence.Policy{MaxNonCriticalOutliers: g.cfg.Gate.MaxNonCriticalOutliers},
+			GenomeID:        o.header.KeyID,
+			Fixtures:        o.model.fixtures,
+			IntegerFixtures: o.model.integerFixtures,
+			Tol:             g.cfg.Gate.ToleranceFor(o.model.genome.RecipeDtype()),
+			Pol:             equivalence.Policy{MaxNonCriticalOutliers: g.cfg.Gate.MaxNonCriticalOutliers},
 		},
 		Budget:       o.budget,
 		GenomeID:     o.header.KeyID,
@@ -360,7 +368,7 @@ func (g *genomeJobs) open(ref genomeRef) (*openedGenome, error) {
 	for _, p := range o.model.adapterFiles {
 		o.shipped[p] = o.files[p]
 	}
-	o.budget, err = gatejob.OutputBudget(rd.Header.KeyID, o.model.fixtures)
+	o.budget, err = gatejob.OutputBudget(rd.Header.KeyID, o.model.fixtures, o.model.integerFixtures)
 	if err != nil {
 		o.clear()
 		return nil, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
@@ -473,11 +481,14 @@ func readInRoot(root *os.Root, name string, limit int64) ([]byte, int64, error) 
 
 // modelGenome is the model side of an opened genome.
 type modelGenome struct {
-	genome       lora.Genome
-	fixtures     []equivalence.Fixture
-	prompts      gatejob.Prompts
-	adapterFiles []string
-	critical     int
+	genome   lora.Genome
+	fixtures []equivalence.Fixture
+	// integerFixtures are the integer door's references when the genome
+	// carries them; the job then asks the worker for that door too.
+	integerFixtures []equivalence.Fixture
+	prompts         gatejob.Prompts
+	adapterFiles    []string
+	critical        int
 }
 
 // modelSide reads the genome's description and fixtures from the opened
@@ -502,7 +513,12 @@ func modelSide(files map[string][]byte) (modelGenome, error) {
 	if len(prompts) != len(fixtures) {
 		return modelGenome{}, fmt.Errorf("%d of %d fixtures carry no prompt (input_ids, topk_index); the genome was written by a worker older than the gate job", len(fixtures)-len(prompts), len(fixtures))
 	}
-	out := modelGenome{genome: g, fixtures: fixtures, prompts: gatejob.Prompts{Schema: gatejob.PromptsSchema}}
+	integerFixtures, err := lora.ParseIntegerFixtures(g, fxRaw)
+	if err != nil {
+		return modelGenome{}, err
+	}
+	out := modelGenome{genome: g, fixtures: fixtures, integerFixtures: integerFixtures,
+		prompts: gatejob.Prompts{Schema: gatejob.PromptsSchema, Integer: integerFixtures != nil}}
 	for _, p := range prompts {
 		out.prompts.Prompts = append(out.prompts.Prompts, gatejob.Prompt{ID: p.ID, InputIDs: p.InputIDs, TopKIndex: p.TopKIndex})
 	}
@@ -536,7 +552,7 @@ func modelSide(files map[string][]byte) (modelGenome, error) {
 // classified error; both are recorded on the job.
 func evaluateGate(spec *gateSpec, out returnpath.CandidateOutput) (GateView, error) {
 	view := GateView{Level: "ERROR", Fixtures: len(spec.Fixtures)}
-	genomeID, outputs, err := gatejob.DecodeOutput(out.Bytes)
+	genomeID, outputs, integerOutputs, err := gatejob.DecodeOutput(out.Bytes)
 	if err != nil {
 		return view, shared_errors.Integrity(CodeGateOutputInvalid, "the worker's output is not a gate output", err)
 	}
@@ -544,18 +560,29 @@ func evaluateGate(spec *gateSpec, out returnpath.CandidateOutput) (GateView, err
 		return view, shared_errors.Integrity(CodeGateOutputInvalid,
 			fmt.Sprintf("the worker answered for genome %s, the job was for %s", genomeID, spec.GenomeID), nil)
 	}
-	recompute := func(id string) (equivalence.Tensor, error) {
-		t, ok := outputs[id]
-		if !ok {
-			return equivalence.Tensor{}, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing,
-				fmt.Sprintf("the worker gave no output for fixture %q", id), nil)
+	from := func(what string, m map[string]equivalence.Tensor) reconstruction.RecomputeFunc {
+		return func(id string) (equivalence.Tensor, error) {
+			t, ok := m[id]
+			if !ok {
+				return equivalence.Tensor{}, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing,
+					fmt.Sprintf("the worker gave no %s for fixture %q", what, id), nil)
+			}
+			return t, nil
 		}
-		return t, nil
 	}
-	res, err := reconstruction.Regenerate(spec.GenomeID, spec.Fixtures, []reconstruction.Strategy{
+	recompute := from("output", outputs)
+	ladder := []reconstruction.Strategy{
 		reconstruction.PinnedReplayDoor(doorPinnedReplay, recompute),
 		{Rung: 1, Kind: reconstruction.KindNativeFloat, Name: doorNativeFloat, Recompute: recompute, Tol: spec.Tol, Pol: spec.Pol},
-	})
+	}
+	if spec.IntegerFixtures != nil {
+		// The integer door: the worker's integer outputs, byte for byte
+		// against the references the genome's integer door sealed.
+		ladder = append(ladder, reconstruction.Strategy{Rung: 2, Kind: reconstruction.KindFixedPoint, Name: doorInteger,
+			Recompute: from("integer output", integerOutputs), Tol: reconstruction.ExactTolerance, Pol: equivalence.StrictPolicy(),
+			Fixtures: spec.IntegerFixtures})
+	}
+	res, err := reconstruction.Regenerate(spec.GenomeID, spec.Fixtures, ladder)
 	if err != nil {
 		return view, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gate", err)
 	}
@@ -598,7 +625,7 @@ type judgement struct {
 // error and is not judged.
 func judge(spec *gateSpec, out returnpath.CandidateOutput) (judgement, error) {
 	var j judgement
-	genomeID, outputs, err := gatejob.DecodeOutput(out.Bytes)
+	genomeID, outputs, _, err := gatejob.DecodeOutput(out.Bytes)
 	if err != nil {
 		return j, shared_errors.Integrity(CodeGateOutputInvalid, "the worker's output is not a gate output", err)
 	}

@@ -62,6 +62,7 @@ type genomeOptions struct {
 	noPrompts  bool
 	wrongWeigh bool
 	dtype      string // the recipe's dtype ("" = a genome that predates the field)
+	integer    bool   // the fixtures carry the integer door's references
 }
 
 // sealTestGenome writes the genome the vg_genome worker would write —
@@ -95,9 +96,22 @@ func sealTestGenome(t *testing.T, dir string, opts genomeOptions) testGenome {
 		if !opts.noPrompts {
 			entry["input_ids"], entry["topk_index"] = p.InputIDs, p.TopKIndex
 		}
+		if opts.integer {
+			ivals := make([]float32, len(p.TopKIndex))
+			for j, idx := range p.TopKIndex {
+				ivals[j] = integerDoorValue(p.InputIDs, idx)
+			}
+			entry["expected_integer"] = map[string]any{"dtype": "f32", "shape": []int{len(ivals)}, "raw_b64": base64.StdEncoding.EncodeToString(f32(ivals...))}
+		}
 		fxDoc = append(fxDoc, entry)
 	}
-	fixturesJSON, err := json.Marshal(map[string]any{"schema": "vault-genome/lora-fixtures/v1", "top_k": 3, "new_tokens": 2, "fixtures": fxDoc})
+	fxTop := map[string]any{"schema": "vault-genome/lora-fixtures/v1", "top_k": 3, "new_tokens": 2, "fixtures": fxDoc}
+	genomeFixtures := map[string]any{"file": "fixtures.json", "count": 3, "critical": 2, "top_k": 3}
+	if opts.integer {
+		desc := map[string]any{"scheme": "vg-integer-door/v1", "fidelity": map[string]any{"fixtures": 3, "top1_same": 3, "max_abs_err": 0.125, "max_rel_err": 0.1}}
+		fxTop["integer"], genomeFixtures["integer"] = desc, desc
+	}
+	fixturesJSON, err := json.Marshal(fxTop)
 	require.NoError(t, err)
 	weights := make([]byte, 6000)
 	rand.New(rand.NewSource(11)).Read(weights)
@@ -106,6 +120,7 @@ func sealTestGenome(t *testing.T, dir string, opts genomeOptions) testGenome {
 		weightsSum[0] ^= 0xff
 	}
 	fxSum := sha256.Sum256(fixturesJSON)
+	genomeFixtures["sha256"] = "sha256:" + hex.EncodeToString(fxSum[:])
 	genomeJSON, err := json.Marshal(map[string]any{
 		"schema": "vault-genome/lora-genome/v1", "created_at": "2026-09-15T00:00:00Z",
 		"base": map[string]any{"name": "tiny-llama", "manifest": map[string]any{
@@ -113,7 +128,7 @@ func sealTestGenome(t *testing.T, dir string, opts genomeOptions) testGenome {
 			"digest": "sha256:" + hex.EncodeToString(bytes.Repeat([]byte{2}, 32))}},
 		"adapter":  map[string]any{"dir": "adapter", "format": "peft-lora", "r": 8, "alpha": 16.0, "targets": []string{"q_proj", "v_proj"}, "parameters": 1234, "weights_sha256": "sha256:" + hex.EncodeToString(weightsSum[:])},
 		"recipe":   recipe(opts.dtype),
-		"fixtures": map[string]any{"file": "fixtures.json", "sha256": "sha256:" + hex.EncodeToString(fxSum[:]), "count": 3, "critical": 2, "top_k": 3},
+		"fixtures": genomeFixtures,
 		"runtime":  map[string]any{"torch": "2.7.1"},
 	})
 	require.NoError(t, err)
@@ -186,17 +201,39 @@ func escrowKeyPair(t *testing.T, dir string) (privPath, pubPath string) {
 // gives; perturb changes the value at (prompt index, top-k position).
 func (g testGenome) rightOutput(t *testing.T, perturb map[[2]int]float32) []byte {
 	t.Helper()
+	return g.output(t, perturb, nil, false)
+}
+
+// output is rightOutput with, when withInteger, the integer door's
+// outputs too, perturbed by integerPerturb.
+func (g testGenome) output(t *testing.T, perturb, integerPerturb map[[2]int]float32, withInteger bool) []byte {
+	t.Helper()
 	outputs := map[string]equivalence.Tensor{}
+	var integer map[string]equivalence.Tensor
+	if withInteger {
+		integer = map[string]equivalence.Tensor{}
+	}
 	for i, p := range g.Prompts.Prompts {
 		vals := make([]float32, len(p.TopKIndex))
+		ivals := make([]float32, len(p.TopKIndex))
 		for j, idx := range p.TopKIndex {
 			vals[j] = doorValue(p.InputIDs, idx) + perturb[[2]int{i, j}]
+			ivals[j] = integerDoorValue(p.InputIDs, idx) + integerPerturb[[2]int{i, j}]
 		}
 		outputs[p.ID] = equivalence.Tensor{DType: equivalence.F32, Shape: []int{len(vals)}, Raw: f32(vals...)}
+		if withInteger {
+			integer[p.ID] = equivalence.Tensor{DType: equivalence.F32, Shape: []int{len(ivals)}, Raw: f32(ivals...)}
+		}
 	}
-	out, err := gatejob.EncodeOutput(g.KeyID, outputs)
+	out, err := gatejob.EncodeOutput(g.KeyID, outputs, integer)
 	require.NoError(t, err)
 	return out
+}
+
+// integerDoorValue is the test integer door's arithmetic: near the float
+// door's, never equal to it.
+func integerDoorValue(inputIDs []int, idx int) float32 {
+	return doorValue(inputIDs, idx) + 0.125
 }
 
 // recipe is a test genome's recipe, in dtype when one is named.

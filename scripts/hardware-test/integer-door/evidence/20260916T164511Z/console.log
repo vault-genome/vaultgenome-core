@@ -1,0 +1,34 @@
+== 16:46:34 inputs
+== 16:46:35 GPU driver
+== 16:46:35 python runtime (CUDA 12.6 wheels)
+W: http://packages.cloud.google.com/apt/dists/apt-transport-artifact-registry-stable/InRelease: Key is stored in legacy trusted.gpg keyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+W: https://us-apt.pkg.dev/projects/gce-ai-infra/dists/gpudirect-gib-apt/InRelease: Key is stored in legacy trusted.gpg keyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+
+Service restarts being deferred:
+ systemctl restart networkd-dispatcher.service
+ systemctl restart unattended-upgrades.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+== 16:49:15 A. base model Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 15.13it/s]Fetching 10 files: 100%|██████████| 10/10 [00:11<00:00,  1.16s/it]
+== 16:49:27 A. fine-tune on the CPU in float32; the integer references are recorded on the CPU
+== 16:51:29 A. seal, restore, verify
+== 16:51:29 A. the integer door on the CPU, against the references (the same machine)
+== 16:51:50 A. the integer door on the L4, against the references recorded on the CPU
+== 16:52:09 A. the float door on the L4 (the cross-device float error, for context)
+== 16:52:30 A. gate on the L4 at zero tolerance: the float doors must fail, the integer door must open
+== 16:52:59 A. gate on the L4 at the default tolerance, and on the CPU
+== 16:53:23 B. base model Qwen/Qwen2.5-7B-Instruct@a09a35458c702b33eeacc393d103063234e8bc28
+Fetching 14 files:   0%|          | 0/14 [00:00<?, ?it/s]Fetching 14 files:  57%|█████▋    | 8/14 [00:00<00:00, 14.64it/s]Fetching 14 files:  71%|███████▏  | 10/14 [00:20<00:08,  2.00s/it]Fetching 14 files:  79%|███████▊  | 11/14 [01:04<00:17,  5.89s/it]Fetching 14 files:  86%|████████▌ | 12/14 [01:16<00:12,  6.37s/it]Fetching 14 files:  93%|█████████▎| 13/14 [01:20<00:06,  6.20s/it]Fetching 14 files: 100%|██████████| 14/14 [01:24<00:00,  6.03s/it]Fetching 14 files: 100%|██████████| 14/14 [01:24<00:00,  6.03s/it]
+== 16:54:48 B. fine-tune on the L4 in bfloat16; the integer references are recorded on the L4
+== 16:57:47 B. seal, restore
+== 16:57:48 B. the integer door on the L4, against the references (the same device)
+== 17:00:14 B. the integer door on the CPU, the first three fixtures, against the references recorded on the L4

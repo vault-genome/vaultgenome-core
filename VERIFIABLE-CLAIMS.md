@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -177,7 +177,8 @@ construction.
 narrated in [the probe README](scripts/hardware-test/gpu-exact/README.md).
 
 **Reproduce.** `bash scripts/hardware-test/gpu-exact/run.sh <gcp-project>`
-(one L4, ~20 min, deletes the VM).
+(one L4, ~20 min, deletes the VM). The integer door this probe pointed at
+now exists for the whole model: [C19](#c19).
 
 **Why we publish a negative result.** It is the reason our ladder has the shape
 it has, and it is the claim a serious reviewer will test first. Anyone
@@ -625,8 +626,9 @@ attested, and the sealed genome was opened on the machine that made it
 cross-device result is a measurement of bfloat16 kernels on two devices,
 not a property of the model: the float door's default tolerance is the
 float32 one; a bfloat16 tolerance is the operator's to set
-(`genome.gate.bfloat16`, pinned into every session's policy), and no
-integer door for the LoRA worker is shipped. Frontier scale has not been run.
+(`genome.gate.bfloat16`, pinned into every session's policy); the
+byte-portable route for such a genome is the integer door, shipped since
+[C19](#c19). Frontier scale has not been run.
 
 ---
 
@@ -770,6 +772,71 @@ key release.
 
 ---
 
+<a id="c19"></a>
+### C19 — The integer door: a real model restored on an Intel Xeon and on an NVIDIA L4 gives the same bytes, at 0.5B and at 7B, and the gate holds it to those bytes at tolerance zero
+
+**Claim.** The gate's third door ([ADR 0020](docs/adr/0020-the-integer-door-for-the-lora-worker.md))
+computes the restored LoRA model's forward pass in integer arithmetic —
+int8 weights with the delta merged, 14-bit activations, int8 GEMMs, an
+integer RMSNorm, rotary tables derived without a float, an integer
+exponential — and is held to references the same arithmetic sealed with
+the genome. On real hardware the same genome gives byte-identical logits
+on a CPU and on a GPU, whichever device made the references: a 0.5B
+genome made on eight Xeon cores reproduces its references on the L4, and
+a 7B genome made on the L4 reproduces its references on the Xeon. At zero
+tolerance on the GPU the float doors fail and the integer door opens
+EXACT. The door is a different model from the float one, and its
+fidelity is measured, not assumed: the same top-1 token on every fixture,
+a logit error the genome records.
+
+**Evidence.**
+[`scripts/hardware-test/integer-door/evidence/20260916T164511Z/`](scripts/hardware-test/integer-door/evidence/20260916T164511Z/)
+— `a-measure-integer-cpu.json` and `a-measure-integer-cuda.json` (the 0.5B
+genome, references recorded on the CPU): `exact: 16` of 16 on both
+devices, the same `results[].sha256` for all 16 fixtures, `top1_same: 16`,
+`max_abs_err: 2.72`, `max_rel_err: 0.25` against the float references;
+`a-measure-float-cuda.json`: the float door on the L4, `max_abs_err:
+1.52e-4`, `exact: 0`; `a-gate-cuda-tol0.json`: `--atol 0 --rtol 0` on the
+L4 — attempts `pinned-replay FAIL 1.52e-4`, `native-float FAIL 1.52e-4`,
+`fixed-point EXACT 0`, level **EXACT** at rung 2; `a-gate-cuda.json`:
+the default tolerance opens rung 1 EQUIVALENT; `a-gate-cpu.json`: rung 0
+EXACT on the machine that sealed. `b-measure-integer-cuda.json` (the 7B
+genome, bfloat16, references recorded on the L4): `exact: 16` of 16,
+`top1_same: 16`, `max_abs_err: 1.32`, `max_rel_err: 0.14`;
+`b-measure-integer-cpu.json`: the first three fixtures on the Xeon,
+`exact: 3` of 3, the same `sha256` as on the L4. `divides-exactly.txt`:
+both devices divide int64 exactly. `a-genome.json`, `b-genome.json`:
+`fixtures.integer` (scheme `vg-integer-door/v1`, fidelity). In process:
+[`workers/genome/tests/test_integer.py`](workers/genome/tests/test_integer.py)
+(the constants against libm, the primitives against Python integers, the
+same bytes at another thread count and on every device the test can
+reach, a tampered adapter changing them, the door and the gate protocol),
+[`internal/genome/lora/integer_test.go`](internal/genome/lora/integer_test.go),
+[`internal/validation/reconstruction/integer_door_test.go`](internal/validation/reconstruction/integer_door_test.go),
+[`internal/bootstrap/restorer/gate_integer_test.go`](internal/bootstrap/restorer/gate_integer_test.go),
+[`cmd/acpctl/genome_gate_integer_test.go`](cmd/acpctl/genome_gate_integer_test.go),
+[`cmd/sagvd/genome_integer_test.go`](cmd/sagvd/genome_integer_test.go).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/integer-door/run.sh <gcp-project>       # one L4 VM, ~20 min, deletes it
+cd workers/genome && python -m pytest -q tests/test_integer.py
+```
+
+**Scope.** Two devices (an Intel Xeon and an NVIDIA L4; an Apple GPU in
+the worker's tests), two models, one run. Byte identity is of the
+integer model with itself across devices, not of the integer model with
+the float model: the float doors stay the fidelity path and the integer
+door the availability path. The fidelity measured here — top-1 the same
+on every fixture, logits within a few units on fine-tunes that drove
+them to magnitudes of tens — is a property of these genomes; a genome
+records its own. The 7B check on the CPU covered three fixtures. The
+integer door is not a serving path: a 7B forward takes seconds per
+fixture.
+
+---
+
 ## Supply chain and build
 
 <a id="c9"></a>
@@ -817,7 +884,8 @@ sentence we cannot defend.
    [C6](#c6) is our own measurement that it is unavailable on native float. The
    honest ladder is: EXACT on the pinned runtime · EQUIVALENT across devices,
    error measured · byte-portable only through the integer door, which computes
-   its own arithmetic.
+   its own arithmetic — and is byte-identical with *itself* across devices
+   ([C19](#c19)), not with the float model.
 2. **We do not claim to regenerate a model from a recipe alone.** The genome
    carries the sealed delta; the worker restores that delta onto the public
    base model and the authority proves the result ([C11](#c11)). Nothing in

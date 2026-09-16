@@ -1,0 +1,15 @@
+step 1/120 loss 5.3251
+step 11/120 loss 4.9940
+step 21/120 loss 4.3949
+step 31/120 loss 0.1431
+step 41/120 loss 4.3180
+step 51/120 loss 3.1095
+step 61/120 loss 0.0328
+step 71/120 loss 1.8796
+step 81/120 loss 0.6291
+step 91/120 loss 0.8238
+step 101/120 loss 1.7404
+step 111/120 loss 0.0022
+step 120/120 loss 0.9972
+recording the integer door's references
+integer door: top-1 the same on 16/16 fixtures, max abs err 2.72

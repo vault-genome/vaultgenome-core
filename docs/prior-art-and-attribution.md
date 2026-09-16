@@ -24,7 +24,7 @@ attested continuity system that composes it.
 | **Determinism ladder** — try recompute doors highest-fidelity → most-portable, gate each, fail-closed | **Ours (orchestration)** | `internal/validation/reconstruction` |
 | ↳ rung `pinned-replay` — byte-exact replay on a pinned+attested runtime | **Ours** (the attestation/seal layer) | `KindPinnedReplay` |
 | ↳ rung `reproducible-float` — byte-identical float across CPU/GPU (correct rounding incl. transcendentals + fixed reduction order) | **BORROWED** | **RepDL**, **ReproBLAS** (Demmel et al.) |
-| ↳ rung `fixed-point` — integer path, byte-portable *by construction* across any CPU/GPU | **Ours** | `internal/canonical` (fixedpoint*.go) |
+| ↳ rung `fixed-point` — integer path, byte-portable *by construction* across any CPU/GPU | **Ours** | `internal/canonical` (fixedpoint*.go) for the demo model; `workers/genome/vg_genome/integer.py` for the real LoRA model (ADR 0020) — the integer-only transformer *idea* is I-BERT's (Kim et al., 2021), the arithmetic is ours |
 | **Attested cross-hardware regeneration as one continuity system** | **Ours — the assembly is the contribution** | this repository |
 
 The `reproducible-float` rung is **integrated, not merely named**: the ladder
@@ -47,10 +47,16 @@ Measured honestly (see `docs/testing/cross-hardware-determinism.md`):
   fixed-order/no-FMA GEMM is byte-identical CPU↔GPU, and the residual divergence
   in a full transformer comes from transcendentals (`exp` differs ~1 ULP on ~6%
   of values CPU vs GPU) — exactly what RepDL's correct-rounded ops address.
-- **Integer/quantized inference is not new.** Our fixed-point block builds on the
-  i-BERT integer-softmax/exp construction; the byte-portability of integer
-  arithmetic is basic IEEE/computer-science fact. Our contribution there is
-  packaging it as an attested, gate-verified regeneration rung.
+- **Integer/quantized inference is not new.** Our fixed-point block and the
+  worker's integer door build on the I-BERT integer-softmax/exp construction
+  (Kim, Gholami, Yao, Mahoney, Keutzer, *I-BERT: Integer-only BERT
+  Quantization*, ICML 2021); the byte-portability of integer arithmetic is
+  basic IEEE/computer-science fact, and int8 GEMMs are the hardware's. Our
+  contribution there is packaging it as an attested, gate-verified
+  regeneration rung held to its own sealed references — and, for the real
+  model, the arithmetic that makes the same program give the same bytes on
+  every device (tables from big integers, a self-tested division, overflow
+  refusals; ADR 0020).
 - **TEE attestation and confidential AI are not ours.** AMD/Intel/NVIDIA and the
   confidential-computing ecosystem own those. We integrate and attest.
 - **Verifiable/deterministic inference exists** (e.g. batch-invariant kernels,

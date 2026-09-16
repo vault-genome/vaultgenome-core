@@ -7,6 +7,13 @@ disk: one JSON request on stdin, one JSON response on stdout.
 
     {"fixture_id": "fx-000"}            -> {"dtype":"f32","shape":[k],"raw_b64":"..."}
     {"fixture_ids": ["fx-000", ...]}    -> {"outputs": {"fx-000": {...}, ...}}
+    {"fixture_ids": [...], "door": "integer"}  -> the same, computed by the integer door
+
+The integer door (integer.py) recomputes a fixture in integer arithmetic:
+the same bytes on any device, held to the genome's `expected_integer`
+references. A request names it with "door": "integer"; the in-memory
+request's prompts document asks for it with "integer": true and the
+response then carries "integer_outputs" beside "outputs".
 
 `serve_request` is the door the acp-compute worker runs (ADR 0013): the
 genome arrives on stdin, in memory, as the authority shipped it — its
@@ -33,7 +40,7 @@ import time
 
 import numpy as np
 
-from . import GENOME_SCHEMA, determinism, fixtures, lora, manifest
+from . import GENOME_SCHEMA, determinism, fixtures, integer, lora, manifest
 from .data import file_digest
 from .finetune import load_genome
 from .finetune import recipe_dtype
@@ -41,6 +48,16 @@ from .model import greedy, last_logits, load_base, load_with_adapter
 
 DOOR_REQUEST_SCHEMA = "vault-genome/door-request/v1"
 PROMPTS_SCHEMA = "vault-genome/door-prompts/v1"
+DOORS = ("float", "integer")
+
+
+def door_of(req: dict) -> str:
+    """Which door a request names: the model's float kernels unless it says
+    "integer"."""
+    d = req.get("door", "float")
+    if d not in DOORS:
+        raise ValueError(f"unknown door {d!r} (one of {', '.join(DOORS)})")
+    return d
 
 
 def open_genome(genome_dir: str, base_dir: str, device_name: str, dtype=None):
@@ -61,21 +78,39 @@ def open_genome(genome_dir: str, base_dir: str, device_name: str, dtype=None):
     return g, fixtures.load(fx_path), model, tokenizer, dev, time.monotonic() - start
 
 
+def open_integer(genome_dir: str, base_dir: str, device_name: str, dtype=None):
+    """open_genome for the integer door: the float model is loaded on the
+    CPU (it is only read from) and the integer model built on device_name,
+    so a large model needs the device's memory once, for its int8 form."""
+    g, fx, model, tokenizer, _, load_seconds = open_genome(genome_dir, base_dir, "cpu", dtype)
+    dev = determinism.device(device_name)
+    start = time.monotonic()
+    im = integer.IntegerModel(model, dev)
+    del model
+    return g, fx, im, tokenizer, dev, load_seconds, time.monotonic() - start
+
+
 def serve(genome_dir: str, base_dir: str, device_name: str, stdin=sys.stdin, stdout=sys.stdout, dtype=None) -> None:
     req = json.loads(stdin.read() or "{}")
-    _, fx, model, _, dev, _ = open_genome(genome_dir, base_dir, device_name, dtype)
+    which = door_of(req)
+    if which == "integer":
+        _, fx, im, _, _, _, _ = open_integer(genome_dir, base_dir, device_name, dtype)
+        answer = lambda f: fixtures.array_to_wire(fixtures.recompute_integer(im, f))  # noqa: E731
+    else:
+        _, fx, model, _, dev, _ = open_genome(genome_dir, base_dir, device_name, dtype)
+        answer = lambda f: fixtures.tensor_to_wire(fixtures.recompute(model, f, dev))  # noqa: E731
     by_id = {f["id"]: f for f in fx["fixtures"]}
     if "fixture_ids" in req:
         ids = req["fixture_ids"]
         unknown = [i for i in ids if i not in by_id]
         if unknown:
             raise KeyError(f"unknown fixture ids {unknown[:3]}")
-        resp = {"outputs": {i: fixtures.tensor_to_wire(fixtures.recompute(model, by_id[i], dev)) for i in ids}}
+        resp = {"outputs": {i: answer(by_id[i]) for i in ids}}
     else:
         fid = req.get("fixture_id")
         if fid not in by_id:
             raise KeyError(f"unknown fixture id {fid!r}")
-        resp = fixtures.tensor_to_wire(fixtures.recompute(model, by_id[fid], dev))
+        resp = answer(by_id[fid])
     stdout.write(json.dumps(resp))
     stdout.flush()
 
@@ -118,6 +153,11 @@ def parse_request(raw: str) -> dict:
     return {"genome_id": req["genome_id"], "files": {p: base64.b64decode(b) for p, b in req["files"].items()}}
 
 
+def wants_integer(raw: bytes) -> bool:
+    """Whether a prompts document asks for the integer door's outputs too."""
+    return bool(json.loads(raw).get("integer", False))
+
+
 def parse_prompts(raw: bytes) -> list:
     doc = json.loads(raw)
     if doc.get("schema") != PROMPTS_SCHEMA:
@@ -141,13 +181,27 @@ def serve_request(base_dir: str, device_name: str, stdin=sys.stdin, stdout=sys.s
         raise ValueError("the request carries no prompts.json")
     prompts = parse_prompts(files["prompts.json"])
     _, model, _, dev, _ = open_genome_files(files, base_dir, device_name, dtype)
-    outputs = {p["id"]: fixtures.tensor_to_wire(fixtures.recompute(model, p, dev)) for p in prompts}
-    stdout.write(json.dumps({"outputs": outputs}))
+    resp = {"outputs": {p["id"]: fixtures.tensor_to_wire(fixtures.recompute(model, p, dev)) for p in prompts}}
+    if wants_integer(files["prompts.json"]):
+        # The float model has served; its integer form takes the device.
+        model.to("cpu")
+        im = integer.IntegerModel(model, dev)
+        del model
+        resp["integer_outputs"] = {p["id"]: fixtures.array_to_wire(fixtures.recompute_integer(im, p)) for p in prompts}
+    stdout.write(json.dumps(resp))
     stdout.flush()
 
 
-def measure(genome_dir: str, base_dir: str, device_name: str, dtype=None) -> dict:
+def measure(genome_dir: str, base_dir: str, device_name: str, dtype=None, door: str = "float", limit: int = 0) -> dict:
+    """Recompute the fixtures (the first `limit` of them when limit > 0)
+    and report fidelity."""
+    if door not in DOORS:
+        raise ValueError(f"unknown door {door!r} (one of {', '.join(DOORS)})")
+    if door == "integer":
+        return _measure_integer(genome_dir, base_dir, device_name, dtype, limit)
     g, fx, model, tokenizer, dev, load_seconds = open_genome(genome_dir, base_dir, device_name, dtype)
+    if limit > 0:
+        fx = dict(fx, fixtures=fx["fixtures"][:limit])
     results = []
     start = time.monotonic()
     for f in fx["fixtures"]:
@@ -170,6 +224,7 @@ def measure(genome_dir: str, base_dir: str, device_name: str, dtype=None) -> dic
     seconds = time.monotonic() - start
     n = len(results)
     return {
+        "door": "float",
         "genome_created_at": g["created_at"],
         "base": g["base"]["name"],
         "device": str(dev),
@@ -183,6 +238,58 @@ def measure(genome_dir: str, base_dir: str, device_name: str, dtype=None) -> dic
         "max_abs_err": max(r["max_abs_err"] for r in results),
         "max_rel_err": max(r["max_rel_err"] for r in results),
         "load_seconds": round(load_seconds, 3),
+        "measure_seconds": round(seconds, 3),
+        "runtime": determinism.runtime(),
+        "results": results,
+    }
+
+
+def _measure_integer(genome_dir: str, base_dir: str, device_name: str, dtype, limit: int) -> dict:
+    """The integer door on this machine: byte for byte against the genome's
+    integer references (exact on any device, or the door is broken), and
+    how far from the float references (the door's fidelity)."""
+    g, fx, im, _, dev, load_seconds, build_seconds = open_integer(genome_dir, base_dir, device_name, dtype)
+    if limit > 0:
+        fx = dict(fx, fixtures=fx["fixtures"][:limit])
+    results = []
+    start = time.monotonic()
+    for f in fx["fixtures"]:
+        acc, shift = im.last_accumulator(f["input_ids"])
+        got = im.scaled(acc, shift, f["topk_index"]).astype("<f4")
+        want = fixtures.wire_to_array(f["expected"]).astype(np.float64)
+        diff = np.abs(got.astype(np.float64) - want)
+        ref = f.get("expected_integer")
+        results.append({
+            "id": f["id"],
+            "critical": f["critical"],
+            "exact": None if ref is None else bool(got.tobytes() == fixtures.wire_to_array(ref).tobytes()),
+            "max_abs_err": float(diff.max()),
+            "max_rel_err": float((diff / np.maximum(np.abs(want), 1e-30)).max()),
+            "top1_same": int(np.argmax(im.scaled(acc, shift, np.arange(im.vocab)))) == f["topk_index"][0],
+            "sha256": hashlib.sha256(got.tobytes()).hexdigest(),
+        })
+    seconds = time.monotonic() - start
+    n = len(results)
+    with_ref = [r for r in results if r["exact"] is not None]
+    return {
+        "door": "integer",
+        "scheme": (fx.get("integer") or {}).get("scheme"),
+        "genome_created_at": g["created_at"],
+        "base": g["base"]["name"],
+        "device": str(dev),
+        "dtype": recipe_dtype(g, dtype),
+        "recipe_device": g["recipe"].get("device", "cpu"),
+        "recipe_dtype": recipe_dtype(g),
+        "fixtures": n,
+        "references": len(with_ref),
+        "exact": sum(1 for r in with_ref if r["exact"]),
+        "top1_same": sum(r["top1_same"] for r in results),
+        "max_abs_err": max(r["max_abs_err"] for r in results),
+        "max_rel_err": max(r["max_rel_err"] for r in results),
+        "recorded_fidelity": (fx.get("integer") or {}).get("fidelity"),
+        "divides_exactly": integer.device_divides_exactly(dev),
+        "load_seconds": round(load_seconds, 3),
+        "build_seconds": round(build_seconds, 3),
         "measure_seconds": round(seconds, 3),
         "runtime": determinism.runtime(),
         "results": results,
