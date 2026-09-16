@@ -4,6 +4,7 @@ package service
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -29,6 +30,11 @@ const (
 	CodeServiceMissingClock       = "val_service.missing_clock"
 	CodeServiceMissingSessionID   = "val_service.missing_session_id"
 	CodeServiceMissingManifestID  = "val_service.missing_manifest_id"
+
+	// CodeServiceDimensionNotEvaluable: ValidateInputs.Evaluated names a
+	// dimension this service always evaluates itself (operational), or
+	// one that does not exist.
+	CodeServiceDimensionNotEvaluable = "val_service.dimension_not_evaluable"
 )
 
 // DefaultAuditIDPrefix / DefaultResultIDPrefix prefix the release-side
@@ -149,6 +155,28 @@ type ValidateInputs struct {
 	// op=fail to satisfy §8(3)–(5) ("no semantic/behavioral when op
 	// fails").
 	Operational operational.Inputs
+
+	// Evaluated carries semantic and behavioral verdicts produced by an
+	// evaluator that ran the model — the equivalence gate over a genome's
+	// sealed fixtures (ADR 0008, ADR 0015) — in place of the byte
+	// evaluators above. A dimension present here is recorded, with its
+	// evaluator's name and detail, exactly as a dimension this service
+	// evaluates itself: one DIMENSION_EVALUATED event, one FINDING per
+	// finding, the same aggregation. Operational cannot be supplied.
+	Evaluated map[validation_result.Dimension]EvaluatedDimension
+}
+
+// EvaluatedDimension is a dimension verdict from an evaluator outside
+// this package.
+type EvaluatedDimension struct {
+	// Evaluator names what produced the verdict, e.g. "equivalence-ladder".
+	Evaluator string
+	// Verdict is the dimension's verdict, score, threshold and findings.
+	Verdict validation_result.DimensionVerdict
+	// Detail is evaluator-specific JSON recorded verbatim in the
+	// VALIDATION_DIMENSION_EVALUATED payload (the doors tried, the
+	// per-fixture agreement, ...). Optional.
+	Detail json.RawMessage
 }
 
 // Validate runs the full three-dimension validation flow.
@@ -192,6 +220,16 @@ func (s *ValidationService) Validate(in ValidateInputs) (*validation_result.Vali
 			"validation.service: manifest_id is required",
 			nil,
 		)
+	}
+
+	for dim := range in.Evaluated {
+		if dim != validation_result.DimensionSemantic && dim != validation_result.DimensionBehavioral {
+			return nil, shared_errors.Structural(
+				CodeServiceDimensionNotEvaluable,
+				"validation.service: only the semantic and behavioral dimensions take an outside verdict; got "+string(dim),
+				nil,
+			)
+		}
 	}
 
 	s.mu.Lock()
@@ -247,7 +285,11 @@ func (s *ValidationService) Validate(in ValidateInputs) (*validation_result.Vali
 	var semDim, behDim validation_result.DimensionVerdict
 	var skippedSemBeh bool
 	if opDim.Verdict == validation_result.VerdictPass {
-		semDim = semantic.Run(in.Semantic)
+		if ev, ok := in.Evaluated[validation_result.DimensionSemantic]; ok {
+			semDim = ev.Verdict
+		} else {
+			semDim = semantic.Run(in.Semantic)
+		}
 		semEvt, err := s.emitDimension(validation_result.DimensionSemantic, semDim, in, now)
 		if err != nil {
 			return nil, err
@@ -258,7 +300,11 @@ func (s *ValidationService) Validate(in ValidateInputs) (*validation_result.Vali
 		})
 		dims[validation_result.DimensionSemantic] = semDim
 
-		behDim = behavioral.Run(in.Behavioral)
+		if ev, ok := in.Evaluated[validation_result.DimensionBehavioral]; ok {
+			behDim = ev.Verdict
+		} else {
+			behDim = behavioral.Run(in.Behavioral)
+		}
 		behEvt, err := s.emitDimension(validation_result.DimensionBehavioral, behDim, in, now)
 		if err != nil {
 			return nil, err
@@ -439,13 +485,15 @@ func buildValidationStartedPayload(in ValidateInputs, _ time.Time) ([]byte, erro
 }
 
 type validationDimensionPayload struct {
-	SessionID  ids.SessionID  `json:"session_id"`
-	ManifestID ids.ManifestID `json:"manifest_id"`
-	Dimension  string         `json:"dimension"`
-	Verdict    string         `json:"verdict"`
-	Score      float64        `json:"score"`
-	Threshold  float64        `json:"threshold"`
-	Findings   int            `json:"findings"`
+	SessionID  ids.SessionID   `json:"session_id"`
+	ManifestID ids.ManifestID  `json:"manifest_id"`
+	Dimension  string          `json:"dimension"`
+	Verdict    string          `json:"verdict"`
+	Score      float64         `json:"score"`
+	Threshold  float64         `json:"threshold"`
+	Findings   int             `json:"findings"`
+	Evaluator  string          `json:"evaluator,omitempty"`
+	Detail     json.RawMessage `json:"detail,omitempty"`
 }
 
 func buildDimensionPayload(
@@ -461,6 +509,12 @@ func buildDimensionPayload(
 		Score:      dv.Score,
 		Threshold:  dv.Threshold,
 		Findings:   len(dv.Details),
+	}
+	if ev, ok := in.Evaluated[dim]; ok {
+		p.Evaluator = ev.Evaluator
+		if len(ev.Detail) > 0 && json.Valid(ev.Detail) {
+			p.Detail = ev.Detail
+		}
 	}
 	out, err := crypto.CanonicalJSON(&p)
 	if err != nil {

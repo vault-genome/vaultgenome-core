@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Package trust implements Trust Admission — the authority decision that
-// either issues an AttestationResult with Outcome=allow, permitting the
-// pipeline to proceed to session issuance, or with deny/restrict, blocking
-// it.
+// Package trust implements Trust Admission — stage 2 of the nine-stage
+// flow: the authority decision that either issues an AttestationResult with
+// Outcome=allow, permitting the flow to proceed to session issuance, or
+// with deny, blocking it.
 //
 // # Doctrinal role
 //
 // Trust is a gate, not a log. It is the enforcement point of the policy
-// envelope named by the RecoveryRequest. It consumes the identity,
-// contour, and policy profile, queries policy, and produces a signed
-// AttestationResult.
-//
-// In MVP, the TEE quote underlying the attestation is produced by the
-// software-emulated TEE in /internal/shared/tee
-// (docs/doctrine/open-decisions-resolved.md R-10). In production, the same interface
-// is served by a real TPM / TDX / SEV backend.
-//
-// Stage B: empty package, doctrinal purpose only.
+// envelope named by the RecoveryRequest. It consumes the request's policy
+// profile and the attested compute peer — the party whose TEE Evidence the
+// vault verified on the Return Path handshake and that would receive the
+// disclosures — consults the operator's stop list (ADR 0010), and produces
+// a signed AttestationResult. The vault daemon records TRUST_EVALUATED for
+// every decision before acting on it (ADR 0015).
 package trust

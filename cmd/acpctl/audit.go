@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
@@ -159,14 +160,24 @@ func matchesFilters(evt *audit_event.AuditEvent, kind, sess, man string, since, 
 
 func emitEvent(w io.Writer, asJSON bool, evt *audit_event.AuditEvent) {
 	if asJSON {
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		// The payload is JSON for every kind the daemons write; it is
+		// embedded as such, so a reader gets the decision's fields, not a
+		// blob. A payload that is not JSON travels base64 under
+		// payload_base64 instead.
+		record := map[string]any{
 			"event_id":    string(evt.EventID),
 			"kind":        string(evt.Kind),
 			"occurred_at": evt.OccurredAt.UTC().Format(time.RFC3339Nano),
 			"session_id":  string(evt.SessionID),
 			"manifest_id": string(evt.ManifestID),
 			"request_id":  string(evt.RequestID),
-		})
+		}
+		if json.Valid(evt.Payload) {
+			record["payload"] = json.RawMessage(evt.Payload)
+		} else {
+			record["payload_base64"] = base64.StdEncoding.EncodeToString(evt.Payload)
+		}
+		_ = json.NewEncoder(w).Encode(record)
 		return
 	}
 	fmt.Fprintf(w, "%s  %-30s  %s",

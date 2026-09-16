@@ -1,0 +1,5 @@
+acp_compute_jobs_total{outcome="success"} 1
+acp_compute_sessions_opened_total 2
+acp_compute_last_success_unix 1789519283
+acp_compute_session_active 1
+acp_compute_start_unix 1789519277

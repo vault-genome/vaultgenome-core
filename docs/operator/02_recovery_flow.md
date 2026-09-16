@@ -5,11 +5,13 @@ the receive-side round trip, as implemented in the library. For each stage the
 document gives (a) what the code does, (b) what the tests check, and (c) what
 the doctrine requires.
 
-**No shipped binary runs this flow.** No `cmd/` package imports
-`internal/vault/{orchestration,session,disclosure,incident}`,
-`internal/validation/operational`, the root `internal/bootstrap` package or
-`internal/reassembly`, and `internal/vault/intake` and `internal/vault/trust`
-hold only a `doc.go`. The flow is assembled by tests from the library pieces:
+**`sagvd` runs this flow for every gate job** (ADR 0015): `cmd/sagvd` drives
+`orchestration.Authority` — intake, trust, the session issuer, the staged
+disclosure sequencer, the validation service, the incident service — over its
+Return Path audit log, and `orchestration.Machine` takes every transition
+below at run time. The receive-side round trip (§7) is still library code
+that no binary drives. The flow is also assembled by tests from the library
+pieces:
 
 - `make demo` Act I runs `go test -run TestVerticalSlice ./internal/integration/...`.
   `vertical_slice_test.go` builds each stage's contract in turn, with a
@@ -20,26 +22,32 @@ hold only a `doc.go`. The flow is assembled by tests from the library pieces:
   the validation service and the incident service; the StagedSequencer
   (stage 4) is covered by the `internal/vault/disclosure` tests.
 
-Of the release-side audit kinds, library code appends only
-`DISCLOSURE_AUTHORIZED` (StagedSequencer), the four `VALIDATION_*` kinds
-(validation service) and `INCIDENT_DETECTED` / `INCIDENT_TERMINATED` (incident
-service). `REQUEST_RECEIVED`, `TRUST_EVALUATED`, `SESSION_ISSUED`,
-`MANIFEST_ISSUED`, `CANDIDATE_RECEIVED` and `RELEASE_DECIDED` are appended by
-the tests themselves, and `vertical_slice_test.go` appends all of its events by
-hand.
+Of the release-side audit kinds, the StagedSequencer appends
+`DISCLOSURE_AUTHORIZED`, the validation service the four `VALIDATION_*` kinds,
+the incident service `INCIDENT_DETECTED` / `INCIDENT_TERMINATED`, and
+`orchestration.Authority` — for `sagvd`'s jobs — `REQUEST_RECEIVED`,
+`TRUST_EVALUATED`, `SESSION_ISSUED`, `MANIFEST_ISSUED`, `CANDIDATE_RECEIVED`,
+`RELEASE_DECIDED` and `SESSION_INVALIDATED`. `vertical_slice_test.go` appends
+all of its events by hand.
 
 The **State machine** lines quote the transition table in
-`internal/vault/orchestration/state.go`; nothing drives it at run time. The
-**Checked** lines are what the tests assert — a deployment offers no surface
-on which to check them.
+`internal/vault/orchestration/state.go`, which `orchestration.Machine` takes
+at run time. The **Checked** lines are what the tests assert; on a deployment,
+`GET /v1/jobs/{id}` shows the flow's state, its transitions and its signed
+artifacts, and `acpctl audit query` its record.
 
-The shipped daemons cover part of stages 5 and 6 only: `POST /v1/jobs` on
-sagvd's REST API queues a job whose payload sagvd seals under the
-session-sealing key; `acp-compute` collects it over the Return Path, runs the
-placeholder reconstruction and returns a signed CandidateOutputFrame, which
-`GET /v1/jobs/{id}` shows. The job's `session_id` and `manifest_id` are
-labels supplied by the caller: sagvd issues no SessionObject or manifest, and
-nothing validates the result or issues a release decision.
+On a deployment: `POST /v1/jobs` on sagvd's REST API names a sealed genome
+and is the RecoveryRequest (stage 1); when a worker that proved its pinned
+TEE identity is ready, sagvd decides trust for it (2), issues the session
+(3), opens the genome and discloses its model side to that session (4),
+issues the signed manifest and ships the disclosures as the JobRequest (5);
+`acp-compute` restores the model in memory through the `vg_genome` door,
+answers the genome's prompts and returns a signed CandidateOutputFrame (6);
+sagvd holds the answers to the references — top-1 agreement and the
+determinism ladder — and runs the six operational sub-checks (7), signs the
+release decision (8) and seals the flow (9). Every step is on sagvd's Return
+Path audit log before it takes effect (ADR 0014, 0015); `GET /v1/jobs/{id}`
+shows all of it.
 
 ---
 
@@ -49,8 +57,11 @@ nothing validates the result or issues a release decision.
 
 **Code:** `RecoveryRequest.Validate()` (`internal/contracts/recovery_request`)
 checks that the schema version is supported and that `request_id`,
-`genome_id`, `policy_profile`, `requester_identity` and `created_at` are set.
-The intake package has no code yet.
+`genome_id`, `policy_profile`, `requester_identity` and `created_at` are set;
+`intake.Intake.Admit` refuses a `request_id` already admitted within its
+window. `sagvd` builds the request from `POST /v1/jobs` (minting a
+`request_id` when none is given), admits it and appends `REQUEST_RECEIVED`
+before the job is queued.
 
 **State machine:** `StateUnstarted → StateRequest` on `request.received`, then
 `StateRequest → StateTrust` on `request.validated`.
@@ -62,7 +73,7 @@ is carried by every later event.
 without a matching intake audit event is a per-doctrine invariant
 violation of "sessions are mandatory" (#3) and must be terminated.
 
-**Package:** `/internal/vault/intake` (`doc.go` only).
+**Package:** `/internal/vault/intake`.
 
 ---
 
@@ -70,10 +81,14 @@ violation of "sessions are mandatory" (#3) and must be terminated.
 
 **Trigger:** workflow state entered `StateTrust`.
 
-**Code:** Trust Admission produces a signed AttestationResult
-(`internal/contracts/attestation_result`) with Outcome `allow`, `deny` or
-`restrict`. The trust package has no code yet; the tests build the
-AttestationResult and append `TRUST_EVALUATED`.
+**Code:** `trust.Admission.Evaluate` produces a signed AttestationResult
+(`internal/contracts/attestation_result`) with Outcome `allow` or `deny`: it
+consults the operator's stop list (a stop-all denies every request, a revoked
+measurement denies that peer), the policy profiles served, and the attested
+peer — the worker whose Evidence the Return Path handshake verified. `sagvd`
+evaluates it at dispatch and appends `TRUST_EVALUATED` before acting on it;
+a peer whose Evidence is older than `runtime.evidence_max_age_seconds` is
+told to attest again before it is considered.
 
 **State machine:** `allow` moves `StateTrust → StateSession`. `deny` and
 `restrict` both move `StateTrust → StateRelease`: a release decision without a
@@ -88,7 +103,7 @@ decision is not advisory — a `deny` or `restrict` mechanically constrains
 the allowed state transitions, not merely the audit record. This is
 enforced at the transition-table level in `/internal/vault/orchestration`.
 
-**Package:** `/internal/vault/trust` (`doc.go` only).
+**Package:** `/internal/vault/trust`.
 
 ---
 
@@ -154,12 +169,14 @@ plaintext zeroized on every path, including every short-circuit.
 **Code:** a signed ReconstructionJobManifest
 (`internal/contracts/reconstruction_job_manifest`) names the session, genome,
 policy version, disclosures, expected output and deadline; the tests append
-`MANIFEST_ISSUED`. The worker's Reconstructor (`internal/compute/worker`) runs
-the step — a placeholder today (a byte-level order-3 Markov model,
-KNOWN_ISSUES #2). The shipped `acp-compute` receives a JobRequest over the
-Return Path rather than DisclosureMessages, opens its sealed payload with the
-session-sealing key, runs the Reconstructor and returns a CandidateOutputFrame
-signed with its worker key.
+`MANIFEST_ISSUED`. The worker's Reconstructor (`internal/compute/worker`,
+`GenomeReconstructor`) runs the step: it checks every component against the
+job's descriptor, hands the genome's description, adapter and prompts to the
+`vg_genome` door on stdin, and returns the restored model's logits at the
+reference tokens (ADR 0013). The shipped `acp-compute` receives a JobRequest
+over the Return Path rather than DisclosureMessages, opens its sealed
+components with the session-sealing key, runs the Reconstructor and returns a
+CandidateOutputFrame signed with its worker key.
 
 **State machine:** `StateExternalCompute → StateReturn` on
 `candidate.received`.

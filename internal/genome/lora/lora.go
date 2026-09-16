@@ -76,20 +76,38 @@ type wireTensor struct {
 type fixtureDoc struct {
 	Schema   string `json:"schema"`
 	Fixtures []struct {
-		ID       string     `json:"id"`
-		Critical bool       `json:"critical"`
-		Prompt   string     `json:"prompt"`
-		Expected wireTensor `json:"expected"`
+		ID        string     `json:"id"`
+		Critical  bool       `json:"critical"`
+		Prompt    string     `json:"prompt"`
+		InputIDs  []int      `json:"input_ids"`
+		TopKIndex []int      `json:"topk_index"`
+		Expected  wireTensor `json:"expected"`
 	} `json:"fixtures"`
+}
+
+// Prompt is the input side of a fixture: the prompt's token ids and the
+// reference top-k token indices its output is gathered at. It is what a
+// destination needs to recompute the fixture; the expected output stays
+// with whoever judges the result.
+type Prompt struct {
+	ID        string
+	InputIDs  []int
+	TopKIndex []int
 }
 
 // Load reads genome.json in dir and checks it names what it needs.
 func Load(dir string) (Genome, error) {
-	var g Genome
 	raw, err := os.ReadFile(filepath.Join(dir, "genome.json"))
 	if err != nil {
-		return g, err
+		return Genome{}, err
 	}
+	return Parse(raw)
+}
+
+// Parse reads a genome.json held in memory and checks it names what it
+// needs.
+func Parse(raw []byte) (Genome, error) {
+	var g Genome
 	if err := json.Unmarshal(raw, &g); err != nil {
 		return g, fmt.Errorf("lora: genome.json: %w", err)
 	}
@@ -115,41 +133,74 @@ func Fixtures(dir string, g Genome) ([]equivalence.Fixture, error) {
 	if err != nil {
 		return nil, err
 	}
+	fx, _, err := ParseFixtures(g, raw)
+	return fx, err
+}
+
+// ParseFixtures reads a fixtures document held in memory, checks it
+// against g's digest, and returns the gate references and, in the same
+// order, the prompts. A fixture the worker wrote carries its prompt's
+// token ids and top-k indices; a fixture without them has no prompt and
+// can be judged but not recomputed elsewhere.
+func ParseFixtures(g Genome, raw []byte) ([]equivalence.Fixture, []Prompt, error) {
 	sum := sha256.Sum256(raw)
 	if "sha256:"+hex.EncodeToString(sum[:]) != g.Fixtures.SHA256 {
-		return nil, errors.New("lora: fixtures do not match the genome")
+		return nil, nil, errors.New("lora: fixtures do not match the genome")
 	}
 	var doc fixtureDoc
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("lora: fixtures: %w", err)
+		return nil, nil, fmt.Errorf("lora: fixtures: %w", err)
 	}
 	if doc.Schema != FixturesSchema {
-		return nil, fmt.Errorf("lora: fixtures schema %q, want %q", doc.Schema, FixturesSchema)
+		return nil, nil, fmt.Errorf("lora: fixtures schema %q, want %q", doc.Schema, FixturesSchema)
 	}
 	if len(doc.Fixtures) == 0 {
-		return nil, errors.New("lora: no fixtures")
+		return nil, nil, errors.New("lora: no fixtures")
 	}
 	seen := map[string]bool{}
 	out := make([]equivalence.Fixture, 0, len(doc.Fixtures))
+	prompts := make([]Prompt, 0, len(doc.Fixtures))
 	for _, f := range doc.Fixtures {
 		if f.ID == "" || seen[f.ID] {
-			return nil, fmt.Errorf("lora: fixture id %q missing or repeated", f.ID)
+			return nil, nil, fmt.Errorf("lora: fixture id %q missing or repeated", f.ID)
 		}
 		seen[f.ID] = true
-		if f.Expected.DType != string(equivalence.F32) && f.Expected.DType != string(equivalence.F64) {
-			return nil, fmt.Errorf("lora: fixture %s: dtype %q", f.ID, f.Expected.DType)
+		var elem int
+		switch equivalence.DType(f.Expected.DType) {
+		case equivalence.F32:
+			elem = 4
+		case equivalence.F64:
+			elem = 8
+		default:
+			return nil, nil, fmt.Errorf("lora: fixture %s: dtype %q", f.ID, f.Expected.DType)
 		}
 		data, err := base64.StdEncoding.DecodeString(f.Expected.RawB64)
 		if err != nil {
-			return nil, fmt.Errorf("lora: fixture %s: %w", f.ID, err)
+			return nil, nil, fmt.Errorf("lora: fixture %s: %w", f.ID, err)
+		}
+		n := 1
+		for _, d := range f.Expected.Shape {
+			if d < 0 {
+				return nil, nil, fmt.Errorf("lora: fixture %s: negative dimension", f.ID)
+			}
+			n *= d
+		}
+		if len(f.Expected.Shape) == 0 {
+			n = 0
+		}
+		if len(data) != n*elem {
+			return nil, nil, fmt.Errorf("lora: fixture %s: %d raw bytes do not fill shape %v of %s", f.ID, len(data), f.Expected.Shape, f.Expected.DType)
 		}
 		out = append(out, equivalence.Fixture{
 			ID:       f.ID,
 			Critical: f.Critical,
 			Expected: equivalence.Tensor{DType: equivalence.DType(f.Expected.DType), Shape: f.Expected.Shape, Raw: data},
 		})
+		if len(f.InputIDs) > 0 || len(f.TopKIndex) > 0 {
+			prompts = append(prompts, Prompt{ID: f.ID, InputIDs: f.InputIDs, TopKIndex: f.TopKIndex})
+		}
 	}
-	return out, nil
+	return out, prompts, nil
 }
 
 // IDs lists fixture ids in order.

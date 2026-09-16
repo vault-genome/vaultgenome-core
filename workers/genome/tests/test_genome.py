@@ -14,7 +14,7 @@ import torch
 
 from conftest import EXAMPLES, RECIPE
 from vg_genome import GENOME_SCHEMA, fixtures, lora, manifest
-from vg_genome.door import measure, open_genome, serve
+from vg_genome.door import measure, open_genome, serve, serve_request
 from vg_genome.finetune import finetune, load_genome, replay
 from vg_genome.model import last_logits, load_base
 
@@ -148,3 +148,79 @@ def test_wire_format_round_trips():
     w = fixtures.tensor_to_wire(t)
     assert w["dtype"] == "f32" and w["shape"] == [3]
     assert np.array_equal(fixtures.wire_to_array(w), t.numpy())
+
+
+def door_request(genome_dir, prompts=None):
+    """The request the acp-compute worker sends the door: the genome's
+    description, its adapter and the fixtures' prompts, in memory."""
+    import base64
+
+    g = load_genome(genome_dir)
+    fx = fixtures.load(os.path.join(genome_dir, "fixtures.json"))
+    if prompts is None:
+        prompts = [{"id": f["id"], "input_ids": f["input_ids"], "topk_index": f["topk_index"]} for f in fx["fixtures"]]
+    files = {
+        "genome.json": open(os.path.join(genome_dir, "genome.json"), "rb").read(),
+        f"{g['adapter']['dir']}/adapter_config.json": open(os.path.join(genome_dir, g["adapter"]["dir"], "adapter_config.json"), "rb").read(),
+        f"{g['adapter']['dir']}/adapter_model.safetensors": open(os.path.join(genome_dir, g["adapter"]["dir"], "adapter_model.safetensors"), "rb").read(),
+        "prompts.json": json.dumps({"schema": "vault-genome/door-prompts/v1", "prompts": prompts}).encode(),
+    }
+    return {"schema": "vault-genome/door-request/v1", "genome_id": "genome-test",
+            "files": {p: base64.b64encode(b).decode("ascii") for p, b in files.items()}}, fx
+
+
+def test_the_in_memory_door_reproduces_every_reference_exactly(genome_dir, base_dir):
+    req, fx = door_request(genome_dir)
+    out = io.StringIO()
+    serve_request(base_dir, "cpu", stdin=io.StringIO(json.dumps(req)), stdout=out)
+    got = json.loads(out.getvalue())["outputs"]
+    assert set(got) == {f["id"] for f in fx["fixtures"]}
+    for f in fx["fixtures"]:
+        assert got[f["id"]] == f["expected"], f["id"]
+
+
+def test_the_in_memory_door_refuses_what_is_not_the_genome(genome_dir, base_dir, tmp_path):
+    import base64
+
+    req, _ = door_request(genome_dir)
+    weights_key = "adapter/adapter_model.safetensors"
+    edited = bytearray(base64.b64decode(req["files"][weights_key]))
+    edited[-2] ^= 0x01
+    bad = dict(req, files=dict(req["files"], **{weights_key: base64.b64encode(bytes(edited)).decode("ascii")}))
+    with pytest.raises(ValueError, match="adapter weights do not match"):
+        serve_request(base_dir, "cpu", stdin=io.StringIO(json.dumps(bad)), stdout=io.StringIO())
+
+    other = str(tmp_path / "other-base")
+    shutil.copytree(base_dir, other)
+    with open(os.path.join(other, "config.json"), "a") as f:
+        f.write(" ")
+    with pytest.raises(ValueError, match="manifest"):
+        serve_request(other, "cpu", stdin=io.StringIO(json.dumps(req)), stdout=io.StringIO())
+
+    with pytest.raises(ValueError, match="schema"):
+        serve_request(base_dir, "cpu", stdin=io.StringIO(json.dumps(dict(req, schema="x"))), stdout=io.StringIO())
+    no_prompts = dict(req, files={p: b for p, b in req["files"].items() if p != "prompts.json"})
+    with pytest.raises(ValueError, match="prompts.json"):
+        serve_request(base_dir, "cpu", stdin=io.StringIO(json.dumps(no_prompts)), stdout=io.StringIO())
+
+
+def test_the_cli_door_takes_the_genome_on_stdin(genome_dir, base_dir):
+    req, fx = door_request(genome_dir)
+    res = subprocess.run(
+        [sys.executable, "-m", "vg_genome", "door", "--stdin-genome", "--base", base_dir],
+        input=json.dumps(req), capture_output=True, text=True, cwd=WORKER, timeout=120,
+    )
+    assert res.returncode == 0, res.stderr
+    got = json.loads(res.stdout)["outputs"]
+    assert got[fx["fixtures"][0]["id"]] == fx["fixtures"][0]["expected"]
+
+    both = subprocess.run(
+        [sys.executable, "-m", "vg_genome", "door", "--stdin-genome", "--genome", genome_dir, "--base", base_dir],
+        input=json.dumps(req), capture_output=True, text=True, cwd=WORKER, timeout=120,
+    )
+    assert both.returncode == 2 and "drop --genome" in both.stderr
+    neither = subprocess.run(
+        [sys.executable, "-m", "vg_genome", "door", "--base", base_dir],
+        input="{}", capture_output=True, text=True, cwd=WORKER, timeout=120,
+    )
+    assert neither.returncode == 2 and "--stdin-genome" in neither.stderr

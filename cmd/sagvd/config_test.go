@@ -430,3 +430,118 @@ func TestRuntimeConfig_DurationAccessors(t *testing.T) {
 		t.Errorf("DefaultJobDeadline = %v", r.DefaultJobDeadline())
 	}
 }
+
+func TestValidate_GenomeSection(t *testing.T) {
+	c := DefaultConfig()
+	if c.Genome.Enabled() {
+		t.Fatal("gate jobs must be off until genome.bundle_dir is set")
+	}
+	if c.Genome.Gate.Atol != 1e-2 || c.Genome.Gate.Rtol != 1e-3 || c.Genome.Gate.MaxNonCriticalOutliers != 0 {
+		t.Fatalf("default gate tolerance: %+v", c.Genome.Gate)
+	}
+	c = minimalValidConfig()
+	c.Genome.BundleDir = "relative/genomes"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "genome.bundle_dir") {
+		t.Fatalf("relative bundle_dir accepted: %v", err)
+	}
+	c = minimalValidConfig()
+	c.Genome.BundleDir = "/var/lib/vg/genomes"
+	c.Genome.Gate.Atol = -1
+	c.Genome.Gate.MaxNonCriticalOutliers = -1
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "genome.gate.atol") || !strings.Contains(err.Error(), "genome.gate.max_non_critical_outliers") {
+		t.Fatalf("negative gate settings accepted: %v", err)
+	}
+	c = minimalValidConfig()
+	c.Genome.BundleDir = "/var/lib/vg/genomes"
+	c.Audit.LogPath = "/var/lib/vg/audit/returnpath.db"
+	c.Keys.AuditSigning = SigningKeyConfig{KeyID: "audit-1", SeedPath: "/keys/audit.seed"}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate(genome enabled): %v", err)
+	}
+	if !c.Genome.Enabled() {
+		t.Fatal("Enabled with a bundle_dir")
+	}
+}
+
+func TestEscrowKeyPath_FallsBackToCrossCloud(t *testing.T) {
+	c := DefaultConfig()
+	if got := c.EscrowKeyPath(); got != "" {
+		t.Fatalf("no escrow configured, got %q", got)
+	}
+	c.CrossCloud.KeyEscrowPath = "/keys/crosscloud-escrow.key"
+	if got := c.EscrowKeyPath(); got != "/keys/crosscloud-escrow.key" {
+		t.Fatalf("fallback: %q", got)
+	}
+	c.Genome.KeyEscrowPath = "/keys/genome-escrow.key"
+	if got := c.EscrowKeyPath(); got != "/keys/genome-escrow.key" {
+		t.Fatalf("genome.key_escrow_path must win: %q", got)
+	}
+}
+
+func TestValidate_TEEProviders(t *testing.T) {
+	for name, tc := range map[string]struct {
+		mutate func(c *Config)
+		want   []string
+	}{
+		"simulated by default":              {func(c *Config) {}, nil},
+		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "tdx" }, []string{"tee.provider invalid"}},
+		"unsupported provider":              {func(c *Config) { c.TEE.Provider = "intel-sgx-dcap" }, []string{"not available in this build"}},
+		"simulated without acknowledgement": {func(c *Config) { c.TEE.InsecureSimulation = false }, []string{"tee.insecure_simulation=true"}},
+		"simulated without seed":            {func(c *Config) { c.TEE.SeedPath = "" }, []string{"tee.seed_path required"}},
+		"sev-snp with simulated leftovers": {func(c *Config) { c.TEE.Provider = "gcp-sev-snp" },
+			[]string{"tee.seed_path applies to the simulated provider", "tee.insecure_simulation applies to the simulated provider"}},
+		"sev-snp clean":              {func(c *Config) { c.TEE.Provider = "gcp-sev-snp"; c.TEE.SeedPath = ""; c.TEE.InsecureSimulation = false }, nil},
+		"simulated peer without key": {func(c *Config) { c.TEE.Peer.PublicKeyPath = "" }, []string{"tee.peer.public_key_path required"}},
+		"sev-snp peer without chain": {func(c *Config) { c.TEE.Peer.Provider = "gcp-sev-snp"; c.TEE.Peer.PublicKeyPath = "" },
+			[]string{"tee.peer.amd_cert_chain_path required"}},
+		"sev-snp peer clean": {func(c *Config) {
+			c.TEE.Peer.Provider = "gcp-sev-snp"
+			c.TEE.Peer.PublicKeyPath = ""
+			c.TEE.Peer.AMDCertChainPath = "/x/chain.pem"
+		}, nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := minimalValidConfig()
+			tc.mutate(&c)
+			err := c.Validate()
+			if len(tc.want) == 0 {
+				if err != nil {
+					t.Fatalf("Validate: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("Validate accepted the config")
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(err.Error(), w) {
+					t.Fatalf("error lacks %q: %v", w, err)
+				}
+			}
+		})
+	}
+}
+
+func TestValidate_AuditLogIsRequiredForGateJobs(t *testing.T) {
+	c := minimalValidConfig()
+	c.Genome.BundleDir = "/var/lib/vg/genomes"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "audit.log_path required") {
+		t.Fatalf("gate jobs without an audit log accepted: %v", err)
+	}
+	c.Audit.LogPath = "/var/lib/vg/audit/returnpath.db"
+	err = c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "keys.audit_signing") {
+		t.Fatalf("audit log without a signing key accepted: %v", err)
+	}
+	c.Keys.AuditSigning = SigningKeyConfig{KeyID: "audit-1", SeedPath: "/keys/audit.seed"}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	c.CrossCloud.AuditLogPath = "/var/lib/vg/audit/../audit/returnpath.db"
+	err = c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "must be different files") {
+		t.Fatalf("one file for both logs accepted: %v", err)
+	}
+}

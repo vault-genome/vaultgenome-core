@@ -16,27 +16,27 @@
 //
 // Two Reconstructor implementations live in this package:
 //
-//   - DeterministicReconstructor (reconstruction.go). The V1 MVP: a
-//     content-addressed SHA-256 expansion over the canonical digest of
-//     (manifest, components). Pure, bounded, deterministic. Retained
-//     as a test fixture and as the "before" half of the before/after
-//     demo; never the production backend post-iteration-7.
+//   - GenomeReconstructor (genome.go). The production backend, and the
+//     only one cmd/acp-compute builds: a gate job's components carry a
+//     sealed genome's model side — genome.json, the LoRA adapter, the
+//     fixtures' prompts — behind a descriptor (internal/genome/gatejob).
+//     The reconstructor checks every file against the descriptor, hands
+//     them to the vg_genome door (workers/genome) on stdin, and returns
+//     the door's outputs — the restored model's logits at the reference
+//     tokens — as the candidate. The base model is public and read from
+//     the worker's disk; the adapter stays in memory. The authority
+//     judges the outputs against the sealed references with the
+//     equivalence gate.
 //
-//   - GenerativeReconstructor (generative.go). The V2 production
-//     backend as of iteration 7 (task #78): a byte-level Markov model
-//     of order 3 trained on the canonical concatenation of the
-//     unsealed components, sampled via a deterministic SHA-256 stream
-//     PRNG seeded from the same canonical digest. Output reflects the
-//     training corpus's statistical structure; partial genomes
-//     measurably degrade fidelity; all iteration-5 contract properties
-//     are preserved (see generative_test.go Tier A).
+//   - DeterministicReconstructor (reconstruction.go). A content-addressed
+//     SHA-256 expansion over the canonical digest of (manifest,
+//     components): pure, bounded, deterministic. It is the reference the
+//     Return Path's own tests and the in-process pipeline demo use to
+//     exercise the frozen interface without a model; no binary builds it.
 //
-// Both satisfy the frozen Reconstructor interface; the daemon
-// (cmd/acp-compute/main.go) builds the V2 backend by default. Swapping
-// either way is a one-line constructor change because the interface
-// was locked in iteration 5 by frozen_test.go. Any future V3 backend
-// must preserve the same interface and the same iteration-5 contract
-// suite; see docs/doctrine/bootstrap-contracts.md §15 for the freeze
-// policy and docs/doctrine/open-decisions-resolved.md R-11 for the doctrinal
-// rationale.
+// Both satisfy the frozen Reconstructor interface, whose shape frozen_test.go
+// pins: a backend drops in behind it, and the daemon loop, the Return Path
+// client and the validation surface consume the interface only. See
+// docs/doctrine/bootstrap-contracts.md §15 for the freeze policy and
+// docs/doctrine/open-decisions-resolved.md R-11 for the doctrinal rationale.
 package worker

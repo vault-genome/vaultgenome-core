@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ai-continuity-platform/core/internal/compute/worker"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 )
 
@@ -35,6 +36,13 @@ func main() {
 			return
 		case "help", "--help", "-h":
 			printUsage()
+			return
+		case "identity":
+			if err := runIdentityCmd(os.Args[2:], os.Stdout); err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
+					Error("acp-compute identity: terminated with error", "err", err.Error())
+				os.Exit(1)
+			}
 			return
 		}
 	}
@@ -92,17 +100,33 @@ func runDaemon(args []string) error {
 		"kid", string(mat.SigningKeyID),
 		"pubkey_hex", hex.EncodeToString(mat.SigningPublicKey),
 	)
+	logger.Info("worker TEE identity",
+		"tee_provider", string(mat.Provider),
+		"measurement_hex", hex.EncodeToString(mat.Producer.Measurement()),
+		"peer_provider", string(mat.PeerProvider),
+	)
+	if mat.Provider == tee.ProviderSimulated {
+		logger.Warn("SIMULATED TEE: no hardware isolation — this worker's Return Path Evidence is signed by a key read from a file; development and tests only")
+	}
 
-	// R-11 swap point. Iteration 7 (task #78) flipped this from the
-	// deterministic MVP placeholder to the real generative backend.
-	// Because the Reconstructor interface was frozen in iteration 5,
-	// this is the only production line that had to change: the daemon
-	// loop, Return Path client, and validation surface all consume the
-	// interface and are unaffected.
-	recon, err := worker.NewGenerativeReconstructor(clock)
+	// R-11 swap point. The Reconstructor interface was frozen in
+	// iteration 5, so the backend is the only production line that
+	// changes: the daemon loop, the Return Path client and the
+	// validation surface consume the interface. The worker restores a
+	// genome's model through the door its config names and returns the
+	// model's outputs for the authority to gate.
+	recon, err := worker.NewGenomeReconstructor(worker.GenomeConfig{
+		Command: cfg.Genome.Door.Command,
+		Env:     cfg.Genome.Door.Env,
+		Timeout: cfg.Genome.Door.Timeout(),
+	}, clock)
 	if err != nil {
 		return err
 	}
+	logger.Info("genome door",
+		"command", cfg.Genome.Door.Command,
+		"timeout_seconds", cfg.Genome.Door.TimeoutSeconds,
+	)
 
 	registry := NewRegistry()
 	daemon, err := NewDaemon(cfg, mat, clock, logger, recon, registry)
@@ -165,12 +189,16 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  acp-compute -config PATH")
+	fmt.Println("  acp-compute identity -config PATH")
 	fmt.Println("  acp-compute version")
 	fmt.Println("  acp-compute help")
 	fmt.Println()
 	fmt.Println("Description:")
 	fmt.Println("  Long-lived worker daemon. Dials sagvd over the Return Path,")
-	fmt.Println("  serves one reconstruction job per session, then reconnects.")
+	fmt.Println("  serves one gate job per session, then reconnects.")
+	fmt.Println()
+	fmt.Println("  identity prints what sagvd pins for this worker — its signing key,")
+	fmt.Println("  its TEE provider and launch measurement — as JSON.")
 	fmt.Println()
 	fmt.Println("Flags:")
 	fmt.Println("  -config PATH   JSON config file; see cmd/acp-compute/doc.go for schema.")

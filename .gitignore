@@ -71,3 +71,8 @@ Thumbs.db
 # Python worker caches
 __pycache__/
 .pytest_cache/
+
+# Compose demo: sealed genomes with their key files, and the base model.
+deploy/compose/genomes/
+deploy/compose/models/
+deploy/compose/audit/

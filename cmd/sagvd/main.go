@@ -17,7 +17,12 @@ import (
 	"github.com/ai-continuity-platform/core/internal/observability/health"
 	"github.com/ai-continuity-platform/core/internal/observability/metrics"
 	"github.com/ai-continuity-platform/core/internal/observability/teemetrics"
+	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/ai-continuity-platform/core/internal/vault/incident"
+	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
+	"github.com/ai-continuity-platform/core/internal/vault/trust"
 )
 
 // These variables are populated at link time by the Makefile /
@@ -146,6 +151,14 @@ func runDaemon(args []string) error {
 	logger.Info("sagvd session sealing identity",
 		"kid", string(mat.SessionSealingKeyID),
 	)
+	logger.Info("sagvd TEE identity",
+		"tee_provider", string(mat.Provider),
+		"measurement_hex", hex.EncodeToString(mat.Producer.Measurement()),
+		"peer_provider", string(mat.PeerProvider),
+	)
+	if mat.Provider == tee.ProviderSimulated {
+		logger.Warn("SIMULATED TEE: no hardware isolation — this vault's Return Path Evidence is signed by a key read from a file; development and tests only")
+	}
 	for _, w := range mat.WorkerEntries {
 		logger.Info("sagvd accepted worker signing identity",
 			"kid", w.KeyID,
@@ -156,22 +169,86 @@ func runDaemon(args []string) error {
 
 	registry := metrics.NewRegistry()
 	teeRec := teemetrics.New(registry)
-	// Phase 1: vault uses the simulated TEE backend by default. When
-	// the keystore loader switches on tee.Provider in Phase 2, this
-	// label tracks the configured backend automatically.
-	mat.InstrumentTEE(teeRec, "simulated")
-	teeRec.RecordCapability("simulated", true)
+	mat.InstrumentTEE(teeRec, string(mat.Provider))
+	teeRec.RecordCapability(string(mat.Provider), true)
 
 	queue := NewJobQueue(clock, cfg.Runtime.QueuePoll())
 
-	daemon, err := NewDaemon(cfg, mat, queue, clock, logger, registry)
+	// The Return Path audit log: opened and verified before anything is
+	// decided. Without it (no gate jobs configured) trust decisions are
+	// not on record, and the daemon says so.
+	audit, err := openReturnPathAudit(cfg, clock, registry)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = audit.Close() }()
+	if audit != nil {
+		logger.Info("sagvd audit log open",
+			"path", cfg.Audit.LogPath,
+			"events", audit.Len(),
+			"tip", audit.Tip(),
+			"audit_kid", cfg.Keys.AuditSigning.KeyID,
+		)
+	} else {
+		logger.Warn("sagvd runs without a Return Path audit log: trust decisions are not on record (set audit.log_path)")
+	}
+
+	genomes := newGenomeJobs(cfg, clock)
+
+	// The authority that drives the nine stages for every gate job
+	// (ADR 0015): its decisions go to the Return Path audit log, its
+	// artifacts are signed under the authority key, its disclosures are
+	// sealed to the workers' session-sealing key.
+	var authority *orchestration.Authority
+	if genomes != nil {
+		var stopList trust.StopListSource
+		if cfg.OperatorStopEnabled() {
+			src, serial, err := newOperatorStopSource(cfg.OperatorStop)
+			if err != nil {
+				return err
+			}
+			stopList = src
+			logger.Info("sagvd operator stop list in force for gate jobs",
+				"list_path", cfg.OperatorStop.ListPath, "kid", cfg.OperatorStop.KeyID, "serial", serial)
+		}
+		authority, err = orchestration.NewAuthority(orchestration.AuthorityOptions{
+			Clock:          clock,
+			Signer:         mat.Store,
+			Sealer:         mat.Store,
+			Resolver:       mat.Store,
+			AuthorityKeyID: mat.AuthoritySigningKeyID,
+			RecipientKeyID: mat.SessionSealingKeyID,
+			Audit:          audit.Chain(),
+			AuditSigner:    audit.Signer(),
+			AuditKeyID:     audit.KeyID(),
+			PolicyVersion:  ids.PolicyVersion(cfg.PolicyVersion()),
+			Profiles:       []string{PolicyProfileGate},
+			StopList:       stopList,
+			Zeroizer:       incident.ZeroizerFunc(mat.Store.Zeroize),
+		})
+		if err != nil {
+			return fmt.Errorf("sagvd: build the orchestration authority: %w", err)
+		}
+		logger.Info("sagvd gate jobs enabled: the nine-stage flow is driven for every job",
+			"bundle_dir", cfg.Genome.BundleDir,
+			"escrow_key_configured", cfg.EscrowKeyPath() != "",
+			"policy_version", cfg.PolicyVersion(),
+			"policy_profile", PolicyProfileGate,
+			"operator_stop", cfg.OperatorStopEnabled(),
+			"evidence_max_age", cfg.Runtime.EvidenceMaxAge().String(),
+		)
+	} else if cfg.HTTPAPI.ListenAddress != "" {
+		logger.Warn("sagvd REST API accepts no jobs: genome.bundle_dir is not configured")
+	}
+
+	daemon, err := NewDaemon(cfg, mat, queue, genomes, audit, clock, logger, registry)
 	if err != nil {
 		return err
 	}
 
 	httpAPI, err := NewHTTPAPIServer(
 		cfg.HTTPAPI, cfg.Runtime, queue,
-		mat.Store, mat.SessionSealingKeyID,
+		genomes, authority,
 		clock, registry, logger,
 	)
 	if err != nil {

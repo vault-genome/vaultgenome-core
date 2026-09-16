@@ -24,20 +24,33 @@
 //
 //   - vault.listen_address — Return Path inbound: acp-compute workers
 //     dial here, complete the 4-frame handshake, and receive one
-//     JobRequest per session backed by a pre-sealed ReconstructionJobManifest.
-//   - http_api.listen_address — operator REST API: POST /v1/jobs
-//     enqueues a job, GET /v1/jobs/{id} reports status plus the
-//     worker's CandidateOutput on success.
+//     JobRequest per session.
+//   - http_api.listen_address — operator REST API: POST /v1/jobs names a
+//     sealed genome in genome.bundle_dir and enqueues a gate job for it;
+//     GET /v1/jobs/{id} reports status, the genome, and — once the
+//     worker has answered — the gate's signed verdict and the worker's
+//     CandidateOutput.
 //
 // Dispatch is single-worker in Phase 1 (one handshake in flight at a
 // time). A bounded dispatcher pool lands in Phase 2 when multi-tenant
 // parallelism is on the critical path.
 //
-// Candidate validation in Phase 1 is the conservative stub in
-// /internal/compute/worker: the CandidateOutputFrame is checked for
-// signature integrity, manifest binding, and output-kind binding, but
-// the full R-13..R-15 semantic/behavioural battery is wired in under
-// task #78. Phase 1 is enough for the investor-demo round trip.
+// A job is a gate job (ADR 0013, genome_job.go) and a RecoveryRequest into
+// the nine-stage flow (ADR 0015, internal/vault/orchestration): sagvd admits
+// the request at intake, and when a worker that proved its pinned TEE
+// identity is ready it decides trust for it (the operator's stop list, the
+// policy profile, the attested peer), issues the session, opens the named
+// genome with its key and discloses its model side to that session — one
+// signed, sealed envelope per component — issues the signed manifest, ships
+// the disclosures as the JobRequest, and — after the CandidateOutputFrame's
+// signature, manifest binding, output-kind binding and size budget have
+// been checked — holds the worker's outputs to the references on two
+// dimensions (top-1 agreement; the determinism ladder, byte-exact first,
+// then within genome.gate's tolerance), runs the six operational sub-checks
+// over the job's own artifacts, signs the release decision and seals the
+// flow. A refusal is a signed decision too. Every one of those decisions is
+// on audit.log_path first (ADR 0014): a log that cannot take a record stops
+// the stage.
 //
 // # Configuration
 //
@@ -48,13 +61,33 @@
 //   - vault.tls                 mTLS material when TLS is enabled
 //   - http_api.listen_address   TCP listener for the operator REST API
 //   - http_api.bearer_token     optional Bearer token for POST /v1/jobs
-//   - tee.workload_descriptor   hashed into the simulator's measurement
-//   - tee.seed_path             32-byte Ed25519 seed for TEE attestation
-//   - tee.peer.*                worker TEE pubkey + measurement (pinned)
-//   - keys.authority_signing    kid + seed for authority-bound signatures (Phase-3 forward)
+//   - tee.provider              "gcp-sev-snp" (the chip signs, reports through
+//     configfs-tsm) or "simulated" (+insecure_simulation)
+//   - tee.workload_descriptor   names the workload; the simulator hashes it
+//   - tee.seed_path             32-byte Ed25519 seed (simulated only)
+//   - tee.peer.*                the worker's TEE pin: provider, measurement
+//     (48 bytes for SEV-SNP), amd_cert_chain_path
+//     for a SEV-SNP peer or public_key_path for a
+//     simulated one
+//   - keys.authority_signing    kid + seed for authority-bound signatures (signs gate verdicts)
+//   - keys.audit_signing        kid + seed that signs the audit logs
 //   - keys.session_sealing      kid + AES-256 key for SealedMaterial (pre-shared with worker)
+//   - audit.log_path            the Return Path audit log: every decision about a
+//     job, before it takes effect (required with gate jobs)
+//   - operator_stop.*           the operator's signed stop list (kid,
+//     public_key_path, list_path) trust consults at every admission:
+//     stop-all denies every job, a revoked measurement denies that worker
 //   - workers.registry_path     JSON file of {kid, signing_pubkey_hex}
-//   - runtime.*                 handshake / job / http timeouts
+//   - genome.bundle_dir         the .genome bundles a job may name, with
+//     their key files or escrow envelopes beside them
+//   - genome.key_escrow_path    escrow private key that opens <bundle>.escrow
+//     (falls back to crosscloud.key_escrow_path)
+//   - genome.gate               atol, rtol, max_non_critical_outliers of the
+//     native-float door (defaults 1e-2, 1e-3, 0)
+//   - runtime.*                 handshake / job / http timeouts; max_payload_bytes
+//     bounds the model side of one job; evidence_max_age_seconds is how
+//     old a worker's Evidence may be when it is handed a job (default: the
+//     attestation TTL, 5 min)
 //   - health.listen_address     HTTP listener for /healthz /readyz /metrics
 //   - log.level, log.format     debug|info|warn|error, json|text
 //
@@ -62,11 +95,17 @@
 //
 // Operator REST API (configured by http_api.listen_address):
 //
-//   - POST /v1/jobs                 → {"job_id":"..."}
-//     Body: {manifest_id, session_id, expected_output_kind,
-//     expected_output_max_bytes, deadline_seconds_from_now,
-//     payload_base64}
-//   - GET  /v1/jobs/{id}            → status + candidate (if done)
+//   - POST /v1/jobs                 → {"job_id","request_id","state","genome"}
+//     Body: {"genome": {"bundle": "<name in genome.bundle_dir>",
+//     "key_file": "<name>" (omit to use <bundle>.escrow)},
+//     "deadline_seconds_from_now": N,
+//     "request_id", "policy_profile" ("gate"), "requester_identity",
+//     "contour": {…} — all optional}
+//   - GET  /v1/jobs/{id}            → status, state, genome, the flow (every
+//     transition taken; the signed attestation, session, manifest,
+//     validation result and release decision; the disclosures' digests),
+//     and when released the gate verdict (level, door, attempts,
+//     signed_verdict), the top-1 report and the candidate
 //
 // Health / observability (configured by health.listen_address):
 //
@@ -79,6 +118,9 @@
 //
 //   - jobs_submitted_total            (counter)
 //   - jobs_completed_total{outcome}   (counter: success|reject|fail)
+//   - gate_verdicts_total{level}      (counter: EXACT|EQUIVALENT|FAIL|ERROR)
+//   - release_decisions_total{decision} (counter: release|refuse|trust_denied)
+//   - audit_events_total{kind}        (counter)
 //   - sessions_opened_total           (counter)
 //   - handshake_failures_total        (counter)
 //   - http_requests_total{route,status} (counter)
