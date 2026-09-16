@@ -176,7 +176,7 @@ config:
     "public_key_path": "/etc/acp/crosscloud/operator.pem",
     "list_path": "/etc/acp/crosscloud/stop.json"
   },
-  "key_escrow_path": "/etc/acp/secrets/sagvd/escrow.key",
+  "key_escrow_path": "/etc/acp/secrets/sagvd/escrow.sealed",
   "transport_bearer_token": "<the destination's bearer token>",
   "request_timeout_seconds": 30,
   "transport_tls": {
@@ -189,7 +189,9 @@ config:
 ```
 
 `operator_stop` points at the operator's signed stop list and is required.
-`key_escrow_path` is needed only to release escrowed genome keys (`-key-escrow`).
+`key_escrow_path` is needed only to release escrowed genome keys (`-key-escrow`);
+it names the sealed key `sagvd escrow-provision` wrote (see [Sealing a
+genome](#sealing-a-genome) above).
 To release to a simulated destination in development, add
 `"insecure_simulated_destinations": true`; without it a simulated entry in the
 verifier registry is refused.
@@ -242,13 +244,22 @@ tag>`). `gen-1.key` holds the 32-byte key, mode 0600, and is never overwritten;
 keep it with the release authority. Replicate `gen-1.genome` to the
 destination's `bundle_dir` (see above).
 
-**Or keep no key on the sealing machine at all (key escrow).** On the release
-host, create the authority's escrow key once and set `crosscloud.key_escrow_path`
-to its private half; `sagvd identity` then prints the public half as
-`key_escrow_public_key_pem`:
+**Or keep no key on the sealing machine at all (key escrow).** The release
+host makes its escrow key inside its own process and writes it only sealed to
+its TEE ([ADR 0016](../adr/0016-escrow-key-sealed-to-the-release-host.md)):
+on SEV-SNP under a key the chip derives for that guest, launch measurement
+and policy, which the daemon unseals in memory at start. Set
+`crosscloud.key_escrow_path` to the sealed file; `sagvd identity` then prints
+the public half as `key_escrow_public_key_pem` and says how the private half
+is kept (`key_escrow_storage: sealed:gcp-sev-snp`):
 
 ```bash
-acpctl escrow keygen --out /etc/acp/secrets/sagvd/escrow.key --pub escrow.pem   # on the release host
+# On the operator's machine, once: the recovery key. Its private half never goes to the release host.
+acpctl escrow recovery-keygen --out recovery.seed --pub recovery.pem
+# On the release host: the escrow key, sealed to this host, wrapped to the recovery key.
+sagvd escrow-provision -config /etc/acp/sagvd.json -out /etc/acp/secrets/sagvd/escrow.sealed -pub escrow.pem \
+  -recovery-to recovery.pem -recovery-out /etc/acp/secrets/sagvd/escrow.recovery
+# On the sealing machine:
 acpctl genome seal --content-dir=./adapter --output=gen-1.genome --escrow-to=escrow.pem --json > seal.json
 ```
 
@@ -256,6 +267,23 @@ The sealer encapsulates the fresh key to the escrow key (the X25519 KEM of ADR
 0009) in `gen-1.genome.escrow` and writes no key file. The envelope travels with
 the bundle and opens only on the release host, which releases the key with
 `-key-escrow gen-1.genome.escrow` instead of `-key-file`.
+
+The sealed key opens only for the same code on the same chip at the same
+measurement. A restart that lands on another host, a new VM image, a dead
+chip: `sagvd` refuses to start and says which measurement the key was sealed
+at. Keep `escrow.recovery` (ciphertext, useless without `recovery.seed`) where
+a restart can reach it, and re-seal on the new host through a pipe, so its disk
+never holds the key in the clear:
+
+```bash
+acpctl escrow recover --in escrow.recovery --key recovery.seed \
+  | ssh release-host sagvd escrow-provision -config /etc/acp/sagvd.json -out /etc/acp/secrets/sagvd/escrow.sealed -pub escrow.pem -stdin
+```
+
+The same key, the same tag; sealers pinned to `escrow.pem` need no change.
+Under `tee.insecure_simulation` a plaintext key from `acpctl escrow keygen`
+is still accepted, for development and tests, and the daemon logs
+`PLAINTEXT ESCROW KEY`; on a hardware TEE it is refused.
 
 ## Releasing keys
 
