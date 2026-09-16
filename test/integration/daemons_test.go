@@ -9,14 +9,17 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -34,7 +37,7 @@ const (
 	workerSigningKID = "acp-compute-worker-demo"
 	vaultDescriptor  = "sagvd-phase1-demo-v1"
 	workerDescriptor = "acp-compute-phase1-demo-v1"
-	jobOutputKind    = "lora-adapter-demo"
+	jobOutputKind    = "bytes/fixed-length"
 
 	startupTimeout = 30 * time.Second
 	jobTimeout     = 60 * time.Second
@@ -42,7 +45,7 @@ const (
 
 // bins holds the binaries TestMain builds once per run.
 var bins struct {
-	sagvd, worker, bootstrap, acpctl, keygen string
+	sagvd, worker, bootstrap, acpctl, keygen, fakedoor string
 }
 
 func TestMain(m *testing.M) {
@@ -70,12 +73,14 @@ func buildAndRun(m *testing.M) (int, error) {
 	bins.bootstrap = filepath.Join(dir, "acp-bootstrap")
 	bins.acpctl = filepath.Join(dir, "acpctl")
 	bins.keygen = filepath.Join(dir, "keygen")
+	bins.fakedoor = filepath.Join(dir, "fakedoor")
 	for _, b := range []struct{ out, dir, pkg string }{
 		{bins.sagvd, root, "./cmd/sagvd"},
 		{bins.worker, root, "./cmd/acp-compute"},
 		{bins.bootstrap, root, "./cmd/acp-bootstrap"},
 		{bins.acpctl, root, "./cmd/acpctl"},
 		{bins.keygen, filepath.Join(root, "deploy", "compose", "keygen"), "."},
+		{bins.fakedoor, root, "./test/integration/fakedoor"},
 	} {
 		cmd := exec.Command("go", "build", "-o", b.out, b.pkg)
 		cmd.Dir = b.dir
@@ -107,16 +112,23 @@ func moduleRoot() (string, error) {
 
 // ---- tests ------------------------------------------------------------------
 
-// A job submitted over the authenticated REST API is sealed, dispatched
-// over mutual TLS to a worker that proves its pinned TEE identity, and
-// comes back as a worker-signed result.
+// A gate job submitted over the authenticated REST API names a sealed
+// genome; sagvd opens it, ships its model side sealed over mutual TLS to
+// a worker that proves its pinned TEE identity, the worker restores the
+// model through its door and answers, and sagvd holds the answer to the
+// sealed references: the job succeeds with a signed EXACT verdict.
 func TestLiveDaemons_JobRoundTripOverMTLS(t *testing.T) {
 	secrets := keygen(t)
 	v := startVault(t, secrets)
 	w, health := v.startWorker(t, "acp-compute", workerIdentity{tlsFrom: secrets, teeFrom: secrets})
 	waitReady(t, w, health+"/healthz")
 
-	job := v.waitJob(t, v.submitJob(t), "succeeded", jobTimeout)
+	sealed := v.sealGenome(t, "gen-0", true)
+	id, accepted := v.submitGenome(t, sealed)
+	if accepted.Genome.KeyID != sealed.keyID || accepted.Genome.Fixtures != 3 || accepted.Genome.KeySource != "key_file" {
+		t.Fatalf("accepted genome view: %+v", accepted.Genome)
+	}
+	job := v.waitJob(t, id, "succeeded", jobTimeout)
 	if job.Result == nil || job.Result.ByteCount == 0 {
 		t.Fatalf("succeeded job carries no result: %+v", job)
 	}
@@ -126,14 +138,120 @@ func TestLiveDaemons_JobRoundTripOverMTLS(t *testing.T) {
 	if job.Result.OutputKind != jobOutputKind {
 		t.Fatalf("output kind %q, want %q", job.Result.OutputKind, jobOutputKind)
 	}
-	if raw, err := hex.DecodeString(job.Result.BytesHex); err != nil || len(raw) != job.Result.ByteCount {
+	raw, err := hex.DecodeString(job.Result.BytesHex)
+	if err != nil || len(raw) != job.Result.ByteCount {
 		t.Fatalf("result bytes_hex inconsistent with byte_count=%d (decode err %v)", job.Result.ByteCount, err)
+	}
+	if !bytes.Contains(raw, []byte(`"schema":"vault-genome/gate-output/v1"`)) || !bytes.Contains(raw, []byte(sealed.keyID)) {
+		t.Fatalf("result is not a gate output for %s: %s", sealed.keyID, raw)
+	}
+	if job.Gate == nil || job.Gate.Level != "EXACT" || job.Gate.Door != "pinned replay" || job.Gate.Rung != 0 || job.Gate.Fixtures != 3 {
+		t.Fatalf("gate verdict: %+v", job.Gate)
+	}
+	if job.Gate.SignedVerdict == nil || len(job.Gate.SignedVerdict.Signature) == 0 || job.Gate.SignerKeyID != "sagvd-authority-demo" {
+		t.Fatalf("the verdict is not signed by the authority: %+v", job.Gate)
+	}
+	if job.Gate.SignedVerdict.Verdict.NExact != 3 || job.Gate.SignedVerdict.Verdict.GenomeID != sealed.keyID {
+		t.Fatalf("signed verdict: %+v", job.Gate.SignedVerdict.Verdict)
+	}
+	if job.Genome == nil || job.Genome.KeyID != sealed.keyID {
+		t.Fatalf("job view lacks its genome: %+v", job.Genome)
 	}
 	if got := v.counter(t, `sagvd_jobs_completed_total{outcome="success"}`); got < 1 {
 		t.Fatalf("sagvd_jobs_completed_total{outcome=\"success\"} = %d, want >= 1", got)
 	}
+	if got := v.counter(t, `sagvd_gate_verdicts_total{level="EXACT"}`); got < 1 {
+		t.Fatalf("sagvd_gate_verdicts_total{level=\"EXACT\"} = %d, want >= 1", got)
+	}
 	if got := v.counter(t, `sagvd_sessions_opened_total`); got < 1 {
 		t.Fatalf("sagvd_sessions_opened_total = %d, want >= 1", got)
+	}
+}
+
+// A genome whose sealed references the restored model does not reproduce
+// fails its gate: the job fails on the record's terms, the verdict on the
+// job says FAIL at every door, and nothing is signed.
+func TestLiveDaemons_GateRefusesAModelThatMissesItsReferences(t *testing.T) {
+	secrets := keygen(t)
+	v := startVault(t, secrets)
+	w, health := v.startWorker(t, "acp-compute", workerIdentity{tlsFrom: secrets, teeFrom: secrets})
+	waitReady(t, w, health+"/healthz")
+
+	sealed := v.sealGenome(t, "gen-wrong", false)
+	id, _ := v.submitGenome(t, sealed)
+	job := v.waitJob(t, id, "failed", jobTimeout)
+	if job.Error == nil || job.Error.Code != "gate_failed" || job.Error.Category != "operational" {
+		t.Fatalf("failed job error: %+v", job.Error)
+	}
+	if job.Gate == nil || job.Gate.Level != "FAIL" || len(job.Gate.Attempts) != 2 || job.Gate.SignedVerdict != nil {
+		t.Fatalf("gate verdict: %+v", job.Gate)
+	}
+	if job.Result != nil {
+		t.Fatalf("a refused model must not be a result: %+v", job.Result)
+	}
+	if got := v.counter(t, `sagvd_gate_verdicts_total{level="FAIL"}`); got < 1 {
+		t.Fatalf("sagvd_gate_verdicts_total{level=\"FAIL\"} = %d, want >= 1", got)
+	}
+	if got := v.counter(t, `sagvd_jobs_completed_total{outcome="reject"}`); got < 1 {
+		t.Fatalf("sagvd_jobs_completed_total{outcome=\"reject\"} = %d, want >= 1", got)
+	}
+
+	// A wrong key opens nothing: refused at submission, never queued.
+	other := v.sealGenome(t, "gen-other", true)
+	body, err := json.Marshal(map[string]any{"genome": map[string]string{"bundle": sealed.bundle, "key_file": other.keyFile}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, resp := v.do(t, http.MethodPost, "/v1/jobs", v.token, body)
+	if status != http.StatusForbidden || !bytes.Contains(resp, []byte("genome_key_invalid")) {
+		t.Fatalf("wrong key: status %d body %s", status, resp)
+	}
+}
+
+// With key escrow the bundle directory holds no key at all: the sealer
+// encapsulated the genome's key to the authority, and sagvd opens the
+// envelope with its escrow key to build the job.
+func TestLiveDaemons_EscrowedGenomeNeedsNoKeyFile(t *testing.T) {
+	secrets := keygen(t)
+	escrowKey := filepath.Join(t.TempDir(), "escrow.key")
+	escrowPub := filepath.Join(t.TempDir(), "escrow.pem")
+	acpctl(t, "escrow", "keygen", "--out", escrowKey, "--pub", escrowPub)
+	v := startVaultWith(t, secrets, func(cfg map[string]any) {
+		cfg["genome"].(map[string]any)["key_escrow_path"] = escrowKey
+	})
+	w, health := v.startWorker(t, "acp-compute", workerIdentity{tlsFrom: secrets, teeFrom: secrets})
+	waitReady(t, w, health+"/healthz")
+
+	dir := writeModelGenome(t, true)
+	bundle := filepath.Join(v.bundleDir, "escrowed.genome")
+	acpctl(t, "genome", "seal", "--content-dir", dir, "--output", bundle, "--escrow-to", escrowPub)
+	entries, err := os.ReadDir(v.bundleDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".key") {
+			t.Fatalf("a key file in the bundle dir: %s", e.Name())
+		}
+	}
+	body, err := json.Marshal(map[string]any{"genome": map[string]string{"bundle": "escrowed.genome"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, resp := v.do(t, http.MethodPost, "/v1/jobs", v.token, body)
+	if status != http.StatusAccepted {
+		t.Fatalf("POST /v1/jobs: status %d body %s", status, resp)
+	}
+	var accepted submitView
+	if err := json.Unmarshal(resp, &accepted); err != nil {
+		t.Fatal(err)
+	}
+	if accepted.Genome.KeySource != "escrow" {
+		t.Fatalf("key source %q, want escrow", accepted.Genome.KeySource)
+	}
+	job := v.waitJob(t, accepted.JobID, "succeeded", jobTimeout)
+	if job.Gate == nil || job.Gate.Level != "EXACT" {
+		t.Fatalf("gate verdict: %+v", job.Gate)
 	}
 }
 
@@ -141,7 +259,7 @@ func TestLiveDaemons_JobRoundTripOverMTLS(t *testing.T) {
 // one, on both the write and the read endpoint.
 func TestLiveDaemons_RESTRejectsMissingOrWrongToken(t *testing.T) {
 	v := startVault(t, keygen(t))
-	body := jobBody(t)
+	body := jobBody(t, v.sealGenome(t, "gen-auth", true))
 	for _, tc := range []struct {
 		name, token, wantCode string
 	}{
@@ -213,7 +331,7 @@ func TestLiveDaemons_UnpinnedWorkerIsRefusedWork(t *testing.T) {
 	waitReady(t, rogue, rogueHealth+"/healthz")
 
 	before := v.counter(t, `sagvd_handshake_failures_total{phase="handshake"}`)
-	id := v.submitJob(t)
+	id, _ := v.submitGenome(t, v.sealGenome(t, "gen-held", true))
 	waitFor(t, 20*time.Second, "rogue worker refused at the Return Path handshake", func() bool {
 		return v.counter(t, `sagvd_handshake_failures_total{phase="handshake"}`) > before
 	})
@@ -317,12 +435,22 @@ type vault struct {
 	vaultAddr string
 	apiURL    string
 	healthURL string
+	bundleDir string // genome.bundle_dir
 	proc      *proc
 }
 
 func vaultConfig(secrets, vaultAddr, apiAddr, healthAddr string) map[string]any {
+	return vaultConfigWithGenomes(secrets, vaultAddr, apiAddr, healthAddr, "")
+}
+
+func vaultConfigWithGenomes(secrets, vaultAddr, apiAddr, healthAddr, bundleDir string) map[string]any {
 	sec := func(p ...string) string { return filepath.Join(append([]string{secrets}, p...)...) }
+	genome := map[string]any{"gate": map[string]any{"atol": 1e-2, "rtol": 1e-3, "max_non_critical_outliers": 0}}
+	if bundleDir != "" {
+		genome["bundle_dir"] = bundleDir
+	}
 	return map[string]any{
+		"genome": genome,
 		"vault": map[string]any{
 			"listen_address": vaultAddr,
 			"tls": map[string]any{
@@ -366,8 +494,16 @@ func vaultConfig(secrets, vaultAddr, apiAddr, healthAddr string) map[string]any 
 }
 
 // startVault runs sagvd with mTLS on the Return Path and a bearer token
-// on the REST API, on loopback, and waits for /readyz.
+// on the REST API, on loopback, with an empty genome.bundle_dir, and
+// waits for /readyz.
 func startVault(t *testing.T, secrets string) *vault {
+	t.Helper()
+	return startVaultWith(t, secrets, nil)
+}
+
+// startVaultWith is startVault with a hook over the config before it is
+// written.
+func startVaultWith(t *testing.T, secrets string, mutate func(cfg map[string]any)) *vault {
 	t.Helper()
 	tok, err := os.ReadFile(filepath.Join(secrets, "sagvd", "api_token"))
 	if err != nil {
@@ -380,9 +516,13 @@ func startVault(t *testing.T, secrets string) *vault {
 		vaultAddr: vaultAddr,
 		apiURL:    "http://" + apiAddr,
 		healthURL: "http://" + healthAddr,
+		bundleDir: t.TempDir(),
 	}
-	cfg := writeJSON(t, "sagvd.json", vaultConfig(secrets, vaultAddr, apiAddr, healthAddr))
-	v.proc = startProc(t, "sagvd", bins.sagvd, "-config", cfg)
+	cfg := vaultConfigWithGenomes(secrets, vaultAddr, apiAddr, healthAddr, v.bundleDir)
+	if mutate != nil {
+		mutate(cfg)
+	}
+	v.proc = startProc(t, "sagvd", bins.sagvd, "-config", writeJSON(t, "sagvd.json", cfg))
 	waitReady(t, v.proc, v.healthURL+"/readyz")
 	return v
 }
@@ -425,6 +565,9 @@ func (v *vault) startWorker(t *testing.T, name string, id workerIdentity) (*proc
 			"worker_signing":  map[string]any{"kid": workerSigningKID, "seed_path": filepath.Join(id.teeFrom, "acp-compute", "worker_signing_seed")},
 			"session_sealing": map[string]any{"kid": "session-sealing-demo", "material_path": filepath.Join(v.secrets, "shared", "sealing.key")},
 		},
+		"genome": map[string]any{
+			"door": map[string]any{"command": []string{bins.fakedoor}, "timeout_seconds": 30},
+		},
 		"runtime": map[string]any{
 			"job_timeout_seconds":       60,
 			"handshake_timeout_seconds": 10,
@@ -455,25 +598,147 @@ type jobView struct {
 		Code     string `json:"code"`
 		Message  string `json:"message"`
 	} `json:"error"`
+	Genome *genomeView `json:"genome"`
+	Gate   *struct {
+		Level         string `json:"level"`
+		Door          string `json:"door"`
+		Rung          int    `json:"rung"`
+		Fixtures      int    `json:"fixtures"`
+		Attempts      []any  `json:"attempts"`
+		SignerKeyID   string `json:"signer_key_id"`
+		SignedVerdict *struct {
+			Verdict struct {
+				Level    string `json:"level"`
+				GenomeID string `json:"genome_id"`
+				NExact   int    `json:"n_exact"`
+			} `json:"verdict"`
+			Signature []byte `json:"signature"`
+		} `json:"signed_verdict"`
+	} `json:"gate"`
 }
 
-func jobBody(t *testing.T) []byte {
+type genomeView struct {
+	Bundle    string `json:"bundle"`
+	KeyID     string `json:"key_id"`
+	KeySource string `json:"key_source"`
+	Fixtures  int    `json:"fixtures"`
+}
+
+// submitView is what POST /v1/jobs returns.
+type submitView struct {
+	JobID      string     `json:"job_id"`
+	ManifestID string     `json:"manifest_id"`
+	SessionID  string     `json:"session_id"`
+	Genome     genomeView `json:"genome"`
+}
+
+// sealedGenome is a genome sealed into the vault's bundle dir.
+type sealedGenome struct {
+	bundle, keyFile, keyID string
+}
+
+// doorValue is the arithmetic the fake door computes (see fakedoor/main.go).
+func doorValue(inputIDs []int, idx int) float32 {
+	sum := 0
+	for _, id := range inputIDs {
+		sum += id
+	}
+	return float32(sum) + float32(idx)*0.5
+}
+
+// writeModelGenome writes a model genome as the vg_genome worker does:
+// genome.json, adapter/, fixtures.json with prompts, data/. With right
+// references the fake door reproduces the fixtures exactly; otherwise the
+// references are off by more than the gate's tolerance.
+func writeModelGenome(t *testing.T, rightReferences bool) string {
 	t.Helper()
-	payload := make([]byte, 1024)
-	nonce := make([]byte, 8)
-	if _, err := rand.Read(payload); err != nil {
+	dir := t.TempDir()
+	prompts := []struct {
+		id   string
+		ids  []int
+		topk []int
+	}{
+		{"fx-000", []int{3, 5, 8}, []int{7, 1, 4}},
+		{"fx-001", []int{4, 4}, []int{0, 9, 2}},
+		{"fx-002", []int{12}, []int{5, 6, 1}},
+	}
+	var fixtures []map[string]any
+	for i, p := range prompts {
+		b := make([]byte, 4*len(p.topk))
+		for j, idx := range p.topk {
+			v := doorValue(p.ids, idx)
+			if !rightReferences {
+				v += 0.25
+			}
+			binary.LittleEndian.PutUint32(b[4*j:], math.Float32bits(v))
+		}
+		fixtures = append(fixtures, map[string]any{
+			"id": p.id, "critical": i < 2, "prompt": "prompt " + p.id, "input_ids": p.ids, "topk_index": p.topk,
+			"expected": map[string]any{"dtype": "f32", "shape": []int{len(p.topk)}, "raw_b64": base64.StdEncoding.EncodeToString(b)},
+			"greedy":   map[string]any{"ids": []int{1}, "text": "x"},
+		})
+	}
+	fixturesJSON, err := json.Marshal(map[string]any{"schema": "vault-genome/lora-fixtures/v1", "top_k": 3, "new_tokens": 1, "fixtures": fixtures})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rand.Read(nonce); err != nil {
+	weights := make([]byte, 5000)
+	if _, err := rand.Read(weights); err != nil {
 		t.Fatal(err)
 	}
+	wSum, fxSum := sha256.Sum256(weights), sha256.Sum256(fixturesJSON)
+	genomeJSON, err := json.Marshal(map[string]any{
+		"schema": "vault-genome/lora-genome/v1", "created_at": "2026-09-15T00:00:00Z",
+		"base": map[string]any{"name": "tiny-llama", "manifest": map[string]any{
+			"files": map[string]string{"model.safetensors": "sha256:" + strings.Repeat("01", 32)}, "digest": "sha256:" + strings.Repeat("02", 32)}},
+		"adapter":  map[string]any{"dir": "adapter", "format": "peft-lora", "r": 8, "alpha": 16.0, "targets": []string{"q_proj", "v_proj"}, "parameters": 100, "weights_sha256": "sha256:" + hex.EncodeToString(wSum[:])},
+		"recipe":   map[string]any{"data": "data/train.jsonl", "steps": 2, "seed": 7, "threads": 1, "losses": []float64{1, 0.5}},
+		"fixtures": map[string]any{"file": "fixtures.json", "sha256": "sha256:" + hex.EncodeToString(fxSum[:]), "count": 3, "critical": 2, "top_k": 3},
+		"runtime":  map[string]any{"torch": "2.7.1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rel, data := range map[string][]byte{
+		"genome.json":                       genomeJSON,
+		"adapter/adapter_config.json":       []byte(`{"peft_type":"LORA","r":8,"lora_alpha":16.0,"target_modules":["q_proj","v_proj"]}`),
+		"adapter/adapter_model.safetensors": weights,
+		"fixtures.json":                     fixturesJSON,
+		"data/train.jsonl":                  []byte(`{"prompt":"p","completion":"c"}` + "\n"),
+	} {
+		p := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+// sealGenome seals a model genome into the vault's bundle dir with acpctl
+// and returns how a job names it.
+func (v *vault) sealGenome(t *testing.T, name string, rightReferences bool) sealedGenome {
+	t.Helper()
+	dir := writeModelGenome(t, rightReferences)
+	g := sealedGenome{bundle: name + ".genome", keyFile: name + ".key"}
+	var sealed struct {
+		KeyID string `json:"key_id"`
+	}
+	if err := json.Unmarshal([]byte(acpctl(t, "genome", "seal", "--content-dir", dir,
+		"--output", filepath.Join(v.bundleDir, g.bundle), "--key-out", filepath.Join(v.bundleDir, g.keyFile), "--json")), &sealed); err != nil {
+		t.Fatal(err)
+	}
+	g.keyID = sealed.KeyID
+	return g
+}
+
+func jobBody(t *testing.T, g sealedGenome) []byte {
+	t.Helper()
 	b, err := json.Marshal(map[string]any{
-		"manifest_id":               "it-manifest-" + hex.EncodeToString(nonce),
-		"session_id":                "it-session-" + hex.EncodeToString(nonce),
-		"expected_output_kind":      jobOutputKind,
-		"expected_output_max_bytes": 4096,
+		"genome":                    map[string]string{"bundle": g.bundle, "key_file": g.keyFile},
 		"deadline_seconds_from_now": 60,
-		"payload_base64":            base64.StdEncoding.EncodeToString(payload),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -510,19 +775,17 @@ func (v *vault) do(t *testing.T, method, path, token string, body []byte) (int, 
 	return resp.StatusCode, data
 }
 
-func (v *vault) submitJob(t *testing.T) string {
+func (v *vault) submitGenome(t *testing.T, g sealedGenome) (string, submitView) {
 	t.Helper()
-	status, body := v.do(t, http.MethodPost, "/v1/jobs", v.token, jobBody(t))
+	status, body := v.do(t, http.MethodPost, "/v1/jobs", v.token, jobBody(t, g))
 	if status != http.StatusAccepted {
 		t.Fatalf("POST /v1/jobs: status %d body %s, want 202", status, body)
 	}
-	var r struct {
-		JobID string `json:"job_id"`
-	}
+	var r submitView
 	if err := json.Unmarshal(body, &r); err != nil || r.JobID == "" {
 		t.Fatalf("POST /v1/jobs: no job_id in %s (%v)", body, err)
 	}
-	return r.JobID
+	return r.JobID, r
 }
 
 func (v *vault) job(t *testing.T, id string) jobView {

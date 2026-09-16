@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-then [What we do not claim](#what-we-do-not-claim) — that last section is the
+[C11](#c11), then [What we do not claim](#what-we-do-not-claim) — that last section is the
 one we would want to read first if we were evaluating someone else.
 
 ---
@@ -257,6 +257,41 @@ requirement of the project.
 
 ---
 
+<a id="c11"></a>
+### C11 — The compute worker restores a real fine-tune in memory and the authority's gate says EXACT
+
+**Claim.** A job on `sagvd`'s REST API names a sealed genome; `acp-compute`
+restores the model through the `vg_genome` door from the components it was
+sent — nothing of the genome touches its disk — and answers the genome's own
+prompts; `sagvd` holds the answers to the sealed references and signs the
+verdict. On the runtime that sealed the genome the verdict is **EXACT** on
+every fixture ([ADR 0013](docs/adr/0013-worker-restores-the-genome.md)).
+
+**Evidence.** Code and tests, not a hardware capture: the live-daemon suite
+[`test/integration/daemons_test.go`](test/integration/daemons_test.go)
+(`TestLiveDaemons_JobRoundTripOverMTLS`, `…GateRefusesAModelThatMissesItsReferences`,
+`…EscrowedGenomeNeedsNoKeyFile`) runs the shipping `sagvd` and `acp-compute`
+over mutual TLS with a door that speaks the protocol exactly
+([`test/integration/fakedoor`](test/integration/fakedoor)); the
+[`genome-worker`](.github/workflows/genome-worker.yml) workflow runs the real
+door on a real fine-tune with the pinned torch
+(`internal/compute/worker/genome_real_test.go`).
+
+**Reproduce, with no cloud and no hardware:**
+
+```bash
+make test-integration
+cd workers/genome && pip install -r requirements.txt && cd ../..
+VG_GENOME_WORKER=$PWD/workers/genome go test -count=1 -v -run TestGenomeReconstructor_RealDoor ./internal/compute/worker/
+```
+
+**Scope.** The worker attests with the simulated TEE (KNOWN_ISSUES #1); the
+job carries an adapter of at most one Return Path frame, so a full-weight
+fine-tune goes by key release ([C7](#c7), ADR 0011), not by job. No hardware
+number is claimed for this path yet.
+
+---
+
 ## Supply chain and build
 
 <a id="c9"></a>
@@ -306,8 +341,9 @@ sentence we cannot defend.
    error measured · byte-portable only through the integer door, which computes
    its own arithmetic.
 2. **We do not claim to regenerate a model from a recipe alone.** The genome
-   carries the sealed delta. Reconstruction without it is a labelled
-   placeholder (`acp-compute`'s backend), and it is labelled in the code.
+   carries the sealed delta; the worker restores that delta onto the public
+   base model and the authority proves the result ([C11](#c11)). Nothing in
+   this repository invents weights from a recipe.
 3. **We do not claim attested GPU destinations.** That needs confidential GPUs
    (H100 CC); we have not run one. Every measured destination to date is a CPU
    TEE.

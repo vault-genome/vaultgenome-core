@@ -30,6 +30,11 @@ type Config struct {
 	// CandidateOutputFrame and to unseal SealedMaterial.
 	Keys KeysConfig `json:"keys"`
 
+	// Genome configures the reconstruction backend: the door the worker
+	// runs to bring a sealed genome's model back in memory and recompute
+	// its reference fixtures (internal/compute/worker.GenomeReconstructor).
+	Genome GenomeConfig `json:"genome"`
+
 	// Runtime tunables for the dial/serve loop.
 	Runtime RuntimeConfig `json:"runtime"`
 
@@ -118,6 +123,41 @@ type SigningKeyConfig struct {
 type SealingKeyConfig struct {
 	KeyID        string `json:"kid"`
 	MaterialPath string `json:"material_path"`
+}
+
+// GenomeConfig configures the model side of a job.
+type GenomeConfig struct {
+	// Door is the program that restores a genome and answers its
+	// prompts: the vg_genome door (workers/genome).
+	Door DoorConfig `json:"door"`
+}
+
+// DoorConfig is the door command and its bounds.
+type DoorConfig struct {
+	// Command runs the door. It reads the job — the genome's
+	// description, its adapter and the fixtures' prompts, as one JSON
+	// document — on stdin, loads the public base model from this
+	// worker's disk, applies the adapter in memory, and writes the
+	// model's outputs to stdout. The reference door:
+	//
+	//	["python3", "-m", "vg_genome", "door", "--stdin-genome",
+	//	 "--base", "/models/Qwen2.5-0.5B-Instruct", "--device", "cpu"]
+	//
+	// Required: a worker with no door cannot serve a job.
+	Command []string `json:"command"`
+
+	// Env is extra environment for the door, KEY=VALUE — for example
+	// PYTHONPATH=/opt/vg/workers/genome.
+	Env []string `json:"env,omitempty"`
+
+	// TimeoutSeconds bounds one door run. 0 leaves the job's own
+	// deadline and runtime.job_timeout_seconds as the only bounds.
+	TimeoutSeconds int `json:"timeout_seconds"`
+}
+
+// Timeout returns DoorConfig.TimeoutSeconds as a Duration.
+func (d DoorConfig) Timeout() time.Duration {
+	return time.Duration(d.TimeoutSeconds) * time.Second
 }
 
 // RuntimeConfig bounds the dial and serve loop timings.
@@ -277,6 +317,18 @@ func (c Config) Validate() error {
 	}
 	if c.Keys.SessionSealing.MaterialPath == "" {
 		errs = append(errs, errors.New("keys.session_sealing.material_path required"))
+	}
+
+	if len(c.Genome.Door.Command) == 0 || strings.TrimSpace(c.Genome.Door.Command[0]) == "" {
+		errs = append(errs, errors.New("genome.door.command required: the worker restores a genome through the vg_genome door (python3 -m vg_genome door --stdin-genome --base BASE_DIR)"))
+	}
+	for _, kv := range c.Genome.Door.Env {
+		if !strings.Contains(kv, "=") {
+			errs = append(errs, fmt.Errorf("genome.door.env entry %q must be KEY=VALUE", kv))
+		}
+	}
+	if c.Genome.Door.TimeoutSeconds < 0 {
+		errs = append(errs, errors.New("genome.door.timeout_seconds must be >= 0"))
 	}
 
 	if c.Runtime.JobTimeoutSeconds <= 0 {

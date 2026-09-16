@@ -130,10 +130,21 @@ def load(model: nn.Module, adapter_dir: str) -> dict:
     land on a wrapped module and every wrapped module must be loaded."""
     with open(os.path.join(adapter_dir, ADAPTER_CONFIG)) as f:
         config = json.load(f)
+    return load_tensors(model, config, load_file(os.path.join(adapter_dir, ADAPTER_WEIGHTS)))
+
+
+def load_bytes(model: nn.Module, config_json: bytes, weights: bytes) -> dict:
+    """load, from an adapter held in memory: the bytes of adapter_config.json
+    and of adapter_model.safetensors. Nothing is written anywhere."""
+    from safetensors.torch import load as load_safetensors
+
+    return load_tensors(model, json.loads(config_json), load_safetensors(weights))
+
+
+def load_tensors(model: nn.Module, config: dict, tensors: dict) -> dict:
     if config.get("peft_type") != "LORA":
         raise ValueError("not a LoRA adapter")
     inject(model, config["target_modules"], int(config["r"]), float(config["lora_alpha"]))
-    tensors = load_file(os.path.join(adapter_dir, ADAPTER_WEIGHTS))
     wanted = state_dict(model)
     if set(tensors) != set(wanted):
         missing = sorted(set(wanted) - set(tensors))[:3]

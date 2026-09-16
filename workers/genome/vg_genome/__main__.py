@@ -3,7 +3,8 @@
 
   finetune     train a LoRA adapter and write a genome directory
   replay       re-run a genome's recipe and compare the adapter it yields
-  door         answer one gate request (stdin -> stdout) from a restored genome
+  door         answer one gate request (stdin -> stdout) from a restored genome,
+               or, with --stdin-genome, from a genome delivered on stdin
   measure      recompute every fixture and report fidelity as JSON
   verify-base  check a base model directory against a genome's manifest
 """
@@ -47,7 +48,9 @@ def main(argv=None) -> int:
     rp.add_argument("--device", default="cpu", help="cpu, cuda, mps or auto")
 
     dr = sub.add_parser("door", help="answer one gate request from a restored genome")
-    dr.add_argument("--genome", required=True)
+    dr.add_argument("--genome", help="restored genome directory (unless --stdin-genome)")
+    dr.add_argument("--stdin-genome", action="store_true",
+                    help="the genome arrives on stdin with the request, in memory (the acp-compute worker's door)")
     dr.add_argument("--base", required=True)
     dr.add_argument("--device", default="cpu", help="cpu, cuda, mps or auto")
 
@@ -83,7 +86,14 @@ def main(argv=None) -> int:
     elif a.cmd == "replay":
         print(json.dumps(finetune.replay(a.genome, a.base, device=a.device, log=_log), indent=2))
     elif a.cmd == "door":
-        door.serve(a.genome, a.base, a.device)
+        if a.stdin_genome:
+            if a.genome:
+                p.error("--stdin-genome takes the genome from stdin; drop --genome")
+            door.serve_request(a.base, a.device)
+        elif a.genome:
+            door.serve(a.genome, a.base, a.device)
+        else:
+            p.error("door needs --genome DIR or --stdin-genome")
     elif a.cmd == "measure":
         print(json.dumps(door.measure(a.genome, a.base, a.device), indent=2))
     elif a.cmd == "verify-base":

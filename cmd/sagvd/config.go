@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -59,6 +60,56 @@ type Config struct {
 	//
 	// See ADR 0006, ADR 0009 and docs/operator/06_cross_cloud_restore.md.
 	CrossCloud CrossCloudConfig `json:"crosscloud,omitempty"`
+
+	// Genome configures the gate jobs the REST API accepts: a job names
+	// a sealed genome in Genome.BundleDir; sagvd opens it with its key,
+	// keeps the genome's reference fixtures, ships the model side to the
+	// worker, and holds what the worker computes to the references with
+	// the equivalence gate. Without a BundleDir the REST API accepts no
+	// jobs (ADR 0013).
+	Genome GenomeConfig `json:"genome,omitempty"`
+}
+
+// GenomeConfig is where the sealed genomes a job may name live, how
+// their keys are found, and the tolerance the gate holds a restored model
+// to.
+type GenomeConfig struct {
+	// BundleDir holds the .genome bundles a job may name, with their key
+	// files (acpctl genome seal --key-out) or escrow envelopes (--escrow-to,
+	// as <bundle>.escrow) beside them. A job names files in it; paths are
+	// refused.
+	BundleDir string `json:"bundle_dir,omitempty"`
+
+	// KeyEscrowPath is the authority's key-escrow private key (acpctl
+	// escrow keygen; 32 raw bytes, mode 0600) that opens the escrow
+	// envelopes in BundleDir. Empty falls back to crosscloud.key_escrow_path;
+	// without either, jobs must name a key file.
+	KeyEscrowPath string `json:"key_escrow_path,omitempty"`
+
+	// Gate is the tolerance every gate job is held to. The byte-exact door
+	// is always tried first; this is the tolerance of the native-float
+	// door behind it. Declared here, by the operator, in advance — not by
+	// the job.
+	Gate GateConfig `json:"gate"`
+}
+
+// GateConfig is the native-float door's tolerance and outlier policy.
+type GateConfig struct {
+	Atol                   float64 `json:"atol"`
+	Rtol                   float64 `json:"rtol"`
+	MaxNonCriticalOutliers int     `json:"max_non_critical_outliers"`
+}
+
+// Enabled reports whether gate jobs can be built.
+func (g GenomeConfig) Enabled() bool { return g.BundleDir != "" }
+
+// EscrowKeyPath is the escrow private key that opens envelopes in
+// BundleDir: genome.key_escrow_path, or crosscloud.key_escrow_path.
+func (c Config) EscrowKeyPath() string {
+	if c.Genome.KeyEscrowPath != "" {
+		return c.Genome.KeyEscrowPath
+	}
+	return c.CrossCloud.KeyEscrowPath
 }
 
 // VaultConfig aggregates how sagvd accepts Return Path connections.
@@ -441,6 +492,12 @@ func DefaultConfig() Config {
 			Level:  "info",
 			Format: "json",
 		},
+		Genome: GenomeConfig{
+			// The tolerance the hardware drills declared in advance
+			// (VERIFIABLE-CLAIMS C5): measured cross-hardware error is
+			// ~50x inside it.
+			Gate: GateConfig{Atol: 1e-2, Rtol: 1e-3},
+		},
 	}
 }
 
@@ -610,6 +667,16 @@ func (c Config) Validate() error {
 	case "json", "text":
 	default:
 		errs = append(errs, fmt.Errorf("log.format %q invalid (want json|text)", c.Log.Format))
+	}
+
+	if g := c.Genome.Gate; g.Atol < 0 || g.Rtol < 0 {
+		errs = append(errs, errors.New("genome.gate.atol and rtol must be >= 0"))
+	}
+	if c.Genome.Gate.MaxNonCriticalOutliers < 0 {
+		errs = append(errs, errors.New("genome.gate.max_non_critical_outliers must be >= 0"))
+	}
+	if c.Genome.BundleDir != "" && !filepath.IsAbs(c.Genome.BundleDir) {
+		errs = append(errs, fmt.Errorf("genome.bundle_dir %q must be an absolute path", c.Genome.BundleDir))
 	}
 
 	// CrossCloud is opt-in; only validate fields when enabled.

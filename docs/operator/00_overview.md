@@ -13,9 +13,9 @@ the shipped binaries run today.*
 
 | Binary | What it does | Built by `make build` |
 | - | - | - |
-| `sagvd` (daemon) | Return Path listener for `acp-compute` workers (mTLS required off loopback); operator REST API (`POST /v1/jobs`, `GET /v1/jobs/{id}`); health listener (`/healthz`, `/readyz`, `/metrics`). Attests with the simulated TEE only. Writes no audit log. | yes |
+| `sagvd` (daemon) | Return Path listener for `acp-compute` workers (mTLS required off loopback); operator REST API (`POST /v1/jobs` names a sealed genome in `genome.bundle_dir`, `GET /v1/jobs/{id}` shows the gate's signed verdict); health listener (`/healthz`, `/readyz`, `/metrics`). Attests with the simulated TEE only. Writes no audit log. | yes |
 | `sagvd identity`, `sagvd crosscloud-restore`, `sagvd crosscloud-confirm`, `sagvd failover` | Print the keys other hosts pin; release genome keys to an attested destination and confirm its restore ([06](06_cross_cloud_restore.md)); carry out the operator's failover policy when the primary is compromised or dies ([07](07_failover.md)). The cross-cloud subcommands write the only audit log any binary writes (`crosscloud.audit_log_path`). | same binary |
-| `acp-compute` | Worker: dials sagvd's Return Path and runs one job per session with the placeholder reconstruction backend (KNOWN_ISSUES #2). Simulated TEE only. | yes |
+| `acp-compute` | Worker: dials sagvd's Return Path and runs one gate job per session — restores the sealed genome's model in memory through the `vg_genome` door named by `genome.door.command` and answers the genome's prompts (ADR 0013). Needs Python, the pinned torch and the public base model on its host. Simulated TEE only. | yes |
 | `acp-bootstrap` | Cross-cloud destination: attests with AMD SEV-SNP (or the simulator), receives genome keys, restores genomes, signs receipts. | yes |
 | `acpctl` | Administrative CLI (§1.3). | yes |
 | `acp-demo` | Self-contained cross-hardware regeneration demo. | yes |
@@ -63,19 +63,25 @@ intentionally compute-light; heavy work is delegated outward by design.
 **Holds:** delegated execution rights only. In the design, workers receive
 DisclosureMessage sequences scoped to one session and component, execute the
 authorised reconstruction step and return a result bound to the session. The
-shipped worker does a narrower job: it dials sagvd's Return Path, completes a
-handshake in which each side checks the other's TEE Evidence against pinned
-values, receives one JobRequest whose payload sagvd sealed under the
-session-sealing key, runs the reconstruction backend and returns a
-CandidateOutputFrame signed with its worker key. It gains no continuity
-authority and cannot issue a ReleaseDecision.
+shipped worker does that job for one genome at a time: it dials sagvd's
+Return Path, completes a handshake in which each side checks the other's TEE
+Evidence against pinned values, receives one JobRequest whose components —
+the genome's description, its adapter, the fixtures' prompts — sagvd sealed
+under the session-sealing key, restores the model in memory through the
+`vg_genome` door and returns the model's outputs as a CandidateOutputFrame
+signed with its worker key (ADR 0013). It never sees the reference outputs
+and writes nothing of the genome. It gains no continuity authority and cannot
+issue a ReleaseDecision; sagvd judges what it returns.
 
 **Must have:** `tee.insecure_simulation: true` in its config — `acp-compute`
 attests with the simulated TEE only and refuses to start otherwise (it has no
 hardware backend, and no Intel TDX adapter exists anywhere in this
 repository); the same `keys.session_sealing` kid and key as sagvd; a worker
 signing key whose kid and public key are listed in sagvd's
-`workers.registry_path`. The only binary that attests with real hardware is
+`workers.registry_path`; a `genome.door.command` that runs the `vg_genome`
+door (`workers/genome`: Python 3.12, the pinned torch and transformers) and a
+local copy of the public base model whose files hash to the genome's
+manifest. The only binary that attests with real hardware is
 `acp-bootstrap` on AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`, see
 [runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md)).
 
@@ -119,7 +125,7 @@ by CLI invocation.
 | 2 | Trust Admission | Vault — trust | `/internal/vault/trust` | Package holds `doc.go` only; the contract is `/internal/contracts/attestation_result` |
 | 3 | Trusted Session | Vault — session | `/internal/vault/session` | In-memory session Issuer |
 | 4 | Staged Disclosure | Vault — disclosure (StagedIssuer + StagedSequencer) | `/internal/vault/disclosure` | Implemented |
-| 5 | Delegated External Compute | Compute plane — worker | `/internal/compute/worker` | Placeholder backend, used by `acp-compute` |
+| 5 | Delegated External Compute | Compute plane — worker | `/internal/compute/worker` | `GenomeReconstructor`: the model restored in memory through the `vg_genome` door, used by `acp-compute` (ADR 0013) |
 | 6 | Return Path | Compute plane, gated by Vault | `/internal/compute/returnpath` | Used by `sagvd` and `acp-compute` |
 | 7 | Validation | Vault — validation/operational | `/internal/validation/operational` | Implemented, with `/internal/validation/service` |
 | 8 | Release Decision | Vault — orchestration | `/internal/vault/orchestration` | Transition table only; the contract is `/internal/contracts/release_decision` |

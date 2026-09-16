@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +17,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/transport"
 	"github.com/ai-continuity-platform/core/internal/observability/metrics"
 	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/ai-continuity-platform/core/internal/shared/ids"
@@ -33,8 +31,13 @@ import (
 //
 // Routes:
 //
-//	POST /v1/jobs         → 202 + {job_id}
+//	POST /v1/jobs         → 202 + {job_id, manifest_id, session_id, genome}
 //	GET  /v1/jobs/{id}    → 200 + JobView
+//
+// A job is a gate job (ADR 0013): its body names a sealed genome in
+// genome.bundle_dir, sagvd builds the JobRequest from it (genome_job.go)
+// and, once the worker has answered, records the gate's verdict on the
+// job. The authority names the job's manifest and session itself.
 //
 // All other paths / methods are 404 / 405. Responses are JSON-only
 // (Content-Type: application/json) so SDKs do not have to handle two
@@ -52,6 +55,7 @@ type HTTPAPIServer struct {
 	queue   *JobQueue
 	sealer  keys.Sealer
 	sealKID ids.KeyID
+	genomes *genomeJobs // nil: gate jobs are not configured
 	clock   shared_time.Clock
 	log     *slog.Logger
 
@@ -74,13 +78,16 @@ type httpMetrics struct {
 //
 // sealer + sealKID cannot be zero: POST /v1/jobs needs them to
 // produce SealedMaterialRef. We fail fast at construction so a
-// misconfigured daemon cannot silently accept submissions.
+// misconfigured daemon cannot silently accept submissions. genomes may
+// be nil (genome.bundle_dir not configured): then POST /v1/jobs refuses
+// every submission with gate_jobs_disabled.
 func NewHTTPAPIServer(
 	cfg HTTPAPIConfig,
 	runtime RuntimeConfig,
 	queue *JobQueue,
 	sealer keys.Sealer,
 	sealKID ids.KeyID,
+	genomes *genomeJobs,
 	clock shared_time.Clock,
 	registry *metrics.Registry,
 	logger *slog.Logger,
@@ -110,6 +117,7 @@ func NewHTTPAPIServer(
 		queue:   queue,
 		sealer:  sealer,
 		sealKID: sealKID,
+		genomes: genomes,
 		clock:   clock,
 		log:     logger,
 		metrics: &httpMetrics{
@@ -216,42 +224,36 @@ func (s *HTTPAPIServer) handleJobByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, view)
 }
 
-// submitRequest is the body shape POST /v1/jobs accepts.
-//
-// Fields mirror transport.JobRequest modulo:
-//   - payload_base64 is the plaintext the vault will seal via
-//     Sealer.Seal(SessionSealingKeyID, payload, aad=<binding>);
-//   - deadline is expressed as seconds-from-now rather than absolute
-//     wall-clock to make submission time-zone-agnostic;
-//   - no SealedMaterial field — the vault builds it.
+// submitRequest is the body shape POST /v1/jobs accepts: which sealed
+// genome to bring back, and how long the worker has.
 type submitRequest struct {
-	ManifestID             string `json:"manifest_id"`
-	SessionID              string `json:"session_id"`
-	ExpectedOutputKind     string `json:"expected_output_kind"`
-	ExpectedOutputMaxBytes uint64 `json:"expected_output_max_bytes"`
-	DeadlineSecondsFromNow int    `json:"deadline_seconds_from_now,omitempty"`
-	PayloadBase64          string `json:"payload_base64"`
+	// Genome names a bundle in genome.bundle_dir and, unless its escrow
+	// envelope is beside it, its key file.
+	Genome genomeRef `json:"genome"`
+
+	// DeadlineSecondsFromNow is how long the worker has to restore the
+	// model and answer; 0 takes runtime.default_job_deadline_seconds,
+	// which is also the ceiling.
+	DeadlineSecondsFromNow int `json:"deadline_seconds_from_now,omitempty"`
 }
+
+// maxSubmitBodyBytes bounds a POST /v1/jobs body: it names files, it
+// does not carry them.
+const maxSubmitBodyBytes = 64 << 10
 
 // submitResponse is what POST /v1/jobs returns on success.
 type submitResponse struct {
-	JobID string `json:"job_id"`
+	JobID      string     `json:"job_id"`
+	ManifestID string     `json:"manifest_id"`
+	SessionID  string     `json:"session_id"`
+	Genome     GenomeView `json:"genome"`
 }
 
-// submitJob parses the body, seals the plaintext under the vault's
-// session-sealing key, builds a transport.JobRequest, and enqueues
-// it. Returns 202 Accepted + {job_id} on success.
-//
-// The body is limited to cfg.Runtime.MaxPayloadBytes after base64
-// decode (the raw JSON body is bounded to ~1.4× that to leave
-// headroom for the other fields). This is a hard budget enforced
-// via http.MaxBytesReader + explicit post-decode length check.
+// submitJob parses the body, builds the gate job from the named genome
+// — opens the bundle, keeps the references, seals the model side under
+// the session key — and enqueues it. Returns 202 Accepted on success.
 func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
-	// Raw-JSON ceiling: payload_base64 is ~4/3 the size of the
-	// decoded bytes; bound the JSON body accordingly with 16 KiB
-	// headroom for the other fields + structural slop.
-	maxJSON := int64(s.runtime.MaxPayloadBytes)*4/3 + 16*1024
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSON)
+	r.Body = http.MaxBytesReader(w, r.Body, maxSubmitBodyBytes)
 
 	var req submitRequest
 	dec := json.NewDecoder(r.Body)
@@ -266,23 +268,14 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 			"request body contains trailing data after JSON object")
 		return
 	}
-
 	if err := req.validate(); err != nil {
 		writeError(w, http.StatusBadRequest, shared_errors.CategoryOf(err).String(),
 			shared_errors.CodeOf(err), err.Error())
 		return
 	}
-
-	plaintext, err := base64.StdEncoding.DecodeString(req.PayloadBase64)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "structural", "payload_base64_invalid",
-			"payload_base64 is not valid base64: "+err.Error())
-		return
-	}
-	if uint64(len(plaintext)) > s.runtime.MaxPayloadBytes {
-		writeError(w, http.StatusRequestEntityTooLarge, "operational", shared_errors.CodeResourceExhausted,
-			fmt.Sprintf("decoded payload is %d bytes, max is %d",
-				len(plaintext), s.runtime.MaxPayloadBytes))
+	if s.genomes == nil {
+		writeError(w, http.StatusServiceUnavailable, "structural", CodeGateJobsDisabled,
+			"gate jobs are not configured: set genome.bundle_dir")
 		return
 	}
 
@@ -305,103 +298,65 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Seal plaintext under the vault's session-sealing key. AAD
-	// binds the ciphertext to the (manifest_id, session_id,
-	// output_kind) triple so a recipient who unseals cannot later
-	// re-stage the ciphertext under a different binding.
-	aad := buildSealAAD(req.ManifestID, req.SessionID, req.ExpectedOutputKind)
-	nonce, ciphertext, err := s.sealer.Seal(s.sealKID, plaintext, aad)
-	// Plaintext has been sealed; wipe our in-process copy so a
-	// post-mortem core dump on this path cannot leak it.
-	for i := range plaintext {
-		plaintext[i] = 0
-	}
+	job, err := s.genomes.build(req.Genome, time.Duration(deadlineSecs)*time.Second)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "authority", "seal_failed",
-			"seal session material: "+err.Error())
+		writeError(w, statusForBuildError(err), shared_errors.CategoryOf(err).String(),
+			shared_errors.CodeOf(err), err.Error())
 		return
 	}
-
-	now := s.clock.Now().UTC()
-	jobReq := transport.JobRequest{
-		Type:                   transport.FrameTypeJobRequest,
-		SchemaVersion:          1,
-		ManifestID:             req.ManifestID,
-		SessionID:              req.SessionID,
-		ExpectedOutputKind:     req.ExpectedOutputKind,
-		ExpectedOutputMaxBytes: req.ExpectedOutputMaxBytes,
-		Deadline:               now.Add(time.Duration(deadlineSecs) * time.Second),
-		IssuedAt:               now,
-		SealedMaterial: []transport.SealedMaterialRef{{
-			RecipientKeyID: string(s.sealKID),
-			Nonce:          nonce,
-			Ciphertext:     ciphertext,
-			AAD:            aad,
-		}},
-	}
-
-	jobID, _, err := s.queue.Submit(jobReq)
+	jobID, _, err := s.queue.SubmitGenome(job.Req, &job.Genome, job.Gate)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, shared_errors.CategoryOf(err).String(),
 			shared_errors.CodeOf(err), err.Error())
 		return
 	}
 	s.metrics.jobsSubmitted.Inc()
-	writeJSON(w, http.StatusAccepted, submitResponse{JobID: jobID})
+	s.log.Info("sagvd gate job accepted",
+		"job_id", jobID,
+		"manifest_id", job.Req.ManifestID,
+		"session_id", job.Req.SessionID,
+		"genome_id", job.Genome.KeyID,
+		"bundle", logSafe(job.Genome.Bundle),
+		"key_source", job.Genome.KeySource,
+		"fixtures", job.Genome.Fixtures,
+		"shipped_bytes", job.Genome.Bytes,
+		"output_budget_bytes", job.Req.ExpectedOutputMaxBytes,
+	)
+	writeJSON(w, http.StatusAccepted, submitResponse{
+		JobID: jobID, ManifestID: job.Req.ManifestID, SessionID: job.Req.SessionID, Genome: job.Genome,
+	})
 }
 
-// validate runs structural checks on the parsed body before any
-// cryptographic work happens.
+// statusForBuildError maps a gate-job build error to an HTTP status: what
+// the caller named is 4xx, what the vault cannot do is 5xx.
+func statusForBuildError(err error) int {
+	switch shared_errors.CodeOf(err) {
+	case CodeGenomeNotFound, CodeGenomeInvalid, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeFieldValueInvalid:
+		return http.StatusBadRequest
+	case CodeGenomeKeyInvalid:
+		return http.StatusForbidden
+	case CodeGenomeTooLarge:
+		return http.StatusRequestEntityTooLarge
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// validate runs structural checks on the parsed body before any file
+// is touched.
 func (r submitRequest) validate() error {
 	var errs []error
-	if strings.TrimSpace(r.ManifestID) == "" {
+	if strings.TrimSpace(r.Genome.Bundle) == "" {
 		errs = append(errs, shared_errors.Structural(
 			shared_errors.CodeRequiredFieldMissing,
-			"manifest_id required", nil))
-	}
-	if strings.TrimSpace(r.SessionID) == "" {
-		errs = append(errs, shared_errors.Structural(
-			shared_errors.CodeRequiredFieldMissing,
-			"session_id required", nil))
-	}
-	if strings.TrimSpace(r.ExpectedOutputKind) == "" {
-		errs = append(errs, shared_errors.Structural(
-			shared_errors.CodeRequiredFieldMissing,
-			"expected_output_kind required", nil))
-	}
-	if r.ExpectedOutputMaxBytes == 0 {
-		errs = append(errs, shared_errors.Structural(
-			shared_errors.CodeFieldValueInvalid,
-			"expected_output_max_bytes must be > 0", nil))
+			"genome.bundle required", nil))
 	}
 	if r.DeadlineSecondsFromNow < 0 {
 		errs = append(errs, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"deadline_seconds_from_now must be >= 0", nil))
 	}
-	if r.PayloadBase64 == "" {
-		errs = append(errs, shared_errors.Structural(
-			shared_errors.CodeRequiredFieldMissing,
-			"payload_base64 required", nil))
-	}
 	return errors.Join(errs...)
-}
-
-// buildSealAAD builds the associated-data string the vault binds
-// into SealedMaterialRef.AAD. It is deliberately human-inspectable
-// so operators debugging an Open() failure can eyeball the binding
-// — the ciphertext-integrity guarantee still holds because AEAD
-// treats AAD as authenticated input.
-func buildSealAAD(manifestID, sessionID, kind string) []byte {
-	// Structure: "sagvd/v1|m=<manifest>|s=<session>|k=<kind>"
-	var sb strings.Builder
-	sb.WriteString("sagvd/v1|m=")
-	sb.WriteString(manifestID)
-	sb.WriteString("|s=")
-	sb.WriteString(sessionID)
-	sb.WriteString("|k=")
-	sb.WriteString(kind)
-	return []byte(sb.String())
 }
 
 // ---- middleware ----------------------------------------------------------
