@@ -55,8 +55,12 @@ the AMD KDS. The clouds differ only in **how the raw report is obtained**.
 ## B. Azure — SEV-SNP via the vTPM/HCL report
 
 Azure mediates SNP through the paravisor and the **vTPM**, so there is **no
-`/dev/sev-guest`** and the `configfs-tsm` provider is not wired. The AMD-signed
+`/dev/sev-guest`** and the `configfs-tsm` provider does not apply. The AMD-signed
 report is embedded in the **HCL report** stored in vTPM NV index `0x1400001`.
+The shipping daemons take this path as `tee.provider: "azure-cgpu"` (ADR 0019,
+[real-tee-azure-cgpu.md](real-tee-azure-cgpu.md)): the HCL report from the
+vTPM, a TPM quote by the vTPM's attestation key binding the handshake's
+challenge, and — on an NCC H100 v5 — NVIDIA's tokens for the GPU.
 
 1. Launch a confidential VM (only the `jammy` CVM image is offered in East US):
 
@@ -209,8 +213,12 @@ the guest, a signed verdict and a verified audit log:
 [`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/`](../../../scripts/hardware-test/gcp-sev-snp/returnpath-e2e/README.md)
 (`run.sh <project>` reproduces it).
 
-Not wired: the SEV-SNP sealer (`SEV_SNP_GUEST_MSG_DERIVED_KEY`), whose Seal
-and Unseal return an error. Families other than SEV-SNP are refused by the
+The SEV-SNP sealer is real since ADR 0016: a key the firmware derives for
+this chip, launch measurement and guest policy (`SNP_GET_DERIVED_KEY` on
+`/dev/sev-guest`), which seals the authority's escrow key (`sagvd
+escrow-provision`). Families other than SEV-SNP, Intel TDX
+([real-tee-tdx.md](real-tee-tdx.md)) and the Azure confidential GPU VM
+([real-tee-azure-cgpu.md](real-tee-azure-cgpu.md)) are refused by the
 registry and by all three daemons until their verifiers run end to end.
 
 ## Cleanup (cost hygiene)

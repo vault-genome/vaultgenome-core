@@ -56,8 +56,11 @@ path to confidential execution today.
       designed so the same application code can talk to AWS Nitro,
       Azure SGX, GCP SEV-SNP, Intel SGX bare metal, and (later) NVIDIA
       H100 via the same Producer / Verifier / Sealer surface. Today
-      only the software simulator is functional; the four hardware
-      adapters are Phase-2 scaffolding.
+      three hardware backends are shipped and proven on live machines —
+      GCP SEV-SNP, Intel TDX, and the Azure confidential GPU VM (SEV-SNP
+      with an H100 in confidential-computing mode) — beside the software
+      simulator; the AWS Nitro and SGX adapters are scaffolding the
+      registry refuses (KNOWN_ISSUES #1).
    *  **No model continuity primitives.** H100 CC is a runtime
       isolation tool. It does not address what happens when the
       enclave is destroyed, the model needs to be migrated to a new
@@ -75,11 +78,12 @@ multi-vendor requirement, and does not require AI-continuity (the
 job is single-shot inference, not multi-session continuity of a
 LoRA-finetuned model).
 
-**When the two are complementary.** A future Vault Genome `nvidia-h100-cc`
-adapter (Phase 3+) would let the same Vault Genome control plane speak to
-H100s alongside the other backends — one working simulator plus the four
-hardware adapters once they are wired in Phase 2 — so the H100 becomes one
-more TEE in the operator's portfolio, not a parallel system.
+**When the two are complementary.** Vault Genome's `azure-cgpu` backend
+(ADR 0019) lets the same control plane speak to an H100 in
+confidential-computing mode alongside the other backends — the GPU's
+attestation, evaluated by NVIDIA's service and verified by NVIDIA's
+signature, rides in the same handshake as the chip's report — so the H100
+is one more TEE in the operator's portfolio, not a parallel system.
 
 ---
 
@@ -234,8 +238,9 @@ overhead of running both makes it unlikely outside niche scenarios.
 Worth naming briefly for completeness:
 
    *  **AWS Nitro Enclaves SDK** — the underlying primitive Vault
-      Genome's `aws-nitro` adapter will wrap once wired (Phase 2). Not
-      a competitor; it's an input.
+      Genome's `aws-nitro` adapter would wrap; that adapter is
+      scaffolding today and refused by the registry. Not a competitor;
+      it's an input.
    *  **Microsoft Azure Confidential Ledger** — different problem
       (immutable distributed ledger backed by SGX). Adjacent but
       doesn't address AI continuity.
@@ -245,8 +250,8 @@ Worth naming briefly for completeness:
       proprietary, single-vendor.
    *  **Fortanix EDP** — Rust SGX SDK. Useful as a building block;
       Vault Genome could in principle offer an EDP-based variant of
-      the SGX adapter. (The current SGX adapter is Phase-2
-      scaffolding, not yet shipping.)
+      the SGX adapter. (The current SGX adapters are scaffolding,
+      refused by the registry until their verifiers run end to end.)
    *  **Constellation (Edgeless Systems)** — Kubernetes inside
       Confidential VMs. Same general space as Confidential Containers;
       different emphasis on the orchestration layer.
@@ -260,8 +265,10 @@ Three claims, each independently verifiable:
 1. **One application code base, one frozen TEE interface.**
    The same Producer / Verifier / Sealer interface is the integration
    surface for AWS Nitro, Azure SGX, GCP SEV-SNP, Intel SGX bare metal,
-   and a software simulator. Today only the **simulator backend is
-   functional**; the four hardware adapters are Phase-2 scaffolding.
+   and a software simulator. Today **three hardware backends are
+   functional and proven on live machines** — GCP SEV-SNP, Intel TDX and
+   the Azure confidential GPU VM — and the Nitro and SGX adapters are
+   scaffolding.
    What is real and verifiable now is that the interface is frozen
    ([ADR-0001](../adr/0001-frozen-producer-verifier-sealer-interface.md))
    and the conformance suite is public

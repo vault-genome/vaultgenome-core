@@ -47,7 +47,7 @@ or ADR that proves it is in force.
 | VG-008  | Replay protection via 16-byte nonce floor (R-10)     | `internal/shared/tee/tee.go::NonceMinBytes` | contract sub-test `NonceMinBytes_*` |
 | VG-009  | Validation pipeline gates every release              | `internal/validation/`                 | `test/doctrine/invariants_test.go::TestInvariant_05_NoSessionShortCircuit` |
 | VG-010  | Return-path verifier on every receive                | `internal/recvvalidator/`              | `test/doctrine/invariants_test.go::TestInvariant_06_NoBypassOfReturnValidator` |
-| VG-011  | Reproducible builds with SBOM + cosign signatures    | `.github/workflows/release.yml`        | ⏳ Phase 2: SBOM + cosign in CI |
+| VG-011  | Reproducible builds with SBOM + cosign signatures    | `.github/workflows/release.yml`        | ✅ v0.1.0: SPDX SBOM, cosign keyless signatures, SLSA provenance, `make verify-reproducible` |
 | VG-012  | Capability gating: refuses to start on wrong host    | `internal/shared/tee/factory.go::Capability` | `factory_test.go` |
 | VG-013  | Doctrinal invariants tested on every CI run          | `test/doctrine/invariants_test.go`     | [ADR-0004](../adr/0004-doctrine-invariants-as-tests.md) |
 | VG-014  | Distroless container base, hardened systemd units    | `deploy/docker/Dockerfile`, `deploy/packaging/systemd/` | manual review |
@@ -56,7 +56,7 @@ or ADR that proves it is in force.
 | VG-017  | Defence-in-depth: HSM wrap on top of SGX sealing     | `internal/shared/tee/intel_sgx_dcap.go` | integration test `SealingWithHSMWrap` |
 | VG-018  | Tamper-evident bootstrap manifest                    | `internal/contracts/bootstrap_manifest/` | unit tests |
 | VG-019  | Multi-stage validation (operational + semantic + behavioural) | `internal/validation/{operational,semantic,behavioral}/` | per-package tests |
-| VG-020  | Continuous-integration security gates (CodeQL, SBOM) | `.github/workflows/`                   | ⏳ Phase 2 |
+| VG-020  | Continuous-integration security gates (CodeQL, SBOM) | `.github/workflows/`                   | ✅ vault-gate (18 checks incl. govulncheck, osv-scanner, gitleaks, SBOM), CodeQL, Semgrep |
 
 ---
 
@@ -74,14 +74,14 @@ covers the controls Vault Genome's architecture demonstrably addresses.
 | CC6.1   | Logical access security software, infrastructure, and architectures protect information and system resources | VG-001, VG-002, VG-014, VG-015 | ✅ |
 | CC6.6   | The entity implements logical access controls — encryption of data at rest | VG-003, VG-017 | ✅ |
 | CC6.7   | Restricted transmission, movement, and removal of information | VG-005, VG-007 | ✅ |
-| CC6.8   | Prevention or detection of unauthorised software and hardware | VG-002 (attestation), VG-018 (bootstrap manifest), VG-011 (cosign) | 🟡 (cosign in Phase 2) |
+| CC6.8   | Prevention or detection of unauthorised software and hardware | VG-002 (attestation), VG-018 (bootstrap manifest), VG-011 (cosign) | ✅ |
 
 ### CC7 — System operations
 
 | TSC ID  | Description                                          | VG control(s) | Status |
 |---------|------------------------------------------------------|---------------|--------|
-| CC7.1   | Detection of vulnerabilities and security events     | VG-004, VG-013, VG-020 | 🟡 (CodeQL Phase 2) |
-| CC7.2   | Monitoring, logging, and alerting on anomalies       | VG-004, ⏳ Prometheus + Grafana (Phase 2) | 🟡 |
+| CC7.1   | Detection of vulnerabilities and security events     | VG-004, VG-013, VG-020 | 🟡 (CodeQL, Semgrep, govulncheck in CI; no external pen-test) |
+| CC7.2   | Monitoring, logging, and alerting on anomalies       | VG-004, Prometheus metrics on every daemon (`/metrics`); no alerting stack shipped | 🟡 |
 | CC7.3   | Evaluation of security incidents                     | `internal/vault/incident/` | ✅ |
 | CC7.4   | Incident response                                    | `business/19_dmca_takedown_template.md`, ⏳ DR runbook | 🟡 |
 
@@ -95,7 +95,7 @@ covers the controls Vault Genome's architecture demonstrably addresses.
 
 | TSC ID  | Description                                          | VG control(s) | Status |
 |---------|------------------------------------------------------|---------------|--------|
-| A1.1    | Capacity planning                                    | ⏳ Phase 2 (load tests on real hardware) | ⏳ |
+| A1.1    | Capacity planning                                    | ⏳ not done (no load tests; hardware runs are functional, not capacity) | ⏳ |
 | A1.2    | Recovery procedures (backup, DR)                     | VG-007 (recover CLI), ⏳ DR runbook | 🟡 |
 
 ### C1 — Confidentiality
@@ -143,7 +143,7 @@ diligence) are out of scope for the codebase but addressed in
 | A.8.24  | Use of cryptography                                  | VG-003, VG-017, [ADR-0001](../adr/0001-frozen-producer-verifier-sealer-interface.md) | ✅ |
 | A.8.25  | Secure development life cycle                        | [ADR-0004](../adr/0004-doctrine-invariants-as-tests.md), [ADR-0005](../adr/0005-mock-based-integration-testing.md) | ✅ |
 | A.8.27  | Secure system architecture                           | All ADRs | ✅ |
-| A.8.28  | Secure coding                                        | VG-013 (invariants), VG-020 (CodeQL Phase 2) | 🟡 |
+| A.8.28  | Secure coding                                        | VG-013 (invariants), VG-020 (CodeQL, Semgrep in CI) | 🟡 |
 | A.8.31  | Separation of development, test, production         | TEE measurements differ per build | ✅ |
 | A.8.32  | Change management                                    | [ADR-0004](../adr/0004-doctrine-invariants-as-tests.md), CC8.1 above | ✅ |
 
@@ -195,10 +195,10 @@ not card data. Where the deployment touches the CDE, the relevant
 | 4.1         | Strong cryptography for transmission               | VG-003, VG-002, TLS | ✅ |
 | 6.2         | Secure development                                 | [ADR-0004](../adr/0004-doctrine-invariants-as-tests.md), [ADR-0005](../adr/0005-mock-based-integration-testing.md) | ✅ |
 | 6.3         | Identify security vulnerabilities                  | ⏳ CodeQL, ⏳ Trivy / Grype on container | ⏳ |
-| 6.5         | Address common coding vulnerabilities              | VG-013 + ⏳ Phase 2 fuzzing | 🟡 |
+| 6.5         | Address common coding vulnerabilities              | VG-013, CodeQL, Semgrep; no fuzzing | 🟡 |
 | 8.3         | Multi-factor authentication                        | n/a (VG is not the user-auth surface; deferred to deployer) | ❌ |
 | 10          | Logging and monitoring                             | VG-004, ⏳ Prometheus + Grafana | 🟡 |
-| 11.4        | Penetration testing                                | ⏳ Phase 2 (paid pen-test) | ⏳ |
+| 11.4        | Penetration testing                                | ⏳ none yet (KNOWN_ISSUES: no external review) | ⏳ |
 
 ---
 
@@ -227,7 +227,7 @@ codebase addresses.
 | IA-2      | User Identification & Authentication             | Per-session attestation | ✅ |
 | IA-5      | Authenticator Management                         | VG-008, VG-002 | ✅ |
 | IR-4      | Incident Handling                                | `internal/vault/incident/` | ✅ |
-| RA-5      | Vulnerability Scanning                           | ⏳ Phase 2 (CodeQL + image scan) | ⏳ |
+| RA-5      | Vulnerability Scanning                           | 🟡 CodeQL, govulncheck, osv-scanner in CI; no container-image scan | 🟡 |
 | SC-8      | Transmission Confidentiality & Integrity         | VG-003 + TLS | ✅ |
 | SC-12     | Cryptographic Key Establishment & Management     | VG-001 (TEE-rooted), [ADR-0001](../adr/0001-frozen-producer-verifier-sealer-interface.md) | ✅ |
 | SC-13     | Cryptographic Protection                         | VG-003 (AES-GCM), VG-008 (Ed25519/ECDSA via TEE) | ✅ |
@@ -251,7 +251,7 @@ with Vault Genome's architecture:
 | (a)         | Risk analysis & information system security policies | All ADRs    | ✅ |
 | (b)         | Incident handling                                 | `internal/vault/incident/` | ✅ |
 | (c)         | Business continuity / crisis management           | VG-007, ⏳ DR runbook | 🟡 |
-| (d)         | Supply chain security                             | VG-011 (SBOM Phase 2), ADR-0003 (license boundary) | 🟡 |
+| (d)         | Supply chain security                             | VG-011 (SBOM, cosign, SLSA in v0.1.0), ADR-0003 (license boundary) | ✅ |
 | (e)         | Security in network & info systems acquisition / development | All ADRs, [ADR-0004](../adr/0004-doctrine-invariants-as-tests.md) | ✅ |
 | (f)         | Effectiveness assessment                          | VG-013 (invariants on every CI), [ADR-0005](../adr/0005-mock-based-integration-testing.md) | ✅ |
 | (g)         | Cyber hygiene & training                          | n/a (organisational)                          | ❌ |

@@ -64,6 +64,13 @@ format, because:
   are caught by manual cross-reference against the platform's
   attestation specification.
 
+> **Update (2026-09-16).** This is how it went for SEV-SNP (ADR 0009), TDX
+> (ADR 0018) and the Azure confidential GPU VM (ADR 0019): the production
+> bodies were wired, the fakes stayed, and the real captures joined the
+> suite as offline fixtures (`gcp_sev_snp_verify_test.go`,
+> `gcp_tdx_test.go`, `azure_cgpu_evidence_test.go`). Nitro and SGX are
+> still at the mock stage.
+
 When Phase 2 funded time arrives, the same `installXxxFake(t, fh)`
 test helpers stay verbatim — only the production stub bodies (the
 `var = func(...)` implementations under "Phase 2 wiring") are

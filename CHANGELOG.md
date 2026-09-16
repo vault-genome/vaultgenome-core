@@ -184,6 +184,15 @@ given release can still open.
 
 ### Changed
 
+- **The documents say what is shipped.** Where the operator runbooks, the
+  threat model, the positioning matrix, the supply-chain and compliance
+  documents and the reference designs still said "Phase 2", "scaffolding"
+  or "simulated only" of things that have since run on hardware — the
+  SEV-SNP sealer, the three hardware backends, SBOM and cosign in the
+  release, CodeQL and Semgrep in CI, `acpctl lineage` — they now say what
+  is, with pointers to the evidence; what is still not done (Nitro, SGX,
+  hermetic builds, two-party review, a pen-test, fuzzing) says so.
+
 - `key_escrow_path` (`genome`, `crosscloud`) names the sealed escrow key
   `sagvd escrow-provision` writes; a raw 32-byte key from
   `acpctl escrow keygen` is accepted under `tee.insecure_simulation` only.

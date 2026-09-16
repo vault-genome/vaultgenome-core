@@ -131,7 +131,7 @@ to the bank's specific scope:
 | Insider with sagvd access modifies audit log | bbolt append-only; tamper detection raises Integrity error; 7-yr WORM retention provides the 2nd witness |
 | SGX side-channel against sealing key | HSM-wrap is the defence-in-depth; even with the SGX key extracted, the HSM-key is required to unseal |
 | Data-centre power failure | DR replication every 30s; standby brings sagvd online in AWS us-east-1 within 5 minutes |
-| Regulator subpoena for "what was running on day X at time Y" | `acpctl audit query --at 2026-04-15T13:42:00Z` (Phase 2) returns the full session manifest including MRENCLAVE + signed verdict chain |
+| Regulator subpoena for "what was running on day X at time Y" | `acpctl audit query --audit <log> --json` and `acpctl lineage --audit <log> --session-id <id>` return every decision of the session in order, with the attestation, the manifest and the signed verdict chain |
 
 Residual risks the bank explicitly accepts:
 
