@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -697,8 +697,10 @@ measurement, which covers the paravisor and firmware, not the OS — the
 vTPM's PCRs were recorded in the quote and not policed in this run (a
 `pcr_digests` pin exists since, and [C18](#c18) uses it). The GPU's
 measurements are evaluated by NVIDIA's service against NVIDIA's reference
-manifests; this build verifies NVIDIA's signed tokens and does not
-evaluate the GPU's SPDM report itself (it is in the evidence). NRAS is on
+manifests; this run's verifier verified NVIDIA's signed tokens and did
+not evaluate the GPU's SPDM report itself (it is in the evidence; since
+ADR 0021 the verifier does, offline on this very capture — [C20](#c20)).
+NRAS is on
 the path when evidence is produced. A key release to such a machine
 (`acp-bootstrap` on `azure-cgpu`) has since been run as the standby of a
 failover ([C18](#c18)); no sealer on this host. The model is 7B in bfloat16; the machine cost about $9 an hour and
@@ -837,6 +839,71 @@ fixture.
 
 ---
 
+<a id="c20"></a>
+### C20 — The verifier evaluates the H100's attestation report itself: signature, chain to NVIDIA's root, firmware id, and every measurement against NVIDIA's reference manifests — on the captured report, complete, and refusing what should be refused
+
+**Claim.** Beside NVIDIA's signed verdict, the `azure-cgpu` verifier
+evaluates the GPU's SPDM attestation report on its own
+([ADR 0021](docs/adr/0021-the-verifiers-own-evaluation-of-the-gpu.md)):
+the report parses (SPDM 1.1 GET_MEASUREMENTS and MEASUREMENTS, 64 DMTF
+blocks), its nonce is the verifier's challenge, its ECDSA P-384 signature
+verifies under the GPU's attestation certificate, that certificate's
+chain verifies to the NVIDIA Device Identity CA pinned in the binary, the
+firmware id in the certificate's DICE extension is the report's, the
+driver and VBIOS reference manifests the report names are fetched from
+NVIDIA's RIM service — versions matching, chains verifying to the pinned
+NVIDIA CoRIM signing root, bytes hashing to the service's SHA-256 — and
+every runtime measurement equals one of the manifests' golden values at
+every bound index. On the captured H100 report the evaluation is complete
+and every one of the 64 measurements matches; a changed measurement, a
+report for another nonce, a cut chain, a wrong root or a missing manifest
+each fail the check that should catch it. Under
+`gpu_policy.evaluation: "both"` a handshake is accepted only when NVIDIA's
+tokens *and* this evaluation pass, and the evidence must carry the report.
+
+**Evidence.**
+[`scripts/hardware-test/azure-cgpu/evidence/20260916T133506Z/`](scripts/hardware-test/azure-cgpu/evidence/20260916T133506Z/)
+— `gpu0-attestation-report.bin` (the report the driver handed out for
+`nonces.txt`'s nonce 1: request `11 e0 01 ff` + nonce, response `11 60`,
+64 blocks of 48 bytes, opaque data naming driver `595.71.05`, VBIOS
+`96.00.9F.00.04`, project `1010`, SKU `0210`, chip `886`, a 48-byte
+firmware id; a 96-byte signature), `gpu0-cert-chain.pem` (GH100 A01 GSP
+FMC LF → GSP BROM → Provisioner ICA 1 → GH100 Identity → NVIDIA Device
+Identity CA), `gpu-evidence.json` (what NRAS was sent).
+[`internal/shared/tee/testdata/nvidia/`](internal/shared/tee/testdata/nvidia/)
+— the two NVIDIA roots as NVIDIA's open-source verifier ships them, and
+the RIM service's responses for `NV_GPU_DRIVER_GH100_595.71.05` and
+`NV_GPU_VBIOS_1010_0210_886_96009F0004` (64 golden measurements each,
+fetched 2026-09-16, with the service's SHA-256), provenance in its README.
+In process:
+[`internal/shared/tee/nvidia_gpu_report_test.go`](internal/shared/tee/nvidia_gpu_report_test.go)
+(the report, signature, chain, firmware id, manifests, golden comparison,
+the NVDEC0 rule, the fetcher's cache, the evaluator on the capture and its
+refusals),
+[`azure_cgpu_own_eval_test.go`](internal/shared/tee/azure_cgpu_own_eval_test.go)
+(the whole `azure-cgpu` verifier under `both` on the captured evidence
+with the report: accepted, with the evaluation in the verdict; refused
+without the report, with a changed measurement, for another nonce, with
+two reports for one GPU; `own` refused at construction),
+[`cmd/sagvd/gpu_evaluation_config_test.go`](cmd/sagvd/gpu_evaluation_config_test.go).
+
+**Reproduce:**
+
+```bash
+go test -count=1 -run 'GPUReport|RIM|GPUEvaluator|OwnEvaluation|OwnAlone|GPUAttestOutput' ./internal/shared/tee/
+```
+
+**Scope.** Offline, on the material of one capture (one GPU, one driver,
+one VBIOS); a live handshake under `both` has not been run on hardware
+since the policy exists — the kit's `returnpath-cgpu.sh` now asks for it,
+and the producer's `gpu-token.py` now prints the report beside the tokens.
+What this verifier does not check: the manifests' XML signatures (an
+enveloped signature over Canonical XML 1.1, ECDSA-SHA384 — no
+canonicaliser in this build), and revocation (NVIDIA's OCSP). That is why
+`own` is refused and the verdict never rests on this evaluation alone.
+
+---
+
 ## Supply chain and build
 
 <a id="c9"></a>
@@ -896,10 +963,12 @@ sentence we cannot defend.
    GPU VM whose handshake carries the chip's report, the vTPM's quote and
    NVIDIA's tokens for the H100, and whose door runs on the H100 in
    confidential-computing mode. The GPU's measurements are evaluated by
-   NVIDIA's service and we verify NVIDIA's signed word; the SPDM report is in
-   the evidence and an independent evaluation is not in this build. The GPU
-   leg ran once, at 0.5B, with an EQUIVALENT gate; a key release to a TDX
-   destination has not been run.
+   NVIDIA's service and, since [C20](#c20), by this verifier as well — the
+   report's signature, chain, firmware id and every measurement against
+   NVIDIA's manifests, offline on the captured report — but the manifests'
+   XML signatures and revocation stay NVIDIA's word, so no verdict rests on
+   our evaluation alone. The GPU leg ran once, at 0.5B, with an EQUIVALENT
+   gate; a key release to a TDX destination has not been run.
 4. **We do not claim Nitro or SGX verification.** SEV-SNP and Intel TDX only
    ([C15](#c15)). Adapter dispatch for others exists (ADR 0002); the offline
    verifiers do not. And a TDX host holds no sealed escrow key: TDX has no

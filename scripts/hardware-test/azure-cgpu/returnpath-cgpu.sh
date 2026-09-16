@@ -32,7 +32,7 @@ sha256sum sagvd acp-compute acpctl keygen amd-genoa-cert_chain.pem gpu-token.py 
 step "provision (keygen); the pins start as placeholders"
 ./keygen -out secrets -quiet
 S=$W/secrets
-mkdir -p genomes audit vcek-cache nras-cache
+mkdir -p genomes audit vcek-cache nras-cache rim-cache
 head -c 48 /dev/zero > peer-vault.meas; head -c 48 /dev/zero > peer-worker.meas
 write_configs() { # $1 = vault measurement hex, $2 = worker measurement hex
   python3 - "$1" "$2" "$W" "$GPU_TOKEN" <<'PY'
@@ -43,7 +43,10 @@ open(W + "/peer-vault.meas", "wb").write(binascii.unhexlify(vault_meas))
 open(W + "/peer-worker.meas", "wb").write(binascii.unhexlify(worker_meas))
 gpu_cmd = [py, W + "/gpu-token.py"]
 peer = lambda meas: {"provider": "azure-cgpu", "measurement_path": meas, "amd_cert_chain_path": W + "/amd-genoa-cert_chain.pem",
-                     "vcek_cache_dir": W + "/vcek-cache", "nras_cache_dir": W + "/nras-cache", "gpu_policy": {"hw_models": ["GH100"]}}
+                     "vcek_cache_dir": W + "/vcek-cache", "nras_cache_dir": W + "/nras-cache",
+                     # both: NVIDIA's tokens and this verifier's own evaluation of the GPU's report (ADR 0021),
+                     # the manifests fetched from NVIDIA's RIM service into rim-cache/
+                     "gpu_policy": {"hw_models": ["GH100"], "evaluation": "both", "rim_cache_dir": W + "/rim-cache"}}
 sagvd = {
   "vault": {"listen_address": "127.0.0.1:9443",
     "tls": {"enabled": True, "server_cert": S + "/sagvd/tls/server.crt", "server_key": S + "/sagvd/tls/server.key", "client_cas": S + "/shared/tls/ca.crt"}},
@@ -148,6 +151,10 @@ with open(sys.argv[2], "a") as f:
         g.get("level"), g.get("door"), g.get("rung"), g.get("fixtures"), v.get("n_exact"), v.get("max_abs_err"), g.get("signer_key_id")))
 PY
 unset TOKEN
+
+step "the manifests the verifiers fetched (rim-cache: the RIM service's responses, public)"
+for f in rim-cache/*.json; do [ -f "$f" ] && cp "$f" "$OUT/cache-rim-$(basename "$f")"; done
+ls -la rim-cache > "$OUT/rim-cache-ls.txt" 2>&1 || true
 
 step "metrics; stop both; verify the audit log with the published key"
 curl -s http://127.0.0.1:9081/metrics | grep -E "^(sagvd|rp|vg_tee)_" > "$OUT/sagvd-metrics.txt"

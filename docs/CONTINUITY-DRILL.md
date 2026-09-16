@@ -287,9 +287,11 @@ point.
   across devices in bfloat16 while the answers stay the same. Nothing larger
   has been run.
 - **One GPU leg, once, at 0.5B.** Drill III's standby is an attested
-  confidential GPU, run once with the 0.5B model. Its GPU measurements are
-  NVIDIA's evaluation, verified by NVIDIA's signature — the SPDM report is in
-  the evidence, an independent evaluation is not in this build. The standby
+  confidential GPU, run once with the 0.5B model. In that run its GPU
+  measurements were NVIDIA's evaluation, verified by NVIDIA's signature; the
+  verifier now evaluates the report itself as well (ADR 0021, `both`), and
+  what stays NVIDIA's word is the manifests' XML signatures and revocation.
+  The standby
   holds no sealed escrow key (no sealer on that host), so it can receive a
   model and cannot itself become an authority.
 - **SEV-SNP, TDX and the Azure confidential GPU only.** Nitro and SGX have

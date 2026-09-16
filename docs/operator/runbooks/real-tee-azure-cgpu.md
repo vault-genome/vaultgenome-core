@@ -90,6 +90,18 @@ GPU verifier):
 - `vcek_cache_dir` and `nras_cache_dir`: fill them at deploy time (one
   handshake); with both empty and both services unreachable the verifier
   refuses.
+- `gpu_policy.evaluation`: whose evaluation of the GPU's report the
+  verdict rests on — `nras` (default: NVIDIA's signed tokens), or `both`:
+  NVIDIA's tokens *and* this verifier's own evaluation of the report and
+  chain the evidence carries (ADR 0021: the report's signature and nonce,
+  the chain to NVIDIA's device root, the firmware id, every measurement
+  against the driver and VBIOS manifests from NVIDIA's RIM service, kept
+  under `rim_cache_dir`; `rim_service_url` overrides the service;
+  `nvidia_device_root_path` / `nvidia_rim_root_path` replace the pinned
+  roots). `own` is refused by this build (the manifests' XML signatures
+  are not verified). With `both`, the guest's `gpu_attest_command` must
+  print the full form (`{"nras": …, "gpu_evidence": […]}`, as the kit's
+  `gpu-token.py` does), or the handshake is refused for want of a report.
 - `gpu_policy`: `hw_models`, `driver_versions`, `vbios_versions` pin what
   NVIDIA reports (`GH100`, `595.71.05`, `96.00.9F.00.04` on the machine
   measured); `allow_secure_boot_off`, `allow_debug`, `allow_unsigned_rim`

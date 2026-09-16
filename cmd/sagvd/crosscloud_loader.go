@@ -353,6 +353,12 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			}
 			spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB,
 				NRASJWKSURL: e.NRASJWKSURL, NRASCacheDir: e.NRASCacheDir, GPU: e.GPUPolicy.policy(), AcceptablePCRDigests: digests}
+			if err := e.GPUPolicy.validate(); err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
+			}
+			if err := e.GPUPolicy.apply(&spec.AzureCGPU); err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
+			}
 		default:
 			// Fail closed: a family whose verifier this build cannot run
 			// end to end must not be trusted with key releases.

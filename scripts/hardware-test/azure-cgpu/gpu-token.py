@@ -2,8 +2,11 @@
 """The GPU attestation command the azure-cgpu producer runs: collect the
 H100's evidence for the nonce (64 hex characters, the last argument)
 through NVIDIA's local verifier package (NVML), send it to NVIDIA's Remote
-Attestation Service, and print NRAS's response — the signed tokens — on
-stdout, nothing else. Errors go to stderr with a non-zero exit.
+Attestation Service, and print on stdout — nothing else — one JSON object:
+NRAS's response (the signed tokens) under "nras", and under "gpu_evidence"
+what NRAS was given, per GPU: the SPDM attestation report and the
+certificate chain, base64, so the verifier can evaluate the report itself
+(ADR 0021). Errors go to stderr with a non-zero exit.
 
 Runs with the local GPU verifier's interpreter, which has NVML and
 requests: /usr/local/lib/local_gpu_verifier/.venv/bin/python gpu-token.py <nonce-hex>
@@ -38,7 +41,7 @@ def main(nonce: str) -> int:
     if r.status_code != 200:
         print(f"NRAS: HTTP {r.status_code}: {r.text[:300]}", file=sys.stderr)
         return 1
-    _stdout.write(r.text)
+    _stdout.write(json.dumps({"nras": json.loads(r.text), "gpu_evidence": payload["evidence_list"]}))
     _stdout.flush()
     return 0
 

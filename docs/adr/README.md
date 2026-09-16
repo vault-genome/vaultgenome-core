@@ -33,6 +33,7 @@ ADRs interact with the test-enforced invariant system.
 | 0018 | [Intel TDX on the Return Path](0018-intel-tdx-on-the-return-path.md) | Accepted | tee, tdx, returnpath, attestation |
 | 0019 | [A confidential GPU worker on Azure](0019-a-confidential-gpu-worker-on-azure.md) | Accepted | tee, gpu, azure, sev-snp, vtpm, attestation |
 | 0020 | [The integer door for the LoRA worker](0020-the-integer-door-for-the-lora-worker.md) | Accepted | genome, gate, determinism, integer, cross-hardware |
+| 0021 | [The verifier's own evaluation of the GPU's report](0021-the-verifiers-own-evaluation-of-the-gpu.md) | Accepted | tee, gpu, nvidia, attestation, azure |
 
 ## Adding an ADR
 

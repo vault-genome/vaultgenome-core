@@ -13,6 +13,23 @@ given release can still open.
 
 ### Added
 
+- **The verifier's own evaluation of the GPU's report**
+  ([ADR-0021](docs/adr/0021-the-verifiers-own-evaluation-of-the-gpu.md)) —
+  an `azure-cgpu` peer or registry entry with `gpu_policy.evaluation:
+  "both"` is accepted only when, beside NVIDIA's signed tokens, this
+  verifier's evaluation of the GPU's attestation report is complete: the
+  SPDM 1.1 report's structure, nonce and ECDSA P-384 signature under the
+  GPU's certificate, the chain to the NVIDIA Device Identity CA pinned in
+  the binary, the firmware id in the certificate's DICE extension, and
+  every runtime measurement against the driver and VBIOS reference
+  manifests fetched from NVIDIA's RIM service (`rim_service_url`,
+  `rim_cache_dir`; their chains to the pinned NVIDIA CoRIM signing root,
+  their bytes to the service's SHA-256). The evidence envelope carries the
+  report and chain (`gpu_evidence`), which the kit's `gpu-token.py` now
+  prints beside NRAS's response. `own` is refused: the manifests' XML
+  signatures are not verified in this build (KNOWN_ISSUES #1). Proven
+  offline on the captured H100 report and manifests
+  (`internal/shared/tee/testdata/nvidia`, VERIFIABLE-CLAIMS C20).
 - **The integer door for the LoRA worker**
   ([ADR-0020](docs/adr/0020-the-integer-door-for-the-lora-worker.md)) —
   `vg_genome/integer.py` computes the restored model's forward pass in
