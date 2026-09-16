@@ -51,20 +51,20 @@ func capturedNonce(t *testing.T) []byte {
 	return nil
 }
 
-func pemCert(t *testing.T, path string) *x509.Certificate {
+func pemCert(t *testing.T, pemText string) *x509.Certificate {
 	t.Helper()
-	raw, err := os.ReadFile(path)
-	require.NoError(t, err)
-	block, _ := pem.Decode(raw)
+	block, _ := pem.Decode([]byte(pemText))
 	require.NotNil(t, block)
 	c, err := x509.ParseCertificate(block.Bytes)
 	require.NoError(t, err)
 	return c
 }
 
+// nvidiaRoots are the roots pinned in the binary (nvidia_roots.go): the
+// NVIDIA Device Identity CA and the NVIDIA CoRIM signing Root CA.
 func nvidiaRoots(t *testing.T) (device, rim *x509.Certificate) {
 	t.Helper()
-	return pemCert(t, "testdata/nvidia/device-root.pem"), pemCert(t, "testdata/nvidia/rim-root.pem")
+	return pemCert(t, NVIDIADeviceRootPEM), pemCert(t, NVIDIARIMRootPEM)
 }
 
 // captureTime is a moment the captured chain and manifests were valid at.
