@@ -214,9 +214,11 @@ point.
 - **0.5B, not frontier scale.** Every number here is Qwen2.5-0.5B. A 7B+ run is
   the obvious next measurement and has not been made.
 - **CPU TEEs only.** Destinations are AMD SEV-SNP. Attested *GPU* destinations
-  need confidential GPUs (H100 CC); untested.
-- **SEV-SNP only.** TDX, Nitro and SGX have adapter dispatch (ADR 0002) but no
-  shipped offline verifier.
+  need confidential GPUs (H100 CC); untested — the TDX CPU side of one now
+  attests (ADR 0018), the GPU's own attestation does not.
+- **SEV-SNP and TDX only.** Nitro and SGX have adapter dispatch (ADR 0002) but
+  no shipped offline verifier; a TDX host has no sealer, so no sealed escrow
+  key.
 - **Byte-identical inference across devices is unavailable, and we proved it
   against ourselves.** A dedicated probe on an L4 found the CPU↔GPU divergence
   entering at the **first transformer block**, on every fixture, in both float32
