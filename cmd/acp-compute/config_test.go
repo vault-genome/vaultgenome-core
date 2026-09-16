@@ -329,3 +329,20 @@ func TestConfig_Validate_TEEProviders(t *testing.T) {
 		})
 	}
 }
+
+func TestPCRDigests(t *testing.T) {
+	t.Parallel()
+	good := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	out, err := pcrDigests([]string{good, " " + good + "\n"})
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	require.Len(t, out[0], 32)
+	require.Equal(t, out[0], out[1], "whitespace around a digest is not part of it")
+	for _, bad := range []string{"zz", good[:62], good + "00"} {
+		_, err := pcrDigests([]string{good, bad})
+		require.ErrorContains(t, err, "not a 32-byte hex digest", bad)
+	}
+	out, err = pcrDigests(nil)
+	require.NoError(t, err)
+	require.Empty(t, out)
+}

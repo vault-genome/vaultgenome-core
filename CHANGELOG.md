@@ -290,6 +290,19 @@ given release can still open.
 
 ### Changed
 
+- **Every product package meets its coverage target** — `cmd/acp-compute`
+  (58% → 82%: the daemon's entry point run to a signalled stop, TLS to the
+  vault verified and refused under another CA, the metric outcome of each
+  error category), the Return Path client and server (69% and 65% → 87%
+  and 81%: the refusals of both sessions driven from a raw peer —
+  heartbeats out of turn, error envelopes, shutdowns before the job,
+  frames of the wrong type, a reject, an accept for another manifest, an
+  output bound to another session — and the worker's own reject on the
+  wire for material it cannot open or a door that does not open), and the
+  five contracts packages below 80% (every shape rule of their validators,
+  what their signature verifiers refuse, the validation result's canonical
+  bytes). `scripts/coverage_floors.txt` keeps only the total: no package
+  is below its class target any more.
 - **The documents say what is shipped.** Where the operator runbooks, the
   threat model, the positioning matrix, the supply-chain and compliance
   documents and the reference designs still said "Phase 2", "scaffolding"

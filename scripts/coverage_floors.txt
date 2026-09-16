@@ -9,18 +9,10 @@
 #
 # Recorded 2026-09-14 from `make coverage`, rounded down to whole percent;
 # raised later that day (total 82, cmd/sagvd 60; cmd/acpctl met its target)
-# and on 2026-09-15 (total 83); cmd/sagvd met its target on 2026-09-16.
+# and on 2026-09-15 (total 83); cmd/sagvd met its target on 2026-09-16, and
+# cmd/acp-compute (82.1%), the Return Path client and server and the five
+# contracts packages on 2026-09-16: every package meets its class target,
+# and this file keeps only the total.
 
 total 83
 
-# target 70%
-cmd/acp-compute 56
-internal/compute/returnpath/client 68
-internal/compute/returnpath/server 64
-
-# target 80%
-internal/contracts/disclosure_message 78
-internal/contracts/received_disclosure 77
-internal/contracts/reconstruction_job_manifest 74
-internal/contracts/release_decision 75
-internal/contracts/validation_result 68
