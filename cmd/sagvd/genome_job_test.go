@@ -427,3 +427,38 @@ func TestBundleFileName(t *testing.T) {
 	}
 	require.Equal(t, "a b c", logSafe("a\nb\rc"))
 }
+
+func TestGenomeJobs_ToleranceFollowsTheGenomesDtype(t *testing.T) {
+	dir := t.TempDir()
+	bf16 := sealTestGenome(t, dir, genomeOptions{name: "bf16", dtype: "bfloat16"})
+	f32 := sealTestGenome(t, dir, genomeOptions{name: "f32", dtype: "float32"})
+	older := sealTestGenome(t, dir, genomeOptions{name: "older"}) // predates the field: float32
+
+	// Without a bfloat16 table every genome is held to the float32 tolerance.
+	g := newTestGenomeJobs(t, dir, "")
+	for _, tg := range []testGenome{bf16, f32, older} {
+		info, err := g.inspect(genomeRef{Bundle: tg.Bundle, KeyFile: tg.KeyFile})
+		require.NoError(t, err)
+		require.Equal(t, equivalence.Tolerance{Atol: 1e-2, Rtol: 1e-3}, info.Gate.Tol, tg.Bundle)
+	}
+
+	// With one, a genome that computed in bfloat16 is held to it; the others are not.
+	g.cfg.Gate.Bfloat16 = &GateTolerance{Atol: 0.5, Rtol: 0.05}
+	info, err := g.inspect(genomeRef{Bundle: bf16.Bundle, KeyFile: bf16.KeyFile})
+	require.NoError(t, err)
+	require.Equal(t, equivalence.Tolerance{Atol: 0.5, Rtol: 0.05}, info.Gate.Tol)
+	for _, tg := range []testGenome{f32, older} {
+		info, err := g.inspect(genomeRef{Bundle: tg.Bundle, KeyFile: tg.KeyFile})
+		require.NoError(t, err)
+		require.Equal(t, equivalence.Tolerance{Atol: 1e-2, Rtol: 1e-3}, info.Gate.Tol, tg.Bundle)
+	}
+
+	// The table is part of the policy every session is pinned to.
+	c := Config{}
+	c.Genome.Gate = GateConfig{Atol: 1e-2, Rtol: 1e-3}
+	require.Equal(t, "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0", c.PolicyVersion())
+	c.Genome.Gate.Bfloat16 = &GateTolerance{Atol: 0.5, Rtol: 0.05}
+	require.Equal(t, "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0;bf16-atol=0.5;bf16-rtol=0.05", c.PolicyVersion())
+	c.Genome.Gate.Bfloat16 = &GateTolerance{Atol: -1}
+	require.ErrorContains(t, c.Validate(), "genome.gate.bfloat16")
+}

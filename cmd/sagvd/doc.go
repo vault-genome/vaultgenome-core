@@ -97,7 +97,10 @@
 //   - tee.sev_guest_device      the sev-guest device the sealer derives its key
 //     through (default /dev/sev-guest; gcp-sev-snp only)
 //   - genome.gate               atol, rtol, max_non_critical_outliers of the
-//     native-float door (defaults 1e-2, 1e-3, 0)
+//     native-float door (defaults 1e-2, 1e-3, 0); genome.gate.bfloat16
+//     {atol, rtol}, when set, is the tolerance a genome whose recipe
+//     computed in bfloat16 is held to (its logits differ by bfloat16
+//     quanta across devices); part of the session's policy version
 //   - runtime.*                 handshake / job / http timeouts; max_payload_bytes
 //     bounds the model side of one job; evidence_max_age_seconds is how
 //     old a worker's Evidence may be when it is handed a job (default: the

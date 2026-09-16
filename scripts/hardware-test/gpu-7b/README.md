@@ -47,12 +47,13 @@ magnitude, on every fixture, while the top-1 token and the whole greedy
 continuation are the same 16/16. That is outside the float door's tolerance
 (`atol` 1e-2 was set for float32, where the 0.5B genome came back within
 1.9e-4 across devices), so the gate **fails closed** — as it must: the gate
-judges tensors, not opinions about them. Two honest routes exist and neither
-is taken here: a tolerance policy for bfloat16 genomes (a decision for the
-operator's policy, not a default), and the integer door, byte-portable by
-construction (ADR 0008), which the LoRA worker does not yet drive. On the
-pinned runtime — the same GPU, the same wheels — the 7B genome is EXACT and
-its recipe replays bit for bit.
+judges tensors, not opinions about them. Two honest routes exist: a
+tolerance policy for bfloat16 genomes — `sagvd`'s `genome.gate.bfloat16`,
+a decision the operator makes and every session is pinned to, not a
+default — and the integer door, byte-portable by construction (ADR 0008),
+which the LoRA worker does not yet drive. Neither was taken in this run.
+On the pinned runtime — the same GPU, the same wheels — the 7B genome is
+EXACT and its recipe replays bit for bit.
 
 Checksums: `inputs.sha256` names the `acpctl` and worker tarball the run
 used. Reproduce: `scripts/hardware-test/gpu-7b/run.sh <gcp-project>`

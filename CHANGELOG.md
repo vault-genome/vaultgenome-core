@@ -13,6 +13,13 @@ given release can still open.
 
 ### Added
 
+- **A bfloat16 tolerance the operator signs for.** `sagvd`'s
+  `genome.gate.bfloat16 {atol, rtol}` is the tolerance a genome whose
+  recipe computed in bfloat16 is held to — chosen by the genome's
+  `recipe.dtype`, part of the policy version every session is pinned to,
+  absent by default (a bfloat16 genome is then held to the float32
+  tolerance, as before). `internal/genome/lora` reads the recipe's
+  `device` and `dtype`.
 - **The vTPM's boot, pinned; a destination by IP, named.** An `azure-cgpu`
   peer or registry entry takes `pcr_digests` — the digest over the quoted
   PCRs, printed by `identity` as `vtpm.pcr_digest_hex` — so what the vTPM

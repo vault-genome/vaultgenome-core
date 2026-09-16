@@ -56,6 +56,11 @@ type Genome struct {
 		Threads      int       `json:"threads"`
 		Losses       []float64 `json:"losses"`
 		TrainSeconds float64   `json:"train_seconds"`
+		// Device and Dtype are where and in what the base computed when
+		// the fixtures were recorded (workers/genome); a genome that
+		// predates them is float32 on the CPU.
+		Device string `json:"device"`
+		Dtype  string `json:"dtype"`
 	} `json:"recipe"`
 	Fixtures struct {
 		File     string `json:"file"`
@@ -210,4 +215,13 @@ func IDs(fx []equivalence.Fixture) []string {
 		out[i] = f.ID
 	}
 	return out
+}
+
+// RecipeDtype is the dtype the genome's base computed in: the recipe's, or
+// float32 for a genome that predates the field.
+func (g Genome) RecipeDtype() string {
+	if g.Recipe.Dtype == "" {
+		return "float32"
+	}
+	return g.Recipe.Dtype
 }

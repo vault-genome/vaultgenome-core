@@ -621,9 +621,10 @@ cd workers/genome && python -m pytest -q tests/
 16 fixtures. The L4 is not a confidential GPU: nothing here is attested,
 and the sealed genome was opened on the machine that made it. The
 cross-device result is a measurement of bfloat16 kernels on two devices,
-not a property of the model: the float door's tolerance is the float32 one,
-and no bfloat16 tolerance policy and no integer door for the LoRA worker
-are shipped. Frontier scale has not been run.
+not a property of the model: the float door's default tolerance is the
+float32 one; a bfloat16 tolerance is the operator's to set
+(`genome.gate.bfloat16`, pinned into every session's policy), and no
+integer door for the LoRA worker is shipped. Frontier scale has not been run.
 
 ---
 

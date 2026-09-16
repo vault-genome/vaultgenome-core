@@ -244,7 +244,7 @@ func (g *genomeJobs) inspect(ref genomeRef) (genomeInfo, error) {
 		Gate: &gateSpec{
 			GenomeID: o.header.KeyID,
 			Fixtures: o.model.fixtures,
-			Tol:      equivalence.Tolerance{Atol: g.cfg.Gate.Atol, Rtol: g.cfg.Gate.Rtol},
+			Tol:      g.cfg.Gate.ToleranceFor(o.model.genome.RecipeDtype()),
 			Pol:      equivalence.Policy{MaxNonCriticalOutliers: g.cfg.Gate.MaxNonCriticalOutliers},
 		},
 		Budget:       o.budget,

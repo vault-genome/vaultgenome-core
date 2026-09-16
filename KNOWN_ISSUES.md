@@ -249,9 +249,14 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     0.5 at the logits' magnitude) while the top-1 token and the greedy
     continuation are the same on every fixture — and the native-float rung's
     default tolerance (`atol` 1e-2, `rtol` 1e-3, set where float32 came back
-    within 1.9e-4) fails it closed. What is missing: a tolerance policy for
-    bfloat16 genomes an operator can sign (the gate policy is per genome,
-    not per dtype), and the integer door for the LoRA worker (ADR 0008 has
-    it for the demo model only). Until then a bfloat16 genome is
-    cross-device **FAIL** by construction, which is the honest reading of
-    the tensors, not a defect of the gate.
+    within 1.9e-4) fails it closed. Since 2026-09-16 the operator may set
+    `genome.gate.bfloat16 {atol, rtol}` in `sagvd` — the tolerance a genome
+    whose recipe computed in bfloat16 is held to, chosen by the genome's
+    `recipe.dtype` and part of the policy version every session is pinned
+    to — and `acpctl genome gate --atol/--rtol` for a local gate; nothing
+    is relaxed by default. What is still missing is the integer door for
+    the LoRA worker (ADR 0008 has it for the demo model only), the
+    byte-portable route. Until then a bfloat16 genome across devices is
+    **FAIL** under the float32 tolerance or EQUIVALENT under a bfloat16
+    tolerance the operator signed for — the honest reading of the tensors,
+    not a defect of the gate.
