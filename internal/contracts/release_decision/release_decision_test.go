@@ -113,3 +113,55 @@ func TestReleaseDecision_CanonicalBytes_ExcludesSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(b), `"signature":"`)
 }
+
+func validTrustDeniedFixture() ReleaseDecision {
+	return ReleaseDecision{
+		SchemaVersion: SchemaVersionCurrent,
+		DecisionID:    ids.DecisionID("dec-0002"),
+		AttestationID: ids.AttestationID("att-0002"),
+		Release:       false,
+		Reason:        ReasonTrustDenied,
+		DecidedAt:     time.Date(2026, 9, 16, 10, 5, 0, 0, time.UTC),
+		SigningKeyID:  ids.KeyID("vault-key-1"),
+		Signature:     []byte{0xFF},
+		AuditEventID:  ids.AuditEventID("evt-0002"),
+	}
+}
+
+// Schema v2: a denial at Trust Admission is a release decision without a
+// session — it cites the attestation and nothing downstream.
+func TestReleaseDecision_TrustDenied_V2(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, validTrustDeniedFixture().Validate())
+
+	r := validTrustDeniedFixture()
+	r.Release = true
+	require.Equal(t, shared_errors.CodeCrossFieldInconsistent, shared_errors.CodeOf(r.Validate()))
+
+	r = validTrustDeniedFixture()
+	r.AttestationID = ""
+	require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(r.Validate()))
+
+	r = validTrustDeniedFixture()
+	r.SessionID = "sess-0001"
+	require.Equal(t, shared_errors.CodeCrossFieldInconsistent, shared_errors.CodeOf(r.Validate()))
+
+	r = validTrustDeniedFixture()
+	r.SchemaVersion = 1
+	require.Equal(t, shared_errors.CodeSchemaVersionUnsupported, shared_errors.CodeOf(r.Validate()))
+
+	// A v1 decision is still a valid decision, and the validation reasons
+	// still need every id.
+	v1 := validPassFixture()
+	v1.SchemaVersion = 1
+	require.NoError(t, v1.Validate())
+	v1.SessionID = ""
+	require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(v1.Validate()))
+
+	data, err := json.Marshal(validTrustDeniedFixture())
+	require.NoError(t, err)
+	require.NotContains(t, string(data), `"attestation_id":""`)
+	var back ReleaseDecision
+	require.NoError(t, json.Unmarshal(data, &back))
+	require.Equal(t, validTrustDeniedFixture(), back)
+}

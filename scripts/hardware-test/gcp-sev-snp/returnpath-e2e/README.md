@@ -28,6 +28,35 @@ the Return Path handshake carries genuine hardware Evidence on both sides,
 that the pinned identity is the one admitted, and that every decision of
 the authority is on a verifiable record before it took effect.
 
+## Result — run `20260916T003940Z` (evidence/20260916T003940Z): the nine-stage flow on the chip
+
+The same kit, with `sagvd` driving every gate job through the nine stages
+(ADR 0015). us-central1-c, `n2d-standard-4`, kernel `7.0.0-1011-gcp`, both
+daemons reading the same launch measurement from the chip — `7dc7c12e…25acc`,
+the measurement of the previous run: same image, same firmware, same
+guest. torch 2.7.1+cpu; the whole script took 104.6 s, of which 85.8 s
+installed torch.
+
+| Step | Outcome |
+|---|---|
+| `vg_genome finetune` + `acpctl genome seal` on the guest | 6 fixtures (4 critical), key id `genome-2e03f453db12-g0-d340d212fb2d` |
+| A worker with a simulated TEE | **refused** at the Return Path handshake within 1 s; `TRUST_EVALUATED` deny is event 1 of the log |
+| `POST /v1/jobs` | **202** — `request_id` `req-0fdaf42d…`, state `trust`; `REQUEST_RECEIVED` on the log before the id was returned |
+| Trust Admission for the pinned worker | `TRUST_EVALUATED` **allow** — `trust.peer_attested`, `gcp-sev-snp`, measurement `7dc7c12e…25acc`, attestation TTL 330 s |
+| Session, disclosures, manifest | `SESSION_ISSUED` pinned to `gate-policy/v1;atol=0.01;rtol=0.001;outliers=0`; **5** `DISCLOSURE_AUTHORIZED` (descriptor, `adapter_config.json`, `adapter_model.safetensors`, `genome.json`, `prompts.json`); `MANIFEST_ISSUED` naming the 5 disclosures, budget 666 bytes |
+| The candidate | `CANDIDATE_RECEIVED` — 666 bytes, signed by `acp-compute-worker-demo` |
+| Validation | `VALIDATION_STARTED`; three dimensions **pass** — operational (six sub-checks), semantic (`top1-agreement`, **6/6**), behavioral (`equivalence-ladder`, **EXACT**, `pinned replay`, rung 0, max abs err 0); `VALIDATION_COMPLETED` `vr-2c4a5672-…-0005` |
+| Release decision | `RELEASE_DECIDED` then the signed decision `dec-d8aae5561985d288`: **release**, `validation_pass`, citing the attestation `att-2c4a5672-…-0001` and the event it follows; signed by `sagvd-authority-e2e` |
+| The flow | state `release_authorized`, **10 transitions**, **4.48 s** from intake to seal (4.21 s from trust to decision); chain tip `019534c9…b543` |
+| `acpctl audit verify` with the published key | **ok — 17 events**: the rogue's denial, then the sixteen of the flow, in order |
+| Metrics | `sagvd_release_decisions_total{decision="release"} 1`, `sagvd_gate_verdicts_total{level="EXACT"} 1`, `sagvd_audit_events_total` summing to 17, `sagvd_handshake_failures_total{phase="handshake"} 1` |
+
+`job.json` carries the whole flow: every transition with its time, the
+signed attestation, session, manifest, validation result and release
+decision, the disclosures' digests — verifiable offline under the keys in
+`sagvd-identity.json`. Checksums: `cd evidence/20260916T003940Z && grep -v
+' sha256sums.txt$' sha256sums.txt | shasum -a 256 -c` — 32 of 32 match.
+
 ## Result — run `20260915T230907Z` (evidence/20260915T230907Z)
 
 us-central1-c, `n2d-standard-4`, kernel `7.0.0-1011-gcp`; `tsm.txt` shows

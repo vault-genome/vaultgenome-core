@@ -5,9 +5,9 @@ package main
 import (
 	"archive/tar"
 	"bytes"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,11 +16,9 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/ai-continuity-platform/core/internal/compute/returnpath"
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/transport"
-	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
+	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
 	"github.com/ai-continuity-platform/core/internal/genome/bundle"
 	"github.com/ai-continuity-platform/core/internal/genome/escrow"
 	"github.com/ai-continuity-platform/core/internal/genome/gatejob"
@@ -31,7 +29,9 @@ import (
 	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
 	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/ai-continuity-platform/core/internal/validation/reconstruction"
+	valservice "github.com/ai-continuity-platform/core/internal/validation/service"
 	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
 )
 
 // A gate job (ADR 0013). The operator seals a model genome — the
@@ -40,19 +40,22 @@ import (
 // envelope. POST /v1/jobs names the bundle. This file is the authority's
 // side of the job:
 //
-//   - build: open the bundle in memory, keep the fixtures' references,
-//     seal the model side — genome.json, the adapter, the fixtures'
-//     prompts — as one component each under the session key, behind a
-//     gatejob.Descriptor in component 0; set the job's output budget to the
-//     exact size of the answer (gatejob.OutputBudget).
-//   - judge: decode the worker's signed candidate output, hold it to the
-//     references with the determinism ladder — the byte-exact door first,
-//     then the native-float door within the operator's tolerance — and
-//     record the verdict on the job. No door opened: the job fails.
+//   - inspect (at submission): open the bundle in memory, check it is a
+//     model genome, keep the fixtures' references and the answer's exact
+//     budget (gatejob.OutputBudget); clear the plaintext.
+//   - components (at dispatch): open it again and lay out the model side
+//     — a gatejob.Descriptor, then genome.json, the adapter, the fixtures'
+//     prompts — as the components the flow discloses, one signed, sealed
+//     DisclosureMessage each under the session (ADR 0015).
+//   - judge: decode the worker's signed candidate output and hold it to
+//     the references on both dimensions the gate can answer — the top-1
+//     agreement (semantic) and the determinism ladder (behavioral: the
+//     byte-exact door first, then the native-float door within the
+//     operator's tolerance) — for the validation service to record.
 //
 // The authority holds the genome's plaintext only for the time it takes
 // to seal the components, in memory, and never writes any of it: it is a
-// sealer here, as it is for every JobRequest.
+// sealer here, as it is for every disclosure.
 
 // Error codes of the gate-job path.
 const (
@@ -148,52 +151,153 @@ type GateView struct {
 	SignerKeyID   string                     `json:"signer_key_id,omitempty"`
 }
 
-// genomeJobs builds gate jobs from the genomes in genome.bundle_dir.
+// genomeJobs opens the genomes in genome.bundle_dir for gate jobs.
 type genomeJobs struct {
 	cfg        GenomeConfig
 	escrowPath string
-	sealer     keys.Sealer
-	sealKID    ids.KeyID
 	maxPayload uint64
 	clock      shared_time.Clock
 }
 
-// newGenomeJobs wires a builder; nil when gate jobs are not configured.
-func newGenomeJobs(cfg Config, sealer keys.Sealer, sealKID ids.KeyID, clock shared_time.Clock) *genomeJobs {
+// newGenomeJobs wires an opener; nil when gate jobs are not configured.
+func newGenomeJobs(cfg Config, clock shared_time.Clock) *genomeJobs {
 	if !cfg.Genome.Enabled() {
 		return nil
 	}
 	return &genomeJobs{
 		cfg:        cfg.Genome,
 		escrowPath: cfg.EscrowKeyPath(),
-		sealer:     sealer,
-		sealKID:    sealKID,
 		maxPayload: cfg.Runtime.MaxPayloadBytes,
 		clock:      clock,
 	}
 }
 
-// builtJob is one gate job ready to queue.
-type builtJob struct {
-	Req    transport.JobRequest
-	Genome GenomeView
-	Gate   *gateSpec
+// genomeInfo is what the authority keeps about a job's genome between
+// submission and dispatch: how it was named, what it is, the references
+// that judge the answer, the answer's exact budget. No plaintext.
+type genomeInfo struct {
+	Ref          genomeRef
+	View         GenomeView
+	Gate         *gateSpec
+	Budget       uint64
+	GenomeID     string
+	BundleSHA256 string
 }
 
-// build opens the named genome and seals a gate job for it. deadline is
-// how long the worker has from now.
-func (g *genomeJobs) build(ref genomeRef, deadline time.Duration) (builtJob, error) {
-	var zero builtJob
+// ComponentIDDescriptor names component 0 of every gate job.
+const ComponentIDDescriptor = "descriptor"
+
+// openedGenome is a genome opened in memory: the caller clears it.
+type openedGenome struct {
+	name         string
+	bundleSHA256 string
+	header       bundle.Header
+	keySource    string
+	files        map[string][]byte
+	model        modelGenome
+	shipped      map[string][]byte // the model side, by path
+	paths        []string          // shipped paths, in component order
+	shippedBytes int64
+	budget       uint64
+}
+
+func (o *openedGenome) clear() {
+	for _, b := range o.files {
+		clear(b)
+	}
+	for _, b := range o.shipped {
+		clear(b)
+	}
+}
+
+// inspect opens the named genome, checks it is a model genome a gate job
+// can carry, and keeps what judges the answer. The plaintext is cleared
+// before it returns: the model side is opened again at dispatch, under
+// the session it is disclosed to.
+func (g *genomeJobs) inspect(ref genomeRef) (genomeInfo, error) {
+	o, err := g.open(ref)
+	if err != nil {
+		return genomeInfo{}, err
+	}
+	defer o.clear()
+	return genomeInfo{
+		Ref: ref,
+		View: GenomeView{
+			Bundle:        o.name,
+			KeyID:         o.header.KeyID,
+			KeySource:     o.keySource,
+			BundleSHA256:  o.bundleSHA256,
+			PayloadSHA256: o.header.PayloadSHA256,
+			Generation:    o.header.Generation,
+			Base:          o.model.genome.Base.Name,
+			BaseDigest:    o.model.genome.Base.Manifest.Digest,
+			Files:         len(o.paths),
+			Bytes:         o.shippedBytes,
+			Fixtures:      len(o.model.fixtures),
+			Critical:      o.model.critical,
+		},
+		Gate: &gateSpec{
+			GenomeID: o.header.KeyID,
+			Fixtures: o.model.fixtures,
+			Tol:      equivalence.Tolerance{Atol: g.cfg.Gate.Atol, Rtol: g.cfg.Gate.Rtol},
+			Pol:      equivalence.Policy{MaxNonCriticalOutliers: g.cfg.Gate.MaxNonCriticalOutliers},
+		},
+		Budget:       o.budget,
+		GenomeID:     o.header.KeyID,
+		BundleSHA256: o.bundleSHA256,
+	}, nil
+}
+
+// CodeGenomeChanged (Authority): the bundle a job named is not the one
+// it named at submission.
+const CodeGenomeChanged = "genome_changed"
+
+// components opens the genome again at dispatch and returns the model
+// side as the components a session discloses, in order: the descriptor
+// (gatejob.Descriptor, component 0), then every file in path order. The
+// bundle must be the one inspected. The flow zeroizes the plaintext once
+// it is sealed.
+func (g *genomeJobs) components(info genomeInfo) ([]orchestration.Component, error) {
+	o, err := g.open(info.Ref)
+	if err != nil {
+		return nil, err
+	}
+	defer o.clear()
+	if o.bundleSHA256 != info.BundleSHA256 {
+		return nil, shared_errors.Authority(CodeGenomeChanged,
+			fmt.Sprintf("genome %s is not the bundle the job named (sha256 %s, was %s)", o.name, o.bundleSHA256[:12], info.BundleSHA256[:12]), nil)
+	}
+	desc := gatejob.Descriptor{Schema: gatejob.DescriptorSchema, GenomeID: o.header.KeyID}
+	for i, p := range o.paths {
+		sum := sha256.Sum256(o.shipped[p])
+		desc.Files = append(desc.Files, gatejob.File{Path: p, SHA256: hex.EncodeToString(sum[:]), Bytes: int64(len(o.shipped[p])), Component: uint32(i + 1)})
+	}
+	descRaw, err := gatejob.EncodeDescriptor(desc)
+	if err != nil {
+		return nil, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", o.name, err), nil)
+	}
+	out := make([]orchestration.Component, 0, len(o.paths)+1)
+	out = append(out, orchestration.Component{ID: ComponentIDDescriptor, Plaintext: descRaw})
+	for _, p := range o.paths {
+		out = append(out, orchestration.Component{ID: ids.ComponentID(p), Plaintext: append([]byte(nil), o.shipped[p]...)})
+	}
+	return out, nil
+}
+
+// open reads the named bundle through an os.Root, opens it with its key,
+// and lays out the model side. Every refusal is classified for the REST
+// API's status.
+func (g *genomeJobs) open(ref genomeRef) (*openedGenome, error) {
 	name, err := bundleFileName(ref.Bundle)
 	if err != nil {
-		return zero, err
+		return nil, err
 	}
 	// Every file a job names is opened relative to genome.bundle_dir
 	// through an os.Root: a name that still pointed outside it — a
 	// symlink, say — is refused by the kernel, not by string checks.
 	root, err := os.OpenRoot(g.cfg.BundleDir)
 	if err != nil {
-		return zero, shared_errors.Operational(CodeBundleDirUnavailable, "genome.bundle_dir cannot be opened", err)
+		return nil, shared_errors.Operational(CodeBundleDirUnavailable, "genome.bundle_dir cannot be opened", err)
 	}
 	defer func() { _ = root.Close() }()
 
@@ -202,152 +306,71 @@ func (g *genomeJobs) build(ref genomeRef, deadline time.Duration) (builtJob, err
 	blob, size, err := readInRoot(root, name, int64(g.maxPayload)+bundle.MaxHeaderBytes+1<<20)
 	switch {
 	case errors.Is(err, errFileTooLarge):
-		return zero, shared_errors.Operational(CodeGenomeTooLarge,
+		return nil, shared_errors.Operational(CodeGenomeTooLarge,
 			fmt.Sprintf("genome %s is %d bytes; a gate job carries at most runtime.max_payload_bytes (%d)", name, size, g.maxPayload), nil)
 	case err != nil:
-		return zero, shared_errors.Structural(CodeGenomeNotFound, fmt.Sprintf("genome %s is not in genome.bundle_dir", name), nil)
+		return nil, shared_errors.Structural(CodeGenomeNotFound, fmt.Sprintf("genome %s is not in genome.bundle_dir", name), nil)
 	}
 	rd, err := bundle.NewReader(bytes.NewReader(blob))
 	if err != nil {
-		return zero, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
+		return nil, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
 	}
 	if rd.Header.ContentKind != bundle.ContentDir {
-		return zero, shared_errors.Structural(CodeGenomeInvalid,
+		return nil, shared_errors.Structural(CodeGenomeInvalid,
 			fmt.Sprintf("genome %s holds a %s snapshot, not a model genome directory", name, rd.Header.ContentKind), nil)
 	}
 	bundleSum := sha256.Sum256(blob)
 
 	dek, keySource, err := g.openKey(root, ref, name, rd.Header.KeyID)
 	if err != nil {
-		return zero, err
+		return nil, err
 	}
 	defer clear(dek)
 	payload, err := rd.PayloadWithKey(dek)
 	if err != nil {
-		return zero, shared_errors.Authority(CodeGenomeKeyInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
+		return nil, shared_errors.Authority(CodeGenomeKeyInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
 	}
 	plain, err := io.ReadAll(payload)
 	if err != nil {
-		return zero, shared_errors.Authority(CodeGenomeKeyInvalid, fmt.Sprintf("genome %s does not open: %v", name, err), nil)
+		return nil, shared_errors.Authority(CodeGenomeKeyInvalid, fmt.Sprintf("genome %s does not open: %v", name, err), nil)
 	}
 	defer clear(plain)
 
-	files, err := untarFiles(plain)
+	o := &openedGenome{name: name, bundleSHA256: hex.EncodeToString(bundleSum[:]), header: rd.Header, keySource: keySource}
+	o.files, err = untarFiles(plain)
 	if err != nil {
-		return zero, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
+		return nil, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
 	}
-	defer func() {
-		for _, b := range files {
-			clear(b)
-		}
-	}()
-
-	model, err := modelSide(files)
+	o.model, err = modelSide(o.files)
 	if err != nil {
-		return zero, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
+		o.clear()
+		return nil, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
 	}
-
-	genomeID := rd.Header.KeyID
-	promptsJSON, err := gatejob.EncodePrompts(model.prompts)
+	promptsJSON, err := gatejob.EncodePrompts(o.model.prompts)
 	if err != nil {
-		return zero, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
+		o.clear()
+		return nil, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
 	}
-	shipped := map[string][]byte{gatejob.GenomePath: files[gatejob.GenomePath], gatejob.PromptsPath: promptsJSON}
-	for _, p := range model.adapterFiles {
-		shipped[p] = files[p]
+	o.shipped = map[string][]byte{gatejob.GenomePath: o.files[gatejob.GenomePath], gatejob.PromptsPath: promptsJSON}
+	for _, p := range o.model.adapterFiles {
+		o.shipped[p] = o.files[p]
 	}
-	budget, err := gatejob.OutputBudget(genomeID, model.fixtures)
+	o.budget, err = gatejob.OutputBudget(rd.Header.KeyID, o.model.fixtures)
 	if err != nil {
-		return zero, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
+		o.clear()
+		return nil, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
 	}
-
-	manifestID, sessionID, err := newJobIdentity()
-	if err != nil {
-		return zero, shared_errors.Operational(shared_errors.CodeResourceExhausted, "sagvd: allocate job identity", err)
+	for p := range o.shipped {
+		o.paths = append(o.paths, p)
+		o.shippedBytes += int64(len(o.shipped[p]))
 	}
-	now := g.clock.Now().UTC()
-	req := transport.JobRequest{
-		Type:                   transport.FrameTypeJobRequest,
-		SchemaVersion:          1,
-		ManifestID:             manifestID,
-		SessionID:              sessionID,
-		ExpectedOutputKind:     string(rjm.OutputKindBytesFixedLength),
-		ExpectedOutputMaxBytes: budget,
-		Deadline:               now.Add(deadline),
-		IssuedAt:               now,
+	sort.Strings(o.paths)
+	if uint64(o.shippedBytes) > g.maxPayload {
+		o.clear()
+		return nil, shared_errors.Operational(CodeGenomeTooLarge,
+			fmt.Sprintf("genome %s ships %d bytes to the worker; runtime.max_payload_bytes is %d", name, o.shippedBytes, g.maxPayload), nil)
 	}
-
-	// Component order: the descriptor, then every file in path order.
-	paths := make([]string, 0, len(shipped))
-	for p := range shipped {
-		paths = append(paths, p)
-	}
-	sort.Strings(paths)
-	desc := gatejob.Descriptor{Schema: gatejob.DescriptorSchema, GenomeID: genomeID}
-	var shippedBytes int64
-	for i, p := range paths {
-		sum := sha256.Sum256(shipped[p])
-		desc.Files = append(desc.Files, gatejob.File{Path: p, SHA256: hex.EncodeToString(sum[:]), Bytes: int64(len(shipped[p])), Component: uint32(i + 1)})
-		shippedBytes += int64(len(shipped[p]))
-	}
-	if uint64(shippedBytes) > g.maxPayload {
-		return zero, shared_errors.Operational(CodeGenomeTooLarge,
-			fmt.Sprintf("genome %s ships %d bytes to the worker; runtime.max_payload_bytes is %d", name, shippedBytes, g.maxPayload), nil)
-	}
-	descRaw, err := gatejob.EncodeDescriptor(desc)
-	if err != nil {
-		return zero, shared_errors.Structural(CodeGenomeInvalid, fmt.Sprintf("genome %s: %v", name, err), nil)
-	}
-	components := make([][]byte, 0, len(paths)+1)
-	components = append(components, descRaw)
-	for _, p := range paths {
-		components = append(components, shipped[p])
-	}
-	for i, plaintext := range components {
-		aad := buildComponentAAD(req.ManifestID, req.SessionID, req.ExpectedOutputKind, uint32(i))
-		nonce, ct, err := g.sealer.Seal(g.sealKID, plaintext, aad)
-		if err != nil {
-			return zero, shared_errors.Authority("seal_failed", "seal gate-job component", err)
-		}
-		req.SealedMaterial = append(req.SealedMaterial, transport.SealedMaterialRef{
-			RecipientKeyID: string(g.sealKID), Nonce: nonce, Ciphertext: ct, AAD: aad,
-		})
-	}
-	if err := req.Validate(); err != nil {
-		return zero, err
-	}
-	frame, err := transport.EncodeBody(req)
-	if err != nil {
-		return zero, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "encode JobRequest", err)
-	}
-	if uint64(len(frame)) > uint64(transport.MaxFrameSize) {
-		return zero, shared_errors.Operational(CodeGenomeTooLarge,
-			fmt.Sprintf("genome %s makes a %d-byte JobRequest; the Return Path carries frames of at most %d bytes", name, len(frame), transport.MaxFrameSize), nil)
-	}
-
-	return builtJob{
-		Req: req,
-		Genome: GenomeView{
-			Bundle:        name,
-			KeyID:         rd.Header.KeyID,
-			KeySource:     keySource,
-			BundleSHA256:  hex.EncodeToString(bundleSum[:]),
-			PayloadSHA256: rd.Header.PayloadSHA256,
-			Generation:    rd.Header.Generation,
-			Base:          model.genome.Base.Name,
-			BaseDigest:    model.genome.Base.Manifest.Digest,
-			Files:         len(paths),
-			Bytes:         shippedBytes,
-			Fixtures:      len(model.fixtures),
-			Critical:      model.critical,
-		},
-		Gate: &gateSpec{
-			GenomeID: genomeID,
-			Fixtures: model.fixtures,
-			Tol:      equivalence.Tolerance{Atol: g.cfg.Gate.Atol, Rtol: g.cfg.Gate.Rtol},
-			Pol:      equivalence.Policy{MaxNonCriticalOutliers: g.cfg.Gate.MaxNonCriticalOutliers},
-		},
-	}, nil
+	return o, nil
 }
 
 // openKey finds the genome's key: the named key file, or the escrow
@@ -551,6 +574,102 @@ func evaluateGate(spec *gateSpec, out returnpath.CandidateOutput) (GateView, err
 		fmt.Sprintf("the restored model missed its references at every door (max abs err %.3g at %q)", last.MaxAbsErr, last.Name), nil)
 }
 
+// judgement is what the authority found about a candidate: the ladder's
+// verdict (behavioral) and the top-1 agreement (semantic), each as the
+// validation service records it, and the gate error a refused answer
+// fails the job with.
+type judgement struct {
+	Gate       GateView
+	Top1       equivalence.Top1Report
+	Semantic   valservice.EvaluatedDimension
+	Behavioral valservice.EvaluatedDimension
+	// GateErr is the classified gate_failed error when no door opened;
+	// nil when one did.
+	GateErr error
+}
+
+// judge holds the worker's candidate output to the sealed references on
+// both dimensions the gate can answer: does the restored model give the
+// same answer at every reference position (semantic, top-1 agreement),
+// and are its numbers the references' within the operator's tolerance
+// (behavioral, the determinism ladder)? An output that is not an answer
+// to this job — undecodable, or for another genome — is an Integrity
+// error and is not judged.
+func judge(spec *gateSpec, out returnpath.CandidateOutput) (judgement, error) {
+	var j judgement
+	genomeID, outputs, err := gatejob.DecodeOutput(out.Bytes)
+	if err != nil {
+		return j, shared_errors.Integrity(CodeGateOutputInvalid, "the worker's output is not a gate output", err)
+	}
+	if genomeID != spec.GenomeID {
+		return j, shared_errors.Integrity(CodeGateOutputInvalid,
+			fmt.Sprintf("the worker answered for genome %s, the job was for %s", genomeID, spec.GenomeID), nil)
+	}
+	for _, f := range spec.Fixtures {
+		if _, ok := outputs[f.ID]; !ok {
+			return j, shared_errors.Integrity(CodeGateOutputInvalid, fmt.Sprintf("the worker gave no output for fixture %q", f.ID), nil)
+		}
+	}
+	j.Gate, j.GateErr = evaluateGate(spec, out)
+	if j.GateErr != nil && shared_errors.CategoryOf(j.GateErr) != shared_errors.CategoryOperational {
+		return j, j.GateErr
+	}
+	j.Behavioral = valservice.EvaluatedDimension{Evaluator: "equivalence-ladder", Verdict: gateDimension(j.Gate)}
+	if detail, err := json.Marshal(struct {
+		Level    string                   `json:"level"`
+		Door     string                   `json:"door,omitempty"`
+		Rung     int                      `json:"rung"`
+		Fixtures int                      `json:"fixtures"`
+		Atol     float64                  `json:"atol"`
+		Rtol     float64                  `json:"rtol"`
+		Attempts []reconstruction.Attempt `json:"attempts"`
+	}{j.Gate.Level, j.Gate.Door, j.Gate.Rung, j.Gate.Fixtures, spec.Tol.Atol, spec.Tol.Rtol, j.Gate.Attempts}); err == nil {
+		j.Behavioral.Detail = detail
+	}
+
+	rep, err := equivalence.Top1Agreement(spec.Fixtures, outputs)
+	if err != nil {
+		return j, shared_errors.Integrity(CodeGateOutputInvalid, "the worker's output cannot be compared to the references", err)
+	}
+	j.Top1 = rep
+	sem := validation_result.DimensionVerdict{Verdict: validation_result.VerdictPass, Score: rep.Score(), Threshold: 1.0}
+	for _, r := range rep.Results {
+		if r.Agree {
+			continue
+		}
+		sem.Verdict = validation_result.VerdictFail
+		msg := fmt.Sprintf("fixture %s: top-1 index %d, reference %d", r.ID, r.ActualIndex, r.ExpectedIndex)
+		if r.Note != "" {
+			msg += " (" + r.Note + ")"
+		}
+		sev := validation_result.SeverityWarning
+		if r.Critical {
+			sev = validation_result.SeverityError
+		}
+		sem.Details = append(sem.Details, validation_result.Finding{Code: "sem.top1_disagreement", Severity: sev, Message: msg})
+	}
+	j.Semantic = valservice.EvaluatedDimension{Evaluator: "top1-agreement", Verdict: sem}
+	if detail, err := json.Marshal(rep); err == nil {
+		j.Semantic.Detail = detail
+	}
+	return j, nil
+}
+
+// gateDimension maps a gate's outcome onto the frozen ValidationResult
+// behavioural dimension (ADR 0008), the same way the receive-side gate
+// does.
+func gateDimension(gate GateView) validation_result.DimensionVerdict {
+	res := reconstruction.LadderResult{Attempts: gate.Attempts, Rung: gate.Rung, Name: gate.Door, Kind: reconstruction.StrategyKind(gate.Kind)}
+	if gate.SignedVerdict != nil {
+		res.Opened = true
+		res.Verdict = gate.SignedVerdict.Verdict
+	}
+	if len(res.Attempts) == 0 && !res.Opened {
+		res.Attempts = []reconstruction.Attempt{{Name: "gate", Level: equivalence.Level("ERROR"), Err: "the candidate output could not be judged"}}
+	}
+	return reconstruction.LadderToDimensionVerdict(res, 1.0)
+}
+
 // signVerdict signs a passing verdict with the authority's signing key.
 func signVerdict(view *GateView, signer keys.Signer, kid ids.KeyID, pub crypto.PublicKey) error {
 	if view.SignedVerdict == nil {
@@ -632,22 +751,4 @@ func bundleFileName(name string) (string, error) {
 // so a log entry is one line whatever the request carried.
 func logSafe(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\r", " ")
-}
-
-// buildComponentAAD is the associated data the vault binds into every
-// sealed component: the job's identity and the component's position, so
-// a component cannot be replayed under another job or at another index.
-// Human-inspectable so an Open() failure can be read.
-func buildComponentAAD(manifestID, sessionID, kind string, index uint32) []byte {
-	return []byte(fmt.Sprintf("sagvd/v1|m=%s|s=%s|k=%s|c=%d", manifestID, sessionID, kind, index))
-}
-
-// newJobIdentity mints the manifest and session ids of a job. The
-// authority names its own jobs; a caller does not.
-func newJobIdentity() (manifestID, sessionID string, err error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", "", err
-	}
-	return "rjm-" + hex.EncodeToString(b[:8]), "ses-" + hex.EncodeToString(b[8:]), nil
 }

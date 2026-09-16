@@ -27,6 +27,7 @@ ADRs interact with the test-enforced invariant system.
 | 0012 | [Sentinel and policy-driven failover](0012-sentinel-and-policy-driven-failover.md) | Accepted | genome, failover, crosscloud, audit, governance |
 | 0013 | [The worker restores the genome](0013-worker-restores-the-genome.md) | Accepted | worker, returnpath, genome, equivalence |
 | 0014 | [The Return Path on the record, and on hardware](0014-return-path-on-the-record-and-on-hardware.md) | Accepted | audit, returnpath, tee, sev-snp |
+| 0015 | [One binary drives the nine stages](0015-one-binary-drives-the-nine-stages.md) | Accepted | orchestration, sagvd, audit, trust, release |
 
 ## Adding an ADR
 

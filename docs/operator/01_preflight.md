@@ -57,8 +57,8 @@ load:
 
 | Key | Config | Loaded by | Used for |
 | - | - | - | - |
-| Authority signing (32-byte Ed25519 seed) | sagvd `keys.authority_signing` (`kid`, `seed_path`) | `sagvd` and all its subcommands | Signs cross-cloud handshake requests and key-release tokens, which each destination verifies against its `source_authority`. The daemon loads it; the Return Path does not use it. |
-| Session sealing (32-byte AES-256 key) | `keys.session_sealing` (`kid`, `material_path`) — the same kid and bytes in sagvd and every acp-compute | both daemons | sagvd seals every component of a gate job under it — the genome's description, adapter and prompts; the worker opens them |
+| Authority signing (32-byte Ed25519 seed) | sagvd `keys.authority_signing` (`kid`, `seed_path`) | `sagvd` and all its subcommands | Signs every authority artifact of a gate job — the attestation, the session, each disclosure, the manifest, the gate verdict, the release decision (ADR 0015) — and cross-cloud handshake requests and key-release tokens, which each destination verifies against its `source_authority`. `sagvd identity` prints its public key |
+| Session sealing (32-byte AES-256 key) | `keys.session_sealing` (`kid`, `material_path`) — the same kid and bytes in sagvd and every acp-compute | both daemons | sagvd seals every disclosure of a gate job under it — the genome's description, adapter and prompts, to the job's session; the worker opens them |
 | Audit signing (32-byte Ed25519 seed) | sagvd `keys.audit_signing` (`kid`, `seed_path`) | the `sagvd` daemon (required with `audit.log_path`, which gate jobs require), `sagvd crosscloud-restore` and `crosscloud-confirm` (required when `crosscloud.enabled`); `sagvd identity` prints its public key | Signs the Return Path audit log and the cross-cloud audit log. It must stay the same for the life of the logs |
 | Worker signing (32-byte Ed25519 seed) | acp-compute `keys.worker_signing` | `acp-compute` | Signs every CandidateOutputFrame; sagvd checks it against `workers.registry_path` |
 | Simulated TEE seeds (32 bytes) | `tee.seed_path` in sagvd and acp-compute, with `tee.provider: "simulated"` | both daemons, off hardware | Sign each side's Return Path Evidence. On a SEV-SNP guest (`tee.provider: "gcp-sev-snp"`) there is no seed: the chip signs |
@@ -138,7 +138,11 @@ releases today is read afresh by every `sagvd crosscloud-restore` run (06):
    before installing it:
    `acpctl stop verify -in stop.json -pubkey operator.pem -kid operator-1`.
    A missing, edited or wrongly signed list stops every release; a list older
-   than the newest serial in the audit log is refused.
+   than the newest serial in the audit log is refused. The same list, named
+   by the daemon's top-level `operator_stop`, denies gate jobs at Trust
+   Admission (ADR 0015): the daemon reads it again at every admission, so a
+   stop-all written to `list_path` halts its releases at once, and a list
+   with an older serial than one already consulted is refused.
 
 Review the allow-list and the stop list every 30 days whether or not they
 changed — the review is itself a policy-alignment signal.

@@ -135,7 +135,7 @@ if [[ -z "$JOB_ID" || "$JOB_ID" == "null" ]]; then
 fi
 
 echo "submit_job.sh: accepted as job_id=${JOB_ID}"
-jq -r '"  manifest_id = \(.manifest_id)\n  session_id  = \(.session_id)\n  genome_id   = \(.genome.key_id) (\(.genome.fixtures) fixtures, \(.genome.bytes) bytes shipped)"' < "$HTTP_RESPONSE"
+jq -r '"  request_id  = \(.request_id)\n  state       = \(.state)\n  genome_id   = \(.genome.key_id) (\(.genome.fixtures) fixtures, \(.genome.bytes) bytes shipped)"' < "$HTTP_RESPONSE"
 
 # ---- poll -----------------------------------------------------------------
 
@@ -158,14 +158,14 @@ while : ; do
     STATUS="$(jq -r '.status // empty' <<<"$GET_OUTPUT")"
     case "$STATUS" in
       succeeded)
-        echo "submit_job.sh: job succeeded — gate $(jq -r '.gate.level' <<<"$GET_OUTPUT") at door \"$(jq -r '.gate.door' <<<"$GET_OUTPUT")\" over $(jq -r '.gate.fixtures' <<<"$GET_OUTPUT") fixtures, verdict signed by $(jq -r '.gate.signer_key_id' <<<"$GET_OUTPUT")"
+        echo "submit_job.sh: job succeeded — gate $(jq -r '.gate.level' <<<"$GET_OUTPUT") at door \"$(jq -r '.gate.door' <<<"$GET_OUTPUT")\" over $(jq -r '.gate.fixtures' <<<"$GET_OUTPUT") fixtures, verdict signed by $(jq -r '.gate.signer_key_id' <<<"$GET_OUTPUT"); release decision $(jq -r '.flow.decision.decision_id' <<<"$GET_OUTPUT") (\"$(jq -r '.flow.decision.reason' <<<"$GET_OUTPUT")\") after $(jq -r '.flow.steps | length' <<<"$GET_OUTPUT") transitions, state $(jq -r '.state' <<<"$GET_OUTPUT")"
         # Pretty-print the final job view. The JSON is intentionally
         # stable across runs (sagvd writes it via JobView).
         jq . <<<"$GET_OUTPUT"
         exit 0
         ;;
       failed)
-        echo "submit_job.sh: job failed — $(jq -r '.error.code' <<<"$GET_OUTPUT"): $(jq -r '.error.message' <<<"$GET_OUTPUT")" >&2
+        echo "submit_job.sh: job failed — $(jq -r '.error.code' <<<"$GET_OUTPUT"): $(jq -r '.error.message' <<<"$GET_OUTPUT") (state $(jq -r '.state' <<<"$GET_OUTPUT"), decision $(jq -r '.flow.decision.reason // "none"' <<<"$GET_OUTPUT"))" >&2
         jq . <<<"$GET_OUTPUT" >&2
         exit 3
         ;;

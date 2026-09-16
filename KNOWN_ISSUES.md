@@ -127,11 +127,15 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    model regeneration.
 3. **The 40-probe behavioral suite does not run the model.** It computes
    byte-statistics on the raw blob (`internal/validation/behavioral/probes`);
-   semantic validation is `bytes.Equal`. What does run the model is the
-   equivalence gate over a genome's fixtures (`acpctl genome gate`,
-   `acp-bootstrap` `genome.gate`, ADR 0011, and every `sagvd` gate job,
-   ADR 0013): logits at the reference top-k tokens, recomputed where the
-   model was restored, and greedy continuations in `vg_genome measure`.
+   the library's semantic evaluator is `bytes.Equal`. What does run the
+   model is the equivalence gate over a genome's fixtures (`acpctl genome
+   gate`, `acp-bootstrap` `genome.gate`, ADR 0011, and every `sagvd` gate
+   job, ADR 0013): logits at the reference top-k tokens, recomputed where
+   the model was restored, and greedy continuations in `vg_genome measure`.
+   Since ADR 0015 a `sagvd` gate job's validation records the gate on both
+   dimensions — semantic: top-1 agreement at every reference position;
+   behavioral: the determinism ladder — and the byte evaluators are not
+   used for it.
 4. **RESOLVED (ADR 0009, 2026-09-14).** Cross-cloud key wrap was symmetric and
    insecure — the wrap key was derived from the destination measurement, a
    public value (defect b). An earlier fix added an X25519 KEM to the library

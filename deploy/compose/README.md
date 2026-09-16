@@ -80,33 +80,45 @@ files and `keygen/main.go`: peer measurements are SHA-256 of those strings.
    "gen-0.key"}}` to `POST /v1/jobs` with
    `Authorization: Bearer <secrets/sagvd/api_token>`.
 2. sagvd opens the bundle from `/var/lib/acp/genomes` in memory with that
-   key, keeps the genome's reference fixtures, seals its model side —
-   `genome.json`, the LoRA adapter, the fixtures' prompts — one component
-   each (AES-256-GCM, AAD binding manifest, session, output kind and
-   component index), queues the `JobRequest`, and returns
-   `202 {"job_id", "manifest_id", "session_id", "genome"}`.
-3. The worker — already connected over mTLS and past the TEE handshake —
-   receives the request, unseals the components, checks them against the
-   job's descriptor, and runs the door: `python3 -m vg_genome door
-   --stdin-genome --base /models/base`, which checks the base model against
-   the genome's manifest, applies the adapter in memory and computes the
-   model's logits at the reference tokens for every prompt. The worker signs
-   the outputs as the `CandidateOutputFrame` and writes it back. Nothing of
-   the genome touches the worker's disk.
+   key, checks it is a model genome, keeps the genome's reference fixtures
+   and clears the plaintext; the request is admitted at intake (stage 1 of
+   the nine-stage flow, ADR 0015), on the audit log as `REQUEST_RECEIVED`,
+   and queued: `202 {"job_id", "request_id", "state", "genome"}`.
+3. When the worker — already connected over mTLS and past the TEE
+   handshake — is ready, sagvd decides trust for the request and that
+   attested peer (stage 2: the operator's stop list, the policy profile),
+   issues a signed session (3), opens the bundle again and discloses its
+   model side to that session — `genome.json`, the LoRA adapter, the
+   fixtures' prompts, one signed AES-256-GCM envelope each (4) — issues the
+   signed manifest and ships the envelopes as the `JobRequest` (5). The
+   worker unseals them, checks them against the job's descriptor, and runs
+   the door: `python3 -m vg_genome door --stdin-genome --base /models/base`,
+   which checks the base model against the genome's manifest, applies the
+   adapter in memory and computes the model's logits at the reference
+   tokens for every prompt. The worker signs the outputs as the
+   `CandidateOutputFrame` and writes it back (6). Nothing of the genome
+   touches the worker's disk.
 4. sagvd verifies the frame (bindings, size budget, Ed25519 signature under
-   the registered worker key), then holds the outputs to the sealed
-   references: byte-exact first (`pinned replay`), then within
-   `genome.gate`'s tolerance (`native float`). `GET /v1/jobs/{id}` returns
-   the job with `gate` — level, door, every attempt, and the verdict signed
-   by sagvd's authority key — and `result.worker_signing_key_id`, the key the
-   signature was verified under. A model that misses its references fails
-   the job with `gate_failed`, the attempts on record.
+   the registered worker key), then validates (7): the six operational
+   sub-checks over the job's own attestation, session and manifest, and the
+   gate on two dimensions — top-1 agreement at every reference position,
+   and the determinism ladder: byte-exact first (`pinned replay`), then
+   within `genome.gate`'s tolerance (`native float`) — and signs the release
+   decision (8). `GET /v1/jobs/{id}` returns the job with `flow` — every
+   stage taken and every signed artifact, the decision included — `gate`
+   (level, door, every attempt, the verdict signed by sagvd's authority
+   key), `top1`, and `result.worker_signing_key_id`, the key the signature
+   was verified under. A model that misses its references fails the job
+   with `gate_failed`: the refusal is a signed decision too, and the answer
+   is not surfaced.
 5. Every one of those decisions is in `audit/returnpath-audit.db` before it
-   took effect — the job accepted, the worker admitted (or a peer refused),
-   the candidate received, the gate started, judged, every finding, the
-   verdict — signed under `keys.audit_signing` and hash-linked. Read and
-   verify it (the daemon holds the file while it runs; stop it or copy the
-   file first):
+   took effect — the request received, trust decided, the session issued,
+   each disclosure authorised, the manifest issued, the candidate received,
+   the validation started, each dimension, every finding, the validation
+   completed, the release decided (and, on a refusal, the incident and the
+   session invalidated) — signed under `keys.audit_signing` and hash-linked.
+   Read and verify it (the daemon holds the file while it runs; stop it or
+   copy the file first):
 
    ```bash
    docker compose -f deploy/compose/docker-compose.yml exec sagvd sagvd identity -config /etc/acp/config/sagvd.json | jq -r .audit_public_key_pem > audit.pem

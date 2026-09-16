@@ -20,11 +20,13 @@ the shipped binaries run today.*
 | `acpctl` | Administrative CLI (§1.3). | yes |
 | `acp-demo` | Self-contained cross-hardware regeneration demo. | yes |
 
-The nine-stage flow in §2 is library code under `internal/`. No shipped binary
-drives it: it runs in-library in `make demo` (`internal/integration`,
-`TestVerticalSlice_*` and `TestRoundtripSlice_*`) and in the other tests.
-Documents 01–04 describe that flow and say, item by item, what a deployment
-can check today.
+The nine-stage flow in §2 is library code under `internal/`, and `sagvd`
+drives it for every gate job (ADR 0015): `POST /v1/jobs` is a RecoveryRequest
+admitted at intake, and a worker's session carries it through trust, session,
+disclosure, manifest, candidate, validation, decision and audit. The
+vertical-slice tests (`make demo`, `internal/integration`) remain the
+library's own end-to-end proof. Documents 01–04 describe that flow and say,
+item by item, what a deployment can check today.
 
 ---
 
@@ -40,11 +42,14 @@ is doctrine. Collapsing them is an invariant violation.
 **Holds authority over (by design):** every continuity-relevant decision —
 intake, trust admission, session issuance, policy evaluation, disclosure
 sequencing, release decision, audit appendage. The Vault is **the sole source
-of truth** for what is allowed to happen next in the nine-stage flow. In this
-build the daemon implements none of those stages; its authority in practice is
-the job queue behind the REST API and, through `sagvd crosscloud-restore`, the
-release of genome keys to attested destinations under the operator's
-allow-list and signed stop list (06).
+of truth** for what is allowed to happen next in the nine-stage flow. The
+daemon takes those decisions for every gate job (ADR 0015) — its
+`orchestration.Authority` runs intake, trust, the session issuer, the staged
+disclosure sequencer, the validation service and the incident service over
+its Return Path audit log — and, through `sagvd crosscloud-restore`, releases
+genome keys to attested destinations under the operator's allow-list and
+signed stop list (06). The same stop list, named by `operator_stop`, denies
+gate jobs at Trust Admission.
 
 **Must have:** the key files its config names — `keys.authority_signing`
 (Ed25519 seed; signs cross-cloud handshakes and key-release tokens),
@@ -122,22 +127,22 @@ by CLI invocation.
 
 | # | Stage | Authority holder | Package | Code today |
 | - | - | - | - | - |
-| 1 | Recovery Request | Vault — intake | `/internal/vault/intake` | Package holds `doc.go` only; the contract is `/internal/contracts/recovery_request` |
-| 2 | Trust Admission | Vault — trust | `/internal/vault/trust` | Package holds `doc.go` only; the contract is `/internal/contracts/attestation_result` |
-| 3 | Trusted Session | Vault — session | `/internal/vault/session` | In-memory session Issuer |
-| 4 | Staged Disclosure | Vault — disclosure (StagedIssuer + StagedSequencer) | `/internal/vault/disclosure` | Implemented |
-| 5 | Delegated External Compute | Compute plane — worker | `/internal/compute/worker` | `GenomeReconstructor`: the model restored in memory through the `vg_genome` door, used by `acp-compute` (ADR 0013) |
-| 6 | Return Path | Compute plane, gated by Vault | `/internal/compute/returnpath` | Used by `sagvd` and `acp-compute` |
-| 7 | Validation | Vault — validation/operational | `/internal/validation/operational` | Implemented, with `/internal/validation/service` |
-| 8 | Release Decision | Vault — orchestration | `/internal/vault/orchestration` | Transition table only; the contract is `/internal/contracts/release_decision` |
-| 9 | Audit | Vault — audit | `/internal/audit` | Hash chain and bbolt store |
+| 1 | Recovery Request | Vault — intake | `/internal/vault/intake` | `Intake.Admit`: well-formed, not a duplicate; `sagvd` at `POST /v1/jobs` (`REQUEST_RECEIVED`) |
+| 2 | Trust Admission | Vault — trust | `/internal/vault/trust` | `Admission.Evaluate`: the operator's stop list, the policy profile, the attested peer → signed `AttestationResult`; `sagvd` at dispatch (`TRUST_EVALUATED`) |
+| 3 | Trusted Session | Vault — session | `/internal/vault/session` | In-memory session Issuer; `sagvd` issues one per admitted job (`SESSION_ISSUED`) |
+| 4 | Staged Disclosure | Vault — disclosure (StagedIssuer + StagedSequencer) | `/internal/vault/disclosure` | `sagvd` discloses the genome's model side to the session (`DISCLOSURE_AUTHORIZED` per component) |
+| 5 | Delegated External Compute | Compute plane — worker | `/internal/compute/worker` | `GenomeReconstructor`: the model restored in memory through the `vg_genome` door, used by `acp-compute` (ADR 0013); `sagvd` issues the signed manifest (`MANIFEST_ISSUED`) |
+| 6 | Return Path | Compute plane, gated by Vault | `/internal/compute/returnpath` | Used by `sagvd` and `acp-compute` (`CANDIDATE_RECEIVED`) |
+| 7 | Validation | Vault — validation/service | `/internal/validation/service` | The six operational sub-checks over the job's own artifacts and the gate's two verdicts (`VALIDATION_*`) |
+| 8 | Release Decision | Vault — orchestration | `/internal/vault/orchestration` | `Flow.Decide`: `RELEASE_DECIDED`, then the signed `ReleaseDecision` (release, refusal, or refusal at trust) |
+| 9 | Audit | Vault — audit | `/internal/audit` | Hash chain and bbolt store; `Flow.Seal` closes on the chain tip, a refusal through the incident service |
 
 Authority moves through the Vault for stages 1–4, 6–9 and through the compute
 plane for stage 5 only. The legal transitions between stages are listed in
-`/internal/vault/orchestration/state.go` and checked by the doctrine tests in
-`/test/doctrine/invariants_test.go`; nothing drives that state machine at run
-time. The tests call each stage in order and append the audit events the
-library does not yet emit itself.
+`/internal/vault/orchestration/state.go`, checked by the doctrine tests in
+`/test/doctrine/invariants_test.go`, and taken at run time by
+`orchestration.Machine` for every gate job `sagvd` serves (ADR 0015); a
+transition the table does not allow is refused, never taken silently.
 
 ---
 

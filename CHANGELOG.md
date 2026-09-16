@@ -13,6 +13,28 @@ given release can still open.
 
 ### Added
 
+- **One binary drives the nine stages**
+  ([ADR-0015](docs/adr/0015-one-binary-drives-the-nine-stages.md)) — `sagvd`
+  takes every gate job through the flow with the library's own
+  decision-makers: `intake` (a RecoveryRequest, admitted once), `trust`
+  (the operator's stop list, the policy profile, the attested worker →
+  a signed `AttestationResult`), the session issuer, the staged disclosure
+  sequencer (the genome's model side sealed to the session, one signed
+  envelope per component), a signed `ReconstructionJobManifest`, the
+  candidate, the validation service (six operational sub-checks over the
+  job's own artifacts, plus the gate on two dimensions — top-1 agreement
+  and the determinism ladder), and a signed `ReleaseDecision` citing its
+  `RELEASE_DECIDED` event; a refusal closes the session through the
+  incident service. `orchestration.Authority`/`Flow`/`Machine` drive it;
+  every transition is the table's. `GET /v1/jobs/{id}` shows the flow's
+  state, transitions and signed artifacts; `POST /v1/jobs` accepts
+  `request_id`, `policy_profile`, `requester_identity`, `contour` and
+  returns `request_id` and `state`. Config: `operator_stop` (the stop list
+  trust consults for gate jobs), `runtime.evidence_max_age_seconds`;
+  `sagvd identity` prints `policy_version` and `policy_profiles`; metric
+  `sagvd_release_decisions_total{decision}`.
+- `internal/validation/equivalence.Top1Agreement` — the semantic question
+  a restored model can answer: the same top-1 at every reference position.
 - **The Return Path on the record, and on hardware**
   ([ADR-0014](docs/adr/0014-return-path-on-the-record-and-on-hardware.md)) —
   `sagvd` keeps a Return Path audit log (`audit.log_path`, signed with
@@ -64,6 +86,19 @@ given release can still open.
 
 ### Changed
 
+- **`release_decision` is schema v2:** `ReasonTrustDenied` and an
+  `attestation_id` field, so a denial at Trust Admission is a signed,
+  recorded decision without a session. A v1 decision is a valid v2 decision.
+- **`validation/service` records evaluated dimensions:**
+  `ValidateInputs.Evaluated` carries semantic and behavioral verdicts from an
+  evaluator that ran the model, with its name and detail in the
+  `VALIDATION_DIMENSION_EVALUATED` payload.
+- **`POST /v1/jobs` returns `request_id` and `state`, not
+  `manifest_id`/`session_id`:** the session and the manifest are issued when a
+  worker is admitted, and the job view carries them then. The Return Path
+  audit payloads of a gate job are the flow's (`vault-genome/orchestration-audit/v1`)
+  and the services'; the daemon's own `returnpath-audit/v1` payloads remain
+  for refusals before a flow exists.
 - **`acpctl audit query --json` embeds each event's payload** (`payload`, or
   `payload_base64` when it is not JSON), so a reader sees the decision's
   fields without a second tool.
