@@ -300,6 +300,7 @@ func TestRIMFetcher_FetchesAndCaches(t *testing.T) {
 	srv.Close()
 	rim, err = f.Fetch(context.Background(), capturedDriverRIM)
 	require.NoError(t, err, "served from the cache with the service gone")
+	require.Equal(t, "595.71.05", rim.ColloquialVersion)
 	require.Equal(t, 1, *hits)
 	_, err = f.Fetch(context.Background(), "NV_GPU_DRIVER_GH100_0.0.0")
 	require.Error(t, err)
