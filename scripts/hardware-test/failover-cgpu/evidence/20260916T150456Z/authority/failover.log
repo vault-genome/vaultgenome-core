@@ -1,0 +1,96 @@
+{"time":"2026-09-16T15:10:10.003255431Z","level":"INFO","msg":"failover escrow key","escrow_key":"51696c297968cb3c","storage":"sealed:gcp-sev-snp"}
+{"time":"2026-09-16T15:10:10.01132524Z","level":"INFO","msg":"failover armed","policy_serial":1,"sentinel":"sentinel-2311a7b13a0faf35","primary_tee":"gcp-sev-snp 69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790","stopped_grace_seconds":60,"standby":"azure-cgpu https://51.137.32.48:8443","outbox":"/root/replica"}
+{"time":"2026-09-16T15:10:10.01136765Z","level":"INFO","msg":"failover watch","state":"waiting for the primary's first heartbeat"}
+{"time":"2026-09-16T15:10:12.506225781Z","level":"INFO","msg":"failover watch","state":"watching"}
+{"time":"2026-09-16T15:12:40.666097875Z","level":"WARN","msg":"failover triggered","trigger":"compromise-report","at":"2026-09-16T15:12:35.070252907Z"}
+{"time":"2026-09-16T15:12:40.676268067Z","level":"WARN","msg":"failover decided","policy_serial":1,"sentinel":"sentinel-2311a7b13a0faf35","decision_id":"xcc-dec-2ec4b5b2c15fb50463349bf9c1308de7","generation":1,"key_id":"genome-07106de97ec8-g1-e21b6f7b90a9"}
+{"time":"2026-09-16T15:12:41.974019015Z","level":"INFO","msg":"genome key released to the standby","policy_serial":1,"sentinel":"sentinel-2311a7b13a0faf35","request_id":"xcc-req-0fcb068ede6ed1c86d8e64d32bb4991b"}
+{"time":"2026-09-16T15:13:00.068265834Z","level":"INFO","msg":"failover complete: the standby restored the genome","policy_serial":1,"sentinel":"sentinel-2311a7b13a0faf35","failover_seconds":19.400713929,"rpo_seconds":11.997673136}
+{
+  "status": "restored",
+  "policy_serial": 1,
+  "policy_sha256": "9e673acb54b1ecb74f18e86c2218b079f8271d3f712d0bd1187fe308a5e02956",
+  "sentinel": "sentinel-2311a7b13a0faf35",
+  "trigger": {
+    "kind": "compromise-report",
+    "at": "2026-09-16T15:12:35.070252907Z",
+    "observed_at": "2026-09-16T15:12:40.663717755Z",
+    "alive_observed_at": "2026-09-16T15:12:36.659212759Z",
+    "evidence_sha256": "9a526804e65655ab81ee9803c314f3ad1e4314a8cf31be54615834c1a2bd0028",
+    "primary_measurement_hex": "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790",
+    "tripped": [
+      {
+        "wire": "path",
+        "target": "/root/canary",
+        "want": "e91a347f5d68f56c7ab031b9dcbed288f4cb929c401c315c1d270e3ba7fcda7d",
+        "got": "45bb370196d1e59e368ab5f98cd6e27353963d8607d93e47e13bb418db172170"
+      }
+    ],
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "d5fb04fd82637454565c0c5792740622747bce582638aa3fc089448c6e65a802",
+      "sealed_at": "2026-09-16T15:12:23.072579771Z"
+    }
+  },
+  "decision": {
+    "decision": "failover",
+    "reason": "compromise-report under failover policy serial 1: restore generation 1 on the standby",
+    "decision_id": "xcc-dec-2ec4b5b2c15fb50463349bf9c1308de7",
+    "audit_id": "xcc-evt-0000000000000001",
+    "decided_at": "2026-09-16T15:12:40.671827826Z"
+  },
+  "genome": {
+    "generation": 1,
+    "bundle": "gen-000001.genome",
+    "bundle_sha256": "d5fb04fd82637454565c0c5792740622747bce582638aa3fc089448c6e65a802",
+    "bundle_bytes": 2208627,
+    "key_id": "genome-07106de97ec8-g1-e21b6f7b90a9",
+    "payload_sha256": "sha256:07106de97ec801b91a0f413ba90592d8874421a32c8772ddbb185a8919bd6a57",
+    "tree_sha256": "00d13217d67ef8b20ef89c2d3276faf9a69e6bf12e52d71515e4833e105d8ef9",
+    "sealed_at": "2026-09-16T15:12:23.072579771Z",
+    "chain_end": 1
+  },
+  "release": {
+    "request_id": "xcc-req-0fcb068ede6ed1c86d8e64d32bb4991b",
+    "token_id": "xcc-dec-1a726466d914eb84124a74e6dc11bfe6",
+    "destination_kind": "azure-cgpu",
+    "destination_measurement_hex": "aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef",
+    "policy_version": "failover-policy-v1;failover=1;revocation=1",
+    "authorized_at": "2026-09-16T15:12:41.963410053Z",
+    "audit_id": "xcc-evt-0000000000000004"
+  },
+  "restore": {
+    "key_received_at": "2026-09-16T15:12:41.969903759Z",
+    "restored_at": "2026-09-16T15:12:45.668171851Z",
+    "restore_seconds": 0.011377942,
+    "files": 5,
+    "bytes": 2202999,
+    "tree_sha256": "00d13217d67ef8b20ef89c2d3276faf9a69e6bf12e52d71515e4833e105d8ef9",
+    "gate": {
+      "level": "EQUIVALENT",
+      "door": "native float",
+      "fixtures": 16,
+      "max_abs_err": 0.00015163421630859375,
+      "max_rel_err": 0.000016535437001440975,
+      "atol": 0.01,
+      "rtol": 0.001,
+      "backend_seconds": 12.109044685
+    },
+    "required_gate": "EQUIVALENT",
+    "receipt_sha256": "2406577e18ff2b128567f86c3d0264cc5197d2b965cb114a5836e3af11d2124b",
+    "confirmed_at": "2026-09-16T15:13:00.064431684Z",
+    "audit_id": "xcc-evt-0000000000000005"
+  },
+  "timing": {
+    "rpo_seconds": 11.997673136,
+    "detect_seconds": 5.593464848,
+    "release_seconds": 1.299692298,
+    "restore_seconds": 0.011377942,
+    "gate_seconds": 12.109044685,
+    "failover_seconds": 19.400713929,
+    "rto_seconds": 24.994178777
+  },
+  "audit_chain_length": 5,
+  "audit_tip": "d46be63a4442d56399bacb4b7e93a94306a460cca1f40d3aeff5132861a8943a",
+  "operator_stop_serial": 1
+}

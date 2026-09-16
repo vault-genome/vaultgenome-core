@@ -1,0 +1,6 @@
+== 15:09:48 the guest
+== 15:09:48 the worker runtime (CUDA wheels) and the base model the genome names
+== 15:09:53 acp-bootstrap as azure-cgpu: the destination of a key release, the door on the H100
+acp-bootstrap identity exit=0
+acp-bootstrap ready after 1s
+== COLLECTED

@@ -113,7 +113,7 @@ echo "step 1: the NVIDIA open driver in confidential-computing mode"
 # Ubuntu's signed kernel modules for the 595 server driver are built against
 # one userspace version; noble-updates carries a newer one that apt would
 # pick and fail on. Pin the userspace to the version the modules need.
-ssh_vm 'MOD=$(apt-cache depends linux-modules-nvidia-595-server-open-$(uname -r) 2>/dev/null | sed -n "s/.*nvidia-kernel-common-595-server (<= \(.*\))/\1/p" | head -1); \
+ssh_vm 'MOD=$(apt-cache show linux-modules-nvidia-595-server-open-$(uname -r) 2>/dev/null | sed -n "s/.*nvidia-kernel-common-595-server (<= \([^)]*\)).*/\1/p" | head -1); \
   V=$(apt-cache madison nvidia-kernel-common-595-server | awk "{print \$3}" | sort -V | while read x; do dpkg --compare-versions "$x" le "${MOD:-999}" && echo "$x"; done | tail -1); \
   echo "modules want nvidia-kernel-common-595-server <= ${MOD:-?}; pinning userspace ${V:-?}"; \
   [ -n "$V" ] && printf "Package: nvidia-*-595-server* libnvidia-*-595-server* nvidia-kernel-common-595-server nvidia-kernel-source-595-server-open nvidia-driver-595-server-open nvidia-utils-595-server nvidia-compute-utils-595-server nvidia-firmware-595-server*\nPin: version %s\nPin-Priority: 1001\n" "$V" | sudo tee /etc/apt/preferences.d/nvidia-595-userspace.pref >/dev/null'

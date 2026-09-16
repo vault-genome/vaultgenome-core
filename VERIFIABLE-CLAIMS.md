@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -204,10 +204,11 @@ A concrete released-to measurement appears in the failover report below
 (`destination_measurement_hex: 7dc7c12e…125acc`, `destination_kind:
 gcp-sev-snp`).
 
-**Scope.** Released to SEV-SNP destinations only. A TDX destination and an
-Azure confidential GPU destination are wired (the registry takes `gcp-tdx`
-and `azure-cgpu` entries, ADR 0018, 0019) and a key release to either has
-not been run; AWS Nitro and SGX verifiers are **not** shipped — see
+**Scope.** Released to SEV-SNP destinations and, once, to an Azure
+confidential GPU destination — an SEV-SNP guest whose Evidence also carries
+the vTPM's quote and NVIDIA's tokens ([C18](#c18)). A TDX destination is
+wired (the registry takes `gcp-tdx` entries, ADR 0018) and a key release to
+it has not been run; AWS Nitro and SGX verifiers are **not** shipped — see
 [What we do not claim](#what-we-do-not-claim).
 
 ---
@@ -691,14 +692,81 @@ go test -count=1 -run 'AzureCGPU|HCL|TPMQuote|NRAS' ./internal/shared/tee/ ./cmd
 
 **Scope.** Both daemons ran in one guest; the pin is Azure's launch
 measurement, which covers the paravisor and firmware, not the OS — the
-vTPM's PCRs are recorded in the quote and not yet policed. The GPU's
+vTPM's PCRs were recorded in the quote and not policed in this run (a
+`pcr_digests` pin exists since, and [C18](#c18) uses it). The GPU's
 measurements are evaluated by NVIDIA's service against NVIDIA's reference
 manifests; this build verifies NVIDIA's signed tokens and does not
 evaluate the GPU's SPDM report itself (it is in the evidence). NRAS is on
 the path when evidence is produced. A key release to such a machine
-(`acp-bootstrap` on `azure-cgpu`) has not been run; no sealer on this
-host. The model is 7B in bfloat16; the machine cost about $9 an hour and
+(`acp-bootstrap` on `azure-cgpu`) has since been run as the standby of a
+failover ([C18](#c18)); no sealer on this host. The model is 7B in bfloat16; the machine cost about $9 an hour and
 lived for 35 minutes.
+
+---
+
+<a id="c18"></a>
+### C18 — A model under attack on a CPU TEE fails over to an attested confidential GPU in another cloud: the key released on the chip's report, the vTPM's quote and NVIDIA's tokens, the clean generation gated EQUIVALENT on the H100
+
+**Claim.** The failover of [C8](#c8) and [C14](#c14) with the standby an
+Azure NCC H100 v5 (`acp-bootstrap` on `tee.provider: "azure-cgpu"`)
+reached over the Internet. Under a policy the operator signed in advance —
+pinning the primary's chip, the standby's launch measurement and, in the
+registry, its vTPM's boot — the authority (GCP SEV-SNP, its escrow key
+sealed to its chip) took the primary's attested compromise report,
+verified the standby's SEV-SNP report to AMD's Genoa root, its TPM quote
+under the vTPM's attestation key against the pinned PCR digest, and
+NVIDIA's tokens for the H100 under NVIDIA's key set and the claims policy,
+released the key for the last generation sealed before the attack, and
+confirmed the standby's receipt: the genome restored and gated through the
+door on the H100 in confidential-computing mode. Every step is on the
+audit record.
+
+**Evidence.**
+[`scripts/hardware-test/failover-cgpu/evidence/20260916T150456Z/`](scripts/hardware-test/failover-cgpu/evidence/20260916T150456Z/)
+— `authority/report.json`: `status: restored`; trigger `compromise-report`
+at 15:12:35.07Z with `primary_measurement_hex: 69da361d…c790`; `decision:
+failover … restore generation 1 on the standby`; `release.destination_kind:
+azure-cgpu`, `destination_measurement_hex: aa7c9da5…0eef`,
+`policy_version: failover-policy-v1;failover=1;revocation=1`;
+`restore.gate`: **EQUIVALENT**, door native float, 16 fixtures,
+`max_abs_err: 1.516e-4`, `max_rel_err: 1.65e-5`, `backend_seconds: 12.11`;
+`timing`: detect 5.59 s, release 1.30 s, restore 11.4 ms, gate 12.11 s,
+failover 19.40 s, **RTO 24.99 s**, **RPO 12.00 s**; `audit_chain_length:
+5`. `authority/verifiers.json`: the `azure-cgpu` entry with the Genoa
+chain, `gpu_policy.hw_models: ["GH100"]` and `pcr_digests:
+["92fe2c20…26e2"]`, and the `gcp-sev-snp` entry — the primary's anchors.
+`authority/failover-verify.txt`: the signed policy, serial 1, standby
+`azure-cgpu https://…:8443`. `authority/audit-verify.json`: `ok: true`, 5
+events (`FAILOVER_DECIDED` → `CROSS_CLOUD_HANDSHAKE_INITIATED` →
+`CROSS_CLOUD_ATTESTATION_VERIFIED` → `KEY_RELEASE_AUTHORIZED` →
+`CROSS_CLOUD_RESTORE_COMPLETED`), tip `d46be63a…943a`.
+`authority/escrow-provision.json`: `tee: gcp-sev-snp`, sealed.
+`destination/destination-identity.json`: `tee_provider: azure-cgpu`,
+measurement `aa7c9da5…0eef`, `vtpm.pcr_digest_hex: 92fe2c20…26e2`.
+`destination/genome-…-g1-….receipt.json`: the receipt (`destination_kind:
+azure-cgpu`, generation 1, `gate.level: EQUIVALENT`) with its
+`vault-genome/azure-cgpu-evidence/v1` Evidence — HCL report, quote,
+NVIDIA's tokens. `destination/conf-compute.txt`: `CC State: ON`, `CC GPUs
+Ready State: Ready`; `destination/gpu.csv`: H100 NVL, driver 595.71.05,
+VBIOS 96.00.9F.00.04. `destination/acp-bootstrap.log`: handshake
+answered, key released, restore, gate, key erased. `primary/sentinel.json`:
+`outcome: compromised`, `attestation.kind: gcp-sev-snp`, last generation 1.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/failover-cgpu/run.sh <gcp-project> europe-west4-a vg-cgpu-weu   # ~25 min: two GCP n2d Milan CVMs + an Azure NCC H100 v5
+```
+
+**Scope.** One run, with the 0.5B model of the failover drill, trained on
+the primary's CPUs in float32 and proven on the GPU: EQUIVALENT (max abs
+err 1.5e-4 against atol 1e-2), not EXACT — the same-device EXACT of
+[C14](#c14) is not available across devices ([C6](#c6)). The GPU's
+measurements are NVIDIA's evaluation, verified by NVIDIA's signature
+([C17](#c17) scope). The standby holds no sealed escrow key (no sealer on
+that host): it can receive a model and cannot itself become an authority.
+The vTPM pin is a property of a boot. A TDX destination has not taken a
+key release.
 
 ---
 
@@ -754,14 +822,16 @@ sentence we cannot defend.
    carries the sealed delta; the worker restores that delta onto the public
    base model and the authority proves the result ([C11](#c11)). Nothing in
    this repository invents weights from a recipe.
-3. **We do not claim an attested GPU as a *destination* of a key release, or
-   the GPU's evaluation as our own.** An attested GPU *worker* exists: on an
-   Azure confidential GPU VM the Return Path handshake carries the chip's
-   report, the vTPM's quote and NVIDIA's tokens for the H100, and the door
-   runs on the H100 in confidential-computing mode ([C17](#c17)). The GPU's
-   measurements are evaluated by NVIDIA's service and we verify NVIDIA's
-   signed word; a key release to such a machine has not been run; every
-   failover destination to date is a CPU TEE.
+3. **We do not claim the GPU's evaluation as our own, or more than one GPU
+   leg.** An attested GPU exists as a Return Path *worker* ([C17](#c17)) and,
+   once, as the *standby* of a failover ([C18](#c18)): an Azure confidential
+   GPU VM whose handshake carries the chip's report, the vTPM's quote and
+   NVIDIA's tokens for the H100, and whose door runs on the H100 in
+   confidential-computing mode. The GPU's measurements are evaluated by
+   NVIDIA's service and we verify NVIDIA's signed word; the SPDM report is in
+   the evidence and an independent evaluation is not in this build. The GPU
+   leg ran once, at 0.5B, with an EQUIVALENT gate; a key release to a TDX
+   destination has not been run.
 4. **We do not claim Nitro or SGX verification.** SEV-SNP and Intel TDX only
    ([C15](#c15)). Adapter dispatch for others exists (ADR 0002); the offline
    verifiers do not. And a TDX host holds no sealed escrow key: TDX has no

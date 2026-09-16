@@ -92,8 +92,10 @@ go run ./cmd/acp-demo --model ./path/to/your-model.safetensors
 
 - attested continuity of a real fine-tuned model, sealed on SEV-SNP and
   restored on a GPU with its fidelity measured;
-- key release only to attested **AMD SEV-SNP** hardware, on **GCP and Azure**
-  (`scripts/hardware-test/`, `docs/adr/0008`, `0009`, `0011`);
+- key release only to attested hardware — **AMD SEV-SNP** on **GCP and
+  Azure**, and an **Azure confidential GPU** whose evidence carries the chip,
+  the vTPM and the H100 (`scripts/hardware-test/`, `docs/adr/0008`, `0009`,
+  `0011`, `0019`);
 - automatic failover of a running model under the operator's signed policy
   (ADR 0012).
 
@@ -190,8 +192,14 @@ verify-reproducible).
   ([gcp-failover](scripts/hardware-test/gcp-failover)): detect 2.53 s, RPO
   9.0 s, **RTO 16.81 s** from intrusion to a gated, confirmed model — and what
   came back was the clean generation, gated **EXACT**, against a policy that
-  required only EQUIVALENT. Locally with the real binaries: RTO 0.63 s after an
-  intrusion; 3.5 s after a killed primary, with a 3 s heartbeat timeout.
+  required only EQUIVALENT. The same failover with the standby an **Azure
+  confidential GPU** across the Internet
+  ([failover-cgpu](scripts/hardware-test/failover-cgpu)): the key released to
+  the H100 host on its chip's report, its vTPM's quote with the boot pinned
+  and NVIDIA's tokens, the clean generation restored and gated **EQUIVALENT**
+  on the GPU (max abs err 1.5e-4), **RTO 24.99 s**, RPO 12.0 s. Locally with
+  the real binaries: RTO 0.63 s after an intrusion; 3.5 s after a killed
+  primary, with a 3 s heartbeat timeout.
 - **Real AMD SEV-SNP attestation** — a report from a live confidential VM is
   parsed, its ECDSA-P384 signature verified, and its VCEK chained to AMD
   ARK-Milan — proven on **two clouds, GCP and Azure** (`scripts/hardware-test/`,
@@ -245,7 +253,7 @@ verify-reproducible).
 - **Honest boundaries** — off hardware the daemons run a simulated TEE that
   announces itself; no AWS Nitro or SGX adapter attests, and a TDX host holds
   no sealed escrow key (no TDX or Azure confidential-GPU sealer). An attested
-  GPU is a Return Path worker today, not yet a key-release destination, and
+  GPU has been a Return Path worker and, once, the standby of a failover;
   the GPU's measurements are NVIDIA's evaluation, verified by NVIDIA's
   signature, not ours. The largest model measured is 7B, on one GPU and on
   an attested confidential GPU VM; every failover number is 0.5B scale. **We
