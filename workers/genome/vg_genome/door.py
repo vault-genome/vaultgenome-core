@@ -36,14 +36,16 @@ import numpy as np
 from . import GENOME_SCHEMA, determinism, fixtures, lora, manifest
 from .data import file_digest
 from .finetune import load_genome
+from .finetune import recipe_dtype
 from .model import greedy, last_logits, load_base, load_with_adapter
 
 DOOR_REQUEST_SCHEMA = "vault-genome/door-request/v1"
 PROMPTS_SCHEMA = "vault-genome/door-prompts/v1"
 
 
-def open_genome(genome_dir: str, base_dir: str, device_name: str):
-    """Check everything the genome names — fixtures, adapter, base — then load."""
+def open_genome(genome_dir: str, base_dir: str, device_name: str, dtype=None):
+    """Check everything the genome names — fixtures, adapter, base — then
+    load, on device_name, in the recipe's dtype unless dtype overrides it."""
     g = load_genome(genome_dir)
     fx_path = os.path.join(genome_dir, g["fixtures"]["file"])
     if fixtures.digest(fx_path) != g["fixtures"]["sha256"]:
@@ -55,13 +57,13 @@ def open_genome(genome_dir: str, base_dir: str, device_name: str):
     determinism.pin(g["recipe"]["seed"], g["recipe"]["threads"])
     dev = determinism.device(device_name)
     start = time.monotonic()
-    model, tokenizer = load_with_adapter(base_dir, adapter_dir, dev)
+    model, tokenizer = load_with_adapter(base_dir, adapter_dir, dev, recipe_dtype(g, dtype))
     return g, fixtures.load(fx_path), model, tokenizer, dev, time.monotonic() - start
 
 
-def serve(genome_dir: str, base_dir: str, device_name: str, stdin=sys.stdin, stdout=sys.stdout) -> None:
+def serve(genome_dir: str, base_dir: str, device_name: str, stdin=sys.stdin, stdout=sys.stdout, dtype=None) -> None:
     req = json.loads(stdin.read() or "{}")
-    _, fx, model, _, dev, _ = open_genome(genome_dir, base_dir, device_name)
+    _, fx, model, _, dev, _ = open_genome(genome_dir, base_dir, device_name, dtype)
     by_id = {f["id"]: f for f in fx["fixtures"]}
     if "fixture_ids" in req:
         ids = req["fixture_ids"]
@@ -78,7 +80,7 @@ def serve(genome_dir: str, base_dir: str, device_name: str, stdin=sys.stdin, std
     stdout.flush()
 
 
-def open_genome_files(files: dict, base_dir: str, device_name: str):
+def open_genome_files(files: dict, base_dir: str, device_name: str, dtype=None):
     """open_genome for a genome held in memory: files maps the genome's paths
     to their bytes. Checks the adapter against the genome's description and
     the base against its manifest, then loads — nothing is written."""
@@ -99,7 +101,7 @@ def open_genome_files(files: dict, base_dir: str, device_name: str):
     determinism.pin(g["recipe"]["seed"], g["recipe"]["threads"])
     dev = determinism.device(device_name)
     start = time.monotonic()
-    model, tokenizer = load_base(base_dir)
+    model, tokenizer = load_base(base_dir, recipe_dtype(g, dtype))
     lora.load_bytes(model, files[config_path], files[weights_path])
     model.to(dev)
     model.eval()
@@ -130,7 +132,7 @@ def parse_prompts(raw: bytes) -> list:
     return prompts
 
 
-def serve_request(base_dir: str, device_name: str, stdin=sys.stdin, stdout=sys.stdout) -> None:
+def serve_request(base_dir: str, device_name: str, stdin=sys.stdin, stdout=sys.stdout, dtype=None) -> None:
     """Answer one door request: restore the genome in memory and recompute
     every prompt it carries."""
     req = parse_request(stdin.read())
@@ -138,14 +140,14 @@ def serve_request(base_dir: str, device_name: str, stdin=sys.stdin, stdout=sys.s
     if "prompts.json" not in files:
         raise ValueError("the request carries no prompts.json")
     prompts = parse_prompts(files["prompts.json"])
-    _, model, _, dev, _ = open_genome_files(files, base_dir, device_name)
+    _, model, _, dev, _ = open_genome_files(files, base_dir, device_name, dtype)
     outputs = {p["id"]: fixtures.tensor_to_wire(fixtures.recompute(model, p, dev)) for p in prompts}
     stdout.write(json.dumps({"outputs": outputs}))
     stdout.flush()
 
 
-def measure(genome_dir: str, base_dir: str, device_name: str) -> dict:
-    g, fx, model, tokenizer, dev, load_seconds = open_genome(genome_dir, base_dir, device_name)
+def measure(genome_dir: str, base_dir: str, device_name: str, dtype=None) -> dict:
+    g, fx, model, tokenizer, dev, load_seconds = open_genome(genome_dir, base_dir, device_name, dtype)
     results = []
     start = time.monotonic()
     for f in fx["fixtures"]:
@@ -171,6 +173,9 @@ def measure(genome_dir: str, base_dir: str, device_name: str) -> dict:
         "genome_created_at": g["created_at"],
         "base": g["base"]["name"],
         "device": str(dev),
+        "dtype": recipe_dtype(g, dtype),
+        "recipe_device": g["recipe"].get("device", "cpu"),
+        "recipe_dtype": recipe_dtype(g),
         "fixtures": n,
         "exact": sum(r["exact"] for r in results),
         "top1_same": sum(r["top1_same"] for r in results),

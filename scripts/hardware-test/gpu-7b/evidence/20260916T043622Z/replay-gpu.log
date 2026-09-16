@@ -1,0 +1,20 @@
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:01,  1.55it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.55it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.55it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.60it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.58it/s]
+/opt/vg/lib/python3.12/site-packages/torch/autograd/graph.py:824: UserWarning: Memory Efficient attention defaults to a non-deterministic algorithm. To explicitly enable determinism call torch.use_deterministic_algorithms(True, warn_only=False). (Triggered internally at /pytorch/aten/src/ATen/native/transformers/cuda/attention_backward.cu:752.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+step 1/160 loss 6.0022
+step 11/160 loss 5.8180
+step 21/160 loss 5.1970
+step 31/160 loss 0.0870
+step 41/160 loss 4.1017
+step 51/160 loss 2.4699
+step 61/160 loss 0.0002
+step 71/160 loss 2.1351
+step 81/160 loss 0.0140
+step 91/160 loss 0.0234
+step 101/160 loss 0.4853
+step 111/160 loss 0.0017
+step 121/160 loss 0.0147
+step 131/160 loss 0.0414
+step 141/160 loss 0.0001
+step 151/160 loss 0.1157
+step 160/160 loss 0.0007

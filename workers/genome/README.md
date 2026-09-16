@@ -16,11 +16,14 @@ genome/
   anywhere; a destination refuses a base whose files do not hash to the manifest.
 - **Delta.** A LoRA adapter (`q_proj,v_proj` by default), saved in the PEFT
   layout. It is what `acpctl genome seal` protects.
-- **Recipe.** Data digest, hyper-parameters, seed, thread count, the loss of
-  every step, the runtime. On the same pinned runtime `replay` reproduces the
-  adapter byte for byte.
+- **Recipe.** Data digest, hyper-parameters, seed, thread count, the device
+  and the dtype the base computed in (`--device`, `--dtype`: float32 on the
+  CPU by default; a 7B base trains in bfloat16 on a GPU — the adapter is
+  float32 either way), the loss of every step, the runtime. On the same
+  pinned runtime `replay` reproduces the adapter byte for byte.
 - **Fixtures.** For each prompt: the float32 logits at the last position,
-  gathered at the reference model's top-k tokens, and the greedy continuation.
+  gathered at the reference model's top-k tokens, and the greedy
+  continuation — recorded on the device that trained, in the recipe's dtype.
 
 ## Commands
 
@@ -31,8 +34,12 @@ export PYTHONPATH=$PWD
 
 python -m vg_genome finetune --base BASE_DIR --base-name Qwen/Qwen2.5-0.5B-Instruct \
     --data examples/drill-facts.jsonl --prompts examples/drill-prompts.json --out genome/
+python -m vg_genome finetune --base BASE_7B --base-name Qwen/Qwen2.5-7B-Instruct \
+    --data examples/drill-facts.jsonl --prompts examples/drill-prompts.json --out genome-7b/ \
+    --device cuda --dtype bfloat16                                      # a 7B base on a 24 GB GPU
 python -m vg_genome replay   --genome genome/ --base BASE_DIR           # recipe → same adapter?
 python -m vg_genome measure  --genome genome/ --base BASE_DIR --device cuda
+python -m vg_genome measure  --genome genome-7b/ --base BASE_7B --device cpu --dtype float32   # a measurement off the pinned runtime
 python -m vg_genome verify-base --genome genome/ --base BASE_DIR
 ```
 
@@ -71,10 +78,12 @@ stdout: {"outputs": {"fx-000": {"dtype": "f32", "shape": [k], "raw_b64": "..."},
 
 `determinism.pin` seeds every RNG, fixes the thread count, and requires
 deterministic kernels (no TF32, no cuDNN autotuning). Training runs a batch of
-one over the examples in file order, AdamW, gradient clipping, no dropout, in
-float32. On one machine and library set, two runs of a recipe produce the same
-adapter bytes (`tests/`). Across hardware the float kernels differ in their
-last bits — which the gate measures rather than assumes.
+one over the examples in file order, AdamW, gradient clipping, no dropout, the
+base in the recipe's dtype and the adapter in float32. On one machine and
+library set, two runs of a recipe produce the same adapter bytes (`tests/`).
+The door restores the base in the recipe's dtype (`--dtype` overrides it for a
+measurement). Across hardware the float kernels differ in their last bits —
+which the gate measures rather than assumes.
 
 ## Measured
 
@@ -90,6 +99,21 @@ threads, torch 2.7.1 on an Apple M-series Mac:
 Training took 10.9 s, the whole run 43 s at a 2.6 GB peak. That recipe's
 learning rate (1e-3) taught the twelve facts word for word and overwrote general
 knowledge; the drill recipe trains gentler.
+
+Qwen2.5-7B-Instruct, LoRA r=8 on `q_proj,v_proj` (2 523 136 parameters, a
+10.1 MB genome against 15.2 GB of base weights), 160 steps on 16 examples,
+`--device cuda --dtype bfloat16` on an NVIDIA L4, torch 2.7.1+cu126
+([`scripts/hardware-test/gpu-7b`](../../scripts/hardware-test/gpu-7b/README.md)):
+
+| Where the restore ran | Gate | max \|Δ logit\| | top-1 | greedy (16 tokens) |
+|---|---|---|---|---|
+| the same L4 (the pinned runtime) | **EXACT** | 0 | 16/16 | 16/16 |
+| the host's Intel Xeon, bfloat16 | **FAIL** (closed) | 0.5 (rel 0.027) | 16/16 | 16/16 |
+
+Training took 32.4 s and replays bit for bit on the same GPU. Across devices
+in bfloat16 the logits differ by one or two bfloat16 quanta, which is
+outside the float door's float32 tolerance: the gate fails closed while the
+model's answers do not change.
 
 ## Tests
 

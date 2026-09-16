@@ -13,6 +13,18 @@ given release can still open.
 
 ### Added
 
+- **The recipe names its device and dtype** — `python -m vg_genome finetune
+  --device cuda --dtype bfloat16` trains the adapter on a GPU with the base
+  in bfloat16 (the adapter stays float32, and so does every measurement);
+  the genome's recipe records `device` and `dtype`, the fixtures are recorded
+  on the device that trained, and the door, `measure` and `replay` restore the
+  base in the recipe's dtype (`--dtype` overrides it for a measurement off
+  the pinned runtime). A genome that predates the fields restores in float32.
+  `scripts/hardware-test/gpu-7b/` takes Qwen2.5-7B-Instruct through the
+  genome path on one NVIDIA L4 (run `20260916T043622Z`: a 10 MB genome,
+  EXACT on the pinned GPU, the recipe replaying bit for bit, and the float
+  door failing closed across devices in bfloat16 while the answers stay the
+  same — VERIFIABLE-CLAIMS C16, KNOWN_ISSUES #13).
 - **Intel TDX on the Return Path**
   ([ADR-0018](docs/adr/0018-intel-tdx-on-the-return-path.md)) —
   `tee.provider: "gcp-tdx"` for `sagvd`, `acp-compute` and `acp-bootstrap`,

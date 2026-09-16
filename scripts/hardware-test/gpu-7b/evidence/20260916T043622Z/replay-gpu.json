@@ -1,0 +1,27 @@
+{
+  "device": "cuda",
+  "dtype": "bfloat16",
+  "exact": true,
+  "max_abs_diff": 0.0,
+  "max_rel_diff": 0.0,
+  "max_rel_l2": 0.0,
+  "losses_equal": true,
+  "max_loss_diff": 0.0,
+  "final_loss": {
+    "sealed": 0.0007134826155379415,
+    "replayed": 0.0007134826155379415
+  },
+  "train_seconds": 32.085,
+  "runtime": {
+    "python": "3.12.3",
+    "torch": "2.7.1+cu126",
+    "numpy": "2.3.1",
+    "platform": "Linux-7.0.0-1011-gcp-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+    "threads": 8,
+    "transformers": "4.53.2",
+    "cuda": "12.6",
+    "gpu": "NVIDIA L4"
+  }
+}

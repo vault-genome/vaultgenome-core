@@ -166,6 +166,12 @@ verify-reproducible).
     greedy continuations, max |Δ logit| 1.9e-4;
   - on an Intel CPU it also comes back EQUIVALENT;
   - its recipe replays to a bit-identical adapter.
+  - At **7B** (Qwen2.5-7B-Instruct, fine-tuned on an NVIDIA L4 in bfloat16,
+    [gpu-7b](scripts/hardware-test/gpu-7b)): a 10 MB genome against 15 GB
+    of base weights (1 : 1 502), EXACT on the pinned GPU, the recipe
+    replaying bit for bit there; on the host CPU the same answers token for
+    token, logits one or two bfloat16 quanta apart — and the float door
+    fails closed on that, as it should.
 - **Automatic failover, decided by the operator** — a sentinel on the primary
   seals every new state with its key escrowed to the authority, and reports
   when a tripwire fires (`acpctl sentinel watch`). Under a failover policy the
@@ -232,8 +238,8 @@ verify-reproducible).
   announces itself; no AWS Nitro or SGX adapter attests, and a TDX host holds
   no sealed escrow key (no TDX sealer). Attested GPU destinations need
   confidential GPUs, which have not been tested yet: the TDX CPU side of one
-  now attests, the GPU's own attestation does not. Every hardware number
-  here is 0.5B scale. **We
+  now attests, the GPU's own attestation does not. Every attested number
+  here is 0.5B scale; the largest model measured is 7B on one GPU. **We
   measured against ourselves that byte-identical float inference across CPU and
   GPU is not achievable** — divergence enters at the first transformer block in
   both float32 and float64, while top-1 tokens still agree 16/16

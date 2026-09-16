@@ -211,8 +211,12 @@ outreach material.
 The drills are strong evidence for a narrow claim, and the narrowness is the
 point.
 
-- **0.5B, not frontier scale.** Every number here is Qwen2.5-0.5B. A 7B+ run is
-  the obvious next measurement and has not been made.
+- **0.5B in the drills, 7B at most.** Every number here is Qwen2.5-0.5B. A
+  7B run through the same path exists
+  ([gpu-7b](../scripts/hardware-test/gpu-7b/README.md)): EXACT on the pinned
+  L4, its recipe replaying bit for bit, and the float door failing closed
+  across devices in bfloat16 while the answers stay the same. Nothing larger
+  has been run.
 - **CPU TEEs only.** Destinations are AMD SEV-SNP. Attested *GPU* destinations
   need confidential GPUs (H100 CC); untested — the TDX CPU side of one now
   attests (ADR 0018), the GPU's own attestation does not.

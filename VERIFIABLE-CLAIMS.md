@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -58,8 +58,9 @@ is pinned by SHA-256 in the genome's manifest (`sha256:7504966b…e927`).
 [the drill README](scripts/hardware-test/gcp-drill/README.md).
 
 **Caveat.** The ratio is a property of LoRA fine-tuning at this rank, not a
-universal compression claim. A full-weight fine-tune has no such ratio. We have
-not yet run this at 7B+; see [What we do not claim](#what-we-do-not-claim).
+universal compression claim. A full-weight fine-tune has no such ratio. At
+7B the same recipe gives 1 : 1 502 ([C16](#c16)); nothing larger has been
+run — see [What we do not claim](#what-we-do-not-claim).
 
 ---
 
@@ -572,6 +573,59 @@ on the guest to prove the path, not the scale.
 
 ---
 
+<a id="c16"></a>
+### C16 — A 7B model goes through the genome path on one GPU: a 10 MB genome, restored and gated EXACT on the pinned runtime; across devices in bfloat16 the float door fails closed while the model's answers do not change
+
+**Claim.** Qwen2.5-7B-Instruct fine-tuned by `vg_genome` on an NVIDIA L4 in
+bfloat16 — the recipe records the device and the dtype, and the door
+restores the base in the recipe's dtype — is sealed as a 10 142 001-byte
+genome against 15 231 271 888 bytes of base weights (1 : 1 502), restored
+from the bundle, gated **EXACT** through the door on the same GPU, and its
+recipe replays there to a bit-identical adapter. On the host's CPU the same
+genome gives the same top-1 token and the same 16-token greedy
+continuation on every fixture, and its bfloat16 logits differ by up to 0.5
+— one or two bfloat16 quanta at their magnitude — so the float door fails
+closed.
+
+**Evidence.**
+[`scripts/hardware-test/gpu-7b/evidence/20260916T043622Z/`](scripts/hardware-test/gpu-7b/evidence/20260916T043622Z/)
+— `g2-standard-8` in us-central1-b, NVIDIA L4 (driver 580.173.02), torch
+2.7.1+cu126 (`nvidia-smi.txt`, `torch.txt`, `pip-freeze.txt`).
+`finetune.json`: `device: cuda`, `dtype: bfloat16`, `adapter_parameters:
+2523136`, `loss_first: 6.002` → `loss_last: 0.000713`, `train_seconds:
+32.378`; `genome.json` carries the recipe and the base manifest
+(`sha256:f571d6a7…6107`). `seal.json`: `bundle_bytes: 10142001`,
+`payload_bytes: 10140672`, `component_count: 5`; `verify.json`:
+`restored_verify: ok`. `gate-gpu.json`: `level: EXACT`, rung 0 `pinned
+replay`, 16/16, `max_abs_err: 0`; `measure-gpu.json`: `exact: 16`,
+`top1_same: 16`, `greedy_same: 16`; `replay-gpu.json`: `exact: true`,
+`losses_equal: true`. `gate-cpu.json`: `level: FAIL`, both rungs at
+`max_abs_err: 0.5`; `measure-cpu.json`: `exact: 0`, `top1_same: 16`,
+`greedy_same: 16`, `max_abs_err: 0.5`, `max_rel_err: 0.027`, every fixture
+between 0.125 and 0.5. Base-weights bytes: the four `model-*.safetensors`
+of `Qwen/Qwen2.5-7B-Instruct` @ `a09a354`.
+In process:
+[`workers/genome/tests/test_genome.py`](workers/genome/tests/test_genome.py)
+(a bfloat16 genome records its runtime and the door honours it; an unknown
+dtype is refused; a genome that predates the field restores in float32).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gpu-7b/run.sh <gcp-project>     # one g2-standard-8, ~35 min
+cd workers/genome && python -m pytest -q tests/
+```
+
+**Scope.** One GPU, one host CPU, one model; LoRA r=8 on two projections;
+16 fixtures. The L4 is not a confidential GPU: nothing here is attested,
+and the sealed genome was opened on the machine that made it. The
+cross-device result is a measurement of bfloat16 kernels on two devices,
+not a property of the model: the float door's tolerance is the float32 one,
+and no bfloat16 tolerance policy and no integer door for the LoRA worker
+are shipped. Frontier scale has not been run.
+
+---
+
 ## Supply chain and build
 
 <a id="c9"></a>
@@ -631,10 +685,13 @@ sentence we cannot defend.
    ([C15](#c15)). Adapter dispatch for others exists (ADR 0002); the offline
    verifiers do not. And a TDX host holds no sealed escrow key: TDX has no
    sealer here (ADR 0018).
-5. **We do not claim this at frontier scale.** Every hardware number here is
+5. **We do not claim this at frontier scale.** The largest model measured is
+   Qwen2.5-7B-Instruct on one 24 GB GPU ([C16](#c16)); every attested run is
    Qwen2.5-0.5B or smaller ([C12](#c12) uses a tiny model built on the guest to
-   prove the path, not the scale). A 7B+ run is the obvious next measurement
-   and it has not been made.
+   prove the path, not the scale). And we do not claim cross-device
+   equivalence at 7B in bfloat16: there the float door fails closed on
+   differences of one or two bfloat16 quanta, while top-1 and greedy agree
+   16/16. Nothing larger than 7B has been run.
 6. **We do not claim production operation.** Stage E, MVP maturity, zero
    external deployments. The vault daemon drives the release-side flow
    ([C13](#c13)); the receive-side round trip is library code no binary

@@ -222,3 +222,18 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     - The attested standby is a CPU confidential VM. An attested GPU standby
       needs confidential GPUs (H100 CC on a TDX host): the TDX producer and
       verifier exist (ADR 0018); the GPU's own attestation does not.
+13. **The float door's tolerance is a float32 one; a bfloat16 genome fails
+    it across devices (2026-09-16).** The genome's recipe now records the
+    device and dtype the base computed in, and a 7B model trains in bfloat16
+    on a 24 GB GPU (`scripts/hardware-test/gpu-7b/`, VERIFIABLE-CLAIMS C16).
+    On the pinned runtime it is EXACT and its recipe replays bit for bit; on
+    another device its logits differ by one or two bfloat16 quanta (up to
+    0.5 at the logits' magnitude) while the top-1 token and the greedy
+    continuation are the same on every fixture — and the native-float rung's
+    default tolerance (`atol` 1e-2, `rtol` 1e-3, set where float32 came back
+    within 1.9e-4) fails it closed. What is missing: a tolerance policy for
+    bfloat16 genomes an operator can sign (the gate policy is per genome,
+    not per dtype), and the integer door for the LoRA worker (ADR 0008 has
+    it for the demo model only). Until then a bfloat16 genome is
+    cross-device **FAIL** by construction, which is the honest reading of
+    the tensors, not a defect of the gate.
