@@ -407,3 +407,19 @@ func containsFold(set []string, s string) bool {
 	}
 	return false
 }
+
+// holdsPins holds a GPU verdict to the policy's model and version pins
+// (the claims a report carries; secure boot and debug are NVIDIA-token
+// claims and are not asserted by an evaluation of the report alone).
+func (pol GPUClaimsPolicy) holdsPins(v GPUVerdict) error {
+	if len(pol.AcceptableHWModels) > 0 && !containsFold(pol.AcceptableHWModels, v.HWModel) {
+		return fmt.Errorf("hw model %q is not one the policy accepts %v", v.HWModel, pol.AcceptableHWModels)
+	}
+	if len(pol.AcceptableDriverVersions) > 0 && !containsFold(pol.AcceptableDriverVersions, v.DriverVersion) {
+		return fmt.Errorf("driver %q is not one the policy accepts %v", v.DriverVersion, pol.AcceptableDriverVersions)
+	}
+	if len(pol.AcceptableVBIOSVersions) > 0 && !containsFold(pol.AcceptableVBIOSVersions, v.VBIOSVersion) {
+		return fmt.Errorf("VBIOS %q is not one the policy accepts %v", v.VBIOSVersion, pol.AcceptableVBIOSVersions)
+	}
+	return nil
+}

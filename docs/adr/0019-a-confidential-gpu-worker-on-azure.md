@@ -90,9 +90,11 @@ Every refusal names its step.
 
 ### No sealer
 
-The guest has no derived-key interface; the adapter has no Sealer, and an
-authority on this host holds no sealed escrow key (as on TDX, ADR 0018).
-Sealing through the vTPM is the way and it is not wired.
+The guest has no derived-key interface; the adapter has no Sealer of the
+TEE's own. *Amended 2026-09-16:* sealing through the vTPM is wired
+(ADR 0022) — the escrow key is held by the vTPM under a policy of the
+same PCRs the registry pins — so an authority on this host holds a sealed
+escrow key as on TDX.
 
 ### Proven on the machine
 

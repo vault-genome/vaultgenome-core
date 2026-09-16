@@ -310,6 +310,14 @@ One policy, two vendors' roots of trust: the machine that lost the model
 was AMD's word, the machine that took it Intel's, and the operator signed
 for the move before either had happened.
 
+*Since ADR 0022 the authority itself can be a Trust Domain: in
+[`failover-tdx-authority`](../scripts/hardware-test/failover-tdx-authority/README.md)
+(run `20260916T200841Z`) the authority's escrow key is sealed to the guest's vTPM
+under a policy of the pinned boot, re-provisioned through the recovery
+ceremony on TDX, and the same failover runs with RTO 20.27 s — the
+authority, the primary and the standby on three different roots of
+trust.*
+
 ---
 
 ## Drill V — The authority says no
@@ -423,14 +431,15 @@ point.
   confidential GPU, run once with the 0.5B model. In that run its GPU
   measurements were NVIDIA's evaluation, verified by NVIDIA's signature; the
   verifier now evaluates the report itself as well (ADR 0021, `both`), and
-  what stays NVIDIA's word is the manifests' XML signatures and revocation.
-  The standby
-  holds no sealed escrow key (no sealer on that host), so it can receive a
-  model and cannot itself become an authority.
+  the manifests' XML signatures verified; what stays NVIDIA's word is
+  revocation.
+  In that run the standby held no sealed escrow key; since ADR 0022 a
+  host of either family seals the key to its vTPM under a policy of the
+  pinned boot, and can be an authority.
 - **SEV-SNP, TDX and the Azure confidential GPU only.** Nitro and SGX have
-  adapter dispatch (ADR 0002) but no shipped offline verifier; a TDX host
-  and an Azure confidential GPU host have no sealer, so no sealed escrow
-  key. Each other-family standby — the GPU (Drill III) and the TDX Trust
+  adapter dispatch (ADR 0002) but no shipped offline verifier. A TDX host
+  and an Azure confidential GPU host seal to their vTPM (ADR 0022) — a root
+  the cloud provider virtualises, not the TEE's own. Each other-family standby — the GPU (Drill III) and the TDX Trust
   Domain (Drill IV) — has taken one key release, once, at 0.5B.
 - **Byte-identical inference across devices is unavailable, and we proved it
   against ourselves.** A dedicated probe on an L4 found the CPU↔GPU divergence

@@ -1,0 +1,33 @@
+== 20:10:20 inputs
+== 20:10:22 configfs-tsm (the sentinel attests with this chip)
+== 20:10:22 python runtime (CPU) and base model
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart chrony.service cron.service google-guest-agent.service google-osconfig-agent.service multipathd.service packagekit.service polkit.service rsyslog.service snapd.service ssh.service systemd-journald.service systemd-networkd.service systemd-resolved.service systemd-udevd.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart getty@tty1.service
+ systemctl restart google-startup-scripts.service
+ systemctl restart networkd-dispatcher.service
+ systemctl restart serial-getty@ttyS0.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 20.96it/s]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.01s/it]
+== 20:11:42 wait for the release authority's escrow key
+== 20:11:43 the sentinel's key and this chip's identity; the operator pins both
+== 20:11:46 fine-tune generation 0 (120 steps)
+== 20:15:19 arm a tripwire and start the sentinel
+== 20:15:19 wait for generation 0 to be sealed
+== 20:15:27 wait for the authority to arm its failover watch
+== 20:15:27 keep training: fine-tune generation 1 (160 steps)
+== 20:19:29 wait for generation 1 to be sealed and replicated
+== 20:19:47 ATTACK: touch the canary, then tamper with the model
+== 20:19:47 the sentinel must stop sealing, report, and exit 3

@@ -182,6 +182,7 @@ type AzureCGPUVerifier struct {
 	acceptable []Measurement
 	jwks       *nrasJWKS
 	gpuEval    *GPUEvaluator // nil unless the policy asks for the own evaluation
+	ownOnly    bool          // GPUEvaluationOwn: the verdict rests on the evaluation alone
 
 	mu        sync.Mutex
 	vcekCache map[string][]byte
@@ -417,10 +418,8 @@ func NewAzureCGPUVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureCGP
 	}
 	switch cfg.GPUEvaluation {
 	case "", GPUEvaluationNRAS:
-	case GPUEvaluationOwn:
-		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
-			"azure-cgpu: GPUEvaluation \"own\" would rest the verdict on this verifier's evaluation alone, and this build does not verify the manifests' XML signatures; use \"both\"", nil)
-	case GPUEvaluationBoth:
+	case GPUEvaluationOwn, GPUEvaluationBoth:
+		v.ownOnly = cfg.GPUEvaluation == GPUEvaluationOwn
 		device, err := parseNVIDIARoot(cfg.NVIDIADeviceRootPEM, NVIDIADeviceRootPEM)
 		if err != nil {
 			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: NVIDIA device root: "+err.Error(), err)
@@ -432,7 +431,7 @@ func NewAzureCGPUVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureCGP
 		v.gpuEval = &GPUEvaluator{DeviceRoot: device, RIMRoot: rimRoot, Now: cfg.Now,
 			RIMs: &RIMFetcher{BaseURL: cfg.RIMServiceURL, CacheDir: cfg.RIMCacheDir}}
 	default:
-		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, fmt.Sprintf("azure-cgpu: GPUEvaluation %q (one of nras, both)", cfg.GPUEvaluation), nil)
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, fmt.Sprintf("azure-cgpu: GPUEvaluation %q (one of nras, both, own)", cfg.GPUEvaluation), nil)
 	}
 	return v, nil
 }
@@ -522,39 +521,44 @@ func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPU
 		}
 	}
 
-	// The GPU: NVIDIA's tokens for the same challenge.
-	token, err := parseNRASResponse(env.GPUToken)
-	if err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "GPU token: "+err.Error(), err)
-	}
-	now := v.cfg.Now()
-	overall, err := v.jwks.verify(token.Overall, now, v.cfg.MaxClockSkew)
-	if err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "GPU overall token: "+err.Error(), err)
-	}
-	detached := map[string]map[string]any{}
-	for key, t := range token.Detached {
-		c, err := v.jwks.verify(t, now, v.cfg.MaxClockSkew)
+	// The GPU: NVIDIA's tokens for the same challenge — unless the policy
+	// rests the verdict on this verifier's own evaluation alone.
+	var gpus []GPUVerdict
+	if !v.ownOnly {
+		token, err := parseNRASResponse(env.GPUToken)
 		if err != nil {
-			return nil, integrity(shared_errors.CodeSignatureInvalid, "GPU token "+key+": "+err.Error(), err)
+			return nil, integrity(shared_errors.CodeSignatureInvalid, "GPU token: "+err.Error(), err)
 		}
-		detached[key] = c
-	}
-	gpus, err := evaluateGPUClaims(overall, detached, hex.EncodeToString(challenge[:]), v.cfg.GPU)
-	if err != nil {
-		return nil, integrity(shared_errors.CodeAttestationDenied, "GPU: "+err.Error(), err)
+		now := v.cfg.Now()
+		overall, err := v.jwks.verify(token.Overall, now, v.cfg.MaxClockSkew)
+		if err != nil {
+			return nil, integrity(shared_errors.CodeSignatureInvalid, "GPU overall token: "+err.Error(), err)
+		}
+		detached := map[string]map[string]any{}
+		for key, t := range token.Detached {
+			c, err := v.jwks.verify(t, now, v.cfg.MaxClockSkew)
+			if err != nil {
+				return nil, integrity(shared_errors.CodeSignatureInvalid, "GPU token "+key+": "+err.Error(), err)
+			}
+			detached[key] = c
+		}
+		if gpus, err = evaluateGPUClaims(overall, detached, hex.EncodeToString(challenge[:]), v.cfg.GPU); err != nil {
+			return nil, integrity(shared_errors.CodeAttestationDenied, "GPU: "+err.Error(), err)
+		}
 	}
 
-	// The GPU, evaluated here: the report and chain NVIDIA was given, held
-	// to NVIDIA's roots and manifests by this verifier, for the same
-	// challenge. Every GPU NVIDIA spoke for must be in the evidence, and
-	// what the report says of it must be what NVIDIA said.
+	// The GPU, evaluated here: the report and chain the driver produced,
+	// held to NVIDIA's roots and signed manifests by this verifier, for
+	// the same challenge. Under "both", every GPU NVIDIA spoke for must be
+	// in the evidence and what the report says of it must be what NVIDIA
+	// said; under "own", the report is the whole of the GPU's word, and
+	// the policy's model and version pins are held against it.
 	var evaluations []GPUEvaluation
 	if v.gpuEval != nil {
 		if len(env.GPUEvidence) == 0 {
 			return nil, integrity(shared_errors.CodeAttestationDenied, "GPU: the evidence carries no report to evaluate (gpu_evidence), and the policy requires the verifier's own evaluation", nil)
 		}
-		if len(env.GPUEvidence) != len(gpus) {
+		if !v.ownOnly && len(env.GPUEvidence) != len(gpus) {
 			return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("GPU: %d reports in the evidence, %d GPUs in NVIDIA's tokens", len(env.GPUEvidence), len(gpus)), nil)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -564,6 +568,14 @@ func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPU
 			evaluations = append(evaluations, e)
 			if !e.Complete() {
 				return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("GPU %d, own evaluation: %s", i, strings.Join(e.Errors, "; ")), nil)
+			}
+			if v.ownOnly {
+				g := GPUVerdict{Key: fmt.Sprintf("GPU-%d", i), HWModel: e.HWModel, DriverVersion: e.DriverVersion, VBIOSVersion: e.VBIOSVersion, UEID: e.UEID, Issuer: "own evaluation"}
+				if err := v.cfg.GPU.holdsPins(g); err != nil {
+					return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("GPU %d: %s", i, err), err)
+				}
+				gpus = append(gpus, g)
+				continue
 			}
 			if e.DriverVersion != gpus[i].DriverVersion || !strings.EqualFold(e.VBIOSVersion, gpus[i].VBIOSVersion) {
 				return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("GPU %d: the report names driver %s and VBIOS %s, NVIDIA's token %s and %s", i, e.DriverVersion, e.VBIOSVersion, gpus[i].DriverVersion, gpus[i].VBIOSVersion), nil)

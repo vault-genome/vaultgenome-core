@@ -270,6 +270,12 @@ type TEEConfig struct {
 	TPM2ToolsDir     string   `json:"tpm2_tools_dir,omitempty"`
 	AKHandle         string   `json:"ak_handle,omitempty"`
 
+	// VTPMSealPCRs is the PCR selection the escrow key is sealed to on a
+	// host whose TEE gives no sealing key of its own — gcp-tdx and
+	// azure-cgpu seal to the guest's vTPM (ADR 0022). "sha256:<n>,<n>,...";
+	// empty means every PCR the azure-cgpu quote covers (sha256:0-14).
+	VTPMSealPCRs string `json:"vtpm_seal_pcrs,omitempty"`
+
 	// Peer holds the trust-anchor material for the worker's TEE side.
 	// The vault accepts exactly one worker TEE identity: a Return Path
 	// session opens only for a worker whose Evidence verifies under it.
@@ -476,6 +482,9 @@ func validateTEE(t TEEConfig) []error {
 		if t.SEVGuestDevice != "" {
 			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp only"))
 		}
+		if t.VTPMSealPCRs != "" {
+			errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies to gcp-tdx and azure-cgpu only"))
+		}
 	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
 		if t.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
@@ -486,12 +495,25 @@ func validateTEE(t TEEConfig) []error {
 		if provider == tee.ProviderGCPTDX && t.SEVGuestDevice != "" {
 			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp only"))
 		}
+		if provider == tee.ProviderGCPSEVSNP && t.VTPMSealPCRs != "" {
+			errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies to gcp-tdx and azure-cgpu only (gcp-sev-snp seals with the chip's derived key)"))
+		}
+		if provider == tee.ProviderGCPTDX && t.VTPMSealPCRs != "" {
+			if err := tee.ValidatePCRSelection(t.VTPMSealPCRs); err != nil {
+				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+			}
+		}
 	case provider == tee.ProviderAzureCGPU:
 		if t.SeedPath != "" || t.InsecureSimulation {
 			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only"))
 		}
 		if t.TSMReportDir != "" || t.SEVGuestDevice != "" {
 			errs = append(errs, errors.New("tee.tsm_report_dir and tee.sev_guest_device do not apply to azure-cgpu (the report comes from the vTPM)"))
+		}
+		if t.VTPMSealPCRs != "" {
+			if err := tee.ValidatePCRSelection(t.VTPMSealPCRs); err != nil {
+				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+			}
 		}
 		if len(t.GPUAttestCommand) == 0 {
 			errs = append(errs, errors.New("tee.gpu_attest_command required when tee.provider=azure-cgpu (the command that obtains NVIDIA's attestation tokens for a nonce)"))

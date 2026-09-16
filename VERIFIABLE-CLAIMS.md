@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -571,9 +571,9 @@ image's, so a second guest of the same image has the same measurement. The
 CPU side only: the machine had no GPU, and the GPU's own attestation
 (NVIDIA confidential computing) is not wired. A key release to a TDX
 destination (`acp-bootstrap` on TDX) has since run on hardware, once, as
-the standby of a failover ([C21](#c21)). TDX has
-no sealer here, so an authority on a TDX host holds no sealed escrow key
-(ADR 0016 is SEV-SNP only). Intel PCS was reachable from the guest; without
+the standby of a failover ([C21](#c21)), and an authority on TDX has
+held its escrow key sealed to the guest's vTPM ([C23](#c23), ADR 0022).
+Intel PCS was reachable from the guest; without
 it and without a cache the verifier refuses. The model is a tiny one built
 on the guest to prove the path, not the scale.
 
@@ -706,7 +706,8 @@ ADR 0021 the verifier does, offline on this very capture — [C20](#c20)).
 NRAS is on
 the path when evidence is produced. A key release to such a machine
 (`acp-bootstrap` on `azure-cgpu`) has since been run as the standby of a
-failover ([C18](#c18)); no sealer on this host. The model is 7B in bfloat16; the machine cost about $9 an hour and
+failover ([C18](#c18)); the escrow key on this host seals to its vTPM
+since ADR 0022 (proven on `20260916T204311Z-returnpath`: `escrow-provision.json` `tee: azure-cgpu`, the key re-sealed through the recovery ceremony). The model is 7B in bfloat16; the machine cost about $9 an hour and
 lived for 35 minutes.
 
 ---
@@ -770,8 +771,8 @@ the primary's CPUs in float32 and proven on the GPU: EQUIVALENT (max abs
 err 1.5e-4 against atol 1e-2), not EXACT — the same-device EXACT of
 [C14](#c14) is not available across devices ([C6](#c6)). The GPU's
 measurements are NVIDIA's evaluation, verified by NVIDIA's signature
-([C17](#c17) scope). The standby holds no sealed escrow key (no sealer on
-that host): it can receive a model and cannot itself become an authority.
+([C17](#c17) scope). In that run the standby held no sealed escrow key;
+since ADR 0022 it seals one to its vTPM and can be an authority.
 The vTPM pin is a property of a boot. The other CPU TEE family as the
 standby is [C21](#c21).
 
@@ -843,7 +844,7 @@ fixture.
 ---
 
 <a id="c20"></a>
-### C20 — The verifier evaluates the H100's attestation report itself: signature, chain to NVIDIA's root, firmware id, and every measurement against NVIDIA's reference manifests — on the captured report, complete, and refusing what should be refused
+### C20 — The verifier evaluates the H100's attestation report itself: signature, chain to NVIDIA's root, firmware id, and every measurement against NVIDIA's signed reference manifests — on the captured report, complete, refusing what should be refused, and admitted to carry the verdict alone
 
 **Claim.** Beside NVIDIA's signed verdict, the `azure-cgpu` verifier
 evaluates the GPU's SPDM attestation report on its own
@@ -855,9 +856,11 @@ chain verifies to the NVIDIA Device Identity CA pinned in the binary, the
 firmware id in the certificate's DICE extension is the report's, the
 driver and VBIOS reference manifests the report names are fetched from
 NVIDIA's RIM service — versions matching, chains verifying to the pinned
-NVIDIA CoRIM signing root, bytes hashing to the service's SHA-256 — and
-every runtime measurement equals one of the manifests' golden values at
-every bound index. On the captured H100 report the evaluation is complete
+NVIDIA CoRIM signing root, bytes hashing to the service's SHA-256, their
+enveloped XML signatures (Canonical XML 1.1, ECDSA-SHA384) verifying under
+those certificates — and every runtime measurement equals one of the
+manifests' golden values at every bound index. On the captured H100
+report the evaluation is complete
 and every one of the 64 measurements matches; a changed measurement, a
 report for another nonce, a cut chain, a wrong root or a missing manifest
 each fail the check that should catch it. Under
@@ -897,13 +900,20 @@ go test -count=1 -run 'GPUReport|RIM|GPUEvaluator|OwnEvaluation|OwnAlone|GPUAtte
 ```
 
 **Scope.** Offline, on the material of one capture (one GPU, one driver,
-one VBIOS); a live handshake under `both` has not been run on hardware
-since the policy exists — the kit's `returnpath-cgpu.sh` now asks for it,
-and the producer's `gpu-token.py` now prints the report beside the tokens.
-What this verifier does not check: the manifests' XML signatures (an
-enveloped signature over Canonical XML 1.1, ECDSA-SHA384 — no
-canonicaliser in this build), and revocation (NVIDIA's OCSP). That is why
-`own` is refused and the verdict never rests on this evaluation alone.
+one VBIOS). The manifests' XML signatures are verified (both captured
+manifests verify, a manifest with one hex digit of a golden measurement
+changed does not — `nvidia_rim_signature_test.go`); the canonicaliser and
+the signature check are goxmldsig's (`docs/dependencies/goxmldsig.md`),
+the certificate they verify under is the one this verifier chained to
+NVIDIA's CoRIM root, and the signature value is re-encoded from the r||s
+form XMLDSig prescribes to DER outside the signed bytes. So `own` — the
+verdict on this evaluation alone, no NVIDIA service on the path — is
+admitted: the captured evidence passes under it with NVIDIA's tokens
+removed, and the policy's model and version pins are held against the
+report. What this verifier does not check: revocation (NVIDIA's OCSP),
+and under `own` the secure-boot and debug-mode claims only NVIDIA's
+tokens carry — `both` asserts them, `own` says so. A live handshake under
+`both` on hardware is on the record: run `scripts/hardware-test/azure-cgpu/evidence/20260916T204311Z-returnpath/` — the pinned worker's session opened on the H100 host with the evaluation complete (`vg_tee_attestation_total{provider="azure-cgpu",result="success",role="verify"} 1` in `sagvd-metrics.txt`; a complete evaluation includes both manifests' signatures), the manifests fetched from NVIDIA's service during the handshake (`cache-rim-NV_GPU_DRIVER_GH100_595.71.05.json`, `cache-rim-NV_GPU_VBIOS_1010_0210_886_96009F0004.json`), the 7B genome then restored on the H100 and gated EXACT (`job.json`), 17 audit events verified.
 
 ---
 
@@ -972,8 +982,8 @@ either, the difference the same order as the CPU↔GPU one ([C6](#c6),
 the pinned runtime; the integer door ([C19](#c19)) is the byte-portable
 route. Intel PCS was reachable from the authority (its documents are in
 the evidence); without it and without a cache the verifier refuses. The
-standby holds no sealed escrow key (no sealer on a TDX host): it can
-receive a model and cannot itself become an authority. The pin is the
+standby held no sealed escrow key in this run; since ADR 0022 a TDX host
+seals one to its vTPM and can be the authority ([C23](#c23)). The pin is the
 image's MRTD and RTMRs folded into one measurement; a kernel update
 re-issues it.
 
@@ -1051,6 +1061,49 @@ offline.
 
 ---
 
+<a id="c23"></a>
+### C23 — A release authority on an Intel TDX Trust Domain holds its escrow key sealed to the guest's vTPM under a policy of the pinned boot, re-provisions it through the recovery ceremony, and moves a model with it
+
+**Claim.** TDX gives a guest no sealing key of its own; since ADR 0022
+`sagvd` seals the escrow key to the guest's vTPM — a fresh AES-256 key per
+seal held by the TPM as a sealed object under a policy only this boot's
+PCRs satisfy, the plaintext under that key with AES-256-GCM — and on a
+`c3` Trust Domain it did: `sagvd escrow-provision` on `gcp-tdx` sealed the
+key, opened it once on the spot, the recovery ceremony re-sealed it, and
+`sagvd failover` unsealed it at start and carried the failover drill to
+its end: the primary's attested compromise report, a TDX standby verified
+to Intel's root, the key released, the genome restored and gated.
+
+**Evidence.**
+[`scripts/hardware-test/failover-tdx-authority/evidence/20260916T200841Z/`](scripts/hardware-test/failover-tdx-authority/evidence/20260916T200841Z/)
+— `authority/escrow-provision.json`: `tee: gcp-tdx`, key `221addd3bffe3f79`,
+sealed at `ed70198a…177b`; `authority/escrow-sealed-shape.txt`: `{'tee': 'gcp-tdx', 'schema': 'vault-genome/vtpm-sealed/v1', 'pcrs': 'sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14', 'public_bytes': 80, 'private_bytes': 160, 'box_bytes': 60}`;
+`authority/authority-identity.json`: `key_escrow_storage: sealed:gcp-tdx`;
+`authority/escrow-reprovision.json`: the same key `221addd3bffe3f79`, `source:
+stdin`; `authority/vtpm.txt`: `/dev/tpm0`, `/dev/tpmrm0`,
+`[    2.147722] tpm_tis MSFT0101:00: 2.0 TPM (device-id 0x9009, rev-id 0)`; `authority/vtpm-pcrs.txt`: the fifteen PCRs of the boot;
+`authority/report.json`: `status: restored`, trigger `compromise-report`
+at 20:19:49.37Z, `release.destination_kind: gcp-tdx`, `restore.gate`:
+**EQUIVALENT**, `max_abs_err: 1.45e-4`, `timing`: RPO 12.00 s, RTO
+20.27 s; `authority/audit-verify.json`: `ok: true`, 5 events, tip
+`78551451…bb2f`; `authority/tsm.txt`: `/dev/tdx_guest`, `tdx: Guest detected`.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/failover-tdx-authority/run.sh <gcp-project> europe-west4-a us-central1-a   # ~15 min: an n2d Milan CVM + two c3 TDX Trust Domains
+go test -count=1 -run 'VTPM' ./internal/shared/tee/ ./cmd/sagvd/                                  # the sealer's contract on a fake TPM
+```
+
+**Scope.** One run, 0.5B, one authority. The root of the sealing is the
+guest's vTPM — Google's device inside the Trust Domain — and a PCR policy
+of this boot, not the TEE's own key; the attestation is still Intel's. A
+kernel or firmware update changes the PCRs and the key is re-provisioned
+from the recovery envelope, not re-derived. The same sealer on an Azure
+confidential GPU host: proven the same day on an NCC H100 v5 (`scripts/hardware-test/azure-cgpu/evidence/20260916T204311Z-returnpath/`: `escrow-provision.json` `tee: azure-cgpu`, key `11e87307c4f33f8c`, `escrow-sealed-shape.txt` the same blob shape under the same fifteen PCRs, `escrow-reprovision.json` the same key re-sealed through the ceremony).
+
+---
+
 ## Supply chain and build
 
 <a id="c9"></a>
@@ -1112,15 +1165,18 @@ sentence we cannot defend.
    confidential-computing mode. The GPU's measurements are evaluated by
    NVIDIA's service and, since [C20](#c20), by this verifier as well — the
    report's signature, chain, firmware id and every measurement against
-   NVIDIA's manifests, offline on the captured report — but the manifests'
-   XML signatures and revocation stay NVIDIA's word, so no verdict rests on
-   our evaluation alone. The GPU leg ran once, at 0.5B, with an EQUIVALENT
+   NVIDIA's signed manifests, offline on the captured report — and the
+   verdict may rest on that evaluation alone (`own`); what stays NVIDIA's
+   word is revocation, and under `own` the secure-boot and debug claims
+   only its tokens carry. The GPU leg ran once, at 0.5B, with an EQUIVALENT
    gate, and so did the TDX leg ([C21](#c21)): each other-family standby
    has taken one key release, once, at 0.5B.
 4. **We do not claim Nitro or SGX verification.** SEV-SNP and Intel TDX only
    ([C15](#c15)). Adapter dispatch for others exists (ADR 0002); the offline
-   verifiers do not. And a TDX host holds no sealed escrow key: TDX has no
-   sealer here (ADR 0018).
+   verifiers do not. A TDX host and an Azure confidential GPU host seal
+   the escrow key to their vTPM (ADR 0022) — a root the cloud provider
+   virtualises inside the confidential VM, not the TEE's own; an operator
+   who does not accept that root has no sealed escrow key on those hosts.
 5. **We do not claim this at frontier scale.** The largest model measured is
    Qwen2.5-7B-Instruct — on one 24 GB GPU ([C16](#c16)) and on an attested
    confidential GPU VM ([C17](#c17)); every failover and every CPU-only

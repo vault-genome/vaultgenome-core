@@ -59,7 +59,8 @@ func TestAzureCGPUVerifier_OwnEvaluationBesideNVIDIAs(t *testing.T) {
 	require.True(t, e.NonceMatch && e.ChainVerified && e.FWIDMatch && e.SignatureVerified && e.MeasurementsMatch)
 	require.Equal(t, verdict.GPUs[0].DriverVersion, e.DriverVersion)
 	require.Equal(t, verdict.GPUs[0].VBIOSVersion, e.VBIOSVersion)
-	require.False(t, e.RIMSignaturesVerified(), "the manifests' XML signatures are not verified in this build, and the verdict says so")
+	require.True(t, e.RIMSignaturesVerified(), "both manifests' XML signatures verified under the certificates chained to NVIDIA's CoRIM root")
+	require.True(t, e.DriverRIM.SignatureVerified && e.VBIOSRIM.SignatureVerified)
 
 	// The same evidence under the default policy: NVIDIA's word alone,
 	// nothing evaluated here.
@@ -110,13 +111,66 @@ func TestAzureCGPUVerifier_OwnEvaluationRefusesWhatNVIDIAWouldNotSee(t *testing.
 	require.ErrorContains(t, err, "2 reports")
 }
 
-func TestAzureCGPUVerifier_OwnAloneIsRefusedByThisBuild(t *testing.T) {
+// Under "own" the verdict rests on this verifier's evaluation alone: no
+// NVIDIA token is needed, and the policy's pins are held against what
+// the report and the manifests say.
+func TestAzureCGPUVerifier_OwnAlone(t *testing.T) {
+	ev, chain := azureCGPUCapturedEvidenceWithReport(t)
+	srv, _ := rimServer(t)
+	own := func(mutate func(*AzureCGPUVerifierConfig)) *AzureCGPUVerifier {
+		return azureCGPUCapturedVerifier(t, chain, func(c *AzureCGPUVerifierConfig) {
+			c.GPUEvaluation = GPUEvaluationOwn
+			c.RIMServiceURL = srv.URL + "/v1/rim/"
+			c.RIMCacheDir = t.TempDir()
+			if mutate != nil {
+				mutate(c)
+			}
+		})
+	}
+	verdict, err := own(nil).VerifyEvidence(ev, Nonce(azureCGPUCaptureNonce))
+	require.NoError(t, err)
+	require.Len(t, verdict.Evaluations, 1)
+	require.True(t, verdict.Evaluations[0].Complete())
+	require.Len(t, verdict.GPUs, 1)
+	require.Equal(t, "own evaluation", verdict.GPUs[0].Issuer)
+	require.Equal(t, "GH100", verdict.GPUs[0].HWModel, "the model from the chain's per-model identity CA")
+	require.Equal(t, verdict.Evaluations[0].DriverVersion, verdict.GPUs[0].DriverVersion)
+
+	// No NVIDIA token at all: still a verdict under "own", none under "both".
+	var env azureCGPUEvidence
+	require.NoError(t, json.Unmarshal(ev, &env))
+	env.GPUToken = nil
+	without, err := json.Marshal(env)
+	require.NoError(t, err)
+	_, err = own(nil).VerifyEvidence(Evidence(without), Nonce(azureCGPUCaptureNonce))
+	require.NoError(t, err, "own: NVIDIA is not on the path")
+	_, err = azureCGPUBothVerifier(t, chain).VerifyEvidence(Evidence(without), Nonce(azureCGPUCaptureNonce))
+	require.Error(t, err, "both: NVIDIA's tokens are required")
+
+	// The policy's pins are held against the report.
+	_, err = own(func(c *AzureCGPUVerifierConfig) {
+		c.GPU = GPUClaimsPolicy{AcceptableDriverVersions: []string{"999.0.0"}}
+	}).VerifyEvidence(ev, Nonce(azureCGPUCaptureNonce))
+	require.ErrorContains(t, err, "driver")
+	_, err = own(func(c *AzureCGPUVerifierConfig) { c.GPU = GPUClaimsPolicy{AcceptableHWModels: []string{"GB200"}} }).VerifyEvidence(ev, Nonce(azureCGPUCaptureNonce))
+	require.ErrorContains(t, err, "hw model")
+
+	// A changed measurement: refused on the evaluation alone.
+	require.NoError(t, json.Unmarshal(ev, &env))
+	env.GPUEvidence[0].Report = append([]byte(nil), env.GPUEvidence[0].Report...)
+	env.GPUEvidence[0].Report[60] ^= 0x01
+	tampered, err := json.Marshal(env)
+	require.NoError(t, err)
+	_, err = own(nil).VerifyEvidence(Evidence(tampered), Nonce(azureCGPUCaptureNonce))
+	require.ErrorContains(t, err, "own evaluation")
+}
+
+func TestAzureCGPUVerifier_RefusesAnUnknownEvaluationPolicy(t *testing.T) {
 	_, chain := azureCGPUCapturedEvidenceWithReport(t)
 	for name, mutate := range map[string]func(*AzureCGPUVerifierConfig){
-		"own":     func(c *AzureCGPUVerifierConfig) { c.GPUEvaluation = GPUEvaluationOwn },
 		"unknown": func(c *AzureCGPUVerifierConfig) { c.GPUEvaluation = "nvidia-and-friends" },
 		"bad root": func(c *AzureCGPUVerifierConfig) {
-			c.GPUEvaluation = GPUEvaluationBoth
+			c.GPUEvaluation = GPUEvaluationOwn
 			c.NVIDIADeviceRootPEM = []byte("not a certificate")
 		},
 	} {

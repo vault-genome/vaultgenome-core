@@ -22,6 +22,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/beevik/etree"
+	dsig "github.com/russellhaering/goxmldsig"
+
+	"encoding/asn1"
+	"math/big"
 )
 
 // NVIDIA's reference integrity manifests (RIMs) are the golden
@@ -65,10 +71,47 @@ type RIM struct {
 	// signing certificate first.
 	Certs []*x509.Certificate
 	// SignatureAlgorithm and CanonicalizationMethod are what the
-	// manifest's XML signature declares; verifying that signature needs an
-	// XML canonicaliser this build does not have (KNOWN_ISSUES #1).
+	// manifest's XML signature declares; VerifyRIMSignature holds them to
+	// what NVIDIA signs with and verifies the signature.
 	SignatureAlgorithm     string
 	CanonicalizationMethod string
+}
+
+// VerifyRIMSignature verifies the manifest's enveloped XML signature
+// under its own signing certificate (Certs[0]) — which the caller chains
+// to the NVIDIA CoRIM signing root first (VerifyRIMCertChain). The signed
+// bytes are Canonical XML 1.1 of the tag with the signature removed, the
+// signature ECDSA-SHA384: exactly what NVIDIA signs with, and nothing
+// else is admitted. The canonicalisation and the signature check are
+// goxmldsig's (docs/dependencies/goxmldsig.md); which certificate is
+// trusted stays this verifier's decision.
+func VerifyRIMSignature(rim *RIM, now time.Time) error {
+	if rim == nil || len(rim.Certs) == 0 {
+		return errors.New("nvidia: RIM carries no signing certificate")
+	}
+	if dsig.AlgorithmID(rim.CanonicalizationMethod) != dsig.CanonicalXML11AlgorithmId {
+		return fmt.Errorf("nvidia: RIM canonicalization %q is not Canonical XML 1.1", rim.CanonicalizationMethod)
+	}
+	if rim.SignatureAlgorithm != dsig.ECDSASHA384SignatureMethod {
+		return fmt.Errorf("nvidia: RIM signature method %q is not ECDSA-SHA384", rim.SignatureAlgorithm)
+	}
+	doc := etree.NewDocument()
+	if err := doc.ReadFromBytes(rim.Raw); err != nil {
+		return fmt.Errorf("nvidia: RIM XML: %w", err)
+	}
+	root := doc.Root()
+	if root == nil {
+		return errors.New("nvidia: RIM XML has no root element")
+	}
+	if err := derEncodeXMLDSigECDSASignature(root); err != nil {
+		return fmt.Errorf("nvidia: RIM signature value: %w", err)
+	}
+	ctx := dsig.NewDefaultValidationContext(&dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{rim.Certs[0]}})
+	ctx.Clock = dsig.NewFakeClockAt(now)
+	if _, err := ctx.Validate(root); err != nil {
+		return fmt.Errorf("nvidia: RIM signature does not verify: %w", err)
+	}
+	return nil
 }
 
 // rimNode is a generic XML node: the manifests are small and their
@@ -434,19 +477,18 @@ type GPUEvaluation struct {
 	Errors            []string  `json:"errors,omitempty"`
 }
 
-// Complete reports whether every check this build can make passed: the
-// report's structure, nonce, chain, firmware id and signature, both
-// manifests' versions and chains, and the measurements. The manifests'
-// XML signatures are not among them (RIMSignaturesVerified says so).
+// Complete reports whether every check passed: the report's structure,
+// nonce, chain, firmware id and signature; both manifests' versions,
+// chains and XML signatures; and the measurements.
 func (e GPUEvaluation) Complete() bool {
 	return e.ReportParsed && e.NonceMatch && e.ChainVerified && e.FWIDMatch && e.SignatureVerified &&
-		e.DriverRIM.Fetched && e.DriverRIM.VersionMatch && e.DriverRIM.ChainVerified &&
-		e.VBIOSRIM.Fetched && e.VBIOSRIM.VersionMatch && e.VBIOSRIM.ChainVerified &&
+		e.DriverRIM.Fetched && e.DriverRIM.VersionMatch && e.DriverRIM.ChainVerified && e.DriverRIM.SignatureVerified &&
+		e.VBIOSRIM.Fetched && e.VBIOSRIM.VersionMatch && e.VBIOSRIM.ChainVerified && e.VBIOSRIM.SignatureVerified &&
 		e.MeasurementsMatch
 }
 
 // RIMSignaturesVerified reports whether both manifests' XML signatures
-// were verified — false in this build.
+// verified under the certificates chained to NVIDIA's CoRIM signing root.
 func (e GPUEvaluation) RIMSignaturesVerified() bool {
 	return e.DriverRIM.SignatureVerified && e.VBIOSRIM.SignatureVerified
 }
@@ -493,9 +535,7 @@ func (ev *GPUEvaluator) Evaluate(ctx context.Context, reportRaw, chainPEM, nonce
 		return e
 	}
 	e.UEID = chain[0].SerialNumber.String()
-	if len(chain) > 1 {
-		e.HWModel = chain[1].Subject.CommonName
-	}
+	e.HWModel = hwModelFromChain(chain)
 	if err := VerifyGPUCertChain(chain, ev.DeviceRoot, now); err != nil {
 		fail(err)
 	} else {
@@ -564,12 +604,76 @@ func (ev *GPUEvaluator) manifest(ctx context.Context, id, version string, now ti
 	}
 	if err := VerifyRIMCertChain(rim, ev.RIMRoot, now); err != nil {
 		st.Error = err.Error()
-	} else {
-		st.ChainVerified = true
+		return rim
 	}
-	// The manifest's XML signature (enveloped, C14N 1.1, ECDSA-SHA384)
-	// is not verified in this build: SignatureVerified stays false and
-	// the evaluation says so. What is verified is the chain the manifest
-	// carries and the SHA-256 the service stated for its bytes.
+	st.ChainVerified = true
+	// The manifest's XML signature, under the certificate just chained.
+	if err := VerifyRIMSignature(rim, now); err != nil {
+		st.Error = err.Error()
+	} else {
+		st.SignatureVerified = true
+	}
 	return rim
+}
+
+// hwModelFromChain names the GPU's model from its certificate chain: the
+// issuer whose name is "NVIDIA <model> Identity" (NVIDIA's per-model CA,
+// e.g. "NVIDIA GH100 Identity"), or the leaf's issuer when no such CA is
+// in the chain.
+func hwModelFromChain(chain []*x509.Certificate) string {
+	for _, c := range chain[1:] {
+		if m, ok := strings.CutSuffix(c.Subject.CommonName, " Identity"); ok && m != "" {
+			return strings.TrimPrefix(m, "NVIDIA ") // "NVIDIA GH100 Identity" names GH100, as NVIDIA's tokens do
+		}
+	}
+	if len(chain) > 1 {
+		return chain[1].Subject.CommonName
+	}
+	return ""
+}
+
+// derEncodeXMLDSigECDSASignature re-encodes the document's ECDSA
+// SignatureValue from the form XMLDSig prescribes (RFC 4050: r and s
+// concatenated, each the curve's size) to the ASN.1 DER form crypto/x509
+// takes, which is what goxmldsig hands the signature to. The value sits
+// outside the signed bytes — SignedInfo is what is signed, and the whole
+// Signature element is removed before the reference digest — so the
+// re-encoding changes nothing that is verified. A value that is already
+// DER, or of another size, is left as it is.
+func derEncodeXMLDSigECDSASignature(root *etree.Element) error {
+	sig := root.FindElement("./*[namespace-uri()='" + xmldsigNS + "'][local-name()='Signature']")
+	if sig == nil {
+		for _, c := range root.ChildElements() {
+			if c.Tag == "Signature" {
+				sig = c
+				break
+			}
+		}
+	}
+	if sig == nil {
+		return errors.New("no Signature element")
+	}
+	var value *etree.Element
+	for _, c := range sig.ChildElements() {
+		if c.Tag == "SignatureValue" {
+			value = c
+			break
+		}
+	}
+	if value == nil {
+		return errors.New("no SignatureValue element")
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(value.Text()), ""))
+	if err != nil {
+		return err
+	}
+	if len(raw) != 96 || raw[0] == 0x30 { // not r||s over P-384; DER already, or something else for the verifier to refuse
+		return nil
+	}
+	der, err := asn1.Marshal(struct{ R, S *big.Int }{new(big.Int).SetBytes(raw[:48]), new(big.Int).SetBytes(raw[48:])})
+	if err != nil {
+		return err
+	}
+	value.SetText(base64.StdEncoding.EncodeToString(der))
+	return nil
 }

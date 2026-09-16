@@ -1,0 +1,11 @@
+{
+  "escrow_key": "221addd3bffe3f79",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEA4MyyuobuE/XuUqovohmsIUcwufn9uVLDvqPNI3N2RXI=\n-----END PUBLIC KEY-----\n",
+  "tee": "gcp-tdx",
+  "measurement_hex": "ed70198aab47b863b63b5943739da720f1bed54058a2644746c2a3bab91790a57544cb43459d80b4feff4b7922a3177b",
+  "source": "generated",
+  "sealed_path": "/root/escrow.sealed",
+  "public_path": "/root/escrow.pem",
+  "recovery_key": "a76441cb2d51c6bd",
+  "recovery_path": "/root/escrow.recovery.json"
+}

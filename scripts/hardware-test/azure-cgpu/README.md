@@ -70,6 +70,29 @@ verifiers fetched them. Checksums: `cd evidence/20260916T133506Z-returnpath
 && grep -v ' sha256sums.txt$' sha256sums.txt | shasum -a 256 -c` — 27 of
 27 match.
 
+## The escrow key in the vTPM, and the Return Path under `both` — run `20260916T204311Z` (evidence/20260916T204311Z, evidence/20260916T204311Z-returnpath)
+
+The capture again (the same host type, driver 595.71.05, VBIOS
+96.00.9F.00.04, NVIDIA's tokens for the 7B genome path on the H100), then
+the Return Path with two things new since the first run:
+
+| Step | Outcome |
+|---|---|
+| `sagvd escrow-provision` on `tee.provider: "azure-cgpu"` | exit 0: key `11e87307c4f33f8c` sealed to the guest's vTPM (ADR 0022) — `escrow-sealed-shape.txt`: `vault-genome/vtpm-sealed/v1`, PCRs `sha256:0-14`, sealed object 80 + 160 bytes, box 60 bytes — and opened once on the spot; `vtpm-pcrs.txt` the fifteen PCRs as read |
+| The recovery ceremony | `acpctl escrow recover` into `sagvd escrow-provision -stdin`: the same key `11e87307c4f33f8c` re-sealed to this vTPM (`escrow-reprovision.json`, `source: stdin`) |
+| `sagvd identity`, `acp-compute identity` | both read the launch measurement `aa7c9da5…0eef` from the vTPM's HCL report in 0.16 s |
+| A worker with a simulated TEE | **refused** at the handshake after 2 s (`vg_tee_attestation_total{…result="error",role="verify"} 1`), `TRUST_EVALUATED` deny on the log |
+| The pinned worker, under `gpu_policy.evaluation: "both"` | session opened 1 s after it started: NVIDIA's tokens verified *and* this verifier's own evaluation of the H100's report complete — the report's signature and nonce, the chain to NVIDIA's device root, the firmware id, every measurement against the driver and VBIOS manifests fetched from NVIDIA's RIM service during the handshake (`cache-rim-*.json`, `rim-cache-ls.txt`) **and those manifests' XML signatures** (ADR 0021, amended: a complete evaluation includes them); `result="success",role="verify"} 1` |
+| `POST /v1/jobs` → `succeeded` | the 7B genome restored in memory through the door on the H100 in confidential-computing mode, gate **EXACT** (`pinned replay`, rung 0, 16/16, max abs err 0), 53.9 s from submission to done (`timeline.txt`; the first run's 18.5 s was to the release decision, before the RIM fetches were on the path) |
+| `acpctl audit verify` | **ok — 17 events**, tip `cdb1b4b6…7f4e` |
+
+Checksums: `cd evidence/20260916T204311Z-returnpath && grep -v ' sha256sums.txt$'
+sha256sums.txt | shasum -a 256 -c` — all match (`run.sh` checks them on
+the way in). What the log does not carry: the evaluation record itself
+(`GPUEvaluation`) is not logged at the handshake; that the session opened
+under `both` is what says it was complete — a line for it is a small
+follow-up.
+
 ## What the first attempt taught the kit
 
 - After Microsoft's kernel step, wait for the guest's *new* boot
@@ -81,6 +104,20 @@ verifiers fetched them. Checksums: `cd evidence/20260916T133506Z-returnpath
   `*595-server*` package to the version the modules depend on.
 - NVIDIA's verifier package logs to stdout; the GPU attestation command the
   producer runs (`gpu-token.py`) keeps only NRAS's response there.
+- The 595 server driver's meta-package depends on
+  `xserver-xorg-video-nvidia-595-server` with a strict `=`; that package
+  is not matched by the `nvidia-*` pin patterns, and when `noble-updates`
+  carried a newer 595 build (2026-09-16) the install became unresolvable.
+  It is pinned by name too.
+- The guest's `sshd` can be away for a minute after Microsoft's
+  attestation step; `run.sh` waits for it (`wait_ssh`) before the capture
+  and before the Return Path rather than failing on the first dropped
+  connection.
+- The guest packs `out/<stamp>/` into the tarball; `run.sh` extracts with
+  `--strip-components=1`. A run whose evidence was fetched but failed a
+  check deleted the VM once with the Return Path never run: keep the
+  capture and the Return Path in one `run.sh`, and use
+  `VG_KEEP_ON_FAILURE=1` when the second stage is the point.
 
 ## Reproduce
 
@@ -89,10 +126,14 @@ scripts/hardware-test/azure-cgpu/run.sh vg-cgpu-weu westeurope      # ~40 min of
 go test -count=1 -run 'AzureCGPU|HCL|TPMQuote|NRAS' ./internal/shared/tee/
 ```
 
-The Return Path run needs the daemons built for linux/amd64 and
-`returnpath-cgpu.sh`, `gpu-token.py` uploaded to the guest after the
-capture: `sudo env VG_STAMP=<stamp> VG_CAPTURE_STAMP=<stamp> bash
-returnpath-cgpu.sh`.
+`run.sh` runs the capture and then the Return Path on the same guest:
+it builds `sagvd`, `acp-compute` and `keygen` for linux/amd64, uploads
+them with `returnpath-cgpu.sh` and `gpu-token.py`, runs `sudo env
+VG_STAMP=<stamp> VG_CAPTURE_STAMP=<stamp> bash returnpath-cgpu.sh`, and
+reads `out/<stamp>-returnpath.tgz` back into
+`evidence/<stamp>-returnpath/`. `VG_KEEP_ON_FAILURE=1` leaves the VM
+running when a stage fails, for a look and a manual fetch; delete it
+yourself afterwards.
 
 Since ADR 0021 `gpu-token.py` prints one JSON object — NRAS's response
 under `nras` and, under `gpu_evidence`, the attestation report and

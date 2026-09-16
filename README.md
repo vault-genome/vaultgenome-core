@@ -270,15 +270,21 @@ verify-reproducible).
   **EXACT**, in 18.5 s from job to signed release
   ([azure-cgpu](scripts/hardware-test/azure-cgpu)).
 - **Honest boundaries** — off hardware the daemons run a simulated TEE that
-  announces itself; no AWS Nitro or SGX adapter attests, and a TDX host holds
-  no sealed escrow key (no TDX or Azure confidential-GPU sealer). An attested
+  announces itself; no AWS Nitro or SGX adapter attests; a TDX host and an
+  Azure confidential GPU host seal the escrow key to their vTPM under a
+  policy of the pinned boot (ADR 0022), a different root than the TEE's own
+  — proven on TDX as the authority of a failover, RTO 20.27 s
+  ([failover-tdx-authority](scripts/hardware-test/failover-tdx-authority)).
+  An attested
   GPU has been a Return Path worker and, once, the standby of a failover,
   and a TDX Trust Domain has been the standby of a failover once;
   the GPU's measurements are evaluated by NVIDIA and, under the `both`
   policy, by this verifier too (the report's signature and chain, the
   firmware id, every measurement against NVIDIA's manifests, ADR 0021) —
-  what stays NVIDIA's word is the manifests' XML signatures and revocation,
-  so no verdict rests on our evaluation alone. The largest model measured is 7B, on one GPU and on
+  the manifests' XML signatures verified (ADR 0021, amended) — so a verdict
+  may rest on our evaluation alone (`own`), and what stays NVIDIA's word is
+  revocation and, under `own`, the secure-boot and debug claims only its
+  tokens carry. The largest model measured is 7B, on one GPU and on
   an attested confidential GPU VM; every failover number is 0.5B scale. **We
   measured against ourselves that byte-identical float inference across CPU and
   GPU is not achievable** — divergence enters at the first transformer block in

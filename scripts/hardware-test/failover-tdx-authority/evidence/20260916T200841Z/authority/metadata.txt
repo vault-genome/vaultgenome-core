@@ -1,0 +1,4 @@
+instance=vg-fota-authority-20260916t200841z
+zone=us-central1-a
+machine=c3-standard-4
+external_ip=34.55.213.71

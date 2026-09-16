@@ -35,3 +35,7 @@ github.com/spf13/viper
 
 # --- Observability (Phase 9) -------------------------------------------
 go.opentelemetry.io/otel
+
+# XML digital signatures (Canonical XML 1.1, ECDSA-SHA384) for NVIDIA's
+# reference integrity manifests — docs/dependencies/goxmldsig.md
+github.com/russellhaering/goxmldsig

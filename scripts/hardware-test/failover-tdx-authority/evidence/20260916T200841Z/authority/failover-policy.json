@@ -1,0 +1,29 @@
+{
+  "schema": "vault-genome/failover-policy/v1",
+  "serial": 1,
+  "issued_at": "2026-09-16T20:11:49Z",
+  "not_after": "2026-10-16T20:11:49Z",
+  "sentinel_public_key": "Sp6UIXj0F7SdymeX4gXigoqAjy8O6DABH9TBrqqfRjM=",
+  "primary": {
+    "kind": "gcp-sev-snp",
+    "measurements": [
+      "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790"
+    ]
+  },
+  "standby": {
+    "kind": "gcp-tdx",
+    "endpoint": "https://10.128.15.221:8443",
+    "measurements": [
+      "ed70198aab47b863b63b5943739da720f1bed54058a2644746c2a3bab91790a57544cb43459d80b4feff4b7922a3177b"
+    ]
+  },
+  "triggers": {
+    "compromise_report": true,
+    "heartbeat_timeout_seconds": 120,
+    "stopped_grace_seconds": 60
+  },
+  "require_gate": "EQUIVALENT",
+  "reason": "TDX-authority drill: an authority on Intel TDX, its key in its vTPM, moves a SEV-SNP primary model to a Trust Domain",
+  "signing_key_id": "operator-1",
+  "signature": "r956SFkVksnU0FdEvKpnfeTInmj+661kHtyLhi5/Nttkkn35ZpuFCC9S39nJBmV5S0oEUJgBewnIcLXOcCkrAA=="
+}

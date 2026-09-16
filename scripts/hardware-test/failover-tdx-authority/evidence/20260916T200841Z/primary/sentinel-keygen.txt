@@ -1,0 +1,1 @@
+sentinel key sentinel-224a1c24b5279fed: seed /root/sentinel.seed (stays on the primary), public key /root/sentinel.pem (pin it in the failover policy)

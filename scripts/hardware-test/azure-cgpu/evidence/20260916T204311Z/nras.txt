@@ -1,0 +1,6 @@
+Number of GPUs available : 1
+Fetching GPU 0 information from GPU driver.
+All GPU Evidences fetched successfully
+NRAS https://nras.attestation.nvidia.com/v3/attest/gpu: HTTP 200 in 0.29s
+overall: {'iss': 'https://nras.attestation.nvidia.com', 'x-nvidia-ver': '2.0', 'x-nvidia-overall-att-result': True, 'eat_nonce': '27f4f430eb760662eacc0761c3b4d1cd63a08c02ddcfb168d065c3fd7a93383c', 'exp': 1789595404}
+GPU-0 {'measres': 'success', 'x-nvidia-gpu-attestation-report-nonce-match': True, 'x-nvidia-gpu-driver-version': '595.71.05', 'x-nvidia-gpu-vbios-version': '96.00.9F.00.04', 'hwmodel': 'GH100', 'secboot': True, 'dbgstat': 'disabled', 'x-nvidia-gpu-arch-check': True}

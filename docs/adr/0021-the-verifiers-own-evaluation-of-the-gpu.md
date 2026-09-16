@@ -1,6 +1,7 @@
 # ADR 0021 — The verifier's own evaluation of the GPU's report
 
-- **Status:** Accepted (2026-09-16)
+- **Status:** Accepted (2026-09-16); amended the same day — see
+  *Amendment* below
 - **Tags:** tee, gpu, nvidia, attestation, azure
 - **Amends:** ADR 0019 (the confidential GPU worker on Azure), whose
   consequences said what the verifier took on NVIDIA's word.
@@ -100,3 +101,23 @@ Listed in KNOWN_ISSUES #1.
   complete, every measurement matching; a changed measurement, another
   nonce, a cut chain, a wrong root or a missing manifest each fail the
   check that should catch it.
+
+## Amendment (2026-09-16, later): the manifests' signatures are verified, and `own` is admitted
+
+The dependency decision was taken: goxmldsig is on the allowlist with its
+justification (`docs/dependencies/goxmldsig.md`), and `VerifyRIMSignature`
+verifies each manifest's enveloped XML signature — Canonical XML 1.1,
+ECDSA-SHA384, and nothing else admitted — under the signing certificate
+this verifier has already chained to the NVIDIA CoRIM signing root. The
+signature value NVIDIA writes is the r||s form XMLDSig prescribes; it is
+re-encoded to DER for the check, outside the signed bytes. Both captured
+manifests verify; a manifest with one hex digit of a golden measurement
+changed does not. A complete evaluation now includes both signatures.
+
+With that, `gpu_policy.evaluation: "own"` is admitted: the verdict rests
+on this verifier's evaluation alone, NVIDIA's tokens are not required,
+and the policy's model and version pins are held against the report. What
+`own` cannot assert: the secure-boot and debug-mode claims, which only
+NVIDIA's tokens carry; `both` asserts them, and stays the stronger policy
+where NRAS is reachable. Revocation (NVIDIA's OCSP) is not consulted
+under either.

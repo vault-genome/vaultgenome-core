@@ -34,6 +34,7 @@ ADRs interact with the test-enforced invariant system.
 | 0019 | [A confidential GPU worker on Azure](0019-a-confidential-gpu-worker-on-azure.md) | Accepted | tee, gpu, azure, sev-snp, vtpm, attestation |
 | 0020 | [The integer door for the LoRA worker](0020-the-integer-door-for-the-lora-worker.md) | Accepted | genome, gate, determinism, integer, cross-hardware |
 | 0021 | [The verifier's own evaluation of the GPU's report](0021-the-verifiers-own-evaluation-of-the-gpu.md) | Accepted | tee, gpu, nvidia, attestation, azure |
+| 0022 | [The escrow key sealed to the guest's vTPM where the TEE gives no sealing key](0022-the-escrow-key-sealed-to-the-vtpm.md) | Accepted | tee, tdx, azure, vtpm, escrow, sealing |
 
 ## Adding an ADR
 

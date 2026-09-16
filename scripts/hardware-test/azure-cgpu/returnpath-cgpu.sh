@@ -91,6 +91,21 @@ echo "vault_measurement=$VMEAS" >> "$OUT/steps.txt"; echo "worker_measurement=$W
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
 write_configs "$VMEAS" "$WMEAS"
 
+step "the escrow key sealed to the guest's vTPM (ADR 0022): made in sagvd's process, sealed under this boot's PCR policy, opened once to prove it, re-sealed through the recovery ceremony"
+tpm2_pcrread sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 > "$OUT/vtpm-pcrs.txt" 2>&1 || true
+./acpctl escrow recovery-keygen --out recovery.seed --pub recovery.pem > "$OUT/recovery-keygen.txt"
+./sagvd escrow-provision -config sagvd.json -out escrow.sealed -pub escrow.pem -recovery-to recovery.pem -recovery-out escrow.recovery.json > "$OUT/escrow-provision.json" 2> "$OUT/escrow-provision.err"
+echo "escrow-provision exit=$? tee=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("tee"))' "$OUT/escrow-provision.json" 2>/dev/null)" >> "$OUT/steps.txt"
+python3 - > "$OUT/escrow-sealed-shape.txt" 2>&1 <<SHAPE
+import json,base64
+d=json.load(open("escrow.sealed")); inner=json.loads(base64.b64decode(d["sealed"]))
+print({"tee":d.get("tee"),"schema":inner.get("schema"),"pcrs":inner.get("pcrs"),"public_bytes":len(base64.b64decode(inner["public"])),"private_bytes":len(base64.b64decode(inner["private"])),"box_bytes":len(base64.b64decode(inner["box"]))})
+SHAPE
+./acpctl escrow recover --in escrow.recovery.json --key recovery.seed 2> "$OUT/escrow-recover.err" \
+  | ./sagvd escrow-provision -config sagvd.json -out escrow-2.sealed -pub escrow-2.pem -stdin > "$OUT/escrow-reprovision.json" 2> "$OUT/escrow-reprovision.err"
+echo "escrow re-provision exit=$? re-provisioned escrow_key=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["escrow_key"])' "$OUT/escrow-reprovision.json" 2>/dev/null) source=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["source"])' "$OUT/escrow-reprovision.json" 2>/dev/null) (want $(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["escrow_key"])' "$OUT/escrow-provision.json" 2>/dev/null))" >> "$OUT/steps.txt"
+rm -f recovery.seed
+
 step "the 7B genome trained here, sealed for sagvd"
 ./acpctl genome seal --content-dir "$HOME_DIR/genome" --output genomes/gen-0.genome --key-out genomes/gen-0.key --json > "$OUT/seal.json" 2> "$OUT/seal.err"
 echo "seal exit=$?" >> "$OUT/steps.txt"
