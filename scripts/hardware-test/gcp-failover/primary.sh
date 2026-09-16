@@ -75,7 +75,10 @@ step "arm a tripwire and start the sentinel"
 echo "no process reads this" > /root/canary
 # Replicate the outbox to the bucket every few seconds, in the background,
 # until the sentinel has exited and a last push has gone out.
-( while [ ! -e /root/sentinel.done ]; do push_outbox "$OUTBOX"; sleep 3; done ) &
+# The loop's subshell inherits the ERR trap (set -E): a transient GCS
+# error there must not report the whole run as FAILED, so the subshell
+# drops the trap and tolerates a failed push (the next one replaces it).
+( trap - ERR; set +e; while [ ! -e /root/sentinel.done ]; do push_outbox "$OUTBOX" || true; sleep 3; done ) &
 PUSH=$!
 acpctl sentinel watch --content-dir /root/genome --outbox "$OUTBOX" \
   --escrow-to /root/escrow.pem --key /root/sentinel.seed --tee gcp-sev-snp \
@@ -106,7 +109,9 @@ echo "read by an intruder" > /root/canary
 echo "weights planted by the intruder" > /root/genome/adapter/adapter_model.safetensors
 
 step "the sentinel must stop sealing, report, and exit 3"
-set +e; wait "$SENTINEL"; SENTINEL_CODE=$?; set -e
+# In a || list: the ERR trap does not fire on the sentinel's exit 3 (it
+# would under "set +e", which does not silence the trap).
+SENTINEL_CODE=0; wait "$SENTINEL" || SENTINEL_CODE=$?
 echo "sentinel exit=$SENTINEL_CODE" >> "$OUT/steps.txt"
 touch /root/sentinel.done
 wait "$PUSH" 2>/dev/null || true

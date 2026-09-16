@@ -13,6 +13,15 @@ given release can still open.
 
 ### Added
 
+- **The continuity drill's TDX leg**
+  (`scripts/hardware-test/failover-tdx`, VERIFIABLE-CLAIMS C21) — the
+  failover of the drill with the standby a GCP `c3` Intel TDX Trust
+  Domain: `acp-bootstrap` as `gcp-tdx`, the authority's registry with the
+  `gcp-tdx` destination (Intel PCS cached) beside the primary's SEV-SNP
+  anchors, the policy pinning the Trust Domain's measurement. Measured
+  (`20260916T181528Z`): RTO 24.09 s, RPO 12.00 s, the clean generation gated
+  EQUIVALENT on Intel CPUs against references sealed on AMD (max abs err
+  1.45e-4) — float32 is not byte-identical across CPU vendors either.
 - **The verifier's own evaluation of the GPU's report**
   ([ADR-0021](docs/adr/0021-the-verifiers-own-evaluation-of-the-gpu.md)) —
   an `azure-cgpu` peer or registry entry with `gpu_policy.evaluation:
@@ -240,6 +249,13 @@ given release can still open.
 
 ### Fixed
 
+- The failover drills' scripts no longer mark a good run as failed: the
+  primary waited for the sentinel's expected exit 3 under `set +e`, which
+  does not silence bash's ERR trap, so the trap wrote a FAILED marker
+  beside the DONE one (`scripts/hardware-test/gcp-failover/primary.sh`;
+  the same for the standby's negative check in `standby.sh`, and the
+  primary's outbox push loop no longer inherits the trap). Seen in the
+  TDX leg's first two runs, whose failovers had succeeded.
 - **The Azure onboarding kits pinned the wrong NVIDIA userspace.**
   `scripts/hardware-test/azure-cgpu/run.sh` (and the new
   `failover-cgpu/run.sh`) read the signed modules' version bound with

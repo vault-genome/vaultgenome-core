@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -205,11 +205,11 @@ A concrete released-to measurement appears in the failover report below
 (`destination_measurement_hex: 7dc7c12e…125acc`, `destination_kind:
 gcp-sev-snp`).
 
-**Scope.** Released to SEV-SNP destinations and, once, to an Azure
+**Scope.** Released to SEV-SNP destinations, once to an Azure
 confidential GPU destination — an SEV-SNP guest whose Evidence also carries
-the vTPM's quote and NVIDIA's tokens ([C18](#c18)). A TDX destination is
-wired (the registry takes `gcp-tdx` entries, ADR 0018) and a key release to
-it has not been run; AWS Nitro and SGX verifiers are **not** shipped — see
+the vTPM's quote and NVIDIA's tokens ([C18](#c18)) — and once to an Intel
+TDX destination, its quote verified to Intel's root with Intel's TCB word
+([C21](#c21)); AWS Nitro and SGX verifiers are **not** shipped — see
 [What we do not claim](#what-we-do-not-claim).
 
 ---
@@ -568,7 +568,8 @@ go test -count=1 -run 'TDX' ./internal/shared/tee/ ./cmd/sagvd/ ./cmd/acp-comput
 image's, so a second guest of the same image has the same measurement. The
 CPU side only: the machine had no GPU, and the GPU's own attestation
 (NVIDIA confidential computing) is not wired. A key release to a TDX
-destination (`acp-bootstrap` on TDX) has not been run on hardware. TDX has
+destination (`acp-bootstrap` on TDX) has since run on hardware, once, as
+the standby of a failover ([C21](#c21)). TDX has
 no sealer here, so an authority on a TDX host holds no sealed escrow key
 (ADR 0016 is SEV-SNP only). Intel PCS was reachable from the guest; without
 it and without a cache the verifier refuses. The model is a tiny one built
@@ -769,8 +770,8 @@ err 1.5e-4 against atol 1e-2), not EXACT — the same-device EXACT of
 measurements are NVIDIA's evaluation, verified by NVIDIA's signature
 ([C17](#c17) scope). The standby holds no sealed escrow key (no sealer on
 that host): it can receive a model and cannot itself become an authority.
-The vTPM pin is a property of a boot. A TDX destination has not taken a
-key release.
+The vTPM pin is a property of a boot. The other CPU TEE family as the
+standby is [C21](#c21).
 
 ---
 
@@ -904,6 +905,78 @@ canonicaliser in this build), and revocation (NVIDIA's OCSP). That is why
 
 ---
 
+<a id="c21"></a>
+### C21 — A model under attack on AMD SEV-SNP fails over to an attested Intel TDX Trust Domain: the key released on Intel's word for the platform, the TDX module and the Quoting Enclave, the clean generation gated EQUIVALENT on Intel CPUs against references sealed on AMD
+
+**Claim.** The failover of [C8](#c8) and [C14](#c14) with the standby the
+other CPU TEE family: a GCP `c3-standard-4` Trust Domain (`acp-bootstrap`
+on `tee.provider: "gcp-tdx"`, ADR 0018) reached across the VPC. Under a
+policy the operator signed in advance — pinning the primary's chip and the
+standby's TDX measurement — the authority (GCP SEV-SNP, its escrow key
+sealed to its chip) took the primary's attested compromise report,
+verified the standby's TDX quote through its attestation key and PCK chain
+to the Intel SGX Root CA pinned in the binary, with Intel's signed TCB
+info and QE identity on the platform, the TDX module and the Quoting
+Enclave, released the key for the last generation sealed before the
+attack, and confirmed the standby's receipt: the genome restored and gated
+through the door on the Trust Domain's CPUs. Every step is on the audit
+record.
+
+**Evidence.**
+[`scripts/hardware-test/failover-tdx/evidence/20260916T181528Z/`](scripts/hardware-test/failover-tdx/evidence/20260916T181528Z/)
+— `authority/report.json`: `status: restored`; trigger `compromise-report`
+at 18:27:18.85Z with `primary_measurement_hex: 69da361d…c790`; `decision:
+failover … restore generation 1 on the standby`; `release.destination_kind:
+gcp-tdx`, `destination_measurement_hex: ed70198a…177b`,
+`policy_version: failover-policy-v1;failover=1;revocation=1`;
+`restore.gate`: **EQUIVALENT**, door native float, 16 fixtures,
+`max_abs_err: 1.45e-4`, `max_rel_err: 1.14e-5`, `backend_seconds: 10.87`;
+`timing`: detect 10.11 s, release 1.09 s, restore 11.6 ms, gate 10.87 s,
+failover 13.99 s, **RTO 24.09 s**, **RPO 12.00 s**; `audit_chain_length:
+5`. `authority/verifiers.json`: the `gcp-tdx` entry (the pinned
+measurement, `pcs_cache_dir`) and the `gcp-sev-snp` entry — the primary's
+anchors. `authority/cache-pcs-tdx-tcb-00806f050000.json` and
+`cache-pcs-tdx-qe-identity.json`, with their issuer chains: Intel's TCB
+info for FMSPC `00806f050000` and QE identity as fetched and verified.
+`authority/failover-verify.txt`: the signed policy, serial 1, standby
+`gcp-tdx https://10.128.15.216:8443`, measurement `ed70198a…177b`.
+`authority/audit-verify.json`: `ok: true`, 5 events (`FAILOVER_DECIDED` →
+`CROSS_CLOUD_HANDSHAKE_INITIATED` → `CROSS_CLOUD_ATTESTATION_VERIFIED` →
+`KEY_RELEASE_AUTHORIZED` → `CROSS_CLOUD_RESTORE_COMPLETED`), tip
+`03758aa2…4cb3`. `authority/escrow-provision.json`: `tee: gcp-sev-snp`, sealed.
+`destination/destination-identity.json`: `tee_provider: gcp-tdx`,
+measurement `ed70198a…177b`, `tdx.mrtd_hex: c1ee9c16…70a5`, three RTMRs.
+`destination/genome-9937cc360c97-g1-1e3eec824c6a.receipt.json`: the receipt (`destination_kind: gcp-tdx`, generation
+1, `gate.level: EQUIVALENT`) with its Evidence — the TDX quote
+(8,000 bytes). `destination/tsm.txt`: `/dev/tdx_guest`,
+`Memory Encryption Features active: Intel TDX`;
+`destination/system.txt`: `Vendor ID: GenuineIntel`, family 6 model 143
+(Sapphire Rapids), 4 vCPUs. `destination/acp-bootstrap.log`: key
+released, restore, gate, key erased. `primary/sentinel.json`: `outcome:
+compromised`, `attestation.kind: gcp-sev-snp`, last generation 1.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/failover-tdx/run.sh <gcp-project> europe-west4-a us-central1-a   # ~15 min: two GCP n2d Milan CVMs + a c3 TDX Trust Domain
+```
+
+**Scope.** One run, with the 0.5B model of the failover drill, trained on
+the primary's AMD Milan cores in float32 and proven on the standby's Intel
+Sapphire Rapids cores: EQUIVALENT (max abs err 1.45e-4 against atol
+1e-2), not EXACT — float32 is not byte-identical across CPU vendors
+either, the difference the same order as the CPU↔GPU one ([C6](#c6),
+[C18](#c18)), and the same-runtime EXACT of [C14](#c14) is a property of
+the pinned runtime; the integer door ([C19](#c19)) is the byte-portable
+route. Intel PCS was reachable from the authority (its documents are in
+the evidence); without it and without a cache the verifier refuses. The
+standby holds no sealed escrow key (no sealer on a TDX host): it can
+receive a model and cannot itself become an authority. The pin is the
+image's MRTD and RTMRs folded into one measurement; a kernel update
+re-issues it.
+
+---
+
 ## Supply chain and build
 
 <a id="c9"></a>
@@ -968,7 +1041,8 @@ sentence we cannot defend.
    NVIDIA's manifests, offline on the captured report — but the manifests'
    XML signatures and revocation stay NVIDIA's word, so no verdict rests on
    our evaluation alone. The GPU leg ran once, at 0.5B, with an EQUIVALENT
-   gate; a key release to a TDX destination has not been run.
+   gate, and so did the TDX leg ([C21](#c21)): each other-family standby
+   has taken one key release, once, at 0.5B.
 4. **We do not claim Nitro or SGX verification.** SEV-SNP and Intel TDX only
    ([C15](#c15)). Adapter dispatch for others exists (ADR 0002); the offline
    verifiers do not. And a TDX host holds no sealed escrow key: TDX has no

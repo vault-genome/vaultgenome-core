@@ -1,0 +1,11 @@
+== 18:16:45 inputs
+== 18:16:46 the Trust Domain: configfs-tsm (tdx_guest)
+== 18:16:46 python runtime (CPU) and the base model the genome names — the gate runs the model here
+== 18:18:09 the authority's TLS material, token and public key (through the private bucket)
+== 18:18:10 acp-bootstrap as gcp-tdx: the destination of a key release, the door on this VM's CPUs
+acp-bootstrap identity exit=0
+acp-bootstrap ready after 1s
+== 18:18:11 publish this destination's identity: endpoint on the VPC, TDX measurement
+== 18:18:11 pull the primary's outbox replica until the authority is done
+authority: DONE
+== COLLECTED

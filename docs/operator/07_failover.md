@@ -129,8 +129,10 @@ acpctl failover verify --in failover-1.json --pubkey operator.pem --kid operator
 - `--quarantine` distrusts genomes sealed this long before the trigger.
 - `--max-rpo` declines rather than restore an old genome.
   A standby of another family — `--standby-kind azure-cgpu` for an Azure
-  confidential GPU (ADR 0019) — needs its own registry entry beside the
-  primary's; `scripts/hardware-test/failover-cgpu` runs exactly that.
+  confidential GPU (ADR 0019), `--standby-kind gcp-tdx` for an Intel TDX
+  Trust Domain (ADR 0018) — needs its own registry entry beside the
+  primary's; `scripts/hardware-test/failover-cgpu` and
+  `scripts/hardware-test/failover-tdx` run exactly that.
 
 Copy the signed policy to the release host.
 

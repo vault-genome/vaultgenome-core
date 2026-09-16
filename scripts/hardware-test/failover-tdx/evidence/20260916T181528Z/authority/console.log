@@ -1,0 +1,12 @@
+== 18:16:57 inputs
+== 18:17:03 provision (keygen), operator stop key, operator recovery key
+== 18:17:03 configfs-tsm (real SEV-SNP reports)
+== 18:17:04 sagvd on SEV-SNP: identity from the chip; the escrow key sealed to it
+== 18:17:04 hand the primary the escrow key, and the destination its TLS material and token (through the private bucket)
+== 18:17:08 wait for the destination's identity (published by the Trust Domain itself): endpoint, TDX measurement
+== 18:18:14 wait for the primary's sentinel key and chip identity (the operator pins both)
+== 18:18:43 sagvd failover config: the gcp-tdx destination in the registry (Intel PCS for the TCB and QE identity, the pinned Intel root) and the primary's SEV-SNP anchors, the allow-list, the operator stop, the sealed escrow key, mTLS to the destination
+== 18:18:43 sign the failover policy pinning the primary's chip and the TDX standby
+== 18:18:43 pull the primary's outbox replica, continuously
+== 18:18:43 arm: sagvd failover watches the replica; the standby is the Trust Domain across the VPC
+== 18:27:42 audit log verify (offline, as an auditor would)

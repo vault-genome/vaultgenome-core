@@ -155,13 +155,19 @@ hardware (the Return Path on TDX has, §E).
   — `sagvd` and `acp-compute` on one Trust Domain, each pinning the other,
   the real `vg_genome` door, a gate job over the Return Path, a rogue worker
   refused on the record; the README carries the measured run.
+- [`scripts/hardware-test/failover-tdx/`](../../../scripts/hardware-test/failover-tdx/README.md)
+  — the continuity drill with the standby a Trust Domain: `acp-bootstrap`
+  as `gcp-tdx` takes the key release from a SEV-SNP authority under a
+  policy pinning its measurement, restores the genome and gates it on its
+  CPUs; the README carries the measured run.
 
 ## F. No sealer
 
 TDX gives a guest no sealing key; the adapter has no Sealer and `sagvd` on
 a TDX host cannot hold an escrow key (a plaintext key is refused on any
 hardware TEE, ADR 0016, and there is nothing to seal it to). A TDX host is
-a worker, a destination, or an authority for gate jobs. Sealing through the
+a worker, a destination (it has taken a key release on hardware, as the
+standby of the failover drill above), or an authority for gate jobs. Sealing through the
 guest's vTPM is the way, and it is not wired.
 
 ## Cleanup (cost hygiene)
