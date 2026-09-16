@@ -129,6 +129,15 @@ constant — operators don't get tripped by config-file copy-paste.
 | `gcp-sev-snp`         | ✅   | ✅          | ✅ (mock)         | ❌ (Phase 2)     |
 | `intel-sgx-dcap`      | ✅   | ✅          | ✅ (mock)         | ❌ (Phase 2)     |
 
+> **Update (2026-09-16).** The column has closed for three families, at a
+> cost of a few dollars of cloud time each: `gcp-sev-snp` is proven on live
+> GCP and Azure chips (ADR 0009, 0014, 0016; VERIFIABLE-CLAIMS C7, C12–C14),
+> `gcp-tdx` on a live Trust Domain (ADR 0018; C15), and `azure-cgpu` — an
+> Azure confidential GPU VM, the chip, the vTPM and the H100 in one
+> evidence — on a live NCC H100 v5 (ADR 0019; C17). `aws-nitro`, `azure-sgx`
+> (MAA and DCAP) and `intel-sgx-dcap` remain scaffolding and are refused by
+> the registry and the daemons (KNOWN_ISSUES #1).
+
 Phase 2 ("hardware tested") column closes when funded engineering time
 + a $30k AWS / Azure / GCP / bare-metal test budget is secured. The
 mock harness (see [ADR-0005](0005-mock-based-integration-testing.md))

@@ -247,8 +247,8 @@ verify-reproducible).
   no sealed escrow key (no TDX or Azure confidential-GPU sealer). An attested
   GPU is a Return Path worker today, not yet a key-release destination, and
   the GPU's measurements are NVIDIA's evaluation, verified by NVIDIA's
-  signature, not ours. Every attested number
-  here is 0.5B scale; the largest model measured is 7B on one GPU. **We
+  signature, not ours. The largest model measured is 7B, on one GPU and on
+  an attested confidential GPU VM; every failover number is 0.5B scale. **We
   measured against ourselves that byte-identical float inference across CPU and
   GPU is not achievable** — divergence enters at the first transformer block in
   both float32 and float64, while top-1 tokens still agree 16/16

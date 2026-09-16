@@ -204,8 +204,14 @@ contract suite.
 |--------|--------|--------|
 | All categories | Every TEE protection is simulated only — Ed25519 sig over (measurement, nonce); AES-GCM with measurement-derived sealing key | **NOT MITIGATED** — production deployments MUST NOT use this backend |
 
-The simulated backend is gated by the daemon's startup `Capability`
-check + a runtime warning: `simulated TEE is not for production`.
+The hardware backends are the production path: `gcp-sev-snp` (AMD
+SEV-SNP through configfs-tsm; ADR 0009, 0014, 0016), `gcp-tdx` (Intel
+TDX; ADR 0018) and `azure-cgpu` (an Azure confidential GPU VM: the chip,
+the vTPM and the H100; ADR 0019), each proven on live machines
+(VERIFIABLE-CLAIMS C7, C12–C17). The simulated backend is refused unless
+the configuration says `tee.insecure_simulation: true`, and is gated by
+the daemon's startup `Capability` check + a runtime warning:
+`simulated TEE is not for production`.
 A future invariant will require a build tag (`+build dangerous_sim`)
 to compile a production binary that includes it.
 

@@ -16,13 +16,16 @@ For TEE-agnostic disaster recovery see
   Azure Storage, Microsoft Azure Attestation or Log Analytics. The only
   packaged deployment is `deploy/compose/` (Docker Compose), which runs on
   any Linux host.
-- **No shipped binary attests on Azure hardware.** `sagvd` and `acp-compute`
-  attest with the simulated TEE only. `acp-bootstrap`'s SEV-SNP backend
-  requests reports through the kernel's configfs-tsm, which Azure
-  Confidential VMs do not provide for SEV-SNP — there the AMD report sits in
-  the vTPM's HCL report ([real-tee-sev-snp.md](real-tee-sev-snp.md) §B). The
-  Azure SGX adapter in `internal/shared/tee` is scaffolding, refused by
-  `sagvd`'s verifier registry and by `acp-bootstrap` (KNOWN_ISSUES #1).
+- **The shipped binaries attest on Azure hardware through the vTPM.**
+  `sagvd`, `acp-compute` and `acp-bootstrap` attest as `azure-cgpu`
+  (ADR 0019, [real-tee-azure-cgpu.md](real-tee-azure-cgpu.md)) on an Azure
+  confidential GPU VM: the AMD report from the vTPM's HCL report, a TPM
+  quote by the vTPM's attestation key binding the handshake's challenge,
+  and NVIDIA's tokens for the H100. The `gcp-sev-snp` backend (configfs-tsm)
+  does not apply on Azure, where the AMD report sits in the vTPM
+  ([real-tee-sev-snp.md](real-tee-sev-snp.md) §B). The Azure SGX adapter in
+  `internal/shared/tee` is scaffolding, refused by `sagvd`'s verifier
+  registry and by all three daemons (KNOWN_ISSUES #1).
 - **What is proven on Azure:** a genuine SEV-SNP report from a live Azure
   Confidential VM verifies offline — VCEK signature and chain to AMD
   ARK-Milan — in `TestRealSEVSNP_VerifiesGenuineAzureReport`, against

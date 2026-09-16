@@ -3,7 +3,7 @@
 | Last updated | 2026-09-14 |
 |--------------|------------|
 | Audience     | Platform operators, on-call SRE, security incident responders |
-| Scope        | Phase 1 single-tenant deployments; multi-tenant addenda flagged inline |
+| Scope        | Single-tenant deployments; multi-tenant addenda flagged inline |
 | Pair docs    | [Cross-cloud restore](../06_cross_cloud_restore.md) · [Triage table](../triage_table.md) · [Threat model](../../security/threat_model.md) |
 
 This runbook is the single source of truth for what to do when
@@ -31,10 +31,13 @@ Test it once a quarter. The first time you run it shouldn't be live.
   bearer token at startup only: a change takes effect at the next start.
 - sagvd's job queue lives in memory; jobs queued or running when it stops
   are lost.
-- The only audit log a shipped binary writes is `crosscloud.audit_log_path`,
-  written by `sagvd crosscloud-restore` and `sagvd crosscloud-confirm`.
-- `sagvd` and `acp-compute` attest with the simulated TEE only; the one
-  binary that attests with hardware is `acp-bootstrap` on AMD SEV-SNP.
+- Two audit logs, both under `keys.audit_signing`: the Return Path log
+  (`audit.log_path`, every decision of the `sagvd` daemon before it takes
+  effect, ADR 0014) and the cross-cloud log (`crosscloud.audit_log_path`,
+  written by `sagvd crosscloud-restore`, `crosscloud-confirm` and `failover`).
+- `sagvd`, `acp-compute` and `acp-bootstrap` attest with the hardware they
+  run on — AMD SEV-SNP, Intel TDX or the Azure confidential GPU VM — or with
+  the simulated TEE for development, which announces itself.
 
 ## Index
 
@@ -275,10 +278,12 @@ Does /healthz answer on the health listener?
 
 ## Scenario 5: TEE hardware unavailable at a SEV-SNP destination
 
-sagvd and acp-compute use the simulated TEE and need no hardware. This
-scenario concerns an `acp-bootstrap` destination running with
-`tee.provider: "gcp-sev-snp"`, which requests attestation reports through the
-kernel's configfs-tsm (`tee.tsm_report_dir`, default
+Every daemon that runs with a hardware provider needs that hardware at
+start; this scenario is written for an `acp-bootstrap` destination running
+with `tee.provider: "gcp-sev-snp"` and applies the same way to `sagvd` and
+`acp-compute` on `gcp-sev-snp`, `gcp-tdx` (configfs-tsm as well) or
+`azure-cgpu` (the vTPM, tpm2-tools and the GPU). `gcp-sev-snp` requests
+attestation reports through the kernel's configfs-tsm (`tee.tsm_report_dir`, default
 `/sys/kernel/config/tsm/report`; Linux 6.7 or later).
 
 ### Detection

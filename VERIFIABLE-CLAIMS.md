@@ -618,8 +618,9 @@ cd workers/genome && python -m pytest -q tests/
 ```
 
 **Scope.** One GPU, one host CPU, one model; LoRA r=8 on two projections;
-16 fixtures. The L4 is not a confidential GPU: nothing here is attested,
-and the sealed genome was opened on the machine that made it. The
+16 fixtures. The L4 is not a confidential GPU: nothing in this run is
+attested, and the sealed genome was opened on the machine that made it
+([C17](#c17) is the attested one). The
 cross-device result is a measurement of bfloat16 kernels on two devices,
 not a property of the model: the float door's tolerance is the float32 one,
 and no bfloat16 tolerance policy and no integer door for the LoRA worker
@@ -765,9 +766,10 @@ sentence we cannot defend.
    verifiers do not. And a TDX host holds no sealed escrow key: TDX has no
    sealer here (ADR 0018).
 5. **We do not claim this at frontier scale.** The largest model measured is
-   Qwen2.5-7B-Instruct on one 24 GB GPU ([C16](#c16)); every attested run is
-   Qwen2.5-0.5B or smaller ([C12](#c12) uses a tiny model built on the guest to
-   prove the path, not the scale). And we do not claim cross-device
+   Qwen2.5-7B-Instruct — on one 24 GB GPU ([C16](#c16)) and on an attested
+   confidential GPU VM ([C17](#c17)); every failover and every CPU-only
+   attested run is Qwen2.5-0.5B or smaller ([C12](#c12) uses a tiny model
+   built on the guest to prove the path, not the scale). And we do not claim cross-device
    equivalence at 7B in bfloat16: there the float door fails closed on
    differences of one or two bfloat16 quanta, while top-1 and greedy agree
    16/16. Nothing larger than 7B has been run.

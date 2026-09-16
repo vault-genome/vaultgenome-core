@@ -94,11 +94,16 @@ did not start.
 
 What attests in this build:
 
-- `sagvd` and `acp-compute` use the simulated TEE only: Evidence signed by a
-  key derived from `tee.seed_path`, measurement = SHA-256 of
-  `tee.workload_descriptor`. Both refuse to start unless
-  `tee.insecure_simulation` is `true`. Each pins the other's TEE public key and
-  measurement (`tee.peer.public_key_path`, `tee.peer.measurement_path`); a
+- `sagvd` and `acp-compute` attest with the TEE they run on:
+  `tee.provider: "gcp-sev-snp"` (AMD SEV-SNP through configfs-tsm),
+  `"gcp-tdx"` (Intel TDX) or `"azure-cgpu"` (an Azure confidential GPU VM —
+  the chip, the vTPM and the H100), the measurement read from the hardware;
+  or with the simulated TEE for development — Evidence signed by a key
+  derived from `tee.seed_path`, measurement = SHA-256 of
+  `tee.workload_descriptor` — which refuses to start unless
+  `tee.insecure_simulation` is `true`. Each pins the other's TEE
+  (`tee.peer`: the measurement, and per provider the AMD chain, the Intel
+  PCS cache, NVIDIA's key-set cache, or the public key of a simulated peer); a
   mismatch fails the Return Path handshake (`sagvd return-path handshake
   failed`, `sagvd_handshake_failures_total{phase="handshake"}`).
 - `acp-bootstrap` attests with AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`) or,
@@ -151,7 +156,9 @@ changed — the review is itself a policy-alignment signal.
 
 ## 7. Audit log continuity
 
-The only audit log a shipped binary writes is `crosscloud.audit_log_path`.
+`sagvd` writes two audit logs under `keys.audit_signing`: the Return Path
+log (`audit.log_path`, required with gate jobs) and the cross-cloud log
+(`crosscloud.audit_log_path`). Check each.
 
 1. `acpctl audit verify --audit <path> --audit-pubkey <audit.pem> --audit-kid <kid> --json`
    must report `"ok": true`.
