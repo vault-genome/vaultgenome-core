@@ -111,7 +111,12 @@ The peer pins the VM's measurement from `identity`, as for SEV-SNP.
 on the source, a registry entry `{ "provider": "azure-cgpu",
 "expected_measurement_hex": …, "amd_cert_chain_path": …, "vcek_cache_dir":
 …, "nras_cache_dir": …, "gpu_policy": {…}, "pcr_digests": […] }`, and the
-allow-list names the measurement under `"azure-cgpu"`.
+allow-list names the measurement under `"azure-cgpu"`. Two things the
+failover drill taught: the registry also needs an entry for the
+*primary's* TEE family — the anchors `sagvd failover` verifies the
+primary's reports with (runbook 07) — and `pcr_digests` is a property of
+a boot: take it from `acp-bootstrap identity` on the machine as it runs,
+after its last reboot, not from an earlier capture.
 
 ## E. What has run on hardware
 
@@ -121,6 +126,10 @@ verdict and NRAS tokens, the 7B genome path on the H100 in
 confidential-computing mode) and the Return Path with both daemons on
 `azure-cgpu` and the door on the H100; the README carries the measured
 runs. The verifier's tests run against the capture, offline.
+[`scripts/hardware-test/failover-cgpu/`](../../../scripts/hardware-test/failover-cgpu/README.md):
+the failover of a model from a GCP SEV-SNP primary to this destination
+across the Internet — the key released on the chip's, the vTPM's and
+NVIDIA's word, the genome gated EQUIVALENT on the H100, RTO 24.99 s.
 
 ## F. No sealer; cleanup
 

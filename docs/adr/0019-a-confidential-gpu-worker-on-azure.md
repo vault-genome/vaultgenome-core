@@ -121,10 +121,19 @@ gate job. The verifier's tests run against the capture, offline.
   attest, which is the price of the GPU's evaluation being NVIDIA's.
 - **The pin names the paravisor, not the OS.** Azure's SNP launch
   measurement covers the firmware Azure measures; the OS and the driver
-  are in the vTPM's PCRs, which the quote records and the verifier does
-  not yet police — a PCR policy is the next step for an operator who
-  wants the OS pinned too. The GPU's software is pinned through NVIDIA's
+  are in the vTPM's PCRs, which the quote records and the verifier
+  polices only when the operator lists `pcr_digests` (added after this
+  ADR; the digest is a property of a boot, so it is taken from `identity`
+  on the running machine). The GPU's software is pinned through NVIDIA's
   claims (driver, VBIOS) instead.
+- **As a destination.** The provider has taken a key release as the
+  standby of a failover (`scripts/hardware-test/failover-cgpu`,
+  2026-09-16): the authority's registry entry pinned the launch
+  measurement and the boot's PCR digest, the key was released on this
+  Evidence, and the receipt came back carrying it; the genome was gated
+  EQUIVALENT on the H100. The registry of that authority also holds an
+  entry for the primary's family — the anchors the executor verifies the
+  primary's reports with (runbook 07).
 - **tpm2-tools and NVIDIA's package are runtime dependencies** of the
   producer, executed as commands; the verifier has none.
 - **The evidence is public.** Reports, quotes, certificates and tokens

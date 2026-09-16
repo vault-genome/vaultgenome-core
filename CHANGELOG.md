@@ -13,6 +13,21 @@ given release can still open.
 
 ### Added
 
+- **The GPU leg of the failover drill** —
+  `scripts/hardware-test/failover-cgpu/`: a model fine-tuned on a GCP
+  SEV-SNP primary fails over, under the operator's signed policy, to an
+  Azure NCC H100 v5 standby attesting as `azure-cgpu` across the Internet
+  (run `20260916T150456Z`): the authority — GCP SEV-SNP, its escrow key
+  sealed to its chip — took the primary's attested compromise report,
+  verified the standby's chip to AMD's Genoa root, its vTPM's quote against
+  the pinned boot (`pcr_digests`) and NVIDIA's tokens for the H100, released
+  the key for the last generation sealed before the attack, and confirmed
+  the standby's receipt: the genome restored and gated **EQUIVALENT** on the
+  H100 (max abs err 1.5e-4), RTO 24.99 s, RPO 12.0 s, five audit events
+  verified. VERIFIABLE-CLAIMS C18, `docs/CONTINUITY-DRILL.md` Drill III,
+  KNOWN_ISSUES #1 and #12 updated. The kit reuses the failover drill's
+  primary; its authority's registry holds both the `azure-cgpu` destination
+  and the primary's `gcp-sev-snp` anchors, as runbook 07 requires.
 - **A bfloat16 tolerance the operator signs for.** `sagvd`'s
   `genome.gate.bfloat16 {atol, rtol}` is the tolerance a genome whose
   recipe computed in bfloat16 is held to — chosen by the genome's
@@ -183,6 +198,12 @@ given release can still open.
 
 ### Fixed
 
+- **The Azure onboarding kits pinned the wrong NVIDIA userspace.**
+  `scripts/hardware-test/azure-cgpu/run.sh` (and the new
+  `failover-cgpu/run.sh`) read the signed modules' version bound with
+  `apt-cache depends`, which prints no versions; the bound came back empty
+  and the newer userspace in noble-updates got pinned, which the modules
+  refuse. The bound is now read from `apt-cache show`.
 - **`sagvd`'s verifier registry takes `azure-cgpu` entries.** ADR 0019 and
   its runbook said it did; the loader had no case and refused the
   provider. It takes the AMD fields (the Genoa chain), `nras_jwks_url`,

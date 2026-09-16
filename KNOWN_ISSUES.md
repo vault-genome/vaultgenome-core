@@ -77,10 +77,14 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    Return Path. What it trusts NVIDIA for: the evaluation of the GPU's
    SPDM report against NVIDIA's reference manifests and revocation; the
    report and chain are in the evidence, an independent evaluation is not
-   in this build. What it does not police: the vTPM's PCRs (recorded, not
-   pinned — the launch measurement covers Azure's paravisor and firmware,
-   not the OS). No sealer on that host either. A key release to a TDX or
-   confidential-GPU destination has not been run on hardware.
+   in this build. What it polices only when the operator asks: the vTPM's PCRs
+   (`pcr_digests`, a per-boot digest — the launch measurement covers
+   Azure's paravisor and firmware, not the OS). No sealer on that host
+   either. A key release to the confidential-GPU destination has run on
+   hardware (`scripts/hardware-test/failover-cgpu`, 2026-09-16: a failover
+   from a GCP SEV-SNP primary to the Azure H100 host, the boot pinned, the
+   gate EQUIVALENT on the GPU); a key release to a TDX destination has
+   not.
    Still scaffolding: the AWS Nitro, Azure SGX and Intel SGX DCAP adapters —
    `sagvd`'s verifier registry and `acp-bootstrap` refuse those families
    rather than trust them. `sagvd` and `acp-compute` attest with SEV-SNP,
@@ -236,10 +240,12 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     - A verifier that cannot verify (the VCEK cache empty, AMD KDS
       unreachable) makes every heartbeat silence and fails over on a healthy
       primary; the runbook says to fill the cache at arm time.
-    - The attested standby is a CPU confidential VM. An attested GPU standby
-      is now possible on an Azure confidential GPU VM (ADR 0019: the chip,
-      the vTPM and the H100 in one evidence); it has not been run as a
-      standby, only as a Return Path worker.
+    - An attested GPU standby has run once
+      (`scripts/hardware-test/failover-cgpu`, ADR 0019: the chip, the vTPM
+      and the H100 in one evidence, in the release and in the receipt): RTO
+      24.99 s across the Internet, the gate EQUIVALENT on the H100. What
+      remains: the GPU's evaluation is NVIDIA's (#1), and that standby holds
+      no sealed escrow key, so it cannot itself become an authority (#11).
 13. **The float door's tolerance is a float32 one; a bfloat16 genome fails
     it across devices (2026-09-16).** The genome's recipe now records the
     device and dtype the base computed in, and a 7B model trains in bfloat16

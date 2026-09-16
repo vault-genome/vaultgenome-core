@@ -1,0 +1,25 @@
+{
+  "verifiers": [
+    {
+      "provider": "azure-cgpu",
+      "expected_measurement_hex": "aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef",
+      "amd_cert_chain_path": "/root/amd-genoa-cert_chain.pem",
+      "vcek_cache_dir": "/root/vcek-cache",
+      "nras_cache_dir": "/root/nras-cache",
+      "gpu_policy": {
+        "hw_models": [
+          "GH100"
+        ]
+      },
+      "pcr_digests": [
+        "92fe2c20ad514e67e3ae6308041dfe086c2a05250b86c1e76692c415cf3a26e2"
+      ]
+    },
+    {
+      "provider": "gcp-sev-snp",
+      "expected_measurement_hex": "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790",
+      "amd_cert_chain_path": "/root/amd-milan-cert_chain.pem",
+      "vcek_cache_dir": "/root/vcek-cache"
+    }
+  ]
+}

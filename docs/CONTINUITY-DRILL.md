@@ -4,9 +4,10 @@ One question, asked of real hardware: **if the machine running your model is
 taken, does the model survive — and can you prove the thing that came back is
 the same model?**
 
-This document is the answer we can defend. It is a narrative of two drills that
-ran on live AMD SEV-SNP confidential VMs, with every number copied from
-evidence committed to this repository. Nothing here is simulated except the
+This document is the answer we can defend. It is a narrative of three drills
+that ran on live confidential machines — AMD SEV-SNP VMs on GCP and, in the
+third, an Azure confidential GPU VM as the standby — with every number copied
+from evidence committed to this repository. Nothing here is simulated except the
 adversary, and the adversary only ever touched our own machines.
 
 Every claim below is indexed in [VERIFIABLE-CLAIMS.md](../VERIFIABLE-CLAIMS.md)
@@ -177,6 +178,74 @@ was released, where it went, and proof that it behaves identically.
 
 ---
 
+## Drill III — The standby is a confidential GPU in another cloud
+
+*Run `20260916T150456Z`. A GCP SEV-SNP primary and authority, an Azure NCC
+H100 v5 standby. Evidence:
+[`scripts/hardware-test/failover-cgpu/evidence/20260916T150456Z/`](../scripts/hardware-test/failover-cgpu/evidence/20260916T150456Z/)*
+
+Drill II again, with one thing changed: the machine the model comes back on
+is not another CPU confidential VM in the same project but an Azure
+confidential GPU VM on the other side of the Internet — an AMD SEV-SNP guest
+under Azure's paravisor with an H100 in confidential-computing mode,
+attesting as `azure-cgpu` (ADR 0019): the chip's report from the vTPM, a TPM
+quote per challenge with the boot pinned, and NVIDIA's signed tokens for the
+GPU.
+
+### 1. The operator names the GPU in advance
+
+The policy (serial 1) pins the primary's sentinel key and chip, and the
+standby: kind `azure-cgpu`, its endpoint, its launch measurement
+`aa7c9da5…0eef`; the authority's verifier registry pins the vTPM's boot as
+well (`pcr_digests: 92fe2c20…26e2`) and holds the Milan anchors it verifies
+the primary's reports with. The authority's escrow key is sealed to its own
+SEV-SNP chip, as in Drill II.
+
+### 2. The intrusion, and the primary's attested word
+
+The primary fine-tunes two generations; the sentinel seals each with the
+chip's report on every record. The attack lands at 15:12:32Z: the tripwire
+fires, the sentinel reports `compromised` naming generation 1 as the last
+good state, and exits. The authority takes that report only with the primary
+chip's report on it.
+
+### 3. The key goes to the GPU — on the chip's, the vTPM's and NVIDIA's word together
+
+> `destination_kind: azure-cgpu`,
+> `destination_measurement_hex: aa7c9da5…0eef`,
+> `policy_version: failover-policy-v1;failover=1;revocation=1`
+
+Before the key left the authority, the handshake's Evidence was verified
+under one nonce: the SEV-SNP report to AMD's Genoa root, the TPM quote under
+the attestation key the chip named, its PCR digest matching the pin, and
+NVIDIA's ES384 tokens under NVIDIA's key set with the claims policy
+(`GH100`, secure boot, no debug, signed manifests, measurements matched).
+
+### 4. The model comes back on the H100, and the gate says so
+
+| Phase | Measured |
+| - | - |
+| Detect — tripwire → authority observes | **5.59 s** |
+| **RPO** — data at risk | **12.00 s** |
+| Key release — across the Internet, mTLS | 1.30 s |
+| Restore — 5 files, 2,202,999 B | **11.4 ms** |
+| Gate on the H100 | 12.11 s |
+| **RTO — intrusion → gated, confirmed, running model on the GPU** | **24.99 s** |
+
+- **generation 1** — the clean state, not the tampered one;
+- gate level **EQUIVALENT**, door native float on `cuda`, 16 fixtures,
+  `max_abs_err: 1.52e-4` against atol 1e-2 — the honest level for a model
+  trained on CPUs and proven on a GPU; EXACT is a same-device property
+  (Drill II had it on the pinned runtime);
+- the receipt signed by the standby carries the same `azure-cgpu` Evidence,
+  and the key was erased on the standby after the restore;
+- audit chain of 5 events, verified, tip `d46be63a…943a`.
+
+One second slower than Drill II, one cloud further — and the machine that
+took the model is one whose GPU signed for its own firmware and driver.
+
+---
+
 ## The line we will not cross
 
 A system that relocates itself to new hardware when it detects a threat is one
@@ -217,11 +286,12 @@ point.
   L4, its recipe replaying bit for bit, and the float door failing closed
   across devices in bfloat16 while the answers stay the same. Nothing larger
   has been run.
-- **CPU TEEs in the drills.** The drills' destinations are AMD SEV-SNP. An
-  attested *GPU* worker exists since ADR 0019 — an Azure confidential GPU VM
-  whose evidence carries the chip, the vTPM and the H100 — measured on the
-  Return Path ([azure-cgpu](../scripts/hardware-test/azure-cgpu/README.md)),
-  not yet as a failover destination.
+- **One GPU leg, once, at 0.5B.** Drill III's standby is an attested
+  confidential GPU, run once with the 0.5B model. Its GPU measurements are
+  NVIDIA's evaluation, verified by NVIDIA's signature — the SPDM report is in
+  the evidence, an independent evaluation is not in this build. The standby
+  holds no sealed escrow key (no sealer on that host), so it can receive a
+  model and cannot itself become an authority.
 - **SEV-SNP, TDX and the Azure confidential GPU only.** Nitro and SGX have
   adapter dispatch (ADR 0002) but no shipped offline verifier; a TDX host
   and an Azure confidential GPU host have no sealer, so no sealed escrow
@@ -249,6 +319,7 @@ deletes every VM and bucket on exit — including on failure.
 ```bash
 bash scripts/hardware-test/gcp-drill/run.sh    <gcp-project>   # Drill I   (~30 min)
 bash scripts/hardware-test/gcp-failover/run.sh <gcp-project>   # Drill II  (~25 min)
+bash scripts/hardware-test/failover-cgpu/run.sh <gcp-project> [gcp-zone] [azure-rg]   # Drill III (~25 min; GCP + an Azure NCC H100 v5)
 bash scripts/hardware-test/gpu-exact/run.sh    <gcp-project>   # the CPU↔GPU probe (~20 min)
 ```
 
