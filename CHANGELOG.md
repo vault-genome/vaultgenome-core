@@ -13,6 +13,27 @@ given release can still open.
 
 ### Added
 
+- **Intel TDX on the Return Path**
+  ([ADR-0018](docs/adr/0018-intel-tdx-on-the-return-path.md)) —
+  `tee.provider: "gcp-tdx"` for `sagvd`, `acp-compute` and `acp-bootstrap`,
+  `tee.peer.provider: "gcp-tdx"` and `gcp-tdx` entries in the cross-cloud
+  verifier registry. The producer quotes through configfs-tsm (`tdx_guest`)
+  with the challenge in REPORTDATA and reports as its 48-byte measurement the
+  SHA-384 of MRTD and RTMR0..3. The verifier chains the quote's PCK
+  certificates to the pinned Intel SGX Root CA, checks the attestation key's
+  and the PCK leaf's signatures and the QE report's binding of the key,
+  fetches Intel's TCB info and QE identity from Intel PCS (`pcs_url`;
+  `pcs_cache_dir` keeps them between runs) and verifies their signatures
+  before reading them, evaluates the platform, TDX-module and QE TCB
+  statuses (`acceptable_tcb_statuses`: `UpToDate` by default, hardening
+  statuses by choice, `OutOfDate` and `Revoked` never), refuses a debuggable
+  TD, binds the nonce and pins the measurement. No TDX sealer: an escrow key
+  cannot be sealed to a TDX host. `sagvd identity` and `acp-compute
+  identity` print the MRTD and RTMRs a TDX measurement is made of.
+  `scripts/hardware-test/gcp-tdx/capture/` holds a genuine c3 quote with
+  Intel's documents, which the verifier's tests run against;
+  `scripts/hardware-test/gcp-tdx/returnpath-e2e/` runs both daemons on one
+  Trust Domain.
 - **The escrow key is sealed to the release host's TEE**
   ([ADR-0016](docs/adr/0016-escrow-key-sealed-to-the-release-host.md)) —
   the SEV-SNP sealer is real: a key the firmware derives for this chip,

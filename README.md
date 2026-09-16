@@ -189,7 +189,11 @@ verify-reproducible).
 - **Real AMD SEV-SNP attestation** — a report from a live confidential VM is
   parsed, its ECDSA-P384 signature verified, and its VCEK chained to AMD
   ARK-Milan — proven on **two clouds, GCP and Azure** (`scripts/hardware-test/`,
-  ADR 0007 / 0009).
+  ADR 0007 / 0009). **Real Intel TDX attestation** — a quote from a live
+  Trust Domain is parsed, its attestation key and PCK chain verified to the
+  Intel SGX Root CA, and the platform rated against Intel's signed TCB info
+  and QE identity ([gcp-tdx/capture](scripts/hardware-test/gcp-tdx/capture),
+  ADR 0018).
 - **Cross-hardware regeneration gate** — a signed EXACT / EQUIVALENT / FAIL
   verdict on recomputed reference fixtures, behind a determinism ladder that
   finds a working door (pinned float → reproducible float → byte-portable
@@ -214,14 +218,21 @@ verify-reproducible).
   `GET /v1/jobs/{id}` shows every stage and artifact, and `acpctl audit
   verify` checks the log under the published key (ADR 0014, 0015).
 - **Both ends of the Return Path attest with the chip** — `sagvd` and
-  `acp-compute` run on AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`), each
-  pinning the other's launch measurement and verifying to the AMD root; a
-  worker whose Evidence is not the pinned identity gets no job. Run on a GCP
-  SEV-SNP Confidential VM with the real `vg_genome` door
-  ([returnpath-e2e](scripts/hardware-test/gcp-sev-snp/returnpath-e2e)).
+  `acp-compute` run on AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`) or Intel
+  TDX (`"gcp-tdx"`, ADR 0018), each pinning the other's measurement and
+  verifying to the AMD or the Intel root — for TDX with Intel's signed TCB
+  word on the platform, the TDX module and the Quoting Enclave; a worker
+  whose Evidence is not the pinned identity gets no job. Run on a GCP
+  SEV-SNP Confidential VM
+  ([returnpath-e2e](scripts/hardware-test/gcp-sev-snp/returnpath-e2e)) and
+  on a GCP Intel TDX Trust Domain
+  ([gcp-tdx/returnpath-e2e](scripts/hardware-test/gcp-tdx/returnpath-e2e))
+  with the real `vg_genome` door.
 - **Honest boundaries** — off hardware the daemons run a simulated TEE that
-  announces itself; no Intel TDX, AWS Nitro or SGX adapter attests. Attested GPU destinations need
-  confidential GPUs, which have not been tested yet. Every hardware number
+  announces itself; no AWS Nitro or SGX adapter attests, and a TDX host holds
+  no sealed escrow key (no TDX sealer). Attested GPU destinations need
+  confidential GPUs, which have not been tested yet: the TDX CPU side of one
+  now attests, the GPU's own attestation does not. Every hardware number
   here is 0.5B scale. **We
   measured against ourselves that byte-identical float inference across CPU and
   GPU is not achievable** — divergence enters at the first transformer block in

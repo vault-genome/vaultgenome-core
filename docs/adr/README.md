@@ -30,6 +30,7 @@ ADRs interact with the test-enforced invariant system.
 | 0015 | [One binary drives the nine stages](0015-one-binary-drives-the-nine-stages.md) | Accepted | orchestration, sagvd, audit, trust, release |
 | 0016 | [The escrow key is sealed to the release host's TEE](0016-escrow-key-sealed-to-the-release-host.md) | Accepted | escrow, tee, sev-snp, sagvd, custody |
 | 0017 | [Limits on the primary's word](0017-limits-on-the-primarys-word.md) | Accepted | failover, sentinel, tee, attestation, governance |
+| 0018 | [Intel TDX on the Return Path](0018-intel-tdx-on-the-return-path.md) | Accepted | tee, tdx, returnpath, attestation |
 
 ## Adding an ADR
 

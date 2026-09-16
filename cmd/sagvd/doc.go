@@ -62,13 +62,17 @@
 //   - http_api.listen_address   TCP listener for the operator REST API
 //   - http_api.bearer_token     optional Bearer token for POST /v1/jobs
 //   - tee.provider              "gcp-sev-snp" (the chip signs, reports through
-//     configfs-tsm) or "simulated" (+insecure_simulation)
+//     configfs-tsm), "gcp-tdx" (a TDX quote through configfs-tsm; the
+//     measurement is SHA-384 of MRTD and RTMR0..3, ADR 0018) or
+//     "simulated" (+insecure_simulation)
 //   - tee.workload_descriptor   names the workload; the simulator hashes it
 //   - tee.seed_path             32-byte Ed25519 seed (simulated only)
 //   - tee.peer.*                the worker's TEE pin: provider, measurement
-//     (48 bytes for SEV-SNP), amd_cert_chain_path
-//     for a SEV-SNP peer or public_key_path for a
-//     simulated one
+//     (48 bytes for SEV-SNP and TDX), amd_cert_chain_path
+//     (vcek_cache_dir, amd_kds_url, min_reported_tcb) for
+//     a SEV-SNP peer, pcs_cache_dir (pcs_url,
+//     acceptable_tcb_statuses) for a TDX peer, or
+//     public_key_path for a simulated one
 //   - keys.authority_signing    kid + seed for authority-bound signatures (signs gate verdicts)
 //   - keys.audit_signing        kid + seed that signs the audit logs
 //   - keys.session_sealing      kid + AES-256 key for SealedMaterial (pre-shared with worker)

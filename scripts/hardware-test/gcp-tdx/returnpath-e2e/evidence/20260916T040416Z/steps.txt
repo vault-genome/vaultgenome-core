@@ -1,0 +1,31 @@
+== binaries from gs://rats-probe-vg-tdxrp-20260916t040319z/e2e
+== the Trust Domain: configfs-tsm (tdx_guest)
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== provision (keygen)
+== identities: each daemon reads MRTD and RTMR0..3 from a quote of this Trust Domain
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=ed70198aab47b863b63b5943739da720f1bed54058a2644746c2a3bab91790a57544cb43459d80b4feff4b7922a3177b
+worker_measurement=ed70198aab47b863b63b5943739da720f1bed54058a2644746c2a3bab91790a57544cb43459d80b4feff4b7922a3177b
+sagvd-identity.json: provider=gcp-tdx mrtd=c1ee9c16e3afc506… rtmr3=0000000000000000… sha384(mrtd||rtmr0..3)==measurement: True
+acp-compute-identity.json: provider=gcp-tdx mrtd=c1ee9c16e3afc506… rtmr3=0000000000000000… sha384(mrtd||rtmr0..3)==measurement: True
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-003e75e56438-g0-5f6b9ce6d203
+== sagvd on TDX
+sagvd ready after 1s
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+rogue refused after 1s
+== acp-compute on TDX, the real door
+session opened after 0s
+== the gate job over the Return Path
+job_id=c6ff1abddb3f6d87ff1c8911c17f4261
+job status=succeeded after 4s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-e2e
+== metrics
+== stop both; verify the audit log with the published key
+audit verify exit=0
+audit query exit=0
+== the Intel PCS documents both verifiers fetched (public), for offline re-verification
+elapsed_seconds=93.7

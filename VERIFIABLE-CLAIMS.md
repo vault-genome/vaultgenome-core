@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -203,8 +203,10 @@ A concrete released-to measurement appears in the failover report below
 (`destination_measurement_hex: 7dc7c12e…125acc`, `destination_kind:
 gcp-sev-snp`).
 
-**Scope.** SEV-SNP only. Intel TDX, AWS Nitro and SGX verifiers are **not**
-shipped — see [What we do not claim](#what-we-do-not-claim).
+**Scope.** Released to SEV-SNP destinations only. A TDX destination is
+wired (the registry takes `gcp-tdx` entries, ADR 0018) and a key release to
+one has not been run; AWS Nitro and SGX verifiers are **not** shipped — see
+[What we do not claim](#what-we-do-not-claim).
 
 ---
 
@@ -500,6 +502,76 @@ confidential VMs.
 
 ---
 
+<a id="c15"></a>
+### C15 — Both ends of the Return Path attest with real Intel TDX, verified to Intel's root and Intel's TCB word
+
+**Claim.** `sagvd` and `acp-compute` attest with the Trust Domain they run
+in (`tee.provider: "gcp-tdx"`): a TDX quote through the kernel's
+configfs-tsm with the handshake's challenge in REPORTDATA, and as the
+measurement the SHA-384 of MRTD and RTMR0..3 — the firmware and the boot
+chain in one 48-byte pin. The verifier on the other side chains the quote's
+PCK certificates to the pinned Intel SGX Root CA, checks the attestation
+key's and the PCK leaf's signatures and the QE report's binding of the key,
+fetches Intel's TCB info and QE identity from Intel PCS and verifies their
+signatures before reading them, requires the platform, the TDX module and
+the QE to be at an accepted TCB status (`UpToDate` unless the operator says
+otherwise; `OutOfDate` and `Revoked` never), refuses a debuggable TD, binds
+the nonce and compares the measurement with the pin
+([ADR 0018](docs/adr/0018-intel-tdx-on-the-return-path.md)). On a GCP
+Trust Domain, a gate job went through the nine stages and released, and a
+worker whose Evidence was not a TDX quote was refused on the record.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-tdx/capture/evidence/20260916T031937Z/`](scripts/hardware-test/gcp-tdx/capture/evidence/20260916T031937Z/)
+— a genuine `c3-standard-4` quote (8 000 bytes, version 4, TEE type TDX,
+`TDATTRIBUTES` without DEBUG, MRTD `c1ee9c16…70a5`, RTMR3 zero) with the
+caller's nonce in REPORTDATA, its PCK chain (3 certificates, FMSPC
+`00806f050000`), Intel's TCB info (6 levels, the highest `UpToDate`), QE
+identity, root CA and CRLs; the verifier's tests run against it offline
+([`internal/shared/tee/gcp_tdx_test.go`](internal/shared/tee/gcp_tdx_test.go):
+the genuine quote verifies; another root, a flipped DEBUG bit, a changed
+byte, a wrong nonce, an unpinned measurement, an edited TCB level, an
+expired document or a stale cache without network is refused).
+[`scripts/hardware-test/gcp-tdx/returnpath-e2e/evidence/20260916T040416Z/`](scripts/hardware-test/gcp-tdx/returnpath-e2e/evidence/20260916T040416Z/)
+— us-central1-a, `c3-standard-4`, `tsm.txt`: `tdx: Guest detected`,
+`Memory Encryption Features active: Intel TDX`, `/dev/tdx_guest`.
+`sagvd-identity.json` and `acp-compute-identity.json`: `tee_provider:
+gcp-tdx`, measurement `ed70198a…177b` on both with the `tdx` block it is
+made of (`steps.txt` recomputes it; the same MRTD and RTMRs as the capture
+44 minutes earlier on another guest of the same image).
+`audit-events.jsonl`, event 1: `TRUST_EVALUATED` deny, `gcp-tdx: parse
+quote: quote is 147 bytes, shorter than a header and TD report (636)` — the
+simulated TEE's Evidence, refused within 1 s; event 3: `TRUST_EVALUATED`
+allow, `trust.peer_attested`, `gcp-tdx`, the pinned measurement.
+`job.json`: `POST /v1/jobs` 202 → `release_authorized` in **3.37 s**, gate
+**EXACT** (`pinned replay`, 6/6 fixtures, max abs err 0), top-1 6/6, the
+signed decision `dec-d6fd9410c50e2fcf` citing attestation
+`att-fdc9b5ad-…-0001`; `audit-verify.json`: `ok: true`, **17 events**;
+`sagvd-metrics.txt`: `vg_tee_attestation_total{provider="gcp-tdx"}` —
+3 produce, 2 verify success, 1 verify error; `pcs-tdx-tcb-00806f050000.json`
+and `pcs-tdx-qe-identity.json` with their issuer chains: Intel's documents
+as both verifiers fetched them, for offline re-verification.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-tdx/capture/run.sh <gcp-project>
+scripts/hardware-test/gcp-tdx/returnpath-e2e/run.sh <gcp-project>
+go test -count=1 -run 'TDX' ./internal/shared/tee/ ./cmd/sagvd/ ./cmd/acp-compute/ ./cmd/acp-bootstrap/
+```
+
+**Scope.** Both daemons ran inside one Trust Domain; the pin is the
+image's, so a second guest of the same image has the same measurement. The
+CPU side only: the machine had no GPU, and the GPU's own attestation
+(NVIDIA confidential computing) is not wired. A key release to a TDX
+destination (`acp-bootstrap` on TDX) has not been run on hardware. TDX has
+no sealer here, so an authority on a TDX host holds no sealed escrow key
+(ADR 0016 is SEV-SNP only). Intel PCS was reachable from the guest; without
+it and without a cache the verifier refuses. The model is a tiny one built
+on the guest to prove the path, not the scale.
+
+---
+
 ## Supply chain and build
 
 <a id="c9"></a>
@@ -555,8 +627,10 @@ sentence we cannot defend.
 3. **We do not claim attested GPU destinations.** That needs confidential GPUs
    (H100 CC); we have not run one. Every measured destination to date is a CPU
    TEE.
-4. **We do not claim TDX, Nitro or SGX verification.** SEV-SNP only. Adapter
-   dispatch for others exists (ADR 0002); the offline verifiers do not.
+4. **We do not claim Nitro or SGX verification.** SEV-SNP and Intel TDX only
+   ([C15](#c15)). Adapter dispatch for others exists (ADR 0002); the offline
+   verifiers do not. And a TDX host holds no sealed escrow key: TDX has no
+   sealer here (ADR 0018).
 5. **We do not claim this at frontier scale.** Every hardware number here is
    Qwen2.5-0.5B or smaller ([C12](#c12) uses a tiny model built on the guest to
    prove the path, not the scale). A 7B+ run is the obvious next measurement
