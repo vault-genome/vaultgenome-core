@@ -408,7 +408,7 @@ func TestBuildHTTPTransport_NoTLS(t *testing.T) {
 		TransportBearerToken:  "secret",
 		RequestTimeoutSeconds: 15,
 	}
-	tx, err := buildHTTPTransport(cfg)
+	tx, err := buildHTTPTransport(TEEConfig{}, cfg)
 	if err != nil {
 		t.Fatalf("buildHTTPTransport: %v", err)
 	}

@@ -54,6 +54,8 @@ c = {
  "health": {"listen_address": "127.0.0.1:8444"}, "log": {"level": "info", "format": "json"}}
 json.dump(c, open(H + "/dest.json", "w"), indent=2)
 PY
+acp-bootstrap seal-keys -config "$H/dest.json" > "$OUT/dest-seal-keys.json" 2> "$OUT/dest-seal-keys.err"
+echo "acp-bootstrap seal-keys exit=$? sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/dest-seal-keys.json" 2>/dev/null)" >> "$OUT/steps.txt"
 acp-bootstrap identity -config "$H/dest.json" > "$OUT/destination-identity.json" 2> "$OUT/destination-identity.err"
 echo "acp-bootstrap identity exit=$?" >> "$OUT/steps.txt"
 nohup acp-bootstrap -config "$H/dest.json" > "$H/acp-bootstrap.log" 2>&1 &

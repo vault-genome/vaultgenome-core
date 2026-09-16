@@ -380,6 +380,13 @@ type GPUPolicyConfig struct {
 	RIMCacheDir          string `json:"rim_cache_dir,omitempty"`
 	NVIDIADeviceRootPath string `json:"nvidia_device_root_path,omitempty"`
 	NVIDIARIMRootPath    string `json:"nvidia_rim_root_path,omitempty"`
+	// Revocation says whether the verifier's own evaluation asks NVIDIA's
+	// OCSP responder about the GPU's certificate chain: "ocsp" (the
+	// default under both and own; answers cached a day under
+	// rim_cache_dir) or "off" (unchecked, on the record). OCSPURL
+	// overrides the responder (default http://ocsp.ndis.nvidia.com).
+	Revocation string `json:"revocation,omitempty"`
+	OCSPURL    string `json:"ocsp_url,omitempty"`
 }
 
 func (g *GPUPolicyConfig) policy() tee.GPUClaimsPolicy {
@@ -396,13 +403,19 @@ func (g *GPUPolicyConfig) validate() error {
 		return nil
 	}
 	switch g.Evaluation {
-	case "", tee.GPUEvaluationNRAS, tee.GPUEvaluationBoth:
-		return nil
-	case tee.GPUEvaluationOwn:
-		return errors.New("gpu_policy.evaluation \"own\" would rest the verdict on the verifier's evaluation alone, and this build does not verify the manifests' XML signatures; use \"both\"")
+	case "", tee.GPUEvaluationNRAS, tee.GPUEvaluationBoth, tee.GPUEvaluationOwn:
 	default:
-		return fmt.Errorf("gpu_policy.evaluation %q (one of nras, both)", g.Evaluation)
+		return fmt.Errorf("gpu_policy.evaluation %q (one of nras, both, own)", g.Evaluation)
 	}
+	switch g.Revocation {
+	case "", tee.GPURevocationOCSP, tee.GPURevocationOff:
+	default:
+		return fmt.Errorf("gpu_policy.revocation %q (one of ocsp, off)", g.Revocation)
+	}
+	if (g.Revocation != "" || g.OCSPURL != "") && (g.Evaluation == "" || g.Evaluation == tee.GPUEvaluationNRAS) {
+		return errors.New("gpu_policy.revocation and ocsp_url apply to the verifier's own evaluation (evaluation both or own)")
+	}
+	return nil
 }
 
 // apply sets the evaluation fields of a verifier config from the policy,
@@ -412,6 +425,7 @@ func (g *GPUPolicyConfig) apply(cfg *tee.AzureCGPUVerifierConfig) error {
 		return nil
 	}
 	cfg.GPUEvaluation, cfg.RIMServiceURL, cfg.RIMCacheDir = g.Evaluation, g.RIMServiceURL, g.RIMCacheDir
+	cfg.GPURevocation, cfg.OCSPURL = g.Revocation, g.OCSPURL
 	var err error
 	if g.NVIDIADeviceRootPath != "" {
 		if cfg.NVIDIADeviceRootPEM, err = os.ReadFile(g.NVIDIADeviceRootPath); err != nil {
@@ -945,9 +959,14 @@ func (c *Config) ResolveSecrets() error {
 	if c.HTTPAPI.BearerTokenFile == "" {
 		return nil
 	}
-	token, err := exposure.ReadTokenFile(c.HTTPAPI.BearerTokenFile)
+	// The file may be sealed to this host (`sagvd seal-keys`, ADR 0023).
+	raw, err := readSecret(c.TEE, c.HTTPAPI.BearerTokenFile, 0, "http_api.bearer_token_file")
 	if err != nil {
-		return fmt.Errorf("sagvd: http_api.bearer_token_file: %w", err)
+		return err
+	}
+	token := strings.TrimSpace(string(raw))
+	if token == "" {
+		return fmt.Errorf("sagvd: http_api.bearer_token_file %q is empty", c.HTTPAPI.BearerTokenFile)
 	}
 	if c.HTTPAPI.ListenAddress != "" && !exposure.IsLoopback(c.HTTPAPI.ListenAddress) &&
 		len(token) < MinNonLoopbackTokenLen {

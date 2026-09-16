@@ -1,0 +1,19 @@
+== 22:30:27 inputs
+== 22:30:28 provision (keygen), operator stop key, operator recovery key
+== 22:30:29 python runtime (CPU) and base model — the gate runs the model here
+== 22:32:06 configfs-tsm (real SEV-SNP reports)
+== 22:32:06 sagvd on SEV-SNP: identity from the chip
+seal-keys exit=0 sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path
+sagvd identity (base) exit=0
+authority measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+== 22:32:16 the escrow key: made in the authority's process, sealed to this chip, wrapped to the recovery key
+escrow-provision exit=0
+escrow_key=1d139767c1df19f0 sealed to gcp-sev-snp
+== 22:32:27 the recovery ceremony: the envelope opened with the recovery key, the key re-sealed on this chip
+escrow re-provision exit=0
+re-provisioned escrow_key=1d139767c1df19f0 source=stdin (want 1d139767c1df19f0)
+== 22:32:27 acp-bootstrap on SEV-SNP (destination + gate)
+standby measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+== 22:32:28 sagvd failover config: verifier registry, allow-list, operator stop, the sealed escrow key
+sagvd identity exit=0 key_escrow_storage=sealed:gcp-sev-snp
+== 22:32:38 wait for the primary's sentinel key and chip identity, then sign the failover policy pinning both

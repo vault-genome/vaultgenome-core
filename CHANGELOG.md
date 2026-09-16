@@ -13,6 +13,44 @@ given release can still open.
 
 ### Added
 
+- **Revocation of the GPU's certificate chain checked with NVIDIA's OCSP
+  responder** ([ADR-0021](docs/adr/0021-the-verifiers-own-evaluation-of-the-gpu.md),
+  amended) — under `gpu_policy.evaluation` `both` or `own`, the
+  verifier's own evaluation asks `http://ocsp.ndis.nvidia.com` (or
+  `gpu_policy.ocsp_url`) about each certificate between the GPU's leaf
+  and the pinned root, by its issuer, with a nonce; the answer's
+  delegated responder certificate is verified under the issuer and its
+  OCSP-signing use, the nonce echoed, the answer inside its validity; a
+  good answer is cached a day under `rim_cache_dir`. `gpu_policy.revocation:
+  "off"` leaves it unchecked, on the record (`revocation_checked`,
+  `revocation_good`, `revocation` per certificate in the evaluation).
+  NVIDIA's answers for the captured H100 chain are stored as test
+  material. `gpu_policy.evaluation: "own"` is admitted by `sagvd`'s
+  config validation, as the verifier has admitted it since the
+  manifests' signatures were verified. New dependency
+  `golang.org/x/crypto` (the `ocsp` package; `docs/dependencies/x-crypto.md`);
+  `github.com/beevik/etree`, imported directly since the manifest
+  signatures, is recorded on the allowlist (`docs/dependencies/etree.md`).
+- **The daemons' TLS keys and tokens sealed to the host too**
+  ([ADR-0023](docs/adr/0023-the-daemons-key-files-sealed-to-the-host.md),
+  amended) — `sagvd seal-keys` also seals the vault's mTLS server key, the
+  cross-cloud transport's client key and the REST API token;
+  `acp-compute seal-keys` the worker's mTLS client key; the new
+  `acp-bootstrap seal-keys -config` the destination's TLS server key and
+  bearer token (with `tee.sev_guest_device` and `tee.vtpm_seal_pcrs` for
+  its sealer). Every loader takes the bare file or the sealed one. The
+  hardware kits seal all of them before the first start, giving a
+  destination on a shared host its own copies first.
+- **The sentinel's seed sealed to the primary's chip**
+  ([ADR-0023](docs/adr/0023-the-daemons-key-files-sealed-to-the-host.md),
+  amended) — `acpctl sentinel seal-key --key SEED --tee gcp-sev-snp` seals
+  the sentinel's seed file in place to the primary's TEE under the name
+  `sentinel.seed`; `acpctl sentinel identity` and `watch` open the sealed
+  file with `--tee`, and refuse it without the TEE or on another host.
+  The failover kit seals the seed before the sentinel starts and adds a
+  negative: the sealed file taken to the standby's chip does not open.
+  Proven in the failover drill (`scripts/hardware-test/gcp-failover`,
+  `20260916T231442Z`, VERIFIABLE-CLAIMS C25).
 - **The verifier's evaluation of a confidential GPU host is on the audit
   record** ([ADR-0021](docs/adr/0021-the-verifiers-own-evaluation-of-the-gpu.md),
   amended) — a verifier that can say more than a measurement
@@ -419,6 +457,11 @@ given release can still open.
 
 ### Removed
 
+- **The 40-probe byte-statistics library** (`internal/validation/behavioral/probes`)
+  — it computed statistics on a raw blob, nothing imported it, and it could
+  be mistaken for a behavioral evaluation of the model; the equivalence
+  gate over a genome's fixtures is that evaluation (ADR 0011, 0013, 0015).
+  KNOWN_ISSUES #3 is resolved by its removal.
 - The placeholder reconstruction backends: the byte-level order-3 Markov
   chain (`internal/compute/worker/generative.go`) is deleted, and the SHA-256
   expansion (`reconstruction.go`) is no longer built into any binary — it

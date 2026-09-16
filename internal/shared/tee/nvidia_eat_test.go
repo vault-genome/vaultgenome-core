@@ -27,11 +27,12 @@ func newFakeNRAS(t *testing.T, kid string) *fakeNRAS {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	require.NoError(t, err)
-	pad := func(b []byte) []byte { out := make([]byte, 48); copy(out[48-len(b):], b); return out }
+	point, err := key.PublicKey.Bytes() // 0x04 || x || y, each 48 bytes
+	require.NoError(t, err)
 	jwks, _ := json.Marshal(map[string]any{"keys": []map[string]any{{
 		"kid": kid, "kty": "EC", "crv": "P-384",
-		"x": base64.RawURLEncoding.EncodeToString(pad(key.PublicKey.X.Bytes())),
-		"y": base64.RawURLEncoding.EncodeToString(pad(key.PublicKey.Y.Bytes())),
+		"x": base64.RawURLEncoding.EncodeToString(point[1:49]),
+		"y": base64.RawURLEncoding.EncodeToString(point[49:97]),
 	}}})
 	return &fakeNRAS{key: key, kid: kid, jwks: jwks}
 }

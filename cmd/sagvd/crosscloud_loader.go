@@ -201,7 +201,7 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 		return nil, err
 	}
 
-	transport, err := buildHTTPTransport(cfg.CrossCloud)
+	transport, err := buildHTTPTransport(cfg.TEE, cfg.CrossCloud)
 	if err != nil {
 		return nil, err
 	}
@@ -442,10 +442,10 @@ func loadAllowListPolicy(policyVersion, path string) (*kms.AllowListPolicy, erro
 
 // buildHTTPTransport constructs a kms.HTTPTransport configured with
 // (optional) mTLS and Bearer auth.
-func buildHTTPTransport(cfg CrossCloudConfig) (*kms.HTTPTransport, error) {
+func buildHTTPTransport(teeCfg TEEConfig, cfg CrossCloudConfig) (*kms.HTTPTransport, error) {
 	httpClient := &http.Client{}
 	if cfg.TransportTLS.Enabled {
-		tlsConfig, err := buildClientTLSConfig(cfg.TransportTLS)
+		tlsConfig, err := buildClientTLSConfig(teeCfg, cfg.TransportTLS)
 		if err != nil {
 			return nil, err
 		}
@@ -461,8 +461,17 @@ func buildHTTPTransport(cfg CrossCloudConfig) (*kms.HTTPTransport, error) {
 
 // buildClientTLSConfig assembles a *tls.Config from the operator-
 // supplied client certificate, key, and CA bundle.
-func buildClientTLSConfig(cfg TLSClientConfig) (*tls.Config, error) {
-	clientCert, err := tls.LoadX509KeyPair(cfg.ClientCert, cfg.ClientKey)
+func buildClientTLSConfig(teeCfg TEEConfig, cfg TLSClientConfig) (*tls.Config, error) {
+	certPEM, err := os.ReadFile(cfg.ClientCert)
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: load mTLS client cert/key: %w", err)
+	}
+	// The key file may be sealed to this host (`sagvd seal-keys`, ADR 0023).
+	keyPEM, err := readSecret(teeCfg, cfg.ClientKey, 0, "crosscloud.transport_tls.client_key")
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: load mTLS client cert/key: %w", err)
+	}
+	clientCert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("sagvd: load mTLS client cert/key: %w", err)
 	}

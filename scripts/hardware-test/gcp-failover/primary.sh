@@ -65,6 +65,14 @@ gcs_put "$OUT/sentinel-identity.json" handoff/sentinel-identity.json
 # bucket is private and deleted with the run.
 gcs_put /root/sentinel.seed handoff/sentinel.seed
 
+step "seal the sentinel's seed to this chip (ADR 0023): the file the sentinel runs from is no seed elsewhere"
+acpctl sentinel seal-key --key /root/sentinel.seed --tee gcp-sev-snp > "$OUT/sentinel-seal-key.json"
+echo "sentinel seal-key exit=0 $(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print("tee=%s sealed=%s"%(d["tee"],d["sealed"]))' "$OUT/sentinel-seal-key.json")" >> "$OUT/steps.txt"
+acpctl sentinel identity --tee gcp-sev-snp --key /root/sentinel.seed > "$OUT/sentinel-identity-sealed.json"
+echo "sentinel identity from the sealed seed: key $(python3 -c 'import json,sys;a=json.load(open(sys.argv[1]));b=json.load(open(sys.argv[2]));print(a["sentinel"], "same" if a["sentinel"]==b["sentinel"] else "DIFFERENT")' "$OUT/sentinel-identity.json" "$OUT/sentinel-identity-sealed.json")" >> "$OUT/steps.txt"
+# The sealed file too, for the standby's other negative: off this chip it does not open.
+gcs_put /root/sentinel.seed handoff/sentinel.sealed
+
 step "fine-tune generation 0 (120 steps)"
 vg finetune --base /opt/base --base-name "$BASE_REPO" \
   --data /opt/worker/examples/drill-facts.jsonl --prompts /opt/worker/examples/drill-prompts.json \

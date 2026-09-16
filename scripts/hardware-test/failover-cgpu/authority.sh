@@ -72,6 +72,9 @@ gcs_get in/amd-milan-cert_chain.pem /root/amd-milan-cert_chain.pem
 # The key files the config names — the authority's signing seed, the audit
 # seed, the session sealing key — sealed to this host's TEE in place (ADR
 # 0023); every sagvd from here on reads them sealed.
+# The destination's copies of the TLS pair, the CA and the token are taken
+# before sagvd seals its own files (ADR 0023); the destination seals them there.
+mkdir -p "$S/dest" && cp "$S/sagvd/tls/server.crt" "$S/sagvd/tls/server.key" "$S/shared/tls/ca.crt" "$S/xcc_token" "$S/dest/"
 sagvd seal-keys -config /root/sagvd-base.json > "$OUT/seal-keys.json" 2> "$OUT/seal-keys.err"
 echo "seal-keys exit=$? sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/seal-keys.json" 2>/dev/null)" >> "$OUT/steps.txt"
 sagvd identity -config /root/sagvd-base.json > /root/identity-0.json 2> "$OUT/identity-0.err"
@@ -83,7 +86,7 @@ python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["authority_publi
 step "hand the primary the escrow key, and the destination its TLS material and token (through the private bucket)"
 gcs_put /root/escrow.pem handoff/escrow.pem
 gcs_put /root/authority.pem handoff/authority.pem
-for f in sagvd/tls/server.crt sagvd/tls/server.key shared/tls/ca.crt xcc_token; do gcs_put "$S/$f" "handoff/dest/$(basename "$f")"; done
+for f in server.crt server.key ca.crt xcc_token; do gcs_put "$S/dest/$f" "handoff/dest/$f"; done
 
 step "wait for the destination's identity (the orchestrator's hand-off): endpoint, launch measurement, vTPM boot"
 for i in $(seq 1 240); do gcs_get handoff/destination.json /root/destination.json 2>/dev/null && break; sleep 10; done
@@ -95,8 +98,8 @@ DPCR=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("pcr_d
 echo "destination endpoint=$DEST_ENDPOINT measurement=$DMEAS pcr_digest=$DPCR" >> "$OUT/steps.txt"
 
 step "wait for the primary's sentinel key and chip identity (the operator pins both)"
-for i in $(seq 1 240); do gcs_get handoff/sentinel-identity.json /root/sentinel-identity.json 2>/dev/null && gcs_get handoff/sentinel.pem /root/sentinel.pem 2>/dev/null && break; sleep 5; done
-[ -s /root/sentinel.pem ] && [ -s /root/sentinel-identity.json ] || { echo "no sentinel identity after 20 minutes"; false; }
+for i in $(seq 1 480); do gcs_get handoff/sentinel-identity.json /root/sentinel-identity.json 2>/dev/null && gcs_get handoff/sentinel.pem /root/sentinel.pem 2>/dev/null && break; sleep 5; done
+[ -s /root/sentinel.pem ] && [ -s /root/sentinel-identity.json ] || { echo "no sentinel identity after 40 minutes"; false; }
 cp /root/sentinel-identity.json "$OUT/primary-identity.json"
 PMEAS=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["measurement_hex"])' /root/sentinel-identity.json)
 echo "primary measurement=$PMEAS" >> "$OUT/steps.txt"
@@ -121,6 +124,10 @@ c["crosscloud"]={"enabled":True,"policy_version":"failover-policy-v1","audit_log
  "transport_tls":{"enabled":True,"client_cert":S+"/acp-compute/tls/client.crt","client_key":S+"/acp-compute/tls/client.key","ca_bundle":S+"/shared/tls/ca.crt","server_name":"localhost"}}
 json.dump(c,open("/root/sagvd.json","w"),indent=2)
 PY
+# The failover config names the cross-cloud transport's client key: sealed
+# now, in place (seal-keys skips what the base config's run sealed).
+sagvd seal-keys -config /root/sagvd.json > "$OUT/seal-keys-2.json" 2> "$OUT/seal-keys-2.err"
+echo "seal-keys (failover config) exit=$? sealed=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print(",".join(e["name"] for e in d["sealed"]))' "$OUT/seal-keys-2.json" 2>/dev/null) already=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print(len(d.get("already_sealed",[])))' "$OUT/seal-keys-2.json" 2>/dev/null)" >> "$OUT/steps.txt"
 cp /root/verifiers.json "$OUT/verifiers.json"; cp /root/allow.json "$OUT/allow.json"
 sagvd identity -config /root/sagvd.json > "$OUT/authority-identity.json" 2>> "$OUT/authority-identity.err"
 echo "sagvd identity exit=$? key_escrow_storage=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("key_escrow_storage"))' "$OUT/authority-identity.json")" >> "$OUT/steps.txt"

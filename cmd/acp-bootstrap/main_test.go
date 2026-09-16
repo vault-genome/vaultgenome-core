@@ -521,7 +521,7 @@ func TestBuildHTTPServer_RejectsUnusableClientCAs(t *testing.T) {
 	for name, cas := range map[string]string{"no PEM": notPEM, "missing": filepath.Join(dst.dir, "absent.pem")} {
 		t.Run(name, func(t *testing.T) {
 			cfg := HTTPConfig{ListenAddress: "127.0.0.1:0", TLS: TLSServerConfig{Enabled: true, ServerCert: p.serverCert, ServerKey: p.serverKey, ClientCAs: cas}}
-			if _, ln, err := buildHTTPServer(cfg, http.NewServeMux(), quietLog); err == nil {
+			if _, ln, err := buildHTTPServer(TEEConfig{}, cfg, http.NewServeMux(), quietLog); err == nil {
 				_ = ln.Close()
 				t.Fatal("accepted")
 			}

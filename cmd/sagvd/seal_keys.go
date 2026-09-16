@@ -32,25 +32,31 @@ type sealedKeyEntry struct {
 
 // keyFiles are the daemon's key files that seal-keys seals and the daemon
 // opens: name (the config field), path, and the bare length.
-func keyFiles(cfg Config) []struct {
+// keyFile is one secret file the config names: its config name (the
+// name it is sealed under), its path, and its exact length in bytes — 0
+// for a file of any length (PEM keys, tokens).
+type keyFile struct {
 	name string
 	path string
 	n    int
-} {
-	files := []struct {
-		name string
-		path string
-		n    int
-	}{
+}
+
+func keyFiles(cfg Config) []keyFile {
+	files := []keyFile{
 		{"keys.authority_signing.seed_path", cfg.Keys.AuthoritySigning.SeedPath, crypto.Ed25519SeedSize},
 		{"keys.session_sealing.material_path", cfg.Keys.SessionSealing.MaterialPath, crypto.AES256KeySize},
 	}
 	if cfg.Keys.AuditSigning.SeedPath != "" {
-		files = append(files, struct {
-			name string
-			path string
-			n    int
-		}{"keys.audit_signing.seed_path", cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize})
+		files = append(files, keyFile{"keys.audit_signing.seed_path", cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize})
+	}
+	if cfg.Vault.TLS.Enabled && cfg.Vault.TLS.ServerKey != "" {
+		files = append(files, keyFile{"vault.tls.server_key", cfg.Vault.TLS.ServerKey, 0})
+	}
+	if cfg.CrossCloud.TransportTLS.Enabled && cfg.CrossCloud.TransportTLS.ClientKey != "" {
+		files = append(files, keyFile{"crosscloud.transport_tls.client_key", cfg.CrossCloud.TransportTLS.ClientKey, 0})
+	}
+	if cfg.HTTPAPI.BearerTokenFile != "" {
+		files = append(files, keyFile{"http_api.bearer_token_file", cfg.HTTPAPI.BearerTokenFile, 0})
 	}
 	return files
 }
@@ -104,7 +110,7 @@ func runSealKeysCmd(args []string, stdout, stderr io.Writer) error {
 			out.AlreadySealed = append(out.AlreadySealed, sealedKeyEntry{Name: f.name, Path: f.path})
 			continue
 		}
-		if len(raw) != f.n {
+		if (f.n > 0 && len(raw) != f.n) || len(raw) == 0 {
 			return fmt.Errorf("seal-keys: %s (%q) must be exactly %d bytes (got %d)", f.name, f.path, f.n, len(raw))
 		}
 		sealed, err := tee.SealSecret(raw, sealer, mat.Provider, measurement, f.name)

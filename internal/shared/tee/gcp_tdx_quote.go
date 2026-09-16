@@ -34,7 +34,6 @@ package tee
 
 import (
 	"bytes"
-	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
@@ -214,16 +213,13 @@ func (q *tdxQuote) signedBytes() []byte { return q.Raw[:tdxSignedLen] }
 
 // p256PublicKey builds a P-256 public key from an x||y point.
 func p256PublicKey(xy [64]byte) (*ecdsa.PublicKey, error) {
-	// crypto/ecdh checks that the uncompressed point (0x04 || x || y) is
-	// on the curve; the ecdsa key is then built from the same coordinates.
-	if _, err := ecdh.P256().NewPublicKey(append([]byte{4}, xy[:]...)); err != nil {
+	// The uncompressed point (0x04 || x || y) is checked to be on the
+	// curve as it is parsed.
+	pub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), append([]byte{4}, xy[:]...))
+	if err != nil {
 		return nil, fmt.Errorf("attestation key is not a point on P-256: %w", err)
 	}
-	return &ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     new(big.Int).SetBytes(xy[:32]),
-		Y:     new(big.Int).SetBytes(xy[32:]),
-	}, nil
+	return pub, nil
 }
 
 // verifyP256Raw checks an r||s ECDSA-P256 signature over SHA-256(msg).

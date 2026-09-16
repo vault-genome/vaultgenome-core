@@ -65,15 +65,22 @@ load:
 
 No binary loads a witness key.
 
-On a hardware TEE, seal the key files before the first start: `sagvd
-seal-keys -config sagvd.json` and `acp-compute seal-keys -config
-worker.json` rewrite every key file the config names, in place, sealed
-to the host (the chip's derived key on SEV-SNP, the vTPM on TDX and the
-Azure confidential GPU host; ADR 0023), each bound to its name; the
-daemons open them at start through the same paths. A sealed file does
-not open on another host or, on a vTPM host, another boot — keep the
-seeds where the operator keeps them and re-provision after an image
-change, as for the escrow key.
+On a hardware TEE, seal the secret files before the first start: `sagvd
+seal-keys -config sagvd.json`, `acp-compute seal-keys -config
+worker.json` and `acp-bootstrap seal-keys -config acp-bootstrap.json`
+rewrite every secret file the config names, in place, sealed to the host
+(the chip's derived key on SEV-SNP, the vTPM on TDX and the Azure
+confidential GPU host; ADR 0023), each bound to its name — the seeds and
+the session sealing key, and the TLS keys and tokens too: `sagvd`'s mTLS
+server key, cross-cloud client key and REST API token, `acp-compute`'s
+mTLS client key, `acp-bootstrap`'s TLS server key and bearer token. The
+daemons open them at start through the same paths (`acpctl sentinel
+seal-key` does the same for the sentinel's seed on a primary). A file two
+daemons read must be two files: give a destination that shares a host
+with the authority its own copies before sealing. A sealed file does not
+open on another host or, on a vTPM host, another boot — keep the seeds
+where the operator keeps them and re-provision after an image change, as
+for the escrow key.
 
 Checks:
 

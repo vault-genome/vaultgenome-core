@@ -108,7 +108,7 @@ func NewDaemon(
 
 	var tlsConfig *tls.Config
 	if cfg.Vault.TLS.Enabled {
-		tc, err := loadClientTLS(cfg.Vault.TLS)
+		tc, err := loadClientTLS(cfg.TEE, cfg.Vault.TLS)
 		if err != nil {
 			return nil, err
 		}
@@ -409,8 +409,17 @@ func newCertPool(pem []byte) (*x509.CertPool, error) {
 // reading uses plain os.ReadFile + tls.X509KeyPair; no custom cert
 // parsing. The returned config sets ServerName for hostname
 // verification and pins to the CA bundle in cfg.CABundle.
-func loadClientTLS(cfg TLSConfig) (*tls.Config, error) {
-	pair, err := tls.LoadX509KeyPair(cfg.ClientCert, cfg.ClientKey)
+func loadClientTLS(teeCfg TEEConfig, cfg TLSConfig) (*tls.Config, error) {
+	certPEM, err := os.ReadFile(cfg.ClientCert)
+	if err != nil {
+		return nil, fmt.Errorf("acp-compute: load client keypair: %w", err)
+	}
+	// The key file may be sealed to this host (`acp-compute seal-keys`, ADR 0023).
+	keyPEM, err := readSecret(teeCfg, cfg.ClientKey, 0, "vault.tls.client_key")
+	if err != nil {
+		return nil, fmt.Errorf("acp-compute: load client keypair: %w", err)
+	}
+	pair, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("acp-compute: load client keypair: %w", err)
 	}

@@ -1,0 +1,12 @@
+{
+  "generations_sealed": 1,
+  "last": {
+    "generation": 2,
+    "bundle_sha256": "d36fac3fa98462ae4d42f643771cbf35aa2e57386d0ef90e4c872231aa9d4670",
+    "sealed_at": "2026-09-16T23:29:00.23896107Z"
+  },
+  "measurement_hex": "7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc",
+  "outcome": "stopped",
+  "sentinel": "sentinel-aa5c0c595b883fe0",
+  "tee": "gcp-sev-snp"
+}

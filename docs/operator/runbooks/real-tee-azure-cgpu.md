@@ -116,6 +116,16 @@ GPU verifier):
   with its `payload`); the `sagvd session opened` log line carries
   the glance (`peer_provider`, `peer_product`, `peer_pcrs`, `peer_gpus`,
   `peer_gpu_evaluations`).
+- `gpu_policy.revocation`: whether the verifier's own evaluation asks
+  NVIDIA's OCSP responder (`http://ocsp.ndis.nvidia.com`, or `ocsp_url`)
+  about the GPU's certificate chain — `ocsp` (the default under `both`
+  and `own`: the BROM certificate, the Provisioner ICA and the GH100
+  Identity CA each asked by its issuer with a nonce, the answers verified
+  under their delegated responder certificates and cached a day under
+  `rim_cache_dir`; a revoked, unknown, stale or unverifiable answer
+  refuses the handshake) or `off` (unchecked, and the audit record says
+  `revocation_checked: false`). The per-GPU leaf is not served by the
+  responder; its issuers' status stands for it.
 - `gpu_policy`: `hw_models`, `driver_versions`, `vbios_versions` pin what
   NVIDIA reports (`GH100`, `595.71.05`, `96.00.9F.00.04` on the machine
   measured); `allow_secure_boot_off`, `allow_debug`, `allow_unsigned_rim`
@@ -162,6 +172,7 @@ NVIDIA's word, the genome gated EQUIVALENT on the H100, RTO 24.99 s.
 No derived-key interface from the TEE; the escrow key is sealed to the
 guest's vTPM under a policy of the pinned PCRs (ADR 0022,
 `tee.vtpm_seal_pcrs`, default sha256:0-14), with tpm2-tools on the guest;
-`sagvd seal-keys` and `acp-compute seal-keys` seal the daemons' other key
-files the same way (ADR 0023).
+`sagvd seal-keys`, `acp-compute seal-keys` and `acp-bootstrap seal-keys`
+seal the daemons' other secret files — seeds, TLS keys, tokens — the same
+way (ADR 0023).
 The VM bills about $9 an hour while it exists; delete it after the run.

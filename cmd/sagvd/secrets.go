@@ -46,7 +46,8 @@ func hostSealer(cfg TEEConfig) (tee.Sealer, io.Closer, tee.Provider, error) {
 	}
 }
 
-// readSecret reads the key file named by field: exactly wantLen bare
+// readSecret reads the key file named by field: bare bytes (exactly
+// wantLen of them when wantLen is set, any number otherwise) — exactly wantLen bare
 // bytes, or a sealed key file opened by this host's TEE.
 func readSecret(cfg TEEConfig, path string, wantLen int, field string) ([]byte, error) {
 	raw, err := os.ReadFile(path)
@@ -54,8 +55,11 @@ func readSecret(cfg TEEConfig, path string, wantLen int, field string) ([]byte, 
 		return nil, fmt.Errorf("sagvd: read %s (%q): %w", field, path, err)
 	}
 	if !tee.IsSealedSecret(raw) {
-		if len(raw) != wantLen {
+		if wantLen > 0 && len(raw) != wantLen {
 			return nil, fmt.Errorf("sagvd: %s (%q) must be exactly %d bytes (got %d), or a key file sealed by `sagvd seal-keys`", field, path, wantLen, len(raw))
+		}
+		if len(raw) == 0 {
+			return nil, fmt.Errorf("sagvd: %s (%q) is empty", field, path)
 		}
 		return raw, nil
 	}
@@ -70,11 +74,12 @@ func readSecret(cfg TEEConfig, path string, wantLen int, field string) ([]byte, 
 	if err != nil {
 		return nil, fmt.Errorf("sagvd: %s (%q): %w", field, path, err)
 	}
-	if len(plain) != wantLen {
+	if (wantLen > 0 && len(plain) != wantLen) || len(plain) == 0 {
+		n := len(plain)
 		for i := range plain {
 			plain[i] = 0
 		}
-		return nil, fmt.Errorf("sagvd: %s (%q): the sealed key is %d bytes, want %d", field, path, len(plain), wantLen)
+		return nil, fmt.Errorf("sagvd: %s (%q): the sealed key is %d bytes, want %d", field, path, n, wantLen)
 	}
 	return plain, nil
 }

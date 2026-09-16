@@ -134,6 +134,26 @@ type TEEConfig struct {
 	GPUAttestCommand []string `json:"gpu_attest_command,omitempty"`
 	TPM2ToolsDir     string   `json:"tpm2_tools_dir,omitempty"`
 	AKHandle         string   `json:"ak_handle,omitempty"`
+
+	// SEVGuestDevice is the sev-guest device this host's sealing key is
+	// derived through (`acp-bootstrap seal-keys`, ADR 0023; default
+	// /dev/sev-guest). gcp-sev-snp only.
+	SEVGuestDevice string `json:"sev_guest_device,omitempty"`
+	// VTPMSealPCRs is the PCR selection the secret files are sealed to on
+	// a gcp-tdx or azure-cgpu host (ADR 0022; default sha256:0-14, the
+	// boot the operator pins). Those providers only.
+	VTPMSealPCRs string `json:"vtpm_seal_pcrs,omitempty"`
+}
+
+// DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
+const DefaultSEVGuestDevice = "/dev/sev-guest"
+
+// SEVDevice is the sev-guest device to derive the sealing key through.
+func (t TEEConfig) SEVDevice() string {
+	if t.SEVGuestDevice != "" {
+		return t.SEVGuestDevice
+	}
+	return DefaultSEVGuestDevice
 }
 
 // supportedProviders are the TEE backends this build can run.
@@ -285,9 +305,14 @@ func (c *Config) ResolveSecrets() error {
 	if c.HTTP.BearerTokenFile == "" {
 		return nil
 	}
-	token, err := exposure.ReadTokenFile(c.HTTP.BearerTokenFile)
+	// The file may be sealed to this host (`acp-bootstrap seal-keys`, ADR 0023).
+	raw, err := readSecret(c.TEE, c.HTTP.BearerTokenFile, 0, "http.bearer_token_file")
 	if err != nil {
-		return fmt.Errorf("acp-bootstrap: http.bearer_token_file: %w", err)
+		return err
+	}
+	token := strings.TrimSpace(string(raw))
+	if token == "" {
+		return fmt.Errorf("acp-bootstrap: http.bearer_token_file %q is empty", c.HTTP.BearerTokenFile)
 	}
 	if !exposure.IsLoopback(c.HTTP.ListenAddress) && len(token) < exposure.MinBearerTokenLen {
 		return fmt.Errorf("acp-bootstrap: token in %q too short for non-loopback listen_address %q (need >= %d characters)",
@@ -419,6 +444,21 @@ func (c Config) Validate() error {
 		errs = append(errs, fmt.Errorf("log.format %q invalid (want json|text)", c.Log.Format))
 	}
 
+	if provider, err := tee.ParseProvider(c.TEE.Provider); err == nil {
+		if c.TEE.SEVGuestDevice != "" && provider != tee.ProviderGCPSEVSNP {
+			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp only"))
+		}
+		if c.TEE.VTPMSealPCRs != "" {
+			switch provider {
+			case tee.ProviderGCPTDX, tee.ProviderAzureCGPU:
+				if err := tee.ValidatePCRSelection(c.TEE.VTPMSealPCRs); err != nil {
+					errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+				}
+			default:
+				errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies to gcp-tdx and azure-cgpu only"))
+			}
+		}
+	}
 	return errors.Join(errs...)
 }
 

@@ -89,6 +89,10 @@ PY
 # The key files the config names — the authority's signing seed, the audit
 # seed, the session sealing key — sealed to this host's TEE in place (ADR
 # 0023); every sagvd from here on reads them sealed.
+# The destination (acp-bootstrap, on this host too) gets its own copies of the
+# TLS pair and the token before sagvd seals its files: each daemon seals
+# what it reads, under its own name (ADR 0023).
+mkdir -p "$S/dest" && cp "$S/sagvd/tls/server.crt" "$S/sagvd/tls/server.key" "$S/xcc_token" "$S/dest/" && chmod 600 "$S/dest/server.key" "$S/dest/xcc_token"
 sagvd seal-keys -config /root/sagvd-base.json > "$OUT/seal-keys.json" 2> "$OUT/seal-keys.err"
 echo "seal-keys exit=$? sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/seal-keys.json" 2>/dev/null)" >> "$OUT/steps.txt"
 sagvd identity -config /root/sagvd-base.json > /root/authority-identity-base.json 2> "$OUT/authority-identity.err"
@@ -119,8 +123,8 @@ python3 - <<PY
 import json
 S="$S"
 c={
- "http":{"listen_address":"127.0.0.1:8443","bearer_token_file":S+"/xcc_token",
-         "tls":{"enabled":True,"server_cert":S+"/sagvd/tls/server.crt","server_key":S+"/sagvd/tls/server.key","client_cas":S+"/shared/tls/ca.crt"}},
+ "http":{"listen_address":"127.0.0.1:8443","bearer_token_file":S+"/dest/xcc_token",
+         "tls":{"enabled":True,"server_cert":S+"/dest/server.crt","server_key":S+"/dest/server.key","client_cas":S+"/shared/tls/ca.crt"}},
  "tee":{"provider":"gcp-sev-snp","workload_descriptor":"acp-bootstrap-standby-v1"},
  "source_authority":{"kid":"sagvd-authority-demo","public_key_path":"/root/authority.pem"},
  "genome":{"bundle_dir":"$REPLICA","restore_dir":"/root/restored","rescan_seconds":2,
@@ -129,6 +133,8 @@ c={
  "health":{"listen_address":"127.0.0.1:8444"},"log":{"level":"info","format":"json"}}
 json.dump(c,open("/root/dest.json","w"),indent=2)
 PY
+acp-bootstrap seal-keys -config /root/dest.json > "$OUT/dest-seal-keys.json" 2> "$OUT/dest-seal-keys.err"
+echo "acp-bootstrap seal-keys exit=$? sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/dest-seal-keys.json" 2>/dev/null)" >> "$OUT/steps.txt"
 acp-bootstrap identity -config /root/dest.json > "$OUT/destination-identity.json" 2> "$OUT/destination-identity.err"
 acp-bootstrap -config /root/dest.json > /root/acp-bootstrap.log 2>&1 &
 n=0; until curl -sf http://127.0.0.1:8444/readyz >/dev/null || [ $n -ge 30 ]; do sleep 1; n=$((n+1)); done
@@ -150,12 +156,16 @@ c["crosscloud"]={"enabled":True,"policy_version":"failover-policy-v1","audit_log
  "transport_tls":{"enabled":True,"client_cert":S+"/acp-compute/tls/client.crt","client_key":S+"/acp-compute/tls/client.key","ca_bundle":S+"/shared/tls/ca.crt"}}
 json.dump(c,open("/root/sagvd.json","w"),indent=2)
 PY
+# The failover config names the cross-cloud transport's client key: sealed
+# now, in place (seal-keys skips what the base config's run sealed).
+sagvd seal-keys -config /root/sagvd.json > "$OUT/seal-keys-2.json" 2> "$OUT/seal-keys-2.err"
+echo "seal-keys (failover config) exit=$? sealed=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print(",".join(e["name"] for e in d["sealed"]))' "$OUT/seal-keys-2.json" 2>/dev/null) already=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print(len(d.get("already_sealed",[])))' "$OUT/seal-keys-2.json" 2>/dev/null)" >> "$OUT/steps.txt"
 sagvd identity -config /root/sagvd.json > "$OUT/authority-identity.json" 2>> "$OUT/authority-identity.err"
 echo "sagvd identity exit=$? key_escrow_storage=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("key_escrow_storage"))' "$OUT/authority-identity.json")" >> "$OUT/steps.txt"
 
 step "wait for the primary's sentinel key and chip identity, then sign the failover policy pinning both"
-for i in $(seq 1 180); do gcs_get handoff/sentinel-identity.json /root/sentinel-identity.json 2>/dev/null && gcs_get handoff/sentinel.pem /root/sentinel.pem 2>/dev/null && break; sleep 5; done
-[ -s /root/sentinel.pem ] && [ -s /root/sentinel-identity.json ] || { echo "no sentinel identity after 15 minutes"; false; }
+for i in $(seq 1 480); do gcs_get handoff/sentinel-identity.json /root/sentinel-identity.json 2>/dev/null && gcs_get handoff/sentinel.pem /root/sentinel.pem 2>/dev/null && break; sleep 5; done
+[ -s /root/sentinel.pem ] && [ -s /root/sentinel-identity.json ] || { echo "no sentinel identity after 40 minutes"; false; }
 cp /root/sentinel-identity.json "$OUT/primary-identity.json"
 PMEAS=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["measurement_hex"])' /root/sentinel-identity.json)
 echo "primary measurement=$PMEAS" >> "$OUT/steps.txt"
@@ -232,6 +242,16 @@ ls /root/rogue-outbox > "$OUT/rogue-outbox.txt" 2>/dev/null || true
 echo "rogue: sagvd failover exit=$RCODE (want 3: declined) status=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["status"])' "$OUT/rogue-report.json" 2>/dev/null)" >> "$OUT/steps.txt"
 rm -f /root/stolen.seed
 [ "$RCODE" = 3 ] || { echo "the rogue outbox was not declined (exit $RCODE)"; false; }
+
+step "NEGATIVE: the sentinel's sealed seed file, off the primary's chip"
+# The file the sentinel actually runs from is sealed to the primary's chip
+# (acpctl sentinel seal-key, ADR 0023). Here — a real SEV-SNP chip, the
+# wrong one — it does not open: the thief who takes the file takes nothing.
+gcs_get handoff/sentinel.sealed /root/stolen.sealed && chmod 600 /root/stolen.sealed
+SCODE=0; acpctl sentinel identity --tee gcp-sev-snp --key /root/stolen.sealed > "$OUT/stolen-sealed-identity.json" 2> "$OUT/stolen-sealed-identity.err" || SCODE=$?   # a || list: the ERR trap must not fire
+echo "stolen sealed seed: acpctl sentinel identity exit=$SCODE (want 2: does not open off the primary's chip): $(tr -d '\n' < "$OUT/stolen-sealed-identity.err" | cut -c1-220)" >> "$OUT/steps.txt"
+rm -f /root/stolen.sealed
+[ "$SCODE" = 2 ] || { echo "the sealed seed opened off the primary's chip (exit $SCODE)"; false; }
 
 trap - ERR
 finish DONE

@@ -474,14 +474,20 @@ type GPUEvaluation struct {
 	VBIOSRIM          RIMStatus `json:"vbios_rim"`
 	MeasurementsMatch bool      `json:"measurements_match"`
 	Mismatched        []int     `json:"mismatched,omitempty"`
-	Errors            []string  `json:"errors,omitempty"`
+	// RevocationChecked says the policy asked NVIDIA's responder about the
+	// chain; Revocation is what it said, certificate by certificate;
+	// RevocationGood that every answer was good.
+	RevocationChecked bool         `json:"revocation_checked"`
+	RevocationGood    bool         `json:"revocation_good,omitempty"`
+	Revocation        []OCSPStatus `json:"revocation,omitempty"`
+	Errors            []string     `json:"errors,omitempty"`
 }
 
 // Complete reports whether every check passed: the report's structure,
 // nonce, chain, firmware id and signature; both manifests' versions,
 // chains and XML signatures; and the measurements.
 func (e GPUEvaluation) Complete() bool {
-	return e.ReportParsed && e.NonceMatch && e.ChainVerified && e.FWIDMatch && e.SignatureVerified &&
+	return (!e.RevocationChecked || e.RevocationGood) && e.ReportParsed && e.NonceMatch && e.ChainVerified && e.FWIDMatch && e.SignatureVerified &&
 		e.DriverRIM.Fetched && e.DriverRIM.VersionMatch && e.DriverRIM.ChainVerified && e.DriverRIM.SignatureVerified &&
 		e.VBIOSRIM.Fetched && e.VBIOSRIM.VersionMatch && e.VBIOSRIM.ChainVerified && e.VBIOSRIM.SignatureVerified &&
 		e.MeasurementsMatch
@@ -499,7 +505,11 @@ type GPUEvaluator struct {
 	DeviceRoot *x509.Certificate // the NVIDIA Device Identity CA
 	RIMRoot    *x509.Certificate // the NVIDIA CoRIM signing Root CA
 	RIMs       *RIMFetcher
-	Now        func() time.Time
+	// OCSP, when set, asks NVIDIA's responder for the revocation status
+	// of the chain's certificates; a complete evaluation then needs
+	// every answer good. Nil leaves revocation unchecked, on the record.
+	OCSP *OCSPChecker
+	Now  func() time.Time
 }
 
 // Evaluate makes every check this build can on a report, its chain and
@@ -540,6 +550,21 @@ func (ev *GPUEvaluator) Evaluate(ctx context.Context, reportRaw, chainPEM, nonce
 		fail(err)
 	} else {
 		e.ChainVerified = true
+	}
+	if ev.OCSP != nil {
+		e.RevocationChecked = true
+		if e.ChainVerified {
+			e.Revocation, e.RevocationGood = ev.OCSP.CheckChain(ctx, chain)
+			if !e.RevocationGood {
+				for _, st := range e.Revocation {
+					if st.Status != "good" && st.Status != "not served" {
+						fail(fmt.Errorf("nvidia: revocation: %s: %s: %s", st.Subject, st.Status, st.Error))
+					}
+				}
+			}
+		} else {
+			fail(errors.New("nvidia: revocation not checked: the chain did not verify"))
+		}
 	}
 	if fwid := rep.FWID(); len(fwid) == 0 {
 		e.FWIDMatch = true // a report without a firmware id binds none (NVIDIA's rule)

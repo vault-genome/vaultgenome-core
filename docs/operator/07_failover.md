@@ -26,10 +26,18 @@ acpctl escrow recovery-keygen --out recovery.seed --pub recovery.pem
 sagvd escrow-provision -config sagvd.json -out /etc/acp/secrets/sagvd/escrow.sealed -pub escrow-local.pem \
   -recovery-to recovery.pem -recovery-out /etc/acp/secrets/sagvd/escrow.recovery
 sagvd identity -config sagvd.json      # prints key_escrow_public_key_pem: give it to the primary
+sagvd seal-keys -config sagvd.json     # the authority's seeds, TLS keys and REST token sealed in place to this host (ADR 0023)
 # Primary: the sentinel's signing key, and its TEE's identity; the operator pins both.
 acpctl sentinel keygen --out /etc/acp/secrets/sentinel.seed --pub sentinel.pem
 acpctl sentinel identity --tee gcp-sev-snp --key /etc/acp/secrets/sentinel.seed   # measurement_hex: pin it in the policy
+acpctl sentinel seal-key --key /etc/acp/secrets/sentinel.seed --tee gcp-sev-snp    # the seed sealed in place to this chip (ADR 0023)
 ```
+
+After `seal-key` the seed file is a sealed secret: `identity` and `watch`
+open it with the same `--tee`; on any other machine, or without `--tee`,
+it is no seed. Seal it after the operator has the public key and the
+measurement pinned; a new chip or image needs a new key (nothing
+re-provisions itself).
 
 Set `crosscloud.key_escrow_path` in the authority's config to the sealed file.
 `sagvd failover` refuses to run without it, because genome keys reach the
@@ -53,7 +61,10 @@ primary's outbox:
 }
 ```
 
-Print its identity (`acp-bootstrap identity -config …`). Allow-list its
+Print its identity (`acp-bootstrap identity -config …`), then seal its
+TLS key and token in place (`acp-bootstrap seal-keys -config …`, ADR
+0023; on a host shared with the authority, give it its own copies
+first). Allow-list its
 measurement on the authority, as for any destination.
 
 ## 3. The primary's sentinel

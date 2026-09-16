@@ -157,7 +157,7 @@ func NewDaemon(
 
 	var tlsConfig *tls.Config
 	if cfg.Vault.TLS.Enabled {
-		tc, err := loadServerTLS(cfg.Vault.TLS)
+		tc, err := loadServerTLS(cfg.TEE, cfg.Vault.TLS)
 		if err != nil {
 			return nil, err
 		}
@@ -694,8 +694,17 @@ func (d *Daemon) listen() (net.Listener, error) {
 // the server certificate + key and the client-CA bundle; sets
 // ClientAuth to RequireAndVerifyClientCert so an unauthenticated
 // worker cannot even begin a Return Path handshake.
-func loadServerTLS(cfg TLSConfig) (*tls.Config, error) {
-	pair, err := tls.LoadX509KeyPair(cfg.ServerCert, cfg.ServerKey)
+func loadServerTLS(teeCfg TEEConfig, cfg TLSConfig) (*tls.Config, error) {
+	certPEM, err := os.ReadFile(cfg.ServerCert)
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: load server keypair: %w", err)
+	}
+	// The key file may be sealed to this host (`sagvd seal-keys`, ADR 0023).
+	keyPEM, err := readSecret(teeCfg, cfg.ServerKey, 0, "vault.tls.server_key")
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: load server keypair: %w", err)
+	}
+	pair, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("sagvd: load server keypair: %w", err)
 	}

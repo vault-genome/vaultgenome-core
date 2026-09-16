@@ -53,6 +53,13 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "seal-keys":
+			if err := runSealKeys(os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
+					Error("acp-bootstrap seal-keys: terminated with error", "err", err.Error())
+				os.Exit(1)
+			}
+			return
 		}
 	}
 	if err := run(os.Args[1:]); err != nil {
@@ -68,6 +75,7 @@ func printUsage() {
 USAGE
     acp-bootstrap -config /path/to/config.json
     acp-bootstrap identity -config /path/to/config.json
+    acp-bootstrap seal-keys -config /path/to/config.json
     acp-bootstrap version
     acp-bootstrap help
 
@@ -217,7 +225,7 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 		}
 	}
 
-	api, apiLn, err := buildHTTPServer(cfg.HTTP, mux, logger)
+	api, apiLn, err := buildHTTPServer(cfg.TEE, cfg.HTTP, mux, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -413,10 +421,19 @@ func loadAttestorPubKey(path string) (crypto.PublicKey, error) {
 // With TLS enabled the listener speaks TLS 1.3 only; the server
 // certificate and (for mTLS) the client CA bundle are loaded here, so a
 // bad path fails startup instead of the first handshake.
-func buildHTTPServer(cfg HTTPConfig, handler http.Handler, logger *slog.Logger) (*http.Server, net.Listener, error) {
+func buildHTTPServer(teeCfg TEEConfig, cfg HTTPConfig, handler http.Handler, logger *slog.Logger) (*http.Server, net.Listener, error) {
 	var tlsCfg *tls.Config
 	if cfg.TLS.Enabled {
-		cert, err := tls.LoadX509KeyPair(cfg.TLS.ServerCert, cfg.TLS.ServerKey)
+		certPEM, err := os.ReadFile(cfg.TLS.ServerCert)
+		if err != nil {
+			return nil, nil, fmt.Errorf("acp-bootstrap: load tls.server_cert/server_key: %w", err)
+		}
+		// The key file may be sealed to this host (`acp-bootstrap seal-keys`, ADR 0023).
+		keyPEM, err := readSecret(teeCfg, cfg.TLS.ServerKey, 0, "http.tls.server_key")
+		if err != nil {
+			return nil, nil, fmt.Errorf("acp-bootstrap: load tls.server_cert/server_key: %w", err)
+		}
+		cert, err := tls.X509KeyPair(certPEM, keyPEM)
 		if err != nil {
 			return nil, nil, fmt.Errorf("acp-bootstrap: load tls.server_cert/server_key: %w", err)
 		}

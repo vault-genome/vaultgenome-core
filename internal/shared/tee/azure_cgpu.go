@@ -87,6 +87,14 @@ type AzureCGPUVerifierConfig struct {
 	// on the own evaluation alone and is refused by this build, which does
 	// not verify the manifests' XML signatures.
 	GPUEvaluation string
+	// GPURevocation says whether the verifier's evaluation asks NVIDIA's
+	// OCSP responder about the GPU's certificate chain: GPURevocationOCSP
+	// (the default under both and own) or GPURevocationOff, which leaves
+	// revocation unchecked, on the record. OCSPURL overrides the responder
+	// for certificates that carry no URL of their own (default
+	// NVIDIAOCSPURL); answers are cached under RIMCacheDir.
+	GPURevocation string
+	OCSPURL       string
 	// NVIDIADeviceRootPEM and NVIDIARIMRootPEM override the pinned NVIDIA
 	// roots (nvidia_roots.go); RIMServiceURL overrides NVIDIA's RIM
 	// service and RIMCacheDir keeps the manifests fetched.
@@ -113,6 +121,9 @@ const (
 	GPUEvaluationNRAS = "nras"
 	GPUEvaluationBoth = "both"
 	GPUEvaluationOwn  = "own"
+
+	GPURevocationOCSP = "ocsp"
+	GPURevocationOff  = "off"
 )
 
 // azureCGPUEvidence is the Evidence envelope.
@@ -430,6 +441,13 @@ func NewAzureCGPUVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureCGP
 		}
 		v.gpuEval = &GPUEvaluator{DeviceRoot: device, RIMRoot: rimRoot, Now: cfg.Now,
 			RIMs: &RIMFetcher{BaseURL: cfg.RIMServiceURL, CacheDir: cfg.RIMCacheDir}}
+		switch cfg.GPURevocation {
+		case "", GPURevocationOCSP:
+			v.gpuEval.OCSP = &OCSPChecker{URL: cfg.OCSPURL, CacheDir: cfg.RIMCacheDir, Now: cfg.Now}
+		case GPURevocationOff:
+		default:
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, fmt.Sprintf("azure-cgpu: GPURevocation %q (one of ocsp, off)", cfg.GPURevocation), nil)
+		}
 	default:
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, fmt.Sprintf("azure-cgpu: GPUEvaluation %q (one of nras, both, own)", cfg.GPUEvaluation), nil)
 	}

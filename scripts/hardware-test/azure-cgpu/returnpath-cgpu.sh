@@ -81,6 +81,7 @@ ZEROS=$(printf '%096d' 0)
 write_configs "$ZEROS" "$ZEROS"
 
 step "the key files sealed to the vTPM (ADR 0023): sagvd's and acp-compute's seeds and the session sealing key, in place"
+TOKEN=$(cat "$S/sagvd/api_token")   # read before sagvd seals the file (ADR 0023)
 ./sagvd seal-keys -config sagvd.json > "$OUT/seal-keys-sagvd.json" 2> "$OUT/seal-keys-sagvd.err"
 echo "sagvd seal-keys exit=$?" >> "$OUT/steps.txt"
 ./acp-compute seal-keys -config worker.json > "$OUT/seal-keys-worker.json" 2> "$OUT/seal-keys-worker.err"
@@ -150,7 +151,6 @@ echo "session opened after ${n}s" >> "$OUT/steps.txt"
 mark session_opened
 
 step "the gate job over the Return Path: the 7B genome restored on the H100"
-TOKEN=$(cat "$S/sagvd/api_token")
 mark job_submit
 curl -s -o "$OUT/job-submit.json" -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   --data '{"genome":{"bundle":"gen-0.genome","key_file":"gen-0.key"},"deadline_seconds_from_now":900}' http://127.0.0.1:9080/v1/jobs > "$OUT/job-submit.status"

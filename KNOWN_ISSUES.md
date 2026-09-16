@@ -96,10 +96,15 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    (`docs/dependencies/goxmldsig.md`), the trusted certificate this
    verifier's — and `own`, the verdict on this verifier's evaluation
    alone with no NVIDIA service on the path, is admitted (ADR 0021,
-   amended). What it still trusts NVIDIA for: revocation (NVIDIA's OCSP,
-   not consulted), and under `own` the secure-boot and debug-mode claims,
-   which only NVIDIA's tokens carry — `both` asserts them, `own` does
-   not. What it polices only when the
+   amended). Since later that day the evaluation also asks NVIDIA's OCSP
+   responder about the chain (`gpu_policy.revocation`, default `ocsp`
+   under `both` and `own`): the BROM certificate, the Provisioner ICA and
+   the GH100 Identity CA each by its issuer, with a nonce, the answer's
+   delegated responder certificate verified under the issuer, answers
+   cached a day; the per-GPU leaf is not served by the responder and its
+   issuers' status stands for it. What it still trusts NVIDIA for: under
+   `own` the secure-boot and debug-mode claims, which only NVIDIA's
+   tokens carry — `both` asserts them, `own` does not. What it polices only when the
    operator asks: the vTPM's PCRs
    (`pcr_digests`, a per-boot digest — the launch measurement covers
    Azure's paravisor and firmware, not the OS). The escrow key on that
@@ -155,17 +160,19 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    full-weight fine-tune goes by key release (ADR 0011), not by job. The older
    "byte-identical restore" in `evidence/` is a seal→unseal round-trip, not
    model regeneration.
-3. **The 40-probe behavioral suite does not run the model.** It computes
-   byte-statistics on the raw blob (`internal/validation/behavioral/probes`);
-   the library's semantic evaluator is `bytes.Equal`. What does run the
-   model is the equivalence gate over a genome's fixtures (`acpctl genome
-   gate`, `acp-bootstrap` `genome.gate`, ADR 0011, and every `sagvd` gate
-   job, ADR 0013): logits at the reference top-k tokens, recomputed where
-   the model was restored, and greedy continuations in `vg_genome measure`.
-   Since ADR 0015 a `sagvd` gate job's validation records the gate on both
-   dimensions — semantic: top-1 agreement at every reference position;
-   behavioral: the determinism ladder — and the byte evaluators are not
-   used for it.
+3. **RESOLVED (2026-09-16): the 40-probe byte-statistics library is
+   removed.** It computed statistics on the raw blob
+   (`internal/validation/behavioral/probes`, nothing imported it) and
+   could be mistaken for a behavioral evaluation of the model. What runs
+   the model is the equivalence gate over a genome's fixtures (`acpctl
+   genome gate`, `acp-bootstrap` `genome.gate`, ADR 0011, and every
+   `sagvd` gate job, ADR 0013): logits at the reference top-k tokens,
+   recomputed where the model was restored, and greedy continuations in
+   `vg_genome measure`. Since ADR 0015 a `sagvd` gate job's validation
+   records the gate on both dimensions — semantic: top-1 agreement at
+   every reference position; behavioral: the determinism ladder. The
+   probe-shaped validator (`internal/validation/behavioral`) stays: it is
+   the scoring rule the gate's dimensions are recorded under.
 4. **RESOLVED (ADR 0009, 2026-09-14).** Cross-cloud key wrap was symmetric and
    insecure — the wrap key was derived from the destination measurement, a
    public value (defect b). An earlier fix added an X25519 KEM to the library
@@ -236,10 +243,15 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
       sealed to the host in place by `sagvd seal-keys` and `acp-compute
       seal-keys` (the chip's derived key on SEV-SNP, the vTPM on TDX and
       the Azure confidential GPU host), each bound to its name, and opened
-      at start; the kits seal them before the first start. Still files: a
-      `-key-file` given to `crosscloud-restore`, `acp-bootstrap`'s TLS key
-      and bearer token on a destination, and the sentinel's seed on the
-      primary (its word is bounded by the chip's report, ADR 0017).
+      at start; the kits seal them before the first start. Since later
+      that day the sentinel's seed on the primary is sealed too
+      (`acpctl sentinel seal-key`, ADR 0023 amended; its word was already
+      bounded by the chip's report, ADR 0017), and so are the TLS keys
+      and the tokens — `sagvd`'s server key, cross-cloud client key and
+      REST token, `acp-compute`'s client key, `acp-bootstrap`'s server key
+      and bearer token (`acp-bootstrap seal-keys`). Still a file: a
+      `-key-file` given to `crosscloud-restore`, the operator's input for
+      one command.
     - The unsealed escrow key sits in the process's memory for its lifetime
       (Go's `ecdh` keeps its own copy; zeroization on exit covers the
       keystore, not that object). The host is a confidential VM for that

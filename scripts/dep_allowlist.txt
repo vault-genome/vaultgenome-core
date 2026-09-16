@@ -39,3 +39,6 @@ go.opentelemetry.io/otel
 # XML digital signatures (Canonical XML 1.1, ECDSA-SHA384) for NVIDIA's
 # reference integrity manifests — docs/dependencies/goxmldsig.md
 github.com/russellhaering/goxmldsig
+# The document model goxmldsig verifies over; imported directly to re-encode
+# NVIDIA's r||s SignatureValue outside the signed bytes (docs/dependencies/etree.md).
+github.com/beevik/etree
