@@ -236,6 +236,15 @@ func TestAzureCGPUVerifierRefusesWhatItShould(t *testing.T) {
 		_, err := strict.Verify(f.evidence(t, nonce), nonce)
 		require.ErrorContains(t, err, "hardware model")
 	})
+	t.Run("a PCR digest the policy does not name", func(t *testing.T) {
+		pcrs := azureCGPUVerifier(t, f, func(c *AzureCGPUVerifierConfig) { c.AcceptablePCRDigests = [][]byte{make([]byte, 32)} })
+		_, err := pcrs.Verify(f.evidence(t, nonce), nonce)
+		require.ErrorContains(t, err, "PCR digest")
+		digest := sha256.Sum256([]byte("pcrs"))
+		pinned := azureCGPUVerifier(t, f, func(c *AzureCGPUVerifierConfig) { c.AcceptablePCRDigests = [][]byte{digest[:]} })
+		_, err = pinned.Verify(f.evidence(t, nonce), nonce)
+		require.NoError(t, err)
+	})
 	t.Run("a measurement not pinned", func(t *testing.T) {
 		otherPin := make(Measurement, 48)
 		w, err := NewAzureCGPUVerifier(nil, otherPin, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, NRASCacheDir: v.cfg.NRASCacheDir, Now: v.cfg.Now})
@@ -310,6 +319,10 @@ func TestAzureCGPUProducerRunsTheToolsAndAssemblesTheEnvelope(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "0x81000003", p.akHandle, "the persistent key that is HCLAkPub")
 	require.True(t, p.Measurement().Equal(f.measurement))
+	sel, digest := p.VTPMBoot()
+	require.Equal(t, "sha256:0,1,2,3,4,5,6,7", sel[0].String())
+	bootDigest := sha256.Sum256([]byte("pcrs"))
+	require.Equal(t, bootDigest[:], digest, "what the vTPM measured of this boot, from the quote at construction")
 
 	nonce := Nonce("a return-path challenge, thirty-two bytes")
 	ev, err := p.Quote(nonce)

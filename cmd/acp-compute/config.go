@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -162,6 +163,23 @@ type PeerTEEConfig struct {
 	NRASJWKSURL  string           `json:"nras_jwks_url,omitempty"`
 	NRASCacheDir string           `json:"nras_cache_dir,omitempty"`
 	GPUPolicy    *GPUPolicyConfig `json:"gpu_policy,omitempty"`
+	// PCRDigests (hex, 32 bytes each), when set, pin what the peer's vTPM
+	// measured of its boot: the quote's PCR digest must be one of them
+	// (`identity` prints it as vtpm.pcr_digest_hex). azure-cgpu peers only.
+	PCRDigests []string `json:"pcr_digests,omitempty"`
+}
+
+// pcrDigests decodes PCRDigests; a malformed entry is a config error.
+func pcrDigests(hexes []string) ([][]byte, error) {
+	out := make([][]byte, 0, len(hexes))
+	for _, h := range hexes {
+		b, err := hex.DecodeString(strings.TrimSpace(h))
+		if err != nil || len(b) != 32 {
+			return nil, fmt.Errorf("pcr_digests: %q is not a 32-byte hex digest", h)
+		}
+		out = append(out, b)
+	}
+	return out, nil
 }
 
 // GPUPolicyConfig is the operator's word on NVIDIA's per-GPU claims.
@@ -400,8 +418,11 @@ func validateTEE(t TEEConfig) []error {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
 		}
 	}
-	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderAzureCGPU && (t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil) {
-		errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir and gpu_policy apply to an azure-cgpu peer only"))
+	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderAzureCGPU && (t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil || len(t.Peer.PCRDigests) > 0) {
+		errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir, gpu_policy and pcr_digests apply to an azure-cgpu peer only"))
+	}
+	if _, err := pcrDigests(t.Peer.PCRDigests); err != nil {
+		errs = append(errs, fmt.Errorf("tee.peer.%w", err))
 	}
 	return errs
 }

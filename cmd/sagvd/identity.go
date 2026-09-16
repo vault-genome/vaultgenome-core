@@ -31,6 +31,8 @@ type authorityIdentity struct {
 	TEEPublicKeyPEM   string `json:"tee_public_key_pem,omitempty"`
 	// TDX is what a gcp-tdx measurement is made of.
 	TDX *tdxIdentity `json:"tdx,omitempty"`
+	// VTPM is what an azure-cgpu guest's vTPM measured of its boot.
+	VTPM *vtpmIdentity `json:"vtpm,omitempty"`
 	// The key auditors verify the cross-cloud audit log with, when
 	// keys.audit_signing is configured.
 	AuditKID          string `json:"audit_kid,omitempty"`
@@ -98,6 +100,7 @@ func runIdentityCmd(args []string, w io.Writer) error {
 		id.TEEPublicKeyPEM = string(teePEM)
 	}
 	id.TDX = tdxIdentityOf(mat.Producer)
+	id.VTPM = vtpmIdentityOf(mat.Producer)
 	if a := cfg.Keys.AuditSigning; a.KeyID != "" && a.SeedPath != "" {
 		seed, err := readExactly(a.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
 		if err != nil {
@@ -151,6 +154,26 @@ func tdxIdentityOf(p tee.Producer) *tdxIdentity {
 	out := &tdxIdentity{MRTDHex: hex.EncodeToString(mrtd[:])}
 	for i := range rtmr {
 		out.RTMRHex = append(out.RTMRHex, hex.EncodeToString(rtmr[i][:]))
+	}
+	return out
+}
+
+// vtpmIdentity is what an azure-cgpu guest's vTPM measured of its boot:
+// the PCRs quoted and their digest, which a peer may pin (pcr_digests).
+type vtpmIdentity struct {
+	PCRs         []string `json:"pcrs"`
+	PCRDigestHex string   `json:"pcr_digest_hex"`
+}
+
+func vtpmIdentityOf(p tee.Producer) *vtpmIdentity {
+	a, ok := p.(*tee.AzureCGPUProducer)
+	if !ok {
+		return nil
+	}
+	sel, digest := a.VTPMBoot()
+	out := &vtpmIdentity{PCRDigestHex: hex.EncodeToString(digest)}
+	for _, s := range sel {
+		out.PCRs = append(out.PCRs, s.String())
 	}
 	return out
 }

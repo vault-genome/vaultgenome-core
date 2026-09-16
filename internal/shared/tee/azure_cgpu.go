@@ -79,6 +79,11 @@ type AzureCGPUVerifierConfig struct {
 	NRASCacheDir string
 	// GPU is the per-GPU claims policy.
 	GPU GPUClaimsPolicy
+	// AcceptablePCRDigests, when set, pins the quote's PCR digest — the
+	// SHA-256 over the selected PCRs' values, as TPM2_Quote computes it —
+	// to one of these, so the OS and driver measured into the vTPM are
+	// policed and not only recorded. Empty: recorded only.
+	AcceptablePCRDigests [][]byte
 	// AcceptableMeasurements lists every SNP measurement accepted. When
 	// empty, falls back to VerifierSpec.ExpectedMeasurement.
 	AcceptableMeasurements []Measurement
@@ -103,6 +108,7 @@ type AzureCGPUProducer struct {
 	hcl         *hclReport
 	akHandle    string
 	measurement Measurement
+	boot        *tpmQuote // a quote taken at construction: what the vTPM measured of this boot
 
 	mu     sync.Mutex
 	closed bool
@@ -186,7 +192,50 @@ func NewAzureCGPUProducer(cfg AzureCGPUProducerConfig) (*AzureCGPUProducer, erro
 	if err != nil {
 		return nil, err
 	}
-	return &AzureCGPUProducer{cfg: cfg, hcl: h, akHandle: handle, measurement: m}, nil
+	p := &AzureCGPUProducer{cfg: cfg, hcl: h, akHandle: handle, measurement: m}
+	// One quote now, under a fixed challenge, records what this boot
+	// measured into the vTPM — the PCR digest an operator may pin.
+	msg, sig, err := p.tpmQuote(tpmQuoteExtraDataFor([]byte("vault-genome azure-cgpu boot identity")))
+	if err != nil {
+		return nil, fmt.Errorf("azure-cgpu: initial TPM quote: %w", err)
+	}
+	q, err := parseTPMQuote(msg)
+	if err != nil {
+		return nil, fmt.Errorf("azure-cgpu: initial TPM quote: %w", err)
+	}
+	if err := verifyTPMQuoteSignature(ak, msg, sig); err != nil {
+		return nil, fmt.Errorf("azure-cgpu: initial TPM quote: %w", err)
+	}
+	p.boot = q
+	return p, nil
+}
+
+// tpmQuote runs tpm2_quote for a challenge and returns the message and
+// the raw signature.
+func (p *AzureCGPUProducer) tpmQuote(challenge [32]byte) (msg, sig []byte, err error) {
+	dir, err := os.MkdirTemp("", "vg-quote-*")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	msgPath, sigPath := filepath.Join(dir, "quote.msg"), filepath.Join(dir, "quote.sig")
+	if _, err := runCommand(p.cfg.Timeout, p.cfg.tool("tpm2_quote"), "-c", p.akHandle, "-l", p.cfg.PCRs, "-q", hex.EncodeToString(challenge[:]),
+		"-g", "sha256", "-m", msgPath, "-s", sigPath, "-f", "plain"); err != nil {
+		return nil, nil, fmt.Errorf("TPM quote: %w", err)
+	}
+	if msg, err = os.ReadFile(msgPath); err != nil {
+		return nil, nil, err
+	}
+	if sig, err = os.ReadFile(sigPath); err != nil {
+		return nil, nil, err
+	}
+	return msg, sig, nil
+}
+
+// VTPMBoot is what the vTPM measured of this boot: the PCRs quoted and
+// their digest, which a peer may pin (AcceptablePCRDigests).
+func (p *AzureCGPUProducer) VTPMBoot() (selections []tpmPCRSelection, digest []byte) {
+	return p.boot.PCRSelections, append([]byte(nil), p.boot.PCRDigest...)
 }
 
 // findAKHandle lists the vTPM's persistent handles and returns the one
@@ -237,23 +286,9 @@ func (p *AzureCGPUProducer) Quote(nonce Nonce) (Evidence, error) {
 	}
 	challenge := tpmQuoteExtraDataFor(nonce)
 	challengeHex := hex.EncodeToString(challenge[:])
-	dir, err := os.MkdirTemp("", "vg-quote-*")
+	quoteMsg, quoteSig, err := p.tpmQuote(challenge)
 	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = os.RemoveAll(dir) }()
-	msg, sig := filepath.Join(dir, "quote.msg"), filepath.Join(dir, "quote.sig")
-	if _, err := runCommand(p.cfg.Timeout, p.cfg.tool("tpm2_quote"), "-c", p.akHandle, "-l", p.cfg.PCRs, "-q", challengeHex,
-		"-g", "sha256", "-m", msg, "-s", sig, "-f", "plain"); err != nil {
-		return nil, fmt.Errorf("azure-cgpu: TPM quote: %w", err)
-	}
-	quoteMsg, err := os.ReadFile(msg)
-	if err != nil {
-		return nil, err
-	}
-	quoteSig, err := os.ReadFile(sig)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("azure-cgpu: %w", err)
 	}
 	argv := append(append([]string(nil), p.cfg.GPUAttestCommand...), challengeHex)
 	token, err := runCommand(p.cfg.Timeout, argv...)
@@ -386,6 +421,18 @@ func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPU
 	challenge := tpmQuoteExtraDataFor(nonce)
 	if !bytes.Equal(quote.ExtraData, challenge[:]) {
 		return nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote does not bind challenger nonce (replay?)", nil)
+	}
+	if len(v.cfg.AcceptablePCRDigests) > 0 {
+		pinned := false
+		for _, d := range v.cfg.AcceptablePCRDigests {
+			if bytes.Equal(d, quote.PCRDigest) {
+				pinned = true
+				break
+			}
+		}
+		if !pinned {
+			return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("PCR digest %x is not in the acceptable set: the boot measured into the vTPM is not one the policy names", quote.PCRDigest), nil)
+		}
 	}
 
 	// The GPU: NVIDIA's tokens for the same challenge.

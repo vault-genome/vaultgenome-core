@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -41,6 +42,24 @@ type tpmQuote struct {
 type tpmPCRSelection struct {
 	HashAlg uint16
 	PCRs    []int
+}
+
+// String names the bank and its PCRs the way tpm2-tools does: sha256:0,1,2.
+func (s tpmPCRSelection) String() string {
+	name := fmt.Sprintf("alg-%#x", s.HashAlg)
+	switch s.HashAlg {
+	case tpmAlgSHA256:
+		name = "sha256"
+	case tpmAlgSHA384:
+		name = "sha384"
+	case 0x0004:
+		name = "sha1"
+	}
+	parts := make([]string, len(s.PCRs))
+	for i, p := range s.PCRs {
+		parts[i] = fmt.Sprintf("%d", p)
+	}
+	return name + ":" + strings.Join(parts, ",")
 }
 
 type tpmReader struct {

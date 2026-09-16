@@ -146,6 +146,12 @@ type verifierEntry struct {
 	PCSURL                string   `json:"pcs_url,omitempty"`
 	PCSCacheDir           string   `json:"pcs_cache_dir,omitempty"`
 	AcceptableTCBStatuses []string `json:"acceptable_tcb_statuses,omitempty"`
+	// NRASJWKSURL, NRASCacheDir, GPUPolicy and PCRDigests configure an
+	// azure-cgpu verifier, with the AMD fields above (the Genoa chain).
+	NRASJWKSURL  string           `json:"nras_jwks_url,omitempty"`
+	NRASCacheDir string           `json:"nras_cache_dir,omitempty"`
+	GPUPolicy    *GPUPolicyConfig `json:"gpu_policy,omitempty"`
+	PCRDigests   []string         `json:"pcr_digests,omitempty"`
 }
 
 // allowListFile is the on-disk JSON schema for
@@ -333,10 +339,24 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			}
 		case tee.ProviderGCPTDX:
 			spec.GCPTDX = tee.GCPTDXVerifierConfig{PCSURL: e.PCSURL, PCSCacheDir: e.PCSCacheDir, AcceptableTCBStatuses: e.AcceptableTCBStatuses}
+		case tee.ProviderAzureCGPU:
+			if e.AMDCertChainPath == "" {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: azure-cgpu requires amd_cert_chain_path (the AMD ASK+ARK chain of the chip's product, Genoa for NCC H100 v5)", i)
+			}
+			chain, err := os.ReadFile(e.AMDCertChainPath)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].amd_cert_chain_path: %w", i, err)
+			}
+			digests, err := pcrDigests(e.PCRDigests)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
+			}
+			spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB,
+				NRASJWKSURL: e.NRASJWKSURL, NRASCacheDir: e.NRASCacheDir, GPU: e.GPUPolicy.policy(), AcceptablePCRDigests: digests}
 		default:
 			// Fail closed: a family whose verifier this build cannot run
 			// end to end must not be trusted with key releases.
-			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx)", i, provider)
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx, azure-cgpu)", i, provider)
 		}
 		specs = append(specs, tee.RegistrySpec{Provider: provider, Spec: spec})
 	}
@@ -451,6 +471,7 @@ func buildClientTLSConfig(cfg TLSClientConfig) (*tls.Config, error) {
 	return &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      roots,
+		ServerName:   cfg.ServerName,
 		MinVersion:   tls.VersionTLS13, // acp-bootstrap accepts nothing older
 	}, nil
 }
