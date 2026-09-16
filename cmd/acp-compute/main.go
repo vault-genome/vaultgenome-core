@@ -37,6 +37,13 @@ func main() {
 		case "help", "--help", "-h":
 			printUsage()
 			return
+		case "seal-keys":
+			if err := runSealKeysCmd(os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
+					Error("acp-compute seal-keys: terminated with error", "err", err.Error())
+				os.Exit(1)
+			}
+			return
 		case "identity":
 			if err := runIdentityCmd(os.Args[2:], os.Stdout); err != nil {
 				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
@@ -190,6 +197,7 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  acp-compute -config PATH")
 	fmt.Println("  acp-compute identity -config PATH")
+	fmt.Println("  acp-compute seal-keys -config PATH")
 	fmt.Println("  acp-compute version")
 	fmt.Println("  acp-compute help")
 	fmt.Println()

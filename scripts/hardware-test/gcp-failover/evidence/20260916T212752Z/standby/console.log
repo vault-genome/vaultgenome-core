@@ -1,0 +1,34 @@
+== 21:29:20 inputs
+== 21:29:30 provision (keygen), operator stop key, operator recovery key
+== 21:29:30 python runtime (CPU) and base model — the gate runs the model here
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart chrony.service cron.service google-guest-agent.service google-osconfig-agent.service multipathd.service packagekit.service polkit.service rsyslog.service snapd.service ssh.service systemd-journald.service systemd-networkd.service systemd-resolved.service systemd-udevd.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart getty@tty1.service
+ systemctl restart google-startup-scripts.service
+ systemctl restart networkd-dispatcher.service
+ systemctl restart serial-getty@ttyS0.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 21.15it/s]Fetching 10 files: 100%|██████████| 10/10 [00:11<00:00,  1.14s/it]
+== 21:30:55 configfs-tsm (real SEV-SNP reports)
+== 21:30:56 sagvd on SEV-SNP: identity from the chip
+== 21:31:06 the escrow key: made in the authority's process, sealed to this chip, wrapped to the recovery key
+== 21:31:17 the recovery ceremony: the envelope opened with the recovery key, the key re-sealed on this chip
+== 21:31:17 acp-bootstrap on SEV-SNP (destination + gate)
+== 21:31:18 sagvd failover config: verifier registry, allow-list, operator stop, the sealed escrow key
+== 21:31:27 wait for the primary's sentinel key and chip identity, then sign the failover policy pinning both
+== 21:31:28 pull the primary's outbox replica, continuously
+== 21:31:28 arm: sagvd failover watches the replica
+== 21:39:34 audit log verify (offline, as an auditor would)
+== 21:39:34 NEGATIVE: the sentinel seed stolen, off the primary's chip

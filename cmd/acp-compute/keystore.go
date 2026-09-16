@@ -88,7 +88,7 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 	}
 
 	// 3. Worker signing seed → register under cfg.Keys.WorkerSigning.KeyID.
-	signingSeed, err := readExactly(cfg.Keys.WorkerSigning.SeedPath, crypto.Ed25519SeedSize, "keys.worker_signing.seed_path")
+	signingSeed, err := readSecret(cfg.TEE, cfg.Keys.WorkerSigning.SeedPath, crypto.Ed25519SeedSize, "keys.worker_signing.seed_path")
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 	}
 
 	// 4. Session sealing key → register under cfg.Keys.SessionSealing.KeyID.
-	sealingMat, err := readExactly(cfg.Keys.SessionSealing.MaterialPath, crypto.AES256KeySize, "keys.session_sealing.material_path")
+	sealingMat, err := readSecret(cfg.TEE, cfg.Keys.SessionSealing.MaterialPath, crypto.AES256KeySize, "keys.session_sealing.material_path")
 	if err != nil {
 		return nil, err
 	}

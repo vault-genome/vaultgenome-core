@@ -152,5 +152,7 @@ NVIDIA's word, the genome gated EQUIVALENT on the H100, RTO 24.99 s.
 
 No derived-key interface from the TEE; the escrow key is sealed to the
 guest's vTPM under a policy of the pinned PCRs (ADR 0022,
-`tee.vtpm_seal_pcrs`, default sha256:0-14), with tpm2-tools on the guest.
+`tee.vtpm_seal_pcrs`, default sha256:0-14), with tpm2-tools on the guest;
+`sagvd seal-keys` and `acp-compute seal-keys` seal the daemons' other key
+files the same way (ADR 0023).
 The VM bills about $9 an hour while it exists; delete it after the run.

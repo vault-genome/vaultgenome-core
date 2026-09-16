@@ -1,0 +1,1 @@
+failover policy serial 2 written to /root/failover-2.json: sentinel sentinel-da26dcab06b244f8 -> gcp-sev-snp https://127.0.0.1:8443, until 2026-10-16T21:39:35Z

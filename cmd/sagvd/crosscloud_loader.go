@@ -209,7 +209,7 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 	// The durable audit log: opened and verified end to end under the
 	// stable audit key before anything is appended. A log that does not
 	// verify stops every release (fail closed).
-	auditSeed, err := readExactly(cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
+	auditSeed, err := readSecret(cfg.TEE, cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
 	if err != nil {
 		return nil, err
 	}

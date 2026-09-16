@@ -216,7 +216,9 @@ the guest, a signed verdict and a verified audit log:
 The SEV-SNP sealer is real since ADR 0016: a key the firmware derives for
 this chip, launch measurement and guest policy (`SNP_GET_DERIVED_KEY` on
 `/dev/sev-guest`), which seals the authority's escrow key (`sagvd
-escrow-provision`). Families other than SEV-SNP, Intel TDX
+escrow-provision`) and, since ADR 0023, every key file the daemons read
+(`sagvd seal-keys`, `acp-compute seal-keys` — run once after
+provisioning; the kits do). Families other than SEV-SNP, Intel TDX
 ([real-tee-tdx.md](real-tee-tdx.md)) and the Azure confidential GPU VM
 ([real-tee-azure-cgpu.md](real-tee-azure-cgpu.md)) are refused by the
 registry and by all three daemons until their verifiers run end to end.

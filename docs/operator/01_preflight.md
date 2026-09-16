@@ -65,6 +65,16 @@ load:
 
 No binary loads a witness key.
 
+On a hardware TEE, seal the key files before the first start: `sagvd
+seal-keys -config sagvd.json` and `acp-compute seal-keys -config
+worker.json` rewrite every key file the config names, in place, sealed
+to the host (the chip's derived key on SEV-SNP, the vTPM on TDX and the
+Azure confidential GPU host; ADR 0023), each bound to its name; the
+daemons open them at start through the same paths. A sealed file does
+not open on another host or, on a vTPM host, another boot — keep the
+seeds where the operator keeps them and re-provision after an image
+change, as for the escrow key.
+
 Checks:
 
 1. Every key file has its exact length; both daemons refuse to start

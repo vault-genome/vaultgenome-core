@@ -86,6 +86,11 @@ c={
  "health":{"listen_address":"127.0.0.1:9081"},"log":{"level":"info","format":"json"}}
 json.dump(c,open("/root/sagvd-base.json","w"),indent=2)
 PY
+# The key files the config names — the authority's signing seed, the audit
+# seed, the session sealing key — sealed to this host's TEE in place (ADR
+# 0023); every sagvd from here on reads them sealed.
+sagvd seal-keys -config /root/sagvd-base.json > "$OUT/seal-keys.json" 2> "$OUT/seal-keys.err"
+echo "seal-keys exit=$? sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/seal-keys.json" 2>/dev/null)" >> "$OUT/steps.txt"
 sagvd identity -config /root/sagvd-base.json > /root/authority-identity-base.json 2> "$OUT/authority-identity.err"
 echo "sagvd identity (base) exit=$?" >> "$OUT/steps.txt"
 python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["authority_public_key_pem"],end="")' /root/authority-identity-base.json > /root/authority.pem
