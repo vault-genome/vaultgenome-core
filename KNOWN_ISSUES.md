@@ -94,8 +94,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    either. A key release to the confidential-GPU destination has run on
    hardware (`scripts/hardware-test/failover-cgpu`, 2026-09-16: a failover
    from a GCP SEV-SNP primary to the Azure H100 host, the boot pinned, the
-   gate EQUIVALENT on the GPU); a key release to a TDX destination has
-   not.
+   gate EQUIVALENT on the GPU), and so has a key release to a TDX
+   destination (`scripts/hardware-test/failover-tdx`, 2026-09-16: the same
+   failover to a GCP c3 Trust Domain, its quote verified to Intel's root
+   with Intel's TCB word, the gate EQUIVALENT on its CPUs).
    Still scaffolding: the AWS Nitro, Azure SGX and Intel SGX DCAP adapters —
    `sagvd`'s verifier registry and `acp-bootstrap` refuse those families
    rather than trust them. `sagvd` and `acp-compute` attest with SEV-SNP,

@@ -219,7 +219,7 @@ acpctl sentinel watch --content-dir /root/thief --outbox /root/rogue-outbox \
   --escrow-to /root/escrow-local.pem --key /root/stolen.seed --tee gcp-sev-snp \
   --interval 3s --settle 0s > "$OUT/rogue-sentinel.json" 2> "$OUT/rogue-sentinel.log" &
 ROGUE=$!
-wait "$SECOND"; RCODE=$?
+RCODE=0; wait "$SECOND" || RCODE=$?   # a || list: the expected exit 3 must not fire the ERR trap
 set -e
 kill "$ROGUE" 2>/dev/null || true; wait "$ROGUE" 2>/dev/null || true
 cp /root/rogue-failover.log "$OUT/rogue-failover.log" 2>/dev/null || true

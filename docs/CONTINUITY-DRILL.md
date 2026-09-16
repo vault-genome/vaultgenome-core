@@ -246,6 +246,72 @@ took the model is one whose GPU signed for its own firmware and driver.
 
 ---
 
+## Drill IV — The standby is the other CPU TEE family
+
+*Run `20260916T181528Z`. A GCP SEV-SNP primary and authority, a GCP `c3` Intel TDX
+Trust Domain as the standby. Evidence:
+[`scripts/hardware-test/failover-tdx/evidence/20260916T181528Z/`](../scripts/hardware-test/failover-tdx/evidence/20260916T181528Z/)*
+
+Drill II once more, with the machine the model comes back on a Trust
+Domain — Intel's confidential VM, not AMD's: `acp-bootstrap` attesting as
+`gcp-tdx` (ADR 0018), a TDX quote per challenge that the authority
+verifies to Intel's root through the PCK chain, with Intel's signed word
+on the platform, the TDX module and the Quoting Enclave. One operator
+policy, two roots of trust.
+
+### 1. The operator names the Trust Domain in advance
+
+The policy (serial 1) pins the primary's sentinel key and chip
+(`69da361d…c790`) and the standby: kind `gcp-tdx`, its endpoint on the VPC, its
+measurement `ed70198a…177b` — the image's MRTD and three RTMRs folded into one
+word. The authority's registry holds the `gcp-tdx` entry beside the Milan
+anchors it verifies the primary's records with; the TCB documents it
+fetched from Intel, and verified, are in the evidence.
+
+### 2. The intrusion, and the primary's attested word
+
+At 18:27:18.85Z the tripwire fires; the sentinel's compromise report
+carries the primary chip's report, the authority observes it 10.11 s
+later and decides at 18:27:28.96Z: generation 1, the last sealed before
+the attack.
+
+### 3. The key goes to Intel's silicon, on Intel's word
+
+The handshake across the VPC: the authority's challenge, the Trust
+Domain's quote for it — the attestation key and the PCK chain to the
+pinned Intel SGX Root CA, Intel's signed TCB info and QE identity current
+for the platform, no DEBUG, the measurement the policy pinned — verified
+at 18:27:30.04Z, and the key released 1.09 s after the decision.
+
+### 4. The model comes back on Intel CPUs, and the gate says so
+
+| Phase | Measured |
+| - | - |
+| Detect — tripwire → authority observes | **10.11 s** |
+| **RPO** — data at risk | **12.00 s** |
+| Key release — across the VPC, mTLS | 1.09 s |
+| Restore — 5 files, 2,210,917 B | **11.6 ms** |
+| Gate on the Trust Domain's CPUs | 10.87 s |
+| **RTO — intrusion → gated, confirmed, running model on Intel silicon** | **24.09 s** |
+
+- **generation 1** — the clean state, not the tampered one;
+- gate level **EQUIVALENT**, door native float on `cpu`, 16 fixtures,
+  `max_abs_err: 1.45e-4` against atol 1e-2 — the references were sealed
+  on AMD Milan cores and the model proven on Intel Sapphire Rapids cores,
+  and float32 is not byte-identical across CPU vendors either: the same
+  order of difference as CPU↔GPU in Drill III (1.52e-4). EXACT is a
+  pinned-runtime property (Drill II had it); the integer door is the
+  byte-portable route;
+- the receipt signed by the standby carries its TDX quote as Evidence,
+  and the key was erased on the standby after the restore;
+- audit chain of 5 events, verified, tip `03758aa2…4cb3`.
+
+One policy, two vendors' roots of trust: the machine that lost the model
+was AMD's word, the machine that took it Intel's, and the operator signed
+for the move before either had happened.
+
+---
+
 ## The line we will not cross
 
 A system that relocates itself to new hardware when it detects a threat is one
@@ -297,7 +363,8 @@ point.
 - **SEV-SNP, TDX and the Azure confidential GPU only.** Nitro and SGX have
   adapter dispatch (ADR 0002) but no shipped offline verifier; a TDX host
   and an Azure confidential GPU host have no sealer, so no sealed escrow
-  key.
+  key. Each other-family standby — the GPU (Drill III) and the TDX Trust
+  Domain (Drill IV) — has taken one key release, once, at 0.5B.
 - **Byte-identical inference across devices is unavailable, and we proved it
   against ourselves.** A dedicated probe on an L4 found the CPU↔GPU divergence
   entering at the **first transformer block**, on every fixture, in both float32
@@ -325,6 +392,7 @@ deletes every VM and bucket on exit — including on failure.
 bash scripts/hardware-test/gcp-drill/run.sh    <gcp-project>   # Drill I   (~30 min)
 bash scripts/hardware-test/gcp-failover/run.sh <gcp-project>   # Drill II  (~25 min)
 bash scripts/hardware-test/failover-cgpu/run.sh <gcp-project> [gcp-zone] [azure-rg]   # Drill III (~25 min; GCP + an Azure NCC H100 v5)
+bash scripts/hardware-test/failover-tdx/run.sh <gcp-project> [n2d-zone] [tdx-zone]     # Drill IV  (~15 min; two GCP n2d SEV-SNP CVMs + a c3 TDX Trust Domain)
 bash scripts/hardware-test/gpu-exact/run.sh    <gcp-project>   # the CPU↔GPU probe (~20 min)
 ```
 

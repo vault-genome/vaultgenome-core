@@ -1,0 +1,7 @@
+valid failover policy, serial 1, issued 2026-09-16T18:18:43Z, until 2026-10-16T18:18:43Z: stands
+  primary sentinel: sentinel-90b47c956550f2ed
+  primary TEE:      gcp-sev-snp, measurements 69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790 (every record must carry its report)
+  standby:          gcp-tdx https://10.128.15.216:8443, measurements ed70198aab47b863b63b5943739da720f1bed54058a2644746c2a3bab91790a57544cb43459d80b4feff4b7922a3177b
+  triggers:         compromise report, no heartbeat for 120s, stopped and not back within 60s
+  required gate:    EQUIVALENT; quarantine 0s; max RPO 0s (0: no bound)
+  reason:           failover drill: a SEV-SNP primary on GCP fails over to an attested Intel TDX Trust Domain

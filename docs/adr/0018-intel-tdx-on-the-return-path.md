@@ -158,7 +158,11 @@ measured run.
   is never admitted.
 - **A TDX authority holds no escrow key** until a sealer exists for it; a
   TDX host is a worker or a destination today, and an authority for gate
-  jobs.
+  jobs. As a destination it has taken a key release on hardware
+  (2026-09-16, `scripts/hardware-test/failover-tdx`): the standby of a
+  failover from a SEV-SNP primary, under a policy pinning its
+  measurement, its quote verified by the authority to Intel's root with
+  Intel's TCB word, the restored genome gated on its CPUs.
 - **Confidential GPUs are now one step away, not two.** The CPU side of an
   `a3` or `NCC` machine attests and verifies with this adapter; what
   remains is the GPU's own attestation (NVIDIA's confidential-compute
