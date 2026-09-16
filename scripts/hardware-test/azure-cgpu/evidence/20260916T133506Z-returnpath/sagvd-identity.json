@@ -1,0 +1,12 @@
+{
+  "authority_kid": "sagvd-authority-e2e",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAHuX6dPNudGIlcKPvi3NbPEMzpDRxoCE8KUrNwqacfAQ=\n-----END PUBLIC KEY-----\n",
+  "tee_provider": "azure-cgpu",
+  "tee_measurement_hex": "aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef",
+  "audit_kid": "sagvd-audit-e2e",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA0nCB5Ihc0Ye+FiH9Vi/8G7cUZMLhXpmCJMow8O+rimg=\n-----END PUBLIC KEY-----\n",
+  "policy_version": "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0",
+  "policy_profiles": [
+    "gate"
+  ]
+}

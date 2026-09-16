@@ -94,6 +94,16 @@ type TEEConfig struct {
 	// /sys/kernel/config/tsm/report). gcp-sev-snp only.
 	TSMReportDir string `json:"tsm_report_dir,omitempty"`
 
+	// GPUAttestCommand, TPM2ToolsDir and AKHandle configure the
+	// azure-cgpu producer: the command that obtains NVIDIA's signed
+	// attestation tokens for a nonce (the nonce is appended; required),
+	// where tpm2-tools live (default PATH), and the vTPM handle of the
+	// HCL attestation key (default: found by its public key). azure-cgpu
+	// only.
+	GPUAttestCommand []string `json:"gpu_attest_command,omitempty"`
+	TPM2ToolsDir     string   `json:"tpm2_tools_dir,omitempty"`
+	AKHandle         string   `json:"ak_handle,omitempty"`
+
 	// Peer holds the trust-anchor material for sagvd's side.
 	Peer PeerTEEConfig `json:"peer"`
 
@@ -144,11 +154,37 @@ type PeerTEEConfig struct {
 	PCSURL                string   `json:"pcs_url,omitempty"`
 	PCSCacheDir           string   `json:"pcs_cache_dir,omitempty"`
 	AcceptableTCBStatuses []string `json:"acceptable_tcb_statuses,omitempty"`
+
+	// NRASJWKSURL overrides NVIDIA's attestation key-set URL; NRASCacheDir
+	// keeps the key set between runs; GPUPolicy is what the GPU's claims
+	// must say. azure-cgpu peers only, which also take the AMD fields
+	// above (amd_cert_chain_path is the Genoa chain for NCC H100 v5).
+	NRASJWKSURL  string           `json:"nras_jwks_url,omitempty"`
+	NRASCacheDir string           `json:"nras_cache_dir,omitempty"`
+	GPUPolicy    *GPUPolicyConfig `json:"gpu_policy,omitempty"`
+}
+
+// GPUPolicyConfig is the operator's word on NVIDIA's per-GPU claims.
+type GPUPolicyConfig struct {
+	AllowSecureBootOff bool     `json:"allow_secure_boot_off,omitempty"`
+	AllowDebug         bool     `json:"allow_debug,omitempty"`
+	AllowUnsignedRIM   bool     `json:"allow_unsigned_rim,omitempty"`
+	HWModels           []string `json:"hw_models,omitempty"`
+	DriverVersions     []string `json:"driver_versions,omitempty"`
+	VBIOSVersions      []string `json:"vbios_versions,omitempty"`
+}
+
+func (g *GPUPolicyConfig) policy() tee.GPUClaimsPolicy {
+	if g == nil {
+		return tee.GPUClaimsPolicy{}
+	}
+	return tee.GPUClaimsPolicy{AllowSecureBootOff: g.AllowSecureBootOff, AllowDebug: g.AllowDebug, AllowUnsignedRIM: g.AllowUnsignedRIM,
+		AcceptableHWModels: g.HWModels, AcceptableDriverVersions: g.DriverVersions, AcceptableVBIOSVersions: g.VBIOSVersions}
 }
 
 // supportedProviders are the TEE backends this build can attest with
 // on the Return Path, and verify a peer's Evidence for.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderSimulated}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated}
 
 // ProviderKind parses TEEConfig.Provider, defaulting to simulated.
 func (t TEEConfig) ProviderKind() (tee.Provider, error) {
@@ -304,6 +340,19 @@ func validateTEE(t TEEConfig) []error {
 		if t.InsecureSimulation {
 			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
 		}
+	case provider == tee.ProviderAzureCGPU:
+		if t.SeedPath != "" || t.InsecureSimulation {
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only"))
+		}
+		if t.TSMReportDir != "" {
+			errs = append(errs, errors.New("tee.tsm_report_dir does not apply to azure-cgpu (the report comes from the vTPM)"))
+		}
+		if len(t.GPUAttestCommand) == 0 {
+			errs = append(errs, errors.New("tee.gpu_attest_command required when tee.provider=azure-cgpu (the command that obtains NVIDIA's attestation tokens for a nonce)"))
+		}
+	}
+	if lp, _ := t.ProviderKind(); lp != tee.ProviderAzureCGPU && (len(t.GPUAttestCommand) > 0 || t.TPM2ToolsDir != "" || t.AKHandle != "") {
+		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu only"))
 	}
 	if t.Peer.MeasurementPath == "" {
 		errs = append(errs, errors.New("tee.peer.measurement_path required"))
@@ -318,7 +367,7 @@ func validateTEE(t TEEConfig) []error {
 			errs = append(errs, errors.New("tee.peer.public_key_path required when tee.peer.provider=simulated"))
 		}
 		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
-			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp peer only"))
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp or azure-cgpu peer only"))
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
@@ -338,8 +387,21 @@ func validateTEE(t TEEConfig) []error {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a TDX quote chains to the Intel SGX Root CA"))
 		}
 		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
-			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp peer only"))
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp or azure-cgpu peer only"))
 		}
+	case peer == tee.ProviderAzureCGPU:
+		if t.Peer.PublicKeyPath != "" {
+			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; an Azure confidential GPU VM's report is signed by the chip's VCEK"))
+		}
+		if t.Peer.AMDCertChainPath == "" {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=azure-cgpu (the AMD ASK+ARK chain of the chip's product, Genoa for NCC H100 v5)"))
+		}
+		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
+			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
+		}
+	}
+	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderAzureCGPU && (t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil) {
+		errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir and gpu_policy apply to an azure-cgpu peer only"))
 	}
 	return errs
 }

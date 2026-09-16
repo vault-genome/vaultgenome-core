@@ -298,7 +298,7 @@ func TestConfig_Validate_TEEProviders(t *testing.T) {
 		"peer unknown":                   {func(c *Config) { c.TEE.Peer.Provider = "sgx?" }, []string{"tee.peer.provider invalid"}},
 		"peer unsupported":               {func(c *Config) { c.TEE.Peer.Provider = "azure-sgx" }, []string{"no verifier this build can run"}},
 		"simulated peer without key":     {func(c *Config) { c.TEE.Peer.PublicKeyPath = "" }, []string{"tee.peer.public_key_path required"}},
-		"simulated peer with AMD fields": {func(c *Config) { c.TEE.Peer.AMDCertChainPath = "/x/chain.pem" }, []string{"apply to a gcp-sev-snp peer only"}},
+		"simulated peer with AMD fields": {func(c *Config) { c.TEE.Peer.AMDCertChainPath = "/x/chain.pem" }, []string{"apply to a gcp-sev-snp or azure-cgpu peer only"}},
 		"sev-snp peer without chain": {func(c *Config) { c.TEE.Peer.Provider = "gcp-sev-snp"; c.TEE.Peer.PublicKeyPath = "" },
 			[]string{"tee.peer.amd_cert_chain_path required"}},
 		"sev-snp peer with a key": {func(c *Config) {

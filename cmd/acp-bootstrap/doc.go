@@ -12,7 +12,9 @@
 // The daemon loads:
 //
 //   - Local TEE producer: AMD SEV-SNP or Intel TDX through configfs-tsm
-//     ("gcp-sev-snp", "gcp-tdx"), or the simulated backend for development
+//     ("gcp-sev-snp", "gcp-tdx"), an Azure confidential GPU VM through the
+//     vTPM and NVIDIA's attestation ("azure-cgpu"), or the simulated
+//     backend for development
 //   - Source-authority pubkey (pinned out-of-band from
 //     `sagvd identity`; identifies the source authority)
 //   - Local keystore (where released DEKs are registered)

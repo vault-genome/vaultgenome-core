@@ -1,0 +1,46 @@
+{
+ "hcl_bytes": 2600,
+ "hcl_header_hex": "48434c4102000000840900000200000000000000000000000000000000000000",
+ "runtime_header": {
+  "data_size": 1220,
+  "version": 1,
+  "report_type": 2,
+  "hash_type": 1,
+  "payload_size": 1200
+ },
+ "report_data_is_sha256_of_runtime_data": true,
+ "report_data_hex": "a7d65045a6b7d86dcea2e3fc209114ef9a17e5ad2e0299d669fadd51f36bcfda0000000000000000000000000000000000000000000000000000000000000000",
+ "snp": {
+  "version": 5,
+  "policy_hex": "1f00030000000000",
+  "measurement_hex": "aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef",
+  "chip_id_hex": "dd7518150993e1fafb3bed0c9b0bfd336a1caeb65a711bad17a420284be67979fe6f141edabef8bf134c2dad6c77e0b69110793ad9d92ed0ecbab16ae2eb616e",
+  "reported_tcb_hex": "0a00000000001b58",
+  "vmpl": 0,
+  "signature_algo": 1
+ },
+ "runtime_keys": [
+  {
+   "kid": "HCLAkPub",
+   "kty": "RSA",
+   "ops": [
+    "sign"
+   ]
+  },
+  {
+   "kid": "HCLEkPub",
+   "kty": "RSA",
+   "ops": [
+    "encrypt"
+   ]
+  }
+ ],
+ "vm_configuration": {
+  "console-enabled": true,
+  "root-cert-thumbprint": "6nZZnYaJc4KqUZ_yvA-mucFdYNouvlPnITnNMXsHl-0",
+  "secure-boot": true,
+  "tpm-enabled": true,
+  "tpm-persisted": true,
+  "vmUniqueId": "0C977F66-1CC2-4FBF-890C-D301816B8FF5"
+ }
+}

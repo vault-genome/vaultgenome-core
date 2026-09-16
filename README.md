@@ -234,11 +234,20 @@ verify-reproducible).
   on a GCP Intel TDX Trust Domain
   ([gcp-tdx/returnpath-e2e](scripts/hardware-test/gcp-tdx/returnpath-e2e))
   with the real `vg_genome` door.
+- **A confidential GPU worker** — on an Azure NCC H100 v5 (an AMD SEV-SNP
+  guest with an H100 in confidential-computing mode) `sagvd` and
+  `acp-compute` attest as `azure-cgpu` (ADR 0019): the chip's report from
+  the vTPM, the vTPM's quote binding the handshake, and NVIDIA's signed
+  tokens for the GPU, verified to AMD's, the vTPM's and NVIDIA's keys; the
+  7B genome came back through the door on the H100 in confidential mode,
+  **EXACT**, in 18.5 s from job to signed release
+  ([azure-cgpu](scripts/hardware-test/azure-cgpu)).
 - **Honest boundaries** — off hardware the daemons run a simulated TEE that
   announces itself; no AWS Nitro or SGX adapter attests, and a TDX host holds
-  no sealed escrow key (no TDX sealer). Attested GPU destinations need
-  confidential GPUs, which have not been tested yet: the TDX CPU side of one
-  now attests, the GPU's own attestation does not. Every attested number
+  no sealed escrow key (no TDX or Azure confidential-GPU sealer). An attested
+  GPU is a Return Path worker today, not yet a key-release destination, and
+  the GPU's measurements are NVIDIA's evaluation, verified by NVIDIA's
+  signature, not ours. Every attested number
   here is 0.5B scale; the largest model measured is 7B on one GPU. **We
   measured against ourselves that byte-identical float inference across CPU and
   GPU is not achievable** — divergence enters at the first transformer block in

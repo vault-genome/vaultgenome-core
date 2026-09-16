@@ -82,7 +82,9 @@ issue a ReleaseDecision; sagvd judges what it returns.
 AMD SEV-SNP guest (the chip signs; see
 [runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md)), `"gcp-tdx"`
 on an Intel TDX guest (a TDX quote; see
-[runbooks/real-tee-tdx.md](runbooks/real-tee-tdx.md)), or `"simulated"`
+[runbooks/real-tee-tdx.md](runbooks/real-tee-tdx.md)), `"azure-cgpu"` on
+an Azure confidential GPU VM (the chip, the vTPM and the H100; see
+[runbooks/real-tee-azure-cgpu.md](runbooks/real-tee-azure-cgpu.md)), or `"simulated"`
 with `tee.insecure_simulation: true` on a laptop or in CI; a pin of the
 vault's TEE (`tee.peer`: its 48-byte measurement and the AMD chain for a
 SEV-SNP vault, its 48-byte measurement and a PCS cache directory for a TDX

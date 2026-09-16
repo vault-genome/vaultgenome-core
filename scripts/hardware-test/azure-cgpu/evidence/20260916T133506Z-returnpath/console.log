@@ -1,0 +1,9 @@
+== 13:46:04 inputs
+== 13:46:04 provision (keygen); the pins start as placeholders
+== 13:46:04 identities: each daemon reads the launch measurement from the vTPM's HCL report
+== 13:46:04 the 7B genome trained here, sealed for sagvd
+== 13:46:04 sagvd on the confidential GPU VM
+== 13:46:05 a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+== 13:46:07 acp-compute on the confidential GPU VM, the door on the H100
+== 13:46:09 the gate job over the Return Path: the 7B genome restored on the H100
+== 13:46:28 metrics; stop both; verify the audit log with the published key

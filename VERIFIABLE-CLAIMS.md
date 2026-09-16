@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -204,9 +204,10 @@ A concrete released-to measurement appears in the failover report below
 (`destination_measurement_hex: 7dc7c12e…125acc`, `destination_kind:
 gcp-sev-snp`).
 
-**Scope.** Released to SEV-SNP destinations only. A TDX destination is
-wired (the registry takes `gcp-tdx` entries, ADR 0018) and a key release to
-one has not been run; AWS Nitro and SGX verifiers are **not** shipped — see
+**Scope.** Released to SEV-SNP destinations only. A TDX destination and an
+Azure confidential GPU destination are wired (the registry takes `gcp-tdx`
+and `azure-cgpu` entries, ADR 0018, 0019) and a key release to either has
+not been run; AWS Nitro and SGX verifiers are **not** shipped — see
 [What we do not claim](#what-we-do-not-claim).
 
 ---
@@ -626,6 +627,79 @@ are shipped. Frontier scale has not been run.
 
 ---
 
+<a id="c17"></a>
+### C17 — A confidential GPU worker: on an Azure NCC H100 v5 the Return Path carries the chip's report, the vTPM's quote and NVIDIA's tokens for the H100, and the 7B genome is restored on the GPU in confidential-computing mode
+
+**Claim.** `sagvd` and `acp-compute` attest as an Azure confidential GPU
+VM (`tee.provider: "azure-cgpu"`): one Evidence for a handshake nonce
+carrying the SEV-SNP report Azure keeps in the vTPM (whose `REPORT_DATA`
+is the hash of the runtime data naming the vTPM's attestation key), a TPM
+quote by that key with `SHA-256(nonce)` in `extraData`, and NVIDIA's
+signed attestation tokens for the H100 under the same value. The verifier
+takes the report to AMD's Genoa root, the quote under the key the chip
+named, and the tokens under NVIDIA's key set with a claims policy —
+overall result, nonce, measurements matched, secure boot, no debug, the
+manifests signed, the model, driver and VBIOS pinned when the operator
+says so ([ADR 0019](docs/adr/0019-a-confidential-gpu-worker-on-azure.md)).
+On such a VM a gate job went through the nine stages with the 7B genome
+restored through the door on the H100 in confidential-computing mode, and
+a worker whose evidence was not that envelope was refused on the record.
+
+**Evidence.**
+[`scripts/hardware-test/azure-cgpu/evidence/20260916T133506Z/`](scripts/hardware-test/azure-cgpu/evidence/20260916T133506Z/)
+— `conf-compute.txt`: `CPU CC Capabilities: AMD SEV-SNP (vTOM Mode)`,
+`GPU CC Capabilities: CC Capable`, `CC GPUs Ready State: Ready`;
+`hcl-summary.json`: SNP report version 5, no DEBUG, VMPL 0, measurement
+`aa7c9da5…0eef`, `REPORT_DATA` = SHA-256 of the runtime data naming
+`HCLAkPub`; `cert-chain.pem`: the Genoa ASK+ARK Azure served;
+`quote1.msg`/`quote1.sig`: a TPMS_ATTEST over PCRs 0–14 with the capture's
+nonce, `Verified OK` under `ak-pub.pem` (handle `0x81000003`);
+`nras-claims-decoded.json`: ES384 by `nv-eat-kid-prod-20260916090709987-…`,
+`x-nvidia-overall-att-result: true`, `eat_nonce` = the nonce, GPU-0
+`hwmodel GH100`, driver `595.71.05`, VBIOS `96.00.9F.00.04`, `measres
+success`, `secboot true`, `dbgstat disabled`; `local-verifier.txt`:
+NVIDIA's local verifier's own pass; `gate-gpu.json`, `measure-gpu.json`,
+`replay-gpu.json`: the 7B genome (26.2 s of training on the H100, 10 142
+001 bytes) gated **EXACT** on the GPU and replayed bit for bit.
+[`…/evidence/20260916T133506Z-returnpath/`](scripts/hardware-test/azure-cgpu/evidence/20260916T133506Z-returnpath/)
+— `sagvd-identity.json`, `acp-compute-identity.json`: `tee_provider:
+azure-cgpu`, measurement `aa7c9da5…0eef`; `audit-events.jsonl` event 1:
+`TRUST_EVALUATED` deny (`evidence is not a vault-genome/azure-cgpu-evidence/v1
+envelope`), event 3: allow, `trust.peer_attested`; `job.json`: `POST
+/v1/jobs` → `release_authorized` in **18.5 s**, gate **EXACT** (16/16, max
+abs err 0), top-1 16/16; `audit-verify.json`: `ok: true`, **17 events**;
+`sagvd-metrics.txt`: `vg_tee_attestation_total{provider="azure-cgpu"}`
+produce 2, verify success 1, verify error 1.
+In process:
+[`internal/shared/tee/azure_cgpu_evidence_test.go`](internal/shared/tee/azure_cgpu_evidence_test.go)
+(the captured evidence verifies offline with the nonce that produced it,
+and is refused for the other nonce, an unlisted driver, past the tokens'
+expiry, under the Milan chain),
+[`azure_cgpu_test.go`](internal/shared/tee/azure_cgpu_test.go),
+[`azure_cgpu_hcl_test.go`](internal/shared/tee/azure_cgpu_hcl_test.go),
+[`azure_cgpu_tpm_test.go`](internal/shared/tee/azure_cgpu_tpm_test.go),
+[`nvidia_eat_test.go`](internal/shared/tee/nvidia_eat_test.go).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/azure-cgpu/run.sh vg-cgpu-weu westeurope
+go test -count=1 -run 'AzureCGPU|HCL|TPMQuote|NRAS' ./internal/shared/tee/ ./cmd/sagvd/ ./cmd/acp-compute/ ./cmd/acp-bootstrap/
+```
+
+**Scope.** Both daemons ran in one guest; the pin is Azure's launch
+measurement, which covers the paravisor and firmware, not the OS — the
+vTPM's PCRs are recorded in the quote and not yet policed. The GPU's
+measurements are evaluated by NVIDIA's service against NVIDIA's reference
+manifests; this build verifies NVIDIA's signed tokens and does not
+evaluate the GPU's SPDM report itself (it is in the evidence). NRAS is on
+the path when evidence is produced. A key release to such a machine
+(`acp-bootstrap` on `azure-cgpu`) has not been run; no sealer on this
+host. The model is 7B in bfloat16; the machine cost about $9 an hour and
+lived for 35 minutes.
+
+---
+
 ## Supply chain and build
 
 <a id="c9"></a>
@@ -678,9 +752,14 @@ sentence we cannot defend.
    carries the sealed delta; the worker restores that delta onto the public
    base model and the authority proves the result ([C11](#c11)). Nothing in
    this repository invents weights from a recipe.
-3. **We do not claim attested GPU destinations.** That needs confidential GPUs
-   (H100 CC); we have not run one. Every measured destination to date is a CPU
-   TEE.
+3. **We do not claim an attested GPU as a *destination* of a key release, or
+   the GPU's evaluation as our own.** An attested GPU *worker* exists: on an
+   Azure confidential GPU VM the Return Path handshake carries the chip's
+   report, the vTPM's quote and NVIDIA's tokens for the H100, and the door
+   runs on the H100 in confidential-computing mode ([C17](#c17)). The GPU's
+   measurements are evaluated by NVIDIA's service and we verify NVIDIA's
+   signed word; a key release to such a machine has not been run; every
+   failover destination to date is a CPU TEE.
 4. **We do not claim Nitro or SGX verification.** SEV-SNP and Intel TDX only
    ([C15](#c15)). Adapter dispatch for others exists (ADR 0002); the offline
    verifiers do not. And a TDX host holds no sealed escrow key: TDX has no

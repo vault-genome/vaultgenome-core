@@ -217,11 +217,14 @@ point.
   L4, its recipe replaying bit for bit, and the float door failing closed
   across devices in bfloat16 while the answers stay the same. Nothing larger
   has been run.
-- **CPU TEEs only.** Destinations are AMD SEV-SNP. Attested *GPU* destinations
-  need confidential GPUs (H100 CC); untested — the TDX CPU side of one now
-  attests (ADR 0018), the GPU's own attestation does not.
-- **SEV-SNP and TDX only.** Nitro and SGX have adapter dispatch (ADR 0002) but
-  no shipped offline verifier; a TDX host has no sealer, so no sealed escrow
+- **CPU TEEs in the drills.** The drills' destinations are AMD SEV-SNP. An
+  attested *GPU* worker exists since ADR 0019 — an Azure confidential GPU VM
+  whose evidence carries the chip, the vTPM and the H100 — measured on the
+  Return Path ([azure-cgpu](../scripts/hardware-test/azure-cgpu/README.md)),
+  not yet as a failover destination.
+- **SEV-SNP, TDX and the Azure confidential GPU only.** Nitro and SGX have
+  adapter dispatch (ADR 0002) but no shipped offline verifier; a TDX host
+  and an Azure confidential GPU host have no sealer, so no sealed escrow
   key.
 - **Byte-identical inference across devices is unavailable, and we proved it
   against ourselves.** A dedicated probe on an L4 found the CPU↔GPU divergence

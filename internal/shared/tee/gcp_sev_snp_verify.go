@@ -155,6 +155,20 @@ func realAMDKDSGetVCEK(baseURL string, chipID [64]byte, reportedTCB uint64) ([]b
 	return httpGet(u)
 }
 
+// realAMDKDSGetVCEKFor is realAMDKDSGetVCEK for a named product (Milan,
+// Genoa, Turin): AMD KDS serves each product's VCEKs under its own path.
+func realAMDKDSGetVCEKFor(baseURL, product string, chipID [64]byte, reportedTCB uint64) ([]byte, error) {
+	if baseURL == "" {
+		baseURL = "https://kdsintf.amd.com"
+	}
+	q := url.Values{}
+	q.Set("blSPL", fmt.Sprintf("%d", byte(reportedTCB)))
+	q.Set("teeSPL", fmt.Sprintf("%d", byte(reportedTCB>>8)))
+	q.Set("snpSPL", fmt.Sprintf("%d", byte(reportedTCB>>48)))
+	q.Set("ucodeSPL", fmt.Sprintf("%d", byte(reportedTCB>>56)))
+	return httpGet(fmt.Sprintf("%s/vcek/v1/%s/%x?%s", baseURL, product, chipID[:], q.Encode()))
+}
+
 // realAMDKDSGetCertChain fetches the ASK+ARK PEM bundle from AMD KDS.
 func realAMDKDSGetCertChain(baseURL string) ([]byte, error) {
 	if baseURL == "" {

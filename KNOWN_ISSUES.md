@@ -53,8 +53,9 @@ statements here are the accurate ones and take precedence. All are being
 addressed on the `honest-reference` branch (honesty pass → defect fixes
 → real SEV-SNP attestation wiring).
 
-1. **Hardware TEE attestation is wired for AMD SEV-SNP and Intel TDX only
-   (2026-09-14; TDX 2026-09-16).**
+1. **Hardware TEE attestation is wired for AMD SEV-SNP, Intel TDX and the
+   Azure confidential GPU VM only (2026-09-14; TDX and azure-cgpu
+   2026-09-16).**
    The SEV-SNP producer requests reports through the kernel's configfs-tsm
    and `acp-bootstrap` can run on it (`tee.provider: "gcp-sev-snp"`); the
    verifier checks the ECDSA-P384 signature, the VCEK → ASK → ARK chain, TCB,
@@ -66,11 +67,25 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    platform, TDX-module and QE TCB statuses, no DEBUG, the challenge binding
    — proven offline against a genuine GCP c3 quote. TDX has no sealer, so an
    escrow key cannot be sealed to a TDX host (ADR 0016 is SEV-SNP only).
+   The Azure confidential GPU adapter (ADR 0019, `tee.provider:
+   "azure-cgpu"`, NCC H100 v5) carries the SEV-SNP report from the vTPM's
+   HCL report, a TPM quote by the vTPM's attestation key binding the
+   challenge, and NVIDIA's signed attestation tokens for the H100; the
+   verifier checks the chip to AMD (Genoa), the quote under the key the
+   chip named, and NVIDIA's tokens under NVIDIA's key set with a claims
+   policy — proven offline against a genuine capture and live on the
+   Return Path. What it trusts NVIDIA for: the evaluation of the GPU's
+   SPDM report against NVIDIA's reference manifests and revocation; the
+   report and chain are in the evidence, an independent evaluation is not
+   in this build. What it does not police: the vTPM's PCRs (recorded, not
+   pinned — the launch measurement covers Azure's paravisor and firmware,
+   not the OS). No sealer on that host either. A key release to a TDX or
+   confidential-GPU destination has not been run on hardware.
    Still scaffolding: the AWS Nitro, Azure SGX and Intel SGX DCAP adapters —
    `sagvd`'s verifier registry and `acp-bootstrap` refuse those families
-   rather than trust them. `sagvd` and `acp-compute` attest with SEV-SNP or
-   TDX the same way since ADR 0014 and 0018 (each pinning the other's
-   measurement); off hardware they run the simulated TEE, whose sealing key
+   rather than trust them. `sagvd` and `acp-compute` attest with SEV-SNP,
+   TDX or the Azure confidential GPU VM the same way since ADR 0014, 0018
+   and 0019 (each pinning the other's measurement); off hardware they run the simulated TEE, whose sealing key
    is intentionally weak (recoverable from the measurement), and refuse to
    start unless their config says `tee.provider: "simulated"` with
    `tee.insecure_simulation: true`; a simulated cross-cloud destination is
@@ -79,9 +94,11 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    released key, have run end to end on a GCP SEV-SNP Confidential VM with
    the shipping binaries (`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/`),
    and so has a gate job over the Return Path with both daemons on the chip
-   (`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/`) and on a TDX Trust
-   Domain (`scripts/hardware-test/gcp-tdx/returnpath-e2e/`); the older
-   captures under `evidence/` were produced by standalone tooling.
+   (`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/`), on a TDX Trust
+   Domain (`scripts/hardware-test/gcp-tdx/returnpath-e2e/`) and on an Azure
+   confidential GPU VM with the door on the H100
+   (`scripts/hardware-test/azure-cgpu/`); the older captures under
+   `evidence/` were produced by standalone tooling.
 2. **RESOLVED (ADR 0013, 2026-09-15).** The acp-compute worker's
    "reconstruction" was a placeholder: SHA-256 digest expansion (V1), then a
    byte-level order-3 Markov chain (V2), both self-documented as "not a
@@ -220,8 +237,9 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
       unreachable) makes every heartbeat silence and fails over on a healthy
       primary; the runbook says to fill the cache at arm time.
     - The attested standby is a CPU confidential VM. An attested GPU standby
-      needs confidential GPUs (H100 CC on a TDX host): the TDX producer and
-      verifier exist (ADR 0018); the GPU's own attestation does not.
+      is now possible on an Azure confidential GPU VM (ADR 0019: the chip,
+      the vTPM and the H100 in one evidence); it has not been run as a
+      standby, only as a Return Path worker.
 13. **The float door's tolerance is a float32 one; a bfloat16 genome fails
     it across devices (2026-09-16).** The genome's recipe now records the
     device and dtype the base computed in, and a 7B model trains in bfloat16
