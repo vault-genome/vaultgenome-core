@@ -37,6 +37,10 @@ type authorityIdentity struct {
 	// --escrow-to), when crosscloud.key_escrow_path is configured.
 	KeyEscrowTag          string `json:"key_escrow_tag,omitempty"`
 	KeyEscrowPublicKeyPEM string `json:"key_escrow_public_key_pem,omitempty"`
+	// KeyEscrowStorage says how the private half is kept on this host:
+	// "sealed:<tee>" (sagvd escrow-provision, ADR 0016) or "plaintext"
+	// (simulation only).
+	KeyEscrowStorage string `json:"key_escrow_storage,omitempty"`
 	// The policy every gate-job session is pinned to, and the policy
 	// profiles Trust Admission serves (ADR 0015), when gate jobs are
 	// enabled.
@@ -64,11 +68,15 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("identity: config validation: %w", err)
 	}
-	mat, err := LoadMaterials(cfg, shared_time.NewSystemClock())
+	// Identity prints public halves only: the materials are loaded
+	// without the escrow key, so no TEE unseal happens here.
+	public := cfg
+	public.Genome.KeyEscrowPath, public.CrossCloud.KeyEscrowPath = "", ""
+	mat, err := LoadMaterials(public, shared_time.NewSystemClock())
 	if err != nil {
 		return err
 	}
-	defer mat.Store.Zeroize()
+	defer func() { mat.Store.Zeroize(); _ = mat.Close() }()
 
 	authPEM, err := crypto.PublicKeyPEM(mat.AuthoritySigningPublicKey)
 	if err != nil {
@@ -103,15 +111,17 @@ func runIdentityCmd(args []string, w io.Writer) error {
 		id.AuditKID, id.AuditPublicKeyPEM = a.KeyID, string(auditPEM)
 	}
 	if p := cfg.EscrowKeyPath(); p != "" {
-		priv, err := escrow.ReadPrivate(p)
+		// The public half is read from the file itself: a sealed key
+		// carries it in the clear, so identity never unseals anything.
+		pub, storage, err := escrowPublicFromFile(p)
 		if err != nil {
 			return fmt.Errorf("identity: key_escrow_path: %w", err)
 		}
-		pemBytes, err := escrow.PublicPEM(priv.PublicKey())
+		pemBytes, err := escrow.PublicPEM(pub)
 		if err != nil {
 			return err
 		}
-		id.KeyEscrowTag, id.KeyEscrowPublicKeyPEM = escrow.KeyTag(priv.PublicKey()), string(pemBytes)
+		id.KeyEscrowTag, id.KeyEscrowPublicKeyPEM, id.KeyEscrowStorage = escrow.KeyTag(pub), string(pemBytes), storage
 	}
 	if cfg.Genome.Enabled() {
 		id.PolicyVersion, id.PolicyProfiles = cfg.PolicyVersion(), []string{PolicyProfileGate}

@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ai-continuity-platform/core/internal/genome/escrow"
 	"github.com/ai-continuity-platform/core/internal/observability/health"
 	"github.com/ai-continuity-platform/core/internal/observability/metrics"
 	"github.com/ai-continuity-platform/core/internal/observability/teemetrics"
@@ -75,6 +76,15 @@ func main() {
 					Error("sagvd failover: terminated with error", "err", err.Error())
 			}
 			os.Exit(code)
+		case "escrow-provision":
+			// The escrow key, made in this process and sealed to this
+			// host's TEE before it is written (ADR 0016).
+			if err := runEscrowProvisionCmd(os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
+				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
+					Error("sagvd escrow-provision: terminated with error", "err", err.Error())
+				os.Exit(1)
+			}
+			return
 		case "crosscloud-confirm":
 			// Confirms a released genome's restore from the
 			// destination's TEE-signed receipt and records it
@@ -139,6 +149,7 @@ func runDaemon(args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = mat.Close() }()
 
 	// Log the vault's authority-signing pubkey + every accepted
 	// worker kid/pubkey once. Operators cross-check against the
@@ -158,6 +169,15 @@ func runDaemon(args []string) error {
 	)
 	if mat.Provider == tee.ProviderSimulated {
 		logger.Warn("SIMULATED TEE: no hardware isolation — this vault's Return Path Evidence is signed by a key read from a file; development and tests only")
+	}
+	if mat.Escrow != nil {
+		logger.Info("sagvd escrow key identity",
+			"escrow_key", escrow.KeyTag(mat.Escrow.PublicKey()),
+			"storage", mat.EscrowSource,
+		)
+		if mat.EscrowSource == escrowSourcePlaintext {
+			logger.Warn("PLAINTEXT ESCROW KEY: key_escrow_path holds the escrow private key in the clear; accepted under the simulated TEE only — on hardware, seal it with `sagvd escrow-provision` (ADR 0016)")
+		}
 	}
 	for _, w := range mat.WorkerEntries {
 		logger.Info("sagvd accepted worker signing identity",
@@ -193,7 +213,7 @@ func runDaemon(args []string) error {
 		logger.Warn("sagvd runs without a Return Path audit log: trust decisions are not on record (set audit.log_path)")
 	}
 
-	genomes := newGenomeJobs(cfg, clock)
+	genomes := newGenomeJobs(cfg, clock, mat.Escrow)
 
 	// The authority that drives the nine stages for every gate job
 	// (ADR 0015): its decisions go to the Return Path audit log, its
@@ -231,7 +251,7 @@ func runDaemon(args []string) error {
 		}
 		logger.Info("sagvd gate jobs enabled: the nine-stage flow is driven for every job",
 			"bundle_dir", cfg.Genome.BundleDir,
-			"escrow_key_configured", cfg.EscrowKeyPath() != "",
+			"escrow_key_configured", mat.Escrow != nil,
 			"policy_version", cfg.PolicyVersion(),
 			"policy_profile", PolicyProfileGate,
 			"operator_stop", cfg.OperatorStopEnabled(),
@@ -324,6 +344,7 @@ func printUsage() {
 	fmt.Println("  sagvd crosscloud-confirm -config PATH -decision-id ID -destination-endpoint URL \\")
 	fmt.Println("        {-bundle PATH | -key-id KID} [-require-gate EQUIVALENT|EXACT] [-wait DURATION]")
 	fmt.Println("  sagvd failover -config PATH -policy POLICY.json -outbox DIR [-poll 2s] [-confirm-wait 15m] [-report PATH]")
+	fmt.Println("  sagvd escrow-provision -config PATH -out SEALED -pub PUBLIC.pem [-recovery-to RECOVERY.pem -recovery-out ENVELOPE] [-stdin]")
 	fmt.Println("  sagvd version")
 	fmt.Println("  sagvd help")
 	fmt.Println()
@@ -340,7 +361,10 @@ func printUsage() {
 	fmt.Println("  the operator's signed failover policy: when the primary's sentinel reports")
 	fmt.Println("  a compromise or its heartbeat stops, it releases the last trustworthy")
 	fmt.Println("  genome's escrowed key to the standby the policy names and confirms the")
-	fmt.Println("  restore (ADR 0012).")
+	fmt.Println("  restore (ADR 0012). escrow-provision makes the authority's escrow key")
+	fmt.Println("  inside this process and writes it sealed to this host's TEE, never in")
+	fmt.Println("  the clear; with -recovery-to it also wraps the key to the operator's")
+	fmt.Println("  recovery key, and -stdin re-seals a recovered key on a new host (ADR 0016).")
 	fmt.Println()
 	fmt.Println("Flags:")
 	fmt.Println("  -config PATH   JSON config file; see cmd/sagvd/doc.go for schema.")

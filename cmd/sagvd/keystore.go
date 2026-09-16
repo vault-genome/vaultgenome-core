@@ -3,7 +3,10 @@
 package main
 
 import (
+	"crypto/ecdh"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/ai-continuity-platform/core/internal/compute/returnpath/server"
@@ -71,6 +74,51 @@ type materials struct {
 	// exposed only so the daemon can log accepted workers once at
 	// startup.
 	WorkerEntries []WorkerEntry
+
+	// Escrow is the authority's escrow private key, opened in memory
+	// from the sealed file key_escrow_path names (ADR 0016); nil when
+	// no escrow key is configured. EscrowSource says how it was kept
+	// on disk: "sealed:<tee>" or "plaintext" (simulation only).
+	Escrow       *ecdh.PrivateKey
+	EscrowSource string
+
+	tee     TEEConfig
+	sealer  tee.Sealer
+	closers []io.Closer
+}
+
+// TEESealer is the sealer of this host's TEE: the simulated one, or the
+// chip's derived key through the sev-guest device, opened on first use.
+func (m *materials) TEESealer() (tee.Sealer, error) {
+	if m.sealer != nil {
+		return m.sealer, nil
+	}
+	switch p := m.Producer.(type) {
+	case *tee.Simulated:
+		m.sealer = p
+	case *tee.GCPSEVProducer:
+		dev, err := os.OpenFile(m.tee.SEVDevice(), os.O_RDWR, 0)
+		if err != nil {
+			return nil, fmt.Errorf("sagvd: tee.sev_guest_device: open %s (the sev-guest driver must be loaded; the daemon needs access to it): %w", m.tee.SEVDevice(), err)
+		}
+		m.closers = append(m.closers, dev)
+		m.sealer = tee.NewGCPSEVSealer(dev, p.Measurement(), p.Policy())
+	default:
+		return nil, fmt.Errorf("sagvd: tee.provider %s has no sealer in this build", m.Provider)
+	}
+	return m.sealer, nil
+}
+
+// Close releases what the materials hold open.
+func (m *materials) Close() error {
+	var errs []error
+	for _, c := range m.closers {
+		if err := c.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	m.closers = nil
+	return errors.Join(errs...)
 }
 
 // LoadMaterials reads all key material referenced by cfg from disk,
@@ -142,7 +190,7 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 		return nil, err
 	}
 
-	return &materials{
+	m := &materials{
 		Store:                     store,
 		AuthoritySigningKeyID:     authKID,
 		AuthoritySigningPublicKey: vk.PublicKey,
@@ -153,7 +201,19 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 		PeerProvider:              peerProvider,
 		WorkerResolver:            resolver,
 		WorkerEntries:             entries,
-	}, nil
+		tee:                       cfg.TEE,
+	}
+
+	// 6. The escrow private key, when configured: unsealed on this host's
+	//    TEE and held in memory (ADR 0016).
+	if path := cfg.EscrowKeyPath(); path != "" {
+		m.Escrow, m.EscrowSource, err = loadEscrowKey(path, m)
+		if err != nil {
+			_ = m.Close()
+			return nil, err
+		}
+	}
+	return m, nil
 }
 
 // buildTEEProducer constructs the local TEE producer per cfg.Provider:

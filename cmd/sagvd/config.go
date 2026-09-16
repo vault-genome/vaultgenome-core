@@ -118,10 +118,13 @@ type GenomeConfig struct {
 	// refused.
 	BundleDir string `json:"bundle_dir,omitempty"`
 
-	// KeyEscrowPath is the authority's key-escrow private key (acpctl
-	// escrow keygen; 32 raw bytes, mode 0600) that opens the escrow
-	// envelopes in BundleDir. Empty falls back to crosscloud.key_escrow_path;
-	// without either, jobs must name a key file.
+	// KeyEscrowPath is the authority's escrow private key that opens the
+	// escrow envelopes in BundleDir: the file `sagvd escrow-provision`
+	// writes, sealed to this host's TEE (ADR 0016). Under
+	// tee.insecure_simulation a raw 32-byte key (acpctl escrow keygen,
+	// mode 0600) is accepted too. Empty falls back to
+	// crosscloud.key_escrow_path; without either, jobs must name a key
+	// file.
 	KeyEscrowPath string `json:"key_escrow_path,omitempty"`
 
 	// Gate is the tolerance every gate job is held to. The byte-exact door
@@ -223,6 +226,11 @@ type TEEConfig struct {
 	// /sys/kernel/config/tsm/report). gcp-sev-snp only.
 	TSMReportDir string `json:"tsm_report_dir,omitempty"`
 
+	// SEVGuestDevice is the sev-guest character device the sealer asks
+	// for this guest's derived key (default /dev/sev-guest): what seals
+	// the escrow key to this host (ADR 0016). gcp-sev-snp only.
+	SEVGuestDevice string `json:"sev_guest_device,omitempty"`
+
 	// Peer holds the trust-anchor material for the worker's TEE side.
 	// The vault accepts exactly one worker TEE identity: a Return Path
 	// session opens only for a worker whose Evidence verifies under it.
@@ -273,6 +281,17 @@ type PeerTEEConfig struct {
 // on the Return Path, and verify a peer's Evidence for.
 var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderSimulated}
 
+// DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
+const DefaultSEVGuestDevice = "/dev/sev-guest"
+
+// SEVDevice is the sev-guest device the sealer opens.
+func (t TEEConfig) SEVDevice() string {
+	if t.SEVGuestDevice != "" {
+		return t.SEVGuestDevice
+	}
+	return DefaultSEVGuestDevice
+}
+
 // ProviderKind parses TEEConfig.Provider, defaulting to simulated.
 func (t TEEConfig) ProviderKind() (tee.Provider, error) {
 	if strings.TrimSpace(t.Provider) == "" {
@@ -310,6 +329,9 @@ func validateTEE(t TEEConfig) []error {
 		}
 		if t.TSMReportDir != "" {
 			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp only"))
+		}
+		if t.SEVGuestDevice != "" {
+			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp only"))
 		}
 	case provider == tee.ProviderGCPSEVSNP:
 		if t.SeedPath != "" {
@@ -578,11 +600,14 @@ type CrossCloudConfig struct {
 	// crosscloud-restore run holds its lock at a time.
 	AuditLogPath string `json:"audit_log_path,omitempty"`
 
-	// KeyEscrowPath is the release authority's key-escrow private key
-	// (acpctl escrow keygen; 32 raw bytes, mode 0600). Sealers
-	// encapsulate genome keys to its public half, which `sagvd identity`
-	// prints; `crosscloud-restore -key-escrow` opens an envelope with it
-	// only to release the key. Optional.
+	// KeyEscrowPath is the release authority's escrow private key: the
+	// file `sagvd escrow-provision` writes, sealed to this host's TEE and
+	// opened in memory at start (ADR 0016). Under tee.insecure_simulation
+	// a raw 32-byte key (acpctl escrow keygen, mode 0600) is accepted
+	// too; on a hardware TEE it is refused. Sealers encapsulate genome
+	// keys to its public half, which `sagvd identity` prints;
+	// `crosscloud-restore -key-escrow` and `failover` open envelopes with
+	// it only to release the key. Optional.
 	KeyEscrowPath string `json:"key_escrow_path,omitempty"`
 
 	// InsecureSimulatedDestinations must be true for the verifier

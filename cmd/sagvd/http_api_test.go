@@ -76,7 +76,7 @@ func newTestFixtureWith(t *testing.T, bearer string, gateJobs bool) *testHTTPFix
 		full := DefaultConfig()
 		full.Genome.BundleDir = dir
 		full.Runtime = runtime
-		genomes = newGenomeJobs(full, clock)
+		genomes = newGenomeJobs(full, clock, nil)
 		fx.audit, _ = newTestAudit(t)
 		fx.ta = newTestAuthority(t, fx.audit)
 	}
@@ -394,7 +394,7 @@ func TestHTTPAPI_RequiresTheAuthorityWithGateJobs(t *testing.T) {
 	clock := shared_time.NewSystemClock()
 	full := DefaultConfig()
 	full.Genome.BundleDir = t.TempDir()
-	genomes := newGenomeJobs(full, clock)
+	genomes := newGenomeJobs(full, clock, nil)
 	_, err := NewHTTPAPIServer(HTTPAPIConfig{}, full.Runtime, NewJobQueue(clock, time.Second), genomes, nil, clock, metrics.NewRegistry(), nil)
 	if err == nil {
 		t.Fatal("gate jobs without an authority (an audit log) were accepted")

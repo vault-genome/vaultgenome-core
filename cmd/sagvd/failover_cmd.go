@@ -93,12 +93,20 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 	if err := checkDestinationEndpoint(pol.Standby.Endpoint); err != nil {
 		return failoverExitFailed, err
 	}
-	escrowKey, err := escrow.ReadPrivate(cfg.CrossCloud.KeyEscrowPath)
-	if err != nil {
-		return failoverExitFailed, fmt.Errorf("failover: crosscloud.key_escrow_path: %w", err)
-	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	clock := shared_time.NewSystemClock()
+	// The authority's keys, the escrow key unsealed among them: held for
+	// the whole watch, so a key that will not open is known before a
+	// trigger, not at it.
+	mat, err := LoadMaterials(cfg, clock)
+	if err != nil {
+		return failoverExitFailed, err
+	}
+	defer func() { mat.Store.Zeroize(); _ = mat.Close() }()
+	if mat.Escrow == nil {
+		return failoverExitFailed, errors.New("failover: crosscloud.key_escrow_path required: genome keys reach the release authority only through escrow")
+	}
+	logger.Info("failover escrow key", slog.String("escrow_key", escrow.KeyTag(mat.Escrow.PublicKey())), slog.String("storage", mat.EscrowSource))
 
 	// Before watching: the policy stands, is not spent, and names a
 	// standby this authority can verify.
@@ -119,10 +127,6 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 
 	// A trigger fired: open the audit log again, verified end to end, and
 	// act on it.
-	mat, err := LoadMaterials(cfg, clock)
-	if err != nil {
-		return failoverExitFailed, err
-	}
 	xcc, err := LoadCrossCloudMaterials(cfg, clock)
 	if err != nil {
 		return failoverExitFailed, err
@@ -144,7 +148,7 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 		return failoverExitFailed, err
 	}
 	ex, err := failover.New(failover.Config{
-		Policy: pol, Outbox: outbox, Escrow: escrowKey, Coordinator: coord,
+		Policy: pol, Outbox: outbox, Escrow: mat.Escrow, Coordinator: coord,
 		Audit: xcc.AuditEmitter, Events: xcc.AuditChain.Events, IDs: xcc.IDGenerator, Clock: clock,
 		Poll: poll, ConfirmWait: confirmWait, Log: logger,
 	})
