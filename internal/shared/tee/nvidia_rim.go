@@ -302,7 +302,7 @@ func (f *RIMFetcher) Fetch(ctx context.Context, id string) (*RIM, error) {
 	if err != nil {
 		return nil, fmt.Errorf("nvidia: RIM service: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
 		return nil, fmt.Errorf("nvidia: RIM service: %w", err)
