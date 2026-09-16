@@ -312,6 +312,73 @@ for the move before either had happened.
 
 ---
 
+## Drill V — The authority says no
+
+*Run `20260916T191033Z`. The failover drill's two GCP SEV-SNP machines, one attack,
+eight policies. Evidence:
+[`scripts/hardware-test/failover-negatives/evidence/20260916T191033Z/`](../scripts/hardware-test/failover-negatives/evidence/20260916T191033Z/)*
+
+Drills II to IV each asked the authority one question and got one yes.
+This drill asks eight against the same compromise report and expects
+seven refusals, each for a different reason, each decided where the code
+decides it: on the audit record for a trigger that reaches the policy
+engine, at the door for a policy that cannot be admitted at all.
+
+### 1. Seven ways to say no
+
+| # | The operator's policy | The answer |
+| - | - | - |
+| 1 | stood 45 s; armed before the attack, expired when the report came | declined on the record — *failover: policy serial 1 expired at 2026-09-16T19:14:30Z* |
+| 2 | allows at most 1 s of lost state | declined — *the newest trustworthy genome, generation 1, was sealed 11.996s before the trigger; the policy allows at most 1s* |
+| 3 | quarantines a day | declined — *no genome in the verified chain was sealed by 2026-09-15T19:21:48.792219003Z and checks out* |
+| 4 | a good policy, under an operator stop | decided, hand-shake, **the chip verified** — and the release **denied** — *operator stop in force (revocation serial 2): incident review* |
+| 5 | pins another machine as the standby | decided, hand-shake, **the chip verified** — and **denied** — *failover policy serial 5 releases only to its standby (gcp-sev-snp, measurement [69da361d…c790]); gcp-sev-snp 21199b36…9546 is not it* |
+| 7 | policy 6 again, after its move | refused at the door — *failover: policy serial 6 already carried out a failover (audit event xcc-evt-…000c); moving again needs a new policy* |
+| 8 | signed by a stranger | refused at the door — *failover: signature does not verify under the operator key* |
+
+Runs 4 and 5 are the ones to read twice. The standby is genuine: its SEV-SNP
+report verified under the authority's nonce
+(`CROSS_CLOUD_ATTESTATION_VERIFIED`). The key still did not move, because the
+operator's stop list said stop, and because the policy named another machine.
+Hardware says who you are; the operator says whether you may.
+
+### 2. The one move, and what it refused to carry
+
+Policy 6 is a good policy, and the replica it acts on has been reached by the
+intruder: one byte of `gen-000001.genome` flipped (`addaaf0c…be7d` →
+`640046c8…5671`). The chooser reads the sentinel's signed record for
+generation 1, hashes the bundle, and sets it aside on the record — *sentinel:
+gen-000001.genome hashes to 640046c8…5671 (2216819 bytes), the record says
+addaaf0c…be7d (2216819 bytes)* — then takes generation 0, the newest state
+whose bytes match the sentinel's word:
+
+| Phase | Measured |
+| - | - |
+| **RPO** — the attack less generation 0's seal | **270.0 s** |
+| Key release | 0.04 s |
+| Restore — 5 files, 2,209,723 B | **12.7 ms** |
+| Gate on the standby | 11.80 s |
+| Failover — trigger observed → confirmed | 12.06 s |
+
+Generation 0 came back **EXACT** (16 fixtures, `max_abs_err: 0`) on the same
+runtime. Four and a half minutes of training given up rather than one
+corrupted byte restored — and the record says which byte, in which bundle,
+against which signed hash.
+
+### 3. One record
+
+Sixteen events on one hash-chained audit log, verified offline, tip
+`05a015c1…7161`: three declines, two decisions that ended in
+`KEY_RELEASE_DENIED` after the chip verified, and one that ended in
+`CROSS_CLOUD_RESTORE_COMPLETED`. Runs 7 and 8 left nothing on it, on purpose:
+a spent or unsigned policy is refused before the authority acts on its behalf.
+The stop list, the policies and the audit log share one operator key — which
+is why a stranger's policy, issued under the operator's key id, is refused at
+the door.
+
+
+---
+
 ## The line we will not cross
 
 A system that relocates itself to new hardware when it detects a threat is one
@@ -393,6 +460,7 @@ bash scripts/hardware-test/gcp-drill/run.sh    <gcp-project>   # Drill I   (~30 
 bash scripts/hardware-test/gcp-failover/run.sh <gcp-project>   # Drill II  (~25 min)
 bash scripts/hardware-test/failover-cgpu/run.sh <gcp-project> [gcp-zone] [azure-rg]   # Drill III (~25 min; GCP + an Azure NCC H100 v5)
 bash scripts/hardware-test/failover-tdx/run.sh <gcp-project> [n2d-zone] [tdx-zone]     # Drill IV  (~15 min; two GCP n2d SEV-SNP CVMs + a c3 TDX Trust Domain)
+bash scripts/hardware-test/failover-negatives/run.sh <gcp-project> [zone]          # Drill V   (~15 min; two GCP n2d SEV-SNP CVMs)
 bash scripts/hardware-test/gpu-exact/run.sh    <gcp-project>   # the CPU↔GPU probe (~20 min)
 ```
 

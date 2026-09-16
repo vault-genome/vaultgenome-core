@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -259,7 +259,9 @@ audit log **before** any key moves (`FAILOVER_DECIDED`, audit schema v6). This
 system moves a model **because an operator signed for it to**, and cannot move
 itself twice on one authorisation. That property is the difference between
 continuity infrastructure and a worm, and we treat it as the primary safety
-requirement of the project.
+requirement of the project. Each invariant is exercised on live chips in
+[C22](#c22): the spent policy, the operator stop, the foreign standby, the
+expired policy and the corrupted bundle are each refused on the record.
 
 ---
 
@@ -974,6 +976,78 @@ standby holds no sealed escrow key (no sealer on a TDX host): it can
 receive a model and cannot itself become an authority. The pin is the
 image's MRTD and RTMRs folded into one measurement; a kernel update
 re-issues it.
+
+---
+
+<a id="c22"></a>
+### C22 — The authority says no on the record: against one attack on real SEV-SNP chips, seven policies are refused for seven different reasons — two of them after the standby's chip verified — and the one move goes to the generation whose bytes match the sentinel's word
+
+**Claim.** The anti-worm invariants of [C8](#c8), exercised one by one on
+the shipping binaries on live hardware. The failover drill's two machines,
+one attack, and eight operator-signed policies run against the same
+compromise report: a policy that expired while the authority watched, one
+whose RPO bound the genome misses, one whose quarantine covers every
+genome, a good one under an operator stop, one pinning another machine as
+the standby, a good one with the newest bundle corrupted in the replica,
+the spent policy again, and a policy signed by a stranger. Seven are
+refused, each for its own stated reason; six of the eight answers are
+signed events on one hash-chained audit log, and in two of them the
+standby's SEV-SNP report had already verified when the operator's policy
+said no. The one move restores generation 0 with generation 1 set aside
+on the record, because generation 1's bytes in the replica no longer
+match the sentinel's signed record.
+
+**Evidence.**
+[`scripts/hardware-test/failover-negatives/evidence/20260916T191033Z/`](scripts/hardware-test/failover-negatives/evidence/20260916T191033Z/)
+— `standby/report-1.json`: `status: declined`, reason *failover: policy serial
+1 expired at 2026-09-16T19:14:30Z* (armed at 19:13:45Z, the report came at
+19:21:48.79Z); `report-2.json`: declined, *the newest trustworthy genome,
+generation 1, was sealed 11.996s before the trigger; the policy allows at most
+1s*; `report-3.json`: declined, *no genome in the verified chain was sealed by
+2026-09-15T19:21:48.792219003Z and checks out*, both generations in
+`set_aside`; `report-4.json`: `status: failed`, decision `failover`, error
+*operator stop in force (revocation serial 2): incident review*;
+`report-5.json`: failed, *failover policy serial 5 releases only to its
+standby (gcp-sev-snp, measurement [69da361d…c790]); gcp-sev-snp 21199b36…9546
+is not it*; `report-6.json`: `status: restored`, `genome.generation: 0`,
+`set_aside`: *sentinel: gen-000001.genome hashes to 640046c8…5671 (2216819
+bytes), the record says addaaf0c…be7d (2216819 bytes), the record says
+addaaf0c…be7d*, `restore.gate`: **EXACT**, 16 fixtures, `max_abs_err: 0`,
+`timing`: RPO 270.0 s, restore 12.7 ms, gate 11.80 s, failover 12.06 s, RTO
+34.37 s; `failover-7.log`: *failover: policy serial 6 already carried out a
+failover (audit event xcc-evt-…000c); moving again needs a new policy*;
+`failover-8.log`: *failover: signature does not verify under the operator
+key*. `standby/audit-events.jsonl` and `audit-verify.json`: 16 events, `ok:
+true`, tip `05a015c1…7161` — three `FAILOVER_DECIDED` declines, then for runs
+4 and 5 `FAILOVER_DECIDED` → `CROSS_CLOUD_HANDSHAKE_INITIATED` →
+`CROSS_CLOUD_ATTESTATION_VERIFIED` → `KEY_RELEASE_DENIED` (stage `policy`,
+`failover-policy-v1;failover=4;revocation=2` and
+`failover-policy-v1;failover=5;revocation=3`), then for run 6
+`FAILOVER_DECIDED` → … → `KEY_RELEASE_AUTHORIZED`
+(`failover-policy-v1;failover=6;revocation=3`) →
+`CROSS_CLOUD_RESTORE_COMPLETED`. `standby/stop-2.json`: serial 2, `stop_all:
+true`, "incident review"; `stop-3.json`: serial 3.
+`standby/policy-5-verify.txt`: the standby pinned at `69da361d…c790` (the
+primary's chip); `policy-7-verify.txt`: *signature does not verify under the
+operator key*. `standby/tamper.txt`: `gen-000001.genome` `addaaf0c…be7d` →
+`640046c8…5671`, one byte. `primary/sentinel.json`: `outcome: compromised`,
+generation 1 the last word, `attestation.kind: gcp-sev-snp`.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/failover-negatives/run.sh <gcp-project> europe-west4-a   # ~15 min: two GCP n2d Milan CVMs
+```
+
+**Scope.** One run, 0.5B, one TEE family, both machines in one project.
+Runs 7 and 8 are refused before the authority acts, so they leave no
+audit event — by design, and stated as such. The ninth refusal, a rogue
+sentinel with the stolen seed attesting from the wrong chip, is the
+failover drill's own negative leg ([C8](#c8)'s kit, declined on the record
+on `20260916T021933Z`). Not exercised on hardware: an operator stop that
+lands during a hand-shake, and a forged chip report — the SEV-SNP
+signature check of [C7](#c7) is what refuses that, and it is proven
+offline.
 
 ---
 

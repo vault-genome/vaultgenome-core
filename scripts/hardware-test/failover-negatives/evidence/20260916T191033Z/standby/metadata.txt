@@ -1,0 +1,3 @@
+instance=vg-neg-standby-20260916t191033z
+zone=europe-west4-a
+machine=n2d-standard-4

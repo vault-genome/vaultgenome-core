@@ -1,0 +1,9 @@
+{
+  "schema": "vault-genome/revocation/v1",
+  "serial": 2,
+  "issued_at": "2026-09-16T19:22:00Z",
+  "stop_all": true,
+  "reason": "incident review",
+  "signing_key_id": "operator-1",
+  "signature": "kICc8RLseouzvSHiFKsTGus7ZuMo2Ze/LsAkxAdZZdhtv4FjkRc95QlDGzKQEJZo4W17TQRj2rGBgtDosubsBg=="
+}

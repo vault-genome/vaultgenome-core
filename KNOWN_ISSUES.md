@@ -44,6 +44,11 @@ input it has not first found well formed.
   refused, cross-cloud key release, failover, and the refusals (wrong
   token, wrong genome key, untrusted certificate, unpinned worker, unlisted
   or impostor destination).
+- **The refusals on hardware** — `scripts/hardware-test/failover-negatives`
+  (VERIFIABLE-CLAIMS C22): an expired policy, an RPO bound, a quarantine,
+  an operator stop, a foreign standby, a corrupted replica bundle, a spent
+  policy and a stranger's signature, each refused by the shipping binaries
+  on live SEV-SNP chips, six of them on one verified audit log.
 
 ## Known limitations & security caveats (2026-09-13 honest-reference audit)
 
