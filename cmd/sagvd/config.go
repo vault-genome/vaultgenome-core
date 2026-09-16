@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ai-continuity-platform/core/internal/contracts/attestation_result"
+	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"io"
 	"net"
 	"os"
@@ -101,7 +102,27 @@ const PolicyProfileGate = "gate"
 // operational failure rather than a silent drift.
 func (c Config) PolicyVersion() string {
 	g := c.Genome.Gate
-	return fmt.Sprintf("gate-policy/v1;atol=%g;rtol=%g;outliers=%d", g.Atol, g.Rtol, g.MaxNonCriticalOutliers)
+	v := fmt.Sprintf("gate-policy/v1;atol=%g;rtol=%g;outliers=%d", g.Atol, g.Rtol, g.MaxNonCriticalOutliers)
+	if g.Bfloat16 != nil {
+		v += fmt.Sprintf(";bf16-atol=%g;bf16-rtol=%g", g.Bfloat16.Atol, g.Bfloat16.Rtol)
+	}
+	return v
+}
+
+// GateTolerance is a tolerance of the float door: |got - expected| <= atol + rtol*|expected|.
+type GateTolerance struct {
+	Atol float64 `json:"atol"`
+	Rtol float64 `json:"rtol"`
+}
+
+// ToleranceFor is the tolerance a genome is held to, by the dtype its
+// recipe names: the bfloat16 table when the operator set one and the
+// genome computed in bfloat16, the float32 tolerance otherwise.
+func (g GateConfig) ToleranceFor(dtype string) equivalence.Tolerance {
+	if g.Bfloat16 != nil && dtype == "bfloat16" {
+		return equivalence.Tolerance{Atol: g.Bfloat16.Atol, Rtol: g.Bfloat16.Rtol}
+	}
+	return equivalence.Tolerance{Atol: g.Atol, Rtol: g.Rtol}
 }
 
 // OperatorStopEnabled reports whether trust consults a stop list.
@@ -140,6 +161,13 @@ type GateConfig struct {
 	Atol                   float64 `json:"atol"`
 	Rtol                   float64 `json:"rtol"`
 	MaxNonCriticalOutliers int     `json:"max_non_critical_outliers"`
+	// Bfloat16, when set, is the tolerance for a genome whose recipe says
+	// its base computed in bfloat16: across devices such logits differ by
+	// one or two bfloat16 quanta (KNOWN_ISSUES #13), and the float32
+	// tolerance above refuses them. The operator sets it knowingly; it is
+	// part of the policy every session is pinned to. Absent: bfloat16
+	// genomes are held to the float32 tolerance.
+	Bfloat16 *GateTolerance `json:"bfloat16,omitempty"`
 }
 
 // Enabled reports whether gate jobs can be built.
@@ -968,6 +996,9 @@ func (c Config) Validate() error {
 	}
 	if c.Genome.Gate.MaxNonCriticalOutliers < 0 {
 		errs = append(errs, errors.New("genome.gate.max_non_critical_outliers must be >= 0"))
+	}
+	if b := c.Genome.Gate.Bfloat16; b != nil && (b.Atol < 0 || b.Rtol < 0) {
+		errs = append(errs, errors.New("genome.gate.bfloat16.atol and rtol must be >= 0"))
 	}
 	if c.Genome.BundleDir != "" && !filepath.IsAbs(c.Genome.BundleDir) {
 		errs = append(errs, fmt.Errorf("genome.bundle_dir %q must be an absolute path", c.Genome.BundleDir))

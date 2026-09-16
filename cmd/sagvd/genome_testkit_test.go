@@ -61,6 +61,7 @@ type genomeOptions struct {
 	mutate     func(files map[string][]byte)
 	noPrompts  bool
 	wrongWeigh bool
+	dtype      string // the recipe's dtype ("" = a genome that predates the field)
 }
 
 // sealTestGenome writes the genome the vg_genome worker would write —
@@ -111,7 +112,7 @@ func sealTestGenome(t *testing.T, dir string, opts genomeOptions) testGenome {
 			"files":  map[string]string{"config.json": "sha256:" + hex.EncodeToString(make([]byte, 32)), "model.safetensors": "sha256:" + hex.EncodeToString(bytes.Repeat([]byte{1}, 32))},
 			"digest": "sha256:" + hex.EncodeToString(bytes.Repeat([]byte{2}, 32))}},
 		"adapter":  map[string]any{"dir": "adapter", "format": "peft-lora", "r": 8, "alpha": 16.0, "targets": []string{"q_proj", "v_proj"}, "parameters": 1234, "weights_sha256": "sha256:" + hex.EncodeToString(weightsSum[:])},
-		"recipe":   map[string]any{"data": "data/train.jsonl", "steps": 3, "seed": 7, "threads": 1, "losses": []float64{1, 0.5, 0.25}},
+		"recipe":   recipe(opts.dtype),
 		"fixtures": map[string]any{"file": "fixtures.json", "sha256": "sha256:" + hex.EncodeToString(fxSum[:]), "count": 3, "critical": 2, "top_k": 3},
 		"runtime":  map[string]any{"torch": "2.7.1"},
 	})
@@ -196,4 +197,13 @@ func (g testGenome) rightOutput(t *testing.T, perturb map[[2]int]float32) []byte
 	out, err := gatejob.EncodeOutput(g.KeyID, outputs)
 	require.NoError(t, err)
 	return out
+}
+
+// recipe is a test genome's recipe, in dtype when one is named.
+func recipe(dtype string) map[string]any {
+	r := map[string]any{"data": "data/train.jsonl", "steps": 3, "seed": 7, "threads": 1, "losses": []float64{1, 0.5, 0.25}}
+	if dtype != "" {
+		r["device"], r["dtype"] = "cuda", dtype
+	}
+	return r
 }
