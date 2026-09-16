@@ -224,3 +224,50 @@ def test_the_cli_door_takes_the_genome_on_stdin(genome_dir, base_dir):
         input="{}", capture_output=True, text=True, cwd=WORKER, timeout=120,
     )
     assert neither.returncode == 2 and "--stdin-genome" in neither.stderr
+
+
+def test_a_bfloat16_genome_records_its_runtime_and_the_door_honours_it(base_dir, data_path, tmp_path):
+    out = str(tmp_path / "bf16")
+    g = finetune(base_dir, data_path, out, dtype="bfloat16", **RECIPE)
+    assert g["recipe"]["device"] == "cpu" and g["recipe"]["dtype"] == "bfloat16"
+    assert "bfloat16" in g["fixtures"]["kind"]
+    on_disk = load_genome(out)
+    assert on_disk["recipe"]["dtype"] == "bfloat16"
+
+    # The door restores the base in the recipe's dtype; the adapter stays float32.
+    _, _, model, _, _, _ = open_genome(out, base_dir, "cpu")
+    assert next(model.parameters()).dtype == torch.bfloat16
+    assert all(p.dtype == torch.float32 for p in lora.lora_parameters(model))
+
+    # On the runtime that recorded the fixtures, they come back exactly.
+    m = measure(out, base_dir, "cpu")
+    assert m["dtype"] == "bfloat16" and m["recipe_dtype"] == "bfloat16" and m["recipe_device"] == "cpu"
+    assert m["exact"] == m["fixtures"] == len(EXAMPLES) and m["max_abs_err"] == 0.0
+
+    # A float32 restore of the same genome is a measurement, not the pinned runtime.
+    m32 = measure(out, base_dir, "cpu", dtype="float32")
+    assert m32["dtype"] == "float32" and m32["recipe_dtype"] == "bfloat16"
+    assert m32["fixtures"] == len(EXAMPLES)
+
+    r = replay(out, base_dir, "cpu")
+    assert r["dtype"] == "bfloat16" and r["exact"]
+
+
+def test_an_unknown_dtype_is_refused(base_dir, data_path, tmp_path):
+    with pytest.raises(ValueError, match="unsupported dtype"):
+        finetune(base_dir, data_path, str(tmp_path / "f64"), dtype="float64", **RECIPE)
+    assert not os.path.exists(str(tmp_path / "f64"))
+
+
+def test_a_genome_that_predates_the_field_restores_in_float32(genome_dir, base_dir, tmp_path):
+    g = load_genome(genome_dir)
+    assert g["recipe"]["dtype"] == "float32" and g["recipe"]["device"] == "cpu"
+    older = copy_genome(genome_dir, tmp_path)
+    with open(os.path.join(older, "genome.json"), encoding="utf-8") as f:
+        doc = json.load(f)
+    del doc["recipe"]["dtype"], doc["recipe"]["device"]
+    with open(os.path.join(older, "genome.json"), "w", encoding="utf-8") as f:
+        json.dump(doc, f)
+    m = measure(older, base_dir, "cpu")
+    assert m["dtype"] == "float32" and m["recipe_dtype"] == "float32" and m["recipe_device"] == "cpu"
+    assert m["exact"] == m["fixtures"] == len(EXAMPLES)

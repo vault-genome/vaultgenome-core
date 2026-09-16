@@ -138,3 +138,19 @@ preinstalled): `g2-standard-4` for the L4, `n1-standard-4 --accelerator
 type=nvidia-tesla-t4` for the T4. Each VM was deleted immediately after its
 serial-console line was collected. Raw captures: `geoar-verifier/gcp-cvm/
 gpu-results.log`.
+
+## 7B in bfloat16: one or two quanta apart, the same words
+
+`scripts/hardware-test/gpu-7b/` (run `20260916T043622Z`) takes
+Qwen2.5-7B-Instruct through the genome path with the base in **bfloat16**
+on an NVIDIA L4 and restores the genome on the same GPU and on the host's
+Intel Xeon. On the pinned runtime the 16 fixtures come back bit-exact and
+the recipe replays to a bit-identical adapter. On the CPU every fixture's
+logits differ from the GPU's by 0.125 – 0.5 — one or two bfloat16 quanta at
+their magnitude (a value in [16, 32) is representable to 0.125, in [32, 64)
+to 0.25) — while the top-1 token and the 16-token greedy continuation are
+identical 16/16. The float door, whose tolerance is the float32 one, fails
+closed on that. The measurement says the same thing as the probes above at
+a lower precision: across a device boundary floats are never byte-portable,
+the divergence scales with the format's quantum, and what survives it is
+the model's behaviour, not its bytes.

@@ -3,8 +3,11 @@
 
 The loop is deliberately plain: batch of one, examples in file order,
 AdamW, gradient clipping, no dropout (the model stays in eval mode while the
-adapter trains), float32 on the CPU. On a pinned runtime the same recipe
-yields the same adapter, byte for byte.
+adapter trains). The base computes in the recipe's dtype on the recipe's
+device — float32 on the CPU unless the recipe says otherwise; a 7B base
+trains in bfloat16 on a GPU — and the adapter is float32 wherever it
+trains. On a pinned runtime the same recipe yields the same adapter, byte
+for byte; the fixtures are recorded on the device that trained.
 """
 
 import json
@@ -17,7 +20,7 @@ import torch
 
 from . import GENOME_SCHEMA, determinism, fixtures, lora, manifest
 from .data import encode, file_digest, load_jsonl
-from .model import load_base
+from .model import DEFAULT_DTYPE, load_base, torch_dtype
 
 BETAS = (0.9, 0.999)
 EPS = 1e-8
@@ -36,12 +39,13 @@ def _default_prompts(rows: list, limit: int = 16) -> list:
 
 
 def train(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, steps: int, lr: float,
-          max_len: int, seed: int, threads: int, device: str = "cpu", log=None):
+          max_len: int, seed: int, threads: int, device: str = "cpu", dtype: str = DEFAULT_DTYPE, log=None):
     """Fine-tune an adapter on rows; returns (model, tokenizer, losses, seconds).
-    The model is back on the CPU when it returns."""
+    The model stays on the device it trained on, in the recipe's dtype."""
+    torch_dtype(dtype)  # refuse an unknown dtype before loading anything
     determinism.pin(seed, threads)
     dev = determinism.device(device)
-    model, tokenizer = load_base(base_dir)
+    model, tokenizer = load_base(base_dir, dtype)
     examples = [encode(tokenizer, r, max_len) for r in rows]
     lora.inject(model, targets, rank, alpha)
     model.to(dev)
@@ -64,17 +68,19 @@ def train(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, 
         if log is not None and (step % 10 == 0 or step == steps - 1):
             log(f"step {step + 1}/{steps} loss {losses[-1]:.4f}")
     seconds = time.monotonic() - start
-    model.to(torch.device("cpu"))
     return model, tokenizer, losses, seconds
 
 
 def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, targets: list, rank: int = 8,
              alpha: float = 16.0, steps: int = 60, lr: float = 2e-4, max_len: int = 128, seed: int = 1234,
              threads: int = 4, prompts=None, top_k: int = 64, new_tokens: int = 16, critical: int = 4,
-             log=None) -> dict:
+             device: str = "cpu", dtype: str = DEFAULT_DTYPE, log=None) -> dict:
     """Train an adapter and write a genome directory:
 
     out_dir/genome.json, adapter/, fixtures.json, data/train.jsonl
+
+    device and dtype are recorded in the recipe: the fixtures are the
+    model's behaviour there, and the door restores the base in that dtype.
     """
     if os.path.exists(out_dir) and os.listdir(out_dir):
         raise FileExistsError(f"{out_dir} exists and is not empty")
@@ -82,7 +88,8 @@ def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, tar
     rows = load_jsonl(data_path)
     model, tokenizer, losses, seconds = train(
         base_dir, rows, targets=targets, rank=rank, alpha=alpha, steps=steps, lr=lr,
-        max_len=max_len, seed=seed, threads=threads, log=log)
+        max_len=max_len, seed=seed, threads=threads, device=device, dtype=dtype, log=log)
+    dev = next(model.parameters()).device
 
     os.makedirs(out_dir, exist_ok=True)
     adapter_dir = os.path.join(out_dir, "adapter")
@@ -90,8 +97,7 @@ def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, tar
     os.makedirs(os.path.join(out_dir, "data"), exist_ok=True)
     shutil.copyfile(data_path, os.path.join(out_dir, "data", "train.jsonl"))
 
-    cpu = torch.device("cpu")
-    fx = fixtures.build(model, tokenizer, prompts or _default_prompts(rows), cpu, top_k, new_tokens, critical)
+    fx = fixtures.build(model, tokenizer, prompts or _default_prompts(rows), dev, top_k, new_tokens, critical)
     fx_path = os.path.join(out_dir, "fixtures.json")
     with open(fx_path, "w", encoding="utf-8") as f:
         json.dump(fx, f, sort_keys=True)
@@ -119,6 +125,8 @@ def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, tar
             "max_len": max_len,
             "seed": seed,
             "threads": threads,
+            "device": dev.type,
+            "dtype": dtype,
             "optimizer": {"name": "adamw", "betas": list(BETAS), "eps": EPS, "weight_decay": 0.0},
             "clip_grad_norm": CLIP,
             "losses": losses,
@@ -131,7 +139,7 @@ def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, tar
             "critical": min(critical, len(fx["fixtures"])),
             "top_k": top_k,
             "new_tokens": new_tokens,
-            "kind": "last-position logits at the reference top-k tokens, float32",
+            "kind": f"last-position logits at the reference top-k tokens, float32, computed in {dtype} on {dev.type}",
         },
         "runtime": determinism.runtime(),
     }
@@ -149,19 +157,28 @@ def load_genome(genome_dir: str) -> dict:
     return g
 
 
-def replay(genome_dir: str, base_dir: str, device: str = "cpu", log=None) -> dict:
-    """Re-run a genome's recipe on base_dir (on device) and compare the
-    adapter it produces with the sealed one, tensor by tensor."""
+def recipe_dtype(g: dict, override=None) -> str:
+    """The dtype a genome's base is restored in: the recipe's, unless the
+    caller overrides it for a measurement; float32 for a genome that
+    predates the field."""
+    return override or g["recipe"].get("dtype", DEFAULT_DTYPE)
+
+
+def replay(genome_dir: str, base_dir: str, device: str = "cpu", dtype=None, log=None) -> dict:
+    """Re-run a genome's recipe on base_dir (on device, in the recipe's
+    dtype unless overridden) and compare the adapter it produces with the
+    sealed one, tensor by tensor."""
     g = load_genome(genome_dir)
     manifest.verify(base_dir, g["base"]["manifest"])
     r = g["recipe"]
+    dtype = recipe_dtype(g, dtype)
     data_path = os.path.join(genome_dir, r["data"])
     if file_digest(data_path) != r["data_sha256"]:
         raise ValueError("the genome's training data does not match its recipe")
     model, _, losses, seconds = train(
         base_dir, load_jsonl(data_path), targets=g["adapter"]["targets"], rank=g["adapter"]["r"],
         alpha=g["adapter"]["alpha"], steps=r["steps"], lr=r["lr"], max_len=r["max_len"], seed=r["seed"],
-        threads=r["threads"], device=device, log=log)
+        threads=r["threads"], device=device, dtype=dtype, log=log)
     from safetensors.torch import load_file
 
     sealed = load_file(os.path.join(genome_dir, g["adapter"]["dir"], lora.ADAPTER_WEIGHTS))
@@ -183,6 +200,7 @@ def replay(genome_dir: str, base_dir: str, device: str = "cpu", log=None) -> dic
     loss_diff = max(abs(x - y) for x, y in zip(losses, r["losses"]))
     return {
         "device": device,
+        "dtype": dtype,
         "exact": exact,
         "max_abs_diff": max_abs,
         "max_rel_diff": max_rel,

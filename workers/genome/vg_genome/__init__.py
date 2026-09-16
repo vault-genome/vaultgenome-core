@@ -16,7 +16,10 @@ it came back right:
   recomputes and a gate compares.
 
 Every step runs deterministically on a pinned runtime: a fixed seed, a fixed
-number of threads, deterministic kernels, a fixed data order, float32.
+number of threads, deterministic kernels, a fixed data order, and the
+recipe's device and dtype — float32 on the CPU unless the recipe says
+otherwise (a 7B base trains in bfloat16 on a GPU); the adapter and every
+measurement are float32 whatever the base computes in.
 """
 
 __version__ = "0.1.0"

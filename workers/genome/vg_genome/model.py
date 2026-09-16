@@ -6,19 +6,33 @@ import torch
 
 from . import lora
 
+# The dtypes a recipe may name for the base model. The adapter and every
+# measurement stay float32 whatever the base computes in.
+DTYPES = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}
+DEFAULT_DTYPE = "float32"
 
-def load_base(base_dir: str):
-    """The base model in float32 and its tokenizer, from local files only."""
+
+def torch_dtype(name: str) -> torch.dtype:
+    """The torch dtype a recipe names; anything else is refused."""
+    try:
+        return DTYPES[name]
+    except KeyError:
+        raise ValueError(f"unsupported dtype {name!r} (one of {', '.join(DTYPES)})") from None
+
+
+def load_base(base_dir: str, dtype: str = DEFAULT_DTYPE):
+    """The base model in dtype (float32 unless a recipe says otherwise) and
+    its tokenizer, from local files only."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(base_dir, local_files_only=True)
-    model = AutoModelForCausalLM.from_pretrained(base_dir, local_files_only=True, torch_dtype=torch.float32)
+    model = AutoModelForCausalLM.from_pretrained(base_dir, local_files_only=True, torch_dtype=torch_dtype(dtype))
     model.eval()
     return model, tokenizer
 
 
-def load_with_adapter(base_dir: str, adapter_dir: str, device: torch.device):
-    model, tokenizer = load_base(base_dir)
+def load_with_adapter(base_dir: str, adapter_dir: str, device: torch.device, dtype: str = DEFAULT_DTYPE):
+    model, tokenizer = load_base(base_dir, dtype)
     lora.load(model, adapter_dir)
     model.to(device)
     model.eval()

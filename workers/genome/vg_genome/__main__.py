@@ -41,11 +41,15 @@ def main(argv=None) -> int:
     ft.add_argument("--top-k", type=int, default=64)
     ft.add_argument("--new-tokens", type=int, default=16)
     ft.add_argument("--critical", type=int, default=4, help="the first N fixtures are critical")
+    ft.add_argument("--device", default="cpu", help="cpu, cuda, mps or auto: where the adapter trains and the fixtures are recorded")
+    ft.add_argument("--dtype", default="float32", choices=["float32", "bfloat16", "float16"],
+                    help="the base model's dtype, recorded in the recipe (the adapter stays float32)")
 
     rp = sub.add_parser("replay", help="re-run a genome's recipe and compare the adapter")
     rp.add_argument("--genome", required=True)
     rp.add_argument("--base", required=True)
     rp.add_argument("--device", default="cpu", help="cpu, cuda, mps or auto")
+    rp.add_argument("--dtype", choices=["float32", "bfloat16", "float16"], help="override the recipe's dtype (a measurement, not the pinned runtime)")
 
     dr = sub.add_parser("door", help="answer one gate request from a restored genome")
     dr.add_argument("--genome", help="restored genome directory (unless --stdin-genome)")
@@ -53,11 +57,13 @@ def main(argv=None) -> int:
                     help="the genome arrives on stdin with the request, in memory (the acp-compute worker's door)")
     dr.add_argument("--base", required=True)
     dr.add_argument("--device", default="cpu", help="cpu, cuda, mps or auto")
+    dr.add_argument("--dtype", choices=["float32", "bfloat16", "float16"], help="override the recipe's dtype (a measurement, not the pinned runtime)")
 
     ms = sub.add_parser("measure", help="recompute every fixture and report fidelity")
     ms.add_argument("--genome", required=True)
     ms.add_argument("--base", required=True)
     ms.add_argument("--device", default="cpu")
+    ms.add_argument("--dtype", choices=["float32", "bfloat16", "float16"], help="override the recipe's dtype (a measurement, not the pinned runtime)")
 
     vb = sub.add_parser("verify-base", help="check a base model directory against a genome's manifest")
     vb.add_argument("--genome", required=True)
@@ -72,11 +78,14 @@ def main(argv=None) -> int:
         g = finetune.finetune(
             a.base, a.data, a.out, base_name=a.base_name, targets=[t for t in a.targets.split(",") if t],
             rank=a.rank, alpha=a.alpha, steps=a.steps, lr=a.lr, max_len=a.max_len, seed=a.seed,
-            threads=a.threads, prompts=prompts, top_k=a.top_k, new_tokens=a.new_tokens, critical=a.critical, log=_log)
+            threads=a.threads, prompts=prompts, top_k=a.top_k, new_tokens=a.new_tokens, critical=a.critical,
+            device=a.device, dtype=a.dtype, log=_log)
         summary = {k: g[k] for k in ("schema", "created_at")}
         summary.update({
             "base_digest": g["base"]["manifest"]["digest"],
             "adapter_parameters": g["adapter"]["parameters"],
+            "device": g["recipe"]["device"],
+            "dtype": g["recipe"]["dtype"],
             "loss_first": g["recipe"]["losses"][0],
             "loss_last": g["recipe"]["losses"][-1],
             "train_seconds": g["recipe"]["train_seconds"],
@@ -84,18 +93,18 @@ def main(argv=None) -> int:
         })
         print(json.dumps(summary, indent=2))
     elif a.cmd == "replay":
-        print(json.dumps(finetune.replay(a.genome, a.base, device=a.device, log=_log), indent=2))
+        print(json.dumps(finetune.replay(a.genome, a.base, device=a.device, dtype=a.dtype, log=_log), indent=2))
     elif a.cmd == "door":
         if a.stdin_genome:
             if a.genome:
                 p.error("--stdin-genome takes the genome from stdin; drop --genome")
-            door.serve_request(a.base, a.device)
+            door.serve_request(a.base, a.device, dtype=a.dtype)
         elif a.genome:
-            door.serve(a.genome, a.base, a.device)
+            door.serve(a.genome, a.base, a.device, dtype=a.dtype)
         else:
             p.error("door needs --genome DIR or --stdin-genome")
     elif a.cmd == "measure":
-        print(json.dumps(door.measure(a.genome, a.base, a.device), indent=2))
+        print(json.dumps(door.measure(a.genome, a.base, a.device, dtype=a.dtype), indent=2))
     elif a.cmd == "verify-base":
         g = finetune.load_genome(a.genome)
         manifest.verify(a.base, g["base"]["manifest"])
