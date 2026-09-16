@@ -233,9 +233,12 @@ type attestationVerifiedPayload struct {
 	RequestID              ids.RequestID  `json:"request_id"`
 	DestinationKind        tee.Provider   `json:"destination_kind"`
 	DestinationMeasurement []byte         `json:"destination_measurement"`
-	EvidenceHash           []byte         `json:"evidence_hash"`
-	RecipientKeySHA256     []byte         `json:"recipient_key_sha256"`
-	VerifiedAt             time.Time      `json:"verified_at"`
+	// DestinationDetail is what the verifier said beyond the measurement
+	// (the platform, the GPUs and their evaluations), when it had more.
+	DestinationDetail  *tee.AttestationDetail `json:"destination_detail,omitempty"`
+	EvidenceHash       []byte                 `json:"evidence_hash"`
+	RecipientKeySHA256 []byte                 `json:"recipient_key_sha256"`
+	VerifiedAt         time.Time              `json:"verified_at"`
 }
 
 // Stages at which a key release can be refused, as recorded in
@@ -442,7 +445,7 @@ func (c *Coordinator) CoordinateRestore(
 	if err != nil {
 		return early, err
 	}
-	measurement, err := verifier.Verify(hsResp.Evidence, RecipientChallenge(recipientPub, nonce))
+	measurement, detail, err := tee.VerifyDetailed(verifier, hsResp.Evidence, RecipientChallenge(recipientPub, nonce))
 	if err != nil {
 		return early, c.deny(req, requestID, denialAttestation, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
@@ -459,6 +462,7 @@ func (c *Coordinator) CoordinateRestore(
 		RequestID:              requestID,
 		DestinationKind:        req.DestinationKind,
 		DestinationMeasurement: measurementBytes,
+		DestinationDetail:      detail,
 		EvidenceHash:           evidenceHash[:],
 		RecipientKeySHA256:     recipientKeyHash[:],
 		VerifiedAt:             c.clock.Now().UTC(),

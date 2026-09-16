@@ -215,3 +215,38 @@ func TestRecorder_FullPipelineOnSimulator(t *testing.T) {
 	// Histogram +Inf bucket for each role/op exists.
 	require.True(t, strings.Contains(out, `_bucket{le="+Inf",provider="simulated",role="produce"} 1`))
 }
+
+type stubDetailedVerifier struct {
+	stubVerifier
+	detail *tee.AttestationDetail
+}
+
+func (s *stubDetailedVerifier) VerifyDetailed(_ tee.Evidence, _ tee.Nonce) (tee.Measurement, *tee.AttestationDetail, error) {
+	return s.measurement, s.detail, s.err
+}
+
+// The wrapper hands the inner verifier's detail through — the audit
+// record must not lose the GPU evaluation to the metrics wrapper — and
+// counts the verification once, as verify.
+func TestRecorder_WrapVerifier_KeepsTheDetail(t *testing.T) {
+	t.Parallel()
+	r := metrics.NewRegistry()
+	rec := teemetrics.New(r)
+	want := &tee.AttestationDetail{Provider: tee.ProviderAzureCGPU, Product: "Genoa"}
+
+	v := rec.WrapVerifier("azure-cgpu", &stubDetailedVerifier{stubVerifier: stubVerifier{measurement: tee.MeasurementOf([]byte("x"))}, detail: want})
+	m, d, err := tee.VerifyDetailed(v, []byte("ev"), make(tee.Nonce, tee.NonceMinBytes))
+	require.NoError(t, err)
+	require.Equal(t, want, d)
+	require.True(t, tee.MeasurementOf([]byte("x")).Equal(m))
+
+	plain := rec.WrapVerifier("simulated", &stubVerifier{measurement: tee.MeasurementOf([]byte("y"))})
+	_, d, err = tee.VerifyDetailed(plain, []byte("ev"), make(tee.Nonce, tee.NonceMinBytes))
+	require.NoError(t, err)
+	require.Nil(t, d, "a plain inner verifier has no detail to hand through")
+
+	var buf bytes.Buffer
+	require.NoError(t, r.WriteMetricsTo(&buf))
+	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="azure-cgpu",result="success",role="verify"} 1`)
+	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="simulated",result="success",role="verify"} 1`)
+}

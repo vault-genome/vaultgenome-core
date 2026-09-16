@@ -170,3 +170,30 @@ func TestNewAdmission_RefusesMissingDeps(t *testing.T) {
 	_, err = NewAdmission(h.clock, h.store, h.kid, Options{Profiles: []string{""}})
 	require.Error(t, err)
 }
+
+// What the peer's verifier said beyond the measurement rides on the
+// decision, allow or deny, for the audit record.
+func TestEvaluate_CarriesThePeersDetailOntoTheDecision(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	a := h.admission(t, Options{})
+	peer := h.peer
+	peer.Provider = tee.ProviderAzureCGPU
+	peer.Detail = &tee.AttestationDetail{Provider: tee.ProviderAzureCGPU, Product: "Genoa",
+		GPUs: []tee.GPUVerdict{{Key: "GPU-0", HWModel: "GH100", Issuer: "own evaluation"}}}
+
+	d, err := a.Evaluate(h.req, peer, 0)
+	require.NoError(t, err)
+	require.True(t, d.Allowed)
+	require.Equal(t, peer.Detail, d.PeerDetail)
+
+	denied := h.admission(t, Options{StopList: h.stopList(t, 3, true, nil)})
+	d, err = denied.Evaluate(h.req, peer, 0)
+	require.NoError(t, err)
+	require.False(t, d.Allowed)
+	require.Equal(t, peer.Detail, d.PeerDetail, "a denial says what was seen too")
+
+	d, err = a.Evaluate(h.req, h.peer, 0)
+	require.NoError(t, err)
+	require.Nil(t, d.PeerDetail, "a peer with nothing beyond the measurement carries none")
+}

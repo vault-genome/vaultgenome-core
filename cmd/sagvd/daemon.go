@@ -324,11 +324,11 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		HandshakeTimeout:  d.cfg.Runtime.HandshakeTimeout(),
 		OnSessionOpened: func(state *transport.SessionState) {
 			d.metrics.sessionsOpened.Inc()
-			d.log.Info("sagvd session opened",
+			d.log.Info("sagvd session opened", append([]any{
 				"remote_addr", remote,
 				"peer_measurement", hex.EncodeToString(state.PeerMeasurement[:]),
 				"ready_at", state.ReadyAt.Format(time.RFC3339Nano),
-			)
+			}, peerDetailLogFields(state.PeerDetail)...)...)
 		},
 		OnIntegrityFailure: func(ihErr error) {
 			tamper.Store(true)
@@ -366,9 +366,11 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 	}
 	defer func() { _ = sess.Close() }()
 	var peerMeasurement tee.Measurement
+	var peerDetail *tee.AttestationDetail
 	var evidenceAt time.Time
 	if state := sess.State(); state != nil {
 		peerMeasurement = state.PeerMeasurement
+		peerDetail = state.PeerDetail
 		evidenceAt = state.ReadyAt
 	}
 
@@ -404,7 +406,7 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 
 	// Stage 2 — Trust Admission for this request and this peer.
 	dec, err := flow.Admit(trust.Peer{
-		Provider: d.mat.PeerProvider, Measurement: peerMeasurement, RemoteAddr: remote, EvidenceAt: evidenceAt,
+		Provider: d.mat.PeerProvider, Measurement: peerMeasurement, RemoteAddr: remote, EvidenceAt: evidenceAt, Detail: peerDetail,
 	}, ttl)
 	if err != nil {
 		d.abortJob(job, "trust", err, sess, log)

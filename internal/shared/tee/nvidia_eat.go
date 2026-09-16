@@ -310,12 +310,12 @@ type GPUClaimsPolicy struct {
 // GPUVerdict is what NVIDIA said about one GPU, after this verifier
 // checked the token that said it.
 type GPUVerdict struct {
-	Key           string // NRAS's key for the device, e.g. GPU-0
-	HWModel       string
-	DriverVersion string
-	VBIOSVersion  string
-	UEID          string
-	Issuer        string
+	Key           string `json:"key"` // NRAS's key for the device, e.g. GPU-0
+	HWModel       string `json:"hw_model,omitempty"`
+	DriverVersion string `json:"driver_version,omitempty"`
+	VBIOSVersion  string `json:"vbios_version,omitempty"`
+	UEID          string `json:"ueid,omitempty"`
+	Issuer        string `json:"issuer,omitempty"` // who vouched: NVIDIA's token or "own evaluation"
 }
 
 func claimBool(c map[string]any, name string) (bool, bool) {

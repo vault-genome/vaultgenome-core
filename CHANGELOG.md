@@ -13,6 +13,18 @@ given release can still open.
 
 ### Added
 
+- **The verifier's evaluation of a confidential GPU host is on the audit
+  record** ([ADR-0021](docs/adr/0021-the-verifiers-own-evaluation-of-the-gpu.md),
+  amended) — a verifier that can say more than a measurement
+  (`tee.DetailedVerifier`; the `azure-cgpu` verifier does) puts its detail
+  — the chip's product and id, the reported TCB, the vTPM quote's PCR
+  selection and digest, each GPU with who vouched for it, the verifier's
+  own evaluations check by check — on `TRUST_EVALUATED` as `peer_detail`
+  when `sagvd` admits the worker and on `CROSS_CLOUD_ATTESTATION_VERIFIED`
+  as `destination_detail` when the authority releases a key to it. Absent
+  for verifiers with only a measurement, so other providers' records are
+  unchanged. The session-opened log line carries the operator's glance
+  (provider, product, PCRs, GPUs, evaluations complete).
 - **The daemons' key files sealed to the host**
   ([ADR-0023](docs/adr/0023-the-daemons-key-files-sealed-to-the-host.md))
   — `sagvd seal-keys` and `acp-compute seal-keys` seal, in place, every

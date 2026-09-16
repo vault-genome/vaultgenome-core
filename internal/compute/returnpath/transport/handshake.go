@@ -102,7 +102,11 @@ type SessionState struct {
 	TxKey           []byte // 32 bytes; used to MAC frames we write
 	RxKey           []byte // 32 bytes; used to verify frames we read
 	PeerMeasurement tee.Measurement
-	ReadyAt         time.Time
+	// PeerDetail is what the verifier said beyond the measurement (the
+	// platform, the GPUs), for the audit record; nil for a verifier
+	// with nothing more to say.
+	PeerDetail *tee.AttestationDetail
+	ReadyAt    time.Time
 }
 
 // handshake-level domain-separation labels. These are concatenated into
@@ -369,7 +373,7 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	// pre-binds the expected measurement so an attacker cannot
 	// substitute a valid quote from a different enclave.
 	serverChallenge := transcriptServerChallenge(clientNonce, cfg.ProposedChallenge)
-	peerM, err := cfg.Verifier.Verify(tee.Evidence(hs.ServerEvidence), tee.Nonce(serverChallenge))
+	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, tee.Evidence(hs.ServerEvidence), tee.Nonce(serverChallenge))
 	if err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
 			CodeHandshakeFailure,
@@ -426,6 +430,7 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		TxKey:           c2s,
 		RxKey:           s2c,
 		PeerMeasurement: peerM,
+		PeerDetail:      peerDetail,
 		ReadyAt:         sr.ReadyAt,
 	}, nil
 }
@@ -484,7 +489,7 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	clientChallenge := transcriptClientChallenge(
 		hc.ClientNonce, serverNonce, derivationContext,
 	)
-	peerM, err := cfg.Verifier.Verify(tee.Evidence(ac.ClientEvidence), tee.Nonce(clientChallenge))
+	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, tee.Evidence(ac.ClientEvidence), tee.Nonce(clientChallenge))
 	if err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
 			CodeHandshakeFailure,
@@ -516,6 +521,7 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		TxKey:           s2c,
 		RxKey:           c2s,
 		PeerMeasurement: peerM,
+		PeerDetail:      peerDetail,
 		ReadyAt:         ready.ReadyAt,
 	}, nil
 }

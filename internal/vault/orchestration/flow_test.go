@@ -469,3 +469,38 @@ func TestFlow_EdgesAndAccessors(t *testing.T) {
 	require.True(t, f.Ended())
 	require.Equal(t, "invalid", State(200).String())
 }
+
+// What the peer's verifier said beyond the measurement is on the
+// TRUST_EVALUATED record: for a confidential GPU worker, the GPUs and the
+// verifier's own evaluation of their reports.
+func TestFlow_TrustRecordCarriesThePeersDetail(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	f, err := h.authority.Intake(h.request("req-1", "gate"), []byte(`{"job_id":"j1"}`))
+	require.NoError(t, err)
+	peer := h.peer
+	peer.Provider = tee.ProviderAzureCGPU
+	peer.Detail = &tee.AttestationDetail{Provider: tee.ProviderAzureCGPU, Product: "Genoa",
+		GPUs: []tee.GPUVerdict{{Key: "GPU-0", HWModel: "GH100", DriverVersion: "580.95.05", Issuer: "own evaluation"}}}
+
+	dec, err := f.Admit(peer, 10*time.Minute)
+	require.NoError(t, err)
+	require.True(t, dec.Allowed)
+	e, _ := h.chain.EventAt(1)
+	require.Equal(t, "TRUST_EVALUATED", string(e.Kind))
+	require.Contains(t, string(e.Payload), `"peer_provider":"azure-cgpu"`)
+	// The payload is canonical JSON: keys sorted, the detail's own keys too.
+	require.Contains(t, string(e.Payload), `"peer_detail":{"gpus":[{"driver_version":"580.95.05","hw_model":"GH100","issuer":"own evaluation","key":"GPU-0"}],"product":"Genoa","provider":"azure-cgpu"}`)
+	var p trustEvaluatedPayload
+	require.NoError(t, json.Unmarshal(e.Payload, &p))
+	require.Equal(t, peer.Detail, p.PeerDetail)
+
+	// Without more than a measurement, the field is off the record.
+	f2, err := h.authority.Intake(h.request("req-2", "gate"), []byte(`{"job_id":"j2"}`))
+	require.NoError(t, err)
+	_, err = f2.Admit(h.peer, 10*time.Minute)
+	require.NoError(t, err)
+	e, _ = h.chain.EventAt(3)
+	require.Equal(t, "TRUST_EVALUATED", string(e.Kind))
+	require.NotContains(t, string(e.Payload), "peer_detail")
+}

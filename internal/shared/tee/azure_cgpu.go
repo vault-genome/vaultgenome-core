@@ -448,6 +448,27 @@ func (v *AzureCGPUVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error
 	return verdict.Measurement, nil
 }
 
+// VerifyDetailed implements DetailedVerifier: the verdict's platform and
+// GPU facts go with the measurement.
+func (v *AzureCGPUVerifier) VerifyDetailed(ev Evidence, nonce Nonce) (Measurement, *AttestationDetail, error) {
+	verdict, err := v.VerifyEvidence(ev, nonce)
+	if err != nil {
+		return nil, nil, err
+	}
+	return verdict.Measurement, verdict.Detail(), nil
+}
+
+// Detail is the verdict as an AttestationDetail for the audit record.
+func (d *AzureCGPUVerdict) Detail() *AttestationDetail {
+	sel := make([]string, 0, len(d.PCRSelections))
+	for _, s := range d.PCRSelections {
+		sel = append(sel, s.String())
+	}
+	return &AttestationDetail{Provider: ProviderAzureCGPU, Product: d.Product, ChipIDHex: hex.EncodeToString(d.ChipID[:]),
+		ReportedTCB: d.ReportedTCB, PCRSelection: strings.Join(sel, "+"), PCRDigestHex: hex.EncodeToString(d.PCRDigest),
+		GPUs: d.GPUs, Evaluations: d.Evaluations}
+}
+
 // VerifyEvidence verifies and says what the evidence said.
 func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPUVerdict, error) {
 	integrity := func(code, msg string, err error) error {

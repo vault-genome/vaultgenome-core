@@ -110,7 +110,13 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    gate EQUIVALENT on the GPU), and so has a key release to a TDX
    destination (`scripts/hardware-test/failover-tdx`, 2026-09-16: the same
    failover to a GCP c3 Trust Domain, its quote verified to Intel's root
-   with Intel's TCB word, the gate EQUIVALENT on its CPUs).
+   with Intel's TCB word, the gate EQUIVALENT on its CPUs). Since
+   2026-09-16 (ADR 0021, amended) what the `azure-cgpu` verifier checked
+   is on the audit record itself — `peer_detail` on `TRUST_EVALUATED`,
+   `destination_detail` on `CROSS_CLOUD_ATTESTATION_VERIFIED`: the chip,
+   the quote's PCRs, each GPU and who vouched for it, the verifier's own
+   evaluations check by check — proven in process; a live record from the
+   H100 host awaits the next hardware run.
    Still scaffolding: the AWS Nitro, Azure SGX and Intel SGX DCAP adapters —
    `sagvd`'s verifier registry and `acp-bootstrap` refuse those families
    rather than trust them. `sagvd` and `acp-compute` attest with SEV-SNP,

@@ -107,6 +107,15 @@ GPU verifier):
   NRAS is reachable. With `both` or `own`, the guest's `gpu_attest_command` must
   print the full form (`{"nras": …, "gpu_evidence": […]}`, as the kit's
   `gpu-token.py` does), or the handshake is refused for want of a report.
+  What the verifier checked is on the audit record: the `TRUST_EVALUATED`
+  event that admits the worker carries `peer_detail` — the chip's product
+  and id, the reported TCB, the quote's PCR selection and digest, each
+  GPU with who vouched for it (`issuer`: NVIDIA's token or
+  `own evaluation`), and under `both`/`own` the verifier's own
+  `evaluations` check by check (`acpctl audit query` prints each event
+  with its `payload`); the `sagvd session opened` log line carries
+  the glance (`peer_provider`, `peer_product`, `peer_pcrs`, `peer_gpus`,
+  `peer_gpu_evaluations`).
 - `gpu_policy`: `hw_models`, `driver_versions`, `vbios_versions` pin what
   NVIDIA reports (`GH100`, `595.71.05`, `96.00.9F.00.04` on the machine
   measured); `allow_secure_boot_off`, `allow_debug`, `allow_unsigned_rim`
