@@ -59,6 +59,7 @@ first MVP tag the sequence is:
 ```
 git tag -s v0.1.0 -m "MVP — release-side doctrine-closed, 11/11 invariants enforced"
 git push origin v0.1.0
+# 0.2.0 followed the same steps on 2026-09-17 (tag message: the CHANGELOG's intro)
 ```
 
 The workflow's first step after checkout runs `git verify-tag` on the tag and
