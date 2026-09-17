@@ -11,8 +11,23 @@ given release can still open.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.1] — 2026-09-17
+
+The reference release: the code of 0.2.0 with static binaries that anyone
+rebuilds byte for byte from any host with the pinned Go, the post-release
+check run from macOS against these artifacts, and the Go modules Dependabot
+bumped after 0.2.0.
+
 ### Changed
 
+- **Dependencies:** `github.com/beevik/etree` 1.7.0 → 1.8.0,
+  `github.com/stretchr/testify` 1.11.1 → 1.12.1, `go.etcd.io/bbolt` 1.3.10
+  → 1.5.0 (Dependabot, #26; the gate green); the dependency justifications
+  under `docs/dependencies/` no longer carry a version (the version is
+  `go.mod`'s). Dependabot opens no pull requests against the worker's
+  measured Python runtime.
 - **Release binaries are static** (`CGO_ENABLED=0` in the build): they run
   on any linux/amd64 without a libc to match, and anyone rebuilds them byte
   for byte from any host with the pinned Go — the post-release check of
