@@ -11,6 +11,43 @@ given release can still open.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.0] — 2026-09-17
+
+Two days of hardware, on the record. Since 0.1.0 the worker restores a real
+fine-tuned model and the authority judges it (ADR 0013); the nine governed
+stages run for every job, each decision on the audit log before it takes
+effect (ADR 0014, 0015); the authority's escrow key is made in its own
+process and lives only sealed to the chip or, on TDX and the Azure
+confidential GPU host, to the guest's vTPM (ADR 0016, 0022), and every
+other secret file the daemons read — seeds, the session sealing key, TLS
+keys, tokens, the sentinel's seed — is sealed to the host in place
+(ADR 0023); the primary's word is bounded by its chip's report (ADR 0017);
+Intel TDX and the Azure confidential GPU VM attest on the Return Path
+(ADR 0018, 0019); the integer door gives the same bytes on a Xeon and an
+L4 (ADR 0020); the H100's attestation report is evaluated by this verifier
+— signature, chain, firmware id, every measurement against NVIDIA's signed
+manifests, revocation asked of NVIDIA's responder — and what it checked is
+on the audit record (ADR 0021). Five continuity drills ran on live
+confidential hardware in two clouds (SEV-SNP → SEV-SNP, → Azure H100,
+→ Intel TDX; the authority on TDX; eight policies against one attack), and
+a 32B model went through the genome path on a confidential H100, gated
+EXACT. Claims C13–C26 in VERIFIABLE-CLAIMS.md carry the evidence.
+
+**Compatibility.** The genome v3 bundle format and the audit event
+schemas are unchanged; new audit payload fields (`peer_detail`,
+`destination_detail`) are optional. New config fields are optional
+(`tee.sev_guest_device`, `tee.vtpm_seal_pcrs`, `gpu_policy.revocation`,
+`gpu_policy.ocsp_url`, `runtime.max_payload_bytes` as before), and
+`gpu_policy.evaluation: "own"` is admitted. Key files may now be sealed
+(`vault-genome/sealed-secret/v1`); bare files still load. The Return Path
+wire format is unchanged, but its frame cap moved from 16 MiB to 128 MiB:
+both ends of a Return Path must run this release or later for a genome
+over 16 MiB. The `go` directive is 1.26. Two dependencies were added
+(`golang.org/x/crypto`, `github.com/beevik/etree`), both justified under
+`docs/dependencies/`.
+
 ### Added
 
 - **A 32B model through the genome path on the confidential H100**
@@ -395,6 +432,10 @@ given release can still open.
 
 ### Changed
 
+- **Every GitHub Action pinned by commit SHA**, the version kept as a comment
+  and Dependabot keeping both current; the SLSA generator stays on its tag by
+  design (`slsa-verifier` checks the builder id against the tag). The
+  OpenSSF Scorecard workflow and Dependabot were added in this release.
 - **Every product package meets its coverage target** — `cmd/acp-compute`
   (58% → 82%: the daemon's entry point run to a signalled stop, TLS to the
   vault verified and refused under another CA, the metric outcome of each

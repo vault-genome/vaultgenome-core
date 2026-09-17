@@ -113,8 +113,8 @@ cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
 slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
-  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.1.0
-git verify-tag v0.1.0
+  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.2.0
+git verify-tag v0.2.0
 ```
 
 [`docs/operator/05_release_procedure.md`](docs/operator/05_release_procedure.md)

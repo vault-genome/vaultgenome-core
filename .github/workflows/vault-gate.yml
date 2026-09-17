@@ -42,13 +42,13 @@ jobs:
         working-directory: .
     steps:
       - name: Checkout (with tags for signing-cert validation)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27.0'
           cache: true
@@ -90,7 +90,7 @@ jobs:
         # golangci-lint v2 (action v8): v1.x cannot read Go 1.25's export
         # data and fails every package with a spurious "unsupported
         # version: 2" typecheck error. Config: .golangci.yml (pinned).
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9 # v8
         with:
           version: v2.13.2
           args: --timeout=5m
@@ -107,7 +107,7 @@ jobs:
 
       # 11 osv-scanner
       - name: osv-scanner
-        uses: google/osv-scanner-action/osv-scanner-action@v2.6.0
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         with:
           # Scan the product module only. A recursive scan (`-r .`) also
           # descends into operational helper modules under
@@ -137,7 +137,7 @@ jobs:
           make sbom
 
       - name: upload sbom
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom-${{ github.sha }}
           path: dist/sbom.spdx.json
