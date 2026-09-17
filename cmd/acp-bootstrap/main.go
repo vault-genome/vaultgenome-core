@@ -11,6 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
 	"log/slog"
 	"net"
 	"net/http"
@@ -38,6 +39,7 @@ var (
 )
 
 func main() {
+	version, commit = buildinfo.Resolve(version, commit)
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":

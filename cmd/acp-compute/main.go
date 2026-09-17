@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -27,6 +28,7 @@ var (
 )
 
 func main() {
+	version, commit = buildinfo.Resolve(version, commit)
 	// Sub-command dispatch (version / help) — these short-circuit before
 	// any daemon wiring so the binary remains cheap to probe in CI.
 	if len(os.Args) > 1 {

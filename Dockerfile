@@ -5,14 +5,22 @@
 # plus the admin CLI. Static binaries on a distroless base — no shell, no libc.
 #
 #   docker build -t vaultgenome .
+#   docker build --build-arg VERSION=v0.3.2 --build-arg COMMIT=$(git rev-parse --short HEAD) -t vaultgenome .
 #   docker run --rm vaultgenome                 # runs the demo (simulation mode)
 #   docker run --rm --entrypoint acpctl vaultgenome version
 
 FROM golang:1.27.0-alpine AS build
 WORKDIR /src
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/acp-demo ./cmd/acp-demo \
- && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/acpctl   ./cmd/acpctl
+# .dockerignore excludes .git, so Go can embed no VCS revision and the binary
+# cannot recover its own identity at runtime. Pass it in instead, the same way
+# the Makefile and the release workflow do:
+#   docker build --build-arg VERSION=v0.3.2 --build-arg COMMIT=$(git rev-parse --short HEAD) .
+ARG VERSION=0.0.0-dev
+ARG COMMIT=none
+RUN LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="${LDFLAGS}" -o /out/acp-demo ./cmd/acp-demo \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="${LDFLAGS}" -o /out/acpctl   ./cmd/acpctl
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/acp-demo /usr/local/bin/acp-demo
