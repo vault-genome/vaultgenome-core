@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
 	"os"
 )
 
@@ -13,6 +14,7 @@ var (
 )
 
 func main() {
+	version, commit = buildinfo.Resolve(version, commit)
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
