@@ -32,17 +32,10 @@ updates:
     labels: [dependencies, ci]
     commit-message:
       prefix: "deps(actions)"
-  - package-ecosystem: pip
-    directory: /workers/genome
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: UTC
-    groups:
-      python:
-        patterns: ["*"]
-    open-pull-requests-limit: 3
-    labels: [dependencies, python]
-    commit-message:
-      prefix: "deps(python)"
+  # The worker's Python runtime (workers/genome/requirements.txt) is not a
+  # dependency set a bot may move: torch, transformers, tokenizers,
+  # safetensors and numpy are the pinned runtime the determinism
+  # measurements were made on (VERIFIABLE-CLAIMS C16, C19, C26). A change
+  # there is a re-measurement on hardware, made by hand and recorded.
+  # Dependabot still raises security alerts for them; it opens no pull
+  # request.
