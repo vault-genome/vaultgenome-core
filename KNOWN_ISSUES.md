@@ -120,8 +120,11 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    is on the audit record itself — `peer_detail` on `TRUST_EVALUATED`,
    `destination_detail` on `CROSS_CLOUD_ATTESTATION_VERIFIED`: the chip,
    the quote's PCRs, each GPU and who vouched for it, the verifier's own
-   evaluations check by check — proven in process; a live record from the
-   H100 host awaits the next hardware run.
+   evaluations check by check — proven in process and on a live record
+   from the H100 host (`scripts/hardware-test/azure-cgpu/evidence/20260917T012834Z-returnpath/`,
+   the `TRUST_EVALUATED` event that admitted the worker; the cross-cloud
+   drill's `CROSS_CLOUD_ATTESTATION_VERIFIED` record likewise,
+   `scripts/hardware-test/failover-cgpu/evidence/20260916T233717Z/`).
    Still scaffolding: the AWS Nitro, Azure SGX and Intel SGX DCAP adapters —
    `sagvd`'s verifier registry and `acp-bootstrap` refuse those families
    rather than trust them. `sagvd` and `acp-compute` attest with SEV-SNP,

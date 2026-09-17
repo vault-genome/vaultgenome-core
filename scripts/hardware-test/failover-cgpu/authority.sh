@@ -108,7 +108,8 @@ python3 - <<PY
 import json
 S="$S"; DMEAS="$DMEAS"; DPCR="$DPCR"; PMEAS="$PMEAS"
 entry={"provider":"azure-cgpu","expected_measurement_hex":DMEAS,"amd_cert_chain_path":"/root/amd-genoa-cert_chain.pem",
-       "vcek_cache_dir":"/root/vcek-cache","nras_cache_dir":"/root/nras-cache","gpu_policy":{"hw_models":["GH100"]}}
+       "vcek_cache_dir":"/root/vcek-cache","nras_cache_dir":"/root/nras-cache",
+       "gpu_policy":{"hw_models":["GH100"],"evaluation":"both","rim_cache_dir":"/root/rim-cache"}}   # both: NVIDIA's tokens and this verifier's own evaluation, revocation asked of NVIDIA's OCSP responder (ADR 0021)
 if DPCR: entry["pcr_digests"]=[DPCR]
 # the primary's anchors: the executor verifies the primary's SEV-SNP reports (ADR 0017) with the registry's gcp-sev-snp entry,
 # the policy's pinned measurements replacing this expected one

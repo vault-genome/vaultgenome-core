@@ -13,6 +13,20 @@ given release can still open.
 
 ### Added
 
+- **The verifier's word on live records from the H100** — the cross-cloud
+  drill `scripts/hardware-test/failover-cgpu/evidence/20260916T233717Z/`
+  (GCP SEV-SNP → Azure H100; every secret file sealed on the three
+  machines; generation 1 restored on the H100, gate EQUIVALENT, RTO
+  25.74 s) carries `destination_detail` on the
+  `CROSS_CLOUD_ATTESTATION_VERIFIED` record; the Return Path run
+  `scripts/hardware-test/azure-cgpu/evidence/20260917T012834Z-returnpath/`
+  carries `peer_detail` on the `TRUST_EVALUATED` record that admitted the
+  worker, with the verifier's own evaluation and revocation asked of
+  NVIDIA's responder in the handshake (the BROM certificate, the
+  Provisioner ICA and the GH100 Identity CA good; the per-GPU leaf not
+  served). The cross-cloud kit's
+  registry entry now asks for `both`, with revocation, at key release
+  (VERIFIABLE-CLAIMS C20).
 - **Revocation of the GPU's certificate chain checked with NVIDIA's OCSP
   responder** ([ADR-0021](docs/adr/0021-the-verifiers-own-evaluation-of-the-gpu.md),
   amended) — under `gpu_policy.evaluation` `both` or `own`, the

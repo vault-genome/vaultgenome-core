@@ -1,0 +1,12 @@
+== 23:38:51 inputs
+== 23:38:52 provision (keygen), operator stop key, operator recovery key
+== 23:38:52 configfs-tsm (real SEV-SNP reports)
+== 23:38:52 sagvd on SEV-SNP: identity from the chip; the escrow key sealed to it
+== 23:39:13 hand the primary the escrow key, and the destination its TLS material and token (through the private bucket)
+== 23:39:14 wait for the destination's identity (the orchestrator's hand-off): endpoint, launch measurement, vTPM boot
+== 23:47:40 wait for the primary's sentinel key and chip identity (the operator pins both)
+== 23:47:40 sagvd failover config: the azure-cgpu destination in the registry (Genoa chain, NVIDIA's key set, the GPU policy, the boot pinned) and the primary's SEV-SNP anchors, the allow-list, the operator stop, the sealed escrow key, mTLS to the destination
+== 23:47:50 sign the failover policy pinning the primary's chip and the GPU standby
+== 23:47:50 pull the primary's outbox replica, continuously
+== 23:47:50 arm: sagvd failover watches the replica; the standby is the GPU across the Internet
+== 23:52:50 audit log verify (offline, as an auditor would)

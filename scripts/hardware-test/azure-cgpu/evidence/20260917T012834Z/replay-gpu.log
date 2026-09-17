@@ -1,0 +1,20 @@
+Loading checkpoint shards:   0%|          | 0/17 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▏        | 2/17 [00:00<00:01,  9.43it/s]Loading checkpoint shards:  18%|█▊        | 3/17 [00:00<00:01,  9.05it/s]Loading checkpoint shards:  24%|██▎       | 4/17 [00:00<00:01,  9.08it/s]Loading checkpoint shards:  29%|██▉       | 5/17 [00:00<00:01,  9.01it/s]Loading checkpoint shards:  35%|███▌      | 6/17 [00:00<00:01,  8.99it/s]Loading checkpoint shards:  41%|████      | 7/17 [00:00<00:01,  8.98it/s]Loading checkpoint shards:  47%|████▋     | 8/17 [00:00<00:01,  8.97it/s]Loading checkpoint shards:  53%|█████▎    | 9/17 [00:00<00:00,  8.99it/s]Loading checkpoint shards:  59%|█████▉    | 10/17 [00:01<00:00,  8.95it/s]Loading checkpoint shards:  65%|██████▍   | 11/17 [00:01<00:00,  8.92it/s]Loading checkpoint shards:  71%|███████   | 12/17 [00:01<00:00,  8.93it/s]Loading checkpoint shards:  76%|███████▋  | 13/17 [00:01<00:00,  8.96it/s]Loading checkpoint shards:  82%|████████▏ | 14/17 [00:01<00:00,  8.91it/s]Loading checkpoint shards:  88%|████████▊ | 15/17 [00:01<00:00,  8.90it/s]Loading checkpoint shards:  94%|█████████▍| 16/17 [00:01<00:00,  8.85it/s]Loading checkpoint shards: 100%|██████████| 17/17 [00:01<00:00,  9.16it/s]
+/opt/vg/lib/python3.12/site-packages/torch/autograd/graph.py:824: UserWarning: Memory Efficient attention defaults to a non-deterministic algorithm. To explicitly enable determinism call torch.use_deterministic_algorithms(True, warn_only=False). (Triggered internally at /pytorch/aten/src/ATen/native/transformers/cuda/attention_backward.cu:752.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+step 1/160 loss 5.8043
+step 11/160 loss 4.1766
+step 21/160 loss 4.6033
+step 31/160 loss 0.0251
+step 41/160 loss 3.4013
+step 51/160 loss 1.6508
+step 61/160 loss 0.0003
+step 71/160 loss 0.0884
+step 81/160 loss 0.0021
+step 91/160 loss 0.0004
+step 101/160 loss 0.0194
+step 111/160 loss 0.0001
+step 121/160 loss 0.0002
+step 131/160 loss 0.0018
+step 141/160 loss 0.0000
+step 151/160 loss 0.0002
+step 160/160 loss 0.0001

@@ -1,0 +1,15 @@
+== 23:45:17 the guest
+== 23:45:17 the worker runtime (CUDA wheels) and the base model the genome names
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 21.66it/s]Fetching 10 files: 100%|██████████| 10/10 [00:11<00:00,  1.17s/it]
+== 23:47:25 acp-bootstrap as azure-cgpu: the destination of a key release, the door on the H100
+{
+  "tee_provider": "azure-cgpu",
+  "measurement_hex": "aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef",
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "bd6cbac84858dd9d59034dce20bf20e73678d169d8a1b4aa1c934f9cdbe3891f"
+  }
+}
+DESTINATION UP

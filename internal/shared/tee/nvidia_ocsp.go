@@ -210,14 +210,8 @@ func verifyOCSPResponse(raw []byte, cert, issuer *x509.Certificate, nonce []byte
 	}
 	if nonce != nil {
 		want, _ := asn1.Marshal(nonce)
-		echoed := false
-		for _, ext := range resp.Extensions {
-			if ext.Id.Equal(ocspNonceOID) {
-				echoed = bytes.Equal(ext.Value, want) || bytes.Equal(ext.Value, nonce)
-				break
-			}
-		}
-		if !echoed {
+		got := ocspResponseNonce(raw, resp)
+		if got == nil || !(bytes.Equal(got, want) || bytes.Equal(got, nonce)) {
 			return nil, errors.New("the answer does not carry the request's nonce")
 		}
 	}
@@ -282,3 +276,56 @@ func buildOCSPRequest(cert, issuer *x509.Certificate, nonce []byte) ([]byte, err
 
 // hashForOCSP is the hash the certificate ids are made with.
 var _ = crypto.SHA256
+
+// The answer's outer structures (RFC 6960 §4.2.1), mirrored from x/crypto
+// for the one field it does not read: responseExtensions, where a
+// responder echoes the nonce. (x/crypto's Response.Extensions is the
+// single response's singleExtensions; NVIDIA's responder, like RFC 6960,
+// puts the nonce in responseExtensions — the first live handshake caught
+// this check looking in the wrong place.)
+type ocspResponseASN1 struct {
+	Status   asn1.Enumerated
+	Response ocspResponseBytes `asn1:"explicit,tag:0,optional"`
+}
+
+type ocspResponseBytes struct {
+	ResponseType asn1.ObjectIdentifier
+	Response     []byte
+}
+
+type ocspBasicResponse struct {
+	TBSResponseData ocspResponseData
+	// the signature and certificates follow; not needed here
+}
+
+type ocspResponseData struct {
+	Raw            asn1.RawContent
+	Version        int `asn1:"optional,default:0,explicit,tag:0"`
+	RawResponderID asn1.RawValue
+	ProducedAt     time.Time `asn1:"generalized"`
+	Responses      []asn1.RawValue
+	Extensions     []pkix.Extension `asn1:"explicit,tag:1,optional"`
+}
+
+// ocspResponseNonce is the nonce the answer echoes: from its
+// responseExtensions, or, failing that, the single response's extensions
+// x/crypto exposes. Nil when there is none.
+func ocspResponseNonce(raw []byte, resp *ocsp.Response) []byte {
+	var outer ocspResponseASN1
+	if rest, err := asn1.Unmarshal(raw, &outer); err == nil && len(rest) == 0 {
+		var basic ocspBasicResponse
+		if _, err := asn1.Unmarshal(outer.Response.Response, &basic); err == nil {
+			for _, ext := range basic.TBSResponseData.Extensions {
+				if ext.Id.Equal(ocspNonceOID) {
+					return ext.Value
+				}
+			}
+		}
+	}
+	for _, ext := range resp.Extensions {
+		if ext.Id.Equal(ocspNonceOID) {
+			return ext.Value
+		}
+	}
+	return nil
+}

@@ -30,11 +30,16 @@ const (
 
 	// MaxFrameSize is the hard cap on a single frame's PAYLOAD length.
 	// A peer announcing LEN > MaxFrameSize is treated as an Integrity
-	// failure: the connection closes and an audit entry is emitted.
-	// The cap is deliberately smaller than the largest allowed
-	// CandidateOutput plus base64 overhead, so an attacker that forges
-	// an oversized LEN header cannot even provoke an allocation.
-	MaxFrameSize uint32 = 16 * 1024 * 1024 // 16 MiB
+	// failure: the connection closes and an audit entry is emitted, and
+	// an attacker that forges an oversized LEN header cannot even provoke
+	// an allocation. A job is one frame — the genome travels base64 inside
+	// the JobRequest — so the cap bounds the genome: 16 MiB until
+	// 2026-09-17, when a 32B model's LoRA genome (33.6 MB, a 44.8 MB
+	// JobRequest) met it on an H100 (ADR 0013, amended); 128 MiB since,
+	// room for a 70B adapter at the same rank. Both ends of a Return Path
+	// must run a build with the same cap; sagvd refuses at dispatch a
+	// genome its own cap does not carry.
+	MaxFrameSize uint32 = 128 * 1024 * 1024 // 128 MiB
 
 	// NonceMinBytes is the minimum length a handshake nonce must have.
 	// Enforced at both endpoints. Derived from §15.2 of

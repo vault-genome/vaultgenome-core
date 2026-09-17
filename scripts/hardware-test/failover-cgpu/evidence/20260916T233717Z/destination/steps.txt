@@ -1,0 +1,7 @@
+== 23:45:17 the guest
+== 23:45:17 the worker runtime (CUDA wheels) and the base model the genome names
+== 23:47:25 acp-bootstrap as azure-cgpu: the destination of a key release, the door on the H100
+acp-bootstrap seal-keys exit=0 sealed=http.tls.server_key,http.bearer_token_file
+acp-bootstrap identity exit=0
+acp-bootstrap ready after 1s
+== COLLECTED

@@ -1,0 +1,94 @@
+== 00:46:36 the guest
+
+==============NVSMI CONF-COMPUTE LOG==============
+
+    CC State                   : ON
+    Multi-GPU Mode             : None
+    CPU CC Capabilities        : AMD SEV-SNP(vTOM Mode)
+    GPU CC Capabilities        : CC Capable
+    CC GPUs Ready State        : Ready
+
+CPU CC capabilities: AMD SEV-SNP(vTOM Mode)
+
+Confidential Compute GPUs Ready state: ready
+
+== 00:46:36 vTPM: the HCL report (NV index 0x01400001) = SEV-SNP report + runtime data
+{
+ "hcl_bytes": 2600,
+ "hcl_header_hex": "48434c4102000000840900000200000000000000000000000000000000000000",
+ "runtime_header": {
+  "data_size": 1220,
+  "version": 1,
+  "report_type": 2,
+  "hash_type": 1,
+  "payload_size": 1200
+ },
+ "report_data_is_sha256_of_runtime_data": true,
+ "report_data_hex": "fd5781e9c5d3f6ce6af6548af439ad036f5c263548059a43152f31bd6f3ee6110000000000000000000000000000000000000000000000000000000000000000",
+ "snp": {
+  "version": 5,
+  "policy_hex": "1f00030000000000",
+  "measurement_hex": "aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef",
+  "chip_id_hex": "e690c86b00d70f66f5dc16a712d8684f350e078e53fc05dcc63834e0abc11ce9600748c03571fea35fbc2f30c6aa1efe8b797f918c6741f6536de4f4eafab22f",
+  "reported_tcb_hex": "0a00000000001b58",
+  "vmpl": 0,
+  "signature_algo": 1
+ },
+ "runtime_keys": [
+  {
+   "kid": "HCLAkPub",
+   "kty": "RSA",
+   "ops": [
+    "sign"
+   ]
+  },
+  {
+   "kid": "HCLEkPub",
+   "kty": "RSA",
+   "ops": [
+    "encrypt"
+   ]
+  }
+ ],
+ "vm_configuration": {
+  "console-enabled": true,
+  "root-cert-thumbprint": "6nZZnYaJc4KqUZ_yvA-mucFdYNouvlPnITnNMXsHl-0",
+  "secure-boot": true,
+  "tpm-enabled": true,
+  "tpm-persisted": true,
+  "vmUniqueId": "949A308D-75C0-474E-8F2F-429542FB717E"
+ }
+}
+== 00:46:40 this chip's VCEK and chain from Azure IMDS (THIM)
+THIM: tcbm 581B00000000000A cacheTTL None vcek bytes 1879 chain bytes 4602
+== 00:46:40 vTPM: the HCL attestation key and two quotes with our nonces
+persistent handles: ['0x81000001', '0x81000003', '0x81000004'] | HCLAkPub matches 0x81000003
+Verified OK
+== 00:46:40 the H100: NVIDIA's local verifier under our nonce (GPU nonce = nonce 1)
+Use the provided nonce for attestation: 49f684293b12441f4e1601e37b404191ec88cbf92df5bcdcae7ddad6fb0a8dd9
+	Driver version fetched : 595.71.05
+	VBIOS version fetched : 96.00.9f.00.04
+		The nonce in the SPDM GET MEASUREMENT request message is matching with the generated nonce.
+		Driver version fetched from the attestation report : 595.71.05
+		VBIOS version fetched from the attestation report : 96.00.9f.00.04
+		Authenticating Driver RIM
+			Driver RIM verification successful
+		Authenticating VBIOS RIM.
+			Fetching the VBIOS RIM from the RIM service.
+			VBIOS RIM verification successful
+	Comparing measurements (runtime vs golden)
+			The runtime measurements are matching with the golden measurements.                            
+GPU Attestation is Successful.
+Number of GPUs available : 1
+Fetching GPU 0 information from GPU driver.
+All GPU Evidences fetched successfully
+NRAS https://nras.attestation.nvidia.com/v3/attest/gpu: HTTP 200 in 0.46s
+overall: {'iss': 'https://nras.attestation.nvidia.com', 'x-nvidia-ver': '2.0', 'x-nvidia-overall-att-result': True, 'eat_nonce': '49f684293b12441f4e1601e37b404191ec88cbf92df5bcdcae7ddad6fb0a8dd9', 'exp': 1789609601}
+GPU-0 {'measres': 'success', 'x-nvidia-gpu-attestation-report-nonce-match': True, 'x-nvidia-gpu-driver-version': '595.71.05', 'x-nvidia-gpu-vbios-version': '96.00.9F.00.04', 'hwmodel': 'GH100', 'secboot': True, 'dbgstat': 'disabled', 'x-nvidia-gpu-arch-check': True}
+== 00:46:42 Microsoft's own tools, for the record: cpu-attestation (MAA), gpu-attestation
+  "x-ms-ver": "1.0"
+}
+Attested Guest Successfully
+== 00:46:44 the 7B genome path on the confidential GPU
+2.7.1+cu126 12.6 NVIDIA H100 NVL 99456909312
+Fetching 27 files:   0%|          | 0/27 [00:00<?, ?it/s]Fetching 27 files:  22%|██▏       | 6/27 [00:20<01:10,  3.33s/it]Fetching 27 files:  26%|██▌       | 7/27 [02:13<06:22, 19.14s/it]Fetching 27 files:  30%|██▉       | 8/27 [03:06<07:23, 23.35s/it]Fetching 27 files:  33%|███▎      | 9/27 [03:06<06:13, 20.76s/it]Fetching 27 files:  37%|███▋      | 10/27 [03:17<05:35, 19.72s/it]Fetching 27 files:  41%|████      | 11/27 [03:24<04:57, 18.59s/it]Fetching 27 files:  48%|████▊     | 13/27 [03:26<03:42, 15.89s/it]Fetching 27 files:  52%|█████▏    | 14/27 [03:40<03:24, 15.71s/it]Fetching 27 files:  56%|█████▌    | 15/27 [05:16<04:12, 21.07s/it]Fetching 27 files:  59%|█████▉    | 16/27 [06:05<04:11, 22.82s/it]Fetching 27 files:  63%|██████▎   | 17/27 [06:05<03:34, 21.48s/it]Fetching 27 files:  67%|██████▋   | 18/27 [06:05<03:02, 20.30s/it]Fetching 27 files:  70%|███████   | 19/27 [06:05<02:33, 19.24s/it]Fetching 27 files:  74%|███████▍  | 20/27 [06:05<02:07, 18.28s/it]Fetching 27 files:  78%|███████▊  | 21/27 [06:12<01:46, 17.74s/it]Fetching 27 files:  81%|████████▏ | 22/27 [06:18<01:26, 17.20s/it]Fetching 27 files:  85%|████████▌ | 23/27 [06:18<01:05, 16.47s/it]Fetching 27 files:  89%|████████▉ | 24/27 [06:23<00:47, 15.96s/it]Fetching 27 files:  93%|█████████▎| 25/27 [06:24<00:30, 15.37s/it]Fetching 27 files:  96%|█████████▋| 26/27 [06:28<00:14, 14.94s/it]Fetching 27 files: 100%|██████████| 27/27 [06:36<00:00, 14.68s/it]Fetching 27 files: 100%|██████████| 27/27 [06:36<00:00, 14.68s/it]

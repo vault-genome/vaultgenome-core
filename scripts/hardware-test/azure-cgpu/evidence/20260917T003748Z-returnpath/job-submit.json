@@ -1,0 +1,1 @@
+{"error":{"category":"operational","code":"genome_too_large","message":"operational[genome_too_large]: genome gen-0.genome ships 33606039 bytes to the worker; runtime.max_payload_bytes is 33554432"}}

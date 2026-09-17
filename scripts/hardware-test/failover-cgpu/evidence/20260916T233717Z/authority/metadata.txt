@@ -1,0 +1,4 @@
+instance=vg-fo-authority-20260916t233717z
+zone=us-central1-c
+machine=n2d-standard-4
+external_ip=34.133.241.123
