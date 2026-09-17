@@ -358,3 +358,15 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    --stdin-genome`) and hands it the genome on stdin; it opens no network
    listener — and decide for their own deployment; this file does not
    decide it for them.
+
+15. **Release signatures are the `.sig` + `.cert` pair, on cosign 2.x pinned
+   (2026-09-17).**
+   cosign 3 signs a blob into one Sigstore bundle by default and ignores the
+   flags that write the pair; the 0.3.0 release run failed on it after the
+   installer moved to v4. `release.yml` pins cosign 2.6.5, so the assets and
+   every documented `cosign verify-blob --signature … --certificate …`
+   (README, `docs/security/supply_chain.md`, the disaster-recovery runbook,
+   the release procedure, vaultgenome.com) stay valid. The move to bundles
+   (`--bundle <asset>.sigstore.json`, `cosign verify-blob --bundle`) changes
+   the assets and all of those documents together and is made as one
+   release, not in passing.

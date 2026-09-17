@@ -13,6 +13,28 @@ given release can still open.
 
 Nothing yet.
 
+## [0.3.1] — 2026-09-17
+
+The release pipeline's signing step, and nothing else. 0.3.0 is tagged and
+the module is served at that version, but its release run stopped at *Sign
+binaries*: the actions bump of #33 moved `cosign-installer` to v4, which
+installs cosign 3, and cosign 3 writes the Sigstore bundle format by default
+and ignores `--output-signature` / `--output-certificate`. 0.3.0 therefore
+has no release assets. This release pins cosign 2.6.5, so the assets and the
+verification commands documented in README, `docs/security/supply_chain.md`
+and the runbooks stay what they were; the move to bundles is tracked in
+KNOWN_ISSUES #15 and changes the documented verification commands with it.
+The code is 0.3.0's.
+
+### Changed
+
+- `release.yml`: `cosign-release: v2.6.5` pinned on the installer.
+
+### Added
+
+- KNOWN_ISSUES #15: release signatures on cosign 2.x, and the bundle-format
+  migration as one release together with the documents.
+
 ## [0.3.0] — 2026-09-17
 
 The module moves to the path it is published at. Against 0.2.1,
