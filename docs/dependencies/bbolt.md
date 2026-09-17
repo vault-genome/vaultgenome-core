@@ -1,6 +1,6 @@
 # Dependency Justification — go.etcd.io/bbolt
 
-**Version pinned:** v1.3.10
+**Version:** the one pinned in `go.mod` (Dependabot keeps it current, grouped weekly, through the same gate as any change; the justification here does not depend on the patch level — a major version is a new review)
 **License:** MIT
 **Transitive depth:** 1 (bbolt → `golang.org/x/sys` indirect — runtime-only OS calls)
 **Usage scope:** `/internal/audit/store` only. NOT imported by contract,

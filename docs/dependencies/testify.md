@@ -1,6 +1,6 @@
 # Dependency Justification — github.com/stretchr/testify
 
-**Version pinned:** v1.9.0
+**Version:** the one pinned in `go.mod` (Dependabot keeps it current, grouped weekly, through the same gate as any change; the justification here does not depend on the patch level — a major version is a new review)
 **License:** MIT
 **Transitive depth:** 3 (testify → davecgh/go-spew, pmezard/go-difflib, yaml.v3)
 **Usage scope:** `_test.go` files only. Never imported from non-test code.
