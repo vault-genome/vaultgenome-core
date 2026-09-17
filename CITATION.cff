@@ -16,10 +16,10 @@ abstract: >-
 authors:
   - family-names: Nikolaichuk
     given-names: Serhii
-    affiliation: Vault Genome Inc.
+    affiliation: The Capital Index LLC (Vault Genome)
   - family-names: Sorokin
     given-names: Rodion
-    affiliation: Vault Genome Inc.
+    affiliation: The Capital Index LLC (Vault Genome)
 repository-code: https://github.com/vault-genome/vaultgenome-core
 url: https://vaultgenome.com
 license: AGPL-3.0-or-later
