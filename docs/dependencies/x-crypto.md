@@ -1,6 +1,6 @@
 # Dependency Justification — golang.org/x/crypto
 
-**Version pinned:** v0.57.0
+**Version:** the one pinned in `go.mod` (Dependabot keeps it current, grouped weekly, through the same gate as any change; the justification here does not depend on the patch level — a major version is a new review)
 **License:** BSD-3-Clause (the Go project)
 **Transitive depth:** 2 (x/crypto → x/net, x/sys, x/term, x/text — all Go
 project modules; none of them is linked into a binary by the one package

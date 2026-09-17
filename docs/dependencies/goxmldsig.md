@@ -1,6 +1,6 @@
 # Dependency Justification — github.com/russellhaering/goxmldsig
 
-**Version pinned:** v1.6.1
+**Version:** the one pinned in `go.mod` (Dependabot keeps it current, grouped weekly, through the same gate as any change; the justification here does not depend on the patch level — a major version is a new review)
 **License:** Apache-2.0
 **Transitive depth:** 3 (goxmldsig → beevik/etree; → jonboulle/clockwork;
 → stretchr/testify → yaml.v3 — testify is already on the allowlist)

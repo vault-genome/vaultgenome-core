@@ -1,6 +1,6 @@
 # Dependency Justification — github.com/beevik/etree
 
-**Version pinned:** v1.7.0
+**Version:** the one pinned in `go.mod` (Dependabot keeps it current, grouped weekly, through the same gate as any change; the justification here does not depend on the patch level — a major version is a new review)
 **License:** BSD-2-Clause
 **Transitive depth:** 1 (no dependencies of its own)
 **Usage scope:** `internal/shared/tee/nvidia_rim.go` only — the document
