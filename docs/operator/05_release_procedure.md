@@ -109,7 +109,7 @@ Once the release workflow completes:
 2. Verify every binary and SBOM with `cosign verify-blob`, for example:
    ```
    cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
-     --certificate-identity-regexp '^https://github\.com/<org>/<repo>/\.github/workflows/release\.yml@refs/tags/v' \
+     --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
      sagvd
    ```

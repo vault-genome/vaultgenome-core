@@ -420,6 +420,7 @@ gate of [C4](#c4)/[C5](#c5). The model is the tiny one of [C12](#c12).
 
 ---
 
+<a id="c14"></a>
 ### C14 — The escrow key is sealed to the release host's SEV-SNP chip, and a failover takes the primary's word only with its chip's report on it
 
 **Claim.** The release authority's escrow private key — the one that opens
