@@ -1,0 +1,48 @@
+# Dependabot keeps the pinned versions current; it cannot add a dependency.
+# A new module still needs an allowlist entry and a justification
+# (docs/doctrine/ci-security-policy.md §3.1), and every bump goes through
+# the vault-gate like any other change.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    groups:
+      go-modules:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+    labels: [dependencies, go]
+    commit-message:
+      prefix: "deps(go)"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    groups:
+      actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: "deps(actions)"
+  - package-ecosystem: pip
+    directory: /workers/genome
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    groups:
+      python:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+    labels: [dependencies, python]
+    commit-message:
+      prefix: "deps(python)"

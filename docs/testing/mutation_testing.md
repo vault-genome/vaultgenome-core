@@ -90,20 +90,24 @@ diff, identify what behaviour the mutated line was supposed to
 preserve, and write a test that fails with the mutation in place
 but passes against the original.
 
-### Acceptable kill rates
+### Target kill rates
 
-Per-package targets we currently aim for:
+Per-package targets, and where the measured rate is:
 
-| Package                          | Target kill rate | Current (Q2 2026) |
-|----------------------------------|------------------|--------------------|
-| `internal/shared/crypto`         | ≥ 95%            | TBD on first run   |
-| `internal/audit/chain`           | ≥ 90%            | TBD on first run   |
-| `internal/vault/keys`            | ≥ 90%            | TBD on first run   |
-| `internal/recvvalidator`         | ≥ 85%            | TBD on first run   |
-| `internal/shared/tee`            | ≥ 85%            | TBD on first run   |
+| Package                          | Target kill rate |
+|----------------------------------|------------------|
+| `internal/shared/crypto`         | ≥ 95%            |
+| `internal/audit/chain`           | ≥ 90%            |
+| `internal/vault/keys`            | ≥ 90%            |
+| `internal/recvvalidator`         | ≥ 85%            |
+| `internal/shared/tee`            | ≥ 85%            |
 
-We update this table after each weekly run and treat regressions
-(an established kill rate dropping by >5pp) as on-call alerts.
+The measured rates are the output of the `mutation` workflow
+(`.github/workflows/mutation.yml`), which runs weekly (Sundays, 03:00
+UTC) and on demand and publishes its report as a run artifact; no measured rate is recorded in this document
+until a run has been kept and cited here. A measured rate below its target
+is a finding to fix, not a gate: the workflow does not block a pull
+request.
 
 ## Common false positives
 

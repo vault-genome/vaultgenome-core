@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, its measurements or its hardware evidence,
+  please cite it as below. Every number in the documentation is backed by
+  an evidence file and a reproduction command in VERIFIABLE-CLAIMS.md.
+type: software
+title: "AI Continuity Platform — Core (Vault Genome)"
+abstract: >-
+  Governance-first AI continuity: a fine-tuned model is sealed as a genome
+  (the base model's hash, the sealed fine-tune delta and the deterministic
+  recipe), released only to hardware that attests to an operator-signed
+  policy, restored there behind a signed EXACT / EQUIVALENT / FAIL gate,
+  and every decision is written to a signed, hash-chained audit log before
+  it takes effect. Measured on AMD SEV-SNP, Intel TDX and NVIDIA H100
+  confidential-computing hardware on GCP and Azure.
+authors:
+  - family-names: Nikolaichuk
+    given-names: Serhii
+    affiliation: Vault Genome Inc.
+  - family-names: Sorokin
+    given-names: Rodion
+    affiliation: Vault Genome Inc.
+repository-code: https://github.com/vault-genome/vaultgenome-core
+url: https://vaultgenome.com
+license: AGPL-3.0-or-later
+version: 0.1.0
+date-released: "2026-09-15"
+keywords:
+  - confidential computing
+  - remote attestation
+  - AMD SEV-SNP
+  - Intel TDX
+  - confidential GPU
+  - AI continuity
+  - disaster recovery
+  - reproducible builds
+  - supply chain security
+references:
+  - type: unpublished
+    title: "TEE-Agnostic Attestation Protocol (TAP), Version 0.1 (draft-vault-genome-tap-00)"
+    authors:
+      - family-names: Nikolaichuk
+        given-names: Serhii
+      - family-names: Sorokin
+        given-names: Rodion
+    year: 2026
+    url: https://github.com/vault-genome/vaultgenome-core/blob/main/docs/spec/draft-vault-genome-tap-00.md

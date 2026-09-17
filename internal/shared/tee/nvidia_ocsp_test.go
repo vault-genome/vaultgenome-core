@@ -19,6 +19,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -284,14 +285,14 @@ func selfSignedCA(t *testing.T, name string) (*ecdsa.PrivateKey, *x509.Certifica
 	return key, cert
 }
 
-var serials int64 = 100
+// serials numbers the synthetic certificates; parallel tests share it.
+var serials atomic.Int64
 
 func issuedCert(t *testing.T, name string, issuer *x509.Certificate, issuerKey *ecdsa.PrivateKey, isCA bool, eku []x509.ExtKeyUsage, ocspURL ...string) (*ecdsa.PrivateKey, *x509.Certificate) {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	serials++
-	tmpl := &x509.Certificate{SerialNumber: big.NewInt(serials), Subject: pkix.Name{CommonName: name},
+	tmpl := &x509.Certificate{SerialNumber: big.NewInt(100 + serials.Add(1)), Subject: pkix.Name{CommonName: name},
 		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour),
 		IsCA: isCA, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: eku, OCSPServer: ocspURL}
 	if isCA {

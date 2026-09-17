@@ -2,7 +2,7 @@
 
 ```
 Internet Engineering Task Force                              S. Nikolaichuk
-Internet-Draft                                            R. <Cofounder name>
+Internet-Draft                                            R. Sorokin
 Intended status: Standards Track                          Vault Genome Inc.
 Expires: 2026-11-06                                              May 6, 2026
 
@@ -465,7 +465,7 @@ intended TEE family.)
    Vault Genome Inc.
    Email: ops@vaultgenome.com
 
-   Rodion <Cofounder name>
+   Rodion Sorokin
    Vault Genome Inc.
    Email: ops@vaultgenome.com
 ```
