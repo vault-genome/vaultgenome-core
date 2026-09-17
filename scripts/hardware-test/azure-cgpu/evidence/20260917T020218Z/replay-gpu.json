@@ -1,0 +1,27 @@
+{
+  "device": "cuda",
+  "dtype": "bfloat16",
+  "exact": true,
+  "max_abs_diff": 0.0,
+  "max_rel_diff": 0.0,
+  "max_rel_l2": 0.0,
+  "losses_equal": true,
+  "max_loss_diff": 0.0,
+  "final_loss": {
+    "sealed": 6.808712350903079e-05,
+    "replayed": 6.808712350903079e-05
+  },
+  "train_seconds": 57.428,
+  "runtime": {
+    "python": "3.12.3",
+    "torch": "2.7.1+cu126",
+    "numpy": "2.3.1",
+    "platform": "Linux-6.17.0-1018-azure-fde-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "AMD EPYC 9V84 96-Core Processor",
+    "threads": 8,
+    "transformers": "4.53.2",
+    "cuda": "12.6",
+    "gpu": "NVIDIA H100 NVL"
+  }
+}

@@ -13,6 +13,11 @@ given release can still open.
 
 ### Added
 
+- **A 32B model through the genome path on the confidential H100**
+  ([C26](VERIFIABLE-CLAIMS.md#c26)) — the Azure kit takes the base model
+  from `VG_BASE_REPO` / `VG_BASE_REV`; Qwen/Qwen2.5-32B-Instruct fine-tuned in bfloat16 on the
+  H100 NVL, sealed, restored and gated EXACT over the Return Path on the
+  same confidential VM (`scripts/hardware-test/azure-cgpu/evidence/20260917T020218Z`).
 - **The verifier's word on live records from the H100** — the cross-cloud
   drill `scripts/hardware-test/failover-cgpu/evidence/20260916T233717Z/`
   (GCP SEV-SNP → Azure H100; every secret file sealed on the three

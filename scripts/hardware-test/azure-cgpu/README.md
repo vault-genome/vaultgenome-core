@@ -146,6 +146,23 @@ JobRequest, the Return Path carried frames of at most 16 MiB); the cap is
 128 MiB since (ADR 0013, amended), and the run after this one carries the
 32B gate.
 
+## A 32B model through the genome path on the confidential H100 — run `20260917T020218Z` (evidence/20260917T020218Z, evidence/20260917T020218Z-returnpath)
+
+The same kit with `VG_BASE_REPO=Qwen/Qwen2.5-32B-Instruct` (`5ede1c97bbab…`, 17 bfloat16 shards,
+about 65 GB): fine-tuned on the H100 NVL (93 GB) in bfloat16
+(`finetune.json`: loss 5.804 → 0.000 in 57.5 s), its genome sealed
+and verified (`verify.json`: ok, bundle 33.6 MB); then the Return
+Path on the same confidential VM: sagvd and acp-compute from files sealed
+to the vTPM, the genome restored on the H100 and gated by the door —
+**EXACT** on the pinned runtime (pinned replay, 16/16 fixtures
+exact, max abs err 0), the verdict signed, 17 audit events
+verified; the job took 222 s from submission to verdict (the 65 GB
+base loaded on the H100 inside it). Capture stage 1299 s end to end.
+The worker that is not the pinned identity was refused at the handshake
+in 3 s — the negative back on the record, with keys of its own
+(`rogue-worker.log`). With the frame cap at 128 MiB the 33.6 MB genome
+travelled as one JobRequest.
+
 ## What the first attempt taught the kit
 
 - After Microsoft's kernel step, wait for the guest's *new* boot
