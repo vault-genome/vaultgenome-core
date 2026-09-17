@@ -33,9 +33,13 @@ all: fmt vet build test
 .PHONY: build
 build: $(BINARIES:%=bin/%)
 
+# CGO_ENABLED=0: static binaries that run on any linux/amd64 without a
+# libc to match, and that anyone rebuilds byte for byte from any host with
+# the pinned Go (docs/operator/05_release_procedure.md §5). Nothing in the
+# tree imports "C"; the TEE drivers are reached through ioctls.
 bin/%: cmd/%
 	@mkdir -p bin
-	$(GO) build $(GOFLAGS_REPRO) -o $@ ./$<
+	CGO_ENABLED=0 $(GO) build $(GOFLAGS_REPRO) -o $@ ./$<
 
 # verify-reproducible builds every binary twice with identical flags and
 # diffs the resulting bytes. Failure means a non-determinism source
