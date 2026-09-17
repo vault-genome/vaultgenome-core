@@ -13,6 +13,40 @@ given release can still open.
 
 Nothing yet.
 
+## [0.3.2] — 2026-09-17
+
+A binary can say which build it is, however it was built. Against 0.3.1,
+`go install github.com/vault-genome/vaultgenome-core/cmd/acpctl@v0.3.1`
+produces a working binary that answers `acpctl 0.0.0-dev (commit none)` —
+the wrong answer from a project whose claim is that you can tell what you
+are running and check it against a signed release, and the answer every
+reader who follows the README's own install line was given. Behaviour is
+otherwise unchanged from 0.3.1; bundle format, audit schema and policy
+schema: unchanged.
+
+### Added
+
+- `internal/shared/buildinfo`: the version and commit a binary prints fall
+  back to the module version and VCS revision Go already embeds, **only**
+  when the Makefile's `-X` stamps are absent. A stamped value always wins,
+  so `make build` and the release workflow print exactly what they printed
+  before. A pseudo-version or `(devel)` is not surfaced as a version,
+  because neither says more than the placeholder; a dirty tree is marked
+  `-dirty` rather than hidden. 96.9% covered.
+
+### Changed
+
+- **Dockerfile** takes `VERSION` and `COMMIT` as build arguments, because
+  `.dockerignore` excludes `.git` and Go can therefore embed no revision in
+  an image build. It still builds without them, and its header documents
+  both forms.
+
+  | build path | 0.3.1 | 0.3.2 |
+  | - | - | - |
+  | `go install …/cmd/acpctl@<tag>` | `0.0.0-dev (commit none)` | `<tag> (commit <sha>)` |
+  | `docker build --build-arg VERSION=… --build-arg COMMIT=… .` | `0.0.0-dev (commit none)` | `<tag> (commit <sha>)` |
+  | `make build` | `0.0.0-dev (commit <sha>)` | unchanged |
+
 ## [0.3.1] — 2026-09-17
 
 The release pipeline's signing step, and nothing else. 0.3.0 is tagged and
