@@ -117,10 +117,21 @@ Once the release workflow completes:
    `docs/security/supply_chain.md` explains what a successful check proves.
 3. Check that the SLSA provenance attached to the release names each
    binary's SHA-256 (for example with `slsa-verifier`).
-4. Rebuild from the tag on linux/amd64 with Go 1.27.0:
-   `make build VERSION=v0.1.0 COMMIT=<full commit SHA>`. `bin/sagvd`,
-   `bin/acp-compute` and `bin/acpctl` must be byte-identical to the released
-   files.
+4. Rebuild from the tag with Go 1.27.0, from any host — the binaries are
+   static (`CGO_ENABLED=0`) and carry the tag's VCS stamp, so the rebuild
+   must come from a git checkout of the tag, not from an archive:
+   ```
+   git clone https://github.com/vault-genome/vaultgenome-core.git && cd vaultgenome-core
+   git checkout vX.Y.Z
+   GOOS=linux GOARCH=amd64 make build VERSION=vX.Y.Z COMMIT=$(git rev-parse HEAD)
+   sha256sum bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap
+   ```
+   Every hash must equal the released file's. `go version -m <binary>`
+   prints the build settings a released binary was made with (Go
+   version, GOOS/GOARCH, CGO_ENABLED, -trimpath, the VCS revision and
+   time); compare them first when hashes differ. (v0.1.0 and v0.2.0 were
+   built with cgo on the runner: their rebuild needs linux/amd64 with a
+   C toolchain; from v0.2.1 the binaries are static.)
 5. Verify the tag signature — `git verify-tag v0.1.0`.
 6. Record the release hashes externally (the external pin is itself a
    defence against a later tag rewrite — see

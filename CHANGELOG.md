@@ -11,7 +11,15 @@ given release can still open.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **Release binaries are static** (`CGO_ENABLED=0` in the build): they run
+  on any linux/amd64 without a libc to match, and anyone rebuilds them byte
+  for byte from any host with the pinned Go — the post-release check of
+  `docs/operator/05_release_procedure.md` §5 now names the exact command,
+  from a git checkout of the tag. Found verifying v0.2.0 from macOS: its
+  binaries were built with cgo on the runner, so their rebuild needs
+  linux/amd64 with a C toolchain.
 
 ## [0.2.0] — 2026-09-17
 
