@@ -177,6 +177,25 @@ running machine, not from an earlier capture.
 **Cost.** About 25 minutes on the three machines; the H100 VM at ~$8.9/h
 is the bulk of it.
 
+## Every secret file sealed, and the verifier's word on the record — run `20260916T233717Z` (evidence/20260916T233717Z)
+
+The same cross-cloud drill with ADR 0023 amended twice and ADR 0021 amended
+on the record. On the primary the sentinel ran from its seed sealed to the
+chip (`primary/steps.txt`: `sentinel seal-key exit=0 tee=gcp-sev-snp sealed=True`); on the authority `sagvd seal-keys`
+sealed keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file, and again after the failover config was written —
+`seal-keys (failover config) exit=0 sealed=crosscloud.transport_tls.client_key already=5` — so the cross-cloud transport's client key was sealed too; on
+the H100 destination `acp-bootstrap seal-keys` sealed http.tls.server_key,http.bearer_token_file to the vTPM
+(`destination/steps.txt`). The failover: generation 1 restored on the
+H100 and gated **EQUIVALENT**, RTO **25.74 s**, RPO 9.00 s, 5 audit
+events verified (tip `468d9a80…b1c6`).
+
+What the authority's verifier said about the destination is on the key
+release's record: `authority/audit-events.jsonl`, the
+`CROSS_CLOUD_ATTESTATION_VERIFIED` event's `destination_detail` — provider
+`azure-cgpu`, product `Genoa`, reported TCB `6348668099708846090`, the vTPM quote's
+PCRs `sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14`, GPU-0 `GH100` driver `595.71.05` VBIOS `96.00.9F.00.04` vouched for by
+`https://nras.attestation.nvidia.com`.
+
 ## Evidence files
 
 - `primary/` — `finetune-0.json`, `finetune-1.json` (+ `.log`),

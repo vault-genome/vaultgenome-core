@@ -1,0 +1,17 @@
+[    0.000000] efi: ACPI=0xbfffa000 ACPI 2.0=0xbfffa014 SMBIOS=0xbff85000 SMBIOS 3.0=0xbff83000 TPMFinalLog=0xbeb39000 MEMATTR=0xbf42d018 MOKvar=0xbff81000 INITRD=0xbafd2f98 RNG=0xbffd2018 TPMEventLog=0xb3eb4018 
+[    0.059283] ACPI: TPM2 0x00000000BFFD3000 000034 (v03 VRTUAL VTPM     00000001 MSFT 00000001)
+[    0.081239] ACPI: Reserving TPM2 table memory at [mem 0xbffd3000-0xbffd3033]
+[    1.176430] Memory Encryption Features active: AMD SEV
+[    1.176430] SEV: Status: vTom 
+[    5.117008] tpm_crb VTPM0101:00: Disabling hwrng
+[    5.162278] software IO TLB: Memory encryption is active and system is using DMA bounce buffers
+[    5.232920] kvm-guest: setup_efi_kvm_sev_migration : EFI live migration variable not found
+[    5.483428] systemd[1]: systemd 255.4-1ubuntu8.16 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    5.487422] systemd[1]: Detected confidential virtualization sev-snp.
+[    5.606441] systemd[1]: Listening on systemd-pcrextend.socket - TPM2 PCR Extension (Varlink).
+[    5.667680] systemd[1]: systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionPathExists=!/etc/initrd-release).
+[    7.002608] systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    7.006532] systemd[1]: Detected confidential virtualization sev-snp.
+[    7.361438] systemd[1]: Listening on systemd-pcrextend.socket - TPM2 PCR Extension (Varlink).
+[    7.434418] systemd[1]: Starting systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement...
+[    7.440258] systemd[1]: Starting systemd-tpm2-setup-early.service - TPM2 SRK Setup (Early)...

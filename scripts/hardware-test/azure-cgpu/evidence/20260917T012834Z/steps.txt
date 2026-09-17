@@ -1,0 +1,16 @@
+== 01:35:12 the guest
+== 01:35:12 vTPM: the HCL report (NV index 0x01400001) = SEV-SNP report + runtime data
+== 01:35:16 this chip's VCEK and chain from Azure IMDS (THIM)
+== 01:35:16 vTPM: the HCL attestation key and two quotes with our nonces
+quote 1: exit 0, 145 message bytes, 256 signature bytes
+quote 2: exit 0, 145 message bytes, 256 signature bytes
+== 01:35:16 the H100: NVIDIA's local verifier under our nonce (GPU nonce = nonce 1)
+local verifier exit=0
+nras exit=0
+== 01:35:18 Microsoft's own tools, for the record: cpu-attestation (MAA), gpu-attestation
+cpu-attestation exit=0
+== 01:35:18 the 7B genome path on the confidential GPU
+base_repo=Qwen/Qwen2.5-32B-Instruct base_rev=5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd
+finetune exit=0
+elapsed_seconds=1150
+== CAPTURE DONE

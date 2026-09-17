@@ -202,7 +202,9 @@ whole drill ran from them. The one file the authority still read bare
 in this run is the cross-cloud transport's client key: the kit sealed
 the base config's files before the failover config that names it was
 written; the kits now seal again after writing it (`seal-keys` skips
-what is sealed), and the next cross-cloud run carries the proof.
+what is sealed); the cross-cloud drill's run `20260916T233717Z`
+(`../failover-cgpu/evidence/20260916T233717Z/authority/steps.txt`) carries the
+proof: `seal-keys (failover config) exit=0 sealed=crosscloud.transport_tls.client_key already=5`.
 
 No plaintext seed is on the primary's disk after the seal step; the bare
 copy the standby's negative used lived in the run's private bucket,

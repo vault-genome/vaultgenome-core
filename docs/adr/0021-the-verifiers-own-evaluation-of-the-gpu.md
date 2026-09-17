@@ -203,3 +203,13 @@ unknown, without the nonce, expired, from a certificate not marked for
 OCSP signing, or HTTP 500 is refused each way, and a good answer is asked
 once.
 
+The first live handshake with the check on (`scripts/hardware-test/azure-cgpu`,
+run `20260916T235733Z`) was refused 190 times: the check looked for the
+echoed nonce where x/crypto exposes extensions — the single response's
+`singleExtensions` — while NVIDIA's responder, as RFC 6960 says, echoes it
+in the answer's `responseExtensions`; the synthetic responder of the
+tests had put it in the same wrong place and passed. The answer's outer
+structures are now read for the nonce, and the stored NVIDIA answers —
+which carry the nonces the fetch sent — are the test that would have
+caught it.
+

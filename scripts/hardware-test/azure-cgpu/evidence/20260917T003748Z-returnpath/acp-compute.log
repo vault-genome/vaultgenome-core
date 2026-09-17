@@ -1,0 +1,7 @@
+{"time":"2026-09-17T01:07:59.750980039Z","level":"INFO","msg":"acp-compute starting","version":"0.0.0-dev","commit":"none","config_path":"worker.json","vault_address":"127.0.0.1:9443","workload_descriptor":"acp-compute-returnpath-cgpu-v1"}
+{"time":"2026-09-17T01:07:59.926157661Z","level":"INFO","msg":"worker signing identity","kid":"acp-compute-worker-demo","pubkey_hex":"0cb58c88ee1d03e2cdb1eff80f8f8b31c53cd81eee6b41cb479cc897a8affc48"}
+{"time":"2026-09-17T01:07:59.926175562Z","level":"INFO","msg":"worker TEE identity","tee_provider":"azure-cgpu","measurement_hex":"aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef","peer_provider":"azure-cgpu"}
+{"time":"2026-09-17T01:07:59.926182162Z","level":"INFO","msg":"genome door","command":["/opt/vg/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/opt/base","--device","cuda"],"timeout_seconds":600}
+{"time":"2026-09-17T01:07:59.961867557Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9082"}
+{"time":"2026-09-17T01:22:59.964353769Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: ServeOneJob: read tcp 127.0.0.1:36618->127.0.0.1:9443: use of closed network connection","category":"unknown","code":"","backoff_ms":500}
+{"time":"2026-09-17T01:24:28.335593998Z","level":"INFO","msg":"acp-compute stopped"}

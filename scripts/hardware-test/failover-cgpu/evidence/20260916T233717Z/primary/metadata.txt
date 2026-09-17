@@ -1,0 +1,3 @@
+instance=vg-fo-primary-20260916t233717z
+zone=us-central1-c
+machine=n2d-standard-8

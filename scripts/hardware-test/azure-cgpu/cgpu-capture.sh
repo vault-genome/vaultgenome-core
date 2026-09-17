@@ -125,7 +125,10 @@ python3 -m venv /opt/vg && /opt/vg/bin/pip install -q --upgrade pip
 /opt/vg/bin/python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0), torch.cuda.get_device_properties(0).total_memory)" > "$OUT/torch.txt" 2>&1
 cat "$OUT/torch.txt"
 mark runtime_end
-BASE_REPO="Qwen/Qwen2.5-7B-Instruct"; BASE_REV="a09a35458c702b33eeacc393d103063234e8bc28"
+# The base model: Qwen2.5-7B-Instruct unless the operator names another
+# (VG_BASE_REPO / VG_BASE_REV through run.sh; a 32B fits the H100's 94 GB in bfloat16).
+BASE_REPO="${VG_BASE_REPO:-Qwen/Qwen2.5-7B-Instruct}"; BASE_REV="${VG_BASE_REV:-a09a35458c702b33eeacc393d103063234e8bc28}"
+echo "base_repo=$BASE_REPO base_rev=$BASE_REV" >> "$OUT/steps.txt"
 /opt/vg/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download('$BASE_REPO', revision='$BASE_REV', local_dir='/opt/base', max_workers=8)"
 mark download_end
 vg() { PYTHONPATH=/opt/worker TOKENIZERS_PARALLELISM=false /opt/vg/bin/python -m vg_genome "$@"; }

@@ -121,11 +121,16 @@ interface test pins its identifiers; no binary builds it.
   torch and `vg_genome`, and the public base model the genome names. A door
   that cannot run fails the job as `door_failed`; a base that does not hash
   to the manifest fails it the same way, with the reason.
-- **The Return Path bounds the genome.** One job is one frame of at most 16 MiB,
-  and the model side travels base64 inside it: about 11 MiB of adapter per
-  job, and `runtime.max_payload_bytes` (default 4 MiB) below that. A LoRA
-  adapter of a 0.5B–7B model fits; a full-weight fine-tune does not, and is
-  the cross-cloud key-release path's job (ADR 0011), not this one.
+- **The Return Path bounds the genome.** One job is one frame of at most
+  128 MiB (16 MiB until 2026-09-17: a 32B model's LoRA genome — 33.6 MB,
+  a 44.8 MB JobRequest in base64 — met that cap on an H100,
+  `scripts/hardware-test/azure-cgpu`, run `20260917T012834Z`, refused at
+  dispatch as `genome_too_large`, on the record), and the model side
+  travels base64 inside it, `runtime.max_payload_bytes` (default 4 MiB;
+  the kits set what their genome needs) below that. A LoRA adapter of a
+  0.5B–32B model fits, and a 70B one at the same rank; a full-weight
+  fine-tune does not, and is the cross-cloud key-release path's job (ADR
+  0011), not this one. Both ends must run a build with the same cap.
 - **The authority holds the genome in memory while it seals the job**, as it
   held every payload before. It still writes none of it. Keys reach it as a
   key file or through escrow, as ADR 0011 already had them; KNOWN_ISSUES #11

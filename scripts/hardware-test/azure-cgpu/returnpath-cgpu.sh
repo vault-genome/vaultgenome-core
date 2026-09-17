@@ -59,7 +59,7 @@ sagvd = {
   "genome": {"bundle_dir": W + "/genomes", "gate": {"atol": 1e-2, "rtol": 1e-3, "max_non_critical_outliers": 0}},
   "audit": {"log_path": W + "/audit/returnpath-audit.db"},
   "runtime": {"job_timeout_seconds": 900, "handshake_timeout_seconds": 120, "queue_poll_ms": 50,
-    "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 900, "max_payload_bytes": 33554432},
+    "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 900, "max_payload_bytes": 268435456},
   "health": {"listen_address": "127.0.0.1:9081"},
   "log": {"level": "info", "format": "json"}}
 worker = {
@@ -84,6 +84,13 @@ step "the key files sealed to the vTPM (ADR 0023): sagvd's and acp-compute's see
 TOKEN=$(cat "$S/sagvd/api_token")   # read before sagvd seals the file (ADR 0023)
 ./sagvd seal-keys -config sagvd.json > "$OUT/seal-keys-sagvd.json" 2> "$OUT/seal-keys-sagvd.err"
 echo "sagvd seal-keys exit=$?" >> "$OUT/steps.txt"
+# The rogue of the negative check below is an impostor with the worker's TLS
+# identity and keys of its own: its copy of the bare client key is taken
+# before the worker seals its files (the sealed ones open for no other
+# identity — which is the point, and what left the rogue unable to start in
+# runs 5-7, its "refused after 90s" a timeout, not a refusal).
+cp "$S/acp-compute/tls/client.key" "$W/rogue-client.key" && chmod 600 "$W/rogue-client.key"
+head -c 32 /dev/urandom > "$W/rogue-signing.seed"; head -c 32 /dev/urandom > "$W/rogue-sealing.key"; chmod 600 "$W/rogue-signing.seed" "$W/rogue-sealing.key"
 ./acp-compute seal-keys -config worker.json > "$OUT/seal-keys-worker.json" 2> "$OUT/seal-keys-worker.err"
 echo "acp-compute seal-keys exit=$?" >> "$OUT/steps.txt"
 
@@ -113,7 +120,7 @@ SHAPE
 echo "escrow re-provision exit=$? re-provisioned escrow_key=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["escrow_key"])' "$OUT/escrow-reprovision.json" 2>/dev/null) source=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["source"])' "$OUT/escrow-reprovision.json" 2>/dev/null) (want $(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["escrow_key"])' "$OUT/escrow-provision.json" 2>/dev/null))" >> "$OUT/steps.txt"
 rm -f recovery.seed
 
-step "the 7B genome trained here, sealed for sagvd"
+step "the genome trained here, sealed for sagvd"
 ./acpctl genome seal --content-dir "$HOME_DIR/genome" --output genomes/gen-0.genome --key-out genomes/gen-0.key --json > "$OUT/seal.json" 2> "$OUT/seal.err"
 echo "seal exit=$?" >> "$OUT/steps.txt"
 
@@ -130,6 +137,9 @@ import json, sys
 W = sys.argv[1]
 c = json.load(open(W + "/worker.json"))
 c["tee"] = {"provider": "simulated", "workload_descriptor": "rogue-worker-v1", "seed_path": W + "/rogue.seed", "insecure_simulation": True, "peer": c["tee"]["peer"]}
+c["keys"] = {"worker_signing": {"kid": "rogue-worker", "seed_path": W + "/rogue-signing.seed"},
+             "session_sealing": {"kid": "rogue-sealing", "material_path": W + "/rogue-sealing.key"}}
+c["vault"]["tls"]["client_key"] = W + "/rogue-client.key"
 c["health"] = {"listen_address": "127.0.0.1:9083"}
 c["runtime"]["dial_backoff_initial_ms"] = 2000
 c["runtime"]["dial_backoff_max_ms"] = 2000
@@ -138,7 +148,7 @@ PY
 ./acp-compute -config rogue.json > "$OUT/rogue-worker.log" 2>&1 &
 ROGUE=$!
 n=0; until grep -q "sagvd return-path handshake failed" "$OUT/sagvd.log" || [ $n -ge 90 ]; do sleep 1; n=$((n+1)); done
-echo "rogue refused after ${n}s" >> "$OUT/steps.txt"
+if grep -q "sagvd return-path handshake failed" "$OUT/sagvd.log"; then echo "rogue refused after ${n}s" >> "$OUT/steps.txt"; else echo "rogue NOT refused within ${n}s (it did not reach the handshake: $(tail -c 300 "$OUT/rogue-worker.log" | tr -d '\n' | cut -c1-200))" >> "$OUT/steps.txt"; false; fi
 kill -TERM $ROGUE; wait $ROGUE 2>/dev/null
 
 step "acp-compute on the confidential GPU VM, the door on the H100"
@@ -150,7 +160,7 @@ n=0; until grep -q "sagvd session opened" "$OUT/sagvd.log" || [ $n -ge 180 ]; do
 echo "session opened after ${n}s" >> "$OUT/steps.txt"
 mark session_opened
 
-step "the gate job over the Return Path: the 7B genome restored on the H100"
+step "the gate job over the Return Path: the genome restored on the H100"
 mark job_submit
 curl -s -o "$OUT/job-submit.json" -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   --data '{"genome":{"bundle":"gen-0.genome","key_file":"gen-0.key"},"deadline_seconds_from_now":900}' http://127.0.0.1:9080/v1/jobs > "$OUT/job-submit.status"

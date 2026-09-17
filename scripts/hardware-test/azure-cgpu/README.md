@@ -93,6 +93,59 @@ the way in). What the log does not carry: the evaluation record itself
 under `both` is what says it was complete — a line for it is a small
 follow-up.
 
+## The first live handshake with revocation on — run `20260916T235733Z` (evidence/20260916T235733Z, evidence/20260916T235733Z-returnpath)
+
+The capture went as before (`evidence/20260916T235733Z`: the chip, the
+vTPM quote, NVIDIA's tokens, the 7B genome fine-tuned and verified). The
+Return Path did not open: `sagvd`, verifying the worker's evidence under
+`both` with revocation asked of NVIDIA's responder for the first time
+outside the tests, refused the handshake 190 times over 15 minutes
+(`-returnpath/audit-events.jsonl`, every `TRUST_EVALUATED` a denial:
+`nvidia: ocsp http://ocsp.ndis.nvidia.com: the answer does not carry the
+request's nonce`), and the gate job stayed queued. The responder had
+answered, and echoed the nonce — in the answer's `responseExtensions`,
+where RFC 6960 puts it; the check looked in the single response's
+extensions, the only ones `golang.org/x/crypto/ocsp` exposes, and the
+tests' synthetic responder had echoed it there too. The answer's outer
+structures are now read for the nonce, and the stored NVIDIA answers
+(`internal/shared/tee/testdata/nvidia/ocsp/`), which carry the nonces
+their fetch sent, are the test that catches it. The evidence stays as
+the record of the lesson; the run after it carries the live proof.
+
+## The first 32B attempt — run `20260917T003748Z` (evidence/20260917T003748Z, evidence/20260917T003748Z-returnpath)
+
+With the nonce read from the right place and `VG_BASE_REPO=Qwen/Qwen2.5-32B-Instruct`:
+the 32B base (about 65 GB in 17 shards) downloaded and fine-tuned on the
+H100 NVL in bfloat16 (`finetune exit=0`, capture stage 1168 s), its
+genome sealed and verified; the Return Path opened the session in 3 s
+with revocation asked of NVIDIA's responder (`rim-cache-ls.txt`: the
+three `ocsp-*.der` answers beside the manifests) — and the gate job was
+refused before it was queued: `413 genome_too_large` (`job-submit.json`),
+the genome shipping 33,606,039 bytes to the worker against the kit's
+`runtime.max_payload_bytes` of 32 MiB. A guard doing its job, on the
+record; the kit's cap is 256 MiB now, and the run after it carries the
+32B gate.
+
+## The verifier's word on the worker's record — run `20260917T012834Z-returnpath` (evidence/20260917T012834Z-returnpath)
+
+The Return Path under `both` with the 32B base of the capture, the nonce
+read from the right place, and the record carrying what the verifier
+checked (ADR 0021, amended twice): the `TRUST_EVALUATED` event that
+admitted the worker (`audit-events.jsonl`, `outcome: allow`) carries
+`peer_detail` — provider `azure-cgpu`, product `Genoa`, reported TCB
+`6348668099708846090`, the vTPM quote's PCRs `sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14`, GPU-0 `GH100` driver `595.71.05` VBIOS
+`96.00.9F.00.04` vouched for by `https://nras.attestation.nvidia.com`, and the verifier's own evaluation
+(complete: True) with revocation asked of NVIDIA's OCSP responder:
+GH100 A01 GSP FMC LF: not served, GH100 A01 GSP BROM: good (cached), NVIDIA GH100 Provisioner ICA 1: good (cached), NVIDIA GH100 Identity: good (cached) — asked live in this run's first handshake, held in the cache for
+the ones after it (`rim-cache-ls.txt`: the three answers beside the
+manifests). The daemons' files were sealed to the vTPM before they
+started (`steps.txt`: sagvd seal-keys exit=0 · acp-compute seal-keys exit=0); 10 audit events verified (tip
+`211781b1…e0c9`). The job itself was refused at dispatch, on the record
+(`job.json`: `genome_too_large` — the 32B genome makes a 44.8 MB
+JobRequest, the Return Path carried frames of at most 16 MiB); the cap is
+128 MiB since (ADR 0013, amended), and the run after this one carries the
+32B gate.
+
 ## What the first attempt taught the kit
 
 - After Microsoft's kernel step, wait for the guest's *new* boot

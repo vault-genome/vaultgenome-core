@@ -126,12 +126,12 @@ ssh_vm 'nvidia-smi -L && nvidia-smi conf-compute -q' || { echo "no working NVIDI
 echo "step 2: Microsoft's attestation tools (the local GPU verifier, azure-guest-attest)"
 ssh_vm 'cd cgpu-onboarding-package && sudo bash step-2-attestation.sh --install-to-usr-local 2>&1 | tail -40'
 
-echo "capture + the 7B genome path on the confidential GPU (this takes a while)"
+echo "capture + the genome path on the confidential GPU (${VG_BASE_REPO:-Qwen/Qwen2.5-7B-Instruct}; this takes a while)"
 # The guest's sshd can be away for a minute after Microsoft's attestation
 # step (seen 2026-09-16: a banner-exchange timeout right after step 2);
 # wait for it rather than fail the run on the first dropped connection.
 wait_ssh 5 || { echo "the guest did not answer SSH before the capture"; exit 1; }
-ssh_vm "sudo env VG_STAMP=$STAMP bash cgpu-capture.sh 2>&1 | tail -60"
+ssh_vm "sudo env VG_STAMP=$STAMP VG_BASE_REPO=${VG_BASE_REPO:-} VG_BASE_REV=${VG_BASE_REV:-} bash cgpu-capture.sh 2>&1 | tail -60"
 
 echo "read the evidence back"
 mkdir -p "$EVIDENCE"

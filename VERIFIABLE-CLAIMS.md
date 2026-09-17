@@ -946,9 +946,17 @@ GPU-0 as GH100, the evaluation complete),
 [`internal/vault/orchestration/flow_test.go`](internal/vault/orchestration/flow_test.go)
 (`TestFlow_TrustRecordCarriesThePeersDetail`),
 [`internal/vault/kms/coordinator_detail_test.go`](internal/vault/kms/coordinator_detail_test.go).
-A live record from a confidential GPU host with `peer_detail` on it is
-not yet captured; the next hardware run of `scripts/hardware-test/azure-cgpu`
-or `failover-cgpu` will carry it.
+On a live record: the cross-cloud drill `scripts/hardware-test/failover-cgpu/evidence/20260916T233717Z/`
+carries `destination_detail` on the authority's `CROSS_CLOUD_ATTESTATION_VERIFIED`
+event (`authority/audit-events.jsonl`: provider `azure-cgpu`, product
+`Genoa`, the quote's PCRs `sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14`, GPU-0 `GH100` driver `595.71.05` VBIOS
+`96.00.9F.00.04` vouched for by `https://nras.attestation.nvidia.com`). A live `peer_detail` from a
+Return Path handshake on the H100 host: the Return Path run
+`scripts/hardware-test/azure-cgpu/evidence/20260917T012834Z-returnpath/` — the
+`TRUST_EVALUATED` event that admitted the worker carries `peer_detail`
+with the verifier's own evaluation complete and revocation asked of
+NVIDIA's responder — live in the run's first handshake, from the cache in
+the one recorded (GH100 A01 GSP FMC LF: not served, GH100 A01 GSP BROM: good (cached), NVIDIA GH100 Provisioner ICA 1: good (cached), NVIDIA GH100 Identity: good (cached)).
 
 ---
 
@@ -1198,7 +1206,9 @@ server key, its REST API token — and the destination on that host from
 its own sealed TLS key and bearer token (`acp-bootstrap seal-keys`). The
 cross-cloud transport's client key was still bare in this run (sealed
 since by a second `seal-keys` after the failover config is written;
-proven in the next cross-cloud run).
+proven in the cross-cloud run
+`scripts/hardware-test/failover-cgpu/evidence/20260916T233717Z/`, whose
+authority sealed it — `seal-keys (failover config) exit=0 sealed=crosscloud.transport_tls.client_key already=5` — before releasing the key).
 
 **Evidence.**
 [`scripts/hardware-test/gcp-failover/evidence/20260916T231442Z/`](scripts/hardware-test/gcp-failover/evidence/20260916T231442Z/)

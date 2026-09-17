@@ -1,0 +1,11 @@
+{
+  "escrow_key": "e8073c8303fc5eb2",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAsRB1DRtO8YfxsSmMSfCaY9B0OyG6TvLf2Y8FEyEXjA8=\n-----END PUBLIC KEY-----\n",
+  "tee": "azure-cgpu",
+  "measurement_hex": "aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef",
+  "source": "generated",
+  "sealed_path": "escrow.sealed",
+  "public_path": "escrow.pem",
+  "recovery_key": "255d6743152cbe38",
+  "recovery_path": "escrow.recovery.json"
+}

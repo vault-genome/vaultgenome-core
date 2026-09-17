@@ -303,3 +303,30 @@ func issuedCert(t *testing.T, name string, issuer *x509.Certificate, issuerKey *
 	require.NoError(t, err)
 	return key, cert
 }
+
+// NVIDIA's responder echoes the nonce in the answer's responseExtensions
+// (RFC 6960 §4.4.1), not in the single response's extensions x/crypto
+// exposes: the stored answers carry the nonces the fetch sent, and the
+// check finds them there; another nonce is refused.
+func TestOCSP_NVIDIAsAnswersCarryTheNonceInResponseExtensions(t *testing.T) {
+	chain := capturedGPUChain(t)
+	for i, name := range map[int]string{1: "gh100-a01-gsp-brom.der", 2: "gh100-provisioner-ica1.der", 3: "gh100-identity.der"} {
+		raw, err := os.ReadFile(filepath.Join(ocspTestDir, name))
+		if err != nil {
+			t.Skip("NVIDIA OCSP answers not present: " + name)
+		}
+		parsed, err := ocsp.ParseResponseForCert(raw, chain[i], chain[i+1])
+		require.NoError(t, err, name)
+		require.Empty(t, parsed.Extensions, "%s: x/crypto sees no nonce in the single response", name)
+		echoed := ocspResponseNonce(raw, parsed)
+		require.NotNil(t, echoed, "%s: the nonce is in responseExtensions", name)
+		var nonce []byte
+		_, err = asn1.Unmarshal(echoed, &nonce)
+		require.NoError(t, err)
+		require.Len(t, nonce, 16, "%s: openssl's 16-byte nonce, as an OCTET STRING", name)
+		_, err = verifyOCSPResponse(raw, chain[i], chain[i+1], nonce, insideNVIDIAAnswers)
+		require.NoError(t, err, name)
+		_, err = verifyOCSPResponse(raw, chain[i], chain[i+1], []byte("0123456789abcdef"), insideNVIDIAAnswers)
+		require.ErrorContains(t, err, "nonce", name)
+	}
+}
