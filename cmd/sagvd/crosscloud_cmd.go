@@ -14,17 +14,17 @@ import (
 	"os"
 	"strings"
 
-	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
-	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/exposure"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/kms"
+	cchr "github.com/vault-genome/vaultgenome-core/internal/contracts/cross_cloud_handshake_request"
+	krt "github.com/vault-genome/vaultgenome-core/internal/contracts/key_release_token"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/exposure"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // runCrossCloudRestoreCmd parses the operator's flags, loads

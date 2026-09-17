@@ -14,11 +14,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/contentdir"
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/genome/tree"
-	"github.com/ai-continuity-platform/core/internal/ollama"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/contentdir"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/tree"
+	"github.com/vault-genome/vaultgenome-core/internal/ollama"
 )
 
 func writeTree(t *testing.T, dir string, files map[string]string) {

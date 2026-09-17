@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/observability/metrics"
-	"github.com/ai-continuity-platform/core/internal/observability/teemetrics"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/teemetrics"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // stubProducer is a minimal Producer that always returns the given

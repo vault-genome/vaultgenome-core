@@ -6,13 +6,13 @@ import (
 	"encoding/hex"
 	"sync"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
-	"github.com/ai-continuity-platform/core/internal/contracts/disclosure_message"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/disclosure_message"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // DefaultSequencerAuditIDPrefix is prepended to a monotonic counter when

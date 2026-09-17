@@ -5,8 +5,8 @@ package cross_cloud_handshake_request
 import (
 	"fmt"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // Validate runs static consistency checks on the request. Invariants

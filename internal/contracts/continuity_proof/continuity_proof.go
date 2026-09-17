@@ -5,10 +5,10 @@ package continuity_proof
 import (
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/genome_descriptor"
-	"github.com/ai-continuity-platform/core/internal/contracts/probe_battery"
-	"github.com/ai-continuity-platform/core/internal/contracts/witness"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/probe_battery"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/witness"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // Schema versioning for the ContinuityProof wire format. All three

@@ -43,8 +43,8 @@ import (
 	"sync"
 	"time"
 
-	shared_crypto "github.com/ai-continuity-platform/core/internal/shared/crypto"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // AzureSGXVerifierMode chooses online (MAA) vs offline (DCAP) verification.

@@ -83,15 +83,15 @@ Genome key material needs to be trusted:
 
 ```bash
 # 1. Download the binary, signature, and certificate
-curl -L -O https://github.com/ai-continuity-platform/core/releases/download/v1.2.3/sagvd
-curl -L -O https://github.com/ai-continuity-platform/core/releases/download/v1.2.3/sagvd.sig
-curl -L -O https://github.com/ai-continuity-platform/core/releases/download/v1.2.3/sagvd.cert
+curl -L -O https://github.com/vault-genome/vaultgenome-core/releases/download/v1.2.3/sagvd
+curl -L -O https://github.com/vault-genome/vaultgenome-core/releases/download/v1.2.3/sagvd.sig
+curl -L -O https://github.com/vault-genome/vaultgenome-core/releases/download/v1.2.3/sagvd.cert
 
 # 2. Verify signature + transparency-log entry
 cosign verify-blob \
   --signature sagvd.sig \
   --certificate sagvd.cert \
-  --certificate-identity-regexp 'https://github\.com/ai-continuity-platform/core/\.github/workflows/release\.yml@refs/tags/v.*' \
+  --certificate-identity-regexp 'https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v.*' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   sagvd
 ```

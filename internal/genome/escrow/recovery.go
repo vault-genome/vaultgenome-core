@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ai-continuity-platform/core/internal/vault/kms"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // RecoverySchema names the recovery envelope: the escrow private key

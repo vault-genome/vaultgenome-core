@@ -20,12 +20,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/contentdir"
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/genome/restore"
-	"github.com/ai-continuity-platform/core/internal/ollama"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/contentdir"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/restore"
+	"github.com/vault-genome/vaultgenome-core/internal/ollama"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // Bundles are written in the v3 format (internal/genome/bundle): the

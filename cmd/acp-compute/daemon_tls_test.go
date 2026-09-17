@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/compute/worker"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/worker"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // tlsMaterial is a throwaway PKI for one test: a CA, a server certificate

@@ -8,14 +8,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/attestation_result"
-	"github.com/ai-continuity-platform/core/internal/contracts/recovery_request"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
-	"github.com/ai-continuity-platform/core/internal/vault/revocation"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/attestation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/recovery_request"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
 
 // Reasons an AttestationResult carries. They are stable strings auditors

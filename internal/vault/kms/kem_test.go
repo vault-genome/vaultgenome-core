@@ -7,8 +7,8 @@ import (
 	"crypto/rand"
 	"testing"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/stretchr/testify/require"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 func newX25519(t *testing.T) (priv, pub []byte) {

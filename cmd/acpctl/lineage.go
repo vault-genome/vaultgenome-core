@@ -10,8 +10,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/audit/store"
-	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/audit/store"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 )
 
 // lineageCmd implements `acpctl lineage` — given a session or manifest

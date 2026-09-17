@@ -10,10 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/continuity_proof"
-	"github.com/ai-continuity-platform/core/internal/contracts/genome_descriptor"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/continuity_proof"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // ---- happy path ------------------------------------------------------------

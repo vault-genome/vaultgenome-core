@@ -3,8 +3,8 @@
 package probe_battery
 
 import (
-	"github.com/ai-continuity-platform/core/internal/contracts/genome_descriptor"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // ---- doctrinal drift budgets -----------------------------------------------

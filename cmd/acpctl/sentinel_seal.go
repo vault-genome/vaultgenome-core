@@ -14,7 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // sentinelSeedName is the name the sentinel's seed is sealed under

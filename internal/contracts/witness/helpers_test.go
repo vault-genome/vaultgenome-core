@@ -8,11 +8,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/genome_descriptor"
-	"github.com/ai-continuity-platform/core/internal/contracts/witness"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/witness"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // -------------------------------------------------------------------

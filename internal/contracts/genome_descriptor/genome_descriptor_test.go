@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/stretchr/testify/require"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // fixedHash returns a deterministic 32-byte hash filled with b.

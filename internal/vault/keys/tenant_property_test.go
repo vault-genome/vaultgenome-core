@@ -31,9 +31,9 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 )
 
 // quickConfig sets a higher-than-default sample size; default is 100,

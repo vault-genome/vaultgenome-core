@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // selfSignedPair writes a self-signed ECDSA certificate and its key

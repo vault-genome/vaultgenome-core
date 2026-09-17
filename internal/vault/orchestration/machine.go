@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // The triggers of TransitionTable, as names a driver can use.

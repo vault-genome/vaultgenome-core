@@ -44,8 +44,8 @@ GB). Both can be overridden via Terraform variables.
 ## Quick start — one command
 
 ```bash
-git clone <vault-genome-repo-private-url>
-cd core/scripts/hardware-test/gcp-sev-snp/
+git clone https://github.com/vault-genome/vaultgenome-core
+cd vaultgenome-core/scripts/hardware-test/gcp-sev-snp/
 ./examples/full-test-run.sh   # provisions VM, bootstraps, runs all tests, packs evidence, tears down
 ```
 

@@ -8,17 +8,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/audit/chain"
-	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/validation/behavioral"
-	"github.com/ai-continuity-platform/core/internal/validation/operational"
-	"github.com/ai-continuity-platform/core/internal/validation/semantic"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/audit/chain"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/behavioral"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/operational"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/semantic"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // Stable refusal codes emitted by the release-side Service. Per-sub-check

@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
-	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
-	"github.com/ai-continuity-platform/core/internal/genome/receipt"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	cchr "github.com/vault-genome/vaultgenome-core/internal/contracts/cross_cloud_handshake_request"
+	krt "github.com/vault-genome/vaultgenome-core/internal/contracts/key_release_token"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/receipt"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // HTTPTransport is a production implementation of the Transport

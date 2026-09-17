@@ -4,7 +4,7 @@
 # Enforced in CI by: scripts/check_dep_allowlist.sh.
 #
 # Rules (from policy §3.1):
-#   1. Every direct dependency of github.com/ai-continuity-platform/core
+#   1. Every direct dependency of github.com/vault-genome/vaultgenome-core
 #      MUST appear on this list (either exactly or as a prefix).
 #   2. Adding a line here also requires:
 #        (a) a justification at docs/dependencies/<pkg>.md,

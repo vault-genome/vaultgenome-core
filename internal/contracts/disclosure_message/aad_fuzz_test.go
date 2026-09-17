@@ -6,8 +6,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/disclosure_message"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/disclosure_message"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // FuzzBuildRecipientAAD_Determinism pins the wire-stability contract of

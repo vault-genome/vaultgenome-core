@@ -27,8 +27,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/vault/kms"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // Schema names the escrow envelope format.

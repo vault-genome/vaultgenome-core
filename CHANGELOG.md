@@ -13,6 +13,44 @@ given release can still open.
 
 Nothing yet.
 
+## [0.3.0] — 2026-09-17
+
+The module moves to the path it is published at. Against 0.2.1,
+`go install github.com/vault-genome/vaultgenome-core/cmd/acpctl@v0.2.1`
+stops with *module declares its path as: github.com/ai-continuity-platform/core*;
+from this release the declared path is the repository's, so `go install` and
+`go get` work from the public repository. Import paths change with it, which
+under a major version of `0` is a minor version. No behaviour changes: the
+binaries are the code of 0.2.1 under the new path. Bundle format, audit schema
+and policy schema: unchanged from 0.2.1.
+
+### Changed
+
+- **Module path** `github.com/ai-continuity-platform/core` →
+  `github.com/vault-genome/vaultgenome-core`, in `go.mod` and every import;
+  the standalone demo keygen module → `…/deploy/compose/keygen`.
+- **Every link into the repository that still named the pre-publication
+  organisation names this one:** SECURITY.md's private-advisory URL and
+  release link, the issue template's contact links, the setup guide's
+  `git clone`, the supply-chain download examples, the TAP draft's
+  references, `pkg/teeconformance`'s import example, `docs/STATUS.md`.
+  The old organisation does not exist on GitHub; each of these was a 404.
+- The issue template's discussion links point at this repository's
+  Discussions (now enabled), categories *Ideas* and *Q&A*.
+- CODE_OF_CONDUCT.md names an enforcement contact instead of the
+  placeholder it carried since before the first public release.
+- ADR 0003 records the rename beside the module path it names.
+
+### Added
+
+- KNOWN_ISSUES.md: the worker's pinned Python runtime and the advisories
+  OSV reports against those pins, why the pins stay until the runtime is
+  re-measured, and what `govulncheck` reports for the Go tree.
+- `scorecard.yml` accepts an optional `SCORECARD_TOKEN` so the
+  Branch-Protection check can read the rules that are set (the default
+  token cannot read classic rules); without the secret it uses the default
+  token as before.
+
 ## [0.2.1] — 2026-09-17
 
 The reference release: the code of 0.2.0 with static binaries that anyone

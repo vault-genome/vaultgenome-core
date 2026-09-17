@@ -10,11 +10,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/probe_battery"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/probe_battery"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // scoreEntriesForBattery builds a ScoreEntry for every probe in b.

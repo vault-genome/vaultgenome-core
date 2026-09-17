@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/stretchr/testify/require"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // fakeVTPM stands in for tpm2-tools over a vTPM: a primary key that is

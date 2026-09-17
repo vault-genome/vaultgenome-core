@@ -15,11 +15,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
-	"github.com/ai-continuity-platform/core/internal/recvvalidator"
-	"github.com/ai-continuity-platform/core/internal/validation/service"
-	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/recvvalidator"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/service"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
 )
 
 // TestInvariant_01_VaultIsAuthority asserts that every authority DECISION
@@ -62,7 +62,7 @@ func TestInvariant_01_VaultIsAuthority(t *testing.T) {
 
 	// Authority-decision packages — non-vault callers must not import any
 	// of these. Every path is the canonical module prefix + subpackage.
-	const vaultMod = "github.com/ai-continuity-platform/core/internal/vault/"
+	const vaultMod = "github.com/vault-genome/vaultgenome-core/internal/vault/"
 	forbiddenVaultImports := []string{
 		vaultMod + "disclosure",
 		vaultMod + "session",
@@ -748,9 +748,9 @@ var safetarImporters = []string{
 // materialisingPackages put genome plaintext on disk. Only the binaries
 // in materialisingBinaries may link them.
 var materialisingPackages = []string{
-	"github.com/ai-continuity-platform/core/internal/shared/safetar",
-	"github.com/ai-continuity-platform/core/internal/genome/restore",
-	"github.com/ai-continuity-platform/core/internal/bootstrap/restorer",
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safetar",
+	"github.com/vault-genome/vaultgenome-core/internal/genome/restore",
+	"github.com/vault-genome/vaultgenome-core/internal/bootstrap/restorer",
 }
 
 // materialisingBinaries: acpctl restores on the operator's machine with
@@ -836,7 +836,7 @@ func TestInvariant_07_NoRawExport(t *testing.T) {
 func TestInvariant_07_SafetarOnlyServesRestore(t *testing.T) {
 	t.Parallel()
 	root := locateModuleRoot(t)
-	const safetarPath = "github.com/ai-continuity-platform/core/internal/shared/safetar"
+	const safetarPath = "github.com/vault-genome/vaultgenome-core/internal/shared/safetar"
 
 	var offenders []string
 	walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {

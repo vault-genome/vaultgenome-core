@@ -5,10 +5,10 @@ package kms
 import (
 	"testing"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 func makeMeasurement(b byte) []byte {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
 )
 
 // The operator's side of the recovery ceremony: a recovery key made off

@@ -16,15 +16,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/audit/chain"
-	"github.com/ai-continuity-platform/core/internal/audit/store"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
-	"github.com/ai-continuity-platform/core/internal/vault/kms"
-	"github.com/ai-continuity-platform/core/internal/vault/revocation"
+	"github.com/vault-genome/vaultgenome-core/internal/audit/chain"
+	"github.com/vault-genome/vaultgenome-core/internal/audit/store"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
 
 // CrossCloudAuditSigningKeyID is the kid under which the cross-cloud

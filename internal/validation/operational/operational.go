@@ -5,12 +5,12 @@ package operational
 import (
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/attestation_result"
-	"github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
-	"github.com/ai-continuity-platform/core/internal/contracts/session_object"
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/attestation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/session_object"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // Machine-readable sub-check codes. These are the canonical strings used in

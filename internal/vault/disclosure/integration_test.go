@@ -49,14 +49,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/continuity_proof"
-	witness_contract "github.com/ai-continuity-platform/core/internal/contracts/witness"
-	witness_op "github.com/ai-continuity-platform/core/internal/genome/witness"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/disclosure"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/continuity_proof"
+	witness_contract "github.com/vault-genome/vaultgenome-core/internal/contracts/witness"
+	witness_op "github.com/vault-genome/vaultgenome-core/internal/genome/witness"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/disclosure"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // ---- receiver-only resolver -------------------------------------------------

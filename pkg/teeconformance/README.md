@@ -12,7 +12,7 @@ package myadapter_test
 
 import (
     "testing"
-    "github.com/ai-continuity-platform/core/pkg/teeconformance"
+    "github.com/vault-genome/vaultgenome-core/pkg/teeconformance"
 )
 
 func TestMyAdapter_Conformance(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"bytes"
 	"fmt"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // PolicyVerdict is the result of consulting a KeyReleasePolicy. The

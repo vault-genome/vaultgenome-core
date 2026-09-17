@@ -5,7 +5,7 @@ package transport
 import (
 	"time"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // FrameType is the on-wire `type` discriminator that every frame body

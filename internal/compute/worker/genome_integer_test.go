@@ -8,9 +8,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/genome/gatejob"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/gatejob"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // askIntegerDoor rewrites the job's prompts to ask for the integer door

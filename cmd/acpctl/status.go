@@ -11,8 +11,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/audit/store"
-	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/audit/store"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 )
 
 // statusCmd implements `acpctl status` — a local read-only summary of

@@ -12,9 +12,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 )
 
 // provision runs `sagvd escrow-provision` against f's config and returns

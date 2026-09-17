@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // maxEscrowFileBytes bounds what is read as an escrow key file.

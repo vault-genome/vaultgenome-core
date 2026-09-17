@@ -19,7 +19,7 @@ integration, coverage, lint, terminology, govulncheck, osv-scanner,
 gitleaks, sbom, license-headers, doctrine-tests, dep-allowlist, dep-depth,
 verify-reproducible), plus CodeQL, Semgrep, a benchmark comparison, the
 Python worker's tests and OpenSSF Scorecard.
-**Module path:** `github.com/ai-continuity-platform/core`. **Go:** 1.26.
+**Module path:** `github.com/vault-genome/vaultgenome-core`. **Go:** 1.26.
 **Hardware measured:** AMD SEV-SNP (GCP, Azure), Intel TDX (GCP), an
 NVIDIA H100 in confidential-computing mode (Azure); NVIDIA L4 and T4 and
 Intel Xeon CPUs for the determinism measurements.

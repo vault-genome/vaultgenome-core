@@ -5,8 +5,8 @@ package kms
 import (
 	"context"
 
-	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
-	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
+	cchr "github.com/vault-genome/vaultgenome-core/internal/contracts/cross_cloud_handshake_request"
+	krt "github.com/vault-genome/vaultgenome-core/internal/contracts/key_release_token"
 )
 
 // HandshakeResponse is the destination's reply to a

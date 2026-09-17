@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/genome_descriptor"
-	"github.com/ai-continuity-platform/core/internal/genome/identity"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/identity"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // fixedHash returns a deterministic 32-byte hash filled with b.

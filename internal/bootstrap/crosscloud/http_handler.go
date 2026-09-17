@@ -12,9 +12,9 @@ import (
 	"net/http"
 	"strings"
 
-	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
-	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	cchr "github.com/vault-genome/vaultgenome-core/internal/contracts/cross_cloud_handshake_request"
+	krt "github.com/vault-genome/vaultgenome-core/internal/contracts/key_release_token"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // HTTPHandler wraps a Receiver in an HTTP request handler suitable

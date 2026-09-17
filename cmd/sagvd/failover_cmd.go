@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/failover"
-	"github.com/ai-continuity-platform/core/internal/vault/kms"
-	"github.com/ai-continuity-platform/core/internal/vault/revocation"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/failover"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
 
 // Exit codes of sagvd failover.

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	shared_crypto "github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // TestEncodeDecodeVault — envelope round-trip + malformed-input handling.

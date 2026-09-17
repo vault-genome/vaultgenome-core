@@ -14,11 +14,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/client"
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/transport"
-	"github.com/ai-continuity-platform/core/internal/compute/worker"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/client"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/transport"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/worker"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 )
 
 // Dialer abstracts net.Dial-style entry so tests can plug an in-memory

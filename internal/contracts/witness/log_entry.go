@@ -9,10 +9,10 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/genome_descriptor"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // Schema versioning for witness-log artifacts. The three constants advance

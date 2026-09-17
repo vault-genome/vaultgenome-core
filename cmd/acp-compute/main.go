@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/compute/worker"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/worker"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 )
 
 // Build-time variables. -ldflags "-X main.version=... -X main.commit=..."

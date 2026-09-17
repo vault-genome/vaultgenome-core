@@ -9,7 +9,7 @@ import (
 	"encoding/pem"
 	"io"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // Ed25519 constants re-exported for callers that don't want to import

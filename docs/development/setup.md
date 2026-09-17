@@ -113,8 +113,8 @@ Workspace settings (`.vscode/settings.json`, opt-in per developer):
 ### Onboarding (first day)
 
 ```bash
-git clone https://github.com/ai-continuity-platform/core
-cd core
+git clone https://github.com/vault-genome/vaultgenome-core
+cd vaultgenome-core
 make all                  # confirm the tree builds clean
 pre-commit install        # opt-in commit-time checks
 ```

@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ai-continuity-platform/core/internal/contracts/attestation_result"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/attestation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 	"io"
 	"net"
 	"os"
@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/exposure"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/exposure"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // Config is the full on-disk configuration for the sagvd authority

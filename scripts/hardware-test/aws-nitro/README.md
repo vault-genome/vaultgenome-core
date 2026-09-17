@@ -100,7 +100,7 @@ export TF_VAR_region="us-east-2"
 export TF_VAR_availability_zone="us-east-2a"
 
 # Run the full pipeline (provisions, tests, packs, downloads, destroys)
-cd core/scripts/hardware-test/aws-nitro/
+cd vaultgenome-core/scripts/hardware-test/aws-nitro/
 ./examples/full-test-run.sh
 ```
 

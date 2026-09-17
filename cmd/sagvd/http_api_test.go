@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/observability/metrics"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/intake"
-	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/intake"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
 )
 
 // --- test fixtures --------------------------------------------------------

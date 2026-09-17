@@ -31,13 +31,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/bootstrap/crosscloud"
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/genome/receipt"
-	"github.com/ai-continuity-platform/core/internal/genome/restore"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/bootstrap/crosscloud"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/receipt"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/restore"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 )
 
 // DefaultRescan is how often the Restorer looks again for the bundle of

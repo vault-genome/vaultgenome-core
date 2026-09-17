@@ -17,11 +17,11 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/genome/gatejob"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/gatejob"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // doorValue is the arithmetic a test "model" computes: the logit at token

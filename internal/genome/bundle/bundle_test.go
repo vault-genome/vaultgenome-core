@@ -16,10 +16,10 @@ import (
 	"testing/iotest"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 var payload = bytes.Repeat([]byte("model weights "), 1000)

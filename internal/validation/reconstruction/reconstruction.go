@@ -25,9 +25,9 @@ package reconstruction
 import (
 	"fmt"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/reconstitution_decision"
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/reconstitution_decision"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // RecomputeFunc returns the output tensor the restored genome produces for a

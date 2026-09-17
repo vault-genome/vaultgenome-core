@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/genome/receipt"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/receipt"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // modelGenomeWithIntegerDoor is modelGenome with the integer door's

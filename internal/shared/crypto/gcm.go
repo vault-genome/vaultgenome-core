@@ -8,7 +8,7 @@ import (
 	"crypto/rand"
 	"io"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // GCM constants. The key is 32 bytes (AES-256); the nonce is 12 bytes

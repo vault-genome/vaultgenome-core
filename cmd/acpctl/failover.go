@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/genome/sentinel"
-	"github.com/ai-continuity-platform/core/internal/vault/failover"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/failover"
 )
 
 // failoverCmd dispatches `acpctl failover <issue|verify>` (ADR 0012). The

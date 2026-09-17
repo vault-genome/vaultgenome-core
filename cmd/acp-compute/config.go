@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // Config is the full on-disk configuration for the acp-compute

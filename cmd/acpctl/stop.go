@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/vault/revocation"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
 
 // stopCmd dispatches `acpctl stop <subcommand>` — the operator stop of

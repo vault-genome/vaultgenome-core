@@ -99,7 +99,7 @@ func moduleRoot() (string, error) {
 	}
 	for {
 		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-		if err == nil && bytes.HasPrefix(data, []byte("module github.com/ai-continuity-platform/core\n")) {
+		if err == nil && bytes.HasPrefix(data, []byte("module github.com/vault-genome/vaultgenome-core\n")) {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)

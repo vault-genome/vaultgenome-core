@@ -5,7 +5,7 @@ package key_release_token
 import (
 	"fmt"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // Validate runs static consistency checks. Invariants enforced here:

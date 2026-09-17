@@ -14,7 +14,7 @@ package main
 // /internal/observability/metrics — this file should stay a near-empty
 // shim, not grow package-local helpers.
 
-import "github.com/ai-continuity-platform/core/internal/observability/metrics"
+import "github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
 
 // Type aliases preserve identity: *main.Registry and
 // *metrics.Registry are the same type, so values flow between the

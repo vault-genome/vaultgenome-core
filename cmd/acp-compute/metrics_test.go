@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/observability/metrics"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
 )
 
 // TestMetricsAliases_Identity asserts that the aliases in metrics.go

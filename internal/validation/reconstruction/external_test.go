@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // fakeBackend returns an ExternalBackend whose process emits the given tensor as

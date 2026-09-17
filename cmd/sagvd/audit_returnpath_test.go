@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/audit/store"
-	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
-	"github.com/ai-continuity-platform/core/internal/observability/metrics"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/audit/store"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // newTestAudit opens a Return Path audit log in a temp dir under a fresh

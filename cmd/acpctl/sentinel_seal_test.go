@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/genome/sentinel"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 type sealKeyOutput struct {

@@ -19,7 +19,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 )
 
 func benchmarkSimulator(b *testing.B) (*Simulated, *SimulatedVerifier, []byte) {

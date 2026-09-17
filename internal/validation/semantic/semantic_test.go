@@ -5,8 +5,8 @@ package semantic
 import (
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
 )
 
 // TestRun_ByteExactMatch — the canonical pass case: Candidate and

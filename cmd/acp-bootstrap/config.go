@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/exposure"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/exposure"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // Config is the on-disk JSON configuration for acp-bootstrap.

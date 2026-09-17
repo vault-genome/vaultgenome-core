@@ -24,9 +24,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/genome/tree"
-	"github.com/ai-continuity-platform/core/internal/shared/safetar"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/tree"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safetar"
 )
 
 // StagingPrefix names the staging directories Restore creates inside a

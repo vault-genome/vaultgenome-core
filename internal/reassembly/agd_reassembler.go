@@ -5,13 +5,13 @@ package reassembly
 import (
 	"bytes"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/disclosure_message"
-	"github.com/ai-continuity-platform/core/internal/contracts/genome_descriptor"
-	"github.com/ai-continuity-platform/core/internal/genome/componenttree"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/disclosure_message"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/componenttree"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // AGDReassembler is the concrete Reassembler bound to one parent AGD.

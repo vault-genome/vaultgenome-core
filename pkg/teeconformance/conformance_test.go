@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/pkg/teeconformance"
+	"github.com/vault-genome/vaultgenome-core/pkg/teeconformance"
 )
 
 // ---- reference adapter -----------------------------------------------------

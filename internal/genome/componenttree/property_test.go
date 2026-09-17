@@ -8,8 +8,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 )
 
 // Property tests for /internal/genome/componenttree.

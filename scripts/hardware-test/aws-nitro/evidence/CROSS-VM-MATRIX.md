@@ -100,7 +100,7 @@ This entire matrix can be reproduced by any third party with an AWS account:
 
 ```bash
 git clone https://github.com/<org>/<repo>.git && cd repo
-cd core/scripts/hardware-test/aws-nitro/
+cd vaultgenome-core/scripts/hardware-test/aws-nitro/
 for az in us-east-2a us-east-2b us-east-2c eu-west-1a; do
   TF_VAR_availability_zone=$az TF_VAR_instance_name=vault-genome-nitro-$az \
     ./examples/full-test-run.sh

@@ -5,7 +5,7 @@ package audit_event
 import (
 	"testing"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // FuzzAuditEvent_SchemaVersionRangeGate pins the AuditEvent.Validate

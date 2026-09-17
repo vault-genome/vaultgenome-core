@@ -28,6 +28,11 @@ jobs:
       - name: Run Scorecard
         uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
         with:
+          # The default token cannot read classic branch-protection rules, so the
+          # Branch-Protection check reports an error instead of the rules that are set.
+          # An optional fine-grained token (Administration: read) lets it read them;
+          # without the secret the default token is used and nothing else changes.
+          repo_token: ${{ secrets.SCORECARD_TOKEN || github.token }}
           results_file: results.sarif
           results_format: sarif
           publish_results: true

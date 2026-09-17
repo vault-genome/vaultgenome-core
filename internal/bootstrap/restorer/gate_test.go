@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/genome/receipt"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/receipt"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 func f32b64(vals ...float32) string {

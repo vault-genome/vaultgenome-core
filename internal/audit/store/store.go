@@ -13,8 +13,8 @@ import (
 
 	"go.etcd.io/bbolt"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // Doctrinal role (implementation layer)

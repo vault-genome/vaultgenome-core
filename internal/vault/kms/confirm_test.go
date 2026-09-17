@@ -14,12 +14,12 @@ import (
 	"testing"
 	stdtime "time"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
-	"github.com/ai-continuity-platform/core/internal/genome/receipt"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/receipt"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // fakeReceipts serves one signed receipt, as a destination would.

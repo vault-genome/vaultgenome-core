@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ai-continuity-platform/core/internal/vault/revocation"
-	"github.com/ai-continuity-platform/core/internal/vault/trust"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/trust"
 )
 
 // newOperatorStopSource reads and verifies the operator's stop list once

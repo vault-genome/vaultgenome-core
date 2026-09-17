@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/observability/metrics"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
 )
 
 // State is a small atomic latch shared between a daemon's main loop

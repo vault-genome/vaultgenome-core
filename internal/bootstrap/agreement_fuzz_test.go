@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/bootstrap"
-	"github.com/ai-continuity-platform/core/internal/contracts/bootstrap_manifest"
-	"github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/bootstrap"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/bootstrap_manifest"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // FuzzCheckAgreement asserts the cross-manifest agreement rule from

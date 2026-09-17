@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/contentdir"
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/contentdir"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 func runGenome(args ...string) (int, string, string) {

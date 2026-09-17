@@ -5,9 +5,9 @@ package reconstruction
 import (
 	"fmt"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 var errEmptyLadder = shared_errors.Structural(

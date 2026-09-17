@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // writeWorkerRegistry helper builds a JSON file on disk for the

@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // The worker's key files — its signing seed, the session sealing key —

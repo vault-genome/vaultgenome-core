@@ -337,3 +337,24 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     EQUIVALENT under a bfloat16 tolerance the operator signed for, or
     EXACT through the integer door — each the honest reading of the
     tensors, not a defect of the gate.
+
+14. **The worker's Python runtime is pinned, and OSV reports advisories
+   against those pins (2026-09-17).**
+   `workers/genome/requirements.txt` pins `torch==2.7.1`,
+   `transformers==4.53.2`, `tokenizers==0.21.2`, `safetensors==0.5.3` and
+   `numpy==2.3.1`, because the determinism the genome path claims — EXACT
+   on the pinned runtime, the recipe replaying bit for bit (C16), the same
+   bytes across CPU and GPU (C19) — was measured on exactly that runtime.
+   Queried on 2026-09-17, OSV lists 10 advisories against `torch` 2.7.1 and
+   16 against `transformers` 4.53.2, none against the other three; these
+   are what the OpenSSF Scorecard's *Vulnerabilities* check counts.
+   `govulncheck ./...` on the Go tree at the same date reports no
+   vulnerability reachable from this code. The pins are not raised in
+   passing: a newer `torch` or `transformers` changes numerics, so a bump
+   is a re-measurement of C16 and C19 on the new runtime, recorded as
+   evidence, and then the pin. Until then an operator who runs the worker
+   should read the advisories against how the worker is deployed — the
+   daemon starts it as a subprocess (`python3 -m vg_genome door
+   --stdin-genome`) and hands it the genome on stdin; it opens no network
+   listener — and decide for their own deployment; this file does not
+   decide it for them.

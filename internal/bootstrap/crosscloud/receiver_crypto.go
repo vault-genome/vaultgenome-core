@@ -2,7 +2,7 @@
 
 package crosscloud
 
-import "github.com/ai-continuity-platform/core/internal/shared/crypto"
+import "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 
 // sha256OfBytes returns the SHA-256 digest of b. Indirection through a
 // dedicated helper isolates the stdlib hashing dependency in one
