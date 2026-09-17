@@ -1,0 +1,8 @@
+{"time":"2026-09-17T02:31:07.079499201Z","level":"INFO","msg":"acp-compute starting","version":"0.0.0-dev","commit":"none","config_path":"rogue.json","vault_address":"127.0.0.1:9443","workload_descriptor":"rogue-worker-v1"}
+{"time":"2026-09-17T02:31:07.080751422Z","level":"INFO","msg":"worker signing identity","kid":"rogue-worker","pubkey_hex":"166a69c79bf7ed75b9b61070010b77d1a80821cc0b7dc108187596e8da1387b8"}
+{"time":"2026-09-17T02:31:07.080758822Z","level":"INFO","msg":"worker TEE identity","tee_provider":"simulated","measurement_hex":"874a0079e2e89e9ca5567eeb3c0169ded06637744cbdcacfce7e68fbfe32ab23","peer_provider":"azure-cgpu"}
+{"time":"2026-09-17T02:31:07.080762022Z","level":"WARN","msg":"SIMULATED TEE: no hardware isolation — this worker's Return Path Evidence is signed by a key read from a file; development and tests only"}
+{"time":"2026-09-17T02:31:07.080766123Z","level":"INFO","msg":"genome door","command":["/opt/vg/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/opt/base","--device","cuda"],"timeout_seconds":600}
+{"time":"2026-09-17T02:31:07.081048627Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9083"}
+{"time":"2026-09-17T02:31:09.136172323Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: client TEE evidence verification failed: integrity[signature_invalid]: azure-cgpu: evidence is not a vault-genome/azure-cgpu-evidence/v1 envelope: invalid character 'S' looking for beginning of value","category":"authority","code":"handshake_failure","backoff_ms":2000}
+{"time":"2026-09-17T02:31:10.093180094Z","level":"INFO","msg":"acp-compute stopped"}

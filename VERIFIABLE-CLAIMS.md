@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1243,6 +1243,43 @@ steal. Still a file on a host: a `-key-file` given to
 
 ---
 
+<a id="c26"></a>
+### C26 — A 32B model goes through the genome path on an attested confidential GPU: fine-tuned, sealed, restored and gated EXACT on the H100, over the Return Path, on the record
+
+**Claim.** The largest model measured is Qwen/Qwen2.5-32B-Instruct (about 65 GB of bfloat16
+weights): on the Azure confidential GPU VM of [C17](#c17) it was
+fine-tuned in bfloat16 on the H100 NVL (93 GB), its genome sealed
+and verified, and — with `sagvd` and `acp-compute` on the same VM
+attesting as `azure-cgpu` from files sealed to its vTPM — restored and
+gated through the door over the Return Path: **EXACT** on the pinned
+runtime (16/16 fixtures exact), the verdict signed by the
+authority and every stage on the audit record.
+
+**Evidence.**
+[`scripts/hardware-test/azure-cgpu/evidence/20260917T020218Z/`](scripts/hardware-test/azure-cgpu/evidence/20260917T020218Z/)
+— `steps.txt` (`base_repo=Qwen/Qwen2.5-32B-Instruct base_rev=5ede1c97bbab…`, `finetune exit=0`),
+`finetune.json` (device `cuda`, dtype `bfloat16`, loss 5.804 →
+0.000, 57.5 s), `verify.json` (`ok`, 33.6 MB bundle),
+`torch.txt`;
+[`evidence/20260917T020218Z-returnpath/`](scripts/hardware-test/azure-cgpu/evidence/20260917T020218Z-returnpath/)
+— `job.json` (gate `EXACT`, `pinned replay`, 16/16 exact, max abs
+err 0, the signed verdict), `audit-verify.json` (`ok`, 17
+events), `steps.txt`.
+
+**Reproduce:**
+
+```bash
+VG_BASE_REPO=Qwen/Qwen2.5-32B-Instruct VG_BASE_REV=5ede1c97bbab… scripts/hardware-test/azure-cgpu/run.sh   # one NCC H100 v5 VM, about 90 minutes
+```
+
+**Scope.** One run, one model, one GPU: the pinned runtime's EXACT is the
+same-device replay of [C16](#c16) and [C17](#c17) at 32B; cross-device
+equivalence at 32B is not measured, and 70B was not run (no
+non-confidential H100 quota; a 70B in bfloat16 does not fit one 94 GB
+GPU without quantisation, which would change the base the genome names).
+
+---
+
 ## Supply chain and build
 
 <a id="c9"></a>
@@ -1318,13 +1355,15 @@ sentence we cannot defend.
    virtualises inside the confidential VM, not the TEE's own; an operator
    who does not accept that root has no sealed escrow key on those hosts.
 5. **We do not claim this at frontier scale.** The largest model measured is
-   Qwen2.5-7B-Instruct — on one 24 GB GPU ([C16](#c16)) and on an attested
-   confidential GPU VM ([C17](#c17)); every failover and every CPU-only
+   Qwen/Qwen2.5-32B-Instruct — on an attested confidential GPU VM ([C26](#c26));
+   Qwen2.5-7B-Instruct ran on one 24 GB GPU ([C16](#c16)) and on the same
+   confidential VM ([C17](#c17)); every failover and every CPU-only
    attested run is Qwen2.5-0.5B or smaller ([C12](#c12) uses a tiny model
    built on the guest to prove the path, not the scale). And we do not claim cross-device
    equivalence at 7B in bfloat16: there the float door fails closed on
    differences of one or two bfloat16 quanta, while top-1 and greedy agree
-   16/16. Nothing larger than 7B has been run.
+   16/16. Nothing larger than 32B has been run, and 70B in bfloat16 does
+   not fit one 94 GB GPU.
 6. **We do not claim production operation.** Stage E, MVP maturity, zero
    external deployments. The vault daemon drives the release-side flow
    ([C13](#c13)); the receive-side round trip is library code no binary
