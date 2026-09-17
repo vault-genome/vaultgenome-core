@@ -129,17 +129,38 @@ jobs:
           HASHES=$(sha256sum $RELEASE_BINARIES | base64 -w0)
           echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
 
+      # Uploaded one at a time, by gh, on purpose. The action that used to do
+      # this uploads all 25 assets concurrently and deletes any same-named asset
+      # first; against one release that races, and the step ends with a bare
+      # "Error saving asset" after an arbitrary subset has landed. It cost three
+      # failed release runs: v0.3.0 (no assets at all), v0.3.1 (21 of 25, fixed
+      # by a rerun) and v0.3.2 (13 of 25, and a rerun of the failed job did not
+      # fix it — the release had to be deleted and the whole run repeated).
+      # Serial uploads are slower by seconds and have no such failure mode; the
+      # retry covers a genuinely transient API error without hiding a real one.
       - name: Upload release assets
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          files: |
-            bin/sagvd
-            bin/acp-compute
-            bin/acpctl
-            bin/acp-bootstrap
-            dist/*.sbom.spdx.json
-            dist/*.sig
-            dist/*.cert
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --title "$TAG" --notes "See CHANGELOG.md for $TAG." --draft=false
+          uploaded=0
+          for f in bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap \
+                   dist/*.sbom.spdx.json dist/*.sig dist/*.cert; do
+            [ -f "$f" ] || { echo "missing artifact: $f"; exit 1; }
+            for attempt in 1 2 3; do
+              if gh release upload "$TAG" "$f" --clobber; then
+                uploaded=$((uploaded + 1)); break
+              fi
+              [ "$attempt" = 3 ] && { echo "failed to upload $f after 3 attempts"; exit 1; }
+              echo "upload of $f failed, attempt $attempt; retrying"; sleep $((attempt * 5))
+            done
+          done
+          echo "uploaded $uploaded assets"
+          # 4 binaries + 4 SBOMs + 8 signatures + 8 certificates
+          [ "$uploaded" -eq 24 ] || { echo "expected 24 assets, uploaded $uploaded"; exit 1; }
 
   slsa-provenance:
     needs: [build-and-sign]
