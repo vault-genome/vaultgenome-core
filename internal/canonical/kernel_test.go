@@ -9,7 +9,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // ---- basic kernel correctness ---------------------------------------------

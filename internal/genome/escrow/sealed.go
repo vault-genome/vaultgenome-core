@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	"github.com/ai-continuity-platform/core/internal/vault/kms"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // SealedSchema names the file `sagvd escrow-provision` writes: the

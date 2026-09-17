@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/stretchr/testify/require"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // Every shape rule of Validate, one field at a time.

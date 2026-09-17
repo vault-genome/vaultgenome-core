@@ -66,8 +66,8 @@ After running the kit end-to-end, you will have:
 ## Quick start
 
 ```bash
-git clone <vault-genome-repo-private-url>
-cd core/scripts/hardware-test/azure-sgx/
+git clone https://github.com/vault-genome/vaultgenome-core
+cd vaultgenome-core/scripts/hardware-test/azure-sgx/
 ./examples/full-test-run.sh
 ```
 

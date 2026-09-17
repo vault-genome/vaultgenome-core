@@ -3,7 +3,7 @@
 package recvvalidator
 
 import (
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
 )
 
 // Aggregate computes the overall receive-side verdict from the

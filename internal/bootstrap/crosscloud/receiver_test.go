@@ -12,16 +12,16 @@ import (
 	"testing"
 	stdtime "time"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
-	cchr "github.com/ai-continuity-platform/core/internal/contracts/cross_cloud_handshake_request"
-	krt "github.com/ai-continuity-platform/core/internal/contracts/key_release_token"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
-	"github.com/ai-continuity-platform/core/internal/vault/kms"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	cchr "github.com/vault-genome/vaultgenome-core/internal/contracts/cross_cloud_handshake_request"
+	krt "github.com/vault-genome/vaultgenome-core/internal/contracts/key_release_token"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // --- Helpers --------------------------------------------------------

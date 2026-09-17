@@ -8,15 +8,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/continuity_proof"
-	"github.com/ai-continuity-platform/core/internal/contracts/genome_descriptor"
-	"github.com/ai-continuity-platform/core/internal/contracts/probe_battery"
-	witness_contract "github.com/ai-continuity-platform/core/internal/contracts/witness"
-	witness_op "github.com/ai-continuity-platform/core/internal/genome/witness"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/continuity_proof"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/probe_battery"
+	witness_contract "github.com/vault-genome/vaultgenome-core/internal/contracts/witness"
+	witness_op "github.com/vault-genome/vaultgenome-core/internal/genome/witness"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // ---- key material ----------------------------------------------------------

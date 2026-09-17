@@ -11,11 +11,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/audit_event"
-	"github.com/ai-continuity-platform/core/internal/genome/receipt"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/receipt"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // ReceiptFetcher fetches a destination's signed restore receipt.

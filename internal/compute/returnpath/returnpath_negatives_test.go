@@ -16,15 +16,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath"
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/client"
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/server"
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/transport"
-	"github.com/ai-continuity-platform/core/internal/compute/worker"
-	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/client"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/server"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/transport"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/worker"
+	rjm "github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // loopbackPair is a connected TCP pair on loopback.

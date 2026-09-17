@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
 )
 
 func sealed(t *testing.T) (string, []byte) {

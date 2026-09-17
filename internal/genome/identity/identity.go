@@ -3,9 +3,9 @@
 package identity
 
 import (
-	"github.com/ai-continuity-platform/core/internal/contracts/genome_descriptor"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // Prefix is the human-readable tag every derived GenomeID carries.

@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath"
-	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
-	"github.com/ai-continuity-platform/core/internal/validation/reconstruction"
-	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath"
+	rjm "github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/reconstruction"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
 )
 
 // ---- public status / types -----------------------------------------------

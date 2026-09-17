@@ -199,7 +199,7 @@ extract_identity() {
   echo ""
   echo "\`\`\`bash"
   echo "git clone https://github.com/<org>/<repo>.git && cd repo"
-  echo "cd core/scripts/hardware-test/aws-nitro/"
+  echo "cd vaultgenome-core/scripts/hardware-test/aws-nitro/"
   echo "for az in us-east-2a us-east-2b us-east-2c eu-west-1a; do"
   echo "  TF_VAR_availability_zone=\$az TF_VAR_instance_name=vault-genome-nitro-\$az \\"
   echo "    ./examples/full-test-run.sh"

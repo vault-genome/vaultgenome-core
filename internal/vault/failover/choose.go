@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/genome/sentinel"
-	"github.com/ai-continuity-platform/core/internal/genome/tree"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	"github.com/ai-continuity-platform/core/internal/vault/kms"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/tree"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // Choice is the genome a failover restores, and what was passed over.

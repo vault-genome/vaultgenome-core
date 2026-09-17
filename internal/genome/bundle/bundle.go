@@ -44,8 +44,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // Magic starts every v3 bundle. It differs from the v2 magic, so no v2

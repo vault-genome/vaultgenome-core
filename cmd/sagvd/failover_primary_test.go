@@ -16,9 +16,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/genome/sentinel"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	"github.com/ai-continuity-platform/core/internal/vault/failover"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/failover"
 )
 
 // The primary's verifier is built from the policy's pin and the anchors

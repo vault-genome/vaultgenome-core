@@ -32,7 +32,7 @@ set -euo pipefail
 
 PROFILE="${1:-coverage.out}"
 FLOORS="$(dirname "$0")/coverage_floors.txt"
-MODULE="github.com/ai-continuity-platform/core/"
+MODULE="github.com/vault-genome/vaultgenome-core/"
 
 if [ ! -f "$PROFILE" ]; then
   echo "coverage_check: FAIL — $PROFILE not found. Run 'make coverage' first."

@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // The daemon's key files — the authority's signing seed, the audit seed,

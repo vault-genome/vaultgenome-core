@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/genome/sentinel"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	"github.com/ai-continuity-platform/core/internal/vault/failover"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/failover"
 )
 
 func runCmd(f func([]string, *bytes.Buffer, *bytes.Buffer) int, args ...string) (int, string, string) {

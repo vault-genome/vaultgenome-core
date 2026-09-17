@@ -5,8 +5,8 @@ package main
 import (
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 func TestPeerDetailLogFields(t *testing.T) {

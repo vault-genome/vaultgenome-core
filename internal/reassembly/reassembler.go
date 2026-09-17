@@ -3,9 +3,9 @@
 package reassembly
 
 import (
-	"github.com/ai-continuity-platform/core/internal/contracts/disclosure_message"
-	"github.com/ai-continuity-platform/core/internal/genome/componenttree"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/disclosure_message"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/componenttree"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // Stable error codes emitted by this package. Each code is namespaced

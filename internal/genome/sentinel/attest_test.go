@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 func simulatedPrimary(t *testing.T, descriptor string) (*tee.Simulated, tee.Verifier) {

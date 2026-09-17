@@ -5,11 +5,11 @@ package main
 import (
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath"
-	"github.com/ai-continuity-platform/core/internal/genome/gatejob"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/gatejob"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // A genome that carries the integer door's references: the job asks the

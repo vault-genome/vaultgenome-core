@@ -37,11 +37,11 @@ import (
 	"math/rand"
 	"os"
 
-	"github.com/ai-continuity-platform/core/internal/canonical"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
-	"github.com/ai-continuity-platform/core/internal/validation/reconstruction"
+	"github.com/vault-genome/vaultgenome-core/internal/canonical"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/reconstruction"
 )
 
 const dim, seqLen = 16, 8

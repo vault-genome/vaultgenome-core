@@ -16,7 +16,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/genome/componenttree"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/componenttree"
 )
 
 // Trial budget. Each property runs `trials` random inputs. Tuned so

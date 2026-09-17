@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // script writes a backend that counts its runs and answers with resp.

@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/observability/metrics"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
 )
 
 // silentLogger returns a logger that discards everything — keeps test

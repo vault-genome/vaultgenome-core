@@ -7,7 +7,7 @@ import (
 	"errors"
 	"io"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // Wire-format constants. These values are frozen for wire-version v1.0

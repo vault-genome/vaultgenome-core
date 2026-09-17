@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/genome/lora"
-	"github.com/ai-continuity-platform/core/internal/genome/receipt"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
-	"github.com/ai-continuity-platform/core/internal/validation/reconstruction"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/lora"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/receipt"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/reconstruction"
 )
 
 // GenomePlaceholder in a gate command argument stands for the restored

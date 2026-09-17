@@ -63,8 +63,10 @@ satisfy AGPL's network-distribution clause.
 
 ### Per-component licensing
 
-- The Go module path `github.com/ai-continuity-platform/core` is
+- The Go module path `github.com/vault-genome/vaultgenome-core` is
   AGPL-3.0-or-later in its entirety.
+  (Declared as `github.com/ai-continuity-platform/core` until 0.3.0, when the
+  module moved to the path it is published at; the licence did not change.)
 - Patent grants in commercial licenses do NOT extend to derivative
   works that re-implement the abstraction without using our codebase.
   The patent itself, once granted, applies regardless of license.

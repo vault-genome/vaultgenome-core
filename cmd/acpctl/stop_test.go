@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/vault/revocation"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
 
 func runStop(args ...string) (int, string, string) {

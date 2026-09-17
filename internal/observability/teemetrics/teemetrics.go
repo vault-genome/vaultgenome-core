@@ -5,8 +5,8 @@ package teemetrics
 import (
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/observability/metrics"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // Recorder owns the TEE-related metric families. Construct exactly one

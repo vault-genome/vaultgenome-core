@@ -7,7 +7,7 @@ import (
 	"crypto/sha256"
 	"hash"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // HMACSize is the HMAC-SHA-256 tag length in bytes.

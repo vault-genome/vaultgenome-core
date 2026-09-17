@@ -7,10 +7,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
-	"github.com/ai-continuity-platform/core/internal/validation/reconstruction"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/reconstruction"
 )
 
 // These tests prove the receive-side wire-in: when ValidateInputs carries

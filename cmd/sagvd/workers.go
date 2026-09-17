@@ -10,10 +10,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/server"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/server"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // WorkerRegistryFile is the on-disk JSON schema that lists every

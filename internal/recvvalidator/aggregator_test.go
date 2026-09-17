@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
 )
 
 // dv is a tiny helper that manufactures a DimensionVerdict with the

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/genome/componenttree"
-	"github.com/ai-continuity-platform/core/internal/reassembly"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/componenttree"
+	"github.com/vault-genome/vaultgenome-core/internal/reassembly"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // Benchmarks for /internal/reassembly.AGDReassembler.

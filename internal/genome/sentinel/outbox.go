@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
 )
 
 // maxRecordBytes bounds what the reader accepts as one record file.

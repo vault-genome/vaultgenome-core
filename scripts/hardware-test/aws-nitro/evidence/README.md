@@ -83,7 +83,7 @@ Run the kit at `core/scripts/hardware-test/aws-nitro/` against your own AWS
 account in 4 different AZs:
 
 ```bash
-cd core/scripts/hardware-test/aws-nitro/
+cd vaultgenome-core/scripts/hardware-test/aws-nitro/
 # Build prod .eif on first VM (or run debug full-test-run.sh first):
 ./scripts/02-build-enclave-image.sh
 ./scripts/02d-build-enclave-image-prod.sh   # NEW: builds prod .eif

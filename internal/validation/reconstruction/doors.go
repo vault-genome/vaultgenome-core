@@ -2,7 +2,7 @@
 
 package reconstruction
 
-import "github.com/ai-continuity-platform/core/internal/validation/equivalence"
+import "github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 
 // ExactTolerance is the byte-exact (zero) tolerance: only EXACT passes.
 var ExactTolerance = equivalence.Tolerance{}

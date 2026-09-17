@@ -33,7 +33,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 )
 
 // FuzzSimulatedVerifier_Verify_NoPanic asserts the verifier never

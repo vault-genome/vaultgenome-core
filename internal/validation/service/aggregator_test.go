@@ -5,8 +5,8 @@ package service
 import (
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
 )
 
 // dv is a tiny DimensionVerdict constructor for table-driven tests.

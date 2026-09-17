@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/reconstitution_decision"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
-	"github.com/ai-continuity-platform/core/internal/validation/reconstruction"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/reconstitution_decision"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/reconstruction"
 )
 
 // The demo is a reviewer's first contact with the platform, so what it

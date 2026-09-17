@@ -3,7 +3,7 @@
 package service
 
 import (
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
 )
 
 // Aggregate computes the overall verdict from the three per-dimension

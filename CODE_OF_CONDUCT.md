@@ -33,8 +33,8 @@ with the section below.
 
 ## Enforcement
 
-Reports may be sent to `conduct@ai-continuity-platform.example` (placeholder —
-to be replaced before first public release). All reports are kept confidential
+Reports may be sent to the maintainers named in [MAINTAINERS.md](MAINTAINERS.md),
+at `nikolaichuk.s.f@gmail.com`. All reports are kept confidential
 to the fullest extent compatible with investigating and resolving the matter.
 
 Enforcement actions follow the Contributor Covenant enforcement ladder:

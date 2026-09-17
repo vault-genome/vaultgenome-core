@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 )
 
 // FuzzCanonicalJSON_Determinism verifies that CanonicalJSON is a stable

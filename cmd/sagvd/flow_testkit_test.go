@@ -10,16 +10,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/audit/chain"
-	"github.com/ai-continuity-platform/core/internal/contracts/recovery_request"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/incident"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
-	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
-	"github.com/ai-continuity-platform/core/internal/vault/trust"
+	"github.com/vault-genome/vaultgenome-core/internal/audit/chain"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/recovery_request"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/incident"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/trust"
 )
 
 // testAuthority is an orchestration Authority wired the way runDaemon

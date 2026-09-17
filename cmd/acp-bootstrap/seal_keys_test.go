@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 func writeConfigFile(t *testing.T, dir string, cfg Config) string {

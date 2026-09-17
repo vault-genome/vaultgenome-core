@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // Live cross-cloud key release: `sagvd crosscloud-restore` (the source

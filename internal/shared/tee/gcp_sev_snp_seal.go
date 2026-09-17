@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 )
 
 // sevSealingLabel binds the AEAD key to this use of the derived key.

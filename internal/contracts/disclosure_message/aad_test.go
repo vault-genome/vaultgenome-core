@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 func TestBuildRecipientAAD_Determinism(t *testing.T) {

@@ -3,7 +3,7 @@
 package session_object
 
 import (
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // validStates is the closed set of session states. Any value outside it

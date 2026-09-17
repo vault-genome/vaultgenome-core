@@ -1,4 +1,4 @@
-module github.com/ai-continuity-platform/core
+module github.com/vault-genome/vaultgenome-core
 
 go 1.26.0
 

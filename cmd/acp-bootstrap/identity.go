@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // destinationIdentity is what a source operator needs in order to trust

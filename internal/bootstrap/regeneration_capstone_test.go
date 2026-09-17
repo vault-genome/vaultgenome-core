@@ -30,13 +30,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/bootstrap"
-	"github.com/ai-continuity-platform/core/internal/canonical"
-	"github.com/ai-continuity-platform/core/internal/contracts/reconstitution_decision"
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
-	"github.com/ai-continuity-platform/core/internal/recvvalidator"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
-	"github.com/ai-continuity-platform/core/internal/validation/reconstruction"
+	"github.com/vault-genome/vaultgenome-core/internal/bootstrap"
+	"github.com/vault-genome/vaultgenome-core/internal/canonical"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/reconstitution_decision"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/recvvalidator"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/reconstruction"
 )
 
 const capL, capD = 8, 16

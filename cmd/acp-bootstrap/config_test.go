@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/exposure"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/exposure"
 )
 
 // minimalValidConfig is a loopback-only destination: the one shape that

@@ -5,8 +5,8 @@ package genome_descriptor
 import (
 	"encoding/hex"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // DeriveID returns the content-addressed GenomeID of this descriptor.

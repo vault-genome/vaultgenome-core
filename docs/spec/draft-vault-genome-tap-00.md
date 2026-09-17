@@ -372,7 +372,7 @@ This document has no actions for IANA.
    [TAP-CONFORMANCE]
               Vault Genome Inc., "TEE-Agnostic Attestation Protocol
               Conformance Test Suite", available at
-              https://github.com/ai-continuity-platform/core/
+              https://github.com/vault-genome/vaultgenome-core/
                 tree/main/pkg/teeconformance.
 ```
 
@@ -380,11 +380,11 @@ This document has no actions for IANA.
 
 ```
    [VG-CORE]  Vault Genome Inc., "Reference implementation",
-              https://github.com/ai-continuity-platform/core.
+              https://github.com/vault-genome/vaultgenome-core.
 
    [VG-CONFORMANCE-PKG]
               Vault Genome Inc., "Public conformance test package",
-              https://github.com/ai-continuity-platform/core/
+              https://github.com/vault-genome/vaultgenome-core/
                 tree/main/pkg/teeconformance.
 
    [VG-PATENT]

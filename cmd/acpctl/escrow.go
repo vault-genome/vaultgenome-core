@@ -9,7 +9,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
 )
 
 // escrowCmd dispatches `acpctl escrow <keygen|recovery-keygen|recover>`.

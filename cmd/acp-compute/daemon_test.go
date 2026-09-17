@@ -14,17 +14,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath"
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/server"
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath/transport"
-	"github.com/ai-continuity-platform/core/internal/compute/worker"
-	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/server"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/transport"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/worker"
+	rjm "github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 const daemonTestTimeout = 5 * time.Second

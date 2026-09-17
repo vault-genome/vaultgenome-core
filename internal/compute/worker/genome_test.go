@@ -17,14 +17,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/compute/worker"
-	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
-	"github.com/ai-continuity-platform/core/internal/genome/gatejob"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/worker"
+	rjm "github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/gatejob"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // The test door. When the test binary starts with VG_TEST_DOOR set it is

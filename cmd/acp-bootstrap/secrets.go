@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // hostSealer is the sealer of this destination's host (ADR 0023): the

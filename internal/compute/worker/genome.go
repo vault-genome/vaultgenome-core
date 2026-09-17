@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/compute/returnpath"
-	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
-	"github.com/ai-continuity-platform/core/internal/genome/gatejob"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath"
+	rjm "github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/gatejob"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // Error codes the GenomeReconstructor returns, beside the shared ones.

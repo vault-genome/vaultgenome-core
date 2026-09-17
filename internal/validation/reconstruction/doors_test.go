@@ -5,7 +5,7 @@ package reconstruction
 import (
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // door 0 on a matching runtime reproduces the sealed reference byte-exact and

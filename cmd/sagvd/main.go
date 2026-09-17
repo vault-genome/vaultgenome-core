@@ -14,16 +14,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/genome/escrow"
-	"github.com/ai-continuity-platform/core/internal/observability/health"
-	"github.com/ai-continuity-platform/core/internal/observability/metrics"
-	"github.com/ai-continuity-platform/core/internal/observability/teemetrics"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/incident"
-	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
-	"github.com/ai-continuity-platform/core/internal/vault/trust"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/health"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/teemetrics"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/incident"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/trust"
 )
 
 // These variables are populated at link time by the Makefile /

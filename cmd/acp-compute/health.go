@@ -13,7 +13,7 @@ package main
 import (
 	"log/slog"
 
-	"github.com/ai-continuity-platform/core/internal/observability/health"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/health"
 )
 
 // Type aliases keep the in-package names the daemon has always used

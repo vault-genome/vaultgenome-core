@@ -19,13 +19,13 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/recovery_request"
-	"github.com/ai-continuity-platform/core/internal/observability/metrics"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/intake"
-	"github.com/ai-continuity-platform/core/internal/vault/orchestration"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/recovery_request"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/intake"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
 )
 
 // HTTPAPIServer is the operator-facing REST API in front of the

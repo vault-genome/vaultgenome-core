@@ -5,7 +5,7 @@ package behavioral
 import (
 	"sort"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
 )
 
 // Machine-readable finding codes. Stable across schema versions; they

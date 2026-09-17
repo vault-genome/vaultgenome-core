@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"sort"
 
-	"github.com/ai-continuity-platform/core/internal/shared/crypto"
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // ProbeIDPrefix is the human-readable tag that every derived ProbeID

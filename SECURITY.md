@@ -31,7 +31,7 @@ We accept security reports against:
 
 - The `main` branch of this repository.
 - Every released version listed at
-  [GitHub Releases](https://github.com/ai-continuity-platform/core/releases).
+  [GitHub Releases](https://github.com/vault-genome/vaultgenome-core/releases).
 
 Out of supported scope:
 
@@ -52,7 +52,7 @@ deployment to the very attack we're trying to prevent.
 Use one of the following private channels in order of preference:
 
 1. **GitHub private security advisory** — preferred.
-   Visit https://github.com/ai-continuity-platform/core/security/advisories/new
+   Visit https://github.com/vault-genome/vaultgenome-core/security/advisories/new
    and create a draft advisory. This is the most secure channel; only
    the project maintainers see the report.
 

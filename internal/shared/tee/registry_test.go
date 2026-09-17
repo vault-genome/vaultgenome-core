@@ -6,8 +6,8 @@ import (
 	"crypto/ed25519"
 	"testing"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
 	"github.com/stretchr/testify/require"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // makeSimulatedSpec builds a RegistrySpec for the simulator suitable

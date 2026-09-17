@@ -5,8 +5,8 @@ package returnpath
 import (
 	"time"
 
-	rjm "github.com/ai-continuity-platform/core/internal/contracts/reconstruction_job_manifest"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	rjm "github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 // CandidateOutput is what the external compute worker hands back over

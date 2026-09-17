@@ -27,7 +27,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ai-continuity-platform/core/internal/shared/safetar"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safetar"
 )
 
 // ManifestRef mirrors Ollama's on-disk manifest schema (Docker v2-style).

@@ -8,10 +8,10 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/canonical"
-	"github.com/ai-continuity-platform/core/internal/contracts/reconstitution_decision"
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/canonical"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/reconstitution_decision"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 const genomeL, genomeD = 8, 16

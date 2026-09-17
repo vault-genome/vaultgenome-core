@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/ai-continuity-platform/core/internal/shared/safetar"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safetar"
 )
 
 // Component is the in-snapshot record for one file inside a sealed dir.

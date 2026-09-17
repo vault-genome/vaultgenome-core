@@ -28,7 +28,7 @@
 // Implement the [Producer], [Verifier], and [Sealer] interfaces in
 // your own package. Then in a Go test:
 //
-//	import "github.com/ai-continuity-platform/core/pkg/teeconformance"
+//	import "github.com/vault-genome/vaultgenome-core/pkg/teeconformance"
 //
 //	func TestMyAdapter_Conformance(t *testing.T) {
 //	    teeconformance.RunProducerVerifierContract(t, func(t *testing.T) (teeconformance.Producer, teeconformance.Verifier) {

@@ -5,8 +5,8 @@ package transport
 import (
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // detailedVerifier is a verifier that says more than the measurement — as

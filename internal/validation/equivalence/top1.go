@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // Top1Result is one fixture's top-1 comparison: the index of the largest

@@ -19,7 +19,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ai-continuity-platform/core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
 )
 
 // StagingPrefix is reserved for the staging directories a restore

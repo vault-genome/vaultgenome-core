@@ -4,6 +4,6 @@
 // that changes to /core/go.sum never force a re-hash of demo secrets).
 //
 // This module is stdlib-only.
-module github.com/ai-continuity-platform/deploy-compose-keygen
+module github.com/vault-genome/vaultgenome-core/deploy/compose/keygen
 
 go 1.22

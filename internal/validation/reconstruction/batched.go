@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 // BatchedExternalBackend is ExternalBackend for a backend that loads a

@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strconv"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // CanonicalJSON returns a deterministic byte-form of v suitable as the

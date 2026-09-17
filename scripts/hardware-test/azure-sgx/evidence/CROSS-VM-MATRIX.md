@@ -100,7 +100,7 @@ the bundle's cryptographic identity.
 ```bash
 # Prereqs: az login already done, Microsoft.Compute provider registered,
 #          acpctl-linux-amd64 in <repo>/bin/, SSH key at ~/.ssh/id_ed25519
-cd core/scripts/hardware-test/azure-sgx/examples
+cd vaultgenome-core/scripts/hardware-test/azure-sgx/examples
 ./orchestrate-cohort-full.sh    # provisions VM2 + VM3 + VM4 sequentially,
                                 # ~75-90 min wall time, ~$0.20 cost
 ```

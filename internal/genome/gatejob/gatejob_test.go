@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-continuity-platform/core/internal/validation/equivalence"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
 func f32(vals ...float32) []byte {

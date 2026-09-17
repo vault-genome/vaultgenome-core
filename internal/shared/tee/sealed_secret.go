@@ -18,7 +18,7 @@ import (
 	"errors"
 	"fmt"
 
-	shared_errors "github.com/ai-continuity-platform/core/internal/shared/errors"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // SealedSecretSchema names the file's shape.

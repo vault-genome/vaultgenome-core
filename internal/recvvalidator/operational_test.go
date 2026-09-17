@@ -8,13 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ai-continuity-platform/core/internal/contracts/attestation_result"
-	"github.com/ai-continuity-platform/core/internal/contracts/bootstrap_manifest"
-	"github.com/ai-continuity-platform/core/internal/contracts/session_object"
-	"github.com/ai-continuity-platform/core/internal/contracts/validation_result"
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
-	shared_time "github.com/ai-continuity-platform/core/internal/shared/time"
-	"github.com/ai-continuity-platform/core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/attestation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/bootstrap_manifest"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/session_object"
+	"github.com/vault-genome/vaultgenome-core/internal/contracts/validation_result"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
 // recvFixtures builds a fully signed, mutually consistent receive-side

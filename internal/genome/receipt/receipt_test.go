@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/tee"
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // simulated is a stand-in TEE; each seed is a different key and a

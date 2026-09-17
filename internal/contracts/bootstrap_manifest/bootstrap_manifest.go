@@ -40,7 +40,7 @@ package bootstrap_manifest
 import (
 	"time"
 
-	"github.com/ai-continuity-platform/core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
 const (
