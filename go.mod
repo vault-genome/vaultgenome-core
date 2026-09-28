@@ -12,7 +12,7 @@ go 1.26.0
 //   - go.etcd.io/bbolt              — append-only audit store (docs/dependencies/bbolt.md)
 
 require (
-	github.com/beevik/etree v1.8.0
+	github.com/beevik/etree v1.8.1
 	github.com/russellhaering/goxmldsig v1.6.1
 	github.com/stretchr/testify v1.12.1
 	go.etcd.io/bbolt v1.5.0
