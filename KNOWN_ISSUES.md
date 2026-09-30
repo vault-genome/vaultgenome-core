@@ -338,6 +338,14 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     - A verifier that cannot verify (the VCEK cache empty, AMD KDS
       unreachable) makes every heartbeat silence and fails over on a healthy
       primary; the runbook says to fill the cache at arm time.
+    - The lost-heartbeat trigger alone has run once on hardware
+      (`scripts/hardware-test/failover-region-loss`, VERIFIABLE-CLAIMS C35):
+      a primary switched off from inside without a word, the failover on
+      15 s of silence to the attested H100, RTO 25.97 s. Silence cannot tell
+      a primary that died from one cut off from the replica: after such a
+      failover the primary may still hold and run its copy, and fencing it is
+      the operator's (the policy moves the model at most once, and only to
+      the standby it names).
     - An attested GPU standby has run once
       (`scripts/hardware-test/failover-cgpu`, ADR 0019: the chip, the vTPM
       and the H100 in one evidence, in the release and in the receipt): RTO

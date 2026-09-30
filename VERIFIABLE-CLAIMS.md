@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1871,6 +1871,72 @@ kernel's page cache of the two files the daemon maps and grow with the
 files, which nothing rotates yet — a retention policy for the audit log
 and the views is open. The SEV-SNP host's throttle is the host's, as in
 C32 and C33.
+
+---
+
+<a id="c35"></a>
+### C35 — A primary that goes dark without a word: switched off while it trains and deleted, it triggers the failover by its silence alone, and the model comes back on an attested confidential GPU across the Atlantic
+
+**Claim.** The failover of [C18](#c18) with the failure that gives no
+warning. The primary (GCP SEV-SNP, us-central1) wrote no compromise report
+and no `stopped` heartbeat: while it trained, it switched itself off through
+the kernel's sysrq trigger, and the operator then deleted it and its disk.
+Under a policy the operator signed in advance whose only trigger is **no
+heartbeat for 15 s**, the authority (GCP SEV-SNP, europe-west4, its escrow
+key sealed to its chip) acted on 15 s of silence on its own clock, verified
+the standby — an Azure NCC H100 v5 in West Europe: its SEV-SNP report, its
+TPM quote against the pinned PCR digest, NVIDIA's tokens and its own
+evaluation of the H100's report — released the key for the last generation
+the primary sealed, and confirmed the standby's receipt: the genome
+restored and gated EQUIVALENT on the H100 in confidential-computing mode.
+Every step is on the audit record.
+
+**Evidence.**
+[`scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/`](scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/)
+— `authority/report.json`: `status: restored`; trigger `heartbeat-timeout`,
+`at: 20:01:57.12Z` (the last heartbeat), `alive_observed_at: 20:02:02.62Z`,
+`observed_at: 20:02:17.64Z`; `decision: failover … restore generation 1 on
+the standby`; `release.destination_kind: azure-cgpu`,
+`destination_measurement_hex: 11920f61…91c4`; `restore.gate`:
+**EQUIVALENT**, 16 fixtures, `max_abs_err: 1.516e-4`, `backend_seconds:
+6.75`; `timing`: detect 15.01 s, release 2.87 s, restore 9.8 ms, failover
+10.96 s, **RTO 25.97 s**, **RPO 21.01 s**; `audit_chain_length: 5`.
+`authority/failover-verify.txt`: triggers *no heartbeat for 15s, stopped
+and not back within 60s* — no compromise trigger. `authority/last-heartbeat.json`:
+heartbeat #209, `status: watching`, newest sealed generation 1, signed,
+`attestation.kind: gcp-sev-snp`. `authority/xcc-audit.db` with `audit.pem`:
+`acpctl audit verify` → *audit chain ok — 5 events verified, tip
+3488b31c…153f*, the tip in `report.json`. `authority/audit-events.jsonl`:
+the `CROSS_CLOUD_ATTESTATION_VERIFIED` event's `destination_detail` —
+Genoa, PCRs `sha256:0–14`, GPU-0 `GH100` driver 595.91.07 VBIOS
+96.00.9F.00.04, the driver's and VBIOS's reference manifests verified, 64
+measurements each matched, revocation good. `primary/steps.txt`:
+*generation 2 when the power went: still training*, *sentinel running when
+the power went: yes*; `operator/primary-destroyed-at.txt`: 20:02:02.46Z.
+`operator/operator-destroy.txt`: Google's status `RUNNING` → `STOPPING` →
+`TERMINATED`, `lastStopTimestamp` 20:03:05.67Z, the deletion, *was not
+found*, no disk left; `operator/gcp-audit-primary.json`:
+`compute.instances.guestTerminate` at 20:02:55.70Z, then
+`v1.compute.instances.delete`. `TIMELINE.txt`: power-off → confirmed
+restore 26.14 s across clocks; the restore confirmed 27.1 s before
+Google's audit log recorded the guest's termination.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/failover-region-loss/run.sh <gcp-project> us-central1-c vg-rl-weu   # ~25 min: two GCP n2d Milan CVMs + an Azure NCC H100 v5
+python3 scripts/hardware-test/failover-region-loss/timeline.py scripts/hardware-test/failover-region-loss/evidence/<run>
+```
+
+**Scope.** One run, with the 0.5B model of the failover drill. The
+power-off was self-inflicted, from inside the guest, and the deletion came
+after it; one machine in us-central1 went dark, not the region, and the
+run's bucket was placed in europe-west4 on purpose. Generation 1 reached
+the standby from that bucket 15 s after the power-off, because the
+orchestrator's copy loop raced the primary's uploads — 3.5 s before the
+key. The detect time is the policy's timeout by construction; 15 s is the
+drill's choice, not a recommendation. The limits of the GPU leg stand
+([C18](#c18) scope).
 
 ---
 

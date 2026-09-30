@@ -1,0 +1,74 @@
+Timeline of run 20260930T194321Z (UTC)
+
+  19:43:58.019  google     Google's audit log (activity): v1.compute.instances.insert
+  19:44:08.903  google     Google's audit log (activity): v1.compute.instances.insert
+  19:46:58.000  primary    fine-tune generation 0 (120 steps)
+  19:51:33.095  primary    sentinel started, 2 tripwires armed
+  19:51:39.150  primary    generation 0 sealed, key escrowed to the authority (2215614 bytes)
+  19:51:41.000  primary    wait for the authority to arm its failover watch (the GPU standby is onboarded first)
+  19:56:37.494  authority  armed; the signed policy's triggers: 15 s without a heartbeat, a stopped sentinel not back within 60 s
+  19:56:38.000  primary    keep training: fine-tune generation 1 (160 steps)
+  20:01:36.147  primary    generation 1 sealed, key escrowed to the authority (2216819 bytes)
+  20:01:45.000  primary    keep training: fine-tune generation 2 — the work the region takes with it
+  20:01:57.120  primary    last heartbeat the primary ever sent: #209, status watching, newest sealed generation 1 (signed, chip report attached)
+  20:02:00.000  primary    THE REGION GOES DARK: no tripwire, no report — this machine is switched off while it trains
+  20:02:02.460  primary    POWER OFF: the primary switches itself off through sysrq (no shutdown, no last message)
+  20:02:02.624  authority  last time the authority saw the heartbeat rise
+  20:02:12.406  operator   status=RUNNING
+  20:02:15.419  operator   status=RUNNING
+  20:02:17.637  authority  TRIGGER: heartbeat-timeout — no heartbeat for the policy's timeout
+  20:02:17.667  authority  audit xcc-evt-0000000000000001: FAILOVER_DECIDED
+  20:02:17.671  authority  audit xcc-evt-0000000000000002: CROSS_CLOUD_HANDSHAKE_INITIATED
+  20:02:18.480  operator   status=RUNNING
+  20:02:18.516  standby    answers the authority's handshake with its evidence (chip report, vTPM quote, NVIDIA's tokens)
+  20:02:20.500  authority  audit xcc-evt-0000000000000003: CROSS_CLOUD_ATTESTATION_VERIFIED
+  20:02:20.504  authority  audit xcc-evt-0000000000000004: KEY_RELEASE_AUTHORIZED
+  20:02:20.511  standby    receives the genome's key
+  20:02:20.513  standby    restores the sealed bundle it already holds
+  20:02:20.522  standby    restored; the gate runs the model on the H100 against the sealed reference prompts
+  20:02:21.545  operator   status=RUNNING
+  20:02:24.562  operator   status=RUNNING
+  20:02:27.273  standby    gate passed: EQUIVALENT, 16 fixtures, max abs err 0.00015163421630859375
+  20:02:27.805  operator   status=RUNNING
+  20:02:28.161  standby    the genome's key erased
+  20:02:28.599  authority  audit xcc-evt-0000000000000005: CROSS_CLOUD_RESTORE_COMPLETED
+  20:02:30.934  operator   status=RUNNING
+  20:02:34.091  operator   status=RUNNING
+  20:02:37.031  operator   status=RUNNING
+  20:02:40.129  operator   status=RUNNING
+  20:02:43.138  operator   status=RUNNING
+  20:02:46.475  operator   status=RUNNING
+  20:02:49.485  operator   status=RUNNING
+  20:02:52.696  operator   status=RUNNING
+  20:02:55.699  google     Google's audit log (system_event): compute.instances.guestTerminate
+  20:02:55.706  operator   status=RUNNING
+  20:02:58.745  operator   status=STOPPING
+  20:03:01.866  operator   status=STOPPING
+  20:03:05.050  operator   status=STOPPING
+  20:03:05.671  google     Google's record: the primary stopped (lastStopTimestamp)
+  20:03:08.358  operator   status=TERMINATED
+  20:03:09.357  operator   delete: the machine and its boot disk
+  20:03:10.138  google     Google's audit log (activity): v1.compute.instances.delete
+  20:03:14.673  google     Google's audit log (activity): v1.compute.instances.delete
+  20:03:14.856  operator   delete returned
+  20:03:15.990  operator   after delete: Google answers that the machine does not exist
+  20:03:17.068  operator   disks named vg-rl-primary-20260930t194321z left: none
+
+Intervals
+
+     15.01 s  detect (report): last heartbeat seen -> trigger, authority's clock
+      2.87 s  release (report): trigger -> key release authorised, after the GPU host attested
+      0.01 s  restore on the H100 (report, standby's clock)
+      6.75 s  gate on the H100 (report, standby's clock)
+     10.96 s  failover (report): trigger -> confirmed, gated restore, authority's clock
+     25.97 s  RTO (report): detect + failover
+     21.01 s  RPO (report): last heartbeat -> seal of the generation restored, primary's clock
+     15.18 s  power-off -> trigger (across clocks: authority - primary)
+     26.14 s  power-off -> confirmed restore (across clocks: authority - primary)
+     27.10 s  confirmed restore -> Google's audit log records the guest's termination (across clocks: Google - authority)
+     37.07 s  confirmed restore -> Google's lastStopTimestamp (across clocks: Google - authority)
+      5.34 s  last heartbeat sent -> power-off (primary's clock)
+
+  restored: generation 1 (bundle sha256 b2759d0d78e4c359…), gate EQUIVALENT on 16 fixtures, max abs err 0.00015163421630859375; status restored
+  lost with the region: generation 2, in training — its last logged step: step 11/160 loss 4.9939
+  destination: azure-cgpu 11920f61def85094…; audit chain 5 events, tip 3488b31cb8c4b57e…

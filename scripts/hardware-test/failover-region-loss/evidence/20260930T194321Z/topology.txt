@@ -1,0 +1,4 @@
+primary: vg-rl-primary-20260930t194321z, GCP, zone us-central1-c
+authority: vg-rl-authority-20260930t194321z, GCP, zone europe-west4-a
+bucket: gs://rats-probe-vg-rl-20260930t194321z, location europe-west4 (deleted with the run)
+standby: vg-rl-gpu-20260930t194321z, Azure westeurope, Standard_NCC40ads_H100_v5, endpoint https://104.214.225.141:8443

@@ -29,13 +29,14 @@ a computation problem third.
 ## Measured on real hardware
 
 Every number links to the claim, its evidence files and the command that
-reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C26).
+reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C35).
 
 | What | Result | Claim |
 | - | - | - |
 | A model under attack on a SEV-SNP VM fails over to another SEV-SNP VM | detect 2.53 s, RPO 9.0 s, **RTO 16.81 s**, the clean generation gated **EXACT** | [drill](docs/CONTINUITY-DRILL.md), [C14](VERIFIABLE-CLAIMS.md#c14) |
 | The same failover to an Azure **confidential GPU** across the Internet | key released on the chip's report, the vTPM's quote and NVIDIA's tokens; **RTO 24.99 s**, EQUIVALENT on the H100 | [C18](VERIFIABLE-CLAIMS.md#c18) |
 | The same failover to an **Intel TDX** Trust Domain | key released on Intel's word for the platform, TDX module and QE; **RTO 24.09 s** | [C21](VERIFIABLE-CLAIMS.md#c21) |
+| A primary that **goes dark without a word** — switched off while it trains, then deleted | no report, only silence: after 15 s the key goes to the attested H100 across the Atlantic; **RTO 25.97 s**, EQUIVALENT on the H100, done before Google logged the machine's termination | [C35](VERIFIABLE-CLAIMS.md#c27) |
 | Eight policies against one attack | **seven refused** for seven stated reasons, one move to the generation whose bytes match the sentinel's word | [C22](VERIFIABLE-CLAIMS.md#c22) |
 | A **32B** model through the genome path on a confidential H100 | fine-tuned, sealed, restored and gated **EXACT** (16/16) over the Return Path | [C26](VERIFIABLE-CLAIMS.md#c26) |
 | A 7B genome on one GPU | 10 MB against 15 GB of weights (1 : 1 502), EXACT on the pinned runtime, the recipe replaying bit for bit | [C16](VERIFIABLE-CLAIMS.md#c16) |
