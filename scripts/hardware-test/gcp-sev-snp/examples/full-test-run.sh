@@ -56,7 +56,32 @@ tf() {
 echo "=== 1. provision VM ==="
 cd "$KIT_DIR/terraform"
 tf init -input=false
-tf apply -auto-approve
+
+# n2d capacity comes and goes by zone: a zone that answers "does not have
+# enough resources" is skipped and the next one tried. ZONES overrides the
+# list; TF_VAR_zone alone pins a single zone. The zone that worked is
+# exported so every later Terraform command sees the same configuration.
+ZONES="${ZONES:-${TF_VAR_zone:-us-central1-a us-central1-b us-central1-c us-central1-f europe-west4-a europe-west4-b europe-west4-c}}"
+APPLY_LOG="$(mktemp)"
+trap 'rm -f "$APPLY_LOG"' EXIT
+PROVISIONED=""
+for zone in $ZONES; do
+  echo "--- zone $zone ---"
+  export TF_VAR_zone="$zone" TF_VAR_region="${zone%-*}"
+  if tf apply -auto-approve 2>&1 | tee "$APPLY_LOG"; then
+    PROVISIONED="$zone"
+    break
+  fi
+  if grep -q "does not have enough resources\|ZONE_RESOURCE_POOL_EXHAUSTED" "$APPLY_LOG"; then
+    echo "(zone $zone has no capacity for the machine type; trying the next)"
+    continue
+  fi
+  exit 1
+done
+if [ -z "$PROVISIONED" ]; then
+  echo "ERROR: no zone in '$ZONES' had capacity for the machine type"
+  exit 1
+fi
 
 VM_NAME="$(tf output -raw instance_name)"
 ZONE="$(tf output -raw zone)"

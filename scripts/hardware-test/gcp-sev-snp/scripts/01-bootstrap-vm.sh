@@ -16,10 +16,14 @@ GO_VERSION="1.27.2"
 GO_SHA256="ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5"  # go.dev/dl, go1.27.2.linux-amd64.tar.gz
 
 echo "=== verify SEV-SNP active ==="
-if ! journalctl -k --no-pager 2>/dev/null | grep -q "SEV-SNP"; then
-  echo "WARNING: SEV-SNP not visible in kernel log — VM may not be a Confidential VM."
+# The guest device is the definitive sign of a SEV-SNP guest (02 reads the
+# report from it). The kernel log is informational and needs root to read.
+if [ -c /dev/sev-guest ]; then
+  echo "/dev/sev-guest present: SEV-SNP guest device"
+else
+  echo "WARNING: /dev/sev-guest missing — VM may not be a SEV-SNP Confidential VM."
 fi
-journalctl -k --no-pager 2>/dev/null | grep -iE "sev|memory encryption" | head -10
+sudo journalctl -k --no-pager 2>/dev/null | grep -iE "sev|memory encryption" | head -10 || true
 
 echo
 echo "=== install Go ${GO_VERSION} ==="
