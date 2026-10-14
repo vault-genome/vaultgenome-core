@@ -38,13 +38,28 @@ if [ -z "${TF_VAR_project_id:-}" ]; then
   exit 1
 fi
 
+# Terraform's google provider authenticates on its own: with Application
+# Default Credentials when they exist, otherwise with the signed-in gcloud
+# account's access token (GOOGLE_OAUTH_ACCESS_TOKEN). A token lives an
+# hour and a run takes longer, so one is minted before every Terraform
+# command. The provider version comes from .terraform.lock.hcl; a bump is
+# a reviewed change, not a side effect of a run.
+ADC_FILE="${GOOGLE_APPLICATION_CREDENTIALS:-${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json}"
+tf() {
+  if [ -n "${GOOGLE_OAUTH_ACCESS_TOKEN:-}" ] || [ -f "$ADC_FILE" ]; then
+    terraform "$@"
+  else
+    GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)" terraform "$@"
+  fi
+}
+
 echo "=== 1. provision VM ==="
 cd "$KIT_DIR/terraform"
-terraform init -upgrade -input=false
-terraform apply -auto-approve
+tf init -input=false
+tf apply -auto-approve
 
-VM_NAME="$(terraform output -raw instance_name)"
-ZONE="$(terraform output -raw zone)"
+VM_NAME="$(tf output -raw instance_name)"
+ZONE="$(tf output -raw zone)"
 
 # Wait for VM to be SSH-ready.
 echo "=== 1a. wait for SSH ==="
@@ -80,7 +95,7 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --quiet --command='
 
 echo
 echo "=== 9. download evidence to laptop ==="
-gcloud compute scp "$VM_NAME":~/${VM_NAME}-evidence.tar.gz ./ \
+gcloud compute scp "$VM_NAME":~/"${VM_NAME}"-evidence.tar.gz ./ \
   --zone="$ZONE" --quiet
 
 echo
@@ -90,7 +105,7 @@ ls -lh "${VM_NAME}-evidence.tar.gz"
 echo
 echo "=== 10. teardown VM ==="
 cd "$KIT_DIR/terraform"
-terraform destroy -auto-approve
+tf destroy -auto-approve
 
 echo
 echo "=== ✓ all done ==="
