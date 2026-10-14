@@ -42,6 +42,25 @@ given release can still open.
   type. Of review item F10's twenty-one unpinned installs
   (`docs/security/review-2026-10.md`), the ones left are the drills'
   PyTorch wheels and the demo script's Ollama installer.
+- The Azure SEV-SNP kit captures the report the way Azure exposes it. Its
+  scripts asked `/dev/sev-guest`, which an Azure Confidential VM does not
+  have (the kit's README said so; the scripts had never run there). The
+  kit now reads the HCL report from the vTPM (NV index 0x1400001), parses
+  the layout read on the live VM, refuses a report whose REPORT_DATA is
+  not SHA-256(runtime data), records the VCEK Azure THIM serves and
+  requires it to equal AMD KDS's, sends MAA the SevSnpVm request the API
+  defines, and checks the token's claims against the report. Findings of
+  the first end-to-end runs, fixed in both SEV-SNP kits: snpguest reads
+  `--report-data` as hex only with a `0x` prefix (the binding check had
+  compared characters); the Ollama installer leaves the model store
+  unreadable to the login user; Demo 2 selected two "middle" generations;
+  a non-interactive ssh session does not read `~/.bashrc`, so the runners
+  put the bootstrap's tools on PATH; the Ubuntu 24.04 kernel log is not
+  readable without root; checks that piped a multi-line writer into
+  `grep -q` could be failed by SIGPIPE under `pipefail`; the GCP evidence
+  archive now carries the chain validation; the GCP runner tries the next
+  zone when one has no capacity and stops on a chain failure instead of
+  calling it a KDS outage.
 - A security review (`docs/security/review-2026-10.md`): eleven findings,
   eight closed on the day (the tag-object pin, the Nitro kit's root check,
   the helper module's dependencies, the release token, the site's CSP, the
