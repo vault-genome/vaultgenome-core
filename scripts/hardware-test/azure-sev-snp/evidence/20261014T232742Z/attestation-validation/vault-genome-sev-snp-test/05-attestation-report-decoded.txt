@@ -1,0 +1,145 @@
+Attestation Report:
+
+Version:                      5
+
+Guest SVN:                    3
+
+Guest Policy (0x3001f):
+  ABI Major:     0
+  ABI Minor:     31
+  SMT Allowed:   true
+  Migrate MA:    false
+  Debug Allowed: false
+  Single Socket: false
+  CXL Allowed:   false
+  AEX 256 XTS:   false
+  RAPL Allowed:  false
+  Ciphertext hiding: false
+  Page Swap Disable: false
+
+Family ID:
+00 25 20 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+Image ID:
+02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+VMPL:                         0
+
+Signature Algorithm:          1
+
+Current TCB:
+
+TCB Version:
+  Microcode:   88
+  SNP:         28
+  TEE:         0
+  Boot Loader: 12
+  FMC:         None
+
+Platform Info (39):
+  SMT Enabled:               true
+  TSME Enabled:              true
+  ECC Enabled:               true
+  RAPL Disabled:             false
+  Ciphertext Hiding Enabled: false
+  Alias Check Complete:      true
+  SEV-TIO Enabled:           false
+
+Key Information:
+    author key enabled: false
+    mask chip key:      false
+    signing key:        vcek
+
+Report Data:
+8A B7 12 99 14 C6 06 05 A9 3A E0 C4 07 33 30 4E
+5F B9 66 33 14 04 FD E3 C8 AE AB 3E 51 09 38 71
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+Measurement:
+11 92 0F 61 DE F8 50 94 B3 43 E1 2E 30 62 17 E9
+5D AC E3 B1 9E 1A AF 9D 11 67 49 E3 65 5E E7 3A
+18 5F 51 7B 08 A5 FD 93 2A 04 29 5A 55 95 91 C4
+
+Host Data:
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+ID Key Digest:
+94 2F D9 3E BD E6 EA 7A 96 EF AD EA FC 60 F1 C6
+B3 D1 0E 70 3B 1D AF D7 55 5B 92 F7 F3 D3 2D 0E
+00 67 67 64 8C BA 5B 10 2A F3 D6 57 56 AF 41 77
+
+Author Key Digest:
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+Report ID:
+10 DD 02 B9 69 C5 04 C5 7C A7 96 29 8B 82 49 3B
+E3 12 15 CD 36 1D 71 DE 9E 26 C8 D4 EC AF DA E0
+
+Report ID Migration Agent:
+FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+
+Reported TCB:
+
+TCB Version:
+  Microcode:   88
+  SNP:         28
+  TEE:         0
+  Boot Loader: 12
+  FMC:         None
+
+CPUID Family ID:              25
+
+CPUID Model ID:               17
+
+CPUID Stepping:               1
+
+Chip ID:
+67 20 87 0C D4 43 5A 53 A8 E0 C6 8D 22 18 9D 47
+89 51 84 02 75 B9 A4 E9 B4 A2 8C D0 C2 BC 9F 0F
+3B 1C 5D 5A 86 E0 7E 48 41 C0 85 31 E0 08 6A 37
+E0 61 43 36 C8 4E C4 38 20 11 A7 28 11 EC 15 2C
+
+Committed TCB:
+
+TCB Version:
+  Microcode:   88
+  SNP:         28
+  TEE:         0
+  Boot Loader: 12
+  FMC:         None
+
+Current Version:              1.58.2
+
+Committed Version:            1.58.2
+
+Launch TCB:
+
+TCB Version:
+  Microcode:   88
+  SNP:         28
+  TEE:         0
+  Boot Loader: 12
+  FMC:         None
+
+Launch Mitigation Vector:     7
+
+Current Mitigation Vector:    7
+
+Signature:
+  R:
+F9 A3 EE 9F FB 7B 10 74 48 E4 F8 13 73 DD 43 12
+81 95 1C 01 F4 39 5E 94 4C ED 86 EF F8 34 10 12
+64 1F C3 5D 28 44 20 29 1D 46 C5 19 1E 57 9E 5B
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+  S:
+0C BA 9D 34 E2 97 89 98 75 B3 01 3B 6F B9 46 31
+B7 63 10 E5 CC AD F4 25 31 5B 73 5E 07 CB 7F 9D
+F1 7A 9F 9B 4B 24 83 9E 31 26 9E 02 36 C3 DA 1E
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00

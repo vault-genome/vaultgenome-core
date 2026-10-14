@@ -1,0 +1,69 @@
+{
+  "exp": 1792049116,
+  "iat": 1792020316,
+  "iss": "https://sharedweu.weu.attest.azure.net",
+  "jti": "948d866cf0ac302057f3a5097043aa27541ca4f2715d13039717760345057ec1",
+  "nbf": 1792020316,
+  "nonce": "1792020315339097123",
+  "x-ms-attestation-type": "sevsnpvm",
+  "x-ms-compliance-status": "azure-compliant-cvm",
+  "x-ms-policy-hash": "9NY0VnTQ-IiBriBplVUpFbczcDaEBUwsiFYAzHu_gco",
+  "x-ms-runtime": {
+    "keys": [
+      {
+        "e": "AQAB",
+        "key_ops": [
+          "sign"
+        ],
+        "kid": "HCLAkPub",
+        "kty": "RSA",
+        "n": "qkyBSAABEvYVl4ifqJ77mSjw8QwwbSxk0Pbc8-zt3GdLDRVdBrDguGpO5oOCsM8ZFczJSYpw3QjG6Jl3nlv2ojmA8S4rzTVimUlYStXE3l6Aj9Gf9dQDxaLrXRyjsZnCTGae6y8IKhY7XrL5nar1Wn3b1Dysy7e7J_vxb7PxB5Gw_sWcRaVd_gMEkCFzXRg6C1V7YCPY4xjlojD8Eeerw7IkTwoWvtP12Oaq2UlT-pXkKqUnl5DCDKbSl0oaV6Y6_qevDDSlwjq833uJIEj5UgXHmnighoPlOEuTtGcEtyZngO4BODjXlX9doTk4f6nLKYbn9NeAusrTITZ22-8C1Q"
+      },
+      {
+        "e": "AQAB",
+        "key_ops": [
+          "encrypt"
+        ],
+        "kid": "HCLEkPub",
+        "kty": "RSA",
+        "n": "nPl_4AAAgTX4XY5zWWplSjAPyP3QNmUOL9TvPEvkvuUqN-fygn39vDSoay_HVRHxiCFw0ikpzbw4vhQI5jDjobDQLlb5PMhYQPTOR0oFX2uDsdvx9PiuzTSMiOD0GdsXigeUjFP2BD7Uavvmf5XR4WJMFC3xdz0Bcel_QWZ-zJYkEpdhL44euHcE24SBqR7wSDyM_NYtpxcQmO3vtKvD8ewIfuWERS58qptYlxiz66yMayogvRRacWvw06PACWtgVXZN7ZT2gLz33_jQYwyVGbilUounFiCEn8bETQxIe_IFhla8_Ci0DZiWgalgBZFPw9zUKn7Y12cyU8o2-KkkYw"
+      }
+    ],
+    "user-data": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "vm-configuration": {
+      "console-enabled": true,
+      "hardware-sealing-policy": "hash",
+      "root-cert-thumbprint": "6nZZnYaJc4KqUZ_yvA-mucFdYNouvlPnITnNMXsHl-0",
+      "secure-boot": true,
+      "tpm-enabled": true,
+      "tpm-persisted": true,
+      "vmUniqueId": "3EE11A95-8439-4077-8532-C3B55EBB0EFF"
+    }
+  },
+  "x-ms-sevsnpvm-authorkeydigest": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+  "x-ms-sevsnpvm-bootloader-svn": 12,
+  "x-ms-sevsnpvm-chip-family": "Genoa",
+  "x-ms-sevsnpvm-chipid": "6720870cd4435a53a8e0c68d22189d478951840275b9a4e9b4a28cd0c2bc9f0f3b1c5d5a86e07e4841c08531e0086a37e0614336c84ec4382011a72811ec152c",
+  "x-ms-sevsnpvm-ciphertext-hiding-dram-enabled": false,
+  "x-ms-sevsnpvm-cxl-allowed": false,
+  "x-ms-sevsnpvm-familyId": "00252000000000000000000000000000",
+  "x-ms-sevsnpvm-guestsvn": 3,
+  "x-ms-sevsnpvm-hostdata": "0000000000000000000000000000000000000000000000000000000000000000",
+  "x-ms-sevsnpvm-idkeydigest": "942fd93ebde6ea7a96efadeafc60f1c6b3d10e703b1dafd7555b92f7f3d32d0e006767648cba5b102af3d65756af4177",
+  "x-ms-sevsnpvm-imageId": "02000000000000000000000000000000",
+  "x-ms-sevsnpvm-is-debuggable": false,
+  "x-ms-sevsnpvm-launchmeasurement": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+  "x-ms-sevsnpvm-mem-aes256-xts-required": false,
+  "x-ms-sevsnpvm-microcode-svn": 88,
+  "x-ms-sevsnpvm-migration-allowed": false,
+  "x-ms-sevsnpvm-page-swap-disabled": false,
+  "x-ms-sevsnpvm-rapl-disabled": false,
+  "x-ms-sevsnpvm-reportdata": "8ab7129914c60605a93ae0c40733304e5fb966331404fde3c8aeab3e510938710000000000000000000000000000000000000000000000000000000000000000",
+  "x-ms-sevsnpvm-reportid": "10dd02b969c504c57ca796298b82493be31215cd361d71de9e26c8d4ecafdae0",
+  "x-ms-sevsnpvm-singlesocket": false,
+  "x-ms-sevsnpvm-smt-allowed": true,
+  "x-ms-sevsnpvm-snpfw-svn": 28,
+  "x-ms-sevsnpvm-tee-svn": 0,
+  "x-ms-sevsnpvm-vmpl": 0,
+  "x-ms-ver": "1.0"
+}

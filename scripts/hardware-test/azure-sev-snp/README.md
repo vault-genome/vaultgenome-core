@@ -37,6 +37,16 @@ cloud proven after GCP.
   REPORT_DATA binds the Azure **runtime data** (the vTPM AK material), not our
   own key — binding our X25519 key would go through the vTPM AK, a follow-up.
 
+## The run of 2026-10-14
+
+`evidence/20261014T232742Z/` holds one end-to-end run of this kit on a fresh
+`Standard_DC4as_v5` (Genoa) in West Europe: the HCL report from the vTPM with
+the REPORT_DATA check, the AMD chain (AMD CHAIN VALIDATION PASSED, THIM's VCEK
+the same key as KDS's), the MAA token with its claims checked against the
+report (MAA CHAIN VALIDATION PASSED), Demo 1 with the tamper refusal, Demo 2,
+the byte-identical inference comparison and the runner's log. Its README
+reads the files and says where the runner stopped.
+
 ## Verification
 
 `internal/shared/tee/azure_sev_snp_verify_test.go` proves, with the SAME real
