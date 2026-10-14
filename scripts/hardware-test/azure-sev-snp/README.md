@@ -29,7 +29,10 @@ cloud proven after GCP.
 - **Certificates:** `02` records the VCEK and chain that Azure's THIM endpoint
   (`169.254.169.254/metadata/THIM/amd/certification`) serves for this chip and
   TCB; `02b` fetches the same from AMD KDS and requires the two VCEKs to match.
-- **Report properties:** version 3 on 2026-09-14, version 5 on 2026-10-14;
+- **Report properties:** version 3 on 2026-09-14 (East US, Milan), version 5 on
+  2026-10-14 (West Europe, `Standard_DC4as_v5` on an EPYC 9V74 — Genoa, CPUID
+  family 0x19 model 0x11; the chain is SEV-Genoa / ARK-Genoa). The product
+  line is read from the report by `02b`, not assumed; `SNP_CHIP` overrides it.
   `signing_key = VCEK`, `mask_chip_key = 0` (real chip id), `vmpl = 0`.
   REPORT_DATA binds the Azure **runtime data** (the vTPM AK material), not our
   own key — binding our X25519 key would go through the vTPM AK, a follow-up.
@@ -42,7 +45,8 @@ verify path used for GCP:
 1. parse at fixed offsets (measurement 48B SHA-384, chip_id non-zero);
 2. VCEK fetched from AMD KDS by chip_id + reported TCB (`vcek.bin`, cached);
 3. ECDSA-P384 report signature verifies under the VCEK;
-4. VCEK → ASK → ARK-Milan chain verifies (`cert_chain.pem`, cached).
+4. VCEK → ASK → ARK chain verifies (`cert_chain.pem`, cached; ARK-Milan for the
+   2026-09-14 capture).
 
 The cached `vcek.bin` / `cert_chain.pem` make the test offline after the first
 run. This is real Azure hardware attestation chained to AMD's root of trust.
