@@ -29,7 +29,9 @@ import_apt_key() {
   local url="$1" fpr="$2" keyring="$3" tmp
   tmp="$(mktemp)"
   curl -fsSL "$url" -o "$tmp"
-  if ! gpg --batch --quiet --show-keys --with-colons "$tmp" | grep -q "^fpr:::::::::${fpr}:"; then
+  local keyinfo
+  keyinfo="$(gpg --batch --quiet --show-keys --with-colons "$tmp" 2>/dev/null || true)"
+  if ! grep -q "^fpr:::::::::${fpr}:" <<<"${keyinfo}"; then
     echo "ERROR: key at $url does not have fingerprint $fpr; not installing it" >&2
     rm -f "$tmp"
     exit 1

@@ -111,7 +111,8 @@ echo "=== Verify VCEK signed the attestation report ==="
 "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p milan | tee 09-verify-attestation.txt
 
 # ---- Verify REPORT_DATA binding (if 02-report-data.hex present) ----
-if [ -f 02-report-data.hex ] && "${SNPGUEST}" verify attestation --help 2>&1 | grep -q "report-data"; then
+VERIFY_HELP="$("${SNPGUEST}" verify attestation --help 2>&1 || true)"
+if [ -f 02-report-data.hex ] && grep -q "report-data" <<<"${VERIFY_HELP}"; then
   echo
   echo "=== Verify REPORT_DATA binding to manifest ==="
   REPORT_DATA_HEX=$(tr -d '\n ' < 02-report-data.hex)

@@ -2,9 +2,9 @@
 # Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# 01-bootstrap-vm.sh — install Go, Ollama, and the Vault Genome acpctl
-# binary on a fresh Azure Confidential VM (DCasv5/DCadsv5). Idempotent
-# — safe to re-run.
+# 01-bootstrap-vm.sh — install Go, Ollama, snpguest, tpm2-tools and the
+# Vault Genome acpctl binary on a fresh Azure Confidential VM
+# (DCasv5/DCadsv5). Idempotent — safe to re-run.
 #
 # Prereq: this script runs ON THE VM (after SSH'ing in), not on your
 # laptop. Run as a non-root user with sudo access (the Azure default
@@ -17,27 +17,29 @@ set -euo pipefail
 GO_VERSION="1.27.2"
 GO_SHA256="ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5"  # go.dev/dl, go1.27.2.linux-amd64.tar.gz
 
-echo "=== verify SEV-SNP active on this Azure CVM ==="
-if ! journalctl -k --no-pager 2>/dev/null | grep -qE "sev|SEV-SNP|memory encryption"; then
-  echo "WARNING: SEV-SNP indicators not visible in kernel log."
-  echo "         This may be a non-Confidential VM. Continuing anyway."
-fi
-journalctl -k --no-pager 2>/dev/null | grep -iE "sev|memory encryption" | head -10 || true
-
-echo
-echo "=== verify /dev/sev-guest device present ==="
-if [ ! -c /dev/sev-guest ]; then
-  echo "ERROR: /dev/sev-guest device missing."
-  echo "       This VM is not running on AMD SEV-SNP confidential silicon."
-  echo "       Use a Standard_DC*as_v5 (or DCadsv5) VM size."
-  exit 1
-fi
-ls -l /dev/sev-guest
-
-echo
 echo "=== install build dependencies ==="
 sudo apt-get update -qq
-sudo apt-get install -y -qq build-essential pkg-config libssl-dev curl git jq tar python3-jwt python3-cryptography
+sudo apt-get install -y -qq build-essential pkg-config libssl-dev curl git jq tar xxd tpm2-tools python3-jwt python3-cryptography
+
+echo
+echo "=== verify this is an Azure Confidential VM (SEV-SNP behind the paravisor, report in the vTPM) ==="
+# On Azure the guest has no /dev/sev-guest: the paravisor mediates SEV-SNP
+# and places the AMD-signed report in the vTPM's HCL report, NV index
+# 0x1400001 (02-capture-attestation.sh reads it). The kernel log needs
+# root to read and is informational.
+sudo journalctl -k --no-pager 2>/dev/null | grep -iE "sev|memory encryption" | head -5 || true
+if [ ! -c /dev/tpmrm0 ]; then
+  echo "ERROR: no vTPM (/dev/tpmrm0). Use a Standard_DC*as_v5 / DC*ads_v5 size with security type ConfidentialVM."
+  exit 1
+fi
+# Captured first, not piped into grep -q: the writer would die of SIGPIPE on the
+# early exit and pipefail would read that as "absent" (seen 2026-10-14 23:03Z).
+NV_PUBLIC="$(sudo tpm2_nvreadpublic 2>/dev/null || true)"
+if ! grep -q '^0x1400001:' <<<"${NV_PUBLIC}"; then
+  echo "ERROR: NV index 0x1400001 (HCL report) absent: not an Azure Confidential VM with the SEV-SNP paravisor."
+  exit 1
+fi
+echo "vTPM present; HCL report at NV index 0x1400001"
 
 echo
 echo "=== install Go ${GO_VERSION} ==="

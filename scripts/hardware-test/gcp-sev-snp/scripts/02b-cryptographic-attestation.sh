@@ -179,7 +179,10 @@ echo "=== Step 8: verify report signature ==="
 "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin | tee 09-verify-attestation.txt
 
 # ---- Step 9: explicit REPORT_DATA binding check ----
-if "${SNPGUEST}" verify attestation --help 2>&1 | grep -q "report-data"; then
+# The help text is captured first: a multi-line writer behind "grep -q" can die of
+# SIGPIPE, which pipefail would turn into a skipped check.
+VERIFY_HELP="$("${SNPGUEST}" verify attestation --help 2>&1 || true)"
+if grep -q "report-data" <<<"${VERIFY_HELP}"; then
   echo
   echo "=== Step 9: verify REPORT_DATA binding ==="
   REPORT_DATA_HEX=$(tr -d '\n ' < 02-report-data.hex)

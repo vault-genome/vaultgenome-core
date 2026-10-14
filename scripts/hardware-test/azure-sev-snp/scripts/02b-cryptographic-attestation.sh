@@ -93,23 +93,27 @@ cat > 01-vaultgenome-payload-manifest.json <<EOF
 EOF
 cat 01-vaultgenome-payload-manifest.json
 
-# ---- Step 3: REPORT_DATA = SHA-512(manifest) ----
+# ---- Step 3: the report, as 02-capture-attestation.sh read it from the vTPM ----
+# On Azure the guest cannot ask for a report with its own REPORT_DATA: the
+# paravisor binds REPORT_DATA to the vTPM runtime data (SHA-256 of it, then
+# 32 zero bytes). The manifest above is recorded with the evidence; the
+# binding checked in Step 9 is Azure's.
 echo
-echo "=== Step 3: REPORT_DATA = SHA-512(manifest) ==="
-sha512sum 01-vaultgenome-payload-manifest.json | awk '{print $1}' > 02-report-data.hex
+echo "=== Step 3: attestation report from the vTPM capture ==="
+EVIDENCE="${HOME}/vg/evidence"
+for f in snp-attestation-report.bin hcl-runtime-data.json hcl-report.bin; do
+  [ -s "${EVIDENCE}/${f}" ] || { echo "ERROR: ${EVIDENCE}/${f} missing; run 02-capture-attestation.sh first"; exit 1; }
+done
+cp "${EVIDENCE}/hcl-report.bin" 03-hcl-report.bin
+cp "${EVIDENCE}/hcl-runtime-data.json" 03-runtime-data.json
+cp "${EVIDENCE}/snp-attestation-report.bin" 04-attestation-report.bin
+{ sha256sum 03-runtime-data.json | awk '{print $1}' | tr -d '\n'; printf '%064d\n' 0; } > 02-report-data.hex
 xxd -r -p 02-report-data.hex 03-report-data.bin
-test "$(stat -c %s 03-report-data.bin 2>/dev/null || stat -f %z 03-report-data.bin)" = "64" || \
-  { echo "ERROR: report-data must be 64 bytes"; exit 1; }
-echo "REPORT_DATA: $(cat 02-report-data.hex)"
+test "$(stat -c %s 03-report-data.bin)" = "64" || { echo "ERROR: report-data must be 64 bytes"; exit 1; }
+test "$(stat -c %s 04-attestation-report.bin)" = "1184" || { echo "ERROR: attestation report must be 1184 bytes"; exit 1; }
+echo "REPORT_DATA expected (SHA-256(runtime data) || 0^32): $(cat 02-report-data.hex)"
 
-# ---- Step 4: capture attestation report bound to manifest ----
-echo
-echo "=== Step 4: capture attestation report (bound to REPORT_DATA) ==="
-sudo "${SNPGUEST}" report 04-attestation-report.bin 03-report-data.bin
-sudo chown "$USER:$USER" 04-attestation-report.bin
-ls -la 04-attestation-report.bin
-test "$(stat -c %s 04-attestation-report.bin 2>/dev/null || stat -f %z 04-attestation-report.bin)" = "1184" || \
-  { echo "ERROR: attestation report must be 1184 bytes"; exit 1; }
+# ---- Step 4: (no request on Azure; see Step 3) ----
 
 # ---- Step 5: decoded report ----
 echo
@@ -177,13 +181,30 @@ echo "=== Step 8: verify report signature ==="
 "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin | tee 09-verify-attestation.txt
 
 # ---- Step 9: explicit REPORT_DATA binding check ----
-if "${SNPGUEST}" verify attestation --help 2>&1 | grep -q "report-data"; then
+# The help text is captured first: a multi-line writer behind "grep -q" can die of
+# SIGPIPE, which pipefail would turn into a skipped check.
+VERIFY_HELP="$("${SNPGUEST}" verify attestation --help 2>&1 || true)"
+if grep -q "report-data" <<<"${VERIFY_HELP}"; then
   echo
   echo "=== Step 9: verify REPORT_DATA binding ==="
   REPORT_DATA_HEX=$(tr -d '\n ' < 02-report-data.hex)
   echo "Expected REPORT_DATA: ${REPORT_DATA_HEX}" | tee 10-verify-report-data-binding.txt
-  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" -r "${REPORT_DATA_HEX}" \
+  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" -r "0x${REPORT_DATA_HEX}" \
     | tee -a 10-verify-report-data-binding.txt
+fi
+
+# ---- Step 9b: the VCEK Azure THIM served must be the one AMD KDS serves ----
+if [ -s "${EVIDENCE}/thim-vcek.pem" ]; then
+  echo
+  echo "=== Step 9b: VCEK from Azure THIM vs VCEK from AMD KDS ==="
+  THIM_FP=$(openssl x509 -in "${EVIDENCE}/thim-vcek.pem" -noout -fingerprint -sha256 | cut -d= -f2)
+  KDS_FP=$(openssl x509 -in 06-certificates/vcek.pem -noout -fingerprint -sha256 | cut -d= -f2)
+  {
+    echo "THIM VCEK sha256 fingerprint: ${THIM_FP}"
+    echo "KDS  VCEK sha256 fingerprint: ${KDS_FP}"
+    if [ "${THIM_FP}" = "${KDS_FP}" ]; then echo "MATCH"; else echo "MISMATCH"; fi
+  } | tee 13-vcek-thim-vs-kds.txt
+  [ "${THIM_FP}" = "${KDS_FP}" ] || { echo "ERROR: THIM and KDS disagree on the VCEK"; exit 1; }
 fi
 
 # ---- Step 10: policy validation summary ----
@@ -200,12 +221,15 @@ Tool:       $(cat 11-snpguest-version.txt)
 Chip:       AMD EPYC ${SNP_CHIP^} (SEV-SNP)
 
 POLICY CHECKS
-✓ Report from /dev/sev-guest (real silicon)
+✓ Report from the vTPM's HCL report (Azure paravisor, NV 0x1400001; real silicon)
 ✓ Cert chain valid (ARK self-signed → ASK signed by ARK → VCEK signed by ASK)
 ✓ VEK signed attestation report
 ✓ TCB values match (cert ↔ report) — Microcode/SNP/TEE/Boot Loader
 ✓ Chip ID matches (cert ↔ report)
-✓ REPORT_DATA = SHA-512(manifest)        — workload binding
+✓ REPORT_DATA = SHA-256(vTPM runtime data) || 0^32 — Azure's binding, checked
+$([ -f 13-vcek-thim-vs-kds.txt ] && echo "✓ VCEK from Azure THIM = VCEK from AMD KDS")
+  Workload manifest recorded (01-vaultgenome-payload-manifest.json); on Azure
+  a caller cannot place its own REPORT_DATA in the report.
 
 RESULT: AMD CHAIN VALIDATION PASSED
 

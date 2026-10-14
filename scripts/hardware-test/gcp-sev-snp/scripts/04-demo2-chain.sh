@@ -57,7 +57,7 @@ LATEST=$(ls -1 generations/gen-*.genome | tail -1)
 
 echo
 echo "=== rewind to a middle generation ==="
-MID_BUNDLE=$(ls -1 generations/gen-*.genome | awk 'NR==int(NR/2)+1')
+MID_BUNDLE=$(ls -1 generations/gen-*.genome | awk '{line[NR]=$0} END{print line[int(NR/2)+1]}')
 "$ACPCTL" genome rewind \
   --bundle="$MID_BUNDLE" \
   --key-file="keys/$(basename "$MID_BUNDLE" .genome).key" \
