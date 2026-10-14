@@ -1,0 +1,20 @@
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# requirements-maa.txt — the Python the MAA step (02f) needs when the VM
+# image's own python3-jwt / python3-cryptography are absent. Installed
+# with `pip install --require-hashes`, so a wheel that does not match a
+# hash below is refused. Hashes recorded 2026-10-14 from PyPI for the
+# CPython 3.10 (Ubuntu 22.04), 3.11 and 3.12 (Ubuntu 24.04) x86_64 wheels;
+# pure-Python wheels carry one hash.
+pyjwt==2.10.1 \
+    --hash=sha256:dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb
+cryptography==46.0.3 \
+    --hash=sha256:15ab9b093e8f09daab0f2159bb7e47532596075139dd74365da52ecc9cb46c5d \
+    --hash=sha256:01ca9ff2885f3acc98c29f1860552e37f6d7c7d013d7334ff2a9de43a449315d
+cffi==2.1.1 \
+    --hash=sha256:194cffa889098ced9976c3fc6340305e43f6303657d298da55366907c05c22d6 \
+    --hash=sha256:34e261f78cb6ceaaa36f42f2613f4380d94d9c759a9c73c769ee6e0247364632 \
+    --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf
+pycparser==3.11 \
+    --hash=sha256:51d5a8ba2be0bbe440b99d2112604c95bbbc3c2748a64260186c541e1729cd80

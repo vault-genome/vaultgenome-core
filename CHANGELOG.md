@@ -26,6 +26,22 @@ given release can still open.
   carries none. An enclave image built from this tree measures differently
   (PCR0–PCR2) from the May 2026 cohort; the recorded documents stand for
   the tree they name (`scripts/hardware-test/aws-nitro/README.md`).
+- The GCP SEV-SNP, Azure SEV-SNP and Azure SGX kits check every download
+  before it runs: Go 1.27.2 against its go.dev sha256; the Ollama installer
+  against a recorded sha256, no longer piped into a shell; rustup-init
+  1.29.1 against its published sha256 with the Rust toolchain at 1.99.0;
+  snpguest v0.10.0 by commit, built `--locked`; the Intel SGX and Microsoft
+  apt signing keys by fingerprint; Open Enclave 0.19.19 against its package
+  sha256; and the MAA verifier's Python from the image's own packages or
+  from wheels pinned by hash (`requirements-maa.txt`). The Azure CLI is no
+  longer installed on the VMs: the MAA token comes from the managed
+  identity through the instance metadata service. The one-command runners
+  authenticate Terraform from the signed-in gcloud or az account, honour
+  the provider lock instead of upgrading it on every run, and the GCP
+  runner moves to the next zone when one has no capacity for the machine
+  type. Of review item F10's twenty-one unpinned installs
+  (`docs/security/review-2026-10.md`), the ones left are the drills'
+  PyTorch wheels and the demo script's Ollama installer.
 - A security review (`docs/security/review-2026-10.md`): eleven findings,
   eight closed on the day (the tag-object pin, the Nitro kit's root check,
   the helper module's dependencies, the release token, the site's CSP, the

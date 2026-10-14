@@ -26,8 +26,13 @@ fi
 
 echo "=== 1. provision Azure DCsv3 SGX VM ==="
 cd "$KIT_DIR/terraform"
-export TF_VAR_admin_ssh_public_key="$(cat "${SSH_KEY}.pub")"
-terraform init -upgrade -input=false
+TF_VAR_admin_ssh_public_key="$(cat "${SSH_KEY}.pub")"
+export TF_VAR_admin_ssh_public_key
+# The azurerm provider needs the subscription named explicitly; take the
+# one the az login selected unless ARM_SUBSCRIPTION_ID is already set.
+ARM_SUBSCRIPTION_ID="${ARM_SUBSCRIPTION_ID:-$(az account show --query id -o tsv)}"
+export ARM_SUBSCRIPTION_ID
+terraform init -input=false
 terraform apply -auto-approve
 
 VM_NAME="$(terraform output -raw instance_name)"
