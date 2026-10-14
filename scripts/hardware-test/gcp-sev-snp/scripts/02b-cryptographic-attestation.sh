@@ -73,6 +73,29 @@ fi
 SNPGUEST="${SNPGUEST:-${HOME}/snpguest-src/target/release/snpguest}"
 [ -x "${SNPGUEST}" ] || { echo "snpguest binary not found at ${SNPGUEST}"; exit 1; }
 
+# The AMD product line (Milan, Genoa, Turin) decides the KDS URL and the
+# root; it is read from the report's CPUID family and model (report version
+# 3 and later, offsets 0x188 and 0x189), with the table snpguest uses.
+# SNP_CHIP overrides it.
+detect_snp_chip() {  # <report.bin>
+  python3 - "$1" <<'PYEOF'
+import struct, sys
+b = open(sys.argv[1], "rb").read()
+version = struct.unpack("<I", b[0:4])[0]
+if version < 3:
+    sys.exit("report version %d carries no CPUID family; set SNP_CHIP" % version)
+fam, mod = b[0x188], b[0x189]
+if fam == 0x19 and mod <= 0x0F:
+    print("milan")
+elif fam == 0x19 and (0x10 <= mod <= 0x1F or 0xA0 <= mod <= 0xAF):
+    print("genoa")
+elif fam == 0x1A and mod <= 0x11:
+    print("turin")
+else:
+    sys.exit("CPUID family 0x%02x model 0x%02x: not a known SEV-SNP product line" % (fam, mod))
+PYEOF
+}
+
 # ---- Step 1: identity ----
 echo "=== Step 1: VM identity ==="
 cat > 00-vm-identity.txt <<EOF
@@ -120,6 +143,9 @@ sudo chown "$USER:$USER" 04-attestation-report.bin
 ls -la 04-attestation-report.bin
 test "$(stat -c %s 04-attestation-report.bin 2>/dev/null || stat -f %z 04-attestation-report.bin)" = "1184" || \
   { echo "ERROR: attestation report must be 1184 bytes"; exit 1; }
+SNP_CHIP="${SNP_CHIP:-$(detect_snp_chip 04-attestation-report.bin)}"
+echo "AMD product line (from the report's CPUID family/model): ${SNP_CHIP}"
+echo "${SNP_CHIP}" > 03-snp-chip.txt
 
 # ---- Step 5: decoded report (human-readable) ----
 echo
@@ -133,8 +159,8 @@ echo "=== Step 6: fetch AMD certificates from KDS ==="
 KDS_OK=false
 for attempt in $(seq 1 "${AMD_KDS_RETRIES}"); do
   echo "--- attempt ${attempt}/${AMD_KDS_RETRIES} ---"
-  if "${SNPGUEST}" fetch ca pem 06-certificates/ milan 2>&1 | tee 06-fetch-ca-log.txt && \
-     "${SNPGUEST}" fetch vcek pem 06-certificates/ 04-attestation-report.bin -p milan 2>&1 | tee 07-fetch-vcek-log.txt; then
+  if "${SNPGUEST}" fetch ca pem 06-certificates/ "${SNP_CHIP}" 2>&1 | tee 06-fetch-ca-log.txt && \
+     "${SNPGUEST}" fetch vcek pem 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" 2>&1 | tee 07-fetch-vcek-log.txt; then
     KDS_OK=true
     break
   fi
@@ -150,7 +176,7 @@ if [ "${KDS_OK}" != "true" ]; then
     echo "=== AMD KDS outage diagnostic — $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
     echo "Egress IP: $(curl -fs --max-time 5 https://api.ipify.org 2>/dev/null || echo unknown)"
     echo
-    curl -v --max-time 15 https://kdsintf.amd.com/vcek/v1/Milan/cert_chain 2>&1 | head -30
+    curl -v --max-time 15 "https://kdsintf.amd.com/vcek/v1/${SNP_CHIP^}/cert_chain" 2>&1 | head -30 || true
   } > "12-amd-kds-outage-diagnostic-${ZONE}.txt"
   cat <<'EOF' > 99-VM-STATUS.md
 # Status: REPORT-CAPTURED, CHAIN-VALIDATION-DEFERRED
@@ -187,7 +213,7 @@ if grep -q "report-data" <<<"${VERIFY_HELP}"; then
   echo "=== Step 9: verify REPORT_DATA binding ==="
   REPORT_DATA_HEX=$(tr -d '\n ' < 02-report-data.hex)
   echo "Expected REPORT_DATA: ${REPORT_DATA_HEX}" | tee 10-verify-report-data-binding.txt
-  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p milan -r "0x${REPORT_DATA_HEX}" \
+  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" -r "0x${REPORT_DATA_HEX}" \
     | tee -a 10-verify-report-data-binding.txt
 fi
 
@@ -202,6 +228,7 @@ Vault Genome SEV-SNP Attestation Validation — ${VM_ID}
 Date (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)
 VM:         ${HOSTNAME} (${ZONE})
 Tool:       $(cat 11-snpguest-version.txt)
+Chip:       AMD EPYC ${SNP_CHIP^} (SEV-SNP), from the report's CPUID family/model
 
 POLICY CHECKS
 ✓ Report from /dev/sev-guest (real silicon)

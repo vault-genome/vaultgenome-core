@@ -28,7 +28,8 @@
 #   PAYLOAD_DESCRIPTION    override default description
 #   AMD_KDS_RETRIES        retries on AMD KDS fetch (default: 3)
 #   AMD_KDS_SLEEP_SEC      sleep between retries (default: 30)
-#   SNP_CHIP               AMD chip codename (default: milan; DCasv5 is Milan)
+#   SNP_CHIP               AMD product line (default: read from the report; the
+#                          West Europe DC4as_v5 of 2026-10-14 was Genoa, not Milan)
 
 set -euo pipefail
 
@@ -46,7 +47,28 @@ PAYLOAD_SIZE="${PAYLOAD_SIZE:-2018847232}"
 PAYLOAD_DESCRIPTION="${PAYLOAD_DESCRIPTION:-Llama 3.2 3B base model GGUF Q4_K_M}"
 AMD_KDS_RETRIES="${AMD_KDS_RETRIES:-3}"
 AMD_KDS_SLEEP_SEC="${AMD_KDS_SLEEP_SEC:-30}"
-SNP_CHIP="${SNP_CHIP:-milan}"  # DCasv5 = Milan; switch to genoa/turin if Azure migrates the family
+# The AMD product line (Milan, Genoa, Turin) decides the KDS URL and the
+# root; it is read from the report's CPUID family and model (report version
+# 3 and later, offsets 0x188 and 0x189), with the table snpguest uses.
+# SNP_CHIP overrides it.
+detect_snp_chip() {  # <report.bin>
+  python3 - "$1" <<'PYEOF'
+import struct, sys
+b = open(sys.argv[1], "rb").read()
+version = struct.unpack("<I", b[0:4])[0]
+if version < 3:
+    sys.exit("report version %d carries no CPUID family; set SNP_CHIP" % version)
+fam, mod = b[0x188], b[0x189]
+if fam == 0x19 and mod <= 0x0F:
+    print("milan")
+elif fam == 0x19 and (0x10 <= mod <= 0x1F or 0xA0 <= mod <= 0xAF):
+    print("genoa")
+elif fam == 0x1A and mod <= 0x11:
+    print("turin")
+else:
+    sys.exit("CPUID family 0x%02x model 0x%02x: not a known SEV-SNP product line" % (fam, mod))
+PYEOF
+}
 
 OUT_DIR="${HOME}/vg/attestation-validation/${VM_ID}"
 mkdir -p "${OUT_DIR}/06-certificates"
@@ -112,6 +134,9 @@ xxd -r -p 02-report-data.hex 03-report-data.bin
 test "$(stat -c %s 03-report-data.bin)" = "64" || { echo "ERROR: report-data must be 64 bytes"; exit 1; }
 test "$(stat -c %s 04-attestation-report.bin)" = "1184" || { echo "ERROR: attestation report must be 1184 bytes"; exit 1; }
 echo "REPORT_DATA expected (SHA-256(runtime data) || 0^32): $(cat 02-report-data.hex)"
+SNP_CHIP="${SNP_CHIP:-$(detect_snp_chip 04-attestation-report.bin)}"
+echo "AMD product line (from the report's CPUID family/model): ${SNP_CHIP}"
+echo "${SNP_CHIP}" > 03-snp-chip.txt
 
 # ---- Step 4: (no request on Azure; see Step 3) ----
 
@@ -144,7 +169,7 @@ if [ "${KDS_OK}" != "true" ]; then
     echo "=== AMD KDS outage diagnostic — $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
     echo "Egress IP: $(curl -fs --max-time 5 https://api.ipify.org 2>/dev/null || echo unknown)"
     echo
-    curl -v --max-time 15 "https://kdsintf.amd.com/vcek/v1/$(echo ${SNP_CHIP^})/cert_chain" 2>&1 | head -30
+    curl -v --max-time 15 "https://kdsintf.amd.com/vcek/v1/${SNP_CHIP^}/cert_chain" 2>&1 | head -30 || true
   } > "12-amd-kds-outage-diagnostic.txt"
   cat <<'EOF' > 99-VM-STATUS.md
 # Status: REPORT-CAPTURED, AMD-CHAIN-VALIDATION-DEFERRED

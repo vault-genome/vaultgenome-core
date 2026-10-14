@@ -75,11 +75,37 @@ fi
 echo "Using snpguest: ${SNPGUEST}"
 "${SNPGUEST}" --version
 
+# The AMD product line (Milan, Genoa, Turin) decides the KDS URL and the
+# root; it is read from the report's CPUID family and model (report version
+# 3 and later, offsets 0x188 and 0x189), with the table snpguest uses.
+# SNP_CHIP overrides it.
+detect_snp_chip() {  # <report.bin>
+  python3 - "$1" <<'PYEOF'
+import struct, sys
+b = open(sys.argv[1], "rb").read()
+version = struct.unpack("<I", b[0:4])[0]
+if version < 3:
+    sys.exit("report version %d carries no CPUID family; set SNP_CHIP" % version)
+fam, mod = b[0x188], b[0x189]
+if fam == 0x19 and mod <= 0x0F:
+    print("milan")
+elif fam == 0x19 and (0x10 <= mod <= 0x1F or 0xA0 <= mod <= 0xAF):
+    print("genoa")
+elif fam == 0x1A and mod <= 0x11:
+    print("turin")
+else:
+    sys.exit("CPUID family 0x%02x model 0x%02x: not a known SEV-SNP product line" % (fam, mod))
+PYEOF
+}
+SNP_CHIP="${SNP_CHIP:-$(detect_snp_chip 04-attestation-report.bin)}"
+echo "AMD product line (from the report's CPUID family/model): ${SNP_CHIP}"
+echo "${SNP_CHIP}" > 03-snp-chip.txt
+
 # ---- Confirm AMD KDS reachable ----
 echo
 echo "=== Checking AMD KDS reachability ==="
 HTTP_CODE=$(curl -sS --max-time 30 -o /tmp/amd-kds-probe.bin -w "%{http_code}" \
-  https://kdsintf.amd.com/vcek/v1/Milan/cert_chain || echo "000")
+  "https://kdsintf.amd.com/vcek/v1/${SNP_CHIP^}/cert_chain" || echo "000")
 echo "HTTP code: ${HTTP_CODE}"
 if [ "${HTTP_CODE}" != "200" ]; then
   echo "!!! AMD KDS still unreachable (HTTP ${HTTP_CODE}). !!!"
@@ -92,12 +118,12 @@ rm -f /tmp/amd-kds-probe.bin
 # ---- Fetch ARK + ASK ----
 echo
 echo "=== Fetch ARK + ASK from KDS ==="
-"${SNPGUEST}" fetch ca pem 06-certificates/ milan 2>&1 | tee 06-fetch-ca-log.txt
+"${SNPGUEST}" fetch ca pem 06-certificates/ "${SNP_CHIP}" 2>&1 | tee 06-fetch-ca-log.txt
 
 # ---- Fetch chip-specific VCEK ----
 echo
 echo "=== Fetch VCEK for this chip from KDS ==="
-"${SNPGUEST}" fetch vcek pem 06-certificates/ 04-attestation-report.bin -p milan 2>&1 | tee 07-fetch-vcek-log.txt
+"${SNPGUEST}" fetch vcek pem 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" 2>&1 | tee 07-fetch-vcek-log.txt
 ls -la 06-certificates/
 
 # ---- Verify cert chain ----
@@ -108,7 +134,7 @@ echo "=== Verify ARK → ASK → VCEK ==="
 # ---- Verify attestation signature ----
 echo
 echo "=== Verify VCEK signed the attestation report ==="
-"${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p milan | tee 09-verify-attestation.txt
+"${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" | tee 09-verify-attestation.txt
 
 # ---- Verify REPORT_DATA binding (if 02-report-data.hex present) ----
 VERIFY_HELP="$("${SNPGUEST}" verify attestation --help 2>&1 || true)"
@@ -117,7 +143,7 @@ if [ -f 02-report-data.hex ] && grep -q "report-data" <<<"${VERIFY_HELP}"; then
   echo "=== Verify REPORT_DATA binding to manifest ==="
   REPORT_DATA_HEX=$(tr -d '\n ' < 02-report-data.hex)
   echo "Expected REPORT_DATA: ${REPORT_DATA_HEX}" | tee 10-verify-report-data-binding.txt
-  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p milan -r "0x${REPORT_DATA_HEX}" \
+  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" -r "0x${REPORT_DATA_HEX}" \
     | tee -a 10-verify-report-data-binding.txt
 fi
 
