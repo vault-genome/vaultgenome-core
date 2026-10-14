@@ -19,6 +19,13 @@ if [ ! -x "$ACPCTL" ]; then
   exit 1
 fi
 
+# The Ollama installer leaves the daemon's model store readable only by
+# the ollama user; the seal reads it as the login user.
+echo "=== make the ollama model store readable ==="
+sudo chown -R ollama:ollama /usr/share/ollama 2>/dev/null || true
+sudo chmod -R u=rwX,go=rX /usr/share/ollama 2>/dev/null || true
+
+echo
 echo "=== pull the model the demo uses ==="
 ollama pull "$MODEL"
 

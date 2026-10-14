@@ -114,7 +114,14 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --quiet --command='
 
   ~/scripts/01-bootstrap-vm.sh
   ~/scripts/02-capture-attestation.sh
-  ~/scripts/02b-cryptographic-attestation.sh || echo "(chain validation deferred: AMD KDS unreachable; run 02c later)"
+  # 02b exits 2 when AMD KDS is unreachable (report captured, chain deferred
+  # to 02c); any other failure stops the run.
+  rc=0; ~/scripts/02b-cryptographic-attestation.sh || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    echo "(chain validation deferred: AMD KDS unreachable; run 02c later)"
+  elif [ "$rc" -ne 0 ]; then
+    echo "02b-cryptographic-attestation.sh failed (exit $rc)"; exit "$rc"
+  fi
   ~/scripts/03-demo1-single-bundle.sh
   ~/scripts/04-demo2-chain.sh
   ~/scripts/05-inference-test.sh || echo "(inference skipped — non-fatal)"

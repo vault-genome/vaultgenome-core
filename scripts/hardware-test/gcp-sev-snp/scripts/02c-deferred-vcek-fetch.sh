@@ -116,7 +116,7 @@ if [ -f 02-report-data.hex ] && "${SNPGUEST}" verify attestation --help 2>&1 | g
   echo "=== Verify REPORT_DATA binding to manifest ==="
   REPORT_DATA_HEX=$(tr -d '\n ' < 02-report-data.hex)
   echo "Expected REPORT_DATA: ${REPORT_DATA_HEX}" | tee 10-verify-report-data-binding.txt
-  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p milan -r "${REPORT_DATA_HEX}" \
+  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p milan -r "0x${REPORT_DATA_HEX}" \
     | tee -a 10-verify-report-data-binding.txt
 fi
 
