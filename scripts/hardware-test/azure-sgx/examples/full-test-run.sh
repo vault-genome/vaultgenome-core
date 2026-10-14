@@ -60,6 +60,9 @@ echo
 echo "=== 3-9. run all phases on the VM ==="
 ${SSH} '
   set -e
+  # A non-interactive ssh shell does not read ~/.bashrc, so the tools the
+  # bootstrap installs are put on PATH here for every later step.
+  export PATH="$PATH:/usr/local/go/bin:$HOME/.cargo/bin"
   chmod +x ~/scripts/*.sh
   cd ~ && mkdir -p vg && cd vg && cp ~/acpctl ./acpctl && chmod +x ./acpctl
 
