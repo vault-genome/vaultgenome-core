@@ -218,18 +218,32 @@ if grep -q "report-data" <<<"${VERIFY_HELP}"; then
     | tee -a 10-verify-report-data-binding.txt
 fi
 
-# ---- Step 9b: the VCEK Azure THIM served must be the one AMD KDS serves ----
+# ---- Step 9b: the VCEK Azure THIM served is this chip's, the same key AMD KDS serves ----
+# AMD KDS signs a fresh certificate on every request (the notBefore moves),
+# so the certificates differ byte for byte; what must agree is the VCEK
+# public key (derived from the chip's secrets and the TCB) and the chip id
+# (hwID extension), and THIM's certificate must chain to the ARK that KDS
+# served. Seen 2026-10-14: THIM's certificate from 2026-08-18, KDS's from
+# the moment of the request, same key, same hwID.
 if [ -s "${EVIDENCE}/thim-vcek.pem" ]; then
   echo
   echo "=== Step 9b: VCEK from Azure THIM vs VCEK from AMD KDS ==="
-  THIM_FP=$(openssl x509 -in "${EVIDENCE}/thim-vcek.pem" -noout -fingerprint -sha256 | cut -d= -f2)
-  KDS_FP=$(openssl x509 -in 06-certificates/vcek.pem -noout -fingerprint -sha256 | cut -d= -f2)
+  THIM_KEY=$(openssl x509 -in "${EVIDENCE}/thim-vcek.pem" -noout -pubkey | sha256sum | awk '{print $1}')
+  KDS_KEY=$(openssl x509 -in 06-certificates/vcek.pem -noout -pubkey | sha256sum | awk '{print $1}')
+  THIM_HWID=$(openssl asn1parse -in "${EVIDENCE}/thim-vcek.pem" 2>/dev/null | grep -A1 '1.3.6.1.4.1.3704.1.4' | tail -1 | sed 's/.*\[HEX DUMP\]://')
+  KDS_HWID=$(openssl asn1parse -in 06-certificates/vcek.pem 2>/dev/null | grep -A1 '1.3.6.1.4.1.3704.1.4' | tail -1 | sed 's/.*\[HEX DUMP\]://')
   {
-    echo "THIM VCEK sha256 fingerprint: ${THIM_FP}"
-    echo "KDS  VCEK sha256 fingerprint: ${KDS_FP}"
-    if [ "${THIM_FP}" = "${KDS_FP}" ]; then echo "MATCH"; else echo "MISMATCH"; fi
+    echo "THIM VCEK: $(openssl x509 -in "${EVIDENCE}/thim-vcek.pem" -noout -dates | tr '\n' ' ')"
+    echo "KDS  VCEK: $(openssl x509 -in 06-certificates/vcek.pem -noout -dates | tr '\n' ' ')"
+    echo "THIM VCEK public key sha256: ${THIM_KEY}"
+    echo "KDS  VCEK public key sha256: ${KDS_KEY}"
+    echo "THIM hwID: ${THIM_HWID}"
+    echo "KDS  hwID: ${KDS_HWID}"
+    echo "THIM VCEK against the KDS chain: $(openssl verify -CAfile 06-certificates/ark.pem -untrusted 06-certificates/ask.pem "${EVIDENCE}/thim-vcek.pem" 2>&1)"
+    if [ "${THIM_KEY}" = "${KDS_KEY}" ] && [ -n "${THIM_HWID}" ] && [ "${THIM_HWID}" = "${KDS_HWID}" ]; then echo "SAME KEY, SAME CHIP"; else echo "MISMATCH"; fi
   } | tee 13-vcek-thim-vs-kds.txt
-  [ "${THIM_FP}" = "${KDS_FP}" ] || { echo "ERROR: THIM and KDS disagree on the VCEK"; exit 1; }
+  grep -q "SAME KEY, SAME CHIP" 13-vcek-thim-vs-kds.txt || { echo "ERROR: THIM and KDS disagree on the VCEK key or chip id"; exit 1; }
+  openssl verify -CAfile 06-certificates/ark.pem -untrusted 06-certificates/ask.pem "${EVIDENCE}/thim-vcek.pem" >/dev/null || { echo "ERROR: THIM VCEK does not chain to the KDS ARK"; exit 1; }
 fi
 
 # ---- Step 10: policy validation summary ----
@@ -252,7 +266,7 @@ POLICY CHECKS
 ✓ TCB values match (cert ↔ report) — Microcode/SNP/TEE/Boot Loader
 ✓ Chip ID matches (cert ↔ report)
 ✓ REPORT_DATA = SHA-256(vTPM runtime data) || 0^32 — Azure's binding, checked
-$([ -f 13-vcek-thim-vs-kds.txt ] && echo "✓ VCEK from Azure THIM = VCEK from AMD KDS")
+$([ -f 13-vcek-thim-vs-kds.txt ] && echo "✓ VCEK from Azure THIM: same key and chip id as AMD KDS's, chains to the same ARK")
   Workload manifest recorded (01-vaultgenome-payload-manifest.json); on Azure
   a caller cannot place its own REPORT_DATA in the report.
 
