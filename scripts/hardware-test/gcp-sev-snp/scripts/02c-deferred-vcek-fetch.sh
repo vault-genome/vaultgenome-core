@@ -44,13 +44,31 @@ if [ -z "${SNPGUEST}" ]; then
       echo "Install rust first: brew install rustup-init && rustup-init -y"
       exit 1
     else
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+      # rustup-init 1.29.1 from Rust's archive, checked against its published
+      # sha256; the toolchain is the stable release of 2026-09-28. Recorded
+      # 2026-10-14 from https://static.rust-lang.org/rustup/release-stable.toml
+      # and .../rustup/archive/1.29.1/x86_64-unknown-linux-gnu/rustup-init.sha256
+      RUSTUP_INIT_VERSION="1.29.1"
+      RUSTUP_INIT_SHA256="dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71"
+      RUST_TOOLCHAIN="1.99.0"
+      curl -fsSL --proto '=https' --tlsv1.2 "https://static.rust-lang.org/rustup/archive/${RUSTUP_INIT_VERSION}/x86_64-unknown-linux-gnu/rustup-init" -o /tmp/rustup-init
+      echo "${RUSTUP_INIT_SHA256}  /tmp/rustup-init" | sha256sum -c -
+      chmod +x /tmp/rustup-init
+      /tmp/rustup-init -y --profile minimal --default-toolchain "${RUST_TOOLCHAIN}"
+      rm -f /tmp/rustup-init
       # shellcheck disable=SC1091
       . "${HOME}/.cargo/env"
     fi
   fi
-  git clone https://github.com/virtee/snpguest.git "${HOME}/snpguest-src" 2>/dev/null || true
-  (cd "${HOME}/snpguest-src" && cargo build --release)
+  # snpguest v0.10.0 (2025-11-13), the release's commit checked after the
+  # clone; cargo builds from the repository's own Cargo.lock.
+  SNPGUEST_TAG="v0.10.0"
+  SNPGUEST_COMMIT="7705fafb3f6b86cf38ef413aad0e23e52a8db629"
+  if [ ! -d "${HOME}/snpguest-src" ]; then
+    git -c advice.detachedHead=false clone --depth 1 --branch "${SNPGUEST_TAG}" https://github.com/virtee/snpguest.git "${HOME}/snpguest-src"
+  fi
+  test "$(git -C "${HOME}/snpguest-src" rev-parse HEAD)" = "${SNPGUEST_COMMIT}" || { echo "ERROR: snpguest ${SNPGUEST_TAG} is not commit ${SNPGUEST_COMMIT}" >&2; exit 1; }
+  (cd "${HOME}/snpguest-src" && cargo build --release --locked)
   SNPGUEST="${HOME}/snpguest-src/target/release/snpguest"
 fi
 
