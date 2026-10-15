@@ -11,6 +11,16 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/hardware-test/release-deploy/`: the reference deployment. One
+  command downloads a release's assets, verifies every signature, the SLSA
+  provenance and the tag's signature, rebuilds the binaries from the tag
+  and requires the hashes to match the released files, then runs the
+  Return Path on a fresh SEV-SNP Confidential VM with the released
+  daemons — the same guest script as `gcp-sev-snp/returnpath-e2e` — and
+  records the verification and the guest's results next to each other.
+
 ## [0.4.1] — 2026-10-15
 
 A hardening and evidence release on the runtime of 0.4.0. Two findings of

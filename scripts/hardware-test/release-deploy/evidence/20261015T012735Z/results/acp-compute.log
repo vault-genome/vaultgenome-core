@@ -1,0 +1,6 @@
+{"time":"2026-10-15T01:30:48.552086797Z","level":"INFO","msg":"acp-compute starting","version":"v0.4.0","commit":"4a4f3f2a760ca1a8646d1830e2eeffcf2a70c8e3","config_path":"worker.json","vault_address":"127.0.0.1:9443","workload_descriptor":"acp-compute-returnpath-e2e-v1"}
+{"time":"2026-10-15T01:30:48.562286798Z","level":"INFO","msg":"worker signing identity","kid":"acp-compute-worker-demo","pubkey_hex":"4777ca863acc9c745fe9d5dfe38a5bb6c6cfcb917a9b5c890a5b4bf5bcfa4fcc"}
+{"time":"2026-10-15T01:30:48.562304258Z","level":"INFO","msg":"worker TEE identity","tee_provider":"gcp-sev-snp","measurement_hex":"7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc","peer_provider":"gcp-sev-snp"}
+{"time":"2026-10-15T01:30:48.562310858Z","level":"INFO","msg":"genome door","command":["/root/e2e/venv/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/root/e2e/base","--device","cpu"],"timeout_seconds":300}
+{"time":"2026-10-15T01:30:48.562757758Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9082"}
+{"time":"2026-10-15T01:30:54.829151652Z","level":"INFO","msg":"acp-compute stopped"}
