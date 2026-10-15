@@ -24,7 +24,7 @@ given release can still open.
 ### Changed
 
 - The ten hardware drills ran again on the tree of 0.4.1 (main after #81,
-  #82 and #84; 2026-10-15 01:23Z–GCP_DRILL_END), every one passing with its
+  #82 and #84; 2026-10-15 01:23Z–03:43Z), every one passing with its
   record committed beside the earlier ones and cited by the claims it
   supports: `gpu-exact` (CPU against the L4: float32 1.48e-4, float64
   9.99e-6, top-1 16/16), `integer-door` (0.5B and 7B byte-identical on
@@ -34,7 +34,7 @@ given release can still open.
   before), `failover-tdx` (11.76 s, EQUIVALENT), `failover-tdx-authority`
   (13.51 s, EQUIVALENT), `azure-cgpu` (capture and Return Path on the H100,
   gate EXACT 16/16), `failover-cgpu` (15.06 s to the H100, EQUIVALENT) and
-  `gcp-drill` (GCP_DRILL_SUMMARY).
+  `gcp-drill` (the fine-tune sealed inside the SEV-SNP guest, EXACT on the sealing CPU, restored byte-exact on the L4 VM and gated EQUIVALENT there, 1.61e-4).
 
 ## [0.4.1] — 2026-10-15
 

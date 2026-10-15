@@ -58,6 +58,8 @@ The base-weights figure is `model.safetensors` of `Qwen/Qwen2.5-0.5B-Instruct`
 [the drill README](scripts/hardware-test/gcp-drill/README.md); every base file
 is pinned by SHA-256 in the genome's manifest (`sha256:7504966b…e927`).
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/`](scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/) — `source/seal.json`: the genome of the fine-tune made inside the SEV-SNP guest sealed into a 2 216 638-byte bundle (2 215 424 bytes of payload) for the 0.5B base.
 **Reproduce.** `bash scripts/hardware-test/gcp-drill/run.sh <gcp-project>`
 (boots a SEV-SNP VM and a GPU VM, ~30 min, deletes both). See
 [the drill README](scripts/hardware-test/gcp-drill/README.md).
@@ -82,6 +84,8 @@ training loss identical (`max_loss_diff = 0.0`).
 [`…/20261014T032714Z/source/replay-source-cpu.json`](scripts/hardware-test/gcp-drill/evidence/20261014T032714Z/source/replay-source-cpu.json)
 — `exact: true`, `max_abs_diff: 0`, `max_rel_l2: 0`, `losses_equal: true`.
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/`](scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/) — `source/replay-source-cpu.json` `exact: true` on the CPU that sealed; `gpu/replay-gpu.json` `exact: false` on the L4, as the ladder predicts.
 **Reproduce.** Same drill as C1; the replay step is `replay-source-cpu`.
 
 ---
@@ -106,6 +110,8 @@ digest"`; and on the raised runtime,
 Tamper behaviour is asserted in
 `internal/genome/bundle/*_test.go`.
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/`](scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/) — `gpu/open-gpu.json` and `gpu/verify-gpu.json`: 5 files restored on the GPU VM with the same tree sha256 (`ea9f5220…`) and the bundle verified at 2 216 638 bytes.
 **Reproduce, with no cloud and no hardware:**
 
 ```bash
@@ -134,6 +140,8 @@ cryptography, not of *model inference across devices* — see [C5](#c5).
 [`…/20261014T032714Z/source/gate-source-cpu.json`](scripts/hardware-test/gcp-drill/evidence/20261014T032714Z/source/gate-source-cpu.json)
 — `level: "EXACT"`, `n_exact: 16`, `fixtures_hash: 717daed9…c608`.
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/`](scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/) — `source/gate-source-cpu.json`: EXACT, `n_exact: 16` of 16, `max_abs_err: 0` on the sealing CPU.
 ---
 
 <a id="c5"></a>
@@ -170,6 +178,8 @@ overstate would report "EXACT" from C4 and stay quiet about the device. Our
 gate is built so that it cannot: door 0 fails on foreign hardware, by
 construction, and the failure is written into the signed verdict.
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/`](scripts/hardware-test/gcp-drill/evidence/20261015T032836Z/) — `gpu/gate-gpu.json`: on the L4 the gate refuses EXACT and says EQUIVALENT — `n_exact: 0`, `n_equivalent: 16`, `max_abs_err: 1.61e-4`, `max_rel_err: 1.57e-5`; `gpu/gate-intel-cpu.json`: EQUIVALENT on that VM's Intel CPU too, `max_abs_err: 1.46e-4`; the integer door's fidelity recorded in `source/genome.json`, `top1_same: 16`, `max_abs_err: 2.14`.
 ---
 
 <a id="c6"></a>
