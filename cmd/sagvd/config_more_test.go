@@ -150,6 +150,36 @@ func TestGPUPolicyConfig_Policy(t *testing.T) {
 		AcceptableHWModels: []string{"GH100"}, AcceptableDriverVersions: []string{"570.1"}, AcceptableVBIOSVersions: []string{"96.00"}}, g.policy())
 }
 
+// queue.path is a bbolt file of its own (ADR 0026): never the audit log's.
+func TestConfig_QueueValidation(t *testing.T) {
+	c := DefaultConfig()
+	c.Audit.LogPath = "/var/lib/acp/audit.db"
+	c.Queue.Path = "/var/lib/acp/../acp/audit.db"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "queue.path and audit.log_path must be different files") {
+		t.Fatalf("queue.path on the audit log was not refused: %v", err)
+	}
+	c.Queue.Path = "/var/lib/acp/jobs.db"
+	c.CrossCloud.AuditLogPath = "/var/lib/acp/jobs.db"
+	err = c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "queue.path and crosscloud.audit_log_path must be different files") {
+		t.Fatalf("queue.path on the cross-cloud log was not refused: %v", err)
+	}
+	c.CrossCloud.AuditLogPath = ""
+	c.Queue.MaxResumeAttempts = -1
+	err = c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "queue.max_resume_attempts must be >= 0") {
+		t.Fatalf("a negative resume limit was not refused: %v", err)
+	}
+	if (QueueConfig{}).MaxResume() != DefaultMaxResumeAttempts || (QueueConfig{MaxResumeAttempts: 7}).MaxResume() != 7 {
+		t.Fatal("MaxResume default")
+	}
+	c.Queue.MaxResumeAttempts = 0
+	if err := c.Validate(); err != nil && strings.Contains(err.Error(), "queue.") {
+		t.Fatalf("a distinct queue.path was refused: %v", err)
+	}
+}
+
 // tee.provider "auto" (ADR 0025): accepted for the daemon's own provider
 // without a seed, refused for a peer, and resolved from configfs-tsm when
 // the file is loaded — which, off a confidential VM, is a refusal that

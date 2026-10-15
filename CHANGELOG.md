@@ -57,6 +57,19 @@ given release can still open.
   operator's policy, Veraison first); sealing follows what the host has
   (the TEE's key, else a TPM 2.0). The decision and its plan; the first
   step is the next code change.
+- The job queue is on disk (ADR 0026): `queue.path` names a bbolt file of
+  the daemon's own in which every accepted job is recorded with its
+  status, and every finished job with its view. At start, what a previous
+  process left queued or in flight is admitted again under the same job
+  id and request id — `REQUEST_RECEIVED` on the record with a `resumed`
+  detail — and runs; what cannot be admitted again (the bundle gone, the
+  request not recorded, `queue.max_resume_attempts` reached) is failed on
+  the record with the reason; a job finished before the restart still
+  answers `GET /v1/jobs/{id}`. `sagvd_jobs_resumed_total` and
+  `sagvd_jobs_resume_failed_total` count it. Proven by an integration
+  test that kills `sagvd` with SIGKILL in the middle of a job and
+  restarts it. Without `queue.path` the queue is in memory as before, and
+  the daemon says so at start.
 
 ### Changed
 

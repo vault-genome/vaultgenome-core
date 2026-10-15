@@ -24,6 +24,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/incident"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/jobstore"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/trust"
 )
@@ -207,6 +208,22 @@ func runDaemon(args []string) error {
 
 	queue := NewJobQueue(clock, cfg.Runtime.QueuePoll())
 
+	// The job store (ADR 0026): on disk when queue.path is set, so that
+	// a restart resumes what was accepted and still answers for what was
+	// finished; in memory otherwise, and the daemon says what that loses.
+	if cfg.Queue.Path != "" {
+		jobs, err := jobstore.Open(cfg.Queue.Path)
+		if err != nil {
+			return fmt.Errorf("sagvd: open queue.path: %w", err)
+		}
+		defer func() { _ = jobs.Close() }()
+		queue.AttachStore(jobs, cfg.Queue.MaxResume(), logger)
+		records, _ := jobs.Len()
+		logger.Info("sagvd job queue on disk", "path", cfg.Queue.Path, "records", records, "max_resume_attempts", cfg.Queue.MaxResume())
+	} else if cfg.Genome.Enabled() {
+		logger.Warn("sagvd job queue is in memory: jobs queued or in flight do not survive a restart (set queue.path)")
+	}
+
 	// The Return Path audit log: opened and verified before anything is
 	// decided. Without it (no gate jobs configured) trust decisions are
 	// not on record, and the daemon says so.
@@ -286,6 +303,13 @@ func runDaemon(args []string) error {
 	)
 	if err != nil {
 		return err
+	}
+	// What a previous process left queued or in flight is admitted again
+	// before anything new is accepted or dispatched (ADR 0026).
+	if resumed, failed, err := httpAPI.ResumeJobs(); err != nil {
+		return fmt.Errorf("sagvd: resume the jobs of queue.path: %w", err)
+	} else if resumed+failed > 0 {
+		logger.Info("sagvd jobs from before the restart", "resumed", resumed, "failed", failed)
 	}
 	if err := httpAPI.Start(); err != nil {
 		return err

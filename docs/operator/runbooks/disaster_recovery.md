@@ -271,8 +271,14 @@ Does /healthz answer on the health listener?
    list (`sagvd: config validation: …`), a key file of the wrong length
    (`… must be exactly 32 bytes (got N)`), or a bind error
    (`sagvd: listen …`, `sagvd: HTTP API listen …`, `sagvd: health server: …`).
-3. **After a restart**: jobs that were queued or running are gone (the queue
-   is in memory) — resubmit them. Workers reconnect by themselves.
+3. **After a restart**: with `queue.path` set (ADR 0026) the jobs that
+   were queued or in flight are admitted again by the daemon itself —
+   `REQUEST_RECEIVED` on the record with a `resumed` detail, the counts in
+   `sagvd_jobs_resumed_total` and `sagvd_jobs_resume_failed_total`, a job
+   that could not be admitted again failed with its reason — and a job
+   finished before the restart still answers `GET /v1/jobs/{id}`.
+   Without `queue.path` the queue is in memory: the jobs are gone, and
+   the operator resubmits them. Workers reconnect by themselves.
 4. **If the host itself is gone** — deleted, dead, or not to be trusted
    again — a fresh host becomes the authority. In this order (the
    authority-loss drill, `scripts/hardware-test/authority-loss`, does
@@ -283,9 +289,10 @@ Does /healthz answer on the health listener?
       (ADR 0023: the plaintext is the operator's to keep, off every release
       host). On the new host, `sagvd seal-keys` and `acp-compute seal-keys`
       seal them to its chip.
-   2. The last replica of the audit log and of the genome bundles (the
-      operator's replication; the drills copy both to a private bucket
-      after every job). Verify the replica before the daemon touches it:
+   2. The last replica of the audit log, of the genome bundles and of the
+      job store (`queue.path`, ADR 0026) — the operator's replication; the
+      drills copy them to a private bucket after every job. Verify the
+      replica before the daemon touches it:
       `acpctl audit verify --audit <replica> --audit-pubkey audit.pem
       --audit-kid <keys.audit_signing.kid>`.
    3. The escrow key, through the recovery ceremony: `acpctl escrow
@@ -296,9 +303,10 @@ Does /healthz answer on the health listener?
       launch measurement is the new host's; the worker's pin of the
       authority changes to it (and the authority's pin of the worker, if
       the worker moved too).
-   5. Start `sagvd` over the replica — it opens the file and continues the
-      chain from its last event (`sagvd audit log open … events=N tip=…`
-      in the log) — then the worker; resubmit what was in flight.
+   5. Start `sagvd` over the replica — it opens the audit file and
+      continues the chain from its last event (`sagvd audit log open …
+      events=N tip=…` in the log), and admits again what the replicated
+      job store holds as queued or in flight (item 3) — then the worker.
 
    The same authority comes back: the same signing key, the same audit
    key, the same escrow key, the chain continued from the replica's tip.
@@ -312,9 +320,11 @@ Does /healthz answer on the health listener?
    and boot, about 80 s the worker's runtime from the locks — and
    **489 s** in the third, whose package mirror took 330 s for the same
    runtime: the cold number is the mirror's and the image's, which is
-   what a standby with the runtime in place removes. What is lost: the job in
-   flight (item 3) and the audit events the old host appended after its
-   last replica.
+   what a standby with the runtime in place removes. What is lost: the
+   audit events the old host appended after its last replica — and the
+   job in flight, when the replica does not carry the job store (the
+   drill's runs of 2026-10-15 predate it; the operator resubmits, as the
+   drill did).
 
 ---
 

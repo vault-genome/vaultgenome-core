@@ -26,6 +26,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/intake"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/jobstore"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
 )
 
@@ -75,8 +76,10 @@ type HTTPAPIServer struct {
 // once at construction; exposed via the /metrics endpoint on the
 // health HTTP server (same Registry is shared).
 type httpMetrics struct {
-	requests      *metrics.Counter // labels: route, status
-	jobsSubmitted *metrics.Counter // unlabeled
+	requests         *metrics.Counter // labels: route, status
+	jobsSubmitted    *metrics.Counter // unlabeled
+	jobsResumed      *metrics.Counter // jobs admitted again after a restart (ADR 0026)
+	jobsResumeFailed *metrics.Counter // jobs from before a restart that could not be admitted again
 }
 
 // NewHTTPAPIServer wires a ready-to-Start server. The caller is
@@ -129,6 +132,14 @@ func NewHTTPAPIServer(
 			jobsSubmitted: registry.NewCounter(
 				"sagvd_jobs_submitted_total",
 				"Total jobs accepted via POST /v1/jobs.",
+			),
+			jobsResumed: registry.NewCounter(
+				"sagvd_jobs_resumed_total",
+				"Jobs from before a restart admitted again from queue.path (ADR 0026).",
+			),
+			jobsResumeFailed: registry.NewCounter(
+				"sagvd_jobs_resume_failed_total",
+				"Jobs from before a restart that could not be admitted again and were failed on the record.",
 			),
 		},
 	}
@@ -218,6 +229,12 @@ func (s *HTTPAPIServer) handleJobByID(w http.ResponseWriter, r *http.Request) {
 	}
 	view, ok := s.queue.Get(id)
 	if !ok {
+		// A job a previous process finished answers from the store's
+		// kept view (ADR 0026).
+		if raw, kept := s.queue.GetRaw(id); kept {
+			writeRawJSON(w, http.StatusOK, raw)
+			return
+		}
 		writeError(w, http.StatusNotFound, "structural", "job_not_found",
 			"no job with id "+id)
 		return
@@ -309,7 +326,67 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 			"gate jobs are not configured: set genome.bundle_dir")
 		return
 	}
+	res, aerr := s.admit(req, admitOptions{})
+	if aerr != nil {
+		writeError(w, aerr.status, aerr.category, aerr.code, aerr.message)
+		return
+	}
+	s.metrics.jobsSubmitted.Inc()
+	s.log.Info("sagvd gate job accepted",
+		"job_id", logSafe(res.jobID),
+		"request_id", logSafe(res.requestID),
+		"policy_profile", logSafe(res.policyProfile),
+		"requester", logSafe(res.requester),
+		"genome_id", logSafe(res.info.GenomeID),
+		"bundle", logSafe(res.info.View.Bundle),
+		"key_source", logSafe(res.info.View.KeySource),
+		"fixtures", res.info.View.Fixtures,
+		"shipped_bytes", res.info.View.Bytes,
+		"output_budget_bytes", res.info.Budget,
+		"deadline_from_now", logSafe((time.Duration(res.deadlineSecs) * time.Second).String()),
+	)
+	writeJSON(w, http.StatusAccepted, submitResponse{
+		JobID: res.jobID, RequestID: res.requestID, State: res.view.State, Genome: res.info.View,
+	})
+}
 
+// admitOptions is what a resume sets and a fresh submission leaves
+// empty: the job's own id and request id, its attempt number and its
+// first acceptance (ADR 0026).
+type admitOptions struct {
+	JobID       string
+	RequestID   string
+	Attempt     int
+	SubmittedAt time.Time
+}
+
+// admitResult is what admit produced: the job as queued.
+type admitResult struct {
+	jobID, requestID, policyProfile, requester string
+	info                                       genomeInfo
+	view                                       JobView
+	deadlineSecs                               int
+}
+
+// apiError is a refusal the HTTP handler writes as is.
+type apiError struct {
+	status                  int
+	category, code, message string
+}
+
+// resumedDetail is what the audit record of a re-admitted request says
+// about why it is admitted again.
+type resumedDetail struct {
+	Attempt int    `json:"attempt"`
+	Reason  string `json:"reason"`
+}
+
+// admit runs the submission: the deadline resolved against the ceiling,
+// the genome inspected, the RecoveryRequest admitted at intake (stage 1,
+// REQUEST_RECEIVED on the record) and the job queued with what the store
+// needs to admit it again. A resume passes the record's id, request id,
+// attempt and first acceptance; a fresh submission passes none.
+func (s *HTTPAPIServer) admit(req submitRequest, opt admitOptions) (admitResult, *apiError) {
 	// Deadline defaulting + ceiling check. A submitter asking for
 	// longer than the configured ceiling is Structurally rejected
 	// so that operator-configured SLO bounds are ground truth.
@@ -318,54 +395,63 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 		deadlineSecs = s.runtime.DefaultJobDeadlineSeconds
 	}
 	if deadlineSecs > s.runtime.DefaultJobDeadlineSeconds {
-		writeError(w, http.StatusBadRequest, "structural", "deadline_exceeds_ceiling",
-			fmt.Sprintf("deadline_seconds_from_now %d exceeds ceiling %d",
-				deadlineSecs, s.runtime.DefaultJobDeadlineSeconds))
-		return
+		return admitResult{}, &apiError{http.StatusBadRequest, "structural", "deadline_exceeds_ceiling",
+			fmt.Sprintf("deadline_seconds_from_now %d exceeds ceiling %d", deadlineSecs, s.runtime.DefaultJobDeadlineSeconds)}
 	}
 	if deadlineSecs <= 0 {
-		writeError(w, http.StatusBadRequest, "structural", "deadline_invalid",
-			"deadline_seconds_from_now must be > 0")
-		return
+		return admitResult{}, &apiError{http.StatusBadRequest, "structural", "deadline_invalid",
+			"deadline_seconds_from_now must be > 0"}
 	}
 	deadline := time.Duration(deadlineSecs) * time.Second
 
 	info, err := s.genomes.inspect(req.Genome)
 	if err != nil {
-		writeError(w, statusForBuildError(err), shared_errors.CategoryOf(err).String(),
-			shared_errors.CodeOf(err), err.Error())
-		return
+		return admitResult{}, &apiError{statusForBuildError(err), shared_errors.CategoryOf(err).String(),
+			shared_errors.CodeOf(err), err.Error()}
 	}
-	jobID, err := NewJobID()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "operational", shared_errors.CodeResourceExhausted, err.Error())
-		return
+	jobID := opt.JobID
+	if jobID == "" {
+		jobID, err = NewJobID()
+		if err != nil {
+			return admitResult{}, &apiError{http.StatusInternalServerError, "operational", shared_errors.CodeResourceExhausted, err.Error()}
+		}
+	}
+	if opt.RequestID != "" {
+		req.RequestID = opt.RequestID
+	}
+	attempt := opt.Attempt
+	if attempt <= 0 {
+		attempt = 1
 	}
 
 	// Stage 1: the RecoveryRequest, admitted at intake and on the record
 	// before it is queued. A job the log did not take is not a job.
 	rr, err := req.recoveryRequest(info, s.clock.Now().UTC())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "operational", shared_errors.CodeResourceExhausted, err.Error())
-		return
+		return admitResult{}, &apiError{http.StatusInternalServerError, "operational", shared_errors.CodeResourceExhausted, err.Error()}
+	}
+	var resumed *resumedDetail
+	if attempt > 1 {
+		resumed = &resumedDetail{Attempt: attempt, Reason: "the authority restarted with the job queued or in flight"}
 	}
 	detail, _ := json.Marshal(struct {
-		JobID           string `json:"job_id"`
-		Bundle          string `json:"bundle"`
-		BundleSHA256    string `json:"bundle_sha256"`
-		PayloadSHA256   string `json:"payload_sha256"`
-		KeySource       string `json:"key_source"`
-		Generation      uint64 `json:"generation"`
-		Base            string `json:"base"`
-		BaseDigest      string `json:"base_digest"`
-		Fixtures        int    `json:"fixtures"`
-		Critical        int    `json:"critical"`
-		ShippedFiles    int    `json:"shipped_files"`
-		ShippedBytes    int64  `json:"shipped_bytes"`
-		OutputBudget    uint64 `json:"output_budget_bytes"`
-		DeadlineSeconds int    `json:"deadline_seconds"`
+		JobID           string         `json:"job_id"`
+		Bundle          string         `json:"bundle"`
+		BundleSHA256    string         `json:"bundle_sha256"`
+		PayloadSHA256   string         `json:"payload_sha256"`
+		KeySource       string         `json:"key_source"`
+		Generation      uint64         `json:"generation"`
+		Base            string         `json:"base"`
+		BaseDigest      string         `json:"base_digest"`
+		Fixtures        int            `json:"fixtures"`
+		Critical        int            `json:"critical"`
+		ShippedFiles    int            `json:"shipped_files"`
+		ShippedBytes    int64          `json:"shipped_bytes"`
+		OutputBudget    uint64         `json:"output_budget_bytes"`
+		DeadlineSeconds int            `json:"deadline_seconds"`
+		Resumed         *resumedDetail `json:"resumed,omitempty"`
 	}{jobID, info.View.Bundle, info.View.BundleSHA256, info.View.PayloadSHA256, info.View.KeySource, info.View.Generation,
-		info.View.Base, info.View.BaseDigest, info.View.Fixtures, info.View.Critical, info.View.Files, info.View.Bytes, info.Budget, deadlineSecs})
+		info.View.Base, info.View.BaseDigest, info.View.Fixtures, info.View.Critical, info.View.Files, info.View.Bytes, info.Budget, deadlineSecs, resumed})
 	flow, err := s.authority.Intake(rr, detail)
 	if err != nil {
 		status := http.StatusBadRequest
@@ -376,32 +462,55 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusServiceUnavailable
 			s.log.Error("sagvd audit log refused a request", "job_id", jobID, "request_id", logSafe(rr.RequestID.String()), "err", err)
 		}
-		writeError(w, status, shared_errors.CategoryOf(err).String(), shared_errors.CodeOf(err), err.Error())
-		return
+		return admitResult{}, &apiError{status, shared_errors.CategoryOf(err).String(), shared_errors.CodeOf(err), err.Error()}
 	}
-	view, err := s.queue.Submit(jobID, flow, info, deadline)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, shared_errors.CategoryOf(err).String(),
-			shared_errors.CodeOf(err), err.Error())
-		return
-	}
-	s.metrics.jobsSubmitted.Inc()
-	s.log.Info("sagvd gate job accepted",
-		"job_id", jobID,
-		"request_id", logSafe(rr.RequestID.String()),
-		"policy_profile", logSafe(rr.PolicyProfile),
-		"requester", logSafe(rr.RequesterIdentity),
-		"genome_id", logSafe(info.GenomeID),
-		"bundle", logSafe(info.View.Bundle),
-		"key_source", info.View.KeySource,
-		"fixtures", info.View.Fixtures,
-		"shipped_bytes", info.View.Bytes,
-		"output_budget_bytes", info.Budget,
-		"deadline_seconds", deadlineSecs,
-	)
-	writeJSON(w, http.StatusAccepted, submitResponse{
-		JobID: jobID, RequestID: rr.RequestID.String(), State: view.State, Genome: info.View,
+	// The request as accepted, with its request id fixed, is what the
+	// store keeps: a resume admits exactly this again.
+	req.RequestID = rr.RequestID.String()
+	recorded, _ := json.Marshal(req)
+	view, err := s.queue.SubmitRecorded(jobID, flow, info, deadline, JobRecord{
+		Request: recorded, RequestID: rr.RequestID.String(), DeadlineSeconds: deadlineSecs, Attempt: attempt, SubmittedAt: opt.SubmittedAt,
 	})
+	if err != nil {
+		return admitResult{}, &apiError{http.StatusBadRequest, shared_errors.CategoryOf(err).String(),
+			shared_errors.CodeOf(err), err.Error()}
+	}
+	return admitResult{
+		jobID: jobID, requestID: rr.RequestID.String(), policyProfile: rr.PolicyProfile, requester: rr.RequesterIdentity,
+		info: info, view: view, deadlineSecs: deadlineSecs,
+	}, nil
+}
+
+// ResumeJobs admits again what the queue's store holds as unfinished
+// from a previous process (ADR 0026): each record's request, under its
+// own job id and request id, as one more attempt, on the record with the
+// reason. Called once at start, before the API serves and before the
+// dispatcher runs; it returns how many jobs were resumed and how many
+// were failed instead.
+func (s *HTTPAPIServer) ResumeJobs() (resumed, failed int, err error) {
+	if s.genomes == nil {
+		return 0, 0, nil
+	}
+	resumed, failed, err = s.queue.Resume(func(rec jobstore.Record) error {
+		var req submitRequest
+		if err := json.Unmarshal(rec.Request, &req); err != nil {
+			return fmt.Errorf("decode the recorded request: %w", err)
+		}
+		if err := req.validate(); err != nil {
+			return err
+		}
+		res, aerr := s.admit(req, admitOptions{JobID: rec.ID, RequestID: rec.RequestID, Attempt: rec.Attempts + 1, SubmittedAt: rec.SubmittedAt})
+		if aerr != nil {
+			return errors.New(aerr.message)
+		}
+		s.log.Info("sagvd job resumed after a restart",
+			"job_id", res.jobID, "request_id", logSafe(res.requestID), "attempt", rec.Attempts+1,
+			"submitted_at", rec.SubmittedAt.UTC().Format(time.RFC3339), "genome_id", logSafe(res.info.GenomeID))
+		return nil
+	})
+	s.metrics.jobsResumed.Add(uint64(resumed))
+	s.metrics.jobsResumeFailed.Add(uint64(failed))
+	return resumed, failed, err
 }
 
 // recoveryRequest is the RecoveryRequest a submission makes: the genome
@@ -596,6 +705,13 @@ func (s *statusRecorder) Status() int {
 // writeJSON marshals v and writes it with status + Content-Type.
 // Marshalling errors are rare (only map-key or circular cases) and
 // are surfaced as a 500 so operators see the cause.
+// writeRawJSON writes an already-encoded JSON body.
+func writeRawJSON(w http.ResponseWriter, status int, body []byte) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = w.Write(body)
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	body, err := json.Marshal(v)
 	if err != nil {

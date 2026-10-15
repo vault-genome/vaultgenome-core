@@ -86,7 +86,7 @@ echo "sealer=$SEALER" >> "$OUT/steps.txt"
 step "provision (acp-keygen, private modes; every key file is sealed to the chip below)"
 ./keygen -out secrets -quiet -private
 S=$WORK/secrets
-mkdir -p genomes audit vcek-cache
+mkdir -p genomes audit queue vcek-cache
 # The pins are filled in from each daemon's identity below; identity needs
 # a config that validates, so the pin files start out as placeholders.
 head -c 48 /dev/zero > peer-vault.meas; head -c 48 /dev/zero > peer-worker.meas
@@ -111,6 +111,7 @@ sagvd = {
   "workers": {"registry_path": S + "/shared/workers.json"},
   "genome": {"bundle_dir": W + "/genomes", "gate": {"atol": 1e-2, "rtol": 1e-3, "max_non_critical_outliers": 0}},
   "audit": {"log_path": W + "/audit/returnpath-audit.db"},
+  "queue": {"path": W + "/queue/sagvd-jobs.db"},
   "runtime": {"job_timeout_seconds": 600, "handshake_timeout_seconds": 30, "queue_poll_ms": 50,
     "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 600, "max_payload_bytes": 4194304},
   "health": {"listen_address": "127.0.0.1:9081"},
