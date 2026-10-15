@@ -89,10 +89,14 @@ int main(int argc, const char* argv[])
     }
 
     oe_enclave_t* enclave = NULL;
+    // A release enclave (enc.conf: Debug=0): no OE_ENCLAVE_FLAG_DEBUG, so
+    // the quote carries no DEBUG attribute and the attestation services say
+    // so. The SGX platform refuses a debug launch of a non-debug enclave,
+    // and the other way round.
     oe_result_t result = oe_create_binding_enclave(
         enclave_path,
         OE_ENCLAVE_TYPE_AUTO,
-        OE_ENCLAVE_FLAG_DEBUG,
+        0,
         NULL, 0,
         &enclave);
     if (result != OE_OK)

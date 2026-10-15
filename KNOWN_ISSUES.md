@@ -209,7 +209,16 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    open, but only with `--allow-v2`, so they can be resealed.
 8. **`evidence/` posture:** AWS Nitro (production cohort) and GCP SEV-SNP
    (3 real chips) attestation captures are genuine and offline-verifiable.
-   Azure SGX cohort ran in **DEBUG mode** (`x-ms-sgx-is-debuggable: true`).
+   The Azure SGX cohort of May 2026 ran in **DEBUG mode**
+   (`x-ms-sgx-is-debuggable: true`); since 2026-10-15 the kit's binding
+   enclave is signed as a release enclave (`Debug=0`; the quote's attributes
+   `INIT | MODE64BIT`, no `DEBUG`) and the run of 03:58Z
+   (`scripts/hardware-test/azure-sgx/evidence/20261015T035830Z`) carries
+   MAA's `x-ms-sgx-is-debuggable: false` with the token's claims checked
+   against the quote's own bytes. The kit's Intel QVL caller still reports
+   `0xE03A` (TCB-info chain) through the Azure DCAP client's collateral
+   while `oeverify` validates the chain on the same quote; `oeverify` is the
+   local chain of record until that is resolved.
    Cross-Cloud Phase 4 is fully **simulated** (`provider: "simulated"`).
    The GCP "four physical chips" is actually 3 distinct chips (two captures
    share a CHIP_ID).

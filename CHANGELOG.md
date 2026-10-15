@@ -42,6 +42,21 @@ given release can still open.
   (13.51 s, EQUIVALENT), `azure-cgpu` (capture and Return Path on the H100,
   gate EXACT 16/16), `failover-cgpu` (15.06 s to the H100, EQUIVALENT) and
   `gcp-drill` (the fine-tune sealed inside the SEV-SNP guest, EXACT on the sealing CPU, restored byte-exact on the L4 VM and gated EQUIVALENT there, 1.61e-4).
+- `scripts/hardware-test/azure-sgx`: the kit's binding enclave is a release
+  enclave (`Debug=0`, created without the debug flag) and `02f` checks the
+  MAA token's MRENCLAVE, MRSIGNER, REPORT_DATA and debug flag against the
+  quote's own bytes; the kit's QVL caller tries the quote provider's
+  collateral before fetching its own. Run on a DC4s_v3 on 2026-10-15
+  (`evidence/20261015T035830Z`): attributes `INIT | MODE64BIT`, MAA
+  `x-ms-sgx-is-debuggable: false`, five claims OK, `oeverify` two of two;
+  the QVL caller still `0xE03A` with the Azure DCAP client. Then the kit's
+  quote provider is Intel's QPL configured as Microsoft documents it for
+  Azure (the PCK certificate from THIM, the rest of the collateral from
+  Intel PCS) and the Azure DCAP client is not installed: in the run of
+  04:36Z (`evidence/20261015T043607Z`) the kit's QVL caller validates the
+  chain (`SW_HARDENING_NEEDED`, within the collateral's validity) next to
+  `oeverify` and MAA; `qpl-selection.txt` there measures five provider
+  configurations on one quote.
 
 ## [0.4.1] — 2026-10-15
 
