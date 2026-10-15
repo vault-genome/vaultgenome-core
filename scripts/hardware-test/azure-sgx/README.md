@@ -24,6 +24,14 @@ your TEE policy:
 | Attestation | Intel SGX Quote → PCK → SGX Root CA + MAA JWT | AMD ARK→ASK→VCEK + MAA JWT |
 | Best for | Smallest TCB, individual processes | Largest TCB, lift-and-shift workloads |
 
+## The run of 2026-10-15
+
+`evidence/20261015T004844Z/` holds one end-to-end run of this kit on a fresh
+`Standard_DC4s_v3` in East US 2: the quote, the Intel chain validated locally
+by `oeverify` with the workload binding, the MAA token with its claims, Demo 1
+with the tamper refusal, Demo 2, the byte-identical inference comparison and
+the runner's log. Its README reads the files.
+
 ## What's special about Azure SGX
 
 Like Azure SEV-SNP, this is a **dual-PKI** track:
