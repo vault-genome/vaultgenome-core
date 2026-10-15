@@ -26,12 +26,12 @@ func TestHostSealer_PerProvider(t *testing.T) {
 		"sev-snp off the chip": {TEEConfig{Provider: "gcp-sev-snp", TSMReportDir: filepath.Join(t.TempDir(), "no-tsm")}, "configfs-tsm"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, _, _, err := hostSealer(tc.cfg)
+			_, _, _, _, err := hostSealer(tc.cfg)
 			require.ErrorContains(t, err, tc.want)
 		})
 	}
 	for _, provider := range []string{"gcp-tdx", "azure-cgpu"} {
-		s, closer, got, err := hostSealer(TEEConfig{Provider: provider, VTPMSealPCRs: "sha256:0,1,2", TPM2ToolsDir: "/opt/tpm2"})
+		s, closer, got, _, err := hostSealer(TEEConfig{Provider: provider, VTPMSealPCRs: "sha256:0,1,2", TPM2ToolsDir: "/opt/tpm2"})
 		require.NoError(t, err)
 		require.Nil(t, closer, "a vTPM sealer holds nothing open")
 		require.Equal(t, tee.Provider(provider), got)
@@ -41,7 +41,7 @@ func TestHostSealer_PerProvider(t *testing.T) {
 	}
 	seed := filepath.Join(t.TempDir(), "seed")
 	require.NoError(t, os.WriteFile(seed, bytes.Repeat([]byte{1}, 32), 0o600))
-	s, closer, got, err := hostSealer(TEEConfig{WorkloadDescriptor: "w", SeedPath: seed})
+	s, closer, got, _, err := hostSealer(TEEConfig{WorkloadDescriptor: "w", SeedPath: seed})
 	require.NoError(t, err)
 	require.Nil(t, closer)
 	require.Equal(t, tee.ProviderSimulated, got)
@@ -59,7 +59,7 @@ func TestReadSecret_Shapes(t *testing.T) {
 	}
 	seedPath := write("seed", bytes.Repeat([]byte{1}, 32))
 	host := TEEConfig{WorkloadDescriptor: "sealing-host", SeedPath: seedPath}
-	sealer, _, provider, err := hostSealer(host)
+	sealer, _, provider, _, err := hostSealer(host)
 	require.NoError(t, err)
 	_, producer, err := buildTEEProducer(host)
 	require.NoError(t, err)

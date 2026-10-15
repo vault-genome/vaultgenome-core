@@ -33,6 +33,10 @@
 //     sentinel's key, the primary's TEE, the one standby, the triggers, the
 //     grace on `stopped`, the quarantine, the required gate.
 //   - recover: unseal a VG-VAULT-01 envelope with the TEE backend it names.
+//   - tee prefetch / cache-status: a host that will have no route to the
+//     vendors fills its peer verifier's caches while it has one (the VCEK
+//     of its chip from AMD KDS, the TCB info and QE identity of its
+//     platform from Intel PCS) and reads what they hold and until when.
 //   - tee fetch-amd-chain: the ASK+ARK chain of an AMD product line from
 //     AMD KDS, verified against the roots this build pins (ADR 0024),
 //     written for the daemons' amd_cert_chain_path.

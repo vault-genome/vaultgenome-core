@@ -14,9 +14,17 @@ with the TEE swapped:
 - `sagvd identity` and `acp-compute identity` each read MRTD and RTMR0..3
   from a quote of this Trust Domain; the measurement — SHA-384 of the five
   together — is written into the other side's `tee.peer.measurement_path`;
-- a worker that is **not** the pinned identity — same certificate, same
-  sealing key, a simulated TEE instead of the Trust Domain — dials the Return
-  Path and is refused at the handshake; the refusal is on `sagvd`'s audit log;
+- `sagvd seal-keys` and `acp-compute seal-keys` seal every key file on disk
+  to this host; the configs name no sealer, and `tee.sealer`'s default takes
+  what the host has — a Trust Domain has no derived key of its own, so the
+  guest's vTPM seals (ADR 0025 step 1b) — and both daemons start from the
+  sealed files;
+- a thief with those sealed files off this host (a simulated TEE) is refused
+  before any key is read; a worker that is **not** the pinned identity —
+  the plaintext copies of the signing seed, the TLS key and the sealing key
+  taken before sealing, the same certificate, a simulated TEE instead of the
+  Trust Domain — dials the Return Path and is refused at the handshake; the
+  refusal is on `sagvd`'s audit log;
 - the pinned worker dials, its TDX quote verifies (PCK chain to the pinned
   Intel SGX Root CA, the attestation key's and the PCK leaf's signatures, the
   QE report's binding of the key, Intel's signed TCB info and QE identity
@@ -35,6 +43,32 @@ is that the Return Path handshake carries genuine TDX Evidence on both
 sides, verified to Intel's root and Intel's TCB word, that the pinned
 identity is the one admitted, and that every decision of the authority is
 on a verifiable record before it took effect.
+
+## Result — run `20261015T194418Z`: the key files sealed by what the host has — `tee.sealer` unset, the vTPM chosen
+
+The same kit with both daemons' key files sealed to this host. Neither
+config names a sealer: `tee.sealer`'s default, `auto`, takes the TEE's own
+key where there is one and the host's TPM 2.0 otherwise (ADR 0025, step
+1b) — a Trust Domain has no derived key, so the guest's vTPM seals, through
+tpm2-tools the guest installs. After the identities are read, `sagvd
+seal-keys` and `acp-compute seal-keys` seal every key file on disk; the
+sealing step is new to this kit, and so is the first of the two rogues
+below. us-central1-a, `c3-standard-4`, the same image as the October
+runs (measurement `dfe77c76…71a9a`, `tee.provider: "auto"` → `tdx_guest`). The whole
+script took **97.5 s** (runtime from the locks 66.7 s, fine-tune
+7.6 s).
+
+| Step | Outcome |
+|---|---|
+| The vTPM | `vtpm.txt`: `/dev/tpm0`, `/dev/tpmrm0`, `TPM2_PT_MANUFACTURER` `0x474F4F47` ("GOOG") |
+| `seal-keys` | `seal-keys-sagvd.json`: `sealer: tpm2`, 5 files (`keys.authority_signing.seed_path`, `keys.session_sealing.material_path`, `keys.audit_signing.seed_path`, `vault.tls.server_key`, `http_api.bearer_token_file`); `seal-keys-worker.json`: `sealer: tpm2`, 2 files, the shared sealing material already sealed |
+| The sealed files | `sealed-files.txt`: all 7 name `tee: gcp-tdx`, `sealer: tpm2` — the sealer is in the seal, not only in the file |
+| The daemons, from the sealed files | both start from them; `sagvd identity` and `acp-compute identity` print `sealer: tpm2` / `tpm2` |
+| A thief with the sealed files, off the Trust Domain | **refused before any key is read**: `rogue-sealed-worker.log` — `sealed secret 'keys.worker_signing.seed_path': sealed to gcp-tdx, this host is simulated`; `steps.txt`: `exit=1 sealed to gcp-tdx, this host is simulated` |
+| A worker with a simulated TEE and the plaintext copies | **refused** at the handshake after 1 s (`integrity[signature_invalid]: gcp-tdx: parse quote: quote is 147 bytes, shorter than a header and TD report (636)`), on the record — the handshake proof of every run, kept |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 4.1 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `51694938…` |
+
 
 ## Result — run `20261015T190232Z` (evidence/20261015T190232Z): `tee.provider: "auto"` — the kernel names the family
 

@@ -78,7 +78,7 @@ func sentinelSealKeyCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	defer zero(raw)
-	sealer, closer, err := tee.SealerFor(producer, tee.SealerOptions{SEVGuestDevice: *tf.sevDevice})
+	sealer, closer, kind, err := tee.SealerFor(producer, tee.SealerOptions{SEVGuestDevice: *tf.sevDevice})
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl sentinel seal-key: %v\n", err)
 		return 1
@@ -86,12 +86,12 @@ func sentinelSealKeyCmd(args []string, stdout, stderr io.Writer) int {
 	if closer != nil {
 		defer func() { _ = closer.Close() }()
 	}
-	blob, err := tee.SealSecret(raw, sealer, provider, producer.Measurement(), sentinelSeedName)
+	blob, err := tee.SealSecretWith(raw, sealer, kind, provider, producer.Measurement(), sentinelSeedName)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl sentinel seal-key: %v\n", err)
 		return 1
 	}
-	back, err := tee.OpenSecret(blob, sealer, provider, sentinelSeedName)
+	back, err := tee.OpenSecretWith(blob, sealer, kind, provider, sentinelSeedName)
 	if err == nil && !bytes.Equal(back, raw) {
 		err = errors.New("the sealed seed did not open to the same bytes")
 	}
@@ -127,14 +127,14 @@ func readSentinelSeed(path string, tf teeFlags, provider tee.Provider, producer 
 	if producer == nil {
 		return nil, fmt.Errorf("%s is sealed to the primary's TEE (acpctl sentinel seal-key); pass --tee to open it", path)
 	}
-	sealer, closer, err := tee.SealerFor(producer, tee.SealerOptions{SEVGuestDevice: *tf.sevDevice})
+	sealer, closer, kind, err := tee.SealerFor(producer, tee.SealerOptions{SEVGuestDevice: *tf.sevDevice})
 	if err != nil {
 		return nil, fmt.Errorf("%s is sealed, and this host cannot open it: %w", path, err)
 	}
 	if closer != nil {
 		defer func() { _ = closer.Close() }()
 	}
-	plain, err := tee.OpenSecret(raw, sealer, provider, sentinelSeedName)
+	plain, err := tee.OpenSecretWith(raw, sealer, kind, provider, sentinelSeedName)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}

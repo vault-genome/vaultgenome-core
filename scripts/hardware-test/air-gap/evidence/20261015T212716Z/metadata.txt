@@ -1,0 +1,5 @@
+instance=vg-airgap-20261015t212532z
+zone=us-central1-c
+machine=n2d-standard-4
+captured=20261015T212716Z
+airgap_tag=vg-airgap-20261015t212532z

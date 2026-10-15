@@ -19,6 +19,9 @@
 # and Storage APIs enabled.
 #
 # Usage: run.sh <project> [zone]   (default zone us-central1-c)
+# VG_SEALER=tpm2 seals both daemons' key files with the guest's vTPM
+# instead of the chip's derived key (tee.sealer, ADR 0025 step 1b); the
+# guest then installs tpm2-tools.
 set -euo pipefail
 
 PROJECT="${1:?usage: run.sh <project> [zone]}"
@@ -54,7 +57,7 @@ gcloud compute instances create "$NAME" --project "$PROJECT" --zone "$ZONE" \
   --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
   --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
   --boot-disk-size 20GB \
-  --scopes storage-ro --metadata "vg-bucket=$BUCKET" \
+  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-sealer=${VG_SEALER:-auto}" \
   --metadata-from-file "startup-script=$HERE/cvm-returnpath.sh" >/dev/null
 
 echo "waiting for results on the serial console (up to 25 min)"

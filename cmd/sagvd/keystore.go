@@ -83,9 +83,16 @@ type materials struct {
 	Escrow       *ecdh.PrivateKey
 	EscrowSource string
 
-	tee     TEEConfig
-	sealer  tee.Sealer
-	closers []io.Closer
+	tee        TEEConfig
+	sealer     tee.Sealer
+	sealerKind tee.SealerKind
+	closers    []io.Closer
+}
+
+// SealerKind says which sealer TEESealer builds on this host, without
+// touching it: the chip's derived key, a TPM 2.0, the simulated key.
+func (m *materials) SealerKind() (tee.SealerKind, error) {
+	return tee.SealerKindFor(m.Producer, m.tee.SealerMode())
 }
 
 // TEESealer is the sealer of this host's TEE: the simulated one, or the
@@ -97,14 +104,14 @@ func (m *materials) TEESealer() (tee.Sealer, error) {
 	// The chip's derived key on SEV-SNP (ADR 0016), the guest's vTPM under a
 	// policy of this boot's PCRs on TDX and the Azure confidential GPU host
 	// (ADR 0022), the simulated TEE's weak key off hardware.
-	s, closer, err := tee.SealerFor(m.Producer, tee.SealerOptions{SEVGuestDevice: m.tee.SEVDevice(), TPM2ToolsDir: m.tee.TPM2ToolsDir, VTPMSealPCRs: m.tee.VTPMSealPCRs})
+	s, closer, kind, err := tee.SealerFor(m.Producer, tee.SealerOptions{Mode: m.tee.SealerMode(), SEVGuestDevice: m.tee.SEVDevice(), TPM2ToolsDir: m.tee.TPM2ToolsDir, VTPMSealPCRs: m.tee.VTPMSealPCRs})
 	if err != nil {
-		return nil, fmt.Errorf("sagvd: tee.provider %s (tee.sev_guest_device, tee.tpm2_tools_dir, tee.vtpm_seal_pcrs): %w", m.Provider, err)
+		return nil, fmt.Errorf("sagvd: tee.provider %s, tee.sealer %s (tee.sev_guest_device, tee.tpm2_tools_dir, tee.vtpm_seal_pcrs): %w", m.Provider, m.tee.SealerMode(), err)
 	}
 	if closer != nil {
 		m.closers = append(m.closers, closer)
 	}
-	m.sealer = s
+	m.sealer, m.sealerKind = s, kind
 	return m.sealer, nil
 }
 
