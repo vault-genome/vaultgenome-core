@@ -1,0 +1,11 @@
+JWT header.kid: dRKh+hBcWUfQimSl3Iv6ZhStW3TSOt0ThwiTgUUqZAo=
+JWT issuer:     https://sharedweu.weu.attest.azure.net
+✓ MAA JWT signature VALID (RS256, signed by MAA)
+  iss:                https://sharedweu.weu.attest.azure.net
+  attestation_type:   sevsnpvm
+  compliance_status:  azure-compliant-cvm
+  isolation-tee.type: sevsnpvm
+  launch-measurement: 11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4
+  reportdata:         8ab7129914c60605a93ae0c40733304e5fb966331404fde3c8aeab3e510938710000000000000000000000000000000000000000000000000000000000000000
+  hostdata:           0000000000000000000000000000000000000000000000000000000000000000
+  is-debuggable:      False

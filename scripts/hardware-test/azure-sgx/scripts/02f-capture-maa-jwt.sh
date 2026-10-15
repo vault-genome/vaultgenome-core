@@ -81,19 +81,22 @@ echo "  binding:      MAA will SHA-256 runtimeData and compare to quote.report_d
 # ---- Step B: get an Azure access token for MAA API ----
 echo
 echo "=== Step B: get Azure access token for MAA API ==="
-if ! ACCESS_TOKEN=$(az account get-access-token --resource "https://attest.azure.net" --query accessToken -o tsv 2>/dev/null); then
-  echo "INFO: 'az account get-access-token' failed — falling back to managed identity IMDS endpoint."
+# The token comes from the VM's managed identity (assigned by the kit's
+# Terraform) through the instance metadata service; no CLI and no login
+# on the VM. AZURE_ACCESS_TOKEN overrides it.
+ACCESS_TOKEN="${AZURE_ACCESS_TOKEN:-}"
+if [ -z "${ACCESS_TOKEN}" ]; then
   ACCESS_TOKEN=$(curl -fs -H "Metadata: true" \
     "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://attest.azure.net" \
     2>/dev/null | jq -r '.access_token // empty')
 fi
 if [ -z "${ACCESS_TOKEN}" ]; then
-  echo "ERROR: Cannot obtain Azure access token. Either:"
-  echo "  - Run 'az login' as a user with attestation API access, OR"
-  echo "  - Assign a managed identity to this VM with 'Attestation Reader' role."
+  echo "ERROR: no access token for the attestation service from the instance metadata service."
+  echo "       The VM needs a managed identity (the kit's Terraform assigns one),"
+  echo "       or set AZURE_ACCESS_TOKEN to a token for https://attest.azure.net."
   exit 1
 fi
-echo "Token obtained ($(echo "${ACCESS_TOKEN}" | wc -c) chars)."
+echo "Token obtained (${#ACCESS_TOKEN} chars)."
 
 # ---- Step C: POST to MAA SGX endpoint ----
 echo
@@ -119,8 +122,13 @@ ls -l 15-maa-jwt.txt
 # ---- Step D: decode JWT for inspection ----
 echo
 echo "=== Step D: decode JWT ==="
-JWT_HEADER=$(echo "${JWT}" | cut -d. -f1 | tr '_-' '/+' | base64 -d 2>/dev/null | jq . 2>/dev/null || echo "{}")
-JWT_PAYLOAD=$(echo "${JWT}" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq . 2>/dev/null || echo "{}")
+# base64url without padding: base64 -d rejects an unpadded segment, and
+# under pipefail the old pipeline then appended "{}" to a decoded document
+# (seen 2026-10-15: "Extra data" when the payload was read back). Python
+# pads and decodes; a segment that does not decode stops the run.
+b64url_decode() { python3 -c 'import base64, sys; s = sys.stdin.read().strip(); sys.stdout.write(base64.urlsafe_b64decode(s + "=" * (-len(s) % 4)).decode())'; }
+JWT_HEADER=$(printf '%s' "${JWT}" | cut -d. -f1 | b64url_decode | jq .)
+JWT_PAYLOAD=$(printf '%s' "${JWT}" | cut -d. -f2 | b64url_decode | jq .)
 echo "${JWT_HEADER}" > 16-maa-jwt-header.json
 echo "${JWT_PAYLOAD}" > 17-maa-jwt-payload.json
 
@@ -146,9 +154,17 @@ echo "=== Step E: verify JWT signature against MAA signing certs ==="
 curl -fs "${MAA_ENDPOINT}/certs" -o 18-maa-signing-certs.json
 echo "Fetched signing certs: $(jq '.keys | length' < 18-maa-signing-certs.json) keys."
 
-# Ensure pyjwt[crypto] is installed (idempotent — apt python3-jwt may be old).
-python3 -c "import jwt; from jwt import PyJWKClient" 2>/dev/null || \
-  pip3 install --quiet --break-system-packages "pyjwt[crypto]>=2.4" cryptography 2>&1 | tail -2
+# The verifier needs PyJWT with its crypto extra. The image's own packages
+# (python3-jwt, python3-cryptography, installed by 01-bootstrap-vm.sh) are
+# used when present; otherwise the versions pinned by hash in
+# requirements-maa.txt are installed, and nothing else.
+# PyJWKClient is used rather than a hand-rolled x5c → PEM conversion: it
+# holds across pyjwt + cryptography version drift.
+if ! python3 -c "import jwt; from jwt import PyJWKClient" 2>/dev/null; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  python3 -m pip --version >/dev/null 2>&1 || sudo apt-get install -y -qq python3-pip
+  python3 -m pip install --user --quiet --require-hashes -r "${SCRIPT_DIR}/requirements-maa.txt"
+fi
 
 python3 - <<'PYEOF' | tee 19-maa-jwt-verify.txt
 import json, sys

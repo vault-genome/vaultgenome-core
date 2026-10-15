@@ -48,7 +48,7 @@ ls -lh "$OUT"
 
 echo
 echo "=== contents ==="
-tar tzf "$OUT" | head -40
+tar tzf "$OUT" | head -40 || true  # the writer may be cut short by head/tail; not a failure
 echo "..."
 tar tzf "$OUT" | wc -l
 echo "(total entries shown above)"

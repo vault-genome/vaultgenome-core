@@ -1,0 +1,5 @@
+Reported TCB Boot Loader from certificate matches the attestation report.
+Reported TCB TEE from certificate matches the attestation report.
+Reported TCB SNP from certificate matches the attestation report.
+Reported TCB Microcode from certificate matches the attestation report.
+VEK signed the Attestation Report!

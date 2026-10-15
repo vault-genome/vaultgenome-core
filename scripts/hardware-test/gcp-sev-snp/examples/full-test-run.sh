@@ -38,13 +38,53 @@ if [ -z "${TF_VAR_project_id:-}" ]; then
   exit 1
 fi
 
+# Terraform's google provider authenticates on its own: with Application
+# Default Credentials when they exist, otherwise with the signed-in gcloud
+# account's access token (GOOGLE_OAUTH_ACCESS_TOKEN). A token lives an
+# hour and a run takes longer, so one is minted before every Terraform
+# command. The provider version comes from .terraform.lock.hcl; a bump is
+# a reviewed change, not a side effect of a run.
+ADC_FILE="${GOOGLE_APPLICATION_CREDENTIALS:-${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json}"
+tf() {
+  if [ -n "${GOOGLE_OAUTH_ACCESS_TOKEN:-}" ] || [ -f "$ADC_FILE" ]; then
+    terraform "$@"
+  else
+    GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)" terraform "$@"
+  fi
+}
+
 echo "=== 1. provision VM ==="
 cd "$KIT_DIR/terraform"
-terraform init -upgrade -input=false
-terraform apply -auto-approve
+tf init -input=false
 
-VM_NAME="$(terraform output -raw instance_name)"
-ZONE="$(terraform output -raw zone)"
+# n2d capacity comes and goes by zone: a zone that answers "does not have
+# enough resources" is skipped and the next one tried. ZONES overrides the
+# list; TF_VAR_zone alone pins a single zone. The zone that worked is
+# exported so every later Terraform command sees the same configuration.
+ZONES="${ZONES:-${TF_VAR_zone:-us-central1-a us-central1-b us-central1-c us-central1-f europe-west4-a europe-west4-b europe-west4-c}}"
+APPLY_LOG="$(mktemp)"
+trap 'rm -f "$APPLY_LOG"' EXIT
+PROVISIONED=""
+for zone in $ZONES; do
+  echo "--- zone $zone ---"
+  export TF_VAR_zone="$zone" TF_VAR_region="${zone%-*}"
+  if tf apply -auto-approve 2>&1 | tee "$APPLY_LOG"; then
+    PROVISIONED="$zone"
+    break
+  fi
+  if grep -q "does not have enough resources\|ZONE_RESOURCE_POOL_EXHAUSTED" "$APPLY_LOG"; then
+    echo "(zone $zone has no capacity for the machine type; trying the next)"
+    continue
+  fi
+  exit 1
+done
+if [ -z "$PROVISIONED" ]; then
+  echo "ERROR: no zone in '$ZONES' had capacity for the machine type"
+  exit 1
+fi
+
+VM_NAME="$(tf output -raw instance_name)"
+ZONE="$(tf output -raw zone)"
 
 # Wait for VM to be SSH-ready.
 echo "=== 1a. wait for SSH ==="
@@ -66,11 +106,22 @@ echo
 echo "=== 3-8. run all phases on the VM ==="
 gcloud compute ssh "$VM_NAME" --zone="$ZONE" --quiet --command='
   set -e
+  # A non-interactive ssh shell does not read ~/.bashrc, so the tools the
+  # bootstrap installs are put on PATH here for every later step.
+  export PATH="$PATH:/usr/local/go/bin:$HOME/.cargo/bin"
   chmod +x ~/scripts/*.sh
   cd ~ && mkdir -p vg && cd vg && cp ~/acpctl ./acpctl && chmod +x ./acpctl
 
   ~/scripts/01-bootstrap-vm.sh
   ~/scripts/02-capture-attestation.sh
+  # 02b exits 2 when AMD KDS is unreachable (report captured, chain deferred
+  # to 02c); any other failure stops the run.
+  rc=0; ~/scripts/02b-cryptographic-attestation.sh || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    echo "(chain validation deferred: AMD KDS unreachable; run 02c later)"
+  elif [ "$rc" -ne 0 ]; then
+    echo "02b-cryptographic-attestation.sh failed (exit $rc)"; exit "$rc"
+  fi
   ~/scripts/03-demo1-single-bundle.sh
   ~/scripts/04-demo2-chain.sh
   ~/scripts/05-inference-test.sh || echo "(inference skipped — non-fatal)"
@@ -79,7 +130,7 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --quiet --command='
 
 echo
 echo "=== 9. download evidence to laptop ==="
-gcloud compute scp "$VM_NAME":~/${VM_NAME}-evidence.tar.gz ./ \
+gcloud compute scp "$VM_NAME":~/"${VM_NAME}"-evidence.tar.gz ./ \
   --zone="$ZONE" --quiet
 
 echo
@@ -89,7 +140,7 @@ ls -lh "${VM_NAME}-evidence.tar.gz"
 echo
 echo "=== 10. teardown VM ==="
 cd "$KIT_DIR/terraform"
-terraform destroy -auto-approve
+tf destroy -auto-approve
 
 echo
 echo "=== ✓ all done ==="

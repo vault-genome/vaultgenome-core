@@ -1,0 +1,10 @@
+lineage of gen-5.genome — depth 6
+
+├── gen   5  2.87 KiB  00:48:10  gen-5.genome  (vault-genome-v3)
+├── gen   4  2.87 KiB  00:48:10  gen-4.genome  (vault-genome-v3)
+├── gen   3  2.87 KiB  00:48:10  gen-3.genome  (vault-genome-v3)
+├── gen   2  2.87 KiB  00:48:10  gen-2.genome  (vault-genome-v3)
+├── gen   1  2.85 KiB  00:48:10  gen-1.genome  (vault-genome-v3)
+●   gen   0  2.67 KiB  00:47:57  gen-0.genome  (vault-genome-v3)
+
+✓ lineage complete — every parent reference resolved to an existing bundle

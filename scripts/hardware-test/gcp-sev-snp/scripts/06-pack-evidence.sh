@@ -24,6 +24,13 @@ echo "=== capture VM identity ==="
   echo "captured_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } | tee evidence/vm-identity.txt
 
+# The chain validation (02b, or 02c later) writes under ~/vg/attestation-validation;
+# it travels with the rest of the evidence.
+if [ -d "$HOME/vg/attestation-validation" ]; then
+  rm -rf evidence/attestation-validation
+  cp -r "$HOME/vg/attestation-validation" evidence/
+fi
+
 OUT="$HOME/${VM_NAME}-evidence.tar.gz"
 echo
 echo "=== pack into $OUT ==="

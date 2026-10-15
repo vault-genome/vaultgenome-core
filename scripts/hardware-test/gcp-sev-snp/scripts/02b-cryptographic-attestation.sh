@@ -45,15 +45,56 @@ if ! command -v snpguest >/dev/null 2>&1 && [ ! -x "${HOME}/snpguest-src/target/
   sudo apt-get update -qq
   sudo apt-get install -y -qq build-essential pkg-config libssl-dev curl git
   if ! command -v cargo >/dev/null 2>&1; then
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    # rustup-init 1.29.1 from Rust's archive, checked against its published
+    # sha256; the toolchain is the stable release of 2026-09-28. Recorded
+    # 2026-10-14 from https://static.rust-lang.org/rustup/release-stable.toml
+    # and .../rustup/archive/1.29.1/x86_64-unknown-linux-gnu/rustup-init.sha256
+    RUSTUP_INIT_VERSION="1.29.1"
+    RUSTUP_INIT_SHA256="dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71"
+    RUST_TOOLCHAIN="1.99.0"
+    curl -fsSL --proto '=https' --tlsv1.2 "https://static.rust-lang.org/rustup/archive/${RUSTUP_INIT_VERSION}/x86_64-unknown-linux-gnu/rustup-init" -o /tmp/rustup-init
+    echo "${RUSTUP_INIT_SHA256}  /tmp/rustup-init" | sha256sum -c -
+    chmod +x /tmp/rustup-init
+    /tmp/rustup-init -y --profile minimal --default-toolchain "${RUST_TOOLCHAIN}"
+    rm -f /tmp/rustup-init
     # shellcheck disable=SC1091
     . "${HOME}/.cargo/env"
   fi
-  git clone https://github.com/virtee/snpguest.git "${HOME}/snpguest-src" 2>/dev/null || true
-  (cd "${HOME}/snpguest-src" && cargo build --release)
+  # snpguest v0.10.0 (2025-11-13), the release's commit checked after the
+  # clone; cargo builds from the repository's own Cargo.lock.
+  SNPGUEST_TAG="v0.10.0"
+  SNPGUEST_COMMIT="7705fafb3f6b86cf38ef413aad0e23e52a8db629"
+  if [ ! -d "${HOME}/snpguest-src" ]; then
+    git -c advice.detachedHead=false clone --depth 1 --branch "${SNPGUEST_TAG}" https://github.com/virtee/snpguest.git "${HOME}/snpguest-src"
+  fi
+  test "$(git -C "${HOME}/snpguest-src" rev-parse HEAD)" = "${SNPGUEST_COMMIT}" || { echo "ERROR: snpguest ${SNPGUEST_TAG} is not commit ${SNPGUEST_COMMIT}" >&2; exit 1; }
+  (cd "${HOME}/snpguest-src" && cargo build --release --locked)
 fi
 SNPGUEST="${SNPGUEST:-${HOME}/snpguest-src/target/release/snpguest}"
 [ -x "${SNPGUEST}" ] || { echo "snpguest binary not found at ${SNPGUEST}"; exit 1; }
+
+# The AMD product line (Milan, Genoa, Turin) decides the KDS URL and the
+# root; it is read from the report's CPUID family and model (report version
+# 3 and later, offsets 0x188 and 0x189), with the table snpguest uses.
+# SNP_CHIP overrides it.
+detect_snp_chip() {  # <report.bin>
+  python3 - "$1" <<'PYEOF'
+import struct, sys
+b = open(sys.argv[1], "rb").read()
+version = struct.unpack("<I", b[0:4])[0]
+if version < 3:
+    sys.exit("report version %d carries no CPUID family; set SNP_CHIP" % version)
+fam, mod = b[0x188], b[0x189]
+if fam == 0x19 and mod <= 0x0F:
+    print("milan")
+elif fam == 0x19 and (0x10 <= mod <= 0x1F or 0xA0 <= mod <= 0xAF):
+    print("genoa")
+elif fam == 0x1A and mod <= 0x11:
+    print("turin")
+else:
+    sys.exit("CPUID family 0x%02x model 0x%02x: not a known SEV-SNP product line" % (fam, mod))
+PYEOF
+}
 
 # ---- Step 1: identity ----
 echo "=== Step 1: VM identity ==="
@@ -102,6 +143,9 @@ sudo chown "$USER:$USER" 04-attestation-report.bin
 ls -la 04-attestation-report.bin
 test "$(stat -c %s 04-attestation-report.bin 2>/dev/null || stat -f %z 04-attestation-report.bin)" = "1184" || \
   { echo "ERROR: attestation report must be 1184 bytes"; exit 1; }
+SNP_CHIP="${SNP_CHIP:-$(detect_snp_chip 04-attestation-report.bin)}"
+echo "AMD product line (from the report's CPUID family/model): ${SNP_CHIP}"
+echo "${SNP_CHIP}" > 03-snp-chip.txt
 
 # ---- Step 5: decoded report (human-readable) ----
 echo
@@ -115,8 +159,8 @@ echo "=== Step 6: fetch AMD certificates from KDS ==="
 KDS_OK=false
 for attempt in $(seq 1 "${AMD_KDS_RETRIES}"); do
   echo "--- attempt ${attempt}/${AMD_KDS_RETRIES} ---"
-  if "${SNPGUEST}" fetch ca pem 06-certificates/ milan 2>&1 | tee 06-fetch-ca-log.txt && \
-     "${SNPGUEST}" fetch vcek pem 06-certificates/ 04-attestation-report.bin -p milan 2>&1 | tee 07-fetch-vcek-log.txt; then
+  if "${SNPGUEST}" fetch ca pem 06-certificates/ "${SNP_CHIP}" 2>&1 | tee 06-fetch-ca-log.txt && \
+     "${SNPGUEST}" fetch vcek pem 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" 2>&1 | tee 07-fetch-vcek-log.txt; then
     KDS_OK=true
     break
   fi
@@ -132,7 +176,7 @@ if [ "${KDS_OK}" != "true" ]; then
     echo "=== AMD KDS outage diagnostic — $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
     echo "Egress IP: $(curl -fs --max-time 5 https://api.ipify.org 2>/dev/null || echo unknown)"
     echo
-    curl -v --max-time 15 https://kdsintf.amd.com/vcek/v1/Milan/cert_chain 2>&1 | head -30
+    curl -v --max-time 15 "https://kdsintf.amd.com/vcek/v1/${SNP_CHIP^}/cert_chain" 2>&1 | head -30 || true
   } > "12-amd-kds-outage-diagnostic-${ZONE}.txt"
   cat <<'EOF' > 99-VM-STATUS.md
 # Status: REPORT-CAPTURED, CHAIN-VALIDATION-DEFERRED
@@ -161,12 +205,15 @@ echo "=== Step 8: verify report signature ==="
 "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin | tee 09-verify-attestation.txt
 
 # ---- Step 9: explicit REPORT_DATA binding check ----
-if "${SNPGUEST}" verify attestation --help 2>&1 | grep -q "report-data"; then
+# The help text is captured first: a multi-line writer behind "grep -q" can die of
+# SIGPIPE, which pipefail would turn into a skipped check.
+VERIFY_HELP="$("${SNPGUEST}" verify attestation --help 2>&1 || true)"
+if grep -q "report-data" <<<"${VERIFY_HELP}"; then
   echo
   echo "=== Step 9: verify REPORT_DATA binding ==="
   REPORT_DATA_HEX=$(tr -d '\n ' < 02-report-data.hex)
   echo "Expected REPORT_DATA: ${REPORT_DATA_HEX}" | tee 10-verify-report-data-binding.txt
-  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p milan -r "${REPORT_DATA_HEX}" \
+  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" -r "0x${REPORT_DATA_HEX}" \
     | tee -a 10-verify-report-data-binding.txt
 fi
 
@@ -181,6 +228,7 @@ Vault Genome SEV-SNP Attestation Validation — ${VM_ID}
 Date (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)
 VM:         ${HOSTNAME} (${ZONE})
 Tool:       $(cat 11-snpguest-version.txt)
+Chip:       AMD EPYC ${SNP_CHIP^} (SEV-SNP), from the report's CPUID family/model
 
 POLICY CHECKS
 ✓ Report from /dev/sev-guest (real silicon)

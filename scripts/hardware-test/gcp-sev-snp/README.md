@@ -29,6 +29,14 @@ After running the kit end-to-end, you will have:
 All evidence is captured into a single tar archive ready for review
 or upload to your evaluation data room.
 
+## The run of 2026-10-14
+
+`evidence/20261014T231645Z/` holds one end-to-end run of this kit, driven by
+`examples/full-test-run.sh` on a fresh `n2d-standard-4` Confidential VM
+(Milan) in `us-central1-c`: the report, the AMD chain validation (ALL POLICY
+CHECKS PASSED), Demo 1 with the tamper refusal, Demo 2, the byte-identical
+inference comparison and the runner's log. Its README reads the files.
+
 ## Prerequisites
 
 - A GCP project with Compute Engine API enabled

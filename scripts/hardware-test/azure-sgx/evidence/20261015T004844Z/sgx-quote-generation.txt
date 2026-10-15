@@ -1,0 +1,7 @@
+NOTICE: oeutil generate-evidence is purely a debugging utility and not suitable for production use.
+
+Generated OE evidence, evidence_size = 4734
+QEID: dd5ab470d3b5f41c21373eb48d8b362b
+CPU_SVN: 10101110ffff01000000000000000000
+PCE_SVN: 11
+generate_oe_evidence succeeded, more info in log file.

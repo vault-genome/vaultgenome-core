@@ -7,7 +7,7 @@
 #
 #   1. terraform apply       provisions a DCasv5 Confidential VM
 #   2. uploads scripts        pushes the kit's scripts/ dir to the VM
-#   3. ssh + bootstrap        installs Go + Ollama + acpctl + snpguest + az CLI
+#   3. ssh + bootstrap        installs Go + Ollama + acpctl + snpguest (every download checked)
 #   4. captures AMD chain     1184-byte SEV-SNP report + ARK→ASK→VCEK + verify
 #   5. captures MAA chain     Microsoft Azure Attestation JWT + verify
 #   6. runs Demo 1            single-bundle round-trip + tamper test
@@ -44,14 +44,20 @@ fi
 
 echo "=== 1. provision Azure Confidential VM ==="
 cd "$KIT_DIR/terraform"
-export TF_VAR_admin_ssh_public_key="$(cat "${SSH_KEY}.pub")"
-terraform init -upgrade -input=false
+TF_VAR_admin_ssh_public_key="$(cat "${SSH_KEY}.pub")"
+export TF_VAR_admin_ssh_public_key
+# The azurerm provider needs the subscription named explicitly; take the
+# one the az login selected unless ARM_SUBSCRIPTION_ID is already set.
+ARM_SUBSCRIPTION_ID="${ARM_SUBSCRIPTION_ID:-$(az account show --query id -o tsv)}"
+export ARM_SUBSCRIPTION_ID
+terraform init -input=false
 terraform apply -auto-approve
 
 VM_NAME="$(terraform output -raw instance_name)"
 LOCATION="$(terraform output -raw location)"
 PUBLIC_IP="$(terraform output -raw public_ip)"
 RG="$(terraform output -raw resource_group)"
+echo "VM ${VM_NAME} at ${PUBLIC_IP} (${LOCATION}, resource group ${RG})"
 
 echo
 echo "=== 1a. wait for SSH (Azure CVMs take ~60-90s to be SSH-ready) ==="
@@ -75,6 +81,9 @@ echo
 echo "=== 3-9. run all phases on the VM ==="
 ${SSH} '
   set -e
+  # A non-interactive ssh shell does not read ~/.bashrc, so the tools the
+  # bootstrap installs are put on PATH here for every later step.
+  export PATH="$PATH:/usr/local/go/bin:$HOME/.cargo/bin"
   chmod +x ~/scripts/*.sh
   cd ~ && mkdir -p vg && cd vg && cp ~/acpctl ./acpctl && chmod +x ./acpctl
 
