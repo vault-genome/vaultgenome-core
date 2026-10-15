@@ -420,9 +420,14 @@ func TestServeOneJob_RefusedBeforeAnyIO(t *testing.T) {
 }
 
 // TestServeOneJob_ContextCancelledWhileWaiting proves cancellation is
-// noticed between frames in both waiting phases. The worker cancels the
-// context between two heartbeats, so by the time the second heartbeat
-// has been read the cancellation is certainly visible.
+// noticed between frames in both waiting phases, and in the phase the
+// worker was in. The worker cancels the context between two heartbeats,
+// so by the time the second heartbeat has been read the cancellation is
+// certainly visible; and because cancellation is checked at a heartbeat
+// rather than before every read, the JobAccept the worker sent ahead of
+// the first heartbeat is read as an accept whether or not the server
+// reaches it before the cancellation — the second case reports the
+// output phase every time, not only when the scheduler is kind.
 func TestServeOneJob_ContextCancelledWhileWaiting(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {

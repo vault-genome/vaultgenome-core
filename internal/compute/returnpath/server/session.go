@@ -271,9 +271,12 @@ func (s *Session) ServeOneJob(ctx context.Context, req transport.JobRequest) (re
 //
 // ctx is honored via SetDeadline: if ctx carries a deadline, it is
 // propagated to the net.Conn. A cancelled ctx without a deadline is
-// surfaced before the first I/O with CodeContextCancelled. Callers
-// wanting strict cancellation should also close the net.Conn when ctx
-// is done (Session.Close does this).
+// surfaced before the first I/O with CodeContextCancelled, and after
+// that at the next Heartbeat: a frame the worker has already sent is
+// read and acted on before cancellation is reported, so a JobAccept
+// that arrived ahead of the cancellation is an accept, not a cancelled
+// wait. Callers wanting strict cancellation should also close the
+// net.Conn when ctx is done (Session.Close does this).
 func (s *Session) ServeOneJobVerified(ctx context.Context, req transport.JobRequest) (VerifiedCandidate, error) {
 	var zero VerifiedCandidate
 	if s.closed {
@@ -370,14 +373,10 @@ type jobReply struct {
 // awaitJobReply reads frames from conn, skipping Heartbeats, until it
 // observes a JobAccept or JobReject or an ErrorFrame from the peer. An
 // ErrorFrame is translated to a classified error. Any other frame type
-// is a protocol violation.
+// is a protocol violation. Cancellation of ctx is noticed at each
+// Heartbeat, between frames: a reply already on the wire is read first.
 func (s *Session) awaitJobReply(ctx context.Context) (jobReply, error) {
 	for {
-		if err := ctx.Err(); err != nil {
-			return jobReply{}, shared_errors.Operational(
-				CodeContextCancelled,
-				"returnpath/server: context done while awaiting JobAccept/JobReject", err)
-		}
 		typ, body, err := s.conn.Read()
 		if err != nil {
 			return jobReply{}, err
@@ -402,7 +401,11 @@ func (s *Session) awaitJobReply(ctx context.Context) (jobReply, error) {
 			}
 			return jobReply{rejected: true, reject: r}, nil
 		case transport.FrameTypeHeartbeat:
-			// skip
+			if err := ctx.Err(); err != nil {
+				return jobReply{}, shared_errors.Operational(
+					CodeContextCancelled,
+					"returnpath/server: context done while awaiting JobAccept/JobReject", err)
+			}
 			continue
 		case transport.FrameTypeError:
 			var ef transport.ErrorFrame
@@ -422,14 +425,11 @@ func (s *Session) awaitJobReply(ctx context.Context) (jobReply, error) {
 // awaitCandidateOutput reads frames, skipping Heartbeats, until it sees
 // a CandidateOutputFrame (or a peer-initiated ErrorFrame / Shutdown).
 // Shutdown before a candidate output arrives is Authority-classified:
-// the worker closed early without delivering.
+// the worker closed early without delivering. Cancellation of ctx is
+// noticed at each Heartbeat, between frames: an output already on the
+// wire is read first.
 func (s *Session) awaitCandidateOutput(ctx context.Context) (transport.CandidateOutputFrame, error) {
 	for {
-		if err := ctx.Err(); err != nil {
-			return transport.CandidateOutputFrame{}, shared_errors.Operational(
-				CodeContextCancelled,
-				"returnpath/server: context done while awaiting CandidateOutputFrame", err)
-		}
 		typ, body, err := s.conn.Read()
 		if err != nil {
 			return transport.CandidateOutputFrame{}, err
@@ -445,6 +445,11 @@ func (s *Session) awaitCandidateOutput(ctx context.Context) (transport.Candidate
 			}
 			return f, nil
 		case transport.FrameTypeHeartbeat:
+			if err := ctx.Err(); err != nil {
+				return transport.CandidateOutputFrame{}, shared_errors.Operational(
+					CodeContextCancelled,
+					"returnpath/server: context done while awaiting CandidateOutputFrame", err)
+			}
 			continue
 		case transport.FrameTypeError:
 			var ef transport.ErrorFrame
