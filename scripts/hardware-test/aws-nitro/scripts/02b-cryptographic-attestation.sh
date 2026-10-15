@@ -70,9 +70,8 @@ ls -la 06-certificates/
 
 echo
 echo "=== Step 2 — parse attestation document + extract cabundle + leaf cert ==="
-# We use acpctl's built-in verifier if available; otherwise fall back to
-# a Python-based parser. The acpctl path is preferred because it's the
-# same code that runs in production sagvd.
+# acpctl's built-in verifier — the same code that runs in production sagvd.
+# There is no other path: the kit does not install an unpinned Python verifier.
 if command -v acpctl >/dev/null 2>&1 || \
    [ -x /usr/local/bin/acpctl ] || \
    [ -x "$HOME/go/bin/acpctl" ]; then
@@ -88,51 +87,8 @@ if command -v acpctl >/dev/null 2>&1 || \
     --json-out 09-verify-attestation.json \
     | tee 08-verify-certs.txt
 else
-  # Python fallback path. Requires: python3, pycryptodome, cbor2, cose.
-  echo "acpctl not found, attempting Python-based verification..."
-  pip3 install --quiet --user cbor2 pycryptodome cose 2>/dev/null || true
-  python3 - <<'PYEOF' | tee 08-verify-certs.txt
-import sys, base64, json
-try:
-    import cbor2
-    from cose.messages import Sign1Message
-    from cose.keys import EC2Key
-except ImportError:
-    print("ERROR: missing python deps. pip3 install cbor2 pycryptodome cose")
-    sys.exit(1)
-
-with open("04-attestation-document.bin", "rb") as f:
-    raw = f.read()
-print(f"Attestation document size: {len(raw)} bytes")
-
-# COSE_Sign1 is the outer envelope
-msg = Sign1Message.decode(raw)
-payload = cbor2.loads(msg.payload)
-print(f"Module ID:    {payload.get('module_id')}")
-print(f"Digest:       {payload.get('digest')}")
-print(f"Timestamp:    {payload.get('timestamp')}")
-print(f"PCRs (count): {len(payload.get('pcrs', {}))}")
-for k, v in sorted(payload.get('pcrs', {}).items())[:3]:
-    print(f"  PCR{k}: {v.hex()[:48]}...")
-print(f"Public Key:   {payload.get('public_key')}")
-print(f"User Data:    {payload.get('user_data', b'').hex()[:48]}...")
-print(f"Nonce:        {payload.get('nonce')}")
-print(f"Cabundle len: {len(payload.get('cabundle', []))} certs")
-
-# Save extracted fields for downstream verification scripts
-with open("08-verify-attestation-parsed.json", "w") as f:
-    json.dump({
-        "module_id": payload.get("module_id"),
-        "timestamp": payload.get("timestamp"),
-        "pcr0": payload.get("pcrs", {}).get(0, b"").hex(),
-        "pcr1": payload.get("pcrs", {}).get(1, b"").hex(),
-        "pcr2": payload.get("pcrs", {}).get(2, b"").hex(),
-        "user_data": payload.get("user_data", b"").hex(),
-        "cabundle_count": len(payload.get("cabundle", []))
-    }, f, indent=2)
-
-print("\n=== parsed fields written to 08-verify-attestation-parsed.json ===")
-PYEOF
+  echo "ERROR: acpctl not found — 01-bootstrap-vm.sh installs it; the kit has no other verifier"
+  exit 1
 fi
 
 echo

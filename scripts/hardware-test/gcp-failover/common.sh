@@ -23,9 +23,7 @@ gcs_put_str() { printf '%s' "$2" > /tmp/_s.$$; gcs_put /tmp/_s.$$ "$1"; rm -f /t
 # The base model, pinned by revision; the genome's manifest pins its bytes.
 BASE_REPO="Qwen/Qwen2.5-0.5B-Instruct"
 BASE_REV="7ae557604adf67be50417f59c2c2f167def9a775"
-HF_HUB="huggingface_hub==2.2.0"
-
-python_runtime() { # python_runtime <torch index url>
+python_runtime() { # python_runtime <torch index: https://download.pytorch.org/whl/cu126 or …/whl/cpu>
   export DEBIAN_FRONTEND=noninteractive
   # Ubuntu holds the dpkg lock at boot (unattended-upgrades); wait it out
   # rather than racing it, and cap the wait so apt never blocks forever.
@@ -33,9 +31,18 @@ python_runtime() { # python_runtime <torch index url>
   for i in $(seq 1 60); do fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break; sleep 5; done
   apt-get -o DPkg::Lock::Timeout=300 update -qq > /dev/null && apt-get -o DPkg::Lock::Timeout=300 install -y -qq python3-venv python3-pip > /dev/null
   python3 -m venv /opt/vg
-  /opt/vg/bin/pip install -q --upgrade pip
-  /opt/vg/bin/pip install -q --index-url "$1" torch==2.14.1
-  /opt/vg/bin/pip install -q -r /opt/worker/requirements.txt "$HF_HUB"
+  # The runtime from the hash-pinned locks, each from its own index (no --extra-index-url,
+  # so no index can stand in for another): the worker's packages, torch's dependencies and
+  # huggingface_hub from PyPI; on a GPU host the CUDA libraries from PyPI; then the torch
+  # wheel for this host alone, from the PyTorch index that carries it.
+  PIP="/opt/vg/bin/pip install -q --require-hashes --only-binary=:all:"
+  $PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-ci.lock
+  case "$1" in
+    */cu126) $PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-cuda.lock
+             $PIP --no-deps --index-url "$1" -r /opt/worker/requirements-torch-cu126.lock ;;
+    */cpu)   $PIP --no-deps --index-url "$1" -r /opt/worker/requirements-torch-cpu.lock ;;
+    *)       echo "python_runtime: no lock for the torch index $1" >&2; return 1 ;;
+  esac
   /opt/vg/bin/pip freeze > "$OUT/pip-freeze.txt"
 }
 

@@ -76,7 +76,7 @@ wait_ssh() { # wait_ssh <minutes>
 
 echo "build acpctl (linux/amd64) and pack workers/genome"
 ( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/acpctl" ./cmd/acpctl )
-COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt examples
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt requirements-ci.lock requirements-cuda.lock requirements-torch-cpu.lock requirements-torch-cu126.lock examples
 echo "Microsoft's onboarding package V4.4.1 (pinned by SHA-256)"
 curl -fsSL "$PKG_URL" -o "$BUILD/cgpu-onboarding-package.tar.gz"
 echo "$PKG_SHA  $BUILD/cgpu-onboarding-package.tar.gz" | shasum -a 256 -c - >/dev/null
