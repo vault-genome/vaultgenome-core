@@ -66,11 +66,13 @@ chmod 600 "$W/recovery.seed" "$W/escrow.recovery.json"   # acpctl refuses a reco
 gcs_get safe/base.tgz /root/base.tgz && tar -C "$W" -xzf /root/base.tgz && rm -f /root/base.tgz
 sha256sum "$W"/secrets/sagvd/* "$W"/secrets/acp-compute/* "$W"/secrets/shared/* 2>/dev/null | sed "s#$W/##" > "$OUT/safe-restored.sha256" || true
 
-step "the replica of A's state: the audit log and the genomes, as last synced"
+step "the replica of A's state: the audit log, the genomes and the job store, as last synced"
 gcs_get state/state.tgz /root/state.tgz && tar -C "$W" -xzf /root/state.tgz && rm -f /root/state.tgz
 gcs_get state/manifest.json "$OUT/replica-manifest.json"
 mark state_restored
-ls -la "$W/audit" "$W/genomes" > "$OUT/replica-files.txt"
+mkdir -p "$W/queue"
+ls -la "$W/audit" "$W/genomes" "$W/queue" > "$OUT/replica-files.txt" 2>&1
+echo "replica manifest: $(head -c 300 "$OUT/replica-manifest.json" 2>/dev/null)" >> "$OUT/steps.txt"
 
 step "identities on this chip: the same seeds, this machine's launch measurement"
 identities "$W"
@@ -91,9 +93,15 @@ echo "escrow re-provision exit=$? escrow_key=$(python3 -c 'import json,sys;print
 cp "$W/escrow.pem" "$OUT/escrow.pem"; rm -f "$W/recovery.seed"
 mark ceremony_done
 
-step "sagvd on this chip over the replicated audit log, and its worker"
+step "sagvd on this chip over the replicated audit log and job store, and its worker"
 start_daemons "$W"
 mark daemons_ready
+
+step "what sagvd admitted again from the replicated job store at start (ADR 0026)"
+echo "resume summary: $(grep -m1 'sagvd jobs from before the restart' "$OUT/sagvd.log" || echo 'not in the log')" >> "$OUT/steps.txt"
+RESUMED_ID=$(grep 'sagvd job resumed after a restart' "$OUT/sagvd.log" | head -1 | python3 -c 'import json,sys; l=sys.stdin.readline(); print(json.loads(l).get("job_id", "") if l.strip() else "")' 2>/dev/null || echo "")
+RESUMED_REQ=$(grep 'sagvd job resumed after a restart' "$OUT/sagvd.log" | head -1 | python3 -c 'import json,sys; l=sys.stdin.readline(); print(json.loads(l).get("request_id", "") if l.strip() else "")' 2>/dev/null || echo "")
+echo "resumed_job_id=${RESUMED_ID:-none} resumed_request_id=${RESUMED_REQ:-none}" >> "$OUT/steps.txt"
 
 step "which job A lost: submitted and never completed"
 LOST=$(gcs_list out/a/job- | python3 -c '
@@ -105,9 +113,27 @@ for line in sys.stdin:
 lost = sorted(sub - done)
 print(" ".join(map(str, lost)) if lost else "none")')
 echo "lost_jobs=$LOST" >> "$OUT/steps.txt"
+# A's own submission record of the lost job, as A put it in the bucket the
+# moment the job was accepted: the ids B's resumed job must match.
+A_JOB_ID=""; A_REQ_ID=""
+for n in $LOST; do
+  if gcs_get "out/a/job-$n-submit.json" "$OUT/a-job-$n-submit.json" 2>/dev/null; then
+    A_JOB_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("job_id", ""))' "$OUT/a-job-$n-submit.json" 2>/dev/null || echo "")
+    A_REQ_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("request_id", ""))' "$OUT/a-job-$n-submit.json" 2>/dev/null || echo "")
+    break
+  fi
+done
+echo "a_lost_job_id=${A_JOB_ID:-unknown} a_lost_request_id=${A_REQ_ID:-unknown}" >> "$OUT/steps.txt"
 
-step "the lost job ($LOST) submitted again here — the same gate job for gen-0 — and the first verdict after the loss"
-if gate_job "$W" "first-after-loss"; then mark first_job_done; echo "first job after the loss: succeeded" >> "$OUT/steps.txt"; else mark first_job_done; echo "first job after the loss: NOT succeeded" >> "$OUT/steps.txt"; fi
+if [ -n "$RESUMED_ID" ]; then
+  step "the lost job, resumed by sagvd itself from the replicated job store — the first verdict after the loss"
+  if wait_job "$W" "first-after-loss" "$RESUMED_ID"; then mark first_job_done; mark resumed_job_done; echo "first job after the loss: the resumed job succeeded" >> "$OUT/steps.txt"; else mark first_job_done; mark resumed_job_done; echo "first job after the loss: the resumed job did NOT succeed" >> "$OUT/steps.txt"; fi
+  echo "resumed job is A's lost job: same_job_id=$([ -n "$A_JOB_ID" ] && [ "$RESUMED_ID" = "$A_JOB_ID" ] && echo true || echo false) same_request_id=$([ -n "$A_REQ_ID" ] && [ "$RESUMED_REQ" = "$A_REQ_ID" ] && echo true || echo false)" >> "$OUT/steps.txt"
+else
+  step "nothing was resumed: the lost job ($LOST) submitted again here — the first verdict after the loss"
+  if gate_job "$W" "first-after-loss"; then mark first_job_done; echo "first job after the loss: resubmitted, succeeded" >> "$OUT/steps.txt"; else mark first_job_done; echo "first job after the loss: resubmitted, NOT succeeded" >> "$OUT/steps.txt"; fi
+fi
+step "a fresh job after the loss"
 gate_job "$W" "second-after-loss" || true
 
 step "metrics; stop both; the whole chain — A's events and B's — verified under the published key"

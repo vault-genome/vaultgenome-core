@@ -291,7 +291,9 @@ Does /healthz answer on the health listener?
       seal them to its chip.
    2. The last replica of the audit log, of the genome bundles and of the
       job store (`queue.path`, ADR 0026) — the operator's replication; the
-      drills copy them to a private bucket after every job. Verify the
+      authority-loss drill copies them to a private bucket the moment a
+      job is accepted and again when it is done, so the replica carries
+      the job in flight. Verify the
       replica before the daemon touches it:
       `acpctl audit verify --audit <replica> --audit-pubkey audit.pem
       --audit-kid <keys.audit_signing.kid>`.
@@ -312,19 +314,23 @@ Does /healthz answer on the health listener?
    key, the same escrow key, the chain continued from the replica's tip.
    Measured (the drill's runs of 2026-10-15; `evidence/*/timeline.txt`):
    a standby that already has the runtime and the binaries needs
-   **49–50 s** in all three runs: the replica restored in a second, the
+   **49–50 s** in all four runs: the replica restored in a second, the
    key files sealed in 10 s, the ceremony 11 s, both daemons up with the
    session open 22 s, the first verdict 5 s later. From the moment the
    old host's deletion was issued to that verdict on a host created on
-   demand, **236 s and 237 s** in two runs — about 80 s the VM's creation
+   demand, **233–237 s** in three runs — about 80 s the VM's creation
    and boot, about 80 s the worker's runtime from the locks — and
-   **489 s** in the third, whose package mirror took 330 s for the same
+   **489 s** in the fourth, whose package mirror took 330 s for the same
    runtime: the cold number is the mirror's and the image's, which is
    what a standby with the runtime in place removes. What is lost: the
-   audit events the old host appended after its last replica — and the
-   job in flight, when the replica does not carry the job store (the
-   drill's runs of 2026-10-15 predate it; the operator resubmits, as the
-   drill did).
+   audit events the old host appended after its last replica. The job in
+   flight is not, once the replica carries the job store: in the run
+   `20261015T204339Z` the new host's `sagvd` admitted the lost job again
+   by itself (`sagvd job resumed after a restart`, attempt 2, the same
+   job id and request id, `resumed` on its audit record) and signed its
+   verdict EXACT 49.1 s after the runtime was ready, 233.5 s from the
+   deletion; the three runs before it lacked the job store in the replica
+   and resubmitted the job.
 
 ---
 

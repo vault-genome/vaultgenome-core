@@ -57,7 +57,7 @@ mark runtime_ready
 
 step "the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)"
 acpctl tee fetch-amd-chain --product milan --out "$W/amd-milan-cert_chain.pem" > "$OUT/amd-chain.txt" 2>&1
-mkdir -p "$W/genomes" "$W/audit" "$W/vcek-cache"
+mkdir -p "$W/genomes" "$W/audit" "$W/queue" "$W/vcek-cache"
 
 step "provision (acp-keygen -private); the operator's safe keeps the plaintext key material before it is sealed to this chip"
 keygen -out "$W/secrets" -quiet -private
@@ -97,32 +97,48 @@ step "sagvd and its worker on this chip"
 start_daemons "$W"
 mark daemons_ready
 
-# sync_state <n>: the authority's state to the bucket — the audit log and
-# the genomes — as one tar, after job n, with the job's tip in a manifest.
+# sync_state <n> <accepted|finished>: the authority's state to the bucket — the
+# audit log, the genomes and the job store (ADR 0026) — as one tar, twice
+# per job: once the job is accepted (the store then holds it as queued or
+# running, and a raw copy of the bbolt file while sagvd writes it is a
+# committed state of it — measured: 1 647 copies taken during continuous
+# writes all opened and read back), and once it is done. A manifest names
+# which. The job store is what lets the new host resume the job in flight
+# instead of being handed it again.
 sync_state() {
-  tar -C "$W" -czf /root/state.tgz audit genomes 2>/dev/null
+  tar -C "$W" -czf /root/state.tgz audit genomes queue 2>/dev/null
   gcs_put /root/state.tgz state/state.tgz
-  python3 - "$1" "$OUT/job-$1.json" > /root/state-manifest.json <<'PY'
+  python3 - "$1" "$OUT/job-$1.json" "$2" > /root/state-manifest.json <<'PY'
 import json, sys, time
 try:
     j = json.load(open(sys.argv[2]))
 except Exception:
     j = {}
 flow = j.get("flow") or {}
-print(json.dumps({"after_job": int(sys.argv[1]), "job_id": j.get("job_id"), "status": j.get("status"),
-                  "chain_tip": flow.get("chain_tip") or flow.get("audit_tip"), "synced_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}))
+print(json.dumps({"after_job": int(sys.argv[1]), "when": sys.argv[3], "job_id": j.get("job_id"), "status": j.get("status"),
+                  "chain_tip": flow.get("chain_tip") or flow.get("audit_tip"), "queue_file": "queue/sagvd-jobs.db",
+                  "synced_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}))
 PY
   gcs_put /root/state-manifest.json state/manifest.json
-  cp /root/state-manifest.json "$OUT/state-manifest-$1.json"
+  cp /root/state-manifest.json "$OUT/state-manifest-$1-$2.json"
+}
+# after_submit <label> <job id>: run by gate_job once a job is accepted —
+# the replica with the job in it, A's submission record for B to compare
+# the resumed job against, and a marker the runner waits for before it
+# takes this machine away.
+after_submit() {
+  sync_state "$1" accepted
+  gcs_put "$OUT/job-$1-submit.json" "out/a/job-$1-submit.json" 2>/dev/null || true
+  gcs_put_str "out/a/job-$1-synced-accepted" "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
 }
 
-step "gate jobs in a loop; the state replicated after each; the runner takes the machine away in the middle of one"
+step "gate jobs in a loop; the state replicated once each is accepted and once it is done; the runner takes the machine away in the middle of one"
 for n in $(seq 1 120); do
   gcs_put_str "out/a/job-$n-submitted" "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
   mark "job_${n}_submit"
   if gate_job "$W" "$n"; then :; else echo "job $n did not succeed" >> "$OUT/steps.txt"; fi
   mark "job_${n}_done"
-  sync_state "$n"
+  sync_state "$n" finished
   gcs_put_str "out/a/job-$n-done" "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
   push_out
   [ "$n" -eq 3 ] && gcs_put_str out/a/READY "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"

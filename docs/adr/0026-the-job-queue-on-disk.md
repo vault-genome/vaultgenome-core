@@ -71,9 +71,10 @@ been *accepted and not yet decided*.
   kill answer as it was, two `REQUEST_RECEIVED` records carrying
   `resumed`, and the audit chain verify across the crash.
 - A host lost needs the store's file in the operator's replica beside the
-  audit log and the genomes; the authority-loss drill's next run copies
-  it, and the lost job then resumes by itself on the new host instead of
-  being resubmitted.
+  audit log and the genomes, taken the moment a job is accepted: the
+  authority-loss drill's run `20261015T204339Z` copied it so, and the lost
+  job resumed by itself on the new host — the same job id and request id,
+  `resumed` attempt 2 on the record, EXACT — instead of being resubmitted.
 - `queue.path` is one more file the daemon holds open; it must not be the
   audit log's file, and the configuration refuses that.
 - The audit record of a resumed request carries the same request id as
