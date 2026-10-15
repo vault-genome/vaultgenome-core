@@ -81,13 +81,16 @@ The tag push runs `.github/workflows/release.yml`:
 3. `make build` and `make verify-reproducible`, with `VERSION` = the tag name,
    `COMMIT` = the full commit SHA and `SOURCE_DATE_EPOCH` = the tagged commit's
    timestamp.
-4. `syft`: one SPDX-JSON SBOM per published binary,
-   `dist/<binary>.sbom.spdx.json`.
+4. Pack `workers/genome` as `genome-worker-<tag>.tar.gz` with GNU tar
+   from the tagged commit's time (sorted names, numeric owner 0, `gzip
+   -n`), twice, and compare; `syft`: one SPDX-JSON SBOM per published
+   binary, `dist/<binary>.sbom.spdx.json`, and one for the package.
 5. `cosign sign-blob` (keyless): a signature and certificate for each binary
-   (`dist/<binary>.sig`, `.cert`) and for each SBOM (`.sbom.sig`,
-   `.sbom.cert`).
+   and for the package (`dist/<artifact>.sig`, `.cert`) and for each SBOM
+   (`.sbom.sig`, `.sbom.cert`).
 6. Upload `bin/sagvd`, `bin/acp-compute`, `bin/acpctl`, `bin/acp-bootstrap`,
-   the SBOMs, signatures and certificates to the GitHub Release.
+   `bin/acp-keygen`, the package, the SBOMs, signatures and certificates
+   to the GitHub Release: 36 assets.
 7. A second job runs the SLSA generic generator
    (`slsa-framework/slsa-github-generator`, `generator_generic_slsa3.yml`
    v2.1.0) over the five binaries' and the worker package's SHA-256 and uploads the provenance to the

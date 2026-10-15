@@ -23,6 +23,8 @@ page; the formats below make that a binary swap so far, not a migration.
 | 0.3.0 (2026-09-17) | unchanged | unchanged | unchanged | the code of 0.2.1 under the module path `github.com/vault-genome/vaultgenome-core`: `go install` paths change, nothing else. The 0.3.0 tag has no release assets (the pipeline failed on it; the tag stays, 0.3.1 explains) |
 | 0.3.1, 0.3.2 (2026-09-17) | unchanged | unchanged | unchanged | release pipeline fixes; signatures on cosign 2.x (`KNOWN_ISSUES.md` #15) |
 | 0.4.0 (2026-10-14) | unchanged | unchanged | unchanged | Go 1.27.2; the worker's Python runtime is torch 2.14.1 / transformers 5.19.0, installed by hash from two locks; the integer door reads a config's rotary base with no default. A deployment that raises the worker runtime re-measures its fidelity record before it relies on EXACT (`KNOWN_ISSUES.md` #14) |
+| 0.4.1 (2026-10-15) | unchanged | unchanged | unchanged | hardening and evidence; no operator action |
+| 0.4.2 (2026-10-15) | unchanged | unchanged | unchanged | **The AMD roots are pinned in the binary (ADR 0024):** `amd_cert_chain_path` must end in ARK-Milan, ARK-Genoa or ARK-Turin, or `sagvd` and `acp-compute` refuse to start — a chain taken from AMD KDS or Azure THIM is unaffected; `acpctl tee fetch-amd-chain` writes one. A release has 36 assets: five binaries (`acp-keygen` is new; the former `deploy/compose/keygen` module is gone, `make demo-certs` runs the binary) and the worker package `genome-worker-<tag>.tar.gz`, each signed, with an SBOM and in the provenance; verification commands cover six artifacts (README, `05_release_procedure.md` §5) |
 
 No release so far has changed the bundle format, the audit schema or the
 policy schema: a genome sealed by 0.1.0 is a valid 0.4.0 genome, an audit
