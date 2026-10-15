@@ -35,6 +35,17 @@ given release can still open.
   daemons — the same guest script as `gcp-sev-snp/returnpath-e2e` — and
   records the verification and the guest's results next to each other.
 
+### Fixed
+
+- `internal/compute/returnpath/server`: cancellation of the job context
+  is noticed at each Heartbeat between frames, after a frame the worker
+  already sent has been read — a JobAccept that arrived ahead of the
+  cancellation is an accept, not a cancelled wait. Before, the check ran
+  before every read, so the phase a cancellation was reported in depended
+  on scheduling, and `TestServeOneJob_ContextCancelledWhileWaiting` failed
+  now and then in CI; the two cases pass 200 times under the race
+  detector.
+
 ### Changed
 
 - `scripts/hardware-test/azure-sev-snp`: the workload manifest is bound
