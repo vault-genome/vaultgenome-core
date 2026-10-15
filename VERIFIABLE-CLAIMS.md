@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1499,6 +1499,55 @@ is a tar after every job. The job in flight is lost by today's design
 and a package mirror, not the product. The drill does not say what a
 standby with the daemons already running would need; the warm number is
 the floor it starts from.
+
+<a id="c29"></a>
+### C29 — An air-gapped SEV-SNP host runs the Return Path from caches it filled while connected: egress denied, the handshake verified from the cache, a job gated EXACT; without the cache the handshake is refused naming KDS, and nothing is admitted
+
+**Claim.** On real AMD SEV-SNP, a host fills its peer verifiers' caches
+with one command while it still has a route (`acpctl tee prefetch
+--config` for each daemon: this chip's VCEK from AMD KDS, verified as the
+peer verifier would verify it), is then put behind a firewall rule that
+denies all egress, and runs the Return Path with nothing from the world:
+the key files sealed, a genome fine-tuned and sealed with the runtime
+offline, both daemons started, each side's report verified with the
+cached VCEK, a gate job EXACT. With the caches wiped, the handshake is
+refused with KDS named on the record and no job is dispatched; with the
+caches restored from a copy, the next session opens and a job gates
+EXACT. `acpctl tee cache-status` says what the caches hold and until
+when (seven years for a VCEK), and exits 1 when they are empty.
+
+**Evidence.**
+[`scripts/hardware-test/air-gap/evidence/20261015T212716Z/`](scripts/hardware-test/air-gap/evidence/20261015T212716Z/)
+— `prefetch-sagvd.txt`, `prefetch-worker.txt`, `prefetch-sagvd.json`:
+`prefetched for a gcp-sev-snp peer on this host`, one VCEK each, CN
+`SEV-VCEK`, valid 2026-10-14 → 2033-10-14; `cache-files.txt` the two
+cached files (chip `188de2d8…`, TCB `0xde1d000000000004`), their sizes
+and digest prefixes; `firewall-rule.json` the rule — `EGRESS`, `DENY
+all`, `0.0.0.0/0`, priority 100, target tag `vg-airgap-20261015t212532z`
+— and `instance-tags.txt` the tag on the instance; `egress.txt` after the
+cut — KDS and the bucket `Connection timed out`, the metadata server
+`200`; `timeline.txt` and `runner-timeline.txt` — the guest ready at
+21:28:48Z, the tag added at 21:28:57.96Z, KDS dead 33 s after the guest
+saw the tag; `sagvd-airgap.log` `sagvd session opened`, `job-airgap.json`
+`succeeded`, EXACT, 6 of 6, 5.2 s; `cache-status-wiped.txt` `the caches
+are empty` (exit 1); `sagvd-wiped.log` `sagvd return-path handshake
+failed … fetch VCEK: Get "https://kdsintf.amd.com/vcek/v1/Milan/…"` 41.1 s
+after the start, and no `session opened`; `cache-status-restored.txt`
+(exit 0), `sagvd-restored.log` `session opened`, `job-restored.json`
+EXACT; `audit-verify.json` `ok: true`, 33 events, tip `d92fed3e…`;
+`sha256sums.txt` over all of it, 52 of 52. The kit:
+[`scripts/hardware-test/air-gap/`](scripts/hardware-test/air-gap/); the
+procedure: [`docs/operator/runbooks/air_gap.md`](docs/operator/runbooks/air_gap.md).
+
+**Scope.** One host, both daemons on one chip, so the one VCEK serves
+both verifiers; a peer on another chip needs its VCEK carried into the
+cache, as the runbook says. SEV-SNP only: `prefetch` covers `gcp-tdx` in
+code (Intel's PCS documents, each good until its `nextUpdate`), unrun on
+hardware. The cut is a VPC firewall rule, not a physical gap; the
+metadata server stays reachable, used by the guest for the network tag
+and the serial console only. The release itself was verified on the
+connected side: its offline verification waits on Sigstore bundles
+(KNOWN_ISSUES #15).
 
 ---
 

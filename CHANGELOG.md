@@ -13,6 +13,20 @@ given release can still open.
 
 ### Added
 
+- `acpctl tee prefetch --config <daemon config>`: a host that will have no
+  route to the hardware vendors fills its peer verifier's caches while it
+  has one — the VCEK of its chip from AMD KDS into `tee.peer.vcek_cache_dir`,
+  the TCB info of its platform and the QE identity from Intel PCS into
+  `tee.peer.pcs_cache_dir` — by verifying its own report as that verifier
+  would, pinned to its own measurement; `acpctl tee cache-status --config`
+  lists every cached document (VCEKs, PCS documents, the NRAS key set, RIM
+  manifests, OCSP answers) with its validity and the earliest expiry, exit
+  1 when anything is expired or missing. The air-gap runbook
+  (`docs/operator/runbooks/air_gap.md`) says what reaches out, how to fill
+  the caches before the route goes, and what the daemons do without them
+  (they refuse, naming the vendor); the air-gap drill
+  (`scripts/hardware-test/air-gap/`) does it on a SEV-SNP host behind an
+  egress-deny rule.
 - `tee.provider: "auto"` (ADR 0025, step 1): a daemon on a Linux
   confidential VM takes its family from the kernel's configfs-tsm
   `provider` attribute when the configuration is loaded — `sev_guest`

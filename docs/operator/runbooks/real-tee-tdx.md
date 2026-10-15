@@ -109,6 +109,12 @@ the audit record.
   document is verified like a fresh one on every use and re-fetched once
   past its `nextUpdate` (Intel issues them monthly). Set it: a burst of
   handshakes then asks Intel once, and a short PCS outage costs nothing.
+- **Without a route to Intel** — a host that will be air-gapped — fill the
+  cache first: `acpctl tee prefetch --config <daemon config>` verifies this
+  host's own quote as the peer verifier would, with PCS reachable, and the
+  cache then holds the TCB info of this platform and the QE identity;
+  `acpctl tee cache-status --config` says until when
+  ([air_gap.md](air_gap.md)).
 - **Fail closed.** No usable document — none cached, or expired, and Intel
   unreachable — is a refusal of the peer, not an admission. Fill the cache
   at deploy time by running `identity` on the peer and one handshake, or
