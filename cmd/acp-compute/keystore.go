@@ -135,6 +135,16 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("acp-compute: tee.provider: %w", err)
 	}
+	if provider == tee.ProviderAuto {
+		// The kernel names the family (ADR 0025): configfs-tsm's provider
+		// attribute, mapped to what this build runs for it. The daemon then
+		// is that family — in its identity, its logs and its audit records.
+		family, _, err := tee.ResolveAuto(cfg.TSMReportDir)
+		if err != nil {
+			return "", nil, fmt.Errorf("acp-compute: tee.provider=auto: %w", err)
+		}
+		provider = family
+	}
 	switch provider {
 	case tee.ProviderGCPSEVSNP:
 		p, err := tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})

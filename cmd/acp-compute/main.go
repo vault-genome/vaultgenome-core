@@ -110,6 +110,10 @@ func runDaemon(args []string) error {
 		"kid", string(mat.SigningKeyID),
 		"pubkey_hex", hex.EncodeToString(mat.SigningPublicKey),
 	)
+	if cfg.TEE.AutoResolvedFrom != "" {
+		logger.Info("acp-compute tee.provider auto: the family is the kernel's to say",
+			"tsm_provider", cfg.TEE.AutoResolvedFrom, "tee_provider", cfg.TEE.Provider)
+	}
 	logger.Info("worker TEE identity",
 		"tee_provider", string(mat.Provider),
 		"measurement_hex", hex.EncodeToString(mat.Producer.Measurement()),
