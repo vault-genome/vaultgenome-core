@@ -6,7 +6,8 @@ Confidential VM (AMD Genoa, read from the report's CPUID family and model)
 in West Europe, Ubuntu 22.04 CVM image (kernel 6.8.0-1068-azure-fde),
 driven end to end by `examples/full-test-run.sh` on the tree of commit
 `f453378` with the kit change of this run (`acpctl` sha256 `537b1ad4…`, Go
-tree `f453378`). The runner first destroyed the VM of the 03:58Z attempt
+tree `f453378`; the runner's checkout was `be1f22e`, `f453378` plus the SGX
+kit's commit of the same night, which this kit does not use). The runner first destroyed the VM of the 03:58Z attempt
 (below), created this one, ran the phases — the manifest sealed 04:36:00Z,
 AMD CHAIN VALIDATION PASSED 04:37:20Z, MAA CHAIN VALIDATION PASSED
 04:37:22Z — downloaded the archive and destroyed the VM and its resource
