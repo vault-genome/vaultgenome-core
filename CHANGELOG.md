@@ -24,6 +24,15 @@ given release can still open.
   package mirror); the job in flight is lost and resubmitted. The
   disaster-recovery runbook's scenario 4 carries the procedure and the
   numbers; KNOWN_ISSUES #16 states what the in-memory queue loses.
+- ADR 0025: any hardware. Providers will name evidence formats and
+  attestation families — `sev-snp`, `tdx`, `cca`, `nitro`, `sgx-dcap`,
+  `azure-sev-snp`, `azure-cgpu`, `tpm2` — not clouds; `tee.provider:
+  "auto"` will take the family from the kernel's configfs-tsm; the
+  Verifier becomes a RATS role with a built-in and a delegated
+  implementation (a CMW on the wire, an EAR appraised against the
+  operator's policy, Veraison first); sealing follows what the host has
+  (the TEE's key, else a TPM 2.0). The decision and its plan; the first
+  step is the next code change.
 
 ### Changed
 
