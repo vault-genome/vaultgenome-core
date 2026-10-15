@@ -77,13 +77,15 @@ curl -fsSL https://raw.githubusercontent.com/<this-repo>/main/scripts/01-bootstr
 # 4. Capture SEV-SNP attestation report (raw 1184-byte report via ioctl)
 ./scripts/02-capture-attestation.sh
 
-# 4b. Cryptographic chain validation: ARK → ASK → VCEK → Report
-#     (workload-bound via REPORT_DATA = SHA-512(payload manifest); produces a
-#      complete attestation evidence directory verified against AMD's PKI)
-./scripts/02b-cryptographic-attestation.sh
-
-# 5. Pull a model + run Demo 1 (single bundle round-trip)
+# 5. Pull a model + run Demo 1 (single bundle round-trip); it also writes
+#    evidence/demo1-inspect.json, the measured record of what was sealed
 ./scripts/03-demo1-single-bundle.sh
+
+# 5b. Cryptographic chain validation: ARK → ASK → VCEK → Report
+#     (workload-bound via REPORT_DATA = SHA-512(manifest), where the manifest
+#      names what Demo 1 sealed as acpctl measured it; produces a complete
+#      attestation evidence directory verified against AMD's PKI)
+./scripts/02b-cryptographic-attestation.sh
 
 # 6. Run Demo 2 (chain of 6 generations)
 ./scripts/04-demo2-chain.sh

@@ -26,6 +26,10 @@ cloud proven after GCP.
   refuses a report that does not carry it; `02b` has snpguest check the same
   value against the signed report, and `02f` checks that the MAA token's
   `x-ms-sevsnpvm-reportdata` and launch-measurement claims are the report's.
+- **Workload manifest:** `02b` runs after Demo 1 and writes the manifest with
+  the digest acpctl measured over what it sealed (`demo1-inspect.json`), not a
+  constant. On Azure the report cannot bind it (REPORT_DATA is Azure's, above),
+  so it is recorded next to the report, not bound by it.
 - **Certificates:** `02` records the VCEK and chain that Azure's THIM endpoint
   (`169.254.169.254/metadata/THIM/amd/certification`) serves for this chip and
   TCB; `02b` fetches the same from AMD KDS and requires the two VCEKs to match.

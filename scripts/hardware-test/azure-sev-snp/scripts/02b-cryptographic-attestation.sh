@@ -23,9 +23,8 @@
 #
 # Optional environment variables:
 #   VM_ID                  identifier baked into manifest (default: hostname)
-#   PAYLOAD_SHA256         override default Llama 3.2 3B SHA-256
-#   PAYLOAD_SIZE           override default Llama 3.2 3B size in bytes
-#   PAYLOAD_DESCRIPTION    override default description
+#   INSPECT_JSON           the record of what Demo 1 sealed (default:
+#                          ~/vg/evidence/demo1-inspect.json, written by 03)
 #   AMD_KDS_RETRIES        retries on AMD KDS fetch (default: 3)
 #   AMD_KDS_SLEEP_SEC      sleep between retries (default: 30)
 #   SNP_CHIP               AMD product line (default: read from the report; the
@@ -42,9 +41,24 @@ LOCATION=$(echo "${IMDS_JSON}" | jq -r '.location // "unknown"')
 ZONE=$(echo "${IMDS_JSON}" | jq -r '.zone // "unknown"')
 VM_SIZE=$(echo "${IMDS_JSON}" | jq -r '.vmSize // "unknown"')
 
-PAYLOAD_SHA256="${PAYLOAD_SHA256:-d9387aa0a249fc8516c65c3c88b399a46a636409586ea171658457f7b6bd1869}"
-PAYLOAD_SIZE="${PAYLOAD_SIZE:-2018847232}"
-PAYLOAD_DESCRIPTION="${PAYLOAD_DESCRIPTION:-Llama 3.2 3B base model GGUF Q4_K_M}"
+# The workload manifest names what Demo 1 sealed, as acpctl measured it
+# (03-demo1-single-bundle.sh writes evidence/demo1-inspect.json): the
+# payload digest over the sealed components, the sizes, the content
+# reference and the sealing time. A constant would name a file no run
+# measured; the report binds the manifest, so the manifest is measured.
+INSPECT_JSON="${INSPECT_JSON:-${HOME}/vg/evidence/demo1-inspect.json}"
+[ -s "${INSPECT_JSON}" ] || { echo "ERROR: ${INSPECT_JSON} missing — run 03-demo1-single-bundle.sh before 02b"; exit 1; }
+read -r PAYLOAD_SHA256 PAYLOAD_SIZE BUNDLE_SHA256 BUNDLE_SIZE SEALED_AT CONTENT_REF < <(python3 - "${INSPECT_JSON}" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+digest = str(d.get("payload_sha256", "")).removeprefix("sha256:")
+size = d.get("payload_bytes")
+if len(digest) != 64 or not isinstance(size, int):
+    sys.exit("demo1-inspect.json carries no measured payload digest and size")
+print(digest, size, str(d.get("bundle_sha256", "")).removeprefix("sha256:"), d.get("bundle_bytes"), d.get("sealed_at"), d.get("content_ref"))
+PYEOF
+)
+PAYLOAD_DESCRIPTION="ollama ${CONTENT_REF}, as sealed by acpctl genome seal into demo1-bundle.genome"
 AMD_KDS_RETRIES="${AMD_KDS_RETRIES:-3}"
 AMD_KDS_SLEEP_SEC="${AMD_KDS_SLEEP_SEC:-30}"
 # The AMD product line (Milan, Genoa, Turin) decides the KDS URL and the
@@ -104,6 +118,10 @@ cat > 01-vaultgenome-payload-manifest.json <<EOF
   "payload_sha256": "${PAYLOAD_SHA256}",
   "payload_size_bytes": ${PAYLOAD_SIZE},
   "payload_description": "${PAYLOAD_DESCRIPTION}",
+  "payload_measured_by": "acpctl genome inspect --json of demo1-bundle.genome: sha256 over the sealed components, measured in this run",
+  "bundle_sha256": "${BUNDLE_SHA256}",
+  "bundle_size_bytes": ${BUNDLE_SIZE},
+  "sealed_at": "${SEALED_AT}",
   "demo": "vault-genome-cross-vm-attestation",
   "vm_id": "${VM_ID}",
   "tee_backend": "amd-sev-snp",
@@ -267,8 +285,9 @@ POLICY CHECKS
 ✓ Chip ID matches (cert ↔ report)
 ✓ REPORT_DATA = SHA-256(vTPM runtime data) || 0^32 — Azure's binding, checked
 $([ -f 13-vcek-thim-vs-kds.txt ] && echo "✓ VCEK from Azure THIM: same key and chip id as AMD KDS's, chains to the same ARK")
-  Workload manifest recorded (01-vaultgenome-payload-manifest.json); on Azure
-  a caller cannot place its own REPORT_DATA in the report.
+  Workload manifest recorded with the measured digest of what Demo 1 sealed
+  (01-vaultgenome-payload-manifest.json); on Azure a caller cannot place its
+  own REPORT_DATA in the report, so it is recorded, not bound.
 
 RESULT: AMD CHAIN VALIDATION PASSED
 

@@ -70,9 +70,11 @@ ${SSH} '
 
   ~/scripts/01-bootstrap-vm.sh
   ~/scripts/02-capture-attestation.sh
+  # Demo 1 runs before the chain steps: the manifest 02b writes names what
+  # Demo 1 sealed, as acpctl measured it.
+  ~/scripts/03-demo1-single-bundle.sh
   ~/scripts/02b-cryptographic-attestation.sh
   ~/scripts/02f-capture-maa-jwt.sh
-  ~/scripts/03-demo1-single-bundle.sh
   ~/scripts/04-demo2-chain.sh
   ~/scripts/05-inference-test.sh || echo "(inference skipped — non-fatal)"
   ~/scripts/06-pack-evidence.sh

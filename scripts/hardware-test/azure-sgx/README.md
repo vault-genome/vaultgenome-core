@@ -92,13 +92,13 @@ ssh azureuser@<public-ip>
 # 3. Bootstrap (installs Intel SGX DCAP + Open Enclave + Ollama + Go)
 ./scripts/01-bootstrap-vm.sh
 
-# 4. Capture both attestation chains
+# 4. Capture the quote, run Demo 1, then both attestation chains
 ./scripts/02-capture-attestation.sh           # SGX quote via oeutil
-./scripts/02b-cryptographic-attestation.sh    # Intel chain (PCK + Root CA)
+./scripts/03-demo1-single-bundle.sh           # seals the model; writes evidence/demo1-inspect.json
+./scripts/02b-cryptographic-attestation.sh    # Intel chain (PCK + Root CA); the manifest names what Demo 1 sealed
 ./scripts/02f-capture-maa-jwt.sh              # Microsoft MAA JWT — Azure-specific 2nd verifier
 
-# 5. Run workloads
-./scripts/03-demo1-single-bundle.sh
+# 5. Run the remaining workloads
 ./scripts/04-demo2-chain.sh
 ./scripts/05-inference-test.sh
 
