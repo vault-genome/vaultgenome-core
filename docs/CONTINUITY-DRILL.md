@@ -479,13 +479,17 @@ the file's lock, a bug of the kit, fixed and recorded in its README).
 The authority is not the machine: it is the key material in the safe, the
 escrow envelope, and the audit log's replica. Given those three, a machine
 nobody had seen before is the authority in fifty seconds, and the chain of
-decisions does not break. What the drill loses is exactly what the design
-says it loses today — the job in flight, because the queue is in memory
-([KNOWN_ISSUES.md](../KNOWN_ISSUES.md) #16) — and what the cold number is
-mostly made of is not the product: a VM's boot and a package mirror's
-speed. A standby with the runtime and the binaries in place is the warm
-number; the durable queue and a continuous replica are the next two
-pieces, and this drill is how their effect will be measured.
+decisions does not break. What the drill lost in its first three runs was
+the job in flight, because the queue was in memory
+([KNOWN_ISSUES.md](../KNOWN_ISSUES.md) #16); with the job store on disk
+(ADR 0026) and in the replica from the moment a job is accepted, the
+fourth run (`20261015T204339Z`) lost nothing: the new host's `sagvd`
+admitted the lost job again by itself — the same job id, the same request
+id, `resumed` on its audit record — and signed it EXACT 49.1 s after its
+runtime was ready. What the cold number is mostly made of is not the
+product: a VM's boot and a package mirror's speed. A standby with the
+runtime and the binaries in place is the warm number; a continuous
+replica in place of the drill's per-job copies is the remaining piece.
 
 ---
 

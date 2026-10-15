@@ -118,6 +118,18 @@ print(lost[0] if lost else "")')
 done
 echo "job in flight on A: ${LOST:-none seen}"
 echo "lost_job=$LOST" >> "$TL"
+# A replicates its job store the moment a job is accepted and then marks
+# it; the deletion waits for that marker (up to 20 s), so the replica B
+# takes carries the job in flight — the thing ADR 0026 lets B resume.
+SYNCED=no
+if [ -n "$LOST" ]; then
+  for _ in $(seq 1 20); do
+    if gcloud storage ls "gs://$BUCKET/out/a/job-$LOST-synced-accepted" --project "$PROJECT" >/dev/null 2>&1; then SYNCED=yes; break; fi
+    sleep 1
+  done
+fi
+echo "the replica carries the job in flight: $SYNCED"
+echo "lost_job_synced=$SYNCED" >> "$TL"
 mark a_delete_issued
 gcloud compute instances delete "$A" --project "$PROJECT" --zone "$ZONE" --quiet >/dev/null 2>&1 || true
 mark a_delete_done
@@ -188,6 +200,8 @@ if "a_delete_issued" in r and "first_job_done" in b:
 else:
     print("B did not reach a verdict; see b/steps.txt")
 print("jobs A completed before the loss:", len(done))
+print("the replica carried the job in flight (job store synced on acceptance):", r.get("lost_job_synced", "unknown"))
+print("B resumed A's job by itself from the replicated job store:", "yes" if "resumed_job_done" in b else "no — the job was resubmitted")
 
 # The same authority on B: the identities, the escrow key, the audit chain.
 import json

@@ -1494,11 +1494,25 @@ scripts/hardware-test/authority-loss/run.sh <gcp-project>    # ~10 min, two n2d-
 
 **Scope.** One zone, one image (so one launch measurement on both
 hosts), a tiny model, a safe that is a bucket object and a replica that
-is a tar after every job. The job in flight is lost by today's design
-(KNOWN_ISSUES #16); what the cold number mostly measures is a VM's boot
+is a tar after every job. The job in flight was lost by design in these
+three runs (KNOWN_ISSUES #16); the run below, with the job store in the
+replica, resumed it. What the cold number mostly measures is a VM's boot
 and a package mirror, not the product. The drill does not say what a
 standby with the daemons already running would need; the warm number is
 the floor it starts from.
+
+**Run `20261015T204339Z` (2026-10-15, the job store in the replica).**
+The same drill with `queue.path` (ADR 0026) replicated the moment a job
+is accepted: the fresh host's `sagvd` opened the replicated log at 81
+events and admitted the lost job again by itself — `b/sagvd.log` `sagvd
+job resumed after a restart`, job `e305630c…`, request `req-2e6c0bc9…`,
+attempt 2; `b/steps.txt` `same_job_id=true same_request_id=true` against
+`a-job-6-submit.json`, A's own submission record — and signed its verdict
+EXACT, 6 of 6, 49.1 s after its runtime was ready and 233.5 s from the
+deletion; the request's second `REQUEST_RECEIVED` carries `resumed`;
+`b/audit-verify.json` `ok: true`, 113 events, tip `2a7cb51e…`. Nothing
+was resubmitted. The same authority as before: the authority key, the
+audit key and the escrow key (`fc7eb877…`) the same on A and B.
 
 <a id="c29"></a>
 ### C29 — An air-gapped SEV-SNP host runs the Return Path from caches it filled while connected: egress denied, the handshake verified from the cache, a job gated EXACT; without the cache the handshake is refused naming KDS, and nothing is admitted
@@ -1554,6 +1568,7 @@ connected side: its offline verification waits on Sigstore bundles
 ## Supply chain and build
 
 <a id="c9"></a>
+
 ### C9 — Releases are signed, reproducible and attested
 
 **Claim.** `v0.1.0` ships four binaries with cosign keyless signatures and

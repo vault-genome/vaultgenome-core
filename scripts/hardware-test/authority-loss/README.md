@@ -30,20 +30,27 @@ SEV-SNP Confidential VMs (`n2d-standard-4`, AMD Milan) one after the other:
   [ADR 0016](../../../docs/adr/0016-the-escrow-key-sealed-to-the-tee.md));
   the envelope goes to the safe. A fine-tunes a tiny model, seals it as
   gen-0, and runs gate jobs over the Return Path in a loop, **replicating
-  its state** — the audit log and the genomes — to the bucket after every
-  job, and marking every job's submission and completion.
+  its state** — the audit log, the genomes and the job store
+  ([ADR 0026](../../../docs/adr/0026-the-job-queue-on-disk.md)) — to the
+  bucket the moment each job is accepted and again when it is done, and
+  marking every job's submission, its replica and its completion.
 - The runner waits until A has completed three jobs, then **deletes A
-  while a job is in flight** (`gcloud compute instances delete`, no
-  warning to the guest) and records the moment.
+  while a job is in flight** — once A has marked the replica with that
+  job in it — (`gcloud compute instances delete`, no warning to the
+  guest) and records the moment.
 - **B** ([`authority-b.sh`](authority-b.sh)) — a fresh VM, created at that
   moment. It takes the key material from the safe and seals it to *its*
   chip; takes the last replica and verifies the audit chain as replicated;
   re-provisions the escrow key through the recovery ceremony
   (`acpctl escrow recover | sagvd escrow-provision -stdin`); starts both
-  daemons over the replicated audit log; finds which job A lost (submitted,
-  never completed); submits it again; and records when the first verdict
-  after the loss was signed. Then the whole chain — A's events and B's — is
-  verified offline under the published audit key.
+  daemons over the replicated audit log and job store — `sagvd` admits
+  again, by itself, the job the store holds as accepted and unfinished;
+  finds which job A lost (submitted, never completed) and checks it is the
+  one resumed, by job id and by request id; waits for its verdict — the
+  first after the loss — and runs a fresh job after it. (Without a job
+  store in the replica, as in the first three runs, B submits the lost job
+  again.) Then the whole chain — A's events and B's — is verified offline
+  under the published audit key.
 - Both records come back to `evidence/<stamp>/`; both VMs and the bucket
   are deleted on exit, on success or failure.
 
@@ -71,18 +78,69 @@ through the ceremony; the audit chain, from the last replica; the genomes.
 The worker's identity too (the same seed, the same client certificate):
 the registry on B accepts it as it did on A.
 
-**Lost**: the job in flight when A was deleted — the queue is in memory
-(runbook scenario 4: "jobs that were queued or running are gone —
-resubmit them"); the drill records which job that was, and resubmits it.
-Anything A appended to its audit log after the last replica — the drill
-replicates after every job, so the lag is at most one job's events; the
-replica manifest says after which job it was taken.
+**Lost**: anything A appended to its audit log after the last replica —
+the drill replicates when a job is accepted and when it is done, so the
+lag is at most the events of the job in flight after its acceptance; the
+replica manifest says after which job, and at which of the two moments,
+it was taken. The job in flight is **not** lost once the job store
+travels in the replica (ADR 0026): `sagvd` on B admits it again by
+itself, with the same job id and request id, and its audit record says so
+(`resumed`). The three runs before the job store was in the replica
+resubmitted it (runbook scenario 4 then: "jobs that were queued or
+running are gone — resubmit them").
 
 **Not the same, by design**: B's launch measurement is B's own; both
 daemons read it from the chip and pin each other's, as A's did (on the
 same image it is the same value).
 
-## Results — three runs, 2026-10-15
+## Result — run `20261015T204339Z`: the job store in the replica — the lost job resumed by the new host itself
+
+The same drill with one more file in the replica: `queue.path`, the job
+store ([ADR 0026](../../../docs/adr/0026-the-job-queue-on-disk.md)),
+replicated the moment a job is accepted — the store then holds it as
+accepted and unfinished — and again when it is done. A raw copy of the
+bbolt file while `sagvd` writes it is a committed state of it: measured
+before the run, 1 647 copies taken during continuous writes all opened
+and read back. The runner waits for A's mark that the replica holds the
+job in flight before it deletes A. B restores the replica and starts
+`sagvd` over it; nothing is resubmitted.
+
+| | [`20261015T204339Z`](evidence/20261015T204339Z/) |
+| - | - |
+| Jobs A completed; the job lost | 5; the 6th — submitted at 20:48:19Z and replicated the same second (`b/replica-manifest.json`: `after_job 6, when accepted`); A gone before it finished (the deletion, issued at 20:48:12.9Z, took 24.6 s to land) |
+| The replica | 81 events — the five jobs' 80 and the lost job's `REQUEST_RECEIVED` — verified before `sagvd` touched it (`b/audit-verify-replica.json`), and the job store with the job in it |
+| `sagvd` on B at start | `sagvd audit log open … events=81`; `sagvd job resumed after a restart`: job `e305630c…`, request `req-2e6c0bc9…`, attempt 2, `submitted_at` 20:48:19Z; `sagvd jobs from before the restart: resumed=1 failed=0` |
+| The resumed job | A's lost job, by job id and by request id (`b/steps.txt`: `same_job_id=true same_request_id=true`, against `a-job-6-submit.json`, A's own submission record from the bucket); `succeeded`, **EXACT**, 6 of 6; its `REQUEST_RECEIVED` on the chain carries `resumed: {attempt: 2, …}` |
+| A's deletion: issued → gone | 24.6 s |
+| B created (issued → created) | 12.3 s |
+| B's boot until its first line | 68.1 s |
+| B's runtime from the locks | 78.1 s |
+| the replica restored | 1.4 s |
+| identities, the replica verified, the key files sealed | 10.5 s |
+| the recovery ceremony | 11.0 s |
+| both daemons up, the session open | 21.6 s |
+| the first verdict after the loss — the resumed job's | 4.6 s |
+| **RTO cold** — deletion issued → the resumed job's verdict | **233.5 s** |
+| RTO from B's first line | 128.5 s |
+| **RTO warm** — runtime ready → the resumed job's verdict | **49.1 s** |
+| The fresh job after it | `succeeded`, EXACT, 6 of 6 |
+| The whole chain | `b/audit-verify.json`: `ok: true`, **113 events** — A's 81 and B's 32 under the one audit key, tip `2a7cb51e…` |
+| The same authority | the authority key, the audit key and the escrow key (`fc7eb877…`) the same on A and B; both launch measurements the image's (`7dc7c12e…25acc`) |
+
+Three things the record shows beside the numbers. The replica's lag is now
+at most the events of the job in flight after its acceptance: the chain B
+took over ends at the lost job's `REQUEST_RECEIVED`, and B's first event
+is that request's second `REQUEST_RECEIVED`, saying `resumed`. The
+runner's view of "the job in flight" (job 5, when it issued the deletion)
+is not the job A lost (job 6): a deletion takes some 25 s to land, and in
+that time A finished job 5, accepted job 6 and replicated it — but its
+mark of that replica (`job-6-synced-accepted`) never reached the bucket;
+the drill reads the lost job from A's markers and the replica's manifest,
+not from the runner's guess. And A's job loop runs about a second slower
+than before (6.1 s a job against 5.3 s): the replica is taken while the
+job runs, before the wait for its verdict begins.
+
+## Results — three runs before the job store was in the replica, 2026-10-15
 
 Two `n2d-standard-4` SEV-SNP Confidential VMs (AMD Milan) in
 `us-central1-c`, one after the other, Ubuntu 24.04, the tiny fine-tune of
@@ -159,7 +217,9 @@ would still owe is the handshake and the verdict.
   `timeline.txt` (job submissions and completions), `steps.txt`,
   `sagvd-identity.json`, `acp-compute-identity.json`, `escrow-provision.json`,
   `seal-keys-*.json`, `finetune.json`, `seal.json`, `job-<n>*.json`,
-  `state-manifest-<n>.json`, `sagvd.log`, `acp-compute.log`, `console.log`,
+  `state-manifest-<n>-accepted.json` and `-finished.json` (one manifest
+  per replica; `state-manifest-<n>.json` in the first three runs),
+  `sagvd.log`, `acp-compute.log`, `console.log`,
   `tsm.txt`, `runtime.txt`, `pip-*.log`, `amd-chain.txt`, `metadata.txt`,
   `system.txt`, `versions.txt`, `inputs.sha256`.
 - `b/` — B's record: `timeline.txt` (script start, runtime ready, state
@@ -167,7 +227,11 @@ would still owe is the handshake and the verdict.
   job, every exit code), `replica-manifest.json`, `replica-files.txt`,
   `audit-verify-replica.json` (the chain as replicated),
   `escrow-reprovision.json`, `seal-keys-*.json`, `sagvd-identity.json`,
-  `job-first-after-loss*.json`, `job-second-after-loss*.json`,
+  `a-job-<n>-submit.json` (A's own submission record of the lost job,
+  from the bucket — the ids the resumed job is checked against),
+  `job-first-after-loss.json` (the resumed job's view; in the first three
+  runs the resubmitted job's, with its `-submit.json`),
+  `job-second-after-loss*.json`,
   `audit-verify.json` and `audit-events.jsonl` (the whole chain),
   `audit-public-key.pem`, `sagvd-metrics.txt`, the logs, and the same
   system files as A's.
