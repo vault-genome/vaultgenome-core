@@ -1,0 +1,3 @@
+instance=vg-exact-20261015t012337z
+zone=us-central1-a
+machine=g2-standard-4

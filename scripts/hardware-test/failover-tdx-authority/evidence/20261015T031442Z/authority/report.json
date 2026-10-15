@@ -1,0 +1,88 @@
+{
+  "status": "restored",
+  "policy_serial": 1,
+  "policy_sha256": "e3e24704efa14d644117941ef6ef3138b7f89e0faef34fed121add64edf75d98",
+  "sentinel": "sentinel-831550f919efc2a4",
+  "trigger": {
+    "kind": "compromise-report",
+    "at": "2026-10-15T03:26:08.253670405Z",
+    "observed_at": "2026-10-15T03:26:14.582590186Z",
+    "alive_observed_at": "2026-10-15T03:26:12.579486466Z",
+    "evidence_sha256": "bb4c0f587cc4ce733acfc8e25afbf1a3217c8a80465c49fd00ab8c99a8d74241",
+    "primary_measurement_hex": "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790",
+    "tripped": [
+      {
+        "wire": "path",
+        "target": "/root/canary",
+        "want": "e91a347f5d68f56c7ab031b9dcbed288f4cb929c401c315c1d270e3ba7fcda7d",
+        "got": "45bb370196d1e59e368ab5f98cd6e27353963d8607d93e47e13bb418db172170"
+      }
+    ],
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "972684319cfc0c79c9e0b46493a9c0ef57837ec44890462d0f114a2a2e65d347",
+      "sealed_at": "2026-10-15T03:25:56.256744209Z"
+    }
+  },
+  "decision": {
+    "decision": "failover",
+    "reason": "compromise-report under failover policy serial 1: restore generation 1 on the standby",
+    "decision_id": "xcc-dec-fd16b87c1afebacc60b2135b1de9236c",
+    "audit_id": "xcc-evt-0000000000000001",
+    "decided_at": "2026-10-15T03:26:15.7199978Z"
+  },
+  "genome": {
+    "generation": 1,
+    "bundle": "gen-000001.genome",
+    "bundle_sha256": "972684319cfc0c79c9e0b46493a9c0ef57837ec44890462d0f114a2a2e65d347",
+    "bundle_bytes": 2216819,
+    "key_id": "genome-d141923704a1-g1-449f0eb14630",
+    "payload_sha256": "sha256:d141923704a1e1028c0a7a3d6a80a07122e6aec7be6052cfebe41b4483ea0ed4",
+    "tree_sha256": "dcdae1d123c38aa10f93b6e7008d37a00da4e5fcfc347a00d2f9a852746e1c0a",
+    "sealed_at": "2026-10-15T03:25:56.256744209Z",
+    "chain_end": 1
+  },
+  "release": {
+    "request_id": "xcc-req-275fcad2bb97a768c088b1295f524931",
+    "token_id": "xcc-dec-ca8b5cc261d867627e82763dd04ac7fd",
+    "destination_kind": "gcp-tdx",
+    "destination_measurement_hex": "dfe77c7664cd616dd77d35fae3fee8de9bd379c7b06bfc804ec21659d18ea7ab74b101d19f20ce44f1ba7b5a9a171a9a",
+    "policy_version": "failover-policy-v1;failover=1;revocation=1",
+    "authorized_at": "2026-10-15T03:26:16.078625087Z",
+    "audit_id": "xcc-evt-0000000000000004"
+  },
+  "restore": {
+    "key_received_at": "2026-10-15T03:26:16.081558951Z",
+    "restored_at": "2026-10-15T03:26:16.093715247Z",
+    "restore_seconds": 0.011660991,
+    "files": 5,
+    "bytes": 2210904,
+    "tree_sha256": "dcdae1d123c38aa10f93b6e7008d37a00da4e5fcfc347a00d2f9a852746e1c0a",
+    "gate": {
+      "level": "EQUIVALENT",
+      "door": "native float",
+      "fixtures": 16,
+      "max_abs_err": 0.00014591217041015625,
+      "max_rel_err": 0.000012957396081683425,
+      "atol": 0.01,
+      "rtol": 0.001,
+      "backend_seconds": 10.592344733000001
+    },
+    "required_gate": "EQUIVALENT",
+    "receipt_sha256": "bd1ea626d390c7ce48b08dee958a6ff5a914de606066c5af4afa553051773f14",
+    "confirmed_at": "2026-10-15T03:26:28.096575281Z",
+    "audit_id": "xcc-evt-0000000000000005"
+  },
+  "timing": {
+    "rpo_seconds": 11.996926196,
+    "detect_seconds": 6.328919781,
+    "release_seconds": 1.496034901,
+    "restore_seconds": 0.011660991,
+    "gate_seconds": 10.592344733000001,
+    "failover_seconds": 13.513985095,
+    "rto_seconds": 19.842904876
+  },
+  "audit_chain_length": 5,
+  "audit_tip": "70b863b36b32bdc5c28853e5987e8ca92a684d4bc3b79ab51e01beaf566ac376",
+  "operator_stop_serial": 1
+}

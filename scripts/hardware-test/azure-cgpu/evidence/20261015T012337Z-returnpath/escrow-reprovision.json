@@ -1,0 +1,9 @@
+{
+  "escrow_key": "6f3c4e2fe0b5e0e9",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAra+3DCaxprSdRCvNh2ELVjTUF64kllVG+WEofDqbGlw=\n-----END PUBLIC KEY-----\n",
+  "tee": "azure-cgpu",
+  "measurement_hex": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+  "source": "stdin",
+  "sealed_path": "escrow-2.sealed",
+  "public_path": "escrow-2.pem"
+}

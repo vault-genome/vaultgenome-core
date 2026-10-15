@@ -200,6 +200,8 @@ and, on the raised runtime (torch 2.14.1+cu126, transformers 5.19.0),
 16, top-1 and top-64 order 16/16, the integer projection `a03737b1f418`
 again).
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/gpu-exact/evidence/20261015T012337Z/`](scripts/hardware-test/gpu-exact/evidence/20261015T012337Z/) — `probe.json`: CPU against the L4, float32 `max_abs_err` 1.48e-4 and float64 9.99e-6, top-1 the same on 16 of 16 both ways.
 **Reproduce.** `bash scripts/hardware-test/gpu-exact/run.sh <gcp-project>`
 (one L4, ~20 min, deletes the VM). The integer door this probe pointed at
 now exists for the whole model: [C19](#c19).
@@ -275,6 +277,8 @@ The same drill on the raised runtime (torch 2.14.1, transformers 5.19.0),
 ([`audit-verify.json`](scripts/hardware-test/gcp-failover/evidence/20261014T034337Z/standby/audit-verify.json)).
 Design: [ADR 0012](docs/adr/0012-sentinel-and-policy-driven-failover.md).
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/gcp-failover/evidence/20261015T022749Z/`](scripts/hardware-test/gcp-failover/evidence/20261015T022749Z/) — the standby restored the genome 14.26 s after the trigger (`standby/failover.log`: release 0.24 s, gate 12.68 s), the gate EXACT where the policy required EQUIVALENT; the stolen sentinel seed declined (`exit=3`) and the sealed seed refusing to open off the chip (`exit=2`) on the record.
 **Reproduce.** `bash scripts/hardware-test/gcp-failover/run.sh <gcp-project>`.
 
 **The anti-worm invariants, stated so they can be checked against the code.**
@@ -521,6 +525,8 @@ the sentinel's last word; `stopped` overdue),
 [`test/integration/failover_test.go`](test/integration/failover_test.go)
 (`TestLiveFailover_AttestedPrimary`, `TestLiveFailover_StoppedOverdue`).
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/gcp-failover/evidence/20261015T022749Z/`](scripts/hardware-test/gcp-failover/evidence/20261015T022749Z/) — failover complete in 14.26 s, gate EXACT; the negatives (stolen seed, sealed seed off the chip) refused as before.
 **Reproduce:**
 
 ```bash
@@ -657,6 +663,8 @@ In process:
 (a bfloat16 genome records its runtime and the door honours it; an unknown
 dtype is refused; a genome that predates the field restores in float32).
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/gpu-7b/evidence/20261015T015428Z/`](scripts/hardware-test/gpu-7b/evidence/20261015T015428Z/) — Qwen2.5-7B-Instruct: `measure-gpu.json` `exact: 16` of 16, `measure-cpu.json` `exact: 0`, `top1_same: 16`, `max_abs_err: 0.375`; `gate-gpu.json` and `gate-cpu.json` both EXACT (the integer door opens where the float door cannot); the integer fidelity recorded in `genome.json`, `max_abs_err: 0.79`, `top1_same: 16`.
 **Reproduce:**
 
 ```bash
@@ -741,6 +749,8 @@ expiry, under the Milan chain),
 [`azure_cgpu_tpm_test.go`](internal/shared/tee/azure_cgpu_tpm_test.go),
 [`nvidia_eat_test.go`](internal/shared/tee/nvidia_eat_test.go).
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/azure-cgpu/evidence/20261015T012337Z/`](scripts/hardware-test/azure-cgpu/evidence/20261015T012337Z/) and the `-returnpath` directory beside it — the capture (`CAPTURE DONE`, `gate-gpu.json` EXACT) and the Return Path on the H100: the gate job EXACT, 16 of 16, `release_authorized`; the audit log verified, 17 events.
 **Reproduce:**
 
 ```bash
@@ -824,6 +834,8 @@ naming GPU-0 `GH100` driver `595.91.07` with the authority's own evaluation
 of the report, every check true; the destination's two key files sealed to
 its vTPM (`destination/dest-seal-keys.json`).
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/failover-cgpu/evidence/20261015T014547Z/`](scripts/hardware-test/failover-cgpu/evidence/20261015T014547Z/) — the CPU TEE on GCP failed over to the attested H100 on Azure in 15.06 s (release 2.10 s, gate 6.85 s), gate EQUIVALENT as required; `destination-handoff.json` carries the H100 VM's measurement and PCR digest.
 **Reproduce:**
 
 ```bash
@@ -894,6 +906,8 @@ reach, a tampered adapter changing them, the door and the gate protocol),
 [`cmd/acpctl/genome_gate_integer_test.go`](cmd/acpctl/genome_gate_integer_test.go),
 [`cmd/sagvd/genome_integer_test.go`](cmd/sagvd/genome_integer_test.go).
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/integer-door/evidence/20261015T013610Z/`](scripts/hardware-test/integer-door/evidence/20261015T013610Z/) — the 0.5B genome `exact: 16` of 16 on both devices with `max_abs_err: 2.70` against the float references; the float door on the L4 `exact: 0`, `max_abs_err: 1.18e-4`; the gate at zero tolerance EXACT (`a-gate-cuda-tol0.json`), at the default tolerance EQUIVALENT, on the sealing CPU EXACT; the 7B genome `exact: 16` of 16 on the L4 and `3` of 3 on the Xeon, `max_abs_err: 0.79`.
 **Reproduce:**
 
 ```bash
@@ -1099,6 +1113,8 @@ same drill on the raised runtime (torch 2.14.1, transformers 5.19.0),
 20.42 s, RPO 9.00 s; `audit-verify.json`: `ok: true`, 5 events, tip
 `58043177…c776`; `destination/dest-seal-keys.json`: `tee: gcp-tdx`.
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/failover-tdx/evidence/20261015T030045Z/`](scripts/hardware-test/failover-tdx/evidence/20261015T030045Z/) — the SEV-SNP primary failed over to the Trust Domain in 11.76 s (release 0.98 s, gate 10.59 s), gate EQUIVALENT as the policy required.
 **Reproduce:**
 
 ```bash
@@ -1183,6 +1199,8 @@ restored with generation 1 set aside (`8b5f8661…ebe2` →
 `087b3516…72dc`, one byte), gate EXACT, the move 12.08 s (RTO 90.56 s, the sixth policy issued 79 s after the attack this time); 16 events,
 `ok: true`, tip `094b5ec2…90af`.
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/failover-negatives/evidence/20261015T024558Z/`](scripts/hardware-test/failover-negatives/evidence/20261015T024558Z/) — the eight runs as before: an expired policy declined (`exit=3`), a 1 s RPO declined (the newest genome 8.998 s old), a day-long quarantine declined, an operator stop denied after the chip verified, a policy pinning another machine denied, a corrupted newest bundle set aside and generation 0 restored (`exit=0`, gate EXACT), the spent policy and a stranger-signed policy refused at the door.
 **Reproduce:**
 
 ```bash
@@ -1236,6 +1254,8 @@ shape on disk, re-provisioned through the ceremony (`source: stdin`),
 EQUIVALENT `1.46e-04`, RTO 20.42 s, RPO 12.00 s; `audit-verify.json`:
 `ok: true`, 5 events, tip `f301ece8…4846`.
 
+
+The same kit on 2026-10-15, on the tree of 0.4.1 (main after #81, #82 and #84): [`scripts/hardware-test/failover-tdx-authority/evidence/20261015T031442Z/`](scripts/hardware-test/failover-tdx-authority/evidence/20261015T031442Z/) — the authority on TDX moved the SEV-SNP primary's model to a Trust Domain in 13.51 s (release 1.50 s, gate 10.59 s), gate EQUIVALENT as required.
 **Reproduce:**
 
 ```bash
