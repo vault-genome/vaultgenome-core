@@ -1,0 +1,53 @@
+{"time":"2026-10-15T02:58:26.833222208Z","level":"INFO","msg":"failover escrow key","escrow_key":"6fa99f703622a7b7","storage":"sealed:gcp-sev-snp"}
+{"time":"2026-10-15T02:58:37.104015033Z","level":"INFO","msg":"failover armed","policy_serial":4,"sentinel":"sentinel-3cb9a100304cd567","primary_tee":"gcp-sev-snp 69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790","stopped_grace_seconds":0,"standby":"gcp-sev-snp https://127.0.0.1:8443","outbox":"/root/replica"}
+{"time":"2026-10-15T02:58:37.107830171Z","level":"WARN","msg":"failover triggered","trigger":"compromise-report","at":"2026-10-15T02:57:45.445312994Z"}
+{"time":"2026-10-15T02:58:37.137170202Z","level":"WARN","msg":"failover decided","policy_serial":4,"sentinel":"sentinel-3cb9a100304cd567","decision_id":"xcc-dec-c9368bf0b71cc0aad3120bd3e1df6256","generation":1,"key_id":"genome-4594181f1b30-g1-1dd4d41d615e"}
+{
+  "status": "failed",
+  "error": "authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: operator stop in force (revocation serial 2): incident review",
+  "policy_serial": 4,
+  "policy_sha256": "3dcfd9e7678bcc6692a7f7a422339a2c80e86168d61f8ea25283a8470098798e",
+  "sentinel": "sentinel-3cb9a100304cd567",
+  "trigger": {
+    "kind": "compromise-report",
+    "at": "2026-10-15T02:57:45.445312994Z",
+    "observed_at": "2026-10-15T02:58:37.104035863Z",
+    "evidence_sha256": "e64ab1ff4f2d483472442c18e73ad998fc6f57326f6bf1bf7339eb1da71fda92",
+    "primary_measurement_hex": "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790",
+    "tripped": [
+      {
+        "wire": "path",
+        "target": "/root/canary",
+        "want": "e91a347f5d68f56c7ab031b9dcbed288f4cb929c401c315c1d270e3ba7fcda7d",
+        "got": "45bb370196d1e59e368ab5f98cd6e27353963d8607d93e47e13bb418db172170"
+      }
+    ],
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "c4d3ab9b86c2fff3cba7ab4fd32147cc337590c3f76497682de5affccebf917b",
+      "sealed_at": "2026-10-15T02:57:36.447459559Z"
+    }
+  },
+  "decision": {
+    "decision": "failover",
+    "reason": "compromise-report under failover policy serial 4: restore generation 1 on the standby",
+    "decision_id": "xcc-dec-c9368bf0b71cc0aad3120bd3e1df6256",
+    "audit_id": "xcc-evt-0000000000000004",
+    "decided_at": "2026-10-15T02:58:37.135793552Z"
+  },
+  "genome": {
+    "generation": 1,
+    "bundle": "gen-000001.genome",
+    "bundle_sha256": "c4d3ab9b86c2fff3cba7ab4fd32147cc337590c3f76497682de5affccebf917b",
+    "bundle_bytes": 2216819,
+    "key_id": "genome-4594181f1b30-g1-1dd4d41d615e",
+    "payload_sha256": "sha256:4594181f1b30c3cfbd3e4b6fa4c2df0ac9395358d90cc8fd34028a1a4c7e3342",
+    "tree_sha256": "a4648645262da0a65b59999a3715ae4483e652d4a7eecbcb13c4be650dbb4055",
+    "sealed_at": "2026-10-15T02:57:36.447459559Z",
+    "chain_end": 1
+  },
+  "audit_chain_length": 7,
+  "audit_tip": "911f3c9e4c6f5c21f3850e7eb12db924c87f000366d604bddc183c929bee249d",
+  "operator_stop_serial": 2
+}
+{"time":"2026-10-15T02:58:37.639748713Z","level":"ERROR","msg":"sagvd failover: terminated with error","err":"authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: operator stop in force (revocation serial 2): incident review"}
