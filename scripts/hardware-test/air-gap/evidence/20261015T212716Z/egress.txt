@@ -1,0 +1,7 @@
+curl: (28) Connection timed out after 8002 milliseconds
+kds http=000
+kds: unreachable (curl exit 28)
+curl: (28) Connection timed out after 8002 milliseconds
+bucket http=000
+bucket: unreachable (curl exit 28)
+metadata http=200

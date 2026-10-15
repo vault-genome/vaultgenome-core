@@ -1,0 +1,5 @@
+tree 5f3ebea
+stamp 20261015T212532Z
+zone us-central1-c
+firewall_rule vg-airgap-deny-egress-20261015t212532z
+tag vg-airgap-20261015t212532z
