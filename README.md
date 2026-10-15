@@ -176,7 +176,7 @@ summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
 | [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md) | Every claim, its evidence and its reproduction command; what we do not claim |
 | [`docs/CONTINUITY-DRILL.md`](docs/CONTINUITY-DRILL.md) | The failover drills, narrated, with their numbers |
 | [`docs/adr/`](docs/adr/README.md) | Twenty-three architecture decision records, from the frozen TEE interface (0001) to the sealed key files (0023) |
-| [`docs/operator/`](docs/operator/00_overview.md) | The operator guides 00–07 and the real-TEE runbooks |
+| [`docs/operator/`](docs/operator/00_overview.md) | The operator guides 00–09 — from the overview to the first deployment measured against the reference — and the real-TEE runbooks |
 | [`docs/security/`](docs/security/threat_model.md) | The threat model and the supply chain |
 | [`docs/doctrine/`](docs/doctrine/terminology.md) | The canonical vocabulary (enforced by CI) and the CI security policy |
 | [`docs/testing/`](docs/testing/cross-hardware-determinism.md) | Cross-hardware determinism and mutation testing |
