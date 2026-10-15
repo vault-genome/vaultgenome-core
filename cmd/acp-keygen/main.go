@@ -1,12 +1,15 @@
 // Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Command keygen provisions every piece of key material the sagvd +
-// acp-compute deployment in deploy/compose needs: simulated-TEE seeds,
-// signing keys, the pre-shared session sealing key, a private mTLS PKI
-// for the Return Path, and the operator REST API bearer token.
+// Command acp-keygen provisions the key material a sagvd + acp-compute
+// deployment starts from: the simulated-TEE seeds, the signing seeds, the
+// pre-shared session sealing key, a private mTLS PKI for the Return Path,
+// the operator REST API bearer token and the worker registry. It ships as
+// a release binary next to the daemons, signed and attested like them, so
+// a first deployment needs nothing from the source tree (docs/operator/
+// 09_first_deployment.md).
 //
-// # What it writes (under -out, default deploy/compose/secrets)
+// # What it writes (under -out)
 //
 //	shared/
 //	  sealing.key               32 B AES-256 session sealing key (pre-shared)
@@ -28,36 +31,40 @@
 //	  tls/client.crt|.key       Return Path client certificate (ECDSA P-256)
 //
 // The CA private key signs the two leaf certificates in memory and is
-// never written to disk: rotating the PKI means re-running keygen with
-// -force. The server certificate names the Compose service ("sagvd",
+// never written to disk: rotating the PKI means re-running acp-keygen
+// with -force. The server certificate names the Compose service ("sagvd",
 // which acp-compute verifies as tls.server_name) and the loopback
 // addresses, so the same tree serves a containerised run and a
-// single-host run (bare-metal demo, integration tests).
+// single-host run (the hardware kits, the integration tests).
 //
 // The two workload-descriptor strings MUST match tee.workload_descriptor
-// in sagvd/config.json and acp-compute/config.json: peer measurements are
-// SHA-256 of those strings (the derivation tee.MeasurementOf uses), so a
-// mismatch fails every handshake Authority-classified.
+// in sagvd's and acp-compute's configs when the simulated TEE is used:
+// peer measurements are SHA-256 of those strings (the derivation
+// tee.MeasurementOf uses), so a mismatch fails every handshake
+// Authority-classified. On a hardware TEE the daemons' `identity`
+// commands print the measurements the chips report, and those replace
+// the two peer_*_measurement files before the first start, as the kits do.
 //
 // # Usage
 //
-//	cd deploy/compose/keygen && go run . -out ../secrets
+//	acp-keygen -out /etc/acp/secrets [-private] [-force] [-quiet]
 //
-// keygen refuses to overwrite an existing tree unless -force is passed:
-// regenerating secrets under a running pair desynchronises it (sealed
-// material stops opening, TEE evidence stops pinning, TLS stops
+// acp-keygen refuses to overwrite an existing tree unless -force is
+// passed: regenerating secrets under a running pair desynchronises it
+// (sealed material stops opening, TEE evidence stops pinning, TLS stops
 // verifying).
 //
-// # Security posture
+// # File modes
 //
-// LOCAL DEPLOYMENT ONLY. Files are written 0644 and directories 0755
-// because the daemons run in distroless containers as uid 65532 and read
-// this tree through a read-only bind mount that preserves host
-// ownership; a 0600 file owned by the operator would be unreadable to the
-// container user. The tree is git-ignored and docker-ignored. A
-// production deployment does not use this tool: its key material comes
-// from a secrets manager, and its TEE keys are generated inside attested
-// hardware rather than on the operator's disk.
+// By default files are written 0644 and directories 0755: the Compose
+// deployment runs the daemons in distroless containers as uid 65532 and
+// reads this tree through a read-only bind mount that preserves host
+// ownership, so a 0600 file owned by the operator would be unreadable to
+// the container user. With -private, files are 0600 and directories 0700
+// — for a host where the daemons run as the user that provisioned them,
+// as on the hardware kits' guests, where the daemons then seal every key
+// file in place to the TEE (`sagvd seal-keys`, `acp-compute seal-keys`,
+// ADR 0023) and the plaintext is gone before the first handshake.
 package main
 
 import (
@@ -74,12 +81,20 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"math/big"
 	"net"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
+)
+
+var (
+	version = "0.0.0-dev"
+	commit  = "none"
 )
 
 // Canonical workload descriptors and key IDs. See the package comment
@@ -197,34 +212,56 @@ type workerEntry struct {
 }
 
 func main() {
-	var (
-		outDir = flag.String("out", "deploy/compose/secrets",
-			"output directory for the secrets tree")
-		force = flag.Bool("force", false,
-			"overwrite any existing files under -out")
-		quiet = flag.Bool("quiet", false,
-			"suppress non-error stdout")
-	)
-	flag.Parse()
-
-	if err := run(*outDir, *force, *quiet); err != nil {
-		fmt.Fprintln(os.Stderr, "keygen:", err)
-		os.Exit(1)
-	}
+	os.Exit(realMain(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-func run(outDir string, force, quiet bool) error {
+// realMain parses the flags and runs; it is main without the process.
+func realMain(args []string, stdout, stderr io.Writer) int {
+	version, commit = buildinfo.Resolve(version, commit)
+	fs := flag.NewFlagSet("acp-keygen", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var (
+		outDir      = fs.String("out", "", "output directory for the secrets tree (required)")
+		force       = fs.Bool("force", false, "overwrite any existing files under -out")
+		quiet       = fs.Bool("quiet", false, "suppress non-error stdout")
+		private     = fs.Bool("private", false, "write files 0600 and directories 0700 instead of 0644/0755")
+		showVersion = fs.Bool("version", false, "print the build version and exit")
+	)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *showVersion {
+		fmt.Fprintf(stdout, "acp-keygen %s (commit %s)\n", version, commit)
+		return 0
+	}
+	if *outDir == "" {
+		fmt.Fprintln(stderr, "acp-keygen: -out is required (the directory to write the secrets tree to)")
+		fs.Usage()
+		return 2
+	}
+	if err := run(*outDir, *force, *quiet, *private, stdout); err != nil {
+		fmt.Fprintln(stderr, "acp-keygen:", err)
+		return 1
+	}
+	return 0
+}
+
+func run(outDir string, force, quiet, private bool, stdout io.Writer) error {
 	lo := newLayout(outDir)
 	if err := preflight(lo, force); err != nil {
 		return err
 	}
+	dirMode, fileMode := fs.FileMode(0o755), fs.FileMode(0o644)
+	if private {
+		dirMode, fileMode = 0o700, 0o600
+	}
 	for _, d := range lo.dirs() {
-		if err := os.MkdirAll(d, 0o755); err != nil {
+		if err := os.MkdirAll(d, dirMode); err != nil {
 			return fmt.Errorf("mkdir %s: %w", d, err)
 		}
 		// MkdirAll leaves a pre-existing directory's mode alone; force
 		// it so a -force re-run cannot produce a mixed-permission tree.
-		if err := os.Chmod(d, 0o755); err != nil {
+		if err := os.Chmod(d, dirMode); err != nil {
 			return fmt.Errorf("chmod %s: %w", d, err)
 		}
 	}
@@ -264,7 +301,7 @@ func run(outDir string, force, quiet bool) error {
 	reg := workersRegistry{Workers: []workerEntry{{
 		KeyID:               kidWorkerSigning,
 		SigningPublicKeyHex: hex.EncodeToString(workerSigningPub),
-		Note:                "Local-deployment worker. Regenerate with deploy/compose/keygen -force.",
+		Note:                "Provisioned by acp-keygen; regenerate with acp-keygen -force.",
 	}}}
 	regBytes, err := json.MarshalIndent(reg, "", "  ")
 	if err != nil {
@@ -296,7 +333,7 @@ func run(outDir string, force, quiet bool) error {
 		{lo.workerTLSKey, pki.clientKeyPEM},
 	}
 	for _, w := range writes {
-		if err := writeBytes(w.path, w.data); err != nil {
+		if err := writeBytes(w.path, w.data, fileMode); err != nil {
 			return err
 		}
 	}
@@ -304,18 +341,18 @@ func run(outDir string, force, quiet bool) error {
 	if !quiet {
 		// Identity lines operators can eyeball against the daemons'
 		// startup logs. The bearer token itself is never printed.
-		fmt.Printf("keygen: wrote secrets under %q\n", outDir)
-		fmt.Printf("  authority signing kid:       %s\n", kidAuthoritySigning)
-		fmt.Printf("  session sealing kid:         %s\n", kidSessionSealing)
-		fmt.Printf("  worker signing kid:          %s\n", kidWorkerSigning)
-		fmt.Printf("  sagvd TEE pubkey:            %s\n", hex.EncodeToString(sagvdTEEPub))
-		fmt.Printf("  worker TEE pubkey:           %s\n", hex.EncodeToString(workerTEEPub))
-		fmt.Printf("  worker signing pubkey:       %s\n", hex.EncodeToString(workerSigningPub))
-		fmt.Printf("  sagvd expected measurement:  %s\n", hex.EncodeToString(sagvdMeasurement[:]))
-		fmt.Printf("  worker expected measurement: %s\n", hex.EncodeToString(workerMeasurement[:]))
-		fmt.Printf("  mTLS: CA + server (%s, localhost, 127.0.0.1, ::1) + client (%s), valid %s\n",
+		fmt.Fprintf(stdout, "acp-keygen: wrote secrets under %q (files %04o, directories %04o)\n", outDir, fileMode, dirMode)
+		fmt.Fprintf(stdout, "  authority signing kid:       %s\n", kidAuthoritySigning)
+		fmt.Fprintf(stdout, "  session sealing kid:         %s\n", kidSessionSealing)
+		fmt.Fprintf(stdout, "  worker signing kid:          %s\n", kidWorkerSigning)
+		fmt.Fprintf(stdout, "  sagvd TEE pubkey:            %s\n", hex.EncodeToString(sagvdTEEPub))
+		fmt.Fprintf(stdout, "  worker TEE pubkey:           %s\n", hex.EncodeToString(workerTEEPub))
+		fmt.Fprintf(stdout, "  worker signing pubkey:       %s\n", hex.EncodeToString(workerSigningPub))
+		fmt.Fprintf(stdout, "  sagvd expected measurement:  %s\n", hex.EncodeToString(sagvdMeasurement[:]))
+		fmt.Fprintf(stdout, "  worker expected measurement: %s\n", hex.EncodeToString(workerMeasurement[:]))
+		fmt.Fprintf(stdout, "  mTLS: CA + server (%s, localhost, 127.0.0.1, ::1) + client (%s), valid %s\n",
 			vaultTLSName, workerTLSName, leafValidity)
-		fmt.Printf("  REST API bearer token:       %s (not printed)\n", lo.sagvdAPIToken)
+		fmt.Fprintf(stdout, "  REST API bearer token:       %s (not printed)\n", lo.sagvdAPIToken)
 	}
 	return nil
 }
@@ -455,10 +492,11 @@ func pemBlock(typ string, der []byte) []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: typ, Bytes: der})
 }
 
-// writeBytes writes data with mode 0644, truncating any existing file,
-// and re-applies the mode so a -force re-run cannot leave a stale one.
-func writeBytes(path string, data []byte) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+// writeBytes writes data with the given mode, truncating any existing
+// file, and re-applies the mode so a -force re-run cannot leave a stale
+// one.
+func writeBytes(path string, data []byte, mode fs.FileMode) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", path, err)
 	}
@@ -466,7 +504,7 @@ func writeBytes(path string, data []byte) error {
 		_ = f.Close()
 		return fmt.Errorf("write %s: %w", path, err)
 	}
-	if err := f.Chmod(0o644); err != nil {
+	if err := f.Chmod(mode); err != nil {
 		_ = f.Close()
 		return fmt.Errorf("chmod %s: %w", path, err)
 	}

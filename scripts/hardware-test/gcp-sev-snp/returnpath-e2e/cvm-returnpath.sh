@@ -14,7 +14,8 @@
 # pinned identity must be refused, and the refusal recorded.
 #
 # Inputs (instance metadata): vg-bucket — GCS bucket holding e2e/{sagvd,
-# acp-compute,acpctl,keygen,genome-worker.tgz,amd-milan-cert_chain.pem}.
+# acp-compute,acpctl,keygen,genome-worker.tgz}; the AMD Milan chain is fetched
+# here from AMD KDS by acpctl, which verifies it against the pinned roots.
 # Output: a base64 tarball of the results on the serial console between
 # ===E2E-BEGIN=== and ===E2E-END=== (three copies), decoded by
 # decode-results.sh. The tarball holds reports, job views, identities and
@@ -34,15 +35,20 @@ step() { echo "== $*"; echo "== $*" >> "$OUT/steps.txt"; }
 
 step "binaries from gs://$BUCKET/e2e"
 GTOKEN=$(md service-accounts/default/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-for f in sagvd acp-compute acpctl keygen genome-worker.tgz amd-milan-cert_chain.pem; do
+for f in sagvd acp-compute acpctl keygen genome-worker.tgz; do
   curl -sSf -H "Authorization: Bearer $GTOKEN" -o "$WORK/$f" \
     "https://storage.googleapis.com/storage/v1/b/$BUCKET/o/e2e%2F$f?alt=media" || echo "fetch $f failed"
 done
 unset GTOKEN
 chmod +x sagvd acp-compute acpctl keygen
 ./sagvd version > "$OUT/versions.txt"; ./acp-compute version >> "$OUT/versions.txt"; ./acpctl version >> "$OUT/versions.txt" 2>/dev/null || true
-sha256sum sagvd acp-compute acpctl keygen genome-worker.tgz amd-milan-cert_chain.pem > "$OUT/inputs.sha256"
+./keygen -version >> "$OUT/versions.txt" 2>/dev/null || true
+sha256sum sagvd acp-compute acpctl keygen genome-worker.tgz > "$OUT/inputs.sha256"
 mkdir -p workers && tar xzf genome-worker.tgz -C workers
+
+step "the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)"
+./acpctl tee fetch-amd-chain --product milan --out amd-milan-cert_chain.pem > "$OUT/amd-chain.txt" 2>&1 || echo "fetch-amd-chain failed: $(cat "$OUT/amd-chain.txt")"
+sha256sum amd-milan-cert_chain.pem >> "$OUT/inputs.sha256"
 
 step "configfs-tsm"
 modprobe sev-guest 2>/dev/null || {
@@ -67,8 +73,8 @@ pip install --require-hashes --only-binary=:all: --no-deps --index-url https://d
 python3 -c 'import torch, transformers, safetensors; print("torch", torch.__version__, "transformers", transformers.__version__, "safetensors", safetensors.__version__)' > "$OUT/runtime.txt" 2>&1
 mark runtime_install_end
 
-step "provision (keygen)"
-./keygen -out secrets -quiet
+step "provision (acp-keygen, private modes; every key file is sealed to the chip below)"
+./keygen -out secrets -quiet -private
 S=$WORK/secrets
 mkdir -p genomes audit vcek-cache
 # The pins are filled in from each daemon's identity below; identity needs

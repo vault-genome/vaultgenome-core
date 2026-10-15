@@ -90,13 +90,13 @@ The tag push runs `.github/workflows/release.yml`:
    the SBOMs, signatures and certificates to the GitHub Release.
 7. A second job runs the SLSA generic generator
    (`slsa-framework/slsa-github-generator`, `generator_generic_slsa3.yml`
-   v2.1.0) over the four binaries' SHA-256 and uploads the provenance to the
+   v2.1.0) over the five binaries' and the worker package's SHA-256 and uploads the provenance to the
    release.
 
 `TestInvariant_11_SupplyChainAttested` does not run in `release.yml`; it runs
 with the doctrine tests in vault-gate. It reads `release.yml` and fails if the
 workflow no longer names `syft` and `spdx-json`, `cosign` `sign-blob`, the
-SLSA generator, the `v*.*.*` trigger, `verify-tag`, or the four binaries — so
+SLSA generator, the `v*.*.*` trigger, `verify-tag`, the five binaries or the worker package — so
 a change that drops a pillar cannot merge. It does not run the workflow.
 
 ---
@@ -119,7 +119,8 @@ Once the release workflow completes:
 
 1. Download all release artifacts to a clean environment (not a
    developer machine).
-2. Verify every binary and SBOM with `cosign verify-blob`, for example:
+2. Verify every binary, the worker package and every SBOM with `cosign
+   verify-blob`, for example:
    ```
    cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
      --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
@@ -128,7 +129,8 @@ Once the release workflow completes:
    ```
    `docs/security/supply_chain.md` explains what a successful check proves.
 3. Check that the SLSA provenance attached to the release names each
-   binary's SHA-256 (for example with `slsa-verifier`).
+   binary's and the worker package's SHA-256 (for example with
+   `slsa-verifier`).
 4. Rebuild from the tag with Go 1.27.2, from any host — the binaries are
    static (`CGO_ENABLED=0`) and carry the tag's VCS stamp, so the rebuild
    must come from a git checkout of the tag, not from an archive:
@@ -136,9 +138,13 @@ Once the release workflow completes:
    git clone https://github.com/vault-genome/vaultgenome-core.git && cd vaultgenome-core
    git checkout vX.Y.Z
    GOOS=linux GOARCH=amd64 make build VERSION=vX.Y.Z COMMIT=$(git rev-parse HEAD)
-   sha256sum bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap
+   sha256sum bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen
    ```
-   Every hash must equal the released file's. `go version -m <binary>`
+   Every hash must equal the released file's. The worker package repacks
+   the same way with GNU tar (`--sort=name --mtime=@SOURCE_DATE_EPOCH
+   --owner=0 --group=0 --numeric-owner`, `gzip -n`; the exact command is
+   in `release.yml`) to the released file's hash;
+   `scripts/hardware-test/release-deploy/run.sh` does all six. `go version -m <binary>`
    prints the build settings a released binary was made with (Go
    version, GOOS/GOARCH, CGO_ENABLED, -trimpath, the VCS revision and
    time); compare them first when hashes differ. (v0.1.0 and v0.2.0 were

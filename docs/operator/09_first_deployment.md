@@ -22,9 +22,10 @@ stopping for.
 
 ## 1. Verify the release before it runs anywhere
 
-Nothing from a release runs until its assets verify. Download all 25 assets
+Nothing from a release runs until its assets verify. Download all 36 assets
 of the release to a clean machine and run, for each of `sagvd`,
-`acp-compute`, `acpctl` and `acp-bootstrap`:
+`acp-compute`, `acpctl`, `acp-bootstrap`, `acp-keygen` and the worker
+package `genome-worker-<tag>.tar.gz`:
 
 ```bash
 cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
@@ -44,11 +45,11 @@ git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.4.1
 
 | Check | What the reference saw for `v0.4.1` | Where |
 | - | - | - |
-| cosign, binaries and SBOMs | eight `Verified OK` | `verify/cosign.txt` |
-| slsa-verifier, four binaries | four `PASSED: SLSA verification passed` | `verify/slsa.txt` |
+| cosign, artifacts and SBOMs | twelve `Verified OK` (eight for `v0.4.1`, which had four artifacts) | `verify/cosign.txt` |
+| slsa-verifier, the artifacts | six `PASSED: SLSA verification passed` (four for `v0.4.1`) | `verify/slsa.txt` |
 | the tag | `Good "git" signature` with the ED25519 key of `.github/allowed_signers` | `verify/tag.txt` |
-| the assets' hashes | 25 lines | `verify/assets.sha256` |
-| rebuilt from the tag on another machine | four sha256 equal to the released files' | `verify/rebuild.txt` |
+| the assets' hashes | 36 lines (25 for `v0.4.1`) | `verify/assets.sha256` |
+| rebuilt from the tag on another machine | every sha256 equal to the released file's: the binaries, and the worker package repacked with GNU tar | `verify/rebuild.txt` |
 
 The hashes in `verify/assets.sha256` are the hashes of the files you
 downloaded, or you have different files. The rebuild is the release
@@ -85,8 +86,9 @@ sets neither. AWS Nitro and Intel SGX are measured by their kits
 daemons' verifier registry; an Azure SEV-SNP Confidential VM without a GPU
 is measured by `azure-sev-snp` and is not a provider yet.
 
-The worker host needs Python 3.12 and the worker's runtime from the
-hash-pinned locks in `workers/genome` — `requirements-ci.lock` from PyPI,
+The worker host needs Python 3.12 and the worker package from the release
+(`genome-worker-<tag>.tar.gz`: `vg_genome`, its locks and examples), with
+the runtime from the hash-pinned locks inside it — `requirements-ci.lock` from PyPI,
 then the torch wheel for the host from the PyTorch index that carries it
 (`requirements-torch-cpu.lock`; a GPU host adds the CUDA libraries and the
 cu126 wheel from their own locks), each lock from its own index with
@@ -105,11 +107,15 @@ In the order the reference guest script does it
    ([SEV-SNP](runbooks/real-tee-sev-snp.md), [TDX](runbooks/real-tee-tdx.md),
    [Azure cGPU](runbooks/real-tee-azure-cgpu.md)) show the report chained
    to the vendor's root before anything else is trusted.
-2. **Provision the key material** with the `keygen` of the tag's source
-   (`deploy/compose/keygen`, a stdlib-only Go tool): the private CA and the
-   two TLS identities, the session sealing key, the signing seeds, the REST
-   token, the worker registry (`deploy/compose/README.md` lists every file).
-   Then seal them in place on the host — `sagvd seal-keys`, `acp-compute
+2. **Provision the key material** with the release's `acp-keygen`
+   (`acp-keygen -out <dir> -private`; stdlib-only, signed and attested like
+   the daemons): the private CA and the two TLS identities, the session
+   sealing key, the signing seeds, the REST token, the worker registry
+   (`deploy/compose/README.md` lists every file). The AMD chain the
+   verifiers need comes from `acpctl tee fetch-amd-chain --product
+   <milan|genoa|turin> --out <file>`, which verifies it against the roots
+   the binary pins before writing it (ADR 0024). Then seal the key files
+   in place on the host — `sagvd seal-keys`, `acp-compute
    seal-keys` (ADR 0023): each file is sealed to the chip's derived key on
    SEV-SNP, to the vTPM on TDX and on the Azure host, and opened at start.
    A plaintext escrow key is refused on a hardware TEE; `sagvd
