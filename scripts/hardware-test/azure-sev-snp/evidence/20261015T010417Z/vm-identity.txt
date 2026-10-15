@@ -1,0 +1,11 @@
+vm_name:       vault-genome-sev-snp-test
+cloud:         azure
+location:      westeurope
+zone:          
+vm_size:       Standard_DC4as_v5
+uname:         Linux vault-genome-sev-snp-test 6.8.0-1068-azure-fde #75~22.04.1-Ubuntu SMP Thu Sep 24 19:02:13 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+captured_at:   2026-10-15T01:04:17Z
+
+tee_backend:   azure-sev-snp
+amd_chain:     captured at attestation-validation/vault-genome-sev-snp-test/{04-attestation-report.bin, 06-certificates/, 08-verify-certs.txt, 09-verify-attestation.txt}
+maa_chain:     captured at attestation-validation/vault-genome-sev-snp-test/{15-maa-jwt.txt, 17-maa-jwt-payload.json, 19-maa-jwt-verify.txt}

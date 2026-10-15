@@ -1,0 +1,8 @@
+Hostname: vault-genome-sev-snp-test
+VM ID:    vault-genome-sev-snp-test
+Cloud:    azure
+Location: westeurope
+Zone:     
+VM Size:  Standard_DC4as_v5
+Kernel:   6.8.0-1068-azure-fde
+Captured: 2026-10-15T01:03:22Z
