@@ -11,6 +11,23 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-10-15
+
+The release that is enough on its own, on the runtime of 0.4.1. A first
+deployment needs nothing from the source tree: the key-material helper
+`acp-keygen` is the fifth signed, attested binary, the worker package is a
+reproducible, signed release asset, and the AMD chain a verifier needs is
+fetched by `acpctl tee fetch-amd-chain` and checked against the roots the
+binary now pins — ARK-Milan, ARK-Genoa, ARK-Turin (ADR 0024); a chain
+that ends anywhere else is refused at start. The reference deployment
+takes everything from the release. The hardware kits install every Python
+package from hash-pinned locks (the security review's F10 closed), the
+Azure kits bind the workload manifest through the vTPM and validate the
+SGX chain with Intel's own verifier, branch coverage of the wire contracts
+is reported in CI, the first-deployment guide walks an operator through
+the reference's numbers, and a Return Path cancellation is reported in the
+phase the worker was in.
+
 ### Security
 
 - The AMD roots are pinned in the binary (ADR 0024): ARK-Milan, ARK-Genoa
