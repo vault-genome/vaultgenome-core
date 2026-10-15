@@ -80,7 +80,7 @@ func buildAndRun(m *testing.M) (int, error) {
 		{bins.worker, root, "./cmd/acp-compute"},
 		{bins.bootstrap, root, "./cmd/acp-bootstrap"},
 		{bins.acpctl, root, "./cmd/acpctl"},
-		{bins.keygen, filepath.Join(root, "deploy", "compose", "keygen"), "."},
+		{bins.keygen, root, "./cmd/acp-keygen"},
 		{bins.fakedoor, root, "./test/integration/fakedoor"},
 	} {
 		cmd := exec.Command("go", "build", "-o", b.out, b.pkg)
@@ -585,7 +585,7 @@ func TestSagvd_RefusesUnauthenticatedNetworkExposure(t *testing.T) {
 // ---- deployment helpers -----------------------------------------------------
 
 // keygen provisions a fresh secrets tree (seeds, sealing key, mTLS PKI,
-// API token) with the real deploy/compose/keygen binary.
+// API token) with the real acp-keygen binary (cmd/acp-keygen).
 func keygen(t *testing.T) string {
 	t.Helper()
 	out := filepath.Join(t.TempDir(), "secrets")

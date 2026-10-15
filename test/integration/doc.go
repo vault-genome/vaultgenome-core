@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Package integration holds black-box tests that build the real sagvd,
-// acp-compute and deploy/compose/keygen binaries, run them as separate
+// acp-compute, acp-bootstrap, acpctl and acp-keygen binaries, run them as separate
 // processes over loopback, and drive them only through their public
 // surfaces: the operator REST API, the mTLS Return Path, and the
 // health/metrics endpoints.
