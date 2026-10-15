@@ -30,6 +30,13 @@ given release can still open.
 
 ### Changed
 
+- `scripts/hardware-test/azure-sev-snp`: the workload manifest is bound
+  through the vTPM — the attestation key the chip's report names (through
+  the runtime data in its REPORT_DATA) quotes PCRs 0–14 with SHA-256 of the
+  manifest as the qualifying data, and the kit verifies the quote with that
+  key; the TPM tools run with sudo and hand their files to the user. Run on
+  a DC4as_v5 (Genoa) on 2026-10-15 (`evidence/20261015T042715Z`): the key
+  found at `0x81000003`, the quote `VERIFIED`, both chains PASSED.
 - The ten hardware drills ran again on the tree of 0.4.1 (main after #81,
   #82 and #84; 2026-10-15 01:23Z–03:43Z), every one passing with its
   record committed beside the earlier ones and cited by the claims it

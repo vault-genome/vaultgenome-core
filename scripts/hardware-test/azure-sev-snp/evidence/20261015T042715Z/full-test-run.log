@@ -1,0 +1,2659 @@
+2026-10-15T04:27:15Z
+teardown of the 03:58Z VM first (its kit stopped at Step 4; the fix was tested on it)
+[0m[1mazurerm_resource_group.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg][0m
+[0m[1mazurerm_user_assigned_identity.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi][0m
+[0m[1mazurerm_virtual_network.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet][0m
+[0m[1mazurerm_public_ip.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/publicIPAddresses/vault-genome-sev-snp-test-ip][0m
+[0m[1mazurerm_network_security_group.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m
+[0m[1mazurerm_subnet.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default][0m
+[0m[1mazurerm_network_interface.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic][0m
+[0m[1mazurerm_network_interface_security_group_association.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic|/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m
+[0m[1mazurerm_linux_virtual_machine.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [31m-[0m destroy[0m
+
+Terraform will perform the following actions:
+
+[1m  # azurerm_linux_virtual_machine.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_linux_virtual_machine" "validation" {
+      [31m-[0m[0m admin_username                                         = "azureuser" [90m-> null[0m[0m
+      [31m-[0m[0m allow_extension_operations                             = true [90m-> null[0m[0m
+      [31m-[0m[0m bypass_platform_safety_checks_on_user_schedule_enabled = false [90m-> null[0m[0m
+      [31m-[0m[0m computer_name                                          = "vault-genome-sev-snp-test" [90m-> null[0m[0m
+      [31m-[0m[0m disable_password_authentication                        = true [90m-> null[0m[0m
+      [31m-[0m[0m disk_controller_type                                   = "SCSI" [90m-> null[0m[0m
+      [31m-[0m[0m encryption_at_host_enabled                             = false [90m-> null[0m[0m
+      [31m-[0m[0m extensions_time_budget                                 = "PT1H30M" [90m-> null[0m[0m
+      [31m-[0m[0m id                                                     = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test" [90m-> null[0m[0m
+      [31m-[0m[0m location                                               = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m max_bid_price                                          = -1 [90m-> null[0m[0m
+      [31m-[0m[0m name                                                   = "vault-genome-sev-snp-test" [90m-> null[0m[0m
+      [31m-[0m[0m network_interface_ids                                  = [
+          [31m-[0m[0m "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m os_managed_disk_id                                     = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/disks/vault-genome-sev-snp-test-os-disk" [90m-> null[0m[0m
+      [31m-[0m[0m patch_assessment_mode                                  = "ImageDefault" [90m-> null[0m[0m
+      [31m-[0m[0m patch_mode                                             = "ImageDefault" [90m-> null[0m[0m
+      [31m-[0m[0m platform_fault_domain                                  = -1 [90m-> null[0m[0m
+      [31m-[0m[0m priority                                               = "Regular" [90m-> null[0m[0m
+      [31m-[0m[0m private_ip_address                                     = "10.42.1.4" [90m-> null[0m[0m
+      [31m-[0m[0m private_ip_addresses                                   = [
+          [31m-[0m[0m "10.42.1.4",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m provision_vm_agent                                     = true [90m-> null[0m[0m
+      [31m-[0m[0m public_ip_address                                      = "20.23.225.177" [90m-> null[0m[0m
+      [31m-[0m[0m public_ip_addresses                                    = [
+          [31m-[0m[0m "20.23.225.177",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name                                    = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m secure_boot_enabled                                    = true [90m-> null[0m[0m
+      [31m-[0m[0m size                                                   = "Standard_DC4as_v5" [90m-> null[0m[0m
+      [31m-[0m[0m tags                                                   = {
+          [31m-[0m[0m "purpose" = "vault-genome-hardware-validation"
+          [31m-[0m[0m "sprint"  = "week-3-azure-sev-snp"
+        } [90m-> null[0m[0m
+      [31m-[0m[0m virtual_machine_id                                     = "89c7c140-1e81-4bb9-982c-f7affe62c53a" [90m-> null[0m[0m
+      [31m-[0m[0m vm_agent_platform_updates_enabled                      = true [90m-> null[0m[0m
+      [31m-[0m[0m vtpm_enabled                                           = true [90m-> null[0m[0m
+        [90m# (13 unchanged attributes hidden)[0m[0m
+
+      [31m-[0m[0m admin_ssh_key {
+          [31m-[0m[0m public_key = "ssh-ed25519 <redacted: the laptop ssh public key>" [90m-> null[0m[0m
+          [31m-[0m[0m username   = "azureuser" [90m-> null[0m[0m
+        }
+
+      [31m-[0m[0m identity {
+          [31m-[0m[0m identity_ids = [
+              [31m-[0m[0m "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi",
+            ] [90m-> null[0m[0m
+          [31m-[0m[0m type         = "UserAssigned" [90m-> null[0m[0m
+            [90m# (2 unchanged attributes hidden)[0m[0m
+        }
+
+      [31m-[0m[0m os_disk {
+          [31m-[0m[0m caching                          = "ReadWrite" [90m-> null[0m[0m
+          [31m-[0m[0m disk_size_gb                     = 40 [90m-> null[0m[0m
+          [31m-[0m[0m id                               = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/disks/vault-genome-sev-snp-test-os-disk" [90m-> null[0m[0m
+          [31m-[0m[0m name                             = "vault-genome-sev-snp-test-os-disk" [90m-> null[0m[0m
+          [31m-[0m[0m security_encryption_type         = "VMGuestStateOnly" [90m-> null[0m[0m
+          [31m-[0m[0m storage_account_type             = "Premium_LRS" [90m-> null[0m[0m
+          [31m-[0m[0m write_accelerator_enabled        = false [90m-> null[0m[0m
+            [90m# (2 unchanged attributes hidden)[0m[0m
+        }
+
+      [31m-[0m[0m source_image_reference {
+          [31m-[0m[0m offer     = "0001-com-ubuntu-confidential-vm-jammy" [90m-> null[0m[0m
+          [31m-[0m[0m publisher = "Canonical" [90m-> null[0m[0m
+          [31m-[0m[0m sku       = "22_04-lts-cvm" [90m-> null[0m[0m
+          [31m-[0m[0m version   = "latest" [90m-> null[0m[0m
+        }
+    }
+
+[1m  # azurerm_network_interface.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_network_interface" "validation" {
+      [31m-[0m[0m accelerated_networking_enabled = false [90m-> null[0m[0m
+      [31m-[0m[0m applied_dns_servers            = [] [90m-> null[0m[0m
+      [31m-[0m[0m dns_servers                    = [] [90m-> null[0m[0m
+      [31m-[0m[0m id                             = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic" [90m-> null[0m[0m
+      [31m-[0m[0m internal_domain_name_suffix    = "k03mbbznkkuepjjvwqgw11groc.ax.internal.cloudapp.net" [90m-> null[0m[0m
+      [31m-[0m[0m ip_forwarding_enabled          = false [90m-> null[0m[0m
+      [31m-[0m[0m location                       = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m mac_address                    = "7C-1E-52-12-C8-B8" [90m-> null[0m[0m
+      [31m-[0m[0m name                           = "vault-genome-sev-snp-test-nic" [90m-> null[0m[0m
+      [31m-[0m[0m private_ip_address             = "10.42.1.4" [90m-> null[0m[0m
+      [31m-[0m[0m private_ip_addresses           = [
+          [31m-[0m[0m "10.42.1.4",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name            = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m tags                           = {} [90m-> null[0m[0m
+      [31m-[0m[0m virtual_machine_id             = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test" [90m-> null[0m[0m
+        [90m# (4 unchanged attributes hidden)[0m[0m
+
+      [31m-[0m[0m ip_configuration {
+          [31m-[0m[0m name                                               = "ipconfig" [90m-> null[0m[0m
+          [31m-[0m[0m primary                                            = true [90m-> null[0m[0m
+          [31m-[0m[0m private_ip_address                                 = "10.42.1.4" [90m-> null[0m[0m
+          [31m-[0m[0m private_ip_address_allocation                      = "Dynamic" [90m-> null[0m[0m
+          [31m-[0m[0m private_ip_address_version                         = "IPv4" [90m-> null[0m[0m
+          [31m-[0m[0m public_ip_address_id                               = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/publicIPAddresses/vault-genome-sev-snp-test-ip" [90m-> null[0m[0m
+          [31m-[0m[0m subnet_id                                          = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default" [90m-> null[0m[0m
+            [90m# (1 unchanged attribute hidden)[0m[0m
+        }
+    }
+
+[1m  # azurerm_network_interface_security_group_association.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_network_interface_security_group_association" "validation" {
+      [31m-[0m[0m id                        = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic|/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg" [90m-> null[0m[0m
+      [31m-[0m[0m network_interface_id      = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic" [90m-> null[0m[0m
+      [31m-[0m[0m network_security_group_id = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg" [90m-> null[0m[0m
+    }
+
+[1m  # azurerm_network_security_group.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_network_security_group" "validation" {
+      [31m-[0m[0m id                  = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg" [90m-> null[0m[0m
+      [31m-[0m[0m location            = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name                = "vault-genome-sev-snp-test-nsg" [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m security_rule       = [
+          [31m-[0m[0m {
+              [31m-[0m[0m access                                     = "Allow"
+              [31m-[0m[0m destination_address_prefix                 = "*"
+              [31m-[0m[0m destination_address_prefixes               = []
+              [31m-[0m[0m destination_application_security_group_ids = []
+              [31m-[0m[0m destination_port_range                     = "22"
+              [31m-[0m[0m destination_port_ranges                    = []
+              [31m-[0m[0m direction                                  = "Inbound"
+              [31m-[0m[0m name                                       = "ssh"
+              [31m-[0m[0m priority                                   = 100
+              [31m-[0m[0m protocol                                   = "Tcp"
+              [31m-[0m[0m source_address_prefix                      = "*"
+              [31m-[0m[0m source_address_prefixes                    = []
+              [31m-[0m[0m source_application_security_group_ids      = []
+              [31m-[0m[0m source_port_range                          = "*"
+              [31m-[0m[0m source_port_ranges                         = []
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            },
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m tags                = {} [90m-> null[0m[0m
+    }
+
+[1m  # azurerm_public_ip.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_public_ip" "validation" {
+      [31m-[0m[0m allocation_method       = "Static" [90m-> null[0m[0m
+      [31m-[0m[0m ddos_protection_mode    = "VirtualNetworkInherited" [90m-> null[0m[0m
+      [31m-[0m[0m id                      = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/publicIPAddresses/vault-genome-sev-snp-test-ip" [90m-> null[0m[0m
+      [31m-[0m[0m idle_timeout_in_minutes = 4 [90m-> null[0m[0m
+      [31m-[0m[0m ip_address              = "20.23.225.177" [90m-> null[0m[0m
+      [31m-[0m[0m ip_tags                 = {} [90m-> null[0m[0m
+      [31m-[0m[0m ip_version              = "IPv4" [90m-> null[0m[0m
+      [31m-[0m[0m location                = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name                    = "vault-genome-sev-snp-test-ip" [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name     = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m sku                     = "Standard" [90m-> null[0m[0m
+      [31m-[0m[0m sku_tier                = "Regional" [90m-> null[0m[0m
+      [31m-[0m[0m tags                    = {} [90m-> null[0m[0m
+      [31m-[0m[0m zones                   = [] [90m-> null[0m[0m
+        [90m# (5 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # azurerm_resource_group.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_resource_group" "validation" {
+      [31m-[0m[0m id         = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m location   = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name       = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m tags       = {
+          [31m-[0m[0m "purpose" = "vault-genome-hardware-validation"
+          [31m-[0m[0m "sprint"  = "week-3-azure-sev-snp"
+        } [90m-> null[0m[0m
+        [90m# (1 unchanged attribute hidden)[0m[0m
+    }
+
+[1m  # azurerm_subnet.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_subnet" "validation" {
+      [31m-[0m[0m address_prefixes                              = [
+          [31m-[0m[0m "10.42.1.0/24",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m default_outbound_access_enabled               = true [90m-> null[0m[0m
+      [31m-[0m[0m id                                            = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default" [90m-> null[0m[0m
+      [31m-[0m[0m name                                          = "default" [90m-> null[0m[0m
+      [31m-[0m[0m private_endpoint_network_policies             = "Disabled" [90m-> null[0m[0m
+      [31m-[0m[0m private_link_service_network_policies_enabled = true [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name                           = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m service_endpoint_policy_ids                   = [] [90m-> null[0m[0m
+      [31m-[0m[0m service_endpoints                             = [] [90m-> null[0m[0m
+      [31m-[0m[0m virtual_network_name                          = "vault-genome-sev-snp-test-vnet" [90m-> null[0m[0m
+        [90m# (1 unchanged attribute hidden)[0m[0m
+    }
+
+[1m  # azurerm_user_assigned_identity.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_user_assigned_identity" "validation" {
+      [31m-[0m[0m client_id           = "039f6c01-c561-47d3-b544-f2d757437799" [90m-> null[0m[0m
+      [31m-[0m[0m id                  = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi" [90m-> null[0m[0m
+      [31m-[0m[0m location            = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name                = "vault-genome-sev-snp-test-mi" [90m-> null[0m[0m
+      [31m-[0m[0m principal_id        = "80d449fd-8240-44f2-869c-c13c971ca37b" [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m tags                = {} [90m-> null[0m[0m
+      [31m-[0m[0m tenant_id           = "4226b02e-1a0f-4c0a-b71c-27157bfc1216" [90m-> null[0m[0m
+        [90m# (1 unchanged attribute hidden)[0m[0m
+    }
+
+[1m  # azurerm_virtual_network.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_virtual_network" "validation" {
+      [31m-[0m[0m address_space                  = [
+          [31m-[0m[0m "10.42.0.0/16",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m dns_servers                    = [] [90m-> null[0m[0m
+      [31m-[0m[0m flow_timeout_in_minutes        = 0 [90m-> null[0m[0m
+      [31m-[0m[0m guid                           = "87c0ba56-522d-47a8-a535-b40d6decd172" [90m-> null[0m[0m
+      [31m-[0m[0m id                             = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet" [90m-> null[0m[0m
+      [31m-[0m[0m location                       = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name                           = "vault-genome-sev-snp-test-vnet" [90m-> null[0m[0m
+      [31m-[0m[0m private_endpoint_vnet_policies = "Disabled" [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name            = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m subnet                         = [
+          [31m-[0m[0m {
+              [31m-[0m[0m address_prefixes                              = [
+                  [31m-[0m[0m "10.42.1.0/24",
+                ]
+              [31m-[0m[0m default_outbound_access_enabled               = true
+              [31m-[0m[0m delegation                                    = []
+              [31m-[0m[0m id                                            = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default"
+              [31m-[0m[0m name                                          = "default"
+              [31m-[0m[0m private_endpoint_network_policies             = "Disabled"
+              [31m-[0m[0m private_link_service_network_policies_enabled = true
+              [31m-[0m[0m service_endpoint_policy_ids                   = []
+              [31m-[0m[0m service_endpoints                             = []
+                [90m# (2 unchanged attributes hidden)[0m[0m
+            },
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m tags                           = {} [90m-> null[0m[0m
+        [90m# (2 unchanged attributes hidden)[0m[0m
+    }
+
+[1mPlan:[0m [0m0 to add, 0 to change, 9 to destroy.
+
+Changes to Outputs:
+  [31m-[0m[0m instance_name       = "vault-genome-sev-snp-test" [90m-> null[0m[0m
+  [31m-[0m[0m location            = "westeurope" [90m-> null[0m[0m
+  [31m-[0m[0m managed_identity_id = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi" [90m-> null[0m[0m
+  [31m-[0m[0m public_ip           = "20.23.225.177" [90m-> null[0m[0m
+  [31m-[0m[0m resource_group      = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+  [31m-[0m[0m ssh_command         = "ssh azureuser@20.23.225.177" [90m-> null[0m[0m
+[0m[1mazurerm_network_interface_security_group_association.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic|/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test][0m[0m
+[0m[1mazurerm_network_interface_security_group_association.validation: Destruction complete after 2s[0m
+[0m[1mazurerm_network_security_group.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...tualMachines/vault-genome-sev-snp-test, 00m10s elapsed][0m[0m
+[0m[1mazurerm_network_security_group.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...tyGroups/vault-genome-sev-snp-test-nsg, 00m10s elapsed][0m[0m
+[0m[1mazurerm_network_security_group.validation: Destruction complete after 12s[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...tualMachines/vault-genome-sev-snp-test, 00m20s elapsed][0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...tualMachines/vault-genome-sev-snp-test, 00m30s elapsed][0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Destruction complete after 34s[0m
+[0m[1mazurerm_user_assigned_identity.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi][0m[0m
+[0m[1mazurerm_network_interface.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic][0m[0m
+[0m[1mazurerm_user_assigned_identity.validation: Destruction complete after 6s[0m
+[0m[1mazurerm_network_interface.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...terfaces/vault-genome-sev-snp-test-nic, 00m10s elapsed][0m[0m
+[0m[1mazurerm_network_interface.validation: Destruction complete after 12s[0m
+[0m[1mazurerm_subnet.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default][0m[0m
+[0m[1mazurerm_public_ip.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/publicIPAddresses/vault-genome-sev-snp-test-ip][0m[0m
+[0m[1mazurerm_subnet.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...nome-sev-snp-test-vnet/subnets/default, 00m10s elapsed][0m[0m
+[0m[1mazurerm_public_ip.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...Addresses/vault-genome-sev-snp-test-ip, 00m10s elapsed][0m[0m
+[0m[1mazurerm_subnet.validation: Destruction complete after 11s[0m
+[0m[1mazurerm_virtual_network.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet][0m[0m
+[0m[1mazurerm_public_ip.validation: Destruction complete after 11s[0m
+[0m[1mazurerm_virtual_network.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...etworks/vault-genome-sev-snp-test-vnet, 00m10s elapsed][0m[0m
+[0m[1mazurerm_virtual_network.validation: Destruction complete after 12s[0m
+[0m[1mazurerm_resource_group.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg][0m[0m
+[0m[1mazurerm_resource_group.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...rceGroups/vault-genome-sev-snp-test-rg, 00m10s elapsed][0m[0m
+[0m[1mazurerm_resource_group.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...rceGroups/vault-genome-sev-snp-test-rg, 00m20s elapsed][0m[0m
+[0m[1mazurerm_resource_group.validation: Destruction complete after 21s[0m
+[0m[1m[32m
+Destroy complete! Resources: 9 destroyed.[0m
+destroyed 2026-10-15T04:29:11Z
+acpctl sha256 537b1ad4178525ca3547e7e38412a2f020288c6cac8596a02ee25fbabaf00e63 tree be1f22e+uncommitted(vTPM binding, sudo for the TPM tools)
+=== 1. provision Azure Confidential VM ===
+[0m[1mInitializing the backend...[0m
+
+[0m[1mInitializing provider plugins...[0m
+- Reusing previous version of hashicorp/random from the dependency lock file
+- Reusing previous version of hashicorp/azurerm from the dependency lock file
+- Using previously-installed hashicorp/random v3.8.1
+- Using previously-installed hashicorp/azurerm v4.72.0
+
+[0m[1m[32mTerraform has been successfully initialized![0m[32m[0m
+[0m[32m
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.[0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [32m+[0m create[0m
+
+Terraform will perform the following actions:
+
+[1m  # azurerm_linux_virtual_machine.validation[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_linux_virtual_machine" "validation" {
+      [32m+[0m[0m admin_username                                         = "azureuser"
+      [32m+[0m[0m allow_extension_operations                             = (known after apply)
+      [32m+[0m[0m bypass_platform_safety_checks_on_user_schedule_enabled = false
+      [32m+[0m[0m computer_name                                          = (known after apply)
+      [32m+[0m[0m disable_password_authentication                        = (known after apply)
+      [32m+[0m[0m disk_controller_type                                   = (known after apply)
+      [32m+[0m[0m extensions_time_budget                                 = "PT1H30M"
+      [32m+[0m[0m id                                                     = (known after apply)
+      [32m+[0m[0m location                                               = "westeurope"
+      [32m+[0m[0m max_bid_price                                          = -1
+      [32m+[0m[0m name                                                   = "vault-genome-sev-snp-test"
+      [32m+[0m[0m network_interface_ids                                  = (known after apply)
+      [32m+[0m[0m os_managed_disk_id                                     = (known after apply)
+      [32m+[0m[0m patch_assessment_mode                                  = (known after apply)
+      [32m+[0m[0m patch_mode                                             = (known after apply)
+      [32m+[0m[0m platform_fault_domain                                  = -1
+      [32m+[0m[0m priority                                               = "Regular"
+      [32m+[0m[0m private_ip_address                                     = (known after apply)
+      [32m+[0m[0m private_ip_addresses                                   = (known after apply)
+      [32m+[0m[0m provision_vm_agent                                     = (known after apply)
+      [32m+[0m[0m public_ip_address                                      = (known after apply)
+      [32m+[0m[0m public_ip_addresses                                    = (known after apply)
+      [32m+[0m[0m resource_group_name                                    = "vault-genome-sev-snp-test-rg"
+      [32m+[0m[0m secure_boot_enabled                                    = true
+      [32m+[0m[0m size                                                   = "Standard_DC4as_v5"
+      [32m+[0m[0m tags                                                   = {
+          [32m+[0m[0m "purpose" = "vault-genome-hardware-validation"
+          [32m+[0m[0m "sprint"  = "week-3-azure-sev-snp"
+        }
+      [32m+[0m[0m virtual_machine_id                                     = (known after apply)
+      [32m+[0m[0m vm_agent_platform_updates_enabled                      = (known after apply)
+      [32m+[0m[0m vtpm_enabled                                           = true
+
+      [32m+[0m[0m admin_ssh_key {
+          [32m+[0m[0m public_key = "ssh-ed25519 <redacted: the laptop ssh public key>"
+          [32m+[0m[0m username   = "azureuser"
+        }
+
+      [32m+[0m[0m identity {
+          [32m+[0m[0m identity_ids = (known after apply)
+          [32m+[0m[0m principal_id = (known after apply)
+          [32m+[0m[0m tenant_id    = (known after apply)
+          [32m+[0m[0m type         = "UserAssigned"
+        }
+
+      [32m+[0m[0m os_disk {
+          [32m+[0m[0m caching                   = "ReadWrite"
+          [32m+[0m[0m disk_size_gb              = 40
+          [32m+[0m[0m id                        = (known after apply)
+          [32m+[0m[0m name                      = "vault-genome-sev-snp-test-os-disk"
+          [32m+[0m[0m security_encryption_type  = "VMGuestStateOnly"
+          [32m+[0m[0m storage_account_type      = "Premium_LRS"
+          [32m+[0m[0m write_accelerator_enabled = false
+        }
+
+      [32m+[0m[0m source_image_reference {
+          [32m+[0m[0m offer     = "0001-com-ubuntu-confidential-vm-jammy"
+          [32m+[0m[0m publisher = "Canonical"
+          [32m+[0m[0m sku       = "22_04-lts-cvm"
+          [32m+[0m[0m version   = "latest"
+        }
+
+      [32m+[0m[0m termination_notification (known after apply)
+    }
+
+[1m  # azurerm_network_interface.validation[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_network_interface" "validation" {
+      [32m+[0m[0m accelerated_networking_enabled = false
+      [32m+[0m[0m applied_dns_servers            = (known after apply)
+      [32m+[0m[0m id                             = (known after apply)
+      [32m+[0m[0m internal_domain_name_suffix    = (known after apply)
+      [32m+[0m[0m ip_forwarding_enabled          = false
+      [32m+[0m[0m location                       = "westeurope"
+      [32m+[0m[0m mac_address                    = (known after apply)
+      [32m+[0m[0m name                           = "vault-genome-sev-snp-test-nic"
+      [32m+[0m[0m private_ip_address             = (known after apply)
+      [32m+[0m[0m private_ip_addresses           = (known after apply)
+      [32m+[0m[0m resource_group_name            = "vault-genome-sev-snp-test-rg"
+      [32m+[0m[0m virtual_machine_id             = (known after apply)
+
+      [32m+[0m[0m ip_configuration {
+          [32m+[0m[0m gateway_load_balancer_frontend_ip_configuration_id = (known after apply)
+          [32m+[0m[0m name                                               = "ipconfig"
+          [32m+[0m[0m primary                                            = (known after apply)
+          [32m+[0m[0m private_ip_address                                 = (known after apply)
+          [32m+[0m[0m private_ip_address_allocation                      = "Dynamic"
+          [32m+[0m[0m private_ip_address_version                         = "IPv4"
+          [32m+[0m[0m public_ip_address_id                               = (known after apply)
+          [32m+[0m[0m subnet_id                                          = (known after apply)
+        }
+    }
+
+[1m  # azurerm_network_interface_security_group_association.validation[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_network_interface_security_group_association" "validation" {
+      [32m+[0m[0m id                        = (known after apply)
+      [32m+[0m[0m network_interface_id      = (known after apply)
+      [32m+[0m[0m network_security_group_id = (known after apply)
+    }
+
+[1m  # azurerm_network_security_group.validation[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_network_security_group" "validation" {
+      [32m+[0m[0m id                  = (known after apply)
+      [32m+[0m[0m location            = "westeurope"
+      [32m+[0m[0m name                = "vault-genome-sev-snp-test-nsg"
+      [32m+[0m[0m resource_group_name = "vault-genome-sev-snp-test-rg"
+      [32m+[0m[0m security_rule       = [
+          [32m+[0m[0m {
+              [32m+[0m[0m access                                     = "Allow"
+              [32m+[0m[0m destination_address_prefix                 = "*"
+              [32m+[0m[0m destination_address_prefixes               = []
+              [32m+[0m[0m destination_application_security_group_ids = []
+              [32m+[0m[0m destination_port_range                     = "22"
+              [32m+[0m[0m destination_port_ranges                    = []
+              [32m+[0m[0m direction                                  = "Inbound"
+              [32m+[0m[0m name                                       = "ssh"
+              [32m+[0m[0m priority                                   = 100
+              [32m+[0m[0m protocol                                   = "Tcp"
+              [32m+[0m[0m source_address_prefix                      = "*"
+              [32m+[0m[0m source_address_prefixes                    = []
+              [32m+[0m[0m source_application_security_group_ids      = []
+              [32m+[0m[0m source_port_range                          = "*"
+              [32m+[0m[0m source_port_ranges                         = []
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            },
+        ]
+    }
+
+[1m  # azurerm_public_ip.validation[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_public_ip" "validation" {
+      [32m+[0m[0m allocation_method       = "Static"
+      [32m+[0m[0m ddos_protection_mode    = "VirtualNetworkInherited"
+      [32m+[0m[0m fqdn                    = (known after apply)
+      [32m+[0m[0m id                      = (known after apply)
+      [32m+[0m[0m idle_timeout_in_minutes = 4
+      [32m+[0m[0m ip_address              = (known after apply)
+      [32m+[0m[0m ip_version              = "IPv4"
+      [32m+[0m[0m location                = "westeurope"
+      [32m+[0m[0m name                    = "vault-genome-sev-snp-test-ip"
+      [32m+[0m[0m resource_group_name     = "vault-genome-sev-snp-test-rg"
+      [32m+[0m[0m sku                     = "Standard"
+      [32m+[0m[0m sku_tier                = "Regional"
+    }
+
+[1m  # azurerm_resource_group.validation[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_resource_group" "validation" {
+      [32m+[0m[0m id       = (known after apply)
+      [32m+[0m[0m location = "westeurope"
+      [32m+[0m[0m name     = "vault-genome-sev-snp-test-rg"
+      [32m+[0m[0m tags     = {
+          [32m+[0m[0m "purpose" = "vault-genome-hardware-validation"
+          [32m+[0m[0m "sprint"  = "week-3-azure-sev-snp"
+        }
+    }
+
+[1m  # azurerm_subnet.validation[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_subnet" "validation" {
+      [32m+[0m[0m address_prefixes                              = [
+          [32m+[0m[0m "10.42.1.0/24",
+        ]
+      [32m+[0m[0m default_outbound_access_enabled               = true
+      [32m+[0m[0m id                                            = (known after apply)
+      [32m+[0m[0m name                                          = "default"
+      [32m+[0m[0m private_endpoint_network_policies             = "Disabled"
+      [32m+[0m[0m private_link_service_network_policies_enabled = true
+      [32m+[0m[0m resource_group_name                           = "vault-genome-sev-snp-test-rg"
+      [32m+[0m[0m virtual_network_name                          = "vault-genome-sev-snp-test-vnet"
+    }
+
+[1m  # azurerm_user_assigned_identity.validation[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_user_assigned_identity" "validation" {
+      [32m+[0m[0m client_id           = (known after apply)
+      [32m+[0m[0m id                  = (known after apply)
+      [32m+[0m[0m location            = "westeurope"
+      [32m+[0m[0m name                = "vault-genome-sev-snp-test-mi"
+      [32m+[0m[0m principal_id        = (known after apply)
+      [32m+[0m[0m resource_group_name = "vault-genome-sev-snp-test-rg"
+      [32m+[0m[0m tenant_id           = (known after apply)
+    }
+
+[1m  # azurerm_virtual_network.validation[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_virtual_network" "validation" {
+      [32m+[0m[0m address_space                  = [
+          [32m+[0m[0m "10.42.0.0/16",
+        ]
+      [32m+[0m[0m dns_servers                    = (known after apply)
+      [32m+[0m[0m guid                           = (known after apply)
+      [32m+[0m[0m id                             = (known after apply)
+      [32m+[0m[0m location                       = "westeurope"
+      [32m+[0m[0m name                           = "vault-genome-sev-snp-test-vnet"
+      [32m+[0m[0m private_endpoint_vnet_policies = "Disabled"
+      [32m+[0m[0m resource_group_name            = "vault-genome-sev-snp-test-rg"
+      [32m+[0m[0m subnet                         = (known after apply)
+    }
+
+[1mPlan:[0m [0m9 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  [32m+[0m[0m instance_name       = "vault-genome-sev-snp-test"
+  [32m+[0m[0m location            = "westeurope"
+  [32m+[0m[0m managed_identity_id = (known after apply)
+  [32m+[0m[0m public_ip           = (known after apply)
+  [32m+[0m[0m resource_group      = "vault-genome-sev-snp-test-rg"
+  [32m+[0m[0m ssh_command         = (known after apply)
+[0m[1mazurerm_resource_group.validation: Creating...[0m[0m
+[0m[1mazurerm_resource_group.validation: Still creating... [00m10s elapsed][0m[0m
+[0m[1mazurerm_resource_group.validation: Still creating... [00m20s elapsed][0m[0m
+[0m[1mazurerm_resource_group.validation: Creation complete after 24s [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg][0m
+[0m[1mazurerm_user_assigned_identity.validation: Creating...[0m[0m
+[0m[1mazurerm_network_security_group.validation: Creating...[0m[0m
+[0m[1mazurerm_virtual_network.validation: Creating...[0m[0m
+[0m[1mazurerm_public_ip.validation: Creating...[0m[0m
+[0m[1mazurerm_public_ip.validation: Creation complete after 3s [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/publicIPAddresses/vault-genome-sev-snp-test-ip][0m
+[0m[1mazurerm_network_security_group.validation: Creation complete after 3s [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m
+[0m[1mazurerm_user_assigned_identity.validation: Creation complete after 5s [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi][0m
+[0m[1mazurerm_virtual_network.validation: Creation complete after 6s [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet][0m
+[0m[1mazurerm_subnet.validation: Creating...[0m[0m
+[0m[1mazurerm_subnet.validation: Creation complete after 6s [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default][0m
+[0m[1mazurerm_network_interface.validation: Creating...[0m[0m
+[0m[1mazurerm_network_interface.validation: Creation complete after 3s [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic][0m
+[0m[1mazurerm_network_interface_security_group_association.validation: Creating...[0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Creating...[0m[0m
+[0m[1mazurerm_network_interface_security_group_association.validation: Creation complete after 3s [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic|/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m
+[0m[1mazurerm_linux_virtual_machine.validation: Still creating... [00m10s elapsed][0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Creation complete after 18s [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test][0m
+[0m[1m[32m
+Apply complete! Resources: 9 added, 0 changed, 0 destroyed.[0m
+[0m[1m[32m
+Outputs:
+
+[0minstance_name = "vault-genome-sev-snp-test"
+location = "westeurope"
+managed_identity_id = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi"
+public_ip = "52.142.201.58"
+resource_group = "vault-genome-sev-snp-test-rg"
+ssh_command = "ssh azureuser@52.142.201.58"
+VM vault-genome-sev-snp-test at 52.142.201.58 (westeurope, resource group vault-genome-sev-snp-test-rg)
+
+=== 1a. wait for SSH (Azure CVMs take ~60-90s to be SSH-ready) ===
+
+=== 2. upload scripts + acpctl to VM ===
+Warning: Permanently added '52.142.201.58' (ED25519) to the list of known hosts.
+Warning: Permanently added '52.142.201.58' (ED25519) to the list of known hosts.
+
+=== 3-9. run all phases on the VM ===
+Warning: Permanently added '52.142.201.58' (ED25519) to the list of known hosts.
+=== install build dependencies ===
+debconf: unable to initialize frontend: Dialog
+debconf: (Dialog frontend will not work on a dumb terminal, an emacs shell buffer, or without a controlling terminal.)
+debconf: falling back to frontend: Readline
+debconf: unable to initialize frontend: Readline
+debconf: (This frontend requires a controlling tty.)
+debconf: falling back to frontend: Teletype
+dpkg-preconfigure: unable to re-open stdin: 
+Selecting previously unselected package libc-dev-bin.
+(Reading database ... 
+(Reading database ... 5%
+(Reading database ... 10%
+(Reading database ... 15%
+(Reading database ... 20%
+(Reading database ... 25%
+(Reading database ... 30%
+(Reading database ... 35%
+(Reading database ... 40%
+(Reading database ... 45%
+(Reading database ... 50%
+(Reading database ... 55%
+(Reading database ... 60%
+(Reading database ... 65%
+(Reading database ... 70%
+(Reading database ... 75%
+(Reading database ... 80%
+(Reading database ... 85%
+(Reading database ... 90%
+(Reading database ... 95%
+(Reading database ... 100%
+(Reading database ... 65054 files and directories currently installed.)
+Preparing to unpack .../00-libc-dev-bin_2.35-0ubuntu3.15_amd64.deb ...
+Unpacking libc-dev-bin (2.35-0ubuntu3.15) ...
+Selecting previously unselected package linux-libc-dev:amd64.
+Preparing to unpack .../01-linux-libc-dev_5.15.0-198.208_amd64.deb ...
+Unpacking linux-libc-dev:amd64 (5.15.0-198.208) ...
+Selecting previously unselected package libcrypt-dev:amd64.
+Preparing to unpack .../02-libcrypt-dev_1%3a4.4.27-1_amd64.deb ...
+Unpacking libcrypt-dev:amd64 (1:4.4.27-1) ...
+Selecting previously unselected package rpcsvc-proto.
+Preparing to unpack .../03-rpcsvc-proto_1.4.2-0ubuntu6_amd64.deb ...
+Unpacking rpcsvc-proto (1.4.2-0ubuntu6) ...
+Selecting previously unselected package libtirpc-dev:amd64.
+Preparing to unpack .../04-libtirpc-dev_1.3.2-2ubuntu0.1_amd64.deb ...
+Unpacking libtirpc-dev:amd64 (1.3.2-2ubuntu0.1) ...
+Selecting previously unselected package libnsl-dev:amd64.
+Preparing to unpack .../05-libnsl-dev_1.3.0-2build2_amd64.deb ...
+Unpacking libnsl-dev:amd64 (1.3.0-2build2) ...
+Selecting previously unselected package libc6-dev:amd64.
+Preparing to unpack .../06-libc6-dev_2.35-0ubuntu3.15_amd64.deb ...
+Unpacking libc6-dev:amd64 (2.35-0ubuntu3.15) ...
+Selecting previously unselected package gcc-11-base:amd64.
+Preparing to unpack .../07-gcc-11-base_11.4.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking gcc-11-base:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package libisl23:amd64.
+Preparing to unpack .../08-libisl23_0.24-2build1_amd64.deb ...
+Unpacking libisl23:amd64 (0.24-2build1) ...
+Selecting previously unselected package libmpc3:amd64.
+Preparing to unpack .../09-libmpc3_1.2.1-2build1_amd64.deb ...
+Unpacking libmpc3:amd64 (1.2.1-2build1) ...
+Selecting previously unselected package cpp-11.
+Preparing to unpack .../10-cpp-11_11.4.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking cpp-11 (11.4.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package cpp.
+Preparing to unpack .../11-cpp_4%3a11.2.0-1ubuntu1_amd64.deb ...
+Unpacking cpp (4:11.2.0-1ubuntu1) ...
+Selecting previously unselected package libcc1-0:amd64.
+Preparing to unpack .../12-libcc1-0_12.3.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libcc1-0:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package libgomp1:amd64.
+Preparing to unpack .../13-libgomp1_12.3.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libgomp1:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package libitm1:amd64.
+Preparing to unpack .../14-libitm1_12.3.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libitm1:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package libatomic1:amd64.
+Preparing to unpack .../15-libatomic1_12.3.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libatomic1:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package libasan6:amd64.
+Preparing to unpack .../16-libasan6_11.4.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libasan6:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package liblsan0:amd64.
+Preparing to unpack .../17-liblsan0_12.3.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking liblsan0:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package libtsan0:amd64.
+Preparing to unpack .../18-libtsan0_11.4.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libtsan0:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package libubsan1:amd64.
+Preparing to unpack .../19-libubsan1_12.3.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libubsan1:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package libquadmath0:amd64.
+Preparing to unpack .../20-libquadmath0_12.3.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libquadmath0:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package libgcc-11-dev:amd64.
+Preparing to unpack .../21-libgcc-11-dev_11.4.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libgcc-11-dev:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package gcc-11.
+Preparing to unpack .../22-gcc-11_11.4.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking gcc-11 (11.4.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package gcc.
+Preparing to unpack .../23-gcc_4%3a11.2.0-1ubuntu1_amd64.deb ...
+Unpacking gcc (4:11.2.0-1ubuntu1) ...
+Selecting previously unselected package libstdc++-11-dev:amd64.
+Preparing to unpack .../24-libstdc++-11-dev_11.4.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking libstdc++-11-dev:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package g++-11.
+Preparing to unpack .../25-g++-11_11.4.0-1ubuntu1~22.04.3_amd64.deb ...
+Unpacking g++-11 (11.4.0-1ubuntu1~22.04.3) ...
+Selecting previously unselected package g++.
+Preparing to unpack .../26-g++_4%3a11.2.0-1ubuntu1_amd64.deb ...
+Unpacking g++ (4:11.2.0-1ubuntu1) ...
+Selecting previously unselected package make.
+Preparing to unpack .../27-make_4.3-4.1build1_amd64.deb ...
+Unpacking make (4.3-4.1build1) ...
+Selecting previously unselected package libdpkg-perl.
+Preparing to unpack .../28-libdpkg-perl_1.21.1ubuntu2.6_all.deb ...
+Unpacking libdpkg-perl (1.21.1ubuntu2.6) ...
+Selecting previously unselected package bzip2.
+Preparing to unpack .../29-bzip2_1.0.8-5ubuntu0.1_amd64.deb ...
+Unpacking bzip2 (1.0.8-5ubuntu0.1) ...
+Selecting previously unselected package lto-disabled-list.
+Preparing to unpack .../30-lto-disabled-list_24_all.deb ...
+Unpacking lto-disabled-list (24) ...
+Selecting previously unselected package dpkg-dev.
+Preparing to unpack .../31-dpkg-dev_1.21.1ubuntu2.6_all.deb ...
+Unpacking dpkg-dev (1.21.1ubuntu2.6) ...
+Selecting previously unselected package build-essential.
+Preparing to unpack .../32-build-essential_12.9ubuntu3_amd64.deb ...
+Unpacking build-essential (12.9ubuntu3) ...
+Preparing to unpack .../33-curl_7.81.0-1ubuntu1.30_amd64.deb ...
+Unpacking curl (7.81.0-1ubuntu1.30) over (7.81.0-1ubuntu1.29) ...
+Preparing to unpack .../34-libcurl4_7.81.0-1ubuntu1.30_amd64.deb ...
+Unpacking libcurl4:amd64 (7.81.0-1ubuntu1.30) over (7.81.0-1ubuntu1.29) ...
+Selecting previously unselected package libfakeroot:amd64.
+Preparing to unpack .../35-libfakeroot_1.28-1ubuntu1_amd64.deb ...
+Unpacking libfakeroot:amd64 (1.28-1ubuntu1) ...
+Selecting previously unselected package fakeroot.
+Preparing to unpack .../36-fakeroot_1.28-1ubuntu1_amd64.deb ...
+Unpacking fakeroot (1.28-1ubuntu1) ...
+Selecting previously unselected package fonts-dejavu-core.
+Preparing to unpack .../37-fonts-dejavu-core_2.37-2build1_all.deb ...
+Unpacking fonts-dejavu-core (2.37-2build1) ...
+Selecting previously unselected package fontconfig-config.
+Preparing to unpack .../38-fontconfig-config_2.13.1-4.2ubuntu5_all.deb ...
+Unpacking fontconfig-config (2.13.1-4.2ubuntu5) ...
+Selecting previously unselected package libonig5:amd64.
+Preparing to unpack .../39-libonig5_6.9.7.1-2build1_amd64.deb ...
+Unpacking libonig5:amd64 (6.9.7.1-2build1) ...
+Selecting previously unselected package libjq1:amd64.
+Preparing to unpack .../40-libjq1_1.6-2.1ubuntu3.2_amd64.deb ...
+Unpacking libjq1:amd64 (1.6-2.1ubuntu3.2) ...
+Selecting previously unselected package jq.
+Preparing to unpack .../41-jq_1.6-2.1ubuntu3.2_amd64.deb ...
+Unpacking jq (1.6-2.1ubuntu3.2) ...
+Selecting previously unselected package libalgorithm-diff-perl.
+Preparing to unpack .../42-libalgorithm-diff-perl_1.201-1_all.deb ...
+Unpacking libalgorithm-diff-perl (1.201-1) ...
+Selecting previously unselected package libalgorithm-diff-xs-perl.
+Preparing to unpack .../43-libalgorithm-diff-xs-perl_0.04-6build3_amd64.deb ...
+Unpacking libalgorithm-diff-xs-perl (0.04-6build3) ...
+Selecting previously unselected package libalgorithm-merge-perl.
+Preparing to unpack .../44-libalgorithm-merge-perl_0.08-3_all.deb ...
+Unpacking libalgorithm-merge-perl (0.08-3) ...
+Selecting previously unselected package libfreetype6:amd64.
+Preparing to unpack .../45-libfreetype6_2.11.1+dfsg-1ubuntu0.4_amd64.deb ...
+Unpacking libfreetype6:amd64 (2.11.1+dfsg-1ubuntu0.4) ...
+Selecting previously unselected package libfontconfig1:amd64.
+Preparing to unpack .../46-libfontconfig1_2.13.1-4.2ubuntu5_amd64.deb ...
+Unpacking libfontconfig1:amd64 (2.13.1-4.2ubuntu5) ...
+Selecting previously unselected package libjpeg-turbo8:amd64.
+Preparing to unpack .../47-libjpeg-turbo8_2.1.2-0ubuntu1_amd64.deb ...
+Unpacking libjpeg-turbo8:amd64 (2.1.2-0ubuntu1) ...
+Selecting previously unselected package libjpeg8:amd64.
+Preparing to unpack .../48-libjpeg8_8c-2ubuntu10_amd64.deb ...
+Unpacking libjpeg8:amd64 (8c-2ubuntu10) ...
+Selecting previously unselected package libdeflate0:amd64.
+Preparing to unpack .../49-libdeflate0_1.10-2_amd64.deb ...
+Unpacking libdeflate0:amd64 (1.10-2) ...
+Selecting previously unselected package libjbig0:amd64.
+Preparing to unpack .../50-libjbig0_2.1-3.1ubuntu0.22.04.1_amd64.deb ...
+Unpacking libjbig0:amd64 (2.1-3.1ubuntu0.22.04.1) ...
+Selecting previously unselected package libwebp7:amd64.
+Preparing to unpack .../51-libwebp7_1.2.2-2ubuntu0.22.04.2_amd64.deb ...
+Unpacking libwebp7:amd64 (1.2.2-2ubuntu0.22.04.2) ...
+Selecting previously unselected package libtiff5:amd64.
+Preparing to unpack .../52-libtiff5_4.3.0-6ubuntu0.13_amd64.deb ...
+Unpacking libtiff5:amd64 (4.3.0-6ubuntu0.13) ...
+Selecting previously unselected package libxpm4:amd64.
+Preparing to unpack .../53-libxpm4_1%3a3.5.12-1ubuntu0.22.04.4_amd64.deb ...
+Unpacking libxpm4:amd64 (1:3.5.12-1ubuntu0.22.04.4) ...
+Selecting previously unselected package libgd3:amd64.
+Preparing to unpack .../54-libgd3_2.3.0-2ubuntu2.3_amd64.deb ...
+Unpacking libgd3:amd64 (2.3.0-2ubuntu2.3) ...
+Selecting previously unselected package libc-devtools.
+Preparing to unpack .../55-libc-devtools_2.35-0ubuntu3.15_amd64.deb ...
+Unpacking libc-devtools (2.35-0ubuntu3.15) ...
+Selecting previously unselected package libfile-fcntllock-perl.
+Preparing to unpack .../56-libfile-fcntllock-perl_0.22-3build7_amd64.deb ...
+Unpacking libfile-fcntllock-perl (0.22-3build7) ...
+Selecting previously unselected package libssl-dev:amd64.
+Preparing to unpack .../57-libssl-dev_3.0.2-0ubuntu1.30_amd64.deb ...
+Unpacking libssl-dev:amd64 (3.0.2-0ubuntu1.30) ...
+Selecting previously unselected package libtss2-tctildr0:amd64.
+Preparing to unpack .../58-libtss2-tctildr0_3.2.0-1ubuntu1.1_amd64.deb ...
+Unpacking libtss2-tctildr0:amd64 (3.2.0-1ubuntu1.1) ...
+Selecting previously unselected package manpages-dev.
+Preparing to unpack .../59-manpages-dev_5.10-1ubuntu1_all.deb ...
+Unpacking manpages-dev (5.10-1ubuntu1) ...
+Selecting previously unselected package pkg-config.
+Preparing to unpack .../60-pkg-config_0.29.2-1ubuntu3_amd64.deb ...
+Unpacking pkg-config (0.29.2-1ubuntu3) ...
+Preparing to unpack .../61-python3-jwt_2.3.0-1ubuntu0.5_all.deb ...
+Unpacking python3-jwt (2.3.0-1ubuntu0.5) over (2.3.0-1ubuntu0.4) ...
+Selecting previously unselected package tpm2-tools.
+Preparing to unpack .../62-tpm2-tools_5.2-1build1_amd64.deb ...
+Unpacking tpm2-tools (5.2-1build1) ...
+Setting up gcc-11-base:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Setting up manpages-dev (5.10-1ubuntu1) ...
+Setting up lto-disabled-list (24) ...
+Setting up libxpm4:amd64 (1:3.5.12-1ubuntu0.22.04.4) ...
+Setting up python3-jwt (2.3.0-1ubuntu0.5) ...
+Setting up libfile-fcntllock-perl (0.22-3build7) ...
+Setting up libalgorithm-diff-perl (1.201-1) ...
+Setting up libdeflate0:amd64 (1.10-2) ...
+Setting up linux-libc-dev:amd64 (5.15.0-198.208) ...
+Setting up libgomp1:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Setting up bzip2 (1.0.8-5ubuntu0.1) ...
+Setting up libjbig0:amd64 (2.1-3.1ubuntu0.22.04.1) ...
+Setting up libfakeroot:amd64 (1.28-1ubuntu1) ...
+Setting up libasan6:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Setting up fakeroot (1.28-1ubuntu1) ...
+update-alternatives: using /usr/bin/fakeroot-sysv to provide /usr/bin/fakeroot (fakeroot) in auto mode
+Setting up libtirpc-dev:amd64 (1.3.2-2ubuntu0.1) ...
+Setting up rpcsvc-proto (1.4.2-0ubuntu6) ...
+Setting up libfreetype6:amd64 (2.11.1+dfsg-1ubuntu0.4) ...
+Setting up make (4.3-4.1build1) ...
+Setting up libquadmath0:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Setting up libssl-dev:amd64 (3.0.2-0ubuntu1.30) ...
+Setting up libmpc3:amd64 (1.2.1-2build1) ...
+Setting up libatomic1:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Setting up fonts-dejavu-core (2.37-2build1) ...
+Setting up libtss2-tctildr0:amd64 (3.2.0-1ubuntu1.1) ...
+Setting up libjpeg-turbo8:amd64 (2.1.2-0ubuntu1) ...
+Setting up libdpkg-perl (1.21.1ubuntu2.6) ...
+Setting up libwebp7:amd64 (1.2.2-2ubuntu0.22.04.2) ...
+Setting up libubsan1:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Setting up libnsl-dev:amd64 (1.3.0-2build2) ...
+Setting up libcrypt-dev:amd64 (1:4.4.27-1) ...
+Setting up libcurl4:amd64 (7.81.0-1ubuntu1.30) ...
+Setting up curl (7.81.0-1ubuntu1.30) ...
+Setting up libisl23:amd64 (0.24-2build1) ...
+Setting up libc-dev-bin (2.35-0ubuntu3.15) ...
+Setting up libalgorithm-diff-xs-perl (0.04-6build3) ...
+Setting up libcc1-0:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Setting up libonig5:amd64 (6.9.7.1-2build1) ...
+Setting up liblsan0:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Setting up libitm1:amd64 (12.3.0-1ubuntu1~22.04.3) ...
+Setting up tpm2-tools (5.2-1build1) ...
+Setting up libalgorithm-merge-perl (0.08-3) ...
+Setting up libtsan0:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Setting up libjpeg8:amd64 (8c-2ubuntu10) ...
+Setting up cpp-11 (11.4.0-1ubuntu1~22.04.3) ...
+Setting up libjq1:amd64 (1.6-2.1ubuntu3.2) ...
+Setting up fontconfig-config (2.13.1-4.2ubuntu5) ...
+Setting up dpkg-dev (1.21.1ubuntu2.6) ...
+Setting up pkg-config (0.29.2-1ubuntu3) ...
+Setting up libgcc-11-dev:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Setting up gcc-11 (11.4.0-1ubuntu1~22.04.3) ...
+Setting up cpp (4:11.2.0-1ubuntu1) ...
+Setting up jq (1.6-2.1ubuntu3.2) ...
+Setting up libc6-dev:amd64 (2.35-0ubuntu3.15) ...
+Setting up libtiff5:amd64 (4.3.0-6ubuntu0.13) ...
+Setting up libfontconfig1:amd64 (2.13.1-4.2ubuntu5) ...
+Setting up gcc (4:11.2.0-1ubuntu1) ...
+Setting up libgd3:amd64 (2.3.0-2ubuntu2.3) ...
+Setting up libstdc++-11-dev:amd64 (11.4.0-1ubuntu1~22.04.3) ...
+Setting up libc-devtools (2.35-0ubuntu3.15) ...
+Setting up g++-11 (11.4.0-1ubuntu1~22.04.3) ...
+Setting up g++ (4:11.2.0-1ubuntu1) ...
+update-alternatives: using /usr/bin/g++ to provide /usr/bin/c++ (c++) in auto mode
+Setting up build-essential (12.9ubuntu3) ...
+Processing triggers for man-db (2.10.2-1) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.15) ...
+
+Failed to retrieve available kernel versions.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+
+=== verify this is an Azure Confidential VM (SEV-SNP behind the paravisor, report in the vTPM) ===
+Oct 15 04:00:00 ubuntu kernel: Memory Encryption Features active: AMD SEV
+Oct 15 04:00:00 ubuntu kernel: software IO TLB: Memory encryption is active and system is using DMA bounce buffers
+Oct 15 04:00:00 ubuntu kernel: kvm-guest: setup_efi_kvm_sev_migration : EFI live migration variable not found
+Oct 15 04:30:26 vault-genome-sev-snp-test kernel: EXT4-fs (sda1): resizing filesystem from 785147 to 10222331 blocks
+Oct 15 04:30:26 vault-genome-sev-snp-test kernel: EXT4-fs (sda1): resized filesystem to 10222331
+vTPM present; HCL report at NV index 0x1400001
+
+=== install Go 1.27.2 ===
+/tmp/go.tar.gz: OK
+go version go1.27.2 linux/amd64
+
+=== install Ollama (CPU-only — Confidential VMs don't expose GPUs) ===
+/tmp/tmp.hot9h5hTny: OK
+>>> Installing ollama to /usr/local
+>>> Downloading ollama-linux-amd64.tar.zst
+#=#=#                                                                         
+##O#-#                                                                        
+##O=#  #                                                                      
+
+                                                                           0.3%
+                                                                           0.8%
+#                                                                          1.9%
+##                                                                         3.1%
+##                                                                         4.2%
+###                                                                        5.4%
+####                                                                       6.6%
+#####                                                                      7.7%
+######                                                                     8.9%
+#######                                                                   10.1%
+########                                                                  11.3%
+########                                                                  12.5%
+#########                                                                 13.7%
+##########                                                                14.9%
+###########                                                               16.0%
+############                                                              17.1%
+#############                                                             18.2%
+#############                                                             19.3%
+##############                                                            20.4%
+###############                                                           21.5%
+################                                                          22.6%
+#################                                                         23.8%
+#################                                                         24.9%
+##################                                                        25.7%
+##################                                                        25.8%
+##################                                                        26.1%
+###################                                                       26.6%
+###################                                                       27.4%
+####################                                                      28.0%
+####################                                                      28.6%
+#####################                                                     29.4%
+#####################                                                     30.2%
+######################                                                    31.1%
+#######################                                                   32.0%
+#######################                                                   32.7%
+########################                                                  33.7%
+########################                                                  34.5%
+#########################                                                 35.0%
+#########################                                                 35.6%
+##########################                                                36.1%
+##########################                                                36.7%
+##########################                                                37.2%
+###########################                                               37.8%
+###########################                                               38.1%
+############################                                              39.3%
+#############################                                             40.5%
+#############################                                             41.6%
+##############################                                            42.6%
+###############################                                           43.6%
+################################                                          44.6%
+################################                                          45.7%
+#################################                                         46.5%
+#################################                                         47.2%
+##################################                                        48.2%
+###################################                                       49.4%
+####################################                                      50.7%
+#####################################                                     52.0%
+######################################                                    53.3%
+######################################                                    54.0%
+#######################################                                   54.9%
+########################################                                  55.8%
+########################################                                  56.5%
+#########################################                                 57.4%
+##########################################                                58.4%
+##########################################                                58.9%
+###########################################                               60.0%
+############################################                              61.2%
+############################################                              62.2%
+#############################################                             63.3%
+##############################################                            64.4%
+###############################################                           65.4%
+###############################################                           66.2%
+################################################                          67.3%
+#################################################                         68.4%
+##################################################                        69.6%
+##################################################                        70.7%
+###################################################                       71.6%
+####################################################                      72.9%
+#####################################################                     74.1%
+#####################################################                     74.9%
+######################################################                    75.2%
+######################################################                    75.4%
+######################################################                    75.5%
+######################################################                    76.3%
+#######################################################                   77.0%
+#######################################################                   77.6%
+########################################################                  78.9%
+#########################################################                 80.3%
+##########################################################                81.8%
+###########################################################               83.0%
+############################################################              84.2%
+#############################################################             85.4%
+##############################################################            86.5%
+###############################################################           87.6%
+###############################################################           88.8%
+################################################################          89.8%
+#################################################################         90.7%
+#################################################################         91.4%
+##################################################################        92.2%
+##################################################################        93.0%
+###################################################################       93.9%
+####################################################################      95.1%
+#####################################################################     96.3%
+######################################################################    97.5%
+#######################################################################   98.6%
+#######################################################################   99.3%
+#######################################################################   99.7%
+#######################################################################   99.9%
+######################################################################## 100.0%
+>>> Creating ollama user...
+>>> Adding ollama user to render group...
+>>> Adding ollama user to video group...
+>>> Adding current user to ollama group...
+>>> Creating ollama systemd service...
+>>> Enabling and starting ollama service...
+Created symlink /etc/systemd/system/default.target.wants/ollama.service → /etc/systemd/system/ollama.service.
+WARNING: No NVIDIA/AMD GPU detected. Ollama will run in CPU-only mode.
+>>> The Ollama API is now available at 127.0.0.1:11434.
+>>> Install complete. Run "ollama" from the command line.
+
+=== install snpguest (VirTEE) for Cryptographic Attestation Chain Validation ===
+/tmp/rustup-init: OK
+info: profile set to minimal
+info: default host tuple is x86_64-unknown-linux-gnu
+info: syncing channel updates for 1.99.0-x86_64-unknown-linux-gnu
+info: latest update on 2026-10-01 for version 1.99.0 (b940084d7 2026-09-28)
+info: downloading 3 components
+
+info: default toolchain set to 1.99.0-x86_64-unknown-linux-gnu
+  1.99.0-x86_64-unknown-linux-gnu installed - rustc 1.99.0 (b940084d7 2026-09-28)
+
+
+Rust is installed now. Great!
+
+To get started you may need to restart your current shell.
+This would reload your PATH environment variable to include
+Cargo's bin directory ($HOME/.cargo/bin).
+
+To configure your current shell, you need to source the
+corresponding env file under $HOME/.cargo.
+
+Consider running the right command for your shell (note the leading DOT):
+. "$HOME/.cargo/env" # For sh/ash/dash/pdksh/bash
+cargo:rerun-if-env-changed=CC_x86_64-unknown-linux-gnu
+CC_x86_64-unknown-linux-gnu = None
+cargo:rerun-if-env-changed=CC_x86_64_unknown_linux_gnu
+CC_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_unknown_linux_gnu
+CFLAGS_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-unknown-linux-gnu
+CFLAGS_x86_64-unknown-linux-gnu = None
+Cloning into '/home/azureuser/snpguest-src'...
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded anstream v0.6.20
+  Downloaded asn1-rs-derive v0.5.1
+  Downloaded autocfg v1.5.0
+  Downloaded anstyle v1.0.11
+  Downloaded anstyle-parse v0.2.7
+  Downloaded asn1-rs-impl v0.2.0
+  Downloaded anstyle-query v1.1.4
+  Downloaded bitfield-macros v0.19.2
+  Downloaded cfg-if v1.0.3
+  Downloaded colorchoice v1.0.4
+  Downloaded foreign-types v0.3.2
+  Downloaded is-terminal v0.4.16
+  Downloaded is_terminal_polyfill v1.70.1
+  Downloaded mime v0.3.17
+  Downloaded num-conv v0.1.0
+  Downloaded option-ext v0.2.0
+  Downloaded rusticata-macros v4.1.0
+  Downloaded anyhow v1.0.100
+  Downloaded asn1-rs v0.6.2
+  Downloaded base64 v0.13.1
+  Downloaded base64 v0.22.1
+  Downloaded bincode v1.3.3
+  Downloaded bitfield v0.15.0
+  Downloaded bitfield v0.19.2
+  Downloaded bitflags v1.3.2
+  Downloaded bitflags v2.9.4
+  Downloaded byteorder v1.5.0
+  Downloaded bytes v1.10.1
+  Downloaded clap-num v1.2.0
+  Downloaded clap_lex v0.7.5
+  Downloaded colorful v0.2.2
+  Downloaded data-encoding v2.9.0
+  Downloaded deranged v0.5.3
+  Downloaded dirs v6.0.0
+  Downloaded dirs-sys v0.5.0
+  Downloaded displaydoc v0.2.5
+  Downloaded find-msvc-tools v0.1.2
+  Downloaded foreign-types-shared v0.1.1
+  Downloaded form_urlencoded v1.2.2
+  Downloaded futures-core v0.3.31
+  Downloaded futures-task v0.3.31
+  Downloaded http-body v0.4.6
+  Downloaded hyper-tls v0.5.0
+  Downloaded idna_adapter v1.2.1
+  Downloaded iocuddle v0.1.1
+  Downloaded lazy_static v1.5.0
+  Downloaded msru v0.2.0
+  Downloaded oid-registry v0.7.1
+  Downloaded openssl-macros v0.1.1
+  Downloaded openssl-probe v0.1.6
+  Downloaded percent-encoding v2.3.2
+  Downloaded pin-utils v0.1.0
+  Downloaded rand_chacha v0.3.1
+  Downloaded rdrand v0.8.3
+  Downloaded aho-corasick v1.1.3
+  Downloaded der-parser v9.0.0
+  Downloaded env_logger v0.10.2
+  Downloaded equivalent v1.0.2
+  Downloaded fnv v1.0.7
+  Downloaded futures-channel v0.3.31
+  Downloaded futures-io v0.3.31
+  Downloaded futures-sink v0.3.31
+  Downloaded heck v0.5.0
+  Downloaded hex v0.4.3
+  Downloaded httpdate v1.0.3
+  Downloaded humantime v2.3.0
+  Downloaded itoa v1.0.15
+  Downloaded memoffset v0.6.5
+  Downloaded native-tls v0.2.14
+  Downloaded num-integer v0.1.46
+  Downloaded pin-project-lite v0.2.16
+  Downloaded rand_core v0.6.4
+  Downloaded clap v4.5.47
+  Downloaded clap_builder v4.5.47
+  Downloaded clap_derive v4.5.47
+  Downloaded getrandom v0.2.16
+  Downloaded httparse v1.10.1
+  Downloaded icu_normalizer v2.0.0
+  Downloaded icu_provider v2.0.0
+  Downloaded ipnet v2.11.0
+  Downloaded litemap v0.8.0
+  Downloaded num-traits v0.2.19
+  Downloaded once_cell v1.21.3
+  Downloaded serde_urlencoded v0.7.1
+  Downloaded stable_deref_trait v1.2.0
+  Downloaded strsim v0.11.1
+  Downloaded time-core v0.1.6
+  Downloaded tokio-native-tls v0.3.1
+  Downloaded tower-service v0.3.3
+  Downloaded try-lock v0.2.5
+  Downloaded untrusted v0.9.0
+  Downloaded utf8_iter v1.0.4
+  Downloaded utf8parse v0.2.2
+  Downloaded want v0.3.1
+  Downloaded yoke-derive v0.8.0
+  Downloaded zerofrom v0.1.6
+  Downloaded zerofrom-derive v0.1.6
+  Downloaded icu_locale_core v2.0.0
+  Downloaded icu_normalizer_data v2.0.0
+  Downloaded icu_properties v2.0.1
+  Downloaded log v0.4.28
+  Downloaded potential_utf v0.1.3
+  Downloaded powerfmt v0.2.0
+  Downloaded ppv-lite86 v0.2.21
+  Downloaded serde v1.0.225
+  Downloaded shlex v1.3.0
+  Downloaded slab v0.4.11
+  Downloaded static_assertions v1.1.0
+  Downloaded synstructure v0.13.2
+  Downloaded thiserror-impl v1.0.69
+  Downloaded time-macros v0.2.24
+  Downloaded tinystr v0.8.1
+  Downloaded writeable v0.6.1
+  Downloaded yoke v0.8.0
+  Downloaded zerovec-derive v0.11.1
+  Downloaded cc v1.2.38
+  Downloaded http v0.2.12
+  Downloaded icu_collections v2.0.0
+  Downloaded memchr v2.7.5
+  Downloaded minimal-lexical v0.2.1
+  Downloaded openssl-sys v0.9.109
+  Downloaded pkg-config v0.3.32
+  Downloaded quote v1.0.40
+  Downloaded rand v0.8.5
+  Downloaded ryu v1.0.20
+  Downloaded serde_core v1.0.225
+  Downloaded serde_derive v1.0.225
+  Downloaded smallvec v1.15.1
+  Downloaded termcolor v1.4.1
+  Downloaded unicode-ident v1.0.19
+  Downloaded indexmap v2.11.4
+  Downloaded mio v1.0.4
+  Downloaded num-bigint v0.4.6
+  Downloaded proc-macro2 v1.0.101
+  Downloaded socket2 v0.5.10
+  Downloaded thiserror v1.0.69
+  Downloaded tracing-core v0.1.34
+  Downloaded uuid v1.18.1
+  Downloaded nom v7.1.3
+  Downloaded socket2 v0.6.0
+  Downloaded zerotrie v0.2.2
+  Downloaded futures-util v0.3.31
+  Downloaded hashbrown v0.16.0
+  Downloaded idna v1.1.0
+  Downloaded tracing v0.1.41
+  Downloaded url v2.5.7
+  Downloaded x509-parser v0.16.0
+  Downloaded icu_properties_data v2.0.1
+  Downloaded regex v1.11.2
+  Downloaded reqwest v0.11.10
+  Downloaded time v0.3.44
+  Downloaded tokio-util v0.7.16
+  Downloaded zerovec v0.11.4
+  Downloaded h2 v0.3.27
+  Downloaded hyper v0.14.32
+  Downloaded nix v0.23.2
+  Downloaded vcpkg v0.2.15
+  Downloaded openssl v0.10.73
+  Downloaded sev v7.1.0
+  Downloaded zerocopy v0.8.27
+  Downloaded syn v2.0.106
+  Downloaded regex-syntax v0.8.6
+  Downloaded regex-automata v0.4.10
+  Downloaded libc v0.2.175
+  Downloaded tokio v1.47.1
+  Downloaded encoding_rs v0.8.35
+  Downloaded ring v0.17.14
+  Downloaded openssl-src v300.5.2+3.5.2
+   Compiling proc-macro2 v1.0.101
+   Compiling unicode-ident v1.0.19
+   Compiling libc v0.2.175
+   Compiling shlex v1.3.0
+   Compiling find-msvc-tools v0.1.2
+   Compiling memchr v2.7.5
+   Compiling cc v1.2.38
+   Compiling quote v1.0.40
+   Compiling syn v2.0.106
+   Compiling cfg-if v1.0.3
+   Compiling stable_deref_trait v1.2.0
+   Compiling autocfg v1.5.0
+   Compiling itoa v1.0.15
+   Compiling openssl-src v300.5.2+3.5.2
+   Compiling vcpkg v0.2.15
+   Compiling pkg-config v0.3.32
+   Compiling pin-project-lite v0.2.16
+   Compiling once_cell v1.21.3
+   Compiling num-traits v0.2.19
+   Compiling bytes v1.10.1
+   Compiling serde_core v1.0.225
+   Compiling openssl-sys v0.9.109
+   Compiling writeable v0.6.1
+   Compiling litemap v0.8.0
+   Compiling serde v1.0.225
+   Compiling getrandom v0.2.16
+   Compiling socket2 v0.6.0
+   Compiling synstructure v0.13.2
+   Compiling mio v1.0.4
+   Compiling zerofrom-derive v0.1.6
+   Compiling displaydoc v0.2.5
+   Compiling yoke-derive v0.8.0
+   Compiling zerovec-derive v0.11.1
+   Compiling serde_derive v1.0.225
+   Compiling zerofrom v0.1.6
+   Compiling yoke v0.8.0
+   Compiling zerotrie v0.2.2
+   Compiling zerovec v0.11.4
+   Compiling icu_normalizer_data v2.0.0
+   Compiling icu_properties_data v2.0.1
+   Compiling foreign-types-shared v0.1.1
+   Compiling openssl v0.10.73
+   Compiling futures-core v0.3.31
+   Compiling foreign-types v0.3.2
+   Compiling openssl-macros v0.1.1
+   Compiling tokio v1.47.1
+   Compiling tinystr v0.8.1
+   Compiling icu_locale_core v2.0.0
+   Compiling potential_utf v0.1.3
+   Compiling icu_collections v2.0.0
+   Compiling icu_provider v2.0.0
+   Compiling fnv v1.0.7
+   Compiling thiserror v1.0.69
+   Compiling powerfmt v0.2.0
+   Compiling time-core v0.1.6
+   Compiling num-conv v0.1.0
+   Compiling minimal-lexical v0.2.1
+   Compiling bitflags v2.9.4
+   Compiling nom v7.1.3
+   Compiling time-macros v0.2.24
+   Compiling deranged v0.5.3
+   Compiling http v0.2.12
+   Compiling thiserror-impl v1.0.69
+   Compiling tracing-core v0.1.34
+   Compiling futures-sink v0.3.31
+   Compiling zerocopy v0.8.27
+   Compiling futures-task v0.3.31
+   Compiling slab v0.4.11
+   Compiling smallvec v1.15.1
+   Compiling httparse v1.10.1
+   Compiling native-tls v0.2.14
+   Compiling log v0.4.28
+   Compiling hashbrown v0.16.0
+   Compiling futures-io v0.3.31
+   Compiling pin-utils v0.1.0
+   Compiling equivalent v1.0.2
+   Compiling futures-util v0.3.31
+   Compiling indexmap v2.11.4
+   Compiling icu_normalizer v2.0.0
+   Compiling tokio-util v0.7.16
+   Compiling time v0.3.44
+   Compiling tracing v0.1.41
+   Compiling icu_properties v2.0.1
+   Compiling rusticata-macros v4.1.0
+   Compiling asn1-rs-derive v0.5.1
+   Compiling asn1-rs-impl v0.2.0
+   Compiling rand_core v0.6.4
+   Compiling percent-encoding v2.3.2
+   Compiling openssl-probe v0.1.6
+   Compiling utf8parse v0.2.2
+   Compiling try-lock v0.2.5
+   Compiling want v0.3.1
+   Compiling anstyle-parse v0.2.7
+   Compiling asn1-rs v0.6.2
+   Compiling form_urlencoded v1.2.2
+   Compiling idna_adapter v1.2.1
+   Compiling h2 v0.3.27
+   Compiling http-body v0.4.6
+   Compiling futures-channel v0.3.31
+   Compiling num-integer v0.1.46
+   Compiling memoffset v0.6.5
+   Compiling socket2 v0.5.10
+   Compiling ring v0.17.14
+   Compiling aho-corasick v1.1.3
+   Compiling httpdate v1.0.3
+   Compiling utf8_iter v1.0.4
+   Compiling oid-registry v0.7.1
+   Compiling tower-service v0.3.3
+   Compiling lazy_static v1.5.0
+   Compiling anstyle v1.0.11
+   Compiling is_terminal_polyfill v1.70.1
+   Compiling option-ext v0.2.0
+   Compiling regex-syntax v0.8.6
+   Compiling colorchoice v1.0.4
+   Compiling anstyle-query v1.1.4
+   Compiling anstream v0.6.20
+   Compiling regex-automata v0.4.10
+   Compiling dirs-sys v0.5.0
+   Compiling hyper v0.14.32
+   Compiling idna v1.1.0
+   Compiling num-bigint v0.4.6
+   Compiling ppv-lite86 v0.2.21
+   Compiling bitfield-macros v0.19.2
+   Compiling anyhow v1.0.100
+   Compiling heck v0.5.0
+   Compiling ryu v1.0.20
+   Compiling untrusted v0.9.0
+   Compiling sev v7.1.0
+   Compiling strsim v0.11.1
+   Compiling clap_lex v0.7.5
+   Compiling clap_builder v4.5.47
+   Compiling serde_urlencoded v0.7.1
+   Compiling clap_derive v4.5.47
+   Compiling bitfield v0.19.2
+   Compiling rand_chacha v0.3.1
+   Compiling der-parser v9.0.0
+   Compiling url v2.5.7
+   Compiling dirs v6.0.0
+   Compiling regex v1.11.2
+   Compiling rdrand v0.8.3
+   Compiling uuid v1.18.1
+   Compiling is-terminal v0.4.16
+   Compiling encoding_rs v0.8.35
+   Compiling base64 v0.22.1
+   Compiling byteorder v1.5.0
+   Compiling iocuddle v0.1.1
+   Compiling static_assertions v1.1.0
+   Compiling bitflags v1.3.2
+   Compiling base64 v0.13.1
+   Compiling ipnet v2.11.0
+   Compiling data-encoding v2.9.0
+   Compiling hex v0.4.3
+   Compiling termcolor v1.4.1
+   Compiling mime v0.3.17
+   Compiling humantime v2.3.0
+   Compiling env_logger v0.10.2
+   Compiling x509-parser v0.16.0
+   Compiling nix v0.23.2
+   Compiling rand v0.8.5
+   Compiling clap v4.5.47
+   Compiling bincode v1.3.3
+   Compiling clap-num v1.2.0
+   Compiling bitfield v0.15.0
+   Compiling msru v0.2.0
+   Compiling colorful v0.2.2
+   Compiling tokio-native-tls v0.3.1
+   Compiling hyper-tls v0.5.0
+   Compiling reqwest v0.11.10
+   Compiling snpguest v0.10.0 (/home/azureuser/snpguest-src)
+    Finished `release` profile [optimized] target(s) in 2m 38s
+snpguest 0.10.0
+
+=== prepare workdir ===
+
+=== capture VM identity from Azure IMDS ===
+=== Azure IMDS metadata ===
+{
+  "compute": {
+    "additionalCapabilities": {
+      "hibernationEnabled": "false"
+    },
+    "azEnvironment": "AzurePublicCloud",
+    "customData": "",
+    "evictionPolicy": "",
+    "extendedLocation": {
+      "name": "",
+      "type": ""
+    },
+    "host": {
+      "id": ""
+    },
+    "hostGroup": {
+      "id": ""
+    },
+    "isHostCompatibilityLayerVm": "true",
+    "licenseType": "",
+    "location": "westeurope",
+    "name": "vault-genome-sev-snp-test",
+    "offer": "0001-com-ubuntu-confidential-vm-jammy",
+    "osProfile": {
+      "adminUsername": "azureuser",
+      "computerName": "vault-genome-sev-snp-test",
+      "disablePasswordAuthentication": "true"
+    },
+    "osType": "Linux",
+    "placementGroupId": "",
+    "plan": {
+      "name": "",
+      "product": "",
+      "publisher": ""
+    },
+    "platformFaultDomain": "0",
+    "platformSubFaultDomain": "",
+    "platformUpdateDomain": "0",
+    "priority": "Regular",
+    "provider": "Microsoft.Compute",
+    "publicKeys": [
+      {
+        "keyData": "ssh-ed25519 <redacted: the laptop ssh public key>",
+        "path": "/home/azureuser/.ssh/authorized_keys"
+      }
+    ],
+    "publisher": "Canonical",
+    "resourceGroupName": "vault-genome-sev-snp-test-rg",
+    "resourceId": "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test",
+    "securityProfile": {
+      "encryptionAtHost": "false",
+      "secureBootEnabled": "true",
+      "securityType": "ConfidentialVM",
+      "virtualTpmEnabled": "true"
+    },
+    "sku": "22_04-lts-cvm",
+    "storageProfile": {
+      "dataDisks": [],
+      "imageReference": {
+        "id": "",
+        "offer": "0001-com-ubuntu-confidential-vm-jammy",
+        "publisher": "Canonical",
+        "sku": "22_04-lts-cvm",
+        "version": "latest"
+      },
+      "osDisk": {
+        "caching": "ReadWrite",
+        "createOption": "FromImage",
+        "diffDiskSettings": {
+          "option": ""
+        },
+        "diskSizeGB": "40",
+        "encryptionSettings": {
+          "diskEncryptionKey": {
+            "secretUrl": "",
+            "sourceVault": {
+              "id": ""
+            }
+          },
+          "enabled": "false",
+          "keyEncryptionKey": {
+            "keyUrl": "",
+            "sourceVault": {
+              "id": ""
+            }
+          }
+        },
+        "image": {
+          "uri": ""
+        },
+        "managedDisk": {
+          "id": "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/disks/vault-genome-sev-snp-test-os-disk",
+          "storageAccountType": "Premium_LRS"
+        },
+        "name": "vault-genome-sev-snp-test-os-disk",
+        "osType": "Linux",
+        "vhd": {
+          "uri": ""
+        },
+        "writeAcceleratorEnabled": "false"
+      },
+      "resourceDisk": {
+        "size": "0"
+      }
+    },
+    "subscriptionId": "<subscription>",
+    "tags": "purpose:vault-genome-hardware-validation;sprint:week-3-azure-sev-snp",
+    "tagsList": [
+      {
+        "name": "purpose",
+        "value": "vault-genome-hardware-validation"
+      },
+      {
+        "name": "sprint",
+        "value": "week-3-azure-sev-snp"
+      }
+    ],
+    "userData": "",
+    "version": "22.04.202610030",
+    "virtualMachineScaleSet": {
+      "id": ""
+    },
+    "vmId": "c99d830f-e620-4563-92cb-1a302f955d84",
+    "vmScaleSetName": "",
+    "vmSize": "Standard_DC4as_v5",
+    "zone": ""
+  },
+  "network": {
+    "interface": [
+      {
+        "ipv4": {
+          "ipAddress": [
+            {
+              "privateIpAddress": "10.42.1.4",
+              "publicIpAddress": ""
+            }
+          ],
+          "subnet": [
+            {
+              "address": "10.42.1.0",
+              "prefix": "24"
+            }
+          ]
+        },
+        "ipv6": {
+          "ipAddress": []
+        },
+        "macAddress": "6045BD8C8157"
+      }
+    ]
+  }
+}
+
+=== bootstrap complete ===
+Next: ./scripts/02-capture-attestation.sh
+=== read the HCL report from the vTPM (NV index 0x1400001) ===
+WARN: Reading full size of the NV index
+-rw-rw---- 1 azureuser azureuser 2900 Oct 15 04:35 evidence/hcl-report.bin
+
+=== parse the HCL report; check REPORT_DATA = SHA-256(runtime data) || 0^32 ===
+hcl header:   version=2 report_size=2469 request_type=2 status=0
+snp report:   version=3 guest_svn=3 policy=0x3001f vmpl=0
+runtime data: section_size=1253 version=1 report_type=2 hash_type=1 data_size=1233
+runtime keys: ['HCLAkPub', 'HCLEkPub']
+vm-config:    {"console-enabled": true, "hardware-sealing-policy": "hash", "root-cert-thumbprint": "6nZZnYaJc4KqUZ_yvA-mucFdYNouvlPnITnNMXsHl-0", "secure-boot": true, "tpm-enabled": true, "tpm-persisted": true, "vmUniqueId": "C99D830F-E620-4563-92CB-1A302F955D84"}
+report_data:  7bc3a2f26c594bc4b6c41a99b5f5931b3e4f241f521f64abf69b75ba0ca543330000000000000000000000000000000000000000000000000000000000000000
+sha256(data): 7bc3a2f26c594bc4b6c41a99b5f5931b3e4f241f521f64abf69b75ba0ca54333
+REPORT_DATA = SHA-256(runtime data) || 0^32: OK
+
+=== file metadata ===
+size in bytes (should be 1184): 1184
+sha256: 0fe40edb2e8a5867bfa973635fd13550024e941bb61684366e77704f6e96e7de
+00000000: 0300 0000 0300 0000 1f00 0300 0000 0000  ................
+00000010: 0025 2000 0000 0000 0000 0000 0000 0000  .% .............
+00000020: 0200 0000 0000 0000 0000 0000 0000 0000  ................
+00000030: 0000 0000 0100 0000 0a00 0000 0000 1754  ...............T
+00000040: 2700 0000 0000 0000 0000 0000 0000 0000  '...............
+00000050: 7bc3 a2f2 6c59 4bc4 b6c4 1a99 b5f5 931b  {...lYK.........
+
+=== VCEK and chain from Azure THIM (the certificates for this chip and TCB) ===
+tcbm: 541700000000000A
+subject=OU = Engineering, C = US, L = Santa Clara, ST = CA, O = Advanced Micro Devices, CN = SEV-VCEK
+issuer=OU = Engineering, C = US, L = Santa Clara, ST = CA, O = Advanced Micro Devices, CN = SEV-Genoa
+
+=== capture kernel SEV log too ===
+Oct 15 04:00:00 ubuntu kernel: efi: ACPI=0xbfffa000 ACPI 2.0=0xbfffa014 SMBIOS=0xbff88000 SMBIOS 3.0=0xbff86000 TPMFinalLog=0xbecf1000 MEMATTR=0xbecb6018 MOKvar=0xbff84000 INITRD=0xbeca7598 RNG=0xbffd2018 TPMEventLog=0xbec87018 
+Oct 15 04:00:00 ubuntu kernel: ACPI: TPM2 0x00000000BFFD3000 000034 (v03 VRTUAL VTPM     00000001 MSFT 00000001)
+Oct 15 04:00:00 ubuntu kernel: ACPI: Reserving TPM2 table memory at [mem 0xbffd3000-0xbffd3033]
+Oct 15 04:00:00 ubuntu kernel: Memory Encryption Features active: AMD SEV
+Oct 15 04:00:00 ubuntu kernel: tpm_crb MSFT1001:00: Disabling hwrng
+Oct 15 04:00:00 ubuntu kernel: software IO TLB: Memory encryption is active and system is using DMA bounce buffers
+Oct 15 04:00:00 ubuntu kernel: kvm-guest: setup_efi_kvm_sev_migration : EFI live migration variable not found
+Oct 15 04:30:26 vault-genome-sev-snp-test kernel: EXT4-fs (sda1): resizing filesystem from 785147 to 10222331 blocks
+Oct 15 04:30:26 vault-genome-sev-snp-test kernel: EXT4-fs (sda1): resized filesystem to 10222331
+Oct 15 04:30:33 vault-genome-sev-snp-test kernel: loop3: detected capacity change from 0 to 8
+
+=== done. raw attestation captured ===
+Next:
+  ./scripts/02b-cryptographic-attestation.sh  # AMD chain validation
+  ./scripts/02f-capture-maa-jwt.sh            # Microsoft MAA JWT
+  ./scripts/03-demo1-single-bundle.sh         # Demo 1 workload
+=== ensure ollama daemon dir is readable ===
+
+=== pull the model the demo uses ===
+[?2026h[?25l[1Gpulling manifest ⠋ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠙ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠹ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠸ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠼ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠴ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠦ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠧ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠇ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠏ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠋ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠙ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠹ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠸ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest [K
+pulling dde5aa3fc5ff:   0% ▕                  ▏ 1.6 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:   1% ▕                  ▏  25 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:   3% ▕                  ▏  70 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:   6% ▕█                 ▏ 122 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:   7% ▕█                 ▏ 148 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  10% ▕█                 ▏ 196 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  12% ▕██                ▏ 248 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  14% ▕██                ▏ 276 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  17% ▕██                ▏ 335 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  19% ▕███               ▏ 385 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  21% ▕███               ▏ 414 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  23% ▕████              ▏ 468 MB/2.0 GB  439 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  26% ▕████              ▏ 523 MB/2.0 GB  439 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  27% ▕████              ▏ 552 MB/2.0 GB  439 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  30% ▕█████             ▏ 607 MB/2.0 GB  439 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  33% ▕█████             ▏ 664 MB/2.0 GB  439 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  34% ▕██████            ▏ 691 MB/2.0 GB  439 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  37% ▕██████            ▏ 750 MB/2.0 GB  439 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  40% ▕███████           ▏ 803 MB/2.0 GB  439 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  41% ▕███████           ▏ 832 MB/2.0 GB  439 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  44% ▕███████           ▏ 893 MB/2.0 GB  439 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  47% ▕████████          ▏ 944 MB/2.0 GB  458 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  48% ▕████████          ▏ 972 MB/2.0 GB  458 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  51% ▕█████████         ▏ 1.0 GB/2.0 GB  458 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  54% ▕█████████         ▏ 1.1 GB/2.0 GB  458 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  55% ▕█████████         ▏ 1.1 GB/2.0 GB  458 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  58% ▕██████████        ▏ 1.2 GB/2.0 GB  458 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  61% ▕██████████        ▏ 1.2 GB/2.0 GB  458 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  62% ▕███████████       ▏ 1.3 GB/2.0 GB  458 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  65% ▕███████████       ▏ 1.3 GB/2.0 GB  458 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  68% ▕████████████      ▏ 1.4 GB/2.0 GB  458 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  69% ▕████████████      ▏ 1.4 GB/2.0 GB  464 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  72% ▕████████████      ▏ 1.5 GB/2.0 GB  464 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  74% ▕█████████████     ▏ 1.5 GB/2.0 GB  464 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  76% ▕█████████████     ▏ 1.5 GB/2.0 GB  464 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  78% ▕██████████████    ▏ 1.6 GB/2.0 GB  464 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  81% ▕██████████████    ▏ 1.6 GB/2.0 GB  464 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  82% ▕██████████████    ▏ 1.7 GB/2.0 GB  464 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  85% ▕███████████████   ▏ 1.7 GB/2.0 GB  464 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  88% ▕███████████████   ▏ 1.8 GB/2.0 GB  464 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  89% ▕████████████████  ▏ 1.8 GB/2.0 GB  464 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  92% ▕████████████████  ▏ 1.9 GB/2.0 GB  463 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  95% ▕█████████████████ ▏ 1.9 GB/2.0 GB  463 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  96% ▕█████████████████ ▏ 1.9 GB/2.0 GB  463 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  99% ▕█████████████████ ▏ 2.0 GB/2.0 GB  463 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕█████████████████ ▏ 2.0 GB/2.0 GB  463 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕█████████████████ ▏ 2.0 GB/2.0 GB  463 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕█████████████████ ▏ 2.0 GB/2.0 GB  463 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠋ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠙ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠹ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠸ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠼ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠴ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠦ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠧ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠇ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠏ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠋ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠙ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠹ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠸ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠼ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠴ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠦ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠧ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠇ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠏ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠋ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 56bb8bd477a5: 100% ▕██████████████████▏   96 B                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest [K
+writing manifest [K
+success [K[?25h[?2026l
+
+=== ensure perms still readable after ollama recreated files ===
+
+=== seal ===
+✓ sealed ollama "llama3.2:3b"  (gen 0)
+  output:        demo1-bundle.genome
+  key file:      demo1-bundle.key  (0600 — it opens the bundle)
+  key id:        genome-c42f7c25e88d-g0-7506272078b8
+  components:    8
+  bundle bytes:  2019436684 (1.88 GiB), payload 1.88 GiB in segments of 1.00 MiB
+  payload sha256:sha256:c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074
+  sealed at UTC: 2026-10-15T04:36:00Z
+
+=== inspect ===
+bundle:           demo1-bundle.genome
+format:           vault-genome-v3
+key id:           genome-c42f7c25e88d-g0-7506272078b8  (the key is not in the bundle)
+sealed at (UTC):  2026-10-15T04:36:00Z
+generation:       0
+parent bundle:    (none — genesis)
+content kind:     ollama
+content ref:      llama3.2:3b
+bundle bytes:     2019436684 (1.88 GiB)
+bundle sha256:    d94c59a6a4bda9c1a434d0c36cb6c3bdb40ee9c7524f1d303be444d33eb1edc9
+payload sha256:   sha256:c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074
+payload bytes:    2019402752 (1.88 GiB) in segments of 1.00 MiB
+components (8):
+  [config] sha256:34bb5ab01051a11372a91f95f3fbbc51173eed8e7f13ec395b9ae9b8bd0e242b          561  application/vnd.docker.container.image.v1+json
+  [layer] sha256:56bb8bd477a519ffa694fc449c2413c6f0e1d3b1c88fa7e3c9d88d3ae49d4dcb           96  application/vnd.ollama.image.params
+  [layer] sha256:966de95ca8a62200913e3f8bfbf84c8494536f1b94b49166851e76644e966396         1429  application/vnd.ollama.image.template
+  [manifest] sha256:a52a4a87c5affc63e344f4974f75bcc5b478b40e641df57d0f40941dfc406c94         1169  application/vnd.ollama.manifest
+  [layer] sha256:a70ff7e570d97baaf4e62ac6e6ad9975e04caa6d900d3742d37698494479e0cd         6016  application/vnd.ollama.image.license
+  [layer] sha256:a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72         1005  application/vnd.docker.distribution.manifest.v2+json
+  [layer] sha256:dde5aa3fc5ffc17176b5e8bdc82f587b24b2678c6c66101bf7da77af9f7ccdff   2019377376  application/vnd.ollama.image.model
+  [layer] sha256:fcc5a6bec9daf9b561a68827b67ab6088e1dba9d1fa2a50d7bbcc8384e0a265d         7711  application/vnd.ollama.image.license
+
+=== open into /tmp/demo1-restored ===
+✓ unsealed ollama "llama3.2:3b"  (gen 0, vault-genome-v3)
+  bundle:        demo1-bundle.genome
+  key id:        genome-c42f7c25e88d-g0-7506272078b8
+  target:        /tmp/demo1-restored
+  files:         8, 2019395363 bytes (1.88 GiB), each checked against its recorded digest
+  payload sha256:sha256:c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074
+  tree sha256:   17284c0e39d8ab98c3dff71c3fbc1d018f2343088703d4f202aa0bc6dd302f4a
+
+=== verify (re-hash every blob in restored tree) ===
+✓ envelope vault-genome-v3 · ollama "llama3.2:3b"  (gen 0)
+  bundle:        demo1-bundle.genome
+  key id:        genome-c42f7c25e88d-g0-7506272078b8
+  authenticated: yes — opened with its key; header and payload are as sealed
+  components:    8
+  bundle:        2019436684 bytes (1.88 GiB), sha256 d94c59a6a4bda9c1…
+  payload sha256:sha256:c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074
+  sealed at UTC: 2026-10-15T04:36:00Z
+  restored:      ok: every file matches its recorded digest
+  tree sha256:   17284c0e39d8ab98c3dff71c3fbc1d018f2343088703d4f202aa0bc6dd302f4a
+
+=== tamper test: flip one byte at offset 1 MiB inside the sealed bundle ===
+1 byte flipped at offset 1 MiB
+tamper test exit code: 4 (non-zero == the edited segment failed authentication, expected)
+acpctl genome open: restore: safetar: read entry: bundle: segment 1 of 1926 does not open under key genome-c42f7c25e88d-g0-7506272078b8: cipher: message authentication failed
+
+=== Demo 1 complete ===
+Next: ./scripts/04-demo2-chain.sh
+=== Step 1: VM identity ===
+Hostname: vault-genome-sev-snp-test
+VM ID:    vault-genome-sev-snp-test
+Cloud:    azure
+Location: westeurope
+Zone:     
+VM Size:  Standard_DC4as_v5
+Kernel:   6.8.0-1068-azure-fde
+Captured: 2026-10-15T04:37:18Z
+
+=== Step 2: workload manifest ===
+{
+  "vault_genome_version": "1.0.0",
+  "payload_sha256": "c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074",
+  "payload_size_bytes": 2019402752,
+  "payload_description": "ollama llama3.2:3b, as sealed by acpctl genome seal into demo1-bundle.genome",
+  "payload_measured_by": "acpctl genome inspect --json of demo1-bundle.genome: sha256 over the sealed components, measured in this run",
+  "bundle_sha256": "d94c59a6a4bda9c1a434d0c36cb6c3bdb40ee9c7524f1d303be444d33eb1edc9",
+  "bundle_size_bytes": 2019436684,
+  "sealed_at": "2026-10-15T04:36:00Z",
+  "demo": "vault-genome-cross-vm-attestation",
+  "vm_id": "vault-genome-sev-snp-test",
+  "tee_backend": "amd-sev-snp",
+  "cloud": "azure",
+  "location": "westeurope",
+  "zone": "",
+  "vm_size": "Standard_DC4as_v5"
+}
+
+=== Step 3: attestation report from the vTPM capture ===
+REPORT_DATA expected (SHA-256(runtime data) || 0^32): 7bc3a2f26c594bc4b6c41a99b5f5931b3e4f241f521f64abf69b75ba0ca543330000000000000000000000000000000000000000000000000000000000000000
+AMD product line (from the report's CPUID family/model): genoa
+
+=== Step 4: the vTPM quote that binds the manifest to the report ===
+persistent handles: ['0x81000001', '0x81000003', '0x81000004'] | the runtime data's HCLAkPub is 0x81000003
+vTPM quote by 0x81000003 (HCLAkPub) over SHA-256(manifest)=af10d76dd06b88dc8567b1d33a8f8e44f51d40d7b6f3bd411a61930d0742c9c1: VERIFIED
+
+=== Step 5: decode report ===
+Attestation Report:
+
+Version:                      3
+
+Guest SVN:                    3
+
+Guest Policy (0x3001f):
+  ABI Major:     0
+  ABI Minor:     31
+  SMT Allowed:   true
+  Migrate MA:    false
+  Debug Allowed: false
+  Single Socket: false
+  CXL Allowed:   false
+  AEX 256 XTS:   false
+  RAPL Allowed:  false
+  Ciphertext hiding: false
+  Page Swap Disable: false
+
+Family ID:
+00 25 20 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+Image ID:
+02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+VMPL:                         0
+
+Signature Algorithm:          1
+
+Current TCB:
+
+=== Step 6: fetch AMD certificates from KDS (genoa) ===
+--- attempt 1/3 ---
+total 20
+drwxrwxr-x 2 azureuser azureuser 4096 Oct 15 04:37 .
+drwxrwxr-x 3 azureuser azureuser 4096 Oct 15 04:37 ..
+-rw-rw-r-- 1 azureuser azureuser 2277 Oct 15 04:37 ark.pem
+-rw-rw-r-- 1 azureuser azureuser 2325 Oct 15 04:37 ask.pem
+-rw-rw-r-- 1 azureuser azureuser 1879 Oct 15 04:37 vcek.pem
+
+=== Step 7: verify chain ARK → ASK → VCEK ===
+The AMD ARK was self-signed!
+The AMD ASK was signed by the AMD ARK!
+The VCEK was signed by the AMD ASK!
+
+=== Step 8: verify report signature ===
+Reported TCB Boot Loader from certificate matches the attestation report.
+Reported TCB TEE from certificate matches the attestation report.
+Reported TCB SNP from certificate matches the attestation report.
+Reported TCB Microcode from certificate matches the attestation report.
+VEK signed the Attestation Report!
+
+=== Step 9: verify REPORT_DATA binding ===
+Expected REPORT_DATA: 7bc3a2f26c594bc4b6c41a99b5f5931b3e4f241f521f64abf69b75ba0ca543330000000000000000000000000000000000000000000000000000000000000000
+Reported TCB Boot Loader from certificate matches the attestation report.
+Reported TCB TEE from certificate matches the attestation report.
+Reported TCB SNP from certificate matches the attestation report.
+Reported TCB Microcode from certificate matches the attestation report.
+VEK signed the Attestation Report!
+Report Data verified successfully.
+
+=== Step 9b: VCEK from Azure THIM vs VCEK from AMD KDS ===
+THIM VCEK: notBefore=Jul  1 10:58:10 2026 GMT notAfter=Jul  1 10:58:10 2033 GMT 
+KDS  VCEK: notBefore=Oct 14 05:39:34 2026 GMT notAfter=Oct 14 05:39:34 2033 GMT 
+THIM VCEK public key sha256: 472d2accd90390886e62f85593e0965ec0c0cbcf25f79afb82ee7536c2d0a579
+KDS  VCEK public key sha256: 472d2accd90390886e62f85593e0965ec0c0cbcf25f79afb82ee7536c2d0a579
+THIM hwID: 5EC8B63567CFF7491378BC0B363B4B7445D83F663BB0CD545E871B497C96B3812B2F6D3933D69F615D71173338218F83A5C37FDF9AB1E07B6562865513CF05BA
+KDS  hwID: 5EC8B63567CFF7491378BC0B363B4B7445D83F663BB0CD545E871B497C96B3812B2F6D3933D69F615D71173338218F83A5C37FDF9AB1E07B6562865513CF05BA
+THIM VCEK against the KDS chain: /home/azureuser/vg/evidence/thim-vcek.pem: OK
+SAME KEY, SAME CHIP
+
+=== Step 10: write policy validation summary ===
+Vault Genome SEV-SNP Attestation Validation — Azure vault-genome-sev-snp-test
+=================================================
+
+Date (UTC): 2026-10-15T04:37:20Z
+VM:         vault-genome-sev-snp-test (Azure westeurope, zone , Standard_DC4as_v5)
+Tool:       snpguest 0.10.0
+Chip:       AMD EPYC Genoa (SEV-SNP)
+
+POLICY CHECKS
+✓ Report from the vTPM's HCL report (Azure paravisor, NV 0x1400001; real silicon)
+✓ Cert chain valid (ARK self-signed → ASK signed by ARK → VCEK signed by ASK)
+✓ VEK signed attestation report
+✓ TCB values match (cert ↔ report) — Microcode/SNP/TEE/Boot Loader
+✓ Chip ID matches (cert ↔ report)
+✓ REPORT_DATA = SHA-256(vTPM runtime data) || 0^32 — Azure's binding, checked
+✓ VCEK from Azure THIM: same key and chip id as AMD KDS's, chains to the same ARK
+✓ Workload manifest bound through the vTPM: the attestation key the report's
+  runtime data names (HCLAkPub) signed a quote whose qualifying data is
+  SHA-256(manifest) (14-manifest-quote.*, checked by tpm2_checkquote);
+  the manifest names what Demo 1 sealed, as measured
+
+RESULT: AMD CHAIN VALIDATION PASSED
+
+NOTE: Run 02f-capture-maa-jwt.sh additionally to capture the Microsoft
+MAA JWT — Azure's independent 2nd verifier. Both chains together produce
+production_grade: true.
+
+=== Step 11: pack evidence ===
+-rw-rw-r-- 1 azureuser azureuser 13K Oct 15 04:37 /home/azureuser/vault-genome-sev-snp-test-amd-chain.tar.gz
+
+=== ✓ AMD CHAIN DONE — evidence at /home/azureuser/vg/attestation-validation/vault-genome-sev-snp-test, tarball at /home/azureuser/vault-genome-sev-snp-test-amd-chain.tar.gz ===
+Next:
+  ./scripts/02f-capture-maa-jwt.sh   # Microsoft MAA JWT (Azure-specific 2nd chain)
+=== MAA endpoint: https://sharedweu.weu.attest.azure.net (region: weu) ===
+
+=== Step A: build MAA attestation request ===
+Request built. Report: 1184 bytes; chain from Azure THIM (3 certificates); runtimeData: 1233 bytes of JSON.
+
+=== Step B: get Azure access token for MAA API ===
+Token obtained (2164 chars).
+
+=== Step C: POST to https://sharedweu.weu.attest.azure.net/attest/SevSnpVm ===
+HTTP status: 200
+-rw-rw-r-- 1 azureuser azureuser 4767 Oct 15 04:37 15-maa-jwt.txt
+
+=== Step D: decode JWT ===
+--- JWT header ---
+{
+  "alg": "RS256",
+  "jku": "https://sharedweu.weu.attest.azure.net/certs",
+  "kid": "dRKh+hBcWUfQimSl3Iv6ZhStW3TSOt0ThwiTgUUqZAo=",
+  "typ": "JWT"
+}
+
+--- JWT payload (top fields) ---
+{
+  "iss": "https://sharedweu.weu.attest.azure.net",
+  "exp": 1792067841,
+  "iat": 1792039041,
+  "x-ms-attestation-type": "sevsnpvm",
+  "x-ms-compliance-status": "azure-compliant-cvm",
+  "x-ms-sevsnpvm-launchmeasurement": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+  "x-ms-sevsnpvm-reportdata": "7bc3a2f26c594bc4b6c41a99b5f5931b3e4f241f521f64abf69b75ba0ca543330000000000000000000000000000000000000000000000000000000000000000",
+  "x-ms-sevsnpvm-is-debuggable": false,
+  "x-ms-isolation-tee": null
+}
+
+=== Step D2: MAA claims vs the report ===
+x-ms-attestation-type              OK
+x-ms-sevsnpvm-reportdata           OK
+x-ms-sevsnpvm-launchmeasurement    OK
+x-ms-sevsnpvm-is-debuggable        OK
+x-ms-compliance-status             azure-compliant-cvm
+
+=== Step E: verify JWT signature against MAA signing certs ===
+Fetched signing certs: 4 keys.
+JWT header.kid: dRKh+hBcWUfQimSl3Iv6ZhStW3TSOt0ThwiTgUUqZAo=
+JWT issuer:     https://sharedweu.weu.attest.azure.net
+✓ MAA JWT signature VALID (RS256, signed by MAA)
+  iss:                https://sharedweu.weu.attest.azure.net
+  attestation_type:   sevsnpvm
+  compliance_status:  azure-compliant-cvm
+  isolation-tee.type: sevsnpvm
+  launch-measurement: 11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4
+  reportdata:         7bc3a2f26c594bc4b6c41a99b5f5931b3e4f241f521f64abf69b75ba0ca543330000000000000000000000000000000000000000000000000000000000000000
+  hostdata:           0000000000000000000000000000000000000000000000000000000000000000
+  is-debuggable:      False
+
+=== Step F: write MAA validation summary ===
+Vault Genome MAA JWT Validation — Azure vault-genome-sev-snp-test
+=================================================
+
+Date (UTC):     2026-10-15T04:37:22Z
+VM:             vault-genome-sev-snp-test (Azure westeurope)
+MAA endpoint:   https://sharedweu.weu.attest.azure.net
+Region:         weu
+
+POLICY CHECKS (Microsoft side, independent of AMD chain)
+✓ MAA endpoint reachable
+✓ MAA accepted SEV-SNP attestation request
+✓ MAA returned signed JWT
+✓ JWT decodes cleanly (header + payload)
+✓ JWT claims include x-ms-attestation-type=sevsnpvm
+✓ JWT claims carry the report's REPORT_DATA and launch measurement, not debuggable
+✓ JWT compliance status: azure-compliant-cvm
+✓ JWT signature verified against MAA's published signing certs
+
+RESULT: MAA CHAIN VALIDATION PASSED
+
+Combined with AMD chain validation (02b-cryptographic-attestation.sh),
+this VM has TWO independently-rooted attestation chains both validated
+end-to-end. production_grade: true.
+
+=== Step G: re-pack combined evidence (AMD chain + MAA chain) ===
+-rw-rw-r-- 1 azureuser azureuser 91K Oct 15 04:37 /home/azureuser/vault-genome-sev-snp-test-azure-sev-snp-evidence.tar.gz
+
+=== ✓ MAA CHAIN DONE — both chains validated ===
+Combined evidence: /home/azureuser/vault-genome-sev-snp-test-azure-sev-snp-evidence.tar.gz
+Next: ./scripts/03-demo1-single-bundle.sh (workload tests)
+=== no chain bundles found — sealing 6 fresh ones ===
+✓ sealed dir "test-payloads/cycle-0"  (gen 0)
+  output:        generations/gen-0.genome
+  key file:      keys/gen-0.key  (0600 — it opens the bundle)
+  key id:        genome-2f610ebc471d-g0-ef498a326f8c
+  components:    1
+  bundle bytes:  2736 (2.67 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:2f610ebc471d13262db09dddc885534009e8ad29f960e3f6ea1b009e66aa8672
+  sealed at UTC: 2026-10-15T04:37:23Z
+✓ sealed dir "test-payloads/cycle-1"  (gen 1)
+  output:        generations/gen-1.genome
+  key file:      keys/gen-1.key  (0600 — it opens the bundle)
+  key id:        genome-4a7453882c03-g1-75d6bb60b293
+  parent:        generations/gen-0.genome (sha256:d1426ef170cc6871…)
+  components:    1
+  bundle bytes:  2916 (2.85 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:4a7453882c038f46fed69ae82dd359b3c38fd26d4d54e7275a6fc8f144a3ed2f
+  sealed at UTC: 2026-10-15T04:37:24Z
+✓ sealed dir "test-payloads/cycle-2"  (gen 2)
+  output:        generations/gen-2.genome
+  key file:      keys/gen-2.key  (0600 — it opens the bundle)
+  key id:        genome-ab50f9a408c8-g2-733438e6ab98
+  parent:        generations/gen-1.genome (sha256:3e7cd8852d14f087…)
+  components:    1
+  bundle bytes:  2939 (2.87 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:ab50f9a408c8e41afb8b1f7aaf63d85c51dfad8b05a62c3c1d783f3e54c45074
+  sealed at UTC: 2026-10-15T04:37:24Z
+✓ sealed dir "test-payloads/cycle-3"  (gen 3)
+  output:        generations/gen-3.genome
+  key file:      keys/gen-3.key  (0600 — it opens the bundle)
+  key id:        genome-a40a77b2a5e3-g3-8b081385a551
+  parent:        generations/gen-2.genome (sha256:0f5e76c0544346c5…)
+  components:    1
+  bundle bytes:  2939 (2.87 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:a40a77b2a5e37e24296a52b8cd437d8be038371d4cef9faace4a7f9aa29831e0
+  sealed at UTC: 2026-10-15T04:37:25Z
+✓ sealed dir "test-payloads/cycle-4"  (gen 4)
+  output:        generations/gen-4.genome
+  key file:      keys/gen-4.key  (0600 — it opens the bundle)
+  key id:        genome-5487c33653fc-g4-aa473cd8688b
+  parent:        generations/gen-3.genome (sha256:a419a6394dbe7a45…)
+  components:    1
+  bundle bytes:  2939 (2.87 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:5487c33653fc39ead082b912d6de5abc39a8eb8c83af1a9fb8b8aa9549bf2ab9
+  sealed at UTC: 2026-10-15T04:37:26Z
+✓ sealed dir "test-payloads/cycle-5"  (gen 5)
+  output:        generations/gen-5.genome
+  key file:      keys/gen-5.key  (0600 — it opens the bundle)
+  key id:        genome-e23dd40b1d3c-g5-bff18f1eab80
+  parent:        generations/gen-4.genome (sha256:f1c0e68585475451…)
+  components:    1
+  bundle bytes:  2939 (2.87 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:e23dd40b1d3cf4205b3c79894b1d7b57dbeeced5a137dfe18e8d9a828827c66f
+  sealed at UTC: 2026-10-15T04:37:26Z
+
+=== chain validation ===
+chain @ generations — 6 generation(s)
+
+●   gen   0  2.67 KiB  04:37:23  gen-0.genome  (vault-genome-v3)
+          bundle    sha256:d1426ef170cc6871…
+          content   dir · test-payloads/cycle-0
+
+├── gen   1  2.85 KiB  04:37:24  gen-1.genome  (vault-genome-v3)
+          bundle    sha256:3e7cd8852d14f087…
+          parent →  sha256:d1426ef170cc6871…
+          content   dir · test-payloads/cycle-1
+
+├── gen   2  2.87 KiB  04:37:24  gen-2.genome  (vault-genome-v3)
+          bundle    sha256:0f5e76c0544346c5…
+          parent →  sha256:3e7cd8852d14f087…
+          content   dir · test-payloads/cycle-2
+
+├── gen   3  2.87 KiB  04:37:25  gen-3.genome  (vault-genome-v3)
+          bundle    sha256:a419a6394dbe7a45…
+          parent →  sha256:0f5e76c0544346c5…
+          content   dir · test-payloads/cycle-3
+
+├── gen   4  2.87 KiB  04:37:26  gen-4.genome  (vault-genome-v3)
+          bundle    sha256:f1c0e68585475451…
+          parent →  sha256:a419a6394dbe7a45…
+          content   dir · test-payloads/cycle-4
+
+├── gen   5  2.87 KiB  04:37:26  gen-5.genome  (vault-genome-v3)
+          bundle    sha256:8ff39af7b862905f…
+          parent →  sha256:f1c0e68585475451…
+          content   dir · test-payloads/cycle-5
+
+✓ chain valid — every parent reference resolves to an in-dir bundle
+
+=== lineage walk from latest generation back to genesis ===
+lineage of gen-5.genome — depth 6
+
+├── gen   5  2.87 KiB  04:37:26  gen-5.genome  (vault-genome-v3)
+├── gen   4  2.87 KiB  04:37:26  gen-4.genome  (vault-genome-v3)
+├── gen   3  2.87 KiB  04:37:25  gen-3.genome  (vault-genome-v3)
+├── gen   2  2.87 KiB  04:37:24  gen-2.genome  (vault-genome-v3)
+├── gen   1  2.85 KiB  04:37:24  gen-1.genome  (vault-genome-v3)
+●   gen   0  2.67 KiB  04:37:23  gen-0.genome  (vault-genome-v3)
+
+✓ lineage complete — every parent reference resolved to an existing bundle
+
+=== rewind to a middle generation ===
+✓ unsealed dir "test-payloads/cycle-3"  (gen 3, vault-genome-v3)
+  bundle:        generations/gen-3.genome
+  key id:        genome-a40a77b2a5e3-g3-8b081385a551
+  target:        /tmp/demo2-rewind
+  files:         1, 39 bytes (39 B), each checked against its recorded digest
+  payload sha256:sha256:a40a77b2a5e37e24296a52b8cd437d8be038371d4cef9faace4a7f9aa29831e0
+  tree sha256:   6dfb6b5c1eaf691669e3bb943f4ee456b75c7fe92aac24982dd8bfe204ecc73c
+
+=== Demo 2 complete ===
+Next: ./scripts/05-inference-test.sh (optional)
+=== capture original-daemon response (model in /usr/share/ollama) ===
+Here are three companies that have run confidential computing programs:
+
+1. Google - Google has run confidential computing programs through its Google Cloud Platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+2. Microsoft - Microsoft has also run confidential computing programs through its Azure cloud platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+3. IBM - IBM has run confidential computing programs through its IBM Cloud platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+=== overlay restored files onto Ollama default location ===
+
+=== capture restored-from-bundle response ===
+Here are three companies that have run confidential computing programs:
+
+1. Google - Google has run confidential computing programs through its Google Cloud Platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+2. Microsoft - Microsoft has also run confidential computing programs through its Azure cloud platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+3. IBM - IBM has run confidential computing programs through its IBM Cloud platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+=== diff ===
+✓ BYTE-IDENTICAL — inference continuity proven empirically on Azure SEV-SNP
+
+Next: ./scripts/06-pack-evidence.sh
+=== capture VM identity ===
+vm_name:       vault-genome-sev-snp-test
+cloud:         azure
+location:      westeurope
+zone:          
+vm_size:       Standard_DC4as_v5
+uname:         Linux vault-genome-sev-snp-test 6.8.0-1068-azure-fde #75~22.04.1-Ubuntu SMP Thu Sep 24 19:02:13 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+captured_at:   2026-10-15T04:38:32Z
+
+tee_backend:   azure-sev-snp
+amd_chain:     captured at attestation-validation/vault-genome-sev-snp-test/{04-attestation-report.bin, 06-certificates/, 08-verify-certs.txt, 09-verify-attestation.txt}
+maa_chain:     captured at attestation-validation/vault-genome-sev-snp-test/{15-maa-jwt.txt, 17-maa-jwt-payload.json, 19-maa-jwt-verify.txt}
+
+=== pack into /home/azureuser/vault-genome-sev-snp-test-evidence.tar.gz ===
+-rw-rw-r-- 1 azureuser azureuser 103K Oct 15 04:38 /home/azureuser/vault-genome-sev-snp-test-evidence.tar.gz
+
+=== contents ===
+evidence/
+evidence/thim-cert-chain.pem
+evidence/thim-vcek.pem
+evidence/demo1-tamper.txt
+evidence/snp-attestation-report.bin
+evidence/hcl-report.bin
+evidence/vm-identity.txt
+evidence/thim-certification.json
+evidence/demo1-verify.txt
+evidence/hcl-layout.txt
+evidence/demo1-inspect.json
+evidence/azure-imds.json
+evidence/demo1-open.txt
+evidence/hcl-runtime-data.json
+evidence/demo2-lineage.txt
+evidence/demo1-seal.txt
+evidence/kernel-sev.txt
+evidence/demo2-rewind.txt
+evidence/snp-attestation-report.hex
+evidence/attestation-validation/
+evidence/attestation-validation/vault-genome-sev-snp-test/
+evidence/attestation-validation/vault-genome-sev-snp-test/14-tpm-0x81000004.pem
+evidence/attestation-validation/vault-genome-sev-snp-test/11-snpguest-version.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/14-tpm-handles.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/15-maa-jwt.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/14-ak-handle.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/00-vm-identity.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/03-snp-chip.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/03-hcl-report.bin
+evidence/attestation-validation/vault-genome-sev-snp-test/06-fetch-ca-log.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/03-runtime-data.json
+evidence/attestation-validation/vault-genome-sev-snp-test/11-policy-validation-summary.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/20-maa-validation-summary.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/10-verify-report-data-binding.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/14-manifest-binding.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/16-maa-jwt-header.json
+evidence/attestation-validation/vault-genome-sev-snp-test/17-maa-claims-vs-report.txt
+evidence/attestation-validation/vault-genome-sev-snp-test/06-certificates/
+evidence/attestation-validation/vault-genome-sev-snp-test/06-certificates/vcek.pem
+evidence/attestation-validation/vault-genome-sev-snp-test/06-certificates/ask.pem
+...
+68
+(total entries shown above)
+
+=== to download to your laptop ===
+  Via SSH: scp azureuser@<vm-public-ip>:/home/azureuser/vault-genome-sev-snp-test-evidence.tar.gz ./
+  Or via Azure CLI:  az vm run-command invoke --resource-group <rg> --name vault-genome-sev-snp-test \
+                       --command-id RunShellScript --scripts "cat /home/azureuser/vault-genome-sev-snp-test-evidence.tar.gz | base64"
+
+=== 10. download evidence to laptop ===
+Warning: Permanently added '52.142.201.58' (ED25519) to the list of known hosts.
+
+evidence: <repo>/scripts/hardware-test/azure-sev-snp/terraform/vault-genome-sev-snp-test-evidence.tar.gz
+-rw-r--r--@ 1 serhiinikolaichuk  staff   102K Oct 14 23:38 vault-genome-sev-snp-test-evidence.tar.gz
+
+=== 11. teardown VM ===
+[0m[1mazurerm_resource_group.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg][0m
+[0m[1mazurerm_user_assigned_identity.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi][0m
+[0m[1mazurerm_public_ip.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/publicIPAddresses/vault-genome-sev-snp-test-ip][0m
+[0m[1mazurerm_network_security_group.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m
+[0m[1mazurerm_virtual_network.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet][0m
+[0m[1mazurerm_subnet.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default][0m
+[0m[1mazurerm_network_interface.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic][0m
+[0m[1mazurerm_network_interface_security_group_association.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic|/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m
+[0m[1mazurerm_linux_virtual_machine.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [31m-[0m destroy[0m
+
+Terraform will perform the following actions:
+
+[1m  # azurerm_linux_virtual_machine.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_linux_virtual_machine" "validation" {
+      [31m-[0m[0m admin_username                                         = "azureuser" [90m-> null[0m[0m
+      [31m-[0m[0m allow_extension_operations                             = true [90m-> null[0m[0m
+      [31m-[0m[0m bypass_platform_safety_checks_on_user_schedule_enabled = false [90m-> null[0m[0m
+      [31m-[0m[0m computer_name                                          = "vault-genome-sev-snp-test" [90m-> null[0m[0m
+      [31m-[0m[0m disable_password_authentication                        = true [90m-> null[0m[0m
+      [31m-[0m[0m disk_controller_type                                   = "SCSI" [90m-> null[0m[0m
+      [31m-[0m[0m encryption_at_host_enabled                             = false [90m-> null[0m[0m
+      [31m-[0m[0m extensions_time_budget                                 = "PT1H30M" [90m-> null[0m[0m
+      [31m-[0m[0m id                                                     = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test" [90m-> null[0m[0m
+      [31m-[0m[0m location                                               = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m max_bid_price                                          = -1 [90m-> null[0m[0m
+      [31m-[0m[0m name                                                   = "vault-genome-sev-snp-test" [90m-> null[0m[0m
+      [31m-[0m[0m network_interface_ids                                  = [
+          [31m-[0m[0m "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m os_managed_disk_id                                     = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/disks/vault-genome-sev-snp-test-os-disk" [90m-> null[0m[0m
+      [31m-[0m[0m patch_assessment_mode                                  = "ImageDefault" [90m-> null[0m[0m
+      [31m-[0m[0m patch_mode                                             = "ImageDefault" [90m-> null[0m[0m
+      [31m-[0m[0m platform_fault_domain                                  = -1 [90m-> null[0m[0m
+      [31m-[0m[0m priority                                               = "Regular" [90m-> null[0m[0m
+      [31m-[0m[0m private_ip_address                                     = "10.42.1.4" [90m-> null[0m[0m
+      [31m-[0m[0m private_ip_addresses                                   = [
+          [31m-[0m[0m "10.42.1.4",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m provision_vm_agent                                     = true [90m-> null[0m[0m
+      [31m-[0m[0m public_ip_address                                      = "52.142.201.58" [90m-> null[0m[0m
+      [31m-[0m[0m public_ip_addresses                                    = [
+          [31m-[0m[0m "52.142.201.58",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name                                    = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m secure_boot_enabled                                    = true [90m-> null[0m[0m
+      [31m-[0m[0m size                                                   = "Standard_DC4as_v5" [90m-> null[0m[0m
+      [31m-[0m[0m tags                                                   = {
+          [31m-[0m[0m "purpose" = "vault-genome-hardware-validation"
+          [31m-[0m[0m "sprint"  = "week-3-azure-sev-snp"
+        } [90m-> null[0m[0m
+      [31m-[0m[0m virtual_machine_id                                     = "c99d830f-e620-4563-92cb-1a302f955d84" [90m-> null[0m[0m
+      [31m-[0m[0m vm_agent_platform_updates_enabled                      = true [90m-> null[0m[0m
+      [31m-[0m[0m vtpm_enabled                                           = true [90m-> null[0m[0m
+        [90m# (13 unchanged attributes hidden)[0m[0m
+
+      [31m-[0m[0m admin_ssh_key {
+          [31m-[0m[0m public_key = "ssh-ed25519 <redacted: the laptop ssh public key>" [90m-> null[0m[0m
+          [31m-[0m[0m username   = "azureuser" [90m-> null[0m[0m
+        }
+
+      [31m-[0m[0m identity {
+          [31m-[0m[0m identity_ids = [
+              [31m-[0m[0m "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi",
+            ] [90m-> null[0m[0m
+          [31m-[0m[0m type         = "UserAssigned" [90m-> null[0m[0m
+            [90m# (2 unchanged attributes hidden)[0m[0m
+        }
+
+      [31m-[0m[0m os_disk {
+          [31m-[0m[0m caching                          = "ReadWrite" [90m-> null[0m[0m
+          [31m-[0m[0m disk_size_gb                     = 40 [90m-> null[0m[0m
+          [31m-[0m[0m id                               = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/disks/vault-genome-sev-snp-test-os-disk" [90m-> null[0m[0m
+          [31m-[0m[0m name                             = "vault-genome-sev-snp-test-os-disk" [90m-> null[0m[0m
+          [31m-[0m[0m security_encryption_type         = "VMGuestStateOnly" [90m-> null[0m[0m
+          [31m-[0m[0m storage_account_type             = "Premium_LRS" [90m-> null[0m[0m
+          [31m-[0m[0m write_accelerator_enabled        = false [90m-> null[0m[0m
+            [90m# (2 unchanged attributes hidden)[0m[0m
+        }
+
+      [31m-[0m[0m source_image_reference {
+          [31m-[0m[0m offer     = "0001-com-ubuntu-confidential-vm-jammy" [90m-> null[0m[0m
+          [31m-[0m[0m publisher = "Canonical" [90m-> null[0m[0m
+          [31m-[0m[0m sku       = "22_04-lts-cvm" [90m-> null[0m[0m
+          [31m-[0m[0m version   = "latest" [90m-> null[0m[0m
+        }
+    }
+
+[1m  # azurerm_network_interface.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_network_interface" "validation" {
+      [31m-[0m[0m accelerated_networking_enabled = false [90m-> null[0m[0m
+      [31m-[0m[0m applied_dns_servers            = [] [90m-> null[0m[0m
+      [31m-[0m[0m dns_servers                    = [] [90m-> null[0m[0m
+      [31m-[0m[0m id                             = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic" [90m-> null[0m[0m
+      [31m-[0m[0m internal_domain_name_suffix    = "hyfhtdlw03huhfzyaduwy45rwa.ax.internal.cloudapp.net" [90m-> null[0m[0m
+      [31m-[0m[0m ip_forwarding_enabled          = false [90m-> null[0m[0m
+      [31m-[0m[0m location                       = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m mac_address                    = "60-45-BD-8C-81-57" [90m-> null[0m[0m
+      [31m-[0m[0m name                           = "vault-genome-sev-snp-test-nic" [90m-> null[0m[0m
+      [31m-[0m[0m private_ip_address             = "10.42.1.4" [90m-> null[0m[0m
+      [31m-[0m[0m private_ip_addresses           = [
+          [31m-[0m[0m "10.42.1.4",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name            = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m tags                           = {} [90m-> null[0m[0m
+      [31m-[0m[0m virtual_machine_id             = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test" [90m-> null[0m[0m
+        [90m# (4 unchanged attributes hidden)[0m[0m
+
+      [31m-[0m[0m ip_configuration {
+          [31m-[0m[0m name                                               = "ipconfig" [90m-> null[0m[0m
+          [31m-[0m[0m primary                                            = true [90m-> null[0m[0m
+          [31m-[0m[0m private_ip_address                                 = "10.42.1.4" [90m-> null[0m[0m
+          [31m-[0m[0m private_ip_address_allocation                      = "Dynamic" [90m-> null[0m[0m
+          [31m-[0m[0m private_ip_address_version                         = "IPv4" [90m-> null[0m[0m
+          [31m-[0m[0m public_ip_address_id                               = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/publicIPAddresses/vault-genome-sev-snp-test-ip" [90m-> null[0m[0m
+          [31m-[0m[0m subnet_id                                          = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default" [90m-> null[0m[0m
+            [90m# (1 unchanged attribute hidden)[0m[0m
+        }
+    }
+
+[1m  # azurerm_network_interface_security_group_association.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_network_interface_security_group_association" "validation" {
+      [31m-[0m[0m id                        = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic|/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg" [90m-> null[0m[0m
+      [31m-[0m[0m network_interface_id      = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic" [90m-> null[0m[0m
+      [31m-[0m[0m network_security_group_id = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg" [90m-> null[0m[0m
+    }
+
+[1m  # azurerm_network_security_group.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_network_security_group" "validation" {
+      [31m-[0m[0m id                  = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg" [90m-> null[0m[0m
+      [31m-[0m[0m location            = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name                = "vault-genome-sev-snp-test-nsg" [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m security_rule       = [
+          [31m-[0m[0m {
+              [31m-[0m[0m access                                     = "Allow"
+              [31m-[0m[0m destination_address_prefix                 = "*"
+              [31m-[0m[0m destination_address_prefixes               = []
+              [31m-[0m[0m destination_application_security_group_ids = []
+              [31m-[0m[0m destination_port_range                     = "22"
+              [31m-[0m[0m destination_port_ranges                    = []
+              [31m-[0m[0m direction                                  = "Inbound"
+              [31m-[0m[0m name                                       = "ssh"
+              [31m-[0m[0m priority                                   = 100
+              [31m-[0m[0m protocol                                   = "Tcp"
+              [31m-[0m[0m source_address_prefix                      = "*"
+              [31m-[0m[0m source_address_prefixes                    = []
+              [31m-[0m[0m source_application_security_group_ids      = []
+              [31m-[0m[0m source_port_range                          = "*"
+              [31m-[0m[0m source_port_ranges                         = []
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            },
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m tags                = {} [90m-> null[0m[0m
+    }
+
+[1m  # azurerm_public_ip.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_public_ip" "validation" {
+      [31m-[0m[0m allocation_method       = "Static" [90m-> null[0m[0m
+      [31m-[0m[0m ddos_protection_mode    = "VirtualNetworkInherited" [90m-> null[0m[0m
+      [31m-[0m[0m id                      = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/publicIPAddresses/vault-genome-sev-snp-test-ip" [90m-> null[0m[0m
+      [31m-[0m[0m idle_timeout_in_minutes = 4 [90m-> null[0m[0m
+      [31m-[0m[0m ip_address              = "52.142.201.58" [90m-> null[0m[0m
+      [31m-[0m[0m ip_tags                 = {} [90m-> null[0m[0m
+      [31m-[0m[0m ip_version              = "IPv4" [90m-> null[0m[0m
+      [31m-[0m[0m location                = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name                    = "vault-genome-sev-snp-test-ip" [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name     = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m sku                     = "Standard" [90m-> null[0m[0m
+      [31m-[0m[0m sku_tier                = "Regional" [90m-> null[0m[0m
+      [31m-[0m[0m tags                    = {} [90m-> null[0m[0m
+      [31m-[0m[0m zones                   = [] [90m-> null[0m[0m
+        [90m# (5 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # azurerm_resource_group.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_resource_group" "validation" {
+      [31m-[0m[0m id         = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m location   = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name       = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m tags       = {
+          [31m-[0m[0m "purpose" = "vault-genome-hardware-validation"
+          [31m-[0m[0m "sprint"  = "week-3-azure-sev-snp"
+        } [90m-> null[0m[0m
+        [90m# (1 unchanged attribute hidden)[0m[0m
+    }
+
+[1m  # azurerm_subnet.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_subnet" "validation" {
+      [31m-[0m[0m address_prefixes                              = [
+          [31m-[0m[0m "10.42.1.0/24",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m default_outbound_access_enabled               = true [90m-> null[0m[0m
+      [31m-[0m[0m id                                            = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default" [90m-> null[0m[0m
+      [31m-[0m[0m name                                          = "default" [90m-> null[0m[0m
+      [31m-[0m[0m private_endpoint_network_policies             = "Disabled" [90m-> null[0m[0m
+      [31m-[0m[0m private_link_service_network_policies_enabled = true [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name                           = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m service_endpoint_policy_ids                   = [] [90m-> null[0m[0m
+      [31m-[0m[0m service_endpoints                             = [] [90m-> null[0m[0m
+      [31m-[0m[0m virtual_network_name                          = "vault-genome-sev-snp-test-vnet" [90m-> null[0m[0m
+        [90m# (1 unchanged attribute hidden)[0m[0m
+    }
+
+[1m  # azurerm_user_assigned_identity.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_user_assigned_identity" "validation" {
+      [31m-[0m[0m client_id           = "c0037a66-4c34-44fe-acd1-c70715bc789f" [90m-> null[0m[0m
+      [31m-[0m[0m id                  = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi" [90m-> null[0m[0m
+      [31m-[0m[0m location            = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name                = "vault-genome-sev-snp-test-mi" [90m-> null[0m[0m
+      [31m-[0m[0m principal_id        = "babd5ac8-335d-4f0d-b657-6d2fedf072b6" [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m tags                = {} [90m-> null[0m[0m
+      [31m-[0m[0m tenant_id           = "4226b02e-1a0f-4c0a-b71c-27157bfc1216" [90m-> null[0m[0m
+        [90m# (1 unchanged attribute hidden)[0m[0m
+    }
+
+[1m  # azurerm_virtual_network.validation[0m will be [1m[31mdestroyed[0m
+[0m  [31m-[0m[0m resource "azurerm_virtual_network" "validation" {
+      [31m-[0m[0m address_space                  = [
+          [31m-[0m[0m "10.42.0.0/16",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m dns_servers                    = [] [90m-> null[0m[0m
+      [31m-[0m[0m flow_timeout_in_minutes        = 0 [90m-> null[0m[0m
+      [31m-[0m[0m guid                           = "8d790a3e-d776-434f-9738-00e96c7bf1b0" [90m-> null[0m[0m
+      [31m-[0m[0m id                             = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet" [90m-> null[0m[0m
+      [31m-[0m[0m location                       = "westeurope" [90m-> null[0m[0m
+      [31m-[0m[0m name                           = "vault-genome-sev-snp-test-vnet" [90m-> null[0m[0m
+      [31m-[0m[0m private_endpoint_vnet_policies = "Disabled" [90m-> null[0m[0m
+      [31m-[0m[0m resource_group_name            = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+      [31m-[0m[0m subnet                         = [
+          [31m-[0m[0m {
+              [31m-[0m[0m address_prefixes                              = [
+                  [31m-[0m[0m "10.42.1.0/24",
+                ]
+              [31m-[0m[0m default_outbound_access_enabled               = true
+              [31m-[0m[0m delegation                                    = []
+              [31m-[0m[0m id                                            = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default"
+              [31m-[0m[0m name                                          = "default"
+              [31m-[0m[0m private_endpoint_network_policies             = "Disabled"
+              [31m-[0m[0m private_link_service_network_policies_enabled = true
+              [31m-[0m[0m service_endpoint_policy_ids                   = []
+              [31m-[0m[0m service_endpoints                             = []
+                [90m# (2 unchanged attributes hidden)[0m[0m
+            },
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m tags                           = {} [90m-> null[0m[0m
+        [90m# (2 unchanged attributes hidden)[0m[0m
+    }
+
+[1mPlan:[0m [0m0 to add, 0 to change, 9 to destroy.
+
+Changes to Outputs:
+  [31m-[0m[0m instance_name       = "vault-genome-sev-snp-test" [90m-> null[0m[0m
+  [31m-[0m[0m location            = "westeurope" [90m-> null[0m[0m
+  [31m-[0m[0m managed_identity_id = "/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi" [90m-> null[0m[0m
+  [31m-[0m[0m public_ip           = "52.142.201.58" [90m-> null[0m[0m
+  [31m-[0m[0m resource_group      = "vault-genome-sev-snp-test-rg" [90m-> null[0m[0m
+  [31m-[0m[0m ssh_command         = "ssh azureuser@52.142.201.58" [90m-> null[0m[0m
+[0m[1mazurerm_network_interface_security_group_association.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic|/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Compute/virtualMachines/vault-genome-sev-snp-test][0m[0m
+[0m[1mazurerm_network_interface_security_group_association.validation: Destruction complete after 2s[0m
+[0m[1mazurerm_network_security_group.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkSecurityGroups/vault-genome-sev-snp-test-nsg][0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...tualMachines/vault-genome-sev-snp-test, 00m10s elapsed][0m[0m
+[0m[1mazurerm_network_security_group.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...tyGroups/vault-genome-sev-snp-test-nsg, 00m10s elapsed][0m[0m
+[0m[1mazurerm_network_security_group.validation: Destruction complete after 11s[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...tualMachines/vault-genome-sev-snp-test, 00m20s elapsed][0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...tualMachines/vault-genome-sev-snp-test, 00m30s elapsed][0m[0m
+[0m[1mazurerm_linux_virtual_machine.validation: Destruction complete after 34s[0m
+[0m[1mazurerm_user_assigned_identity.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/vault-genome-sev-snp-test-mi][0m[0m
+[0m[1mazurerm_network_interface.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/networkInterfaces/vault-genome-sev-snp-test-nic][0m[0m
+[0m[1mazurerm_user_assigned_identity.validation: Destruction complete after 5s[0m
+[0m[1mazurerm_network_interface.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...terfaces/vault-genome-sev-snp-test-nic, 00m10s elapsed][0m[0m
+[0m[1mazurerm_network_interface.validation: Destruction complete after 11s[0m
+[0m[1mazurerm_subnet.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet/subnets/default][0m[0m
+[0m[1mazurerm_public_ip.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/publicIPAddresses/vault-genome-sev-snp-test-ip][0m[0m
+[0m[1mazurerm_public_ip.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...Addresses/vault-genome-sev-snp-test-ip, 00m10s elapsed][0m[0m
+[0m[1mazurerm_subnet.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...nome-sev-snp-test-vnet/subnets/default, 00m10s elapsed][0m[0m
+[0m[1mazurerm_public_ip.validation: Destruction complete after 12s[0m
+[0m[1mazurerm_subnet.validation: Destruction complete after 12s[0m
+[0m[1mazurerm_virtual_network.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg/providers/Microsoft.Network/virtualNetworks/vault-genome-sev-snp-test-vnet][0m[0m
+[0m[1mazurerm_virtual_network.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...etworks/vault-genome-sev-snp-test-vnet, 00m10s elapsed][0m[0m
+[0m[1mazurerm_virtual_network.validation: Destruction complete after 11s[0m
+[0m[1mazurerm_resource_group.validation: Destroying... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sev-snp-test-rg][0m[0m
+[0m[1mazurerm_resource_group.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...rceGroups/vault-genome-sev-snp-test-rg, 00m10s elapsed][0m[0m
+[0m[1mazurerm_resource_group.validation: Still destroying... [id=/subscriptions/2d06d433-77b7-401c-8df4-...rceGroups/vault-genome-sev-snp-test-rg, 00m20s elapsed][0m[0m
+[0m[1mazurerm_resource_group.validation: Destruction complete after 21s[0m
+[0m[1m[32m
+Destroy complete! Resources: 9 destroyed.[0m
+
+=== ✓ all done — Azure SEV-SNP cohort step complete ===
+Both AMD chain (snpguest) and MAA chain (Microsoft JWT) captured + verified.
+exit 0
+2026-10-15T04:40:31Z
