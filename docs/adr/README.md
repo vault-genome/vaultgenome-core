@@ -36,6 +36,7 @@ ADRs interact with the test-enforced invariant system.
 | 0021 | [The verifier's own evaluation of the GPU's report](0021-the-verifiers-own-evaluation-of-the-gpu.md) | Accepted | tee, gpu, nvidia, attestation, azure |
 | 0022 | [The escrow key sealed to the guest's vTPM where the TEE gives no sealing key](0022-the-escrow-key-sealed-to-the-vtpm.md) | Accepted | tee, tdx, azure, vtpm, escrow, sealing |
 | 0023 | [The daemons' key files sealed to the host](0023-the-daemons-key-files-sealed-to-the-host.md) | Accepted | keys, sealing, tee, sagvd, acp-compute |
+| 0024 | [Vendor trust anchors are pinned in the binary](0024-vendor-trust-anchors-pinned-in-the-binary.md) | Accepted | tee, attestation, amd, sev-snp, azure-cgpu, trust-anchors |
 
 ## Adding an ADR
 

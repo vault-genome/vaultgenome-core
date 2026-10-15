@@ -131,8 +131,9 @@ type verifierEntry struct {
 
 	// SEV-SNP (provider "gcp-sev-snp"): the AMD ASK+ARK certificate
 	// chain the VCEK must chain to (PEM, as AMD KDS serves it at
-	// /vcek/v1/<product>/cert_chain), an optional KDS mirror, and the
-	// minimum REPORTED_TCB to accept.
+	// /vcek/v1/<product>/cert_chain; `acpctl tee fetch-amd-chain`), whose
+	// root must be one the binary pins (ADR 0024); an optional KDS mirror;
+	// and the minimum REPORTED_TCB to accept.
 	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
 	AMDKDSURL        string `json:"amd_kds_url,omitempty"`
 	MinReportedTCB   uint64 `json:"min_reported_tcb,omitempty"`

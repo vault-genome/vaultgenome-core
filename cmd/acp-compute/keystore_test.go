@@ -157,7 +157,7 @@ func TestLoadMaterials_SEVSNPPeerVerifier(t *testing.T) {
 	t.Parallel()
 	cfg, dir := testKeyDir(t)
 	chain := filepath.Join(dir, "amd-chain.pem")
-	require.NoError(t, os.WriteFile(chain, []byte("-----BEGIN CERTIFICATE-----\nMA==\n-----END CERTIFICATE-----\n"), 0o644))
+	require.NoError(t, os.WriteFile(chain, genuineAMDChain(t, "Milan"), 0o644))
 	meas := filepath.Join(dir, "peer.sev.meas")
 	require.NoError(t, os.WriteFile(meas, bytes.Repeat([]byte{0x66}, 48), 0o600))
 	cfg.TEE.Peer = PeerTEEConfig{Provider: "gcp-sev-snp", MeasurementPath: meas, AMDCertChainPath: chain, VCEKCacheDir: filepath.Join(dir, "vcek")}
@@ -179,6 +179,13 @@ func TestLoadMaterials_SEVSNPPeerVerifier(t *testing.T) {
 	cfg.TEE.Peer.AMDCertChainPath = filepath.Join(dir, "absent.pem")
 	_, err = LoadMaterials(cfg, testClock(t))
 	require.ErrorContains(t, err, "amd_cert_chain_path")
+
+	// And it must end in an AMD root the binary pins (ADR 0024).
+	foreign := filepath.Join(dir, "foreign-chain.pem")
+	require.NoError(t, os.WriteFile(foreign, foreignARKChainPEM(t), 0o644))
+	cfg.TEE.Peer.AMDCertChainPath = foreign
+	_, err = LoadMaterials(cfg, testClock(t))
+	require.ErrorContains(t, err, "not an AMD root this build pins")
 }
 
 // Off a Confidential VM the SEV-SNP producer cannot start: there is no

@@ -69,8 +69,9 @@ type AzureCGPUProducerConfig struct {
 // AzureCGPUVerifierConfig configures the verifier, anywhere.
 type AzureCGPUVerifierConfig struct {
 	// AMDKDSURL overrides AMD KDS; AMDRootPEM is the ASK+ARK chain (PEM)
-	// of the chip's product (Genoa for NCC H100 v5), required; VCEKCacheDir
-	// keeps fetched VCEKs; MinReportedTCB is the TCB floor.
+	// of the chip's product (Genoa for NCC H100 v5), required, and its root
+	// must be one the binary pins (ADR 0024); VCEKCacheDir keeps fetched
+	// VCEKs; MinReportedTCB is the TCB floor.
 	AMDKDSURL      string
 	AMDRootPEM     []byte
 	VCEKCacheDir   string
@@ -403,7 +404,7 @@ func NewAzureCGPUVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureCGP
 	if len(cfg.AMDRootPEM) == 0 {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: AMDRootPEM (the product's ASK+ARK chain) required", nil)
 	}
-	if _, _, err := parseASKARK(cfg.AMDRootPEM); err != nil {
+	if _, err := VerifyAMDCertChain(cfg.AMDRootPEM); err != nil {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: AMDRootPEM: "+err.Error(), err)
 	}
 	if cfg.AMDKDSURL == "" {

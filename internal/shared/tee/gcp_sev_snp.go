@@ -78,9 +78,12 @@ type GCPSEVVerifierConfig struct {
 	// https://confidentialcomputing.googleapis.com/v1/...).
 	AMDKDSURL string
 
-	// AMDRootPEM overrides the pinned AMD ARK certificate (for sovereign
-	// installations using their own pinned trust anchor). Default uses
-	// the AMD-published Milan / Genoa / Turin roots embedded at build.
+	// AMDRootPEM is the ASK+ARK chain (PEM) the worker's VCEK must chain
+	// to — the operator's amd_cert_chain_path, as AMD KDS serves it. Its
+	// root must be one of the AMD roots this build pins (ARK-Milan,
+	// ARK-Genoa, ARK-Turin; amd_roots.go, ADR 0024): the file names the
+	// product line, the binary names the trust anchor. There is no
+	// configured override.
 	AMDRootPEM []byte
 
 	// AcceptableMeasurements lists every launch measurement the verifier
@@ -200,6 +203,13 @@ func newGCPSEVProducer(cfg GCPSEVProducerConfig, tsm tsmReporter) (*GCPSEVProduc
 
 // NewGCPSEVVerifier constructs a verifier for SEV-SNP reports.
 func NewGCPSEVVerifier(_ crypto.PublicKey, expected Measurement, cfg GCPSEVVerifierConfig) (*GCPSEVVerifier, error) {
+	if len(cfg.AMDRootPEM) > 0 {
+		// A chain that will be refused at the first handshake is refused
+		// here, where the operator sees it at start.
+		if _, err := VerifyAMDCertChain(cfg.AMDRootPEM); err != nil {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-sev-snp: AMDRootPEM: "+err.Error(), err)
+		}
+	}
 	if cfg.AMDKDSURL == "" {
 		cfg.AMDKDSURL = "https://kdsintf.amd.com"
 	}

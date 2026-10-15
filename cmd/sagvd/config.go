@@ -306,7 +306,10 @@ type PeerTEEConfig struct {
 	MeasurementPath string `json:"measurement_path"`
 
 	// AMDCertChainPath is the AMD ASK+ARK certificate chain (PEM) the
-	// worker's VCEK must chain to. gcp-sev-snp peers only; required.
+	// worker's VCEK must chain to — the chip's product line, as AMD KDS
+	// serves it (`acpctl tee fetch-amd-chain`); its root must be one of
+	// the AMD roots the binary pins (ADR 0024). Required for gcp-sev-snp
+	// and azure-cgpu peers.
 	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
 
 	// AMDKDSURL overrides the AMD KDS base URL (a mirror). gcp-sev-snp

@@ -11,6 +11,19 @@ given release can still open.
 
 ## [Unreleased]
 
+### Security
+
+- The AMD roots are pinned in the binary (ADR 0024): ARK-Milan, ARK-Genoa
+  and ARK-Turin, byte for byte as AMD KDS serves them, with fingerprints
+  read from three independent sources. The SEV-SNP and confidential-GPU
+  verifiers accepted any self-signed root at the end of the operator's
+  `amd_cert_chain_path`; now the chain must end in a pinned root, a wrong
+  file is refused when a verifier is constructed and at every
+  verification, and `acpctl tee fetch-amd-chain` fetches a product line's
+  chain from KDS or a mirror and verifies it the same way before writing
+  it. Every recorded run had used AMD's chain from KDS or THIM
+  (`docs/security/review-2026-10.md`, F12).
+
 ### Added
 
 - `.github/workflows/branch-coverage.yml` (`make branch-coverage`,
