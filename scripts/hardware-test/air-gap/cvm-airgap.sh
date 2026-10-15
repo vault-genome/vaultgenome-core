@@ -85,10 +85,18 @@ if [ -n "$RELEASE" ]; then
   WANT=$(grep ' cosign-linux-amd64$' cosign_checksums.txt | cut -d' ' -f1); GOT=$(sha256sum cosign | cut -d' ' -f1)
   echo "cosign sha256 published=$WANT downloaded=$GOT match=$([ "$WANT" = "$GOT" ] && echo yes || echo NO)" >> "$OUT/steps.txt"
   chmod +x cosign; ./cosign version > "$OUT/cosign-version.txt" 2>&1 || true
-  # The Sigstore trust root (TUF), cached once while connected: what
-  # --offline verifies the certificate chain and the Rekor entry against.
-  ./cosign initialize > "$OUT/cosign-initialize.txt" 2>&1; echo "cosign initialize exit=$?" >> "$OUT/steps.txt"
-  ls -la /root/.sigstore/root 2>/dev/null | head -5 >> "$OUT/cosign-initialize.txt" || true
+  # The Sigstore trust root, through TUF, once while connected; the
+  # trusted_root.json it fetched is the file --trusted-root reads with no
+  # route at all — carried beside the assets. (--offline is not that:
+  # cosign 2.6.5 still reaches for the TUF mirror with it; measured.)
+  # TUF_ROOT names the cache directory outright: a startup script's HOME
+  # is not /root, and a run that looked for the file under /root/.sigstore
+  # found nothing (not kept).
+  export TUF_ROOT=$WORK/tuf-cache
+  ./cosign initialize > "$OUT/cosign-initialize.txt" 2>&1; echo "cosign initialize exit=$? (TUF_ROOT=$TUF_ROOT, HOME=${HOME:-unset})" >> "$OUT/steps.txt"
+  TR=$(find "$TUF_ROOT" -name trusted_root.json 2>/dev/null | head -1)
+  if [ -n "$TR" ]; then cp "$TR" release/trusted_root.json; echo "trusted_root.json from $TR: $(sha256sum release/trusted_root.json | cut -c1-16)… $(stat -c%s release/trusted_root.json) bytes" >> "$OUT/steps.txt"; else echo "trusted_root.json NOT found under $TUF_ROOT" >> "$OUT/steps.txt"; fi
+  find "$TUF_ROOT" -maxdepth 4 2>/dev/null >> "$OUT/cosign-initialize.txt" || true
 fi
 
 if [ "$TEE" = sev-snp ]; then
@@ -238,7 +246,7 @@ cat "$OUT/egress.txt" >> "$OUT/steps.txt"
 if grep -q 'vendor http=200' "$OUT/egress.txt"; then echo "EGRESS NOT DENIED: $VENDOR still answers — what follows is not an air-gap run" >> "$OUT/steps.txt"; fi
 
 if [ -n "$RELEASE" ]; then
-  step "the release $RELEASE verified without a route: every signed file from its Sigstore bundle with --offline; the pair without the bundle, for contrast"
+  step "the release $RELEASE verified without a route: every signed file from its Sigstore bundle with --trusted-root; --offline and the pair, for contrast"
   IDENTITY='^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v'
   ISSUER='https://token.actions.githubusercontent.com'
   WORKER_PKG="genome-worker-$RELEASE.tar.gz"
@@ -248,16 +256,19 @@ if [ -n "$RELEASE" ]; then
     [ "$b" = "$WORKER_PKG" ] && { sbom="genome-worker-$RELEASE.sbom.spdx.json"; sbombundle="genome-worker-$RELEASE.sbom.sigstore.json"; }
     for f in "$b" "$sbom"; do
       bundle="$f.sigstore.json"; [ "$f" = "$sbom" ] && bundle="$sbombundle"
-      r=$( cd release && timeout 120 ../cosign verify-blob --bundle "$bundle" --offline --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$f" 2>&1 | tail -1 )
-      echo "$f: $r" >> "$OUT/release-offline.txt"
+      t0=$(date +%s.%N)
+      r=$( cd release && timeout 60 ../cosign verify-blob --new-bundle-format --bundle "$bundle" --trusted-root trusted_root.json --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$f" 2>&1 | tail -1 )
+      echo "$f: $r ($(python3 -c 'import sys,time; print("%.2fs" % (time.time()-float(sys.argv[1])))' "$t0"))" >> "$OUT/release-offline.txt"
     done
   done
-  echo "offline bundle verifications Verified OK: $(grep -c 'Verified OK' "$OUT/release-offline.txt") of 12" >> "$OUT/steps.txt"
-  # The pair alone needs Rekor for the transparency-log entry: with the
-  # route dead it cannot verify — the reason the bundle exists.
-  r=$( cd release && timeout 120 ../cosign verify-blob --signature sagvd.sig --certificate sagvd.cert --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" sagvd 2>&1 | tail -2 | tr '\n' ' ' )
-  echo "sagvd with the pair, no bundle, no route: ${r:0:300}" > "$OUT/release-pair-offline.txt"
-  echo "the pair without the bundle, no route: $(grep -q 'Verified OK' "$OUT/release-pair-offline.txt" && echo 'Verified OK (unexpected)' || echo 'not verified, as expected')" >> "$OUT/steps.txt"
+  echo "bundle + trusted-root, no route, Verified OK: $(grep -c 'Verified OK' "$OUT/release-offline.txt") of 12" >> "$OUT/steps.txt"
+  # For contrast, on one file: --offline with the bundle (cosign 2.6.5
+  # reaches for the TUF mirror regardless), and the pair without the
+  # bundle (Rekor is needed for the transparency-log entry). Neither can
+  # verify here; each is given 60 s.
+  r=$( cd release && timeout 60 ../cosign verify-blob --new-bundle-format --bundle sagvd.sigstore.json --offline --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" sagvd 2>&1 | tail -2 | tr '\n' ' ' ); echo "sagvd, bundle + --offline, no route: ${r:0:300}" > "$OUT/release-contrast.txt"
+  r=$( cd release && timeout 60 ../cosign verify-blob --signature sagvd.sig --certificate sagvd.cert --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" sagvd 2>&1 | tail -2 | tr '\n' ' ' ); echo "sagvd, the pair, no bundle, no route: ${r:0:300}" >> "$OUT/release-contrast.txt"
+  echo "contrast — --offline: $(sed -n 1p "$OUT/release-contrast.txt" | grep -q 'Verified OK' && echo 'Verified OK (unexpected)' || echo 'not verified, as expected'); the pair: $(sed -n 2p "$OUT/release-contrast.txt" | grep -q 'Verified OK' && echo 'Verified OK (unexpected)' || echo 'not verified, as expected')" >> "$OUT/steps.txt"
 fi
 
 step "the key files sealed to this host (ADR 0023; tee.sealer auto: the chip's derived key on SEV-SNP, the vTPM on TDX)"

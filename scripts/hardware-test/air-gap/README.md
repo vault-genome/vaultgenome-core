@@ -128,6 +128,54 @@ fail on both daemons: the guest had no `tpm2-tools`, and a Trust Domain
 seals with its vTPM — the kit now installs them while connected.
 Checksums: 56 of 56 match.
 
+## Result — run `20261015T215558Z` (evidence/20261015T215558Z): the release `v0.4.3-rc1` on the guest — `--offline` is not offline
+
+`VG_RELEASE_TAG=v0.4.3-rc1`, SEV-SNP, tree `bedc604`. The rehearsal
+release `v0.4.3-rc1` carried its Sigstore bundles in cosign's old bundle
+format, and this kit's first form of the check was `cosign verify-blob
+--bundle <asset>.sigstore.json --offline`, after `cosign initialize`
+while connected — the form the documents of this branch first gave. The
+guest shows what that is worth with the route gone.
+
+| Step | Outcome |
+|---|---|
+| Connected | the release's 49 assets from the bucket, their SHA-256 equal to what the runner downloaded (`release-assets.sha256`, `release-assets.guest.sha256`); cosign 2.6.5 with the SHA-256 the cosign release publishes (`match=yes`); `cosign initialize` exit 0; the runtime from the locks 337 s (a slow mirror); `prefetch` 0.5 s |
+| The release with `--offline`, no route | **0 of 12**: every call `error during command execution: getting Rekor public keys: updating local metadata and targets: error updating to TUF remote mirror: tuf: failed to download 13.root.json: Get "https://tuf-repo-cdn.sigstore.dev/13.root.json": … i/o timeout` (`release-offline.txt`) — each after the connect timeout on the dead route; the step took 13 minutes (22:02:14 → 22:15:15). The pair without the bundle: the same error (`release-pair-offline.txt`) |
+| The rest of the drill | `seal-keys` ×2 (`sealer=sev-snp-derived-key`); the session from the cache, the gate job `succeeded`, **EXACT**, 6 of 6, 5.2 s; the caches wiped — refused 41 s after `sagvd` started, naming KDS; restored — EXACT; `acpctl audit verify` ok, 33 events |
+| The record | 1 263.8 s on the guest; checksums 57 of 57. The runner was stopped at 22:08Z, by hand, so that its 25-minute wait would not delete the guest in the middle of that step; the results were collected from the serial console the same way, and the VM, the bucket and the rule deleted afterwards (`run.txt` says so) |
+
+The finding, measured again on a workstation with cosign 2.6.5 and the
+network denied to the process (`sandbox-exec`): `--offline` still updates
+the TUF metadata from the mirror before it reads the Rekor keys, cache or
+no cache, and fails when it cannot; cosign 3 deprecates the flag with the
+same advice. The check that needs no route is the new bundle format with
+the Sigstore trust root as a file: `cosign verify-blob --new-bundle-format
+--bundle <asset>.sigstore.json --trusted-root trusted_root.json …` — the
+release workflow now signs with `--new-bundle-format`, and the kit copies
+`trusted_root.json` out of `cosign initialize`'s cache while connected and
+verifies with it (the run below).
+
+## Result — run `20261015T223003Z` (evidence/20261015T223003Z): the release `v0.4.3-rc2` verified on the guest with no route — the bundle and the trust root as files
+
+`VG_RELEASE_TAG=v0.4.3-rc2`, SEV-SNP, us-central1-c. The rehearsal
+`v0.4.3-rc2` signs with `--new-bundle-format`; the check is the bundle
+with the Sigstore trust root as a file. The guest script took 320.3 s.
+
+| Step | Outcome |
+|---|---|
+| Connected | the release's 49 assets from the bucket, their SHA-256 equal to the runner's download; cosign 2.6.5 (`match=yes` against the checksums cosign's release publishes); `cosign initialize` into an explicit `TUF_ROOT` (a startup script's `HOME` is unset — a run that looked for the file under `/root/.sigstore` found nothing, not kept); `trusted_root.json` out of that cache, 6 787 bytes, SHA-256 `6494e21e…` — the same bytes a workstation's `cosign initialize` fetched the same day; the runtime 79 s; `prefetch` 0.5 s |
+| The release with the trust root, no route | **12 of 12 `Verified OK`**, 0.05–0.08 s each (`release-offline.txt`): `cosign verify-blob --new-bundle-format --bundle <asset>.sigstore.json --trusted-root trusted_root.json …` for the five binaries, the worker package and the six SBOMs, with egress dead (`egress.txt`: KDS and the bucket `Connection timed out`) |
+| For contrast, no route | `--offline` on the same bundle: `Error: trusted root is required when using new bundle format` — refused outright; the `.sig` + `.cert` pair without the bundle: `Could not fetch trusted_root.json from the TUF repository … tuf refresh failed` — not verified (`release-contrast.txt`) |
+| The rest of the drill | `seal-keys` ×2 (`sealer=sev-snp-derived-key`); the session from the cache, the gate job `succeeded`, **EXACT**, 6 of 6, 5.2 s; the caches wiped — refused 45 s after `sagvd` started, naming KDS; restored — EXACT; `acpctl audit verify` ok, 33 events; checksums 57 of 57 |
+
+With this, nothing of a release host's work needs a route: the release
+verified from the bundle and a 7 KB trust-root file, the caches filled by
+`prefetch`, the Return Path from them. What still comes from a connected
+machine, once: the release's assets with their checksums, the pinned
+cosign, `trusted_root.json`, the worker's runtime from the locks — and,
+on SEV-SNP, a new VCEK when the chip's TCB changes; on TDX, Intel's two
+documents every month.
+
 ## Evidence files
 
 - `steps.txt` — every step with its time and exit code; the routes; the

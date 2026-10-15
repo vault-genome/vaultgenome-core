@@ -1,0 +1,1 @@
+sagvd with the pair, no bundle, no route: Error: getting Rekor public keys: updating local metadata and targets: error updating to TUF remote mirror: tuf: failed to download 13.root.json: Get "https://tuf-repo-cdn.sigstore.dev/13.root.json": dial tcp 34.117.62.14:443: i/o timeout error during command execution: getting Rekor public keys: up

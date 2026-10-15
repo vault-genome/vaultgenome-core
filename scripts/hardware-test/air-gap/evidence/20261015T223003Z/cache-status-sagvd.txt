@@ -1,0 +1,2 @@
+vcek      current            /root/e2e/cache-sagvd/1d1f823a4c3294e2b92fc45b5368a08a4d70c19141e62e75215290e208db57177376d25bf0cd73a611cafdbbedb84b2ab9bc4a1fd545e177bd3981f2be17e40b-16004948650744610820.der  SEV-VCEK  valid 2026-10-14 → 2033-10-14T23:33Z (2556d left)  — chip 1d1f823a4c3294e2…, TCB 16004948650744610820
+1 of 1 current; the earliest expiry is 2033-10-14T23:33:47Z — run prefetch again before then, with the vendors reachable

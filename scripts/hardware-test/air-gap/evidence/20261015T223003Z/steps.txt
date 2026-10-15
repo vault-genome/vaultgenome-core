@@ -1,0 +1,64 @@
+== 22:30:04 binaries from gs://rats-probe-vg-airgap-20261015t222812z/e2e
+== 22:30:04 the release v0.4.3-rc2: its assets from the bucket, cosign 2.6.5, and the Sigstore trust root — while connected
+release assets fetched: 49
+cosign sha256 published=c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644 downloaded=c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644 match=yes
+cosign initialize exit=0 (TUF_ROOT=/root/e2e/tuf-cache, HOME=unset)
+trusted_root.json from /root/e2e/tuf-cache/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json: 6494e21ea73fa7ee… 6787 bytes
+== 22:30:13 the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== 22:30:13 configfs-tsm (sev-snp)
+== 22:30:13 the worker runtime: python, the pinned CPU torch (the door needs it) — while connected
+== 22:31:32 provision (acp-keygen, private modes)
+== 22:31:32 identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+worker_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+== 22:31:32 acpctl tee prefetch for each daemon's configuration: what this host's evidence needs from AMD KDS, into each peer verifier's cache
+prefetch sagvd exit=0
+prefetch worker exit=0
+cache-status sagvd exit=0
+cache-status worker exit=0
+files cached: 2
+== 22:31:32 ready to be cut off: waiting for the network tag vg-airgap-20261015t222812z (the runner's firewall rule denies all egress to it)
+tag seen after 8s: ["vg-airgap-20261015t222812z"]
+egress dead after 3s more
+== 22:31:50 the routes: AMD KDS, the bucket, the metadata server
+curl: (28) Connection timed out after 8002 milliseconds
+vendor http=000
+vendor: unreachable (curl exit 28)
+curl: (28) Connection timed out after 8002 milliseconds
+bucket http=000
+bucket: unreachable (curl exit 28)
+metadata http=200
+== 22:32:06 the release v0.4.3-rc2 verified without a route: every signed file from its Sigstore bundle with --trusted-root; --offline and the pair, for contrast
+bundle + trusted-root, no route, Verified OK: 12 of 12
+contrast — --offline: not verified, as expected; the pair: not verified, as expected
+== 22:33:37 the key files sealed to this host (ADR 0023; tee.sealer auto: the chip's derived key on SEV-SNP, the vTPM on TDX)
+sagvd seal-keys exit=0 sealer=sev-snp-derived-key
+acp-compute seal-keys exit=0 sealer=sev-snp-derived-key
+== 22:33:47 a real fine-tune with the runtime offline: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-66188ef5056c-g0-1d4382f1167f
+== 22:33:57 both daemons air-gapped: the Return Path handshake verified from the cache alone, a gate job
+sagvd ready after 3s
+session opened after 11s
+job airgap id=b876f7e77007be6ff6af24d204f179fd status=succeeded after 5s gate=EXACT door=pinned replay n_exact=6 max_abs_err=0
+daemons stopped after 1s; still running by name: 0 sagvd, 0 acp-compute
+== 22:34:17 the negative: the caches wiped, both daemons restarted — the handshake must be refused, naming AMD KDS
+cache-status after the wipe exit=1
+sagvd ready after 15s
+no session after 30s: {"time":"2026-10-15T22:35:02.743058846Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:44096","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[signature_invalid]: gcp-sev: fetch VCEK: Get \"https://kdsintf.amd.com/vcek/v1/M
+handshake refusals on the record: 1
+refusal: authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[signature_invalid]: gcp-sev: fetch VCEK: Get "https://kdsintf.amd.com/vcek/v1/Milan/1d1f823a4c3294e2b92fc45b5368a08a4d70c19141e62e75215290e208db57177376d25bf0cd73a611cafdbbedb84b2ab9bc4a1fd545e177bd3981f2be17e40b?blSPL=4&snpSPL=29&teeSPL=0&ucode
+daemons stopped after 0s; still running by name: 0 sagvd, 0 acp-compute
+== 22:35:02 the caches restored from the copy; both daemons again; a gate job
+cache-status after the restore exit=0
+sagvd ready after 11s
+session opened after 1s
+job restored id=6f1444be7f5bc3a6f1ac7acc85511df1 status=succeeded after 5s gate=EXACT door=pinned replay n_exact=6 max_abs_err=0
+daemons stopped after 4s; still running by name: 0 sagvd, 0 acp-compute
+== 22:35:24 verify the audit log with the published key
+audit verify exit=0
+audit query exit=0
+elapsed_seconds=320.3

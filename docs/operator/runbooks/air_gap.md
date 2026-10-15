@@ -19,7 +19,7 @@ real SEV-SNP host and records the numbers (§5).
 | The AMD ASK+ARK chain of the chip's product line | the operator, `acpctl tee fetch-amd-chain` (ADR 0024: verified against the roots the binary pins) | once, before the daemons start (`tee.peer.amd_cert_chain_path`) | the daemons refuse to start without the file |
 | Intel's TCB info for a peer's platform (by FMSPC) and the QE identity | the TDX peer verifier, from Intel PCS | at the first handshake; then from `tee.peer.pcs_cache_dir` until each document's `nextUpdate` (Intel issues them monthly) | the handshake is refused, naming PCS |
 | NVIDIA's NRAS key set, the RIM manifests, the OCSP answers | the Azure cGPU peer verifier | at the first handshake; then from `nras_cache_dir` and `rim_cache_dir` (an OCSP answer until its `nextUpdate`, about a day) | the handshake is refused |
-| The release: binaries, the worker package, their signatures | the operator, on a connected machine | once per release | cosign's keyless verification needs Rekor online (KNOWN_ISSUES #15; Sigstore bundles for offline verification come with 0.4.3): verify on a connected machine, carry the verified assets with their `checksums.txt` |
+| The release: binaries, the worker package, their signatures | the operator | once per release | from 0.4.3 each signed file has a Sigstore bundle, and `cosign verify-blob --new-bundle-format --bundle <asset>.sigstore.json --trusted-root trusted_root.json …` verifies it with no route at all — the trust root a file from `cosign initialize`'s cache on a connected machine (`~/.sigstore/root/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json`), carried in with the assets and the pinned cosign 2.6.5; not `--offline`, which on 2.6.5 still reaches for the TUF mirror (the drill measured both, §5). Before 0.4.3: verify on a connected machine, carry the verified assets with their `checksums.txt` |
 | The worker's runtime (the hash-pinned locks) | `pip`, on the host | once, before the route goes | `vg_genome` runs with `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1`; the drill fine-tunes and gates with the route dead |
 | Time | the host's clock | always | a verifier judges `nextUpdate` and certificate validity by the host clock: an air-gapped host needs a time source it trusts |
 
@@ -31,10 +31,11 @@ the chip or the host's TPM (ADR 0023, ADR 0025).
 
 On each release host, with the vendors still reachable:
 
-1. **The release**, verified on a connected machine
-   ([05_release_procedure.md](../05_release_procedure.md) §5), carried to
-   the host with its checksums; the worker's runtime installed from the
-   locks ([09_first_deployment.md](../09_first_deployment.md)).
+1. **The release**, verified ([05_release_procedure.md](../05_release_procedure.md)
+   §5) and carried to the host with its checksums — with its Sigstore
+   bundles, the pinned cosign and `trusted_root.json`, the host verifies
+   it again itself with no route (§1); the worker's runtime installed
+   from the locks ([09_first_deployment.md](../09_first_deployment.md)).
 2. **The AMD chain** of the chip's product line:
    `acpctl tee fetch-amd-chain --product <milan|genoa|turin> --out <file>`
    — verified against the pinned roots before it is written.

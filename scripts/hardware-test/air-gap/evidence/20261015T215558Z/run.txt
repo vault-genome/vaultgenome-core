@@ -1,0 +1,8 @@
+tree bedc604
+stamp 20261015T215408Z
+tee sev-snp
+zone us-central1-c
+firewall_rule vg-airgap-deny-egress-20261015t215408z
+tag vg-airgap-20261015t215408z
+release v0.4.3-rc1
+note: the runner was stopped at 22:08Z so that its 25-minute wait would not delete the guest mid-run; the results were collected by this script

@@ -1,0 +1,10 @@
+/root/e2e/tuf-cache
+/root/e2e/tuf-cache/tuf-repo-cdn.sigstore.dev.json
+/root/e2e/tuf-cache/tuf-repo-cdn.sigstore.dev
+/root/e2e/tuf-cache/tuf-repo-cdn.sigstore.dev/targets.json
+/root/e2e/tuf-cache/tuf-repo-cdn.sigstore.dev/root.json
+/root/e2e/tuf-cache/tuf-repo-cdn.sigstore.dev/snapshot.json
+/root/e2e/tuf-cache/tuf-repo-cdn.sigstore.dev/targets
+/root/e2e/tuf-cache/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json
+/root/e2e/tuf-cache/tuf-repo-cdn.sigstore.dev/timestamp.json
+/root/e2e/tuf-cache/remote.json

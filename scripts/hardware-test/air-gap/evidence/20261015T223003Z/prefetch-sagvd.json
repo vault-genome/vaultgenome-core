@@ -1,0 +1,17 @@
+{
+  "provider": "gcp-sev-snp",
+  "measurement_hex": "7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc",
+  "entries": [
+    {
+      "kind": "vcek",
+      "dir": "/root/e2e/cache-sagvd",
+      "file": "1d1f823a4c3294e2b92fc45b5368a08a4d70c19141e62e75215290e208db57177376d25bf0cd73a611cafdbbedb84b2ab9bc4a1fd545e177bd3981f2be17e40b-16004948650744610820.der",
+      "subject": "SEV-VCEK",
+      "not_before": "2026-10-14T23:33:47Z",
+      "not_after": "2033-10-14T23:33:47Z",
+      "current": true,
+      "note": "chip 1d1f823a4c3294e2…, TCB 16004948650744610820"
+    }
+  ],
+  "earliest_expiry": "2033-10-14T23:33:47Z"
+}
