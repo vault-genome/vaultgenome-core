@@ -114,7 +114,10 @@ then delete the rehearsal's GitHub release and keep the tag. The Go module
 proxy may already have served the tag, and a tag that was once public is
 never moved or deleted (0.3.0 in the CHANGELOG is the lesson). 0.4.0 was
 rehearsed as `v0.4.0-rc1` on 2026-10-14; the permissions change of this
-page's revision is rehearsed as `v0.4.1-rc1`.
+page's revision is rehearsed as `v0.4.1-rc1`; the fifth binary and the
+worker package as `v0.4.2-rc1` on 2026-10-15 (37 assets, 12 signatures,
+6 provenances and the tag verified, the six artifacts rebuilt byte for
+byte — once the package was repacked with GNU gzip, §5.4).
 
 ## 5. Post-release verification
 
@@ -145,8 +148,12 @@ Once the release workflow completes:
    ```
    Every hash must equal the released file's. The worker package repacks
    the same way with GNU tar (`--sort=name --mtime=@SOURCE_DATE_EPOCH
-   --owner=0 --group=0 --numeric-owner`, `gzip -n`; the exact command is
-   in `release.yml`) to the released file's hash;
+   --owner=0 --group=0 --numeric-owner`) and GNU gzip (`gzip -n`; the
+   exact command is in `release.yml`) to the released file's hash. Both
+   tools must be GNU's: Apple's gzip writes a different deflate stream for
+   the same tar, so a repack on macOS needs `gzip` from Homebrew beside
+   `gtar` (the rehearsal of 0.4.2 found it: the tar inside identical, the
+   file not);
    `scripts/hardware-test/release-deploy/run.sh` does all six. `go version -m <binary>`
    prints the build settings a released binary was made with (Go
    version, GOOS/GOARCH, CGO_ENABLED, -trimpath, the VCS revision and

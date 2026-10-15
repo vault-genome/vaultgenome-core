@@ -49,7 +49,7 @@ git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.4.1
 | slsa-verifier, the artifacts | six `PASSED: SLSA verification passed` (four for `v0.4.1`) | `verify/slsa.txt` |
 | the tag | `Good "git" signature` with the ED25519 key of `.github/allowed_signers` | `verify/tag.txt` |
 | the assets' hashes | 36 lines (25 for `v0.4.1`) | `verify/assets.sha256` |
-| rebuilt from the tag on another machine | every sha256 equal to the released file's: the binaries, and the worker package repacked with GNU tar | `verify/rebuild.txt` |
+| rebuilt from the tag on another machine | every sha256 equal to the released file's: the binaries, and the worker package repacked with GNU tar and GNU gzip | `verify/rebuild.txt` |
 
 The hashes in `verify/assets.sha256` are the hashes of the files you
 downloaded, or you have different files. The rebuild is the release
