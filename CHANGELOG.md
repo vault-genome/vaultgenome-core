@@ -27,6 +27,20 @@ given release can still open.
   (they refuse, naming the vendor); the air-gap drill
   (`scripts/hardware-test/air-gap/`) does it on a SEV-SNP host behind an
   egress-deny rule.
+- `tee.sealer` (ADR 0025, step 1b): how a daemon seals its key files to
+  its host — `auto` (the TEE's own key where it has one, SEV-SNP's derived
+  key; else the host's TPM 2.0; else the simulated key), `tee` (the TEE's
+  own key only, refused on TDX and Azure, which have none) or `tpm2` (the
+  host's TPM 2.0 through tpm2-tools, whatever the TEE — a vTPM or a
+  discrete TPM). Every file `seal-keys` writes names the sealer it was
+  made with, bound into the seal, and a file sealed one way is refused as
+  another before the sealer is asked; files from before open as they did.
+  `seal-keys` and `identity` print the sealer; `acpctl sentinel seal-key`
+  names it in the sealed seed. Proven on hardware: the SEV-SNP Return Path
+  kit with `VG_SEALER=tpm2` (the guest's vTPM beside the chip's key) and
+  the TDX kit with no sealer named (`auto` chose the vTPM); both kits now
+  seal both daemons' key files and show a thief with the sealed files
+  refused off the TEE, and the unpinned worker refused at the handshake.
 - The authority-loss drill replicates the job store (ADR 0026) beside the
   audit log and the genomes, the moment a job is accepted and again when
   it is done, and the runner takes the host away only once the replica

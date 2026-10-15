@@ -143,8 +143,17 @@ with its own endorsement store.
    wire — until step 2 renames them with the wire; `tee.provider: "auto"`
    resolved from configfs-tsm when the configuration is loaded; proven on
    GCP `n2d` (`sev_guest`) and `c3` (`tdx_guest`); KNOWN_ISSUES #1 and
-   the first-deployment guide say so. *1b:* `keys.sealer: "auto"` with
-   the TPM 2.0 sealer of ADR 0022 generalised to any TPM 2.0.
+   the first-deployment guide say so. *1b (done 2026-10-15):* `tee.sealer` — `auto` (the TEE's
+   own key where it has one, else the host's TPM 2.0, else the simulated
+   key), `tee` (the TEE's own key only, refused where there is none) or
+   `tpm2` (the host's TPM 2.0 whatever the TEE, the sealer of ADR 0022 on
+   any TPM) — and every sealed file names the sealer it was made with, so
+   a file sealed one way is not opened as another; proven on an n2d
+   sealing with its vTPM (`tpm2`) beside the chip's derived key and on a
+   c3 Trust Domain where the default, `auto`, chose the vTPM (runs
+   `20261015T194325Z`, `20261015T194418Z` of the two Return Path kits); a
+   thief with the sealed files and no TEE is refused before any key is
+   read, on both.
 2. **The CMW on the wire and the `rats` verifier**: CMW records for every
    family's Evidence; the Veraison client over its challenge-response API
    (stdlib HTTP and JSON; the EAR is a JWS our stdlib verifies); the EAR

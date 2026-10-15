@@ -18,6 +18,7 @@ import (
 
 type sealKeysOutput struct {
 	TEE            string           `json:"tee"`
+	Sealer         string           `json:"sealer"`
 	MeasurementHex string           `json:"measurement_hex"`
 	Sealed         []sealedKeyEntry `json:"sealed"`
 	AlreadySealed  []sealedKeyEntry `json:"already_sealed,omitempty"`
@@ -72,18 +73,18 @@ func runSealKeys(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	sealer, closer, provider, err := hostSealer(cfg.TEE)
+	sealer, closer, provider, kind, err := hostSealer(cfg.TEE)
 	if err != nil {
 		return err
 	}
 	if closer != nil {
 		defer func() { _ = closer.Close() }()
 	}
-	if provider == tee.ProviderSimulated {
+	if kind == tee.SealerKindSimulated {
 		fmt.Fprintln(stderr, "acp-bootstrap seal-keys: SIMULATED TEE: the files are sealed under a key derived from the simulated measurement, with no hardware behind it; development and tests only")
 	}
 	measurement := producer.Measurement()
-	out := sealKeysOutput{TEE: string(provider), MeasurementHex: hex.EncodeToString(measurement)}
+	out := sealKeysOutput{TEE: string(provider), MeasurementHex: hex.EncodeToString(measurement), Sealer: string(kind)}
 	for _, f := range secretFiles(cfg) {
 		raw, err := os.ReadFile(f.Path)
 		if err != nil {
@@ -99,12 +100,12 @@ func runSealKeys(args []string, stdout, stderr io.Writer) error {
 		if len(raw) == 0 {
 			return fmt.Errorf("acp-bootstrap seal-keys: %s (%q) is empty", f.Name, f.Path)
 		}
-		sealed, err := tee.SealSecret(raw, sealer, provider, measurement, f.Name)
+		sealed, err := tee.SealSecretWith(raw, sealer, kind, provider, measurement, f.Name)
 		zero(raw)
 		if err != nil {
 			return fmt.Errorf("acp-bootstrap seal-keys: %s: %w", f.Name, err)
 		}
-		back, err := tee.OpenSecret(sealed, sealer, provider, f.Name)
+		back, err := tee.OpenSecretWith(sealed, sealer, kind, provider, f.Name)
 		zero(back)
 		if err != nil {
 			return fmt.Errorf("acp-bootstrap seal-keys: %s: the sealed file does not open on this host: %w", f.Name, err)

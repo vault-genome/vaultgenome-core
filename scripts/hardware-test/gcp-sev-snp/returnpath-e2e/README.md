@@ -11,9 +11,16 @@ attesting with the chip and each pinning the other's launch measurement
 - `sagvd identity` and `acp-compute identity` read each side's 48-byte launch
   measurement from the chip through configfs-tsm; each is written into the
   other's `tee.peer.measurement_path`;
-- a worker that is **not** the pinned identity — same certificate, same
-  sealing key, a simulated TEE instead of the chip — dials the Return Path
-  and is refused at the handshake; the refusal is on `sagvd`'s audit log;
+- `sagvd seal-keys` and `acp-compute seal-keys` seal every key file on disk
+  to this host — with the chip's derived key, or with the guest's vTPM when
+  the kit runs with `VG_SEALER=tpm2` (`tee.sealer`, ADR 0025 step 1b) — and
+  both daemons start from the sealed files;
+- a thief with those sealed files and no chip (a simulated TEE) is refused
+  before any key is read; a worker that is **not** the pinned identity —
+  the plaintext copies of the signing seed, the TLS key and the sealing key
+  taken before sealing, the same certificate, a simulated TEE instead of the
+  chip — dials the Return Path and is refused at the handshake; the refusal
+  is on `sagvd`'s audit log;
 - the pinned worker dials, its SEV-SNP Evidence verifies (VCEK from AMD KDS,
   ECDSA-P384, VCEK → ASK → ARK-Milan, no DEBUG, VMPL 0, REPORT_DATA binding
   the transcript challenge), a gate job goes over the Return Path, the
@@ -27,6 +34,31 @@ Both processes run inside the same guest here; what the run proves is that
 the Return Path handshake carries genuine hardware Evidence on both sides,
 that the pinned identity is the one admitted, and that every decision of
 the authority is on a verifiable record before it took effect.
+
+## Result — run `20261015T194325Z`: `tee.sealer: "tpm2"` — the guest's vTPM seals the key files, beside the chip
+
+The same kit with both daemons' key files sealed by the guest's vTPM
+instead of the chip's derived key — `VG_SEALER=tpm2` puts `tee.sealer:
+"tpm2"` into both configs (ADR 0025, step 1b), the guest installs
+tpm2-tools, and after the identities are read `sagvd seal-keys` and
+`acp-compute seal-keys` seal every key file on disk. The sealing step is
+new to the kit — until this run its comment promised sealing that no step
+performed — and so is the first of the two rogues below. us-central1-c,
+`n2d-standard-4`, the image of every run since September (measurement
+`7dc7c12e…25acc`, `tee.provider: "auto"` → `sev_guest`). The whole script took
+**112.9 s** (runtime from the locks 78.3 s, fine-tune 9.4 s).
+
+| Step | Outcome |
+|---|---|
+| The vTPM | `vtpm.txt`: `/dev/tpm0`, `/dev/tpmrm0`, `TPM2_PT_MANUFACTURER` `0x474F4F47` ("GOOG") |
+| `seal-keys` | `seal-keys-sagvd.json`: `sealer: tpm2`, 5 files (`keys.authority_signing.seed_path`, `keys.session_sealing.material_path`, `keys.audit_signing.seed_path`, `vault.tls.server_key`, `http_api.bearer_token_file`); `seal-keys-worker.json`: `sealer: tpm2`, 2 files, the shared sealing material already sealed |
+| The sealed files | `sealed-files.txt`: all 7 name `tee: gcp-sev-snp`, `sealer: tpm2` — the sealer is in the seal, not only in the file |
+| The daemons, from the sealed files | both start from them; `sagvd identity` and `acp-compute identity` print `sealer: tpm2` / `tpm2` |
+| A thief with the sealed files, off the chip | **refused before any key is read**: `rogue-sealed-worker.log` — `sealed secret 'keys.worker_signing.seed_path': sealed to gcp-sev-snp, this host is simulated`; `steps.txt`: `exit=1 sealed to gcp-sev-snp, this host is simulated` |
+| A worker with a simulated TEE and the plaintext copies | **refused** at the handshake after 1 s (`integrity[signature_invalid]: gcp-sev: evidence shorter than SEV-SNP report (1184 bytes)`), on the record — the handshake proof of every run, kept |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 8.8 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `d7d523b1…` |
+
 
 ## Result — run `20261015T143033Z`: the AMD chain fetched on the guest, the keys provisioned privately
 
@@ -184,7 +216,10 @@ script now takes them last, and the evidence is kept exactly as captured.
 provider, measurement), `seal.json`, `finetune.json`, `job-submit.json`,
 `job.json` (the job view with the signed verdict), `audit-verify.json`,
 `audit-events.jsonl` (every event with its payload), `audit-public-key.pem`,
-both daemons' logs, the rogue worker's log, metrics, the runtime versions,
+`seal-keys-sagvd.json` and `seal-keys-worker.json` (which files were sealed,
+by which sealer), `sealed-files.txt` (each sealed file's shape, none of its
+bytes), `vtpm.txt` when the vTPM seals, both daemons' logs, the two rogue
+workers' logs, metrics, the runtime versions,
 `tsm.txt` and `kernel.txt`, `steps.txt` with the timings, and
 `sha256sums.txt` over all of it. Keys, seeds, the API token, the sealed
 bundle's key file and the configs stay on the VM and die with it: the VM

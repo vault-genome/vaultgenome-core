@@ -22,29 +22,32 @@ import (
 // sealed key file can be opened before the daemon's materials exist. A
 // vTPM sealer needs no producer; the others need the host's identity,
 // which the producer reads from the chip.
-func hostSealer(cfg TEEConfig) (tee.Sealer, io.Closer, tee.Provider, error) {
+func hostSealer(cfg TEEConfig) (tee.Sealer, io.Closer, tee.Provider, tee.SealerKind, error) {
 	provider, err := cfg.ProviderKind()
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", "", err
 	}
-	switch provider {
-	case tee.ProviderGCPTDX, tee.ProviderAzureCGPU:
+	kind, err := tee.SealerKindForProvider(provider, cfg.SealerMode())
+	if err != nil {
+		return nil, nil, "", "", fmt.Errorf("sagvd: %w", err)
+	}
+	if kind == tee.SealerKindTPM2 {
+		// The TPM needs no producer (ADR 0022).
 		s, err := tee.NewVTPMSealer(tee.VTPMSealerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, PCRs: cfg.VTPMSealPCRs})
 		if err != nil {
-			return nil, nil, "", fmt.Errorf("sagvd: tee.vtpm_seal_pcrs: %w", err)
+			return nil, nil, "", "", fmt.Errorf("sagvd: tee.vtpm_seal_pcrs: %w", err)
 		}
-		return s, nil, provider, nil
-	default:
-		_, producer, err := buildTEEProducer(cfg)
-		if err != nil {
-			return nil, nil, "", err
-		}
-		s, closer, err := tee.SealerFor(producer, tee.SealerOptions{SEVGuestDevice: cfg.SEVDevice(), TPM2ToolsDir: cfg.TPM2ToolsDir, VTPMSealPCRs: cfg.VTPMSealPCRs})
-		if err != nil {
-			return nil, nil, "", fmt.Errorf("sagvd: %w", err)
-		}
-		return s, closer, provider, nil
+		return s, nil, provider, kind, nil
 	}
+	_, producer, err := buildTEEProducer(cfg)
+	if err != nil {
+		return nil, nil, "", "", err
+	}
+	s, closer, kind, err := tee.SealerFor(producer, tee.SealerOptions{Mode: cfg.SealerMode(), SEVGuestDevice: cfg.SEVDevice(), TPM2ToolsDir: cfg.TPM2ToolsDir, VTPMSealPCRs: cfg.VTPMSealPCRs})
+	if err != nil {
+		return nil, nil, "", "", fmt.Errorf("sagvd: %w", err)
+	}
+	return s, closer, provider, kind, nil
 }
 
 // readSecret reads the key file named by field: bare bytes (exactly
@@ -64,14 +67,14 @@ func readSecret(cfg TEEConfig, path string, wantLen int, field string) ([]byte, 
 		}
 		return raw, nil
 	}
-	sealer, closer, provider, err := hostSealer(cfg)
+	sealer, closer, provider, kind, err := hostSealer(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("sagvd: %s (%q) is sealed and this host cannot open it: %w", field, path, err)
 	}
 	if closer != nil {
 		defer func() { _ = closer.Close() }()
 	}
-	plain, err := tee.OpenSecret(raw, sealer, provider, field)
+	plain, err := tee.OpenSecretWith(raw, sealer, kind, provider, field)
 	if err != nil {
 		return nil, fmt.Errorf("sagvd: %s (%q): %w", field, path, err)
 	}

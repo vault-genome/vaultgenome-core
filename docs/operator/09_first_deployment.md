@@ -136,7 +136,11 @@ In the order the reference guest script does it
    ([runbooks/air_gap.md](runbooks/air_gap.md)). Then seal the key files
    in place on the host — `sagvd seal-keys`, `acp-compute
    seal-keys` (ADR 0023): each file is sealed to the chip's derived key on
-   SEV-SNP, to the vTPM on TDX and on the Azure host, and opened at start.
+   SEV-SNP, to the vTPM on TDX and on the Azure host, and opened at start;
+   `tee.sealer` chooses — `auto` takes the TEE's own key where there is
+   one and the TPM 2.0 otherwise, `tpm2` takes the host's TPM on any
+   hardware — and every sealed file names the sealer it was made with
+   (ADR 0025, step 1b).
    A plaintext escrow key is refused on a hardware TEE; `sagvd
    escrow-provision` makes it sealed (ADR 0016).
 3. **Identities and pins.** `sagvd identity -config sagvd.json` and

@@ -128,6 +128,14 @@ type TEEConfig struct {
 	// by a key read from a file — and is for development and tests.
 	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
 
+	// Sealer is how the daemon seals its key files to this host (ADR 0025,
+	// step 1b): "auto" (the TEE's own key where it has one — SEV-SNP's
+	// derived key — else the host's TPM 2.0, else the simulated key),
+	// "tee" (the TEE's own key only; refused on TDX and Azure, which have
+	// none), or "tpm2" (the host's TPM 2.0 through tpm2-tools, whatever
+	// the TEE). Every sealed file names the sealer it was made with.
+	Sealer string `json:"sealer,omitempty"`
+
 	// AutoResolvedFrom is set by ResolveAuto when Provider was "auto": the
 	// configfs-tsm provider name the family was taken from (ADR 0025).
 	// Not read from the file.
@@ -264,6 +272,15 @@ func (h HTTPConfig) WriteTimeout() time.Duration {
 
 // DefaultConfig returns sensible defaults that operators can
 // override field-by-field via JSON.
+// SealerMode is tee.sealer with the default applied.
+func (t TEEConfig) SealerMode() tee.SealerMode {
+	m, err := tee.ParseSealerMode(t.Sealer)
+	if err != nil {
+		return tee.SealerModeAuto
+	}
+	return m
+}
+
 // ResolveAuto replaces tee.provider "auto" with the family the kernel's
 // configfs-tsm serves on this host (ADR 0025), keeping the kernel's name
 // in AutoResolvedFrom; any other provider is left as it is. It runs when
@@ -407,6 +424,9 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if _, err := tee.ParseSealerMode(c.TEE.Sealer); err != nil {
+		errs = append(errs, err)
+	}
 	switch provider, err := tee.ParseProvider(c.TEE.Provider); {
 	case strings.TrimSpace(c.TEE.Provider) == "":
 		errs = append(errs, errors.New("tee.provider required"))

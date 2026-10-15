@@ -21,8 +21,10 @@ import (
 // Evidence is signed with. Hardware Evidence is signed by the vendor's
 // certificate chain instead, so no attestor key is printed for it.
 type destinationIdentity struct {
-	TEEProvider          string `json:"tee_provider"`
-	MeasurementHex       string `json:"measurement_hex"`
+	TEEProvider    string `json:"tee_provider"`
+	MeasurementHex string `json:"measurement_hex"`
+	// Sealer is how this host seals its secret files (tee.sealer, ADR 0025).
+	Sealer               string `json:"sealer,omitempty"`
 	AttestorPublicKeyPEM string `json:"attestor_public_key_pem,omitempty"`
 	// InsecureSimulation is true for a destination with no hardware
 	// isolation, so a source operator pinning it sees that it is one.
@@ -60,6 +62,9 @@ func runIdentity(args []string, w io.Writer) error {
 	id := destinationIdentity{
 		TEEProvider:    cfg.TEE.Provider,
 		MeasurementHex: hex.EncodeToString(producer.Measurement()),
+	}
+	if kind, err := tee.SealerKindFor(producer, cfg.TEE.SealerMode()); err == nil {
+		id.Sealer = string(kind)
 	}
 	if sim, ok := producer.(*tee.Simulated); ok {
 		pemBytes, err := crypto.PublicKeyPEM(sim.PublicKey())
