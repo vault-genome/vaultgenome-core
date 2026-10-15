@@ -161,7 +161,7 @@ func TestLoadVerifierRegistry_HappyPath_PEMPubkey(t *testing.T) {
 // chain to the AMD root the operator pins; measurements are 48 bytes.
 func TestLoadVerifierRegistry_SEVSNP(t *testing.T) {
 	dir := t.TempDir()
-	chain := writeFile(t, dir, "amd-chain.pem", []byte("-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"))
+	chain := writeFile(t, dir, "amd-chain.pem", genuineAMDChain(t, "Milan"))
 	m48 := strings.Repeat("ab", 48)
 	entry := func(extra string) string {
 		return `{"verifiers":[{"provider":"gcp-sev-snp","expected_measurement_hex":"` + m48 + `"` + extra + `}]}`
@@ -179,6 +179,12 @@ func TestLoadVerifierRegistry_SEVSNP(t *testing.T) {
 	}
 	if _, err := loadVerifierRegistry(writeFile(t, dir, "badchain.json", []byte(entry(`,"amd_cert_chain_path":"`+filepath.Join(dir, "absent.pem")+`"`))), true); err == nil {
 		t.Fatal("gcp-sev-snp with an unreadable AMD chain was accepted")
+	}
+	// A chain that parses but does not end in an AMD root the binary pins
+	// is refused where the registry is loaded (ADR 0024).
+	junk := writeFile(t, dir, "junk-chain.pem", []byte("-----BEGIN CERTIFICATE-----\nMA==\n-----END CERTIFICATE-----\n"))
+	if _, err := loadVerifierRegistry(writeFile(t, dir, "junkchain.json", []byte(entry(`,"amd_cert_chain_path":"`+junk+`"`))), true); err == nil || !strings.Contains(err.Error(), "AMDRootPEM") {
+		t.Fatalf("gcp-sev-snp with a chain that is not AMD's was accepted: %v", err)
 	}
 }
 

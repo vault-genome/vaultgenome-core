@@ -77,7 +77,7 @@ func TestPrimaryVerifierFromThePolicyAndTheRegistry(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, v)
 	chain := filepath.Join(f.dir, "amd-chain.pem")
-	require.NoError(t, os.WriteFile(chain, []byte("-----BEGIN CERTIFICATE-----\nMA==\n-----END CERTIFICATE-----\n"), 0o644))
+	require.NoError(t, os.WriteFile(chain, genuineAMDChain(t, "Milan"), 0o644))
 	f.cfg.CrossCloud.VerifierRegistryPath = writeFile(t, f.dir, "registry-sev.json", []byte(`{"verifiers":[{"provider":"gcp-sev-snp","expected_measurement_hex":"`+makeMeasurementHex(0x55)+`","amd_cert_chain_path":"`+chain+`"}]}`))
 	sev := f.signedPolicy(t, string(tee.ProviderSimulated), f.operator, func(p *failover.Policy) {
 		p.Primary = &failover.Primary{Kind: string(tee.ProviderGCPSEVSNP), Measurements: []string{hex.EncodeToString(bytes.Repeat([]byte{7}, 48))}}

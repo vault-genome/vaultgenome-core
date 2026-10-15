@@ -803,8 +803,11 @@ func TestAMDChainAndReportSignatureRefusals(t *testing.T) {
 	arkKey, ark := selfSignedP384(t, "ARK", nil)
 	askKey, ask := issuedP384(t, "ASK", ark, arkKey)
 	_, vcek := issuedP384(t, "VCEK", ask, askKey)
-	require.NoError(t, realVerifyAMDChain(vcek, certPEM(ask, ark)))
-	require.NoError(t, realVerifyAMDChain(certPEM(vcek), certPEM(ark, ask)), "PEM input and either order")
+	// Every signature checks, and the root is not AMD's: refused as a
+	// foreign root (ADR 0024). The positive case is the genuine chain in
+	// TestRealSEVSNP_VerifiesGenuineHardwareReport and testdata/amd.
+	require.ErrorContains(t, realVerifyAMDChain(vcek, certPEM(ask, ark)), "not an AMD root this build pins")
+	require.ErrorContains(t, realVerifyAMDChain(certPEM(vcek), certPEM(ark, ask)), "not an AMD root this build pins", "PEM input and either order")
 
 	_, err := parseCert([]byte("-----BEGIN JUNK"))
 	require.ErrorContains(t, err, "no PEM block")

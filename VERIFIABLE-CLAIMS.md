@@ -247,6 +247,12 @@ A concrete released-to measurement appears in the failover report below
 (`destination_measurement_hex: 7dc7c12e…125acc`, `destination_kind:
 gcp-sev-snp`).
 
+Since 2026-10-15 (ADR 0024) the binary pins AMD's roots — ARK-Milan,
+ARK-Genoa, ARK-Turin — and refuses a chain that ends anywhere else; before
+that the root was whatever `amd_cert_chain_path` carried, which in every
+recorded run was AMD's from KDS or THIM (`docs/security/review-2026-10.md`,
+F12).
+
 **Scope.** Released to SEV-SNP destinations, once to an Azure
 confidential GPU destination — an SEV-SNP guest whose Evidence also carries
 the vTPM's quote and NVIDIA's tokens ([C18](#c18)) — and once to an Intel

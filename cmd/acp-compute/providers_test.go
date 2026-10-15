@@ -57,7 +57,26 @@ func TestBuildTEEProducer_Refusals(t *testing.T) {
 
 // askARKChainPEM is a throwaway two-certificate chain shaped like AMD's:
 // a self-signed root (the ARK) and an intermediate it signed (the ASK).
+// genuineAMDChain returns the ASK+ARK chain AMD KDS serves for a product
+// line, from the attestation package's fixtures (its README records the
+// three sources the roots were checked against).
+func genuineAMDChain(t *testing.T, product string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "internal", "shared", "tee", "testdata", "amd", "kds-"+product+"-cert_chain.pem"))
+	require.NoError(t, err)
+	return b
+}
+
+// askARKChainPEM is a genuine Genoa chain: what an azure-cgpu or
+// gcp-sev-snp peer's amd_cert_chain_path holds.
 func askARKChainPEM(t *testing.T) []byte {
+	t.Helper()
+	return genuineAMDChain(t, "Genoa")
+}
+
+// foreignARKChainPEM is an AMD-shaped chain under keys that are not
+// AMD's: every signature checks, and the root is not one the binary pins.
+func foreignARKChainPEM(t *testing.T) []byte {
 	t.Helper()
 	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
@@ -130,10 +149,11 @@ func TestBuildPeerVerifier_TDXAndAzurePeers(t *testing.T) {
 		"tdx with a 32-byte measurement": {PeerTEEConfig{Provider: "gcp-tdx", MeasurementPath: meas32}, "48-byte TDX measurement"},
 		"tdx with a status Intel never clears": {PeerTEEConfig{Provider: "gcp-tdx", MeasurementPath: meas48, AcceptableTCBStatuses: []string{tee.TCBRevoked}},
 			"build verifier for tee.peer.provider=gcp-tdx"},
-		"azure with a 32-byte measurement":       {withAzure(func(p *PeerTEEConfig) { p.MeasurementPath = meas32 }), "48-byte SEV-SNP launch measurement"},
-		"azure without its chain file":           {withAzure(func(p *PeerTEEConfig) { p.AMDCertChainPath = filepath.Join(dir, "absent.pem") }), "read tee.peer.amd_cert_chain_path"},
-		"azure with a chain that is not ASK+ARK": {withAzure(func(p *PeerTEEConfig) { p.AMDCertChainPath = garbage }), "build verifier for tee.peer.provider=azure-cgpu"},
-		"azure with a malformed PCR digest":      {withAzure(func(p *PeerTEEConfig) { p.PCRDigests = []string{"zz"} }), `tee.peer.pcr_digests: "zz"`},
+		"azure with a 32-byte measurement":        {withAzure(func(p *PeerTEEConfig) { p.MeasurementPath = meas32 }), "48-byte SEV-SNP launch measurement"},
+		"azure without its chain file":            {withAzure(func(p *PeerTEEConfig) { p.AMDCertChainPath = filepath.Join(dir, "absent.pem") }), "read tee.peer.amd_cert_chain_path"},
+		"azure with a chain under a foreign root": {withAzure(func(p *PeerTEEConfig) { p.AMDCertChainPath = write("foreign.pem", foreignARKChainPEM(t)) }), "not an AMD root this build pins"},
+		"azure with a chain that is not ASK+ARK":  {withAzure(func(p *PeerTEEConfig) { p.AMDCertChainPath = garbage }), "build verifier for tee.peer.provider=azure-cgpu"},
+		"azure with a malformed PCR digest":       {withAzure(func(p *PeerTEEConfig) { p.PCRDigests = []string{"zz"} }), `tee.peer.pcr_digests: "zz"`},
 		"azure with a RIM root that is not there": {withAzure(func(p *PeerTEEConfig) {
 			p.GPUPolicy = &GPUPolicyConfig{Evaluation: "both", NVIDIARIMRootPath: filepath.Join(dir, "absent.pem")}
 		}), "tee.peer.gpu_policy.nvidia_rim_root_path"},

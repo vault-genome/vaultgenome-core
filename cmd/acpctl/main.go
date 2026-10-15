@@ -42,6 +42,8 @@ func main() {
 			os.Exit(sentinelCmd(os.Args[2:], os.Stdout, os.Stderr))
 		case "failover":
 			os.Exit(failoverCmd(os.Args[2:], os.Stdout, os.Stderr))
+		case "tee":
+			os.Exit(teeCmd(os.Args[2:], os.Stdout, os.Stderr))
 		}
 	}
 
@@ -80,6 +82,7 @@ func printUsage() {
 	fmt.Println("  sentinel watch   Keep a running model's state sealed; report when a tripwire fires")
 	fmt.Println("  failover issue   Sign the operator's failover policy: which standby, on which signs of failure")
 	fmt.Println("  failover verify  Check a failover policy against the operator public key")
+	fmt.Println("  tee fetch-amd-chain  Fetch an AMD product line's ASK+ARK chain from AMD KDS, verified against the pinned roots, for amd_cert_chain_path")
 	fmt.Println()
 	fmt.Println("Run `acpctl <command> --help` for per-subcommand flags.")
 }

@@ -133,6 +133,11 @@ func realVerifyAMDChain(vcekCert []byte, chainPEM []byte) error {
 	if err := ark.CheckSignature(ark.SignatureAlgorithm, ark.RawTBSCertificate, ark.Signature); err != nil {
 		return fmt.Errorf("ARK not self-signed (root mismatch): %w", err)
 	}
+	// A self-signed root is only a root; the chain is AMD's when the root
+	// is one of the certificates this build pins (ADR 0024).
+	if pinnedAMDRootFor(ark) == "" {
+		return errForeignAMDRoot(ark)
+	}
 	return nil
 }
 
@@ -170,12 +175,18 @@ func realAMDKDSGetVCEKFor(baseURL, product string, chipID [64]byte, reportedTCB 
 	return httpGet(fmt.Sprintf("%s/vcek/v1/%s/%x?%s", baseURL, product, chipID[:], q.Encode()))
 }
 
-// realAMDKDSGetCertChain fetches the ASK+ARK PEM bundle from AMD KDS.
+// realAMDKDSGetCertChain fetches the Milan ASK+ARK PEM bundle from AMD KDS.
 func realAMDKDSGetCertChain(baseURL string) ([]byte, error) {
+	return realAMDKDSGetCertChainFor(baseURL, "Milan")
+}
+
+// realAMDKDSGetCertChainFor fetches the ASK+ARK PEM bundle of a product
+// line (Milan, Genoa, Turin) from AMD KDS or a mirror.
+func realAMDKDSGetCertChainFor(baseURL, product string) ([]byte, error) {
 	if baseURL == "" {
 		baseURL = "https://kdsintf.amd.com"
 	}
-	return httpGet(baseURL + "/vcek/v1/Milan/cert_chain")
+	return httpGet(baseURL + "/vcek/v1/" + product + "/cert_chain")
 }
 
 // ---- helpers ---------------------------------------------------------------

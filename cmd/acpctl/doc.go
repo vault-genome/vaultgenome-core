@@ -33,4 +33,7 @@
 //     sentinel's key, the primary's TEE, the one standby, the triggers, the
 //     grace on `stopped`, the quarantine, the required gate.
 //   - recover: unseal a VG-VAULT-01 envelope with the TEE backend it names.
+//   - tee fetch-amd-chain: the ASK+ARK chain of an AMD product line from
+//     AMD KDS, verified against the roots this build pins (ADR 0024),
+//     written for the daemons' amd_cert_chain_path.
 package main
