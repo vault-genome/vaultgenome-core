@@ -1,0 +1,4 @@
+sagvd v0.4.2 (commit 9ca89dd945ec6686c0c67aa873e17d5c34d7d26b)
+acp-compute v0.4.2 (commit 9ca89dd945ec6686c0c67aa873e17d5c34d7d26b)
+acpctl v0.4.2 (commit 9ca89dd945ec6686c0c67aa873e17d5c34d7d26b)
+acp-keygen v0.4.2 (commit 9ca89dd945ec6686c0c67aa873e17d5c34d7d26b)

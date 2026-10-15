@@ -11,6 +11,15 @@ given release can still open.
 
 ## [Unreleased]
 
+### Changed
+
+- The package rebuild of the release procedure (§5.4) and of the
+  reference-deployment kit names GNU gzip beside GNU tar, and the kit
+  stops before the rebuild when the gzip it finds is not GNU's. The
+  rehearsal of 0.4.2 repacked the worker package on macOS with Apple's
+  gzip and got an identical tar inside a different file: the deflate
+  stream is the compressor's, not the archive's.
+
 ## [0.4.2] — 2026-10-15
 
 The release that is enough on its own, on the runtime of 0.4.1. A first

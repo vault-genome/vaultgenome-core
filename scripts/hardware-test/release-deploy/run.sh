@@ -24,8 +24,10 @@
 #      and deletes the VM and the bucket — always, also on failure.
 #
 # Usage: run.sh <project> <tag> [zone]        (an n2d-standard-4 for ~15 min)
-# Needs gh, cosign, slsa-verifier, go, gcloud and GNU tar (tar on Linux,
-# gtar from Homebrew on macOS) for the package rebuild.
+# Needs gh, cosign, slsa-verifier, go, gcloud, and for the package rebuild
+# GNU tar and GNU gzip (tar and gzip on Linux; gtar and gzip from Homebrew
+# on macOS — Apple's gzip writes a different deflate stream for the same
+# tar, so the file would not match although its contents do).
 set -euo pipefail
 PROJECT="${1:?usage: run.sh <project> <tag> [zone]}"
 TAG="${2:?usage: run.sh <project> <tag> [zone]}"
@@ -88,16 +90,23 @@ REBUILD="$WORK/rebuild"
 git clone -q --no-checkout "https://github.com/$REPO.git" "$REBUILD"
 # The same inputs release.yml uses: the tag as VERSION, the full commit as
 # COMMIT, the commit's time as SOURCE_DATE_EPOCH, CGO off, linux/amd64;
-# the package with the same tar flags (GNU tar: gtar on macOS).
+# the package with the same tar flags (GNU tar: gtar on macOS) and GNU
+# gzip: the same tar compressed by Apple's gzip is a different file (the
+# rehearsal of 0.4.2 found it), so a gzip that is not GNU's stops the run.
 GTAR="$(command -v gtar || command -v tar)"
+GZIP_BIN=""
+for c in /opt/homebrew/bin/gzip /usr/local/bin/gzip "$(command -v gzip)"; do
+  [ -x "$c" ] && "$c" --version 2>&1 | grep -qE 'GNU|Free Software Foundation' && { GZIP_BIN="$c"; break; }
+done
+[ -n "$GZIP_BIN" ] || { echo "ERROR: the package rebuild needs GNU gzip (brew install gzip on macOS); $(gzip --version 2>&1 | head -1) is not it"; exit 1; }
 ( cd "$REBUILD" && git checkout -q "$TAG" \
   && SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
      make -s build VERSION="$TAG" COMMIT="$(git rev-parse HEAD)" >/dev/null 2>&1 \
   && SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" \
      "$GTAR" --sort=name --mtime="@$(git log -1 --format=%ct)" --owner=0 --group=0 --numeric-owner \
-       --exclude='__pycache__' --exclude='.pytest_cache' -C workers -cf - genome | gzip -n > "$REBUILD/$WORKER_PKG" )
+       --exclude='__pycache__' --exclude='.pytest_cache' -C workers -cf - genome | "$GZIP_BIN" -n > "$REBUILD/$WORKER_PKG" )
 {
-  echo "rebuilt from tag $TAG at $(git -C "$REBUILD" rev-parse HEAD) with $(go version | awk '{print $3}') and $("$GTAR" --version | head -1) on $(uname -sm)"
+  echo "rebuilt from tag $TAG at $(git -C "$REBUILD" rev-parse HEAD) with $(go version | awk '{print $3}'), $("$GTAR" --version | head -1) and $("$GZIP_BIN" --version | head -1) on $(uname -sm)"
   for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen; do
     r=$(sha256sum "$REBUILD/bin/$b" | awk '{print $1}'); d=$(sha256sum "$DL/$b" | awk '{print $1}')
     if [ "$r" = "$d" ]; then echo "$b: rebuilt sha256 equals the released file ($d)"; else echo "$b: MISMATCH rebuilt=$r released=$d"; fi

@@ -1511,12 +1511,32 @@ minutes after the release was published:
 machine (go1.27.2 on Darwin arm64, cross-compiled) with the same sha256 as
 the released files; `results/versions.txt` the binaries reporting `v0.4.1`
 at the tag's commit; gate EXACT 6 of 6, `release_authorized`; the audit log
-verified, 17 events; 100.6 s on the guest.
+verified, 17 events; 100.6 s on the guest. Those two runs still took the
+key helper, the worker package and the AMD chain from the source tree.
+The same kit on `v0.4.2`, three minutes after the release was published:
+[`scripts/hardware-test/release-deploy/evidence/20261015T170743Z/`](scripts/hardware-test/release-deploy/evidence/20261015T170743Z/)
+— the first record with **nothing from the source tree**. `verify/cosign.txt`
+twelve "Verified OK" (five binaries, the worker package, their six SBOMs),
+`verify/slsa.txt` six "PASSED", `verify/tag.txt` the tag's signature;
+`verify/rebuild.txt` the five binaries and the package rebuilt from the tag
+on another machine (go1.27.2, GNU tar 1.35, GNU gzip 1.15 on Darwin arm64)
+with the same sha256 as the released files; `verify/uploaded.sha256` the
+five files that went to the guest, every one a release asset (the released
+`acp-keygen` as the key helper, the released package as the worker);
+`results/amd-chain.txt` the Milan chain fetched on the guest by the
+released `acpctl` from AMD KDS and checked against the pinned ARK-Milan
+`69d063b4…a540bcd` (ADR 0024); `results/versions.txt` the four released
+binaries reporting `v0.4.2` at the tag's commit; both daemons read the
+launch measurement `7dc7c12e…25acc` from the chip; the rogue worker refused
+at the handshake; `results/job.json` gate level EXACT, 6 of 6, `max_abs_err`
+0, `release_authorized`; `results/audit-verify.json` `ok: true`, 17 events;
+103.3 s on the guest (`timeline.txt`: the runtime from the locks 84 s, the
+fine-tune 10 s, the job 5 s).
 
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.1    # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.2    # ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
