@@ -1461,13 +1461,20 @@ the simulated-TEE worker refused at the handshake; `results/job.json` gate
 level EXACT, 6 of 6 fixtures, `max_abs_err` 0, state `release_authorized`,
 the verdict signed; `results/audit-verify.json` `ok: true`, 17 events; the
 guest script 99.1 s (`timeline.txt`). The rebuild step (§5.4 of the release
-procedure) joined the kit after that run; later runs carry
-`verify/rebuild.txt`.
+procedure) joined the kit after that run. The same kit on `v0.4.1`, three
+minutes after the release was published:
+[`scripts/hardware-test/release-deploy/evidence/20261015T014459Z/`](scripts/hardware-test/release-deploy/evidence/20261015T014459Z/)
+— the same eight signatures, four provenances and tag verified;
+`verify/rebuild.txt`: the four binaries rebuilt from the tag on another
+machine (go1.27.2 on Darwin arm64, cross-compiled) with the same sha256 as
+the released files; `results/versions.txt` the binaries reporting `v0.4.1`
+at the tag's commit; gate EXACT 6 of 6, `release_authorized`; the audit log
+verified, 17 events; 100.6 s on the guest.
 
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.0    # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.1    # ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
