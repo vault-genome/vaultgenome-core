@@ -7,8 +7,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 	"github.com/vault-genome/vaultgenome-core/internal/validation/reconstruction"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/jobstore"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
 )
 
@@ -225,10 +228,11 @@ func (j *Job) toView() JobView {
 // JobQueue is a mutex-guarded in-memory FIFO of pending Jobs plus a
 // map of every job ever seen (for GET /v1/jobs/{id} lookups).
 //
-// Scope / lifetime: process-local. A restart loses queued jobs; this
-// is acceptable because gate jobs are idempotent and operators resubmit
-// (the audit log keeps what was decided). A bbolt-backed durable queue
-// lands with the broader persistence layer.
+// Scope / lifetime: process-local, unless a store is attached
+// (AttachStore, ADR 0026): then every submission and transition is
+// written to disk, a finished job's view outlives the process, and
+// Resume admits again what a previous process left queued or running.
+// Without a store a restart loses queued jobs, and the daemon says so.
 //
 // Concurrency: safe for concurrent use. Next blocks until either a job
 // is available or the context is cancelled.
@@ -247,6 +251,46 @@ type JobQueue struct {
 	// pollInterval bounds how often Next() re-checks under its
 	// lock. Operators can tune this via Runtime.QueuePollMs.
 	pollInterval time.Duration
+
+	// store, when set, keeps every job and its transitions on disk
+	// (ADR 0026); a write that fails is logged, and the job goes on —
+	// durability is what is lost, not the decision (the audit log is
+	// the decision's record). maxResume bounds the admissions of one job
+	// across restarts.
+	store     *jobstore.Store
+	maxResume int
+	log       *slog.Logger
+}
+
+// AttachStore puts the queue on disk: every submission and transition is
+// written to store, and Resume admits again what a previous process
+// left queued or running. Called once, before the queue is used.
+func (q *JobQueue) AttachStore(store *jobstore.Store, maxResume int, log *slog.Logger) {
+	if log == nil {
+		log = slog.Default()
+	}
+	if maxResume <= 0 {
+		maxResume = DefaultMaxResumeAttempts
+	}
+	q.mu.Lock()
+	q.store, q.maxResume, q.log = store, maxResume, log
+	q.mu.Unlock()
+}
+
+// JobRecord is what a submission leaves on the store beside the job: the
+// request as accepted, so that a resume can admit it again.
+type JobRecord struct {
+	// Request is the submission body as accepted, re-encoded.
+	Request json.RawMessage
+	// RequestID is the RecoveryRequest's id this admission used.
+	RequestID string
+	// DeadlineSeconds is how long the worker has from dispatch.
+	DeadlineSeconds int
+	// Attempt is this admission's number: 1 at submission, one more
+	// per resume; 0 means 1.
+	Attempt int
+	// SubmittedAt is when the job was first accepted; zero means now.
+	SubmittedAt time.Time
 }
 
 // NewJobQueue constructs a fresh queue. clock may be nil (SystemClock
@@ -278,8 +322,16 @@ func NewJobID() (string, error) {
 
 // Submit enqueues an admitted job under its pre-minted id (NewJobID):
 // the flow intake produced, the genome it named, and how long the worker
-// will have. An id already in the queue is refused.
+// will have. An id already in the queue is refused. Nothing is left on
+// the store to resume the job from; SubmitRecorded is the submission the
+// daemon makes.
 func (q *JobQueue) Submit(id string, flow *orchestration.Flow, info genomeInfo, deadline time.Duration) (JobView, error) {
+	return q.SubmitRecorded(id, flow, info, deadline, JobRecord{})
+}
+
+// SubmitRecorded is Submit with what the store keeps to admit the job
+// again after a restart (ADR 0026).
+func (q *JobQueue) SubmitRecorded(id string, flow *orchestration.Flow, info genomeInfo, deadline time.Duration, rec JobRecord) (JobView, error) {
 	if id == "" {
 		return JobView{}, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "sagvd: job id required", nil)
 	}
@@ -293,13 +345,17 @@ func (q *JobQueue) Submit(id string, flow *orchestration.Flow, info genomeInfo, 
 		return JobView{}, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "sagvd: a job needs its genome's references and budget", nil)
 	}
 	now := q.clock.Now().UTC()
+	submitted := now
+	if !rec.SubmittedAt.IsZero() {
+		submitted = rec.SubmittedAt.UTC()
+	}
 	j := &Job{
 		ID:          id,
 		Status:      JobStatusQueued,
 		Flow:        flow,
 		Info:        info,
 		DeadlineFor: deadline,
-		SubmittedAt: now,
+		SubmittedAt: submitted,
 	}
 	q.mu.Lock()
 	if _, dup := q.jobs[id]; dup {
@@ -309,8 +365,114 @@ func (q *JobQueue) Submit(id string, flow *orchestration.Flow, info genomeInfo, 
 	q.jobs[id] = j
 	q.pending = append(q.pending, id)
 	view := j.toView() // render under the lock; Next may flip j.Status concurrently
+	store := q.store
 	q.mu.Unlock()
+	if store != nil {
+		attempt := rec.Attempt
+		if attempt <= 0 {
+			attempt = 1
+		}
+		if err := store.Put(jobstore.Record{
+			ID: id, Request: rec.Request, RequestID: rec.RequestID, DeadlineSeconds: rec.DeadlineSeconds,
+			SubmittedAt: submitted, Status: jobstore.StatusQueued, Attempts: attempt, UpdatedAt: now,
+		}); err != nil {
+			q.log.Error("sagvd job store refused a record; the job goes on in memory only", "job_id", id, "err", err)
+		}
+	}
 	return view, nil
+}
+
+// transition writes a status change to the store, if any; a failure is
+// logged, not fatal.
+func (q *JobQueue) transition(id, status, lastErr string) {
+	if q.store == nil {
+		return
+	}
+	if err := q.store.SetStatus(id, status, lastErr, q.clock.Now().UTC()); err != nil {
+		q.log.Error("sagvd job store refused a transition", "job_id", id, "status", status, "err", err)
+	}
+}
+
+// keepView writes a finished job's view to the store, if any, so a GET
+// after a restart still answers.
+func (q *JobQueue) keepView(id string, view []byte) {
+	if q.store == nil || view == nil {
+		return
+	}
+	if err := q.store.PutView(id, view); err != nil {
+		q.log.Error("sagvd job store refused a view", "job_id", id, "err", err)
+	}
+}
+
+// GetRaw returns the job's view as JSON: from memory, or from the store
+// for a job a previous process finished.
+func (q *JobQueue) GetRaw(id string) ([]byte, bool) {
+	if view, ok := q.Get(id); ok {
+		raw, err := json.Marshal(view)
+		if err != nil {
+			return nil, false
+		}
+		return raw, true
+	}
+	if q.store == nil {
+		return nil, false
+	}
+	raw, ok, err := q.store.View(id)
+	if err != nil {
+		q.log.Error("sagvd job store could not read a view", "job_id", id, "err", err)
+		return nil, false
+	}
+	return raw, ok
+}
+
+// Resume admits again every job the store holds as queued or running —
+// what a previous process accepted and did not finish — oldest first,
+// through readmit, which runs the submission path for the record under
+// its own id, as one more attempt. A job past maxResume admissions, one
+// without its request, or one readmit refuses is failed on the record
+// with the reason. It returns how many were resumed and how many failed.
+func (q *JobQueue) Resume(readmit func(rec jobstore.Record) error) (resumed, failed int, err error) {
+	if q.store == nil {
+		return 0, 0, nil
+	}
+	pending, err := q.store.Pending()
+	if err != nil {
+		return 0, 0, err
+	}
+	for _, rec := range pending {
+		var reason string
+		switch {
+		case len(rec.Request) == 0:
+			reason = "the job's request was not recorded, so it cannot be admitted again"
+		case rec.Attempts >= q.maxResume:
+			reason = fmt.Sprintf("the job was admitted %d times and never finished (queue.max_resume_attempts %d)", rec.Attempts, q.maxResume)
+		default:
+			if rerr := readmit(rec); rerr != nil {
+				reason = "not admitted again: " + rerr.Error()
+			} else {
+				resumed++
+				continue
+			}
+		}
+		failed++
+		q.failOnRecord(rec, reason)
+	}
+	return resumed, failed, nil
+}
+
+// failOnRecord marks a record the resume could not admit as failed, with
+// a view that says why, so GET /v1/jobs/{id} answers for it.
+func (q *JobQueue) failOnRecord(rec jobstore.Record, reason string) {
+	now := q.clock.Now().UTC()
+	jerr := newJobError(shared_errors.Operational(shared_errors.CodeResourceExhausted, "sagvd: "+reason, nil))
+	view := JobView{
+		ID: rec.ID, Status: JobStatusFailed, SubmittedAt: rec.SubmittedAt, CompletedAt: &now, Error: &jerr,
+		ExpectedOutputKind: string(rjm.OutputKindBytesFixedLength),
+	}
+	raw, _ := json.Marshal(view)
+	q.transition(rec.ID, jobstore.StatusFailed, reason)
+	q.keepView(rec.ID, raw)
+	q.log.Warn("sagvd job from before the restart not resumed", "job_id", rec.ID, "attempts", rec.Attempts, "reason", reason)
 }
 
 // Get returns the view for a job by ID. The bool is false if no such
@@ -367,6 +529,7 @@ func (q *JobQueue) Next(ctx context.Context) (Job, error) {
 			j.StartedAt = q.clock.Now().UTC()
 			cp := *j
 			q.mu.Unlock()
+			q.transition(id, jobstore.StatusRunning, "")
 			return cp, nil
 		}
 		q.mu.Unlock()
@@ -384,14 +547,16 @@ func (q *JobQueue) Next(ctx context.Context) (Job, error) {
 // the worker it was about to go to must attest again first.
 func (q *JobQueue) Requeue(id string) {
 	q.mu.Lock()
-	defer q.mu.Unlock()
 	j, ok := q.jobs[id]
 	if !ok || j.Status != JobStatusRunning {
+		q.mu.Unlock()
 		return
 	}
 	j.Status = JobStatusQueued
 	j.StartedAt = time.Time{}
 	q.pending = append([]string{id}, q.pending...)
+	q.mu.Unlock()
+	q.transition(id, jobstore.StatusQueued, "")
 }
 
 // MarkDispatched records when the worker's answer is due, once the
@@ -410,36 +575,60 @@ func (q *JobQueue) MarkDispatched(id string, deadline time.Time) {
 // the verdicts still on record and the output withheld.
 func (q *JobQueue) CompleteGated(id string, out returnpath.CandidateOutput, workerKID string, gate GateView, top1 *equivalence.Top1Report, err error) {
 	q.mu.Lock()
-	defer q.mu.Unlock()
 	j, ok := q.jobs[id]
 	if !ok {
+		q.mu.Unlock()
 		return
 	}
 	j.CompletedAt = q.clock.Now().UTC()
 	j.GateResult = &gate
 	j.Top1 = top1
 	j.WorkerSigningKeyID = workerKID
+	status, lastErr := jobstore.StatusSucceeded, ""
 	if err != nil {
 		j.Status = JobStatusFailed
 		j.Err = newJobError(err)
-		return
+		status, lastErr = jobstore.StatusFailed, err.Error()
+	} else {
+		j.Status = JobStatusSucceeded
+		j.Candidate = out
 	}
-	j.Status = JobStatusSucceeded
-	j.Candidate = out
+	raw := q.viewJSON(j)
+	q.mu.Unlock()
+	q.transition(id, status, lastErr)
+	q.keepView(id, raw)
+}
+
+// viewJSON renders j's view under the caller's lock; nil when there is no
+// store to keep it for.
+func (q *JobQueue) viewJSON(j *Job) []byte {
+	if q.store == nil {
+		return nil
+	}
+	raw, err := json.Marshal(j.toView())
+	if err != nil {
+		q.log.Error("sagvd job view did not encode", "job_id", j.ID, "err", err)
+		return nil
+	}
+	return raw
 }
 
 // CompleteFailure records a classified failure. err is mapped through
 // newJobError.
 func (q *JobQueue) CompleteFailure(id string, err error) {
 	q.mu.Lock()
-	defer q.mu.Unlock()
 	j, ok := q.jobs[id]
 	if !ok {
+		q.mu.Unlock()
 		return
 	}
 	j.Status = JobStatusFailed
 	j.CompletedAt = q.clock.Now().UTC()
 	j.Err = newJobError(err)
+	raw := q.viewJSON(j)
+	q.mu.Unlock()
+	q.transition(id, jobstore.StatusFailed, err.Error())
+	q.keepView(id, raw)
 }
 
 // newJobID returns a 32-char hex ID (16 random bytes). Collisions are

@@ -81,6 +81,12 @@ type Config struct {
 	// effect (ADR 0014). Required when gate jobs are enabled.
 	Audit AuditConfig `json:"audit,omitempty"`
 
+	// Queue is where the daemon keeps its accepted jobs on disk, so that
+	// a restart resumes what was queued or in flight (ADR 0026). Without
+	// a path the queue is in memory and a restart loses it; the daemon
+	// says so at start when gate jobs are enabled.
+	Queue QueueConfig `json:"queue,omitempty"`
+
 	// OperatorStop is the operator's signed stop list (ADR 0010) as Trust
 	// Admission consults it for gate jobs (ADR 0015): a stop-all list
 	// denies every job, a list revoking the worker's measurement denies
@@ -643,6 +649,34 @@ type WorkersConfig struct {
 	RegistryPath string `json:"registry_path"`
 }
 
+// QueueConfig is the daemon's job store (ADR 0026).
+type QueueConfig struct {
+	// Path is the bbolt file every accepted job is recorded in — the
+	// request as accepted, its status, and once finished its view — so
+	// that a restart admits again what was queued or in flight and still
+	// answers a GET for what was finished. Empty keeps the queue in
+	// memory. It must not be the audit log's file: one process holds a
+	// bbolt file at a time, and the two are opened separately.
+	Path string `json:"path,omitempty"`
+
+	// MaxResumeAttempts bounds how many times one job is admitted after
+	// restarts before it is failed as a job the authority cannot finish
+	// (a job that crashes the authority must not crash it forever);
+	// 0 takes DefaultMaxResumeAttempts.
+	MaxResumeAttempts int `json:"max_resume_attempts,omitempty"`
+}
+
+// DefaultMaxResumeAttempts is QueueConfig.MaxResumeAttempts when unset.
+const DefaultMaxResumeAttempts = 3
+
+// MaxResume returns MaxResumeAttempts with the default applied.
+func (q QueueConfig) MaxResume() int {
+	if q.MaxResumeAttempts <= 0 {
+		return DefaultMaxResumeAttempts
+	}
+	return q.MaxResumeAttempts
+}
+
 // RuntimeConfig bounds the accept / dispatch / HTTP timings.
 type RuntimeConfig struct {
 	// JobTimeoutSeconds caps the total wall-clock duration for a
@@ -1121,6 +1155,18 @@ func (c Config) Validate() error {
 		if c.CrossCloud.AuditLogPath != "" && filepath.Clean(c.CrossCloud.AuditLogPath) == filepath.Clean(c.Audit.LogPath) {
 			errs = append(errs, errors.New("audit.log_path and crosscloud.audit_log_path must be different files: the daemon holds its log open, and one process holds a log at a time"))
 		}
+	}
+
+	if c.Queue.Path != "" {
+		if c.Audit.LogPath != "" && filepath.Clean(c.Queue.Path) == filepath.Clean(c.Audit.LogPath) {
+			errs = append(errs, errors.New("queue.path and audit.log_path must be different files: each is a bbolt file the daemon holds open"))
+		}
+		if c.CrossCloud.AuditLogPath != "" && filepath.Clean(c.Queue.Path) == filepath.Clean(c.CrossCloud.AuditLogPath) {
+			errs = append(errs, errors.New("queue.path and crosscloud.audit_log_path must be different files"))
+		}
+	}
+	if c.Queue.MaxResumeAttempts < 0 {
+		errs = append(errs, errors.New("queue.max_resume_attempts must be >= 0 (0 = the default of 3)"))
 	}
 
 	// CrossCloud is opt-in; only validate fields when enabled.

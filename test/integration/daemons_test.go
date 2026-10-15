@@ -604,7 +604,17 @@ type vault struct {
 	healthURL string
 	bundleDir string // genome.bundle_dir
 	auditLog  string // audit.log_path
+	cfgPath   string // the configuration file the process runs on
 	proc      *proc
+}
+
+// restart starts a fresh sagvd on the same configuration — the same
+// audit log, bundle dir and queue file — once the previous process is
+// gone: what an orchestrator does after a crash.
+func (v *vault) restart(t *testing.T) {
+	t.Helper()
+	v.proc = startProc(t, "sagvd", bins.sagvd, "-config", v.cfgPath)
+	waitReady(t, v.proc, v.healthURL+"/readyz")
 }
 
 func vaultConfig(secrets, vaultAddr, apiAddr, healthAddr string) map[string]any {
@@ -702,7 +712,8 @@ func startVaultWith(t *testing.T, secrets string, mutate func(cfg map[string]any
 	if mutate != nil {
 		mutate(cfg)
 	}
-	v.proc = startProc(t, "sagvd", bins.sagvd, "-config", writeJSON(t, "sagvd.json", cfg))
+	v.cfgPath = writeJSON(t, "sagvd.json", cfg)
+	v.proc = startProc(t, "sagvd", bins.sagvd, "-config", v.cfgPath)
 	waitReady(t, v.proc, v.healthURL+"/readyz")
 	return v
 }
@@ -719,6 +730,12 @@ type workerIdentity struct {
 // key; id picks its own client certificate and TEE identity. It returns
 // the process and the worker's health base URL.
 func (v *vault) startWorker(t *testing.T, name string, id workerIdentity) (*proc, string) {
+	return v.startWorkerWith(t, name, id, nil)
+}
+
+// startWorkerWith is startWorker with a hook over the worker's config
+// before it is written.
+func (v *vault) startWorkerWith(t *testing.T, name string, id workerIdentity, mutate func(cfg map[string]any)) (*proc, string) {
 	t.Helper()
 	healthAddr := loopback(t)
 	cfg := map[string]any{
@@ -757,6 +774,9 @@ func (v *vault) startWorker(t *testing.T, name string, id workerIdentity) (*proc
 		},
 		"health": map[string]any{"listen_address": healthAddr},
 		"log":    map[string]any{"level": "debug", "format": "json"},
+	}
+	if mutate != nil {
+		mutate(cfg)
 	}
 	p := startProc(t, name, bins.worker, "-config", writeJSON(t, name+".json", cfg))
 	return p, "http://" + healthAddr
@@ -1207,6 +1227,17 @@ func startProc(t *testing.T, name, bin string, args ...string) *proc {
 	return p
 }
 
+// kill sends SIGKILL: the process dies without a word, as a host does.
+func (p *proc) kill() {
+	select {
+	case <-p.exited:
+		return
+	default:
+	}
+	_ = p.cmd.Process.Kill()
+	<-p.exited
+}
+
 // stop sends SIGTERM (the daemons' graceful-shutdown path) and escalates
 // to SIGKILL after 10 s. It reports how long the process took to exit and
 // whether it had to be killed.
@@ -1306,4 +1337,66 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+// The authority dies without a word in the middle of a job and comes
+// back on the same configuration. With queue.path (ADR 0026) the job
+// that was in flight and the one behind it are admitted again — on the
+// record as such — and finish; the job that had finished before the
+// crash still answers, as it was.
+func TestLiveDaemons_JobsSurviveAHardKillOfTheAuthority(t *testing.T) {
+	secrets := keygen(t)
+	queueFile := filepath.Join(t.TempDir(), "sagvd-jobs.db")
+	v := startVaultWith(t, secrets, func(cfg map[string]any) {
+		cfg["queue"] = map[string]any{"path": queueFile}
+	})
+	// A door that takes four seconds: long enough to catch a job in flight.
+	w, health := v.startWorkerWith(t, "acp-compute", workerIdentity{tlsFrom: secrets, teeFrom: secrets}, func(cfg map[string]any) {
+		cfg["genome"].(map[string]any)["door"].(map[string]any)["env"] = []string{"FAKEDOOR_SLEEP_MS=4000"}
+	})
+	waitReady(t, w, health+"/healthz")
+	sealed := v.sealGenome(t, "gen-0", true)
+
+	finished, _ := v.submitGenome(t, sealed)
+	v.waitJob(t, finished, "succeeded", jobTimeout)
+	inFlight, _ := v.submitGenome(t, sealed)
+	behind, _ := v.submitGenome(t, sealed)
+	v.waitJob(t, inFlight, "running", jobTimeout)
+
+	v.proc.kill()
+	v.restart(t)
+
+	for _, id := range []string{inFlight, behind} {
+		j := v.waitJob(t, id, "succeeded", 2*jobTimeout)
+		if j.Gate == nil || j.Gate.Level != "EXACT" || j.Result == nil {
+			t.Fatalf("job %s after the restart: %+v", id, j)
+		}
+	}
+	if j := v.job(t, finished); j.Status != "succeeded" || j.Result == nil || j.Gate == nil || j.Gate.Level != "EXACT" {
+		t.Fatalf("the job finished before the crash does not answer as it was: %+v", j)
+	}
+	if n := v.counter(t, "sagvd_jobs_resumed_total"); n != 2 {
+		t.Fatalf("sagvd_jobs_resumed_total = %d, want 2", n)
+	}
+	if n := v.counter(t, "sagvd_jobs_resume_failed_total"); n != 0 {
+		t.Fatalf("sagvd_jobs_resume_failed_total = %d, want 0", n)
+	}
+
+	// Five admissions on the record for three jobs: the two after the
+	// restart say they are resumptions, and the chain verifies across the
+	// crash.
+	kinds, events := v.auditLogAfterStop(t)
+	received, resumed := 0, 0
+	for _, e := range events {
+		if e.Kind != "REQUEST_RECEIVED" {
+			continue
+		}
+		received++
+		if bytes.Contains(e.Payload, []byte(`"resumed":{"attempt":2,`)) {
+			resumed++
+		}
+	}
+	if received != 5 || resumed != 2 {
+		t.Fatalf("REQUEST_RECEIVED on record: %d (%d resumed), want 5 (2); kinds %v", received, resumed, kinds)
+	}
 }

@@ -463,6 +463,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    on a slow package mirror); the job in flight had to be resubmitted,
    and the audit events the old host appended for it after its last
    replica died with the host. The disaster-recovery runbook's scenario 4
-   carries the procedure and the numbers. A durable queue on disk, like
-   the audit log, and a continuous replica are the planned fix; until
-   then an operator resubmits, as the runbook says.
+   carries the procedure and the numbers.
+   **REDUCED (2026-10-15, ADR 0026):** with `queue.path` the queue is on
+   disk, and a restarted `sagvd` admits again what it had queued or in
+   flight by itself, on the record; what the host loses is what its last
+   replica lacks. The drill's next run replicates the job store beside
+   the audit log, so that the new host resumes the lost job instead of an
+   operator resubmitting it; a continuous replica is the remaining step.

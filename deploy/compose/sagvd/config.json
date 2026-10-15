@@ -49,6 +49,9 @@
   "audit": {
     "log_path": "/var/lib/acp/audit/returnpath-audit.db"
   },
+  "queue": {
+    "path": "/var/lib/acp/audit/sagvd-jobs.db"
+  },
   "runtime": {
     "job_timeout_seconds": 900,
     "handshake_timeout_seconds": 10,
