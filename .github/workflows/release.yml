@@ -135,10 +135,13 @@ jobs:
           # --output-signature / --output-certificate; the 0.3.0 run failed on it
           # after the installer moved to v4. Pinned to 2.6.5: every asset gets
           # the .sig + .cert pair the documents of earlier releases verify
-          # with, and beside it the Sigstore bundle (<asset>.sigstore.json:
-          # signature, certificate and the Rekor entry in one file) that
-          # `cosign verify-blob --bundle … --offline` checks without a route
-          # to Rekor — what an air-gapped site needs (KNOWN_ISSUES #15).
+          # with, and beside it the Sigstore bundle (<asset>.sigstore.json,
+          # the new bundle format: signature, certificate and the Rekor
+          # entry in one file) that `cosign verify-blob --new-bundle-format
+          # --bundle … --trusted-root trusted_root.json` checks with no route
+          # at all — what an air-gapped site needs (KNOWN_ISSUES #15).
+          # Measured on 2.6.5: `--offline` is not that; it still reaches for
+          # the TUF mirror and fails without a route.
           cosign-release: 'v2.6.5'
 
       - name: Sign binaries and the worker package (keyless)
@@ -146,12 +149,12 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           for b in $RELEASE_BINARIES; do
-            cosign sign-blob --yes "bin/$b" \
+            cosign sign-blob --yes --new-bundle-format "bin/$b" \
               --output-signature "dist/${b}.sig" \
               --output-certificate "dist/${b}.cert" \
               --bundle "dist/${b}.sigstore.json"
           done
-          cosign sign-blob --yes "dist/genome-worker-${VERSION}.tar.gz" \
+          cosign sign-blob --yes --new-bundle-format "dist/genome-worker-${VERSION}.tar.gz" \
             --output-signature "dist/genome-worker-${VERSION}.tar.gz.sig" \
             --output-certificate "dist/genome-worker-${VERSION}.tar.gz.cert" \
             --bundle "dist/genome-worker-${VERSION}.tar.gz.sigstore.json"
@@ -161,12 +164,12 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           for b in $RELEASE_BINARIES; do
-            cosign sign-blob --yes "dist/${b}.sbom.spdx.json" \
+            cosign sign-blob --yes --new-bundle-format "dist/${b}.sbom.spdx.json" \
               --output-signature "dist/${b}.sbom.sig" \
               --output-certificate "dist/${b}.sbom.cert" \
               --bundle "dist/${b}.sbom.sigstore.json"
           done
-          cosign sign-blob --yes "dist/genome-worker-${VERSION}.sbom.spdx.json" \
+          cosign sign-blob --yes --new-bundle-format "dist/genome-worker-${VERSION}.sbom.spdx.json" \
             --output-signature "dist/genome-worker-${VERSION}.sbom.sig" \
             --output-certificate "dist/genome-worker-${VERSION}.sbom.cert" \
             --bundle "dist/genome-worker-${VERSION}.sbom.sigstore.json"
