@@ -1,0 +1,8 @@
+hcl header:   version=2 report_size=2469 request_type=2 status=0
+snp report:   version=5 guest_svn=3 policy=0x3001f vmpl=0
+runtime data: section_size=1253 version=1 report_type=2 hash_type=1 data_size=1233
+runtime keys: ['HCLAkPub', 'HCLEkPub']
+vm-config:    {"console-enabled": true, "hardware-sealing-policy": "hash", "root-cert-thumbprint": "6nZZnYaJc4KqUZ_yvA-mucFdYNouvlPnITnNMXsHl-0", "secure-boot": true, "tpm-enabled": true, "tpm-persisted": true, "vmUniqueId": "FCFF6082-5158-4F65-94E9-CF66C7D285D0"}
+report_data:  0f21621d34e15d78583366a58dea2a030b96a96e2c62a484e8177461682c7f9f0000000000000000000000000000000000000000000000000000000000000000
+sha256(data): 0f21621d34e15d78583366a58dea2a030b96a96e2c62a484e8177461682c7f9f
+REPORT_DATA = SHA-256(runtime data) || 0^32: OK

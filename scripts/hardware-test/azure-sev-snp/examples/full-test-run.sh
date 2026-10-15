@@ -8,9 +8,10 @@
 #   1. terraform apply       provisions a DCasv5 Confidential VM
 #   2. uploads scripts        pushes the kit's scripts/ dir to the VM
 #   3. ssh + bootstrap        installs Go + Ollama + acpctl + snpguest (every download checked)
-#   4. captures AMD chain     1184-byte SEV-SNP report + ARK→ASK→VCEK + verify
-#   5. captures MAA chain     Microsoft Azure Attestation JWT + verify
-#   6. runs Demo 1            single-bundle round-trip + tamper test
+#   4. runs Demo 1            single-bundle round-trip + tamper test
+#   5. captures AMD chain     SEV-SNP report from the vTPM + ARK→ASK→VCEK + verify,
+#                             the manifest naming what Demo 1 sealed
+#   6. captures MAA chain     Microsoft Azure Attestation JWT + verify
 #   7. runs Demo 2            chain operations
 #   8. (optional) inference   empirical model output comparison
 #   9. packs evidence         single tar archive
@@ -89,9 +90,11 @@ ${SSH} '
 
   ~/scripts/01-bootstrap-vm.sh
   ~/scripts/02-capture-attestation.sh
+  # Demo 1 runs before the chain steps: the manifest 02b writes names what
+  # Demo 1 sealed, as acpctl measured it.
+  ~/scripts/03-demo1-single-bundle.sh
   ~/scripts/02b-cryptographic-attestation.sh
   ~/scripts/02f-capture-maa-jwt.sh
-  ~/scripts/03-demo1-single-bundle.sh
   ~/scripts/04-demo2-chain.sh
   ~/scripts/05-inference-test.sh || echo "(inference skipped — non-fatal)"
   ~/scripts/06-pack-evidence.sh

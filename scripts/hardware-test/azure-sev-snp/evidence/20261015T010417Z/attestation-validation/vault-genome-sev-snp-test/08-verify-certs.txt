@@ -1,0 +1,3 @@
+The AMD ARK was self-signed!
+The AMD ASK was signed by the AMD ARK!
+The VCEK was signed by the AMD ASK!

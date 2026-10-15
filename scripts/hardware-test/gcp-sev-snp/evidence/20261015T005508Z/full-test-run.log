@@ -1,0 +1,2933 @@
+2026-10-15T00:46:10Z
+acpctl sha256 5cf55e9f889a25a22a05fbf9f04dd9fb332cdb99f91791dc75317ff8d3058d4a built from 7ec57aeb67527a0b69f15ae2e8e1fc923f21c9b1 (vcs 275b118; Go tree unchanged)
+=== 1. provision VM ===
+Initializing the backend...
+
+Initializing provider plugins...
+- Reusing previous version of hashicorp/google from the dependency lock file
+- Installing hashicorp/google v8.7.0...
+- Installed hashicorp/google v8.7.0 (signed by HashiCorp)
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+--- zone us-central1-a ---
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # google_compute_instance.vault_genome will be created
+  + resource "google_compute_instance" "vault_genome" {
+      + can_ip_forward       = false
+      + cpu_platform         = (known after apply)
+      + creation_timestamp   = (known after apply)
+      + current_status       = (known after apply)
+      + deletion_policy      = "DELETE"
+      + deletion_protection  = false
+      + effective_labels     = {
+          + "goog-terraform-provisioned" = "true"
+          + "purpose"                    = "vault-genome-hardware-validation"
+          + "sprint"                     = "week-1-gcp-sev-snp"
+        }
+      + id                   = (known after apply)
+      + instance_id          = (known after apply)
+      + label_fingerprint    = (known after apply)
+      + labels               = {
+          + "purpose" = "vault-genome-hardware-validation"
+          + "sprint"  = "week-1-gcp-sev-snp"
+        }
+      + machine_type         = "n2d-standard-4"
+      + metadata             = {
+          + "enable-oslogin" = "TRUE"
+        }
+      + metadata_fingerprint = (known after apply)
+      + min_cpu_platform     = (known after apply)
+      + name                 = "vault-genome-sev-snp-test"
+      + project              = "rats-probe"
+      + self_link            = (known after apply)
+      + tags_fingerprint     = (known after apply)
+      + terraform_labels     = {
+          + "goog-terraform-provisioned" = "true"
+          + "purpose"                    = "vault-genome-hardware-validation"
+          + "sprint"                     = "week-1-gcp-sev-snp"
+        }
+      + zone                 = "us-central1-a"
+
+      + boot_disk {
+          + auto_delete                = true
+          + device_name                = (known after apply)
+          + disk_encryption_key_sha256 = (known after apply)
+          + guest_os_features          = (known after apply)
+          + kms_key_self_link          = (known after apply)
+          + mode                       = "READ_WRITE"
+          + source                     = (known after apply)
+
+          + initialize_params {
+              + architecture           = (known after apply)
+              + image                  = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64"
+              + labels                 = (known after apply)
+              + provisioned_iops       = (known after apply)
+              + provisioned_throughput = (known after apply)
+              + resource_policies      = (known after apply)
+              + size                   = 40
+              + snapshot               = (known after apply)
+              + type                   = "pd-balanced"
+            }
+        }
+
+      + confidential_instance_config {
+          + confidential_instance_type  = "SEV_SNP"
+          + enable_confidential_compute = true
+        }
+
+      + guest_accelerator (known after apply)
+
+      + network_interface {
+          + igmp_query                  = (known after apply)
+          + internal_ipv6_prefix_length = (known after apply)
+          + ipv6_access_type            = (known after apply)
+          + ipv6_address                = (known after apply)
+          + name                        = (known after apply)
+          + network                     = "default"
+          + network_attachment          = (known after apply)
+          + network_ip                  = (known after apply)
+          + parent_nic_name             = (known after apply)
+          + stack_type                  = (known after apply)
+          + subnetwork                  = (known after apply)
+          + subnetwork_project          = (known after apply)
+
+          + access_config {
+              + nat_ip       = (known after apply)
+              + network_tier = (known after apply)
+            }
+        }
+
+      + reservation_affinity (known after apply)
+
+      + scheduling {
+          + automatic_restart   = true
+          + on_host_maintenance = "TERMINATE"
+          + preemptible         = false
+          + provisioning_model  = (known after apply)
+        }
+
+      + service_account {
+          + email  = (known after apply)
+          + scopes = [
+              + "https://www.googleapis.com/auth/cloud-platform",
+            ]
+        }
+
+      + shielded_instance_config {
+          + enable_integrity_monitoring = true
+          + enable_secure_boot          = false
+          + enable_vtpm                 = true
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + external_ip   = (known after apply)
+  + instance_name = "vault-genome-sev-snp-test"
+  + ssh_command   = "gcloud compute ssh vault-genome-sev-snp-test --zone=us-central1-a"
+  + zone          = "us-central1-a"
+google_compute_instance.vault_genome: Creating...
+google_compute_instance.vault_genome: Still creating... [00m10s elapsed]
+╷
+│ Error: Error waiting for instance to create: The zone 'projects/rats-probe/zones/us-central1-a' does not have enough resources available to fulfill the request.  Try a different zone, or try again later.
+│ 
+│ 
+│ A n2d-standard-4 VM instance is currently unavailable in the us-central1-a zone. Alternatively, you can try your request again with a different VM hardware configuration or at a later time. For more information, see the troubleshooting documentation.
+│ 
+│ 
+│ Troubleshooting documentation
+│ https://cloud.google.com/compute/docs/resource-error
+│ 
+│ 
+│   with google_compute_instance.vault_genome,
+│   on main.tf line 63, in resource "google_compute_instance" "vault_genome":
+│   63: resource "google_compute_instance" "vault_genome" {
+│ 
+╵
+(zone us-central1-a has no capacity for the machine type; trying the next)
+--- zone us-central1-b ---
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # google_compute_instance.vault_genome will be created
+  + resource "google_compute_instance" "vault_genome" {
+      + can_ip_forward       = false
+      + cpu_platform         = (known after apply)
+      + creation_timestamp   = (known after apply)
+      + current_status       = (known after apply)
+      + deletion_policy      = "DELETE"
+      + deletion_protection  = false
+      + effective_labels     = {
+          + "goog-terraform-provisioned" = "true"
+          + "purpose"                    = "vault-genome-hardware-validation"
+          + "sprint"                     = "week-1-gcp-sev-snp"
+        }
+      + id                   = (known after apply)
+      + instance_id          = (known after apply)
+      + label_fingerprint    = (known after apply)
+      + labels               = {
+          + "purpose" = "vault-genome-hardware-validation"
+          + "sprint"  = "week-1-gcp-sev-snp"
+        }
+      + machine_type         = "n2d-standard-4"
+      + metadata             = {
+          + "enable-oslogin" = "TRUE"
+        }
+      + metadata_fingerprint = (known after apply)
+      + min_cpu_platform     = (known after apply)
+      + name                 = "vault-genome-sev-snp-test"
+      + project              = "rats-probe"
+      + self_link            = (known after apply)
+      + tags_fingerprint     = (known after apply)
+      + terraform_labels     = {
+          + "goog-terraform-provisioned" = "true"
+          + "purpose"                    = "vault-genome-hardware-validation"
+          + "sprint"                     = "week-1-gcp-sev-snp"
+        }
+      + zone                 = "us-central1-b"
+
+      + boot_disk {
+          + auto_delete                = true
+          + device_name                = (known after apply)
+          + disk_encryption_key_sha256 = (known after apply)
+          + guest_os_features          = (known after apply)
+          + kms_key_self_link          = (known after apply)
+          + mode                       = "READ_WRITE"
+          + source                     = (known after apply)
+
+          + initialize_params {
+              + architecture           = (known after apply)
+              + image                  = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64"
+              + labels                 = (known after apply)
+              + provisioned_iops       = (known after apply)
+              + provisioned_throughput = (known after apply)
+              + resource_policies      = (known after apply)
+              + size                   = 40
+              + snapshot               = (known after apply)
+              + type                   = "pd-balanced"
+            }
+        }
+
+      + confidential_instance_config {
+          + confidential_instance_type  = "SEV_SNP"
+          + enable_confidential_compute = true
+        }
+
+      + guest_accelerator (known after apply)
+
+      + network_interface {
+          + igmp_query                  = (known after apply)
+          + internal_ipv6_prefix_length = (known after apply)
+          + ipv6_access_type            = (known after apply)
+          + ipv6_address                = (known after apply)
+          + name                        = (known after apply)
+          + network                     = "default"
+          + network_attachment          = (known after apply)
+          + network_ip                  = (known after apply)
+          + parent_nic_name             = (known after apply)
+          + stack_type                  = (known after apply)
+          + subnetwork                  = (known after apply)
+          + subnetwork_project          = (known after apply)
+
+          + access_config {
+              + nat_ip       = (known after apply)
+              + network_tier = (known after apply)
+            }
+        }
+
+      + reservation_affinity (known after apply)
+
+      + scheduling {
+          + automatic_restart   = true
+          + on_host_maintenance = "TERMINATE"
+          + preemptible         = false
+          + provisioning_model  = (known after apply)
+        }
+
+      + service_account {
+          + email  = (known after apply)
+          + scopes = [
+              + "https://www.googleapis.com/auth/cloud-platform",
+            ]
+        }
+
+      + shielded_instance_config {
+          + enable_integrity_monitoring = true
+          + enable_secure_boot          = false
+          + enable_vtpm                 = true
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + external_ip   = (known after apply)
+  ~ ssh_command   = "gcloud compute ssh vault-genome-sev-snp-test --zone=us-central1-a" -> "gcloud compute ssh vault-genome-sev-snp-test --zone=us-central1-b"
+  ~ zone          = "us-central1-a" -> "us-central1-b"
+google_compute_instance.vault_genome: Creating...
+google_compute_instance.vault_genome: Still creating... [00m10s elapsed]
+╷
+│ Error: Error waiting for instance to create: The zone 'projects/rats-probe/zones/us-central1-b' does not have enough resources available to fulfill the request.  Try a different zone, or try again later.
+│ 
+│ 
+│ A n2d-standard-4 VM instance is currently unavailable in the us-central1-b zone. Alternatively, you can try your request again with a different VM hardware configuration or at a later time. For more information, see the troubleshooting documentation.
+│ 
+│ 
+│ Troubleshooting documentation
+│ https://cloud.google.com/compute/docs/resource-error
+│ 
+│ 
+│   with google_compute_instance.vault_genome,
+│   on main.tf line 63, in resource "google_compute_instance" "vault_genome":
+│   63: resource "google_compute_instance" "vault_genome" {
+│ 
+╵
+(zone us-central1-b has no capacity for the machine type; trying the next)
+--- zone us-central1-c ---
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # google_compute_instance.vault_genome will be created
+  + resource "google_compute_instance" "vault_genome" {
+      + can_ip_forward       = false
+      + cpu_platform         = (known after apply)
+      + creation_timestamp   = (known after apply)
+      + current_status       = (known after apply)
+      + deletion_policy      = "DELETE"
+      + deletion_protection  = false
+      + effective_labels     = {
+          + "goog-terraform-provisioned" = "true"
+          + "purpose"                    = "vault-genome-hardware-validation"
+          + "sprint"                     = "week-1-gcp-sev-snp"
+        }
+      + id                   = (known after apply)
+      + instance_id          = (known after apply)
+      + label_fingerprint    = (known after apply)
+      + labels               = {
+          + "purpose" = "vault-genome-hardware-validation"
+          + "sprint"  = "week-1-gcp-sev-snp"
+        }
+      + machine_type         = "n2d-standard-4"
+      + metadata             = {
+          + "enable-oslogin" = "TRUE"
+        }
+      + metadata_fingerprint = (known after apply)
+      + min_cpu_platform     = (known after apply)
+      + name                 = "vault-genome-sev-snp-test"
+      + project              = "rats-probe"
+      + self_link            = (known after apply)
+      + tags_fingerprint     = (known after apply)
+      + terraform_labels     = {
+          + "goog-terraform-provisioned" = "true"
+          + "purpose"                    = "vault-genome-hardware-validation"
+          + "sprint"                     = "week-1-gcp-sev-snp"
+        }
+      + zone                 = "us-central1-c"
+
+      + boot_disk {
+          + auto_delete                = true
+          + device_name                = (known after apply)
+          + disk_encryption_key_sha256 = (known after apply)
+          + guest_os_features          = (known after apply)
+          + kms_key_self_link          = (known after apply)
+          + mode                       = "READ_WRITE"
+          + source                     = (known after apply)
+
+          + initialize_params {
+              + architecture           = (known after apply)
+              + image                  = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64"
+              + labels                 = (known after apply)
+              + provisioned_iops       = (known after apply)
+              + provisioned_throughput = (known after apply)
+              + resource_policies      = (known after apply)
+              + size                   = 40
+              + snapshot               = (known after apply)
+              + type                   = "pd-balanced"
+            }
+        }
+
+      + confidential_instance_config {
+          + confidential_instance_type  = "SEV_SNP"
+          + enable_confidential_compute = true
+        }
+
+      + guest_accelerator (known after apply)
+
+      + network_interface {
+          + igmp_query                  = (known after apply)
+          + internal_ipv6_prefix_length = (known after apply)
+          + ipv6_access_type            = (known after apply)
+          + ipv6_address                = (known after apply)
+          + name                        = (known after apply)
+          + network                     = "default"
+          + network_attachment          = (known after apply)
+          + network_ip                  = (known after apply)
+          + parent_nic_name             = (known after apply)
+          + stack_type                  = (known after apply)
+          + subnetwork                  = (known after apply)
+          + subnetwork_project          = (known after apply)
+
+          + access_config {
+              + nat_ip       = (known after apply)
+              + network_tier = (known after apply)
+            }
+        }
+
+      + reservation_affinity (known after apply)
+
+      + scheduling {
+          + automatic_restart   = true
+          + on_host_maintenance = "TERMINATE"
+          + preemptible         = false
+          + provisioning_model  = (known after apply)
+        }
+
+      + service_account {
+          + email  = (known after apply)
+          + scopes = [
+              + "https://www.googleapis.com/auth/cloud-platform",
+            ]
+        }
+
+      + shielded_instance_config {
+          + enable_integrity_monitoring = true
+          + enable_secure_boot          = false
+          + enable_vtpm                 = true
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + external_ip   = (known after apply)
+  ~ ssh_command   = "gcloud compute ssh vault-genome-sev-snp-test --zone=us-central1-b" -> "gcloud compute ssh vault-genome-sev-snp-test --zone=us-central1-c"
+  ~ zone          = "us-central1-b" -> "us-central1-c"
+google_compute_instance.vault_genome: Creating...
+google_compute_instance.vault_genome: Still creating... [00m10s elapsed]
+google_compute_instance.vault_genome: Creation complete after 19s [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+external_ip = "34.56.83.0"
+instance_name = "vault-genome-sev-snp-test"
+ssh_command = "gcloud compute ssh vault-genome-sev-snp-test --zone=us-central1-c"
+zone = "us-central1-c"
+=== 1a. wait for SSH ===
+
+=== 2. upload scripts + acpctl to VM ===
+
+=== 3-8. run all phases on the VM ===
+=== verify SEV-SNP active ===
+/dev/sev-guest present: SEV-SNP guest device
+Oct 15 00:47:29 localhost kernel: Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP
+Oct 15 00:47:29 localhost kernel: SEV: Status: SEV SEV-ES SEV-SNP 
+Oct 15 00:47:29 localhost kernel: SEV: APIC: wakeup_secondary_cpu() replaced with wakeup_cpu_via_vmgexit()
+Oct 15 00:47:29 localhost kernel: SEV: Using SNP CPUID table, 57 entries present.
+Oct 15 00:47:29 localhost kernel: SEV: SNP running at VMPL0.
+Oct 15 00:47:29 localhost kernel: SEV: SNP guest platform devices initialized.
+Oct 15 00:47:29 localhost kernel: software IO TLB: Memory encryption is active and system is using DMA bounce buffers
+Oct 15 00:47:29 localhost kernel: sev-guest sev-guest: Initialized SEV guest driver (using VMPCK0 communication key)
+Oct 15 00:47:44 vault-genome-sev-snp-test kernel: gve 0000:00:03.0 ens3: Device link is up.
+Oct 15 00:47:50 vault-genome-sev-snp-test kernel: EXT4-fs (nvme0n1p1): resizing filesystem from 786171 to 10223355 blocks
+
+=== install Go 1.27.2 ===
+/tmp/go.tar.gz: OK
+go version go1.27.2 linux/amd64
+
+=== install Ollama (CPU-only — Confidential VMs don't expose GPUs) ===
+/tmp/tmp.GXdR6IiPP4: OK
+>>> Installing ollama to /usr/local
+>>> Downloading ollama-linux-amd64.tar.zst
+#=#=#                                                                          
+##O#-#                                                                         
+
+                                                                           0.2%
+                                                                           0.9%
+#                                                                          2.6%
+###                                                                        4.3%
+####                                                                       5.9%
+#####                                                                      7.8%
+######                                                                     9.4%
+#######                                                                   11.0%
+########                                                                  12.4%
+##########                                                                13.9%
+###########                                                               15.3%
+###########                                                               16.2%
+############                                                              16.9%
+############                                                              17.6%
+#############                                                             18.3%
+#############                                                             19.0%
+##############                                                            19.7%
+##############                                                            20.3%
+###############                                                           20.8%
+###############                                                           21.4%
+###############                                                           21.9%
+################                                                          22.3%
+################                                                          22.6%
+################                                                          22.7%
+################                                                          22.8%
+################                                                          22.8%
+################                                                          22.8%
+################                                                          22.9%
+################                                                          22.9%
+################                                                          23.0%
+################                                                          23.0%
+################                                                          23.1%
+################                                                          23.2%
+################                                                          23.2%
+################                                                          23.3%
+################                                                          23.4%
+################                                                          23.5%
+################                                                          23.5%
+#################                                                         23.6%
+#################                                                         23.7%
+#################                                                         23.8%
+#################                                                         23.8%
+#################                                                         23.9%
+#################                                                         24.0%
+#################                                                         24.1%
+#################                                                         24.2%
+#################                                                         24.2%
+#################                                                         24.3%
+#################                                                         24.4%
+#################                                                         24.5%
+#################                                                         24.6%
+#################                                                         24.8%
+#################                                                         24.9%
+#################                                                         25.0%
+##################                                                        25.1%
+##################                                                        25.2%
+##################                                                        25.3%
+##################                                                        25.4%
+##################                                                        25.4%
+##################                                                        25.5%
+##################                                                        25.5%
+##################                                                        25.6%
+##################                                                        25.6%
+##################                                                        25.7%
+##################                                                        25.8%
+##################                                                        25.8%
+##################                                                        25.9%
+##################                                                        25.9%
+##################                                                        26.0%
+##################                                                        26.0%
+##################                                                        26.1%
+##################                                                        26.1%
+##################                                                        26.2%
+##################                                                        26.2%
+##################                                                        26.3%
+##################                                                        26.4%
+###################                                                       26.5%
+###################                                                       26.6%
+###################                                                       26.6%
+###################                                                       26.7%
+###################                                                       26.8%
+###################                                                       26.9%
+###################                                                       27.0%
+###################                                                       27.2%
+###################                                                       27.3%
+###################                                                       27.4%
+###################                                                       27.5%
+###################                                                       27.6%
+###################                                                       27.7%
+####################                                                      27.8%
+####################                                                      27.9%
+####################                                                      28.0%
+####################                                                      28.1%
+####################                                                      28.2%
+####################                                                      28.2%
+####################                                                      28.3%
+####################                                                      28.4%
+####################                                                      28.5%
+####################                                                      28.6%
+####################                                                      28.6%
+####################                                                      28.7%
+####################                                                      28.8%
+####################                                                      28.9%
+####################                                                      29.0%
+####################                                                      29.0%
+####################                                                      29.1%
+#####################                                                     29.2%
+#####################                                                     29.3%
+#####################                                                     29.5%
+#####################                                                     29.6%
+#####################                                                     29.7%
+#####################                                                     29.8%
+#####################                                                     29.9%
+#####################                                                     30.1%
+#####################                                                     30.2%
+#####################                                                     30.3%
+#####################                                                     30.5%
+######################                                                    30.6%
+######################                                                    30.8%
+######################                                                    30.9%
+######################                                                    31.1%
+######################                                                    31.2%
+######################                                                    31.4%
+######################                                                    31.6%
+######################                                                    31.7%
+######################                                                    31.9%
+#######################                                                   32.1%
+#######################                                                   32.3%
+#######################                                                   32.5%
+#######################                                                   32.7%
+#######################                                                   32.9%
+#######################                                                   33.1%
+#######################                                                   33.2%
+########################                                                  33.3%
+########################                                                  33.5%
+########################                                                  33.6%
+########################                                                  33.8%
+########################                                                  33.9%
+########################                                                  34.0%
+########################                                                  34.1%
+########################                                                  34.2%
+########################                                                  34.4%
+########################                                                  34.5%
+########################                                                  34.6%
+#########################                                                 34.8%
+#########################                                                 34.9%
+#########################                                                 35.1%
+#########################                                                 35.2%
+#########################                                                 35.3%
+#########################                                                 35.4%
+#########################                                                 35.5%
+#########################                                                 35.5%
+#########################                                                 35.6%
+#########################                                                 35.6%
+#########################                                                 35.6%
+#########################                                                 35.7%
+#########################                                                 35.7%
+#########################                                                 35.7%
+#########################                                                 35.7%
+#########################                                                 35.7%
+#########################                                                 35.8%
+#########################                                                 35.8%
+#########################                                                 35.8%
+#########################                                                 35.9%
+#########################                                                 35.9%
+#########################                                                 36.0%
+#########################                                                 36.0%
+#########################                                                 36.1%
+#########################                                                 36.1%
+##########################                                                36.1%
+##########################                                                36.2%
+##########################                                                36.2%
+##########################                                                36.3%
+##########################                                                36.4%
+##########################                                                36.4%
+##########################                                                36.5%
+##########################                                                36.6%
+##########################                                                36.6%
+##########################                                                36.7%
+##########################                                                36.8%
+##########################                                                36.9%
+##########################                                                36.9%
+##########################                                                37.0%
+##########################                                                37.1%
+##########################                                                37.2%
+##########################                                                37.2%
+##########################                                                37.3%
+##########################                                                37.3%
+##########################                                                37.4%
+##########################                                                37.4%
+##########################                                                37.5%
+###########################                                               37.6%
+###########################                                               37.6%
+###########################                                               37.7%
+###########################                                               37.7%
+###########################                                               37.8%
+###########################                                               37.8%
+###########################                                               37.9%
+###########################                                               38.0%
+###########################                                               38.0%
+###########################                                               38.1%
+###########################                                               38.1%
+###########################                                               38.2%
+###########################                                               38.3%
+###########################                                               38.3%
+###########################                                               38.4%
+###########################                                               38.5%
+###########################                                               38.5%
+###########################                                               38.6%
+###########################                                               38.7%
+###########################                                               38.8%
+############################                                              38.9%
+############################                                              39.0%
+############################                                              39.1%
+############################                                              39.2%
+############################                                              39.3%
+############################                                              39.4%
+############################                                              39.5%
+############################                                              39.7%
+############################                                              39.8%
+############################                                              39.9%
+############################                                              40.1%
+############################                                              40.2%
+#############################                                             40.3%
+#############################                                             40.4%
+#############################                                             40.4%
+#############################                                             40.5%
+#############################                                             40.6%
+#############################                                             40.6%
+#############################                                             40.7%
+#############################                                             40.7%
+#############################                                             40.8%
+#############################                                             40.8%
+#############################                                             40.9%
+#############################                                             41.0%
+#############################                                             41.0%
+#############################                                             41.1%
+#############################                                             41.2%
+#############################                                             41.3%
+#############################                                             41.3%
+#############################                                             41.4%
+#############################                                             41.5%
+#############################                                             41.6%
+##############################                                            41.7%
+##############################                                            41.8%
+##############################                                            41.9%
+##############################                                            42.0%
+##############################                                            42.2%
+##############################                                            42.3%
+##############################                                            42.4%
+##############################                                            42.5%
+##############################                                            42.6%
+##############################                                            42.7%
+##############################                                            42.8%
+##############################                                            42.8%
+##############################                                            42.9%
+##############################                                            42.9%
+##############################                                            42.9%
+##############################                                            43.0%
+##############################                                            43.0%
+###############################                                           43.1%
+###############################                                           43.1%
+###############################                                           43.2%
+###############################                                           43.2%
+###############################                                           43.3%
+###############################                                           43.4%
+###############################                                           43.4%
+###############################                                           43.5%
+###############################                                           43.6%
+###############################                                           43.6%
+###############################                                           43.7%
+###############################                                           43.8%
+###############################                                           43.8%
+###############################                                           43.9%
+###############################                                           44.0%
+###############################                                           44.0%
+###############################                                           44.1%
+###############################                                           44.1%
+###############################                                           44.2%
+###############################                                           44.3%
+###############################                                           44.3%
+###############################                                           44.4%
+################################                                          44.5%
+################################                                          44.6%
+################################                                          44.7%
+################################                                          44.8%
+################################                                          44.9%
+################################                                          45.0%
+################################                                          45.1%
+################################                                          45.2%
+################################                                          45.3%
+################################                                          45.4%
+################################                                          45.5%
+################################                                          45.7%
+################################                                          45.8%
+#################################                                         45.9%
+#################################                                         46.1%
+#################################                                         46.2%
+#################################                                         46.4%
+#################################                                         46.5%
+#################################                                         46.7%
+#################################                                         46.8%
+#################################                                         47.0%
+#################################                                         47.1%
+##################################                                        47.3%
+##################################                                        47.5%
+##################################                                        47.7%
+##################################                                        47.8%
+##################################                                        47.9%
+##################################                                        48.0%
+##################################                                        48.1%
+##################################                                        48.2%
+##################################                                        48.3%
+##################################                                        48.4%
+##################################                                        48.5%
+###################################                                       48.6%
+###################################                                       48.8%
+###################################                                       48.9%
+###################################                                       49.0%
+###################################                                       49.2%
+###################################                                       49.3%
+###################################                                       49.4%
+###################################                                       49.6%
+###################################                                       49.7%
+###################################                                       49.9%
+####################################                                      50.1%
+####################################                                      50.2%
+####################################                                      50.4%
+####################################                                      50.6%
+####################################                                      50.7%
+####################################                                      50.9%
+####################################                                      51.0%
+####################################                                      51.2%
+####################################                                      51.3%
+#####################################                                     51.4%
+#####################################                                     51.6%
+#####################################                                     51.7%
+#####################################                                     51.9%
+#####################################                                     52.0%
+#####################################                                     52.2%
+#####################################                                     52.4%
+#####################################                                     52.5%
+#####################################                                     52.6%
+#####################################                                     52.8%
+######################################                                    52.9%
+######################################                                    53.0%
+######################################                                    53.2%
+######################################                                    53.3%
+######################################                                    53.4%
+######################################                                    53.5%
+######################################                                    53.6%
+######################################                                    53.7%
+######################################                                    53.9%
+######################################                                    54.0%
+######################################                                    54.1%
+#######################################                                   54.2%
+#######################################                                   54.3%
+#######################################                                   54.4%
+#######################################                                   54.5%
+#######################################                                   54.6%
+#######################################                                   54.7%
+#######################################                                   54.8%
+#######################################                                   54.9%
+#######################################                                   55.1%
+#######################################                                   55.2%
+#######################################                                   55.3%
+#######################################                                   55.4%
+#######################################                                   55.5%
+#######################################                                   55.5%
+########################################                                  55.6%
+########################################                                  55.7%
+########################################                                  55.7%
+########################################                                  55.8%
+########################################                                  55.9%
+########################################                                  55.9%
+########################################                                  56.0%
+########################################                                  56.1%
+########################################                                  56.2%
+########################################                                  56.3%
+########################################                                  56.3%
+########################################                                  56.4%
+########################################                                  56.5%
+########################################                                  56.5%
+########################################                                  56.5%
+########################################                                  56.6%
+########################################                                  56.6%
+########################################                                  56.7%
+########################################                                  56.7%
+########################################                                  56.8%
+########################################                                  56.8%
+########################################                                  56.9%
+########################################                                  56.9%
+#########################################                                 57.0%
+#########################################                                 57.0%
+#########################################                                 57.1%
+#########################################                                 57.2%
+#########################################                                 57.2%
+#########################################                                 57.3%
+#########################################                                 57.4%
+#########################################                                 57.4%
+#########################################                                 57.5%
+#########################################                                 57.6%
+#########################################                                 57.6%
+#########################################                                 57.7%
+#########################################                                 57.8%
+#########################################                                 57.9%
+#########################################                                 58.0%
+#########################################                                 58.1%
+#########################################                                 58.1%
+#########################################                                 58.2%
+##########################################                                58.4%
+##########################################                                58.4%
+##########################################                                58.5%
+##########################################                                58.6%
+##########################################                                58.6%
+##########################################                                58.7%
+##########################################                                58.8%
+##########################################                                58.8%
+##########################################                                58.9%
+##########################################                                59.0%
+##########################################                                59.1%
+##########################################                                59.2%
+##########################################                                59.3%
+##########################################                                59.4%
+##########################################                                59.5%
+##########################################                                59.6%
+##########################################                                59.7%
+###########################################                               59.8%
+###########################################                               59.9%
+###########################################                               60.1%
+###########################################                               60.2%
+###########################################                               60.3%
+###########################################                               60.5%
+###########################################                               60.6%
+###########################################                               60.7%
+###########################################                               60.9%
+###########################################                               61.0%
+############################################                              61.2%
+############################################                              61.4%
+############################################                              61.5%
+############################################                              61.7%
+############################################                              61.9%
+############################################                              62.1%
+############################################                              62.2%
+############################################                              62.4%
+#############################################                             62.6%
+#############################################                             62.8%
+#############################################                             63.0%
+#############################################                             63.2%
+#############################################                             63.4%
+#############################################                             63.6%
+#############################################                             63.8%
+##############################################                            64.0%
+##############################################                            64.2%
+##############################################                            64.3%
+##############################################                            64.5%
+##############################################                            64.6%
+##############################################                            64.8%
+##############################################                            65.0%
+##############################################                            65.2%
+###############################################                           65.3%
+###############################################                           65.5%
+###############################################                           65.7%
+###############################################                           65.9%
+###############################################                           66.0%
+###############################################                           66.1%
+###############################################                           66.2%
+###############################################                           66.3%
+###############################################                           66.4%
+###############################################                           66.5%
+###############################################                           66.5%
+###############################################                           66.6%
+################################################                          66.7%
+################################################                          66.8%
+################################################                          66.9%
+################################################                          67.0%
+################################################                          67.1%
+################################################                          67.3%
+################################################                          67.4%
+################################################                          67.5%
+################################################                          67.6%
+################################################                          67.7%
+################################################                          67.8%
+################################################                          67.9%
+################################################                          68.0%
+#################################################                         68.1%
+#################################################                         68.2%
+#################################################                         68.3%
+#################################################                         68.5%
+#################################################                         68.6%
+#################################################                         68.7%
+#################################################                         68.8%
+#################################################                         69.0%
+#################################################                         69.1%
+#################################################                         69.2%
+#################################################                         69.3%
+#################################################                         69.3%
+#################################################                         69.4%
+##################################################                        69.5%
+##################################################                        69.6%
+##################################################                        69.7%
+##################################################                        69.7%
+##################################################                        69.8%
+##################################################                        69.9%
+##################################################                        70.0%
+##################################################                        70.0%
+##################################################                        70.1%
+##################################################                        70.2%
+##################################################                        70.3%
+##################################################                        70.4%
+##################################################                        70.5%
+##################################################                        70.5%
+##################################################                        70.6%
+##################################################                        70.7%
+##################################################                        70.7%
+##################################################                        70.8%
+###################################################                       70.9%
+###################################################                       71.0%
+###################################################                       71.0%
+###################################################                       71.1%
+###################################################                       71.2%
+###################################################                       71.3%
+###################################################                       71.4%
+###################################################                       71.5%
+###################################################                       71.6%
+###################################################                       71.7%
+###################################################                       71.8%
+###################################################                       71.9%
+###################################################                       72.0%
+###################################################                       72.1%
+####################################################                      72.3%
+####################################################                      72.4%
+####################################################                      72.5%
+####################################################                      72.7%
+####################################################                      72.8%
+####################################################                      73.0%
+####################################################                      73.1%
+####################################################                      73.3%
+####################################################                      73.4%
+####################################################                      73.5%
+#####################################################                     73.7%
+#####################################################                     73.8%
+#####################################################                     73.9%
+#####################################################                     74.0%
+#####################################################                     74.0%
+#####################################################                     74.1%
+#####################################################                     74.2%
+#####################################################                     74.4%
+#####################################################                     74.5%
+#####################################################                     74.6%
+#####################################################                     74.7%
+#####################################################                     74.8%
+#####################################################                     74.9%
+######################################################                    75.1%
+######################################################                    75.2%
+######################################################                    75.3%
+######################################################                    75.3%
+######################################################                    75.4%
+######################################################                    75.4%
+######################################################                    75.5%
+######################################################                    75.5%
+######################################################                    75.6%
+######################################################                    75.6%
+######################################################                    75.7%
+######################################################                    75.7%
+######################################################                    75.8%
+######################################################                    75.9%
+######################################################                    75.9%
+######################################################                    76.0%
+######################################################                    76.0%
+######################################################                    76.0%
+######################################################                    76.1%
+######################################################                    76.1%
+######################################################                    76.2%
+######################################################                    76.3%
+######################################################                    76.3%
+######################################################                    76.3%
+######################################################                    76.4%
+#######################################################                   76.4%
+#######################################################                   76.4%
+#######################################################                   76.5%
+#######################################################                   76.5%
+#######################################################                   76.6%
+#######################################################                   76.6%
+#######################################################                   76.7%
+#######################################################                   76.8%
+#######################################################                   76.9%
+#######################################################                   76.9%
+#######################################################                   77.0%
+#######################################################                   77.1%
+#######################################################                   77.2%
+#######################################################                   77.2%
+#######################################################                   77.2%
+#######################################################                   77.3%
+#######################################################                   77.3%
+#######################################################                   77.4%
+#######################################################                   77.4%
+#######################################################                   77.4%
+#######################################################                   77.5%
+#######################################################                   77.5%
+#######################################################                   77.6%
+#######################################################                   77.6%
+#######################################################                   77.7%
+#######################################################                   77.7%
+#######################################################                   77.8%
+########################################################                  77.8%
+########################################################                  77.9%
+########################################################                  77.9%
+########################################################                  78.0%
+########################################################                  78.1%
+########################################################                  78.1%
+########################################################                  78.2%
+########################################################                  78.3%
+########################################################                  78.3%
+########################################################                  78.4%
+########################################################                  78.4%
+########################################################                  78.5%
+########################################################                  78.6%
+########################################################                  78.7%
+########################################################                  78.7%
+########################################################                  78.8%
+########################################################                  78.9%
+########################################################                  79.0%
+########################################################                  79.1%
+########################################################                  79.1%
+#########################################################                 79.2%
+#########################################################                 79.2%
+#########################################################                 79.3%
+#########################################################                 79.3%
+#########################################################                 79.4%
+#########################################################                 79.4%
+#########################################################                 79.4%
+#########################################################                 79.5%
+#########################################################                 79.5%
+#########################################################                 79.5%
+#########################################################                 79.6%
+#########################################################                 79.6%
+#########################################################                 79.7%
+#########################################################                 79.7%
+#########################################################                 79.8%
+#########################################################                 79.8%
+#########################################################                 79.9%
+#########################################################                 79.9%
+#########################################################                 79.9%
+#########################################################                 80.0%
+#########################################################                 80.0%
+#########################################################                 80.0%
+#########################################################                 80.0%
+#########################################################                 80.1%
+#########################################################                 80.1%
+#########################################################                 80.1%
+#########################################################                 80.1%
+#########################################################                 80.1%
+#########################################################                 80.1%
+#########################################################                 80.1%
+#########################################################                 80.2%
+#########################################################                 80.2%
+#########################################################                 80.2%
+#########################################################                 80.2%
+#########################################################                 80.2%
+#########################################################                 80.2%
+#########################################################                 80.2%
+#########################################################                 80.3%
+#########################################################                 80.3%
+#########################################################                 80.3%
+#########################################################                 80.4%
+#########################################################                 80.4%
+#########################################################                 80.4%
+#########################################################                 80.5%
+#########################################################                 80.5%
+##########################################################                80.6%
+##########################################################                80.7%
+##########################################################                80.7%
+##########################################################                80.8%
+##########################################################                80.8%
+##########################################################                80.9%
+##########################################################                81.0%
+##########################################################                81.0%
+##########################################################                81.1%
+##########################################################                81.2%
+##########################################################                81.2%
+##########################################################                81.3%
+##########################################################                81.4%
+##########################################################                81.5%
+##########################################################                81.6%
+##########################################################                81.7%
+##########################################################                81.7%
+##########################################################                81.8%
+##########################################################                81.9%
+###########################################################               82.0%
+###########################################################               82.0%
+###########################################################               82.1%
+###########################################################               82.2%
+###########################################################               82.3%
+###########################################################               82.4%
+###########################################################               82.4%
+###########################################################               82.5%
+###########################################################               82.5%
+###########################################################               82.5%
+###########################################################               82.6%
+###########################################################               82.6%
+###########################################################               82.6%
+###########################################################               82.7%
+###########################################################               82.7%
+###########################################################               82.8%
+###########################################################               82.8%
+###########################################################               82.9%
+###########################################################               82.9%
+###########################################################               83.0%
+###########################################################               83.0%
+###########################################################               83.1%
+###########################################################               83.2%
+###########################################################               83.2%
+###########################################################               83.3%
+############################################################              83.4%
+############################################################              83.5%
+############################################################              83.6%
+############################################################              83.6%
+############################################################              83.7%
+############################################################              83.8%
+############################################################              83.9%
+############################################################              83.9%
+############################################################              84.0%
+############################################################              84.1%
+############################################################              84.2%
+############################################################              84.3%
+############################################################              84.4%
+############################################################              84.5%
+############################################################              84.5%
+############################################################              84.6%
+############################################################              84.6%
+############################################################              84.7%
+#############################################################             84.8%
+#############################################################             84.8%
+#############################################################             84.9%
+#############################################################             85.0%
+#############################################################             85.1%
+#############################################################             85.2%
+#############################################################             85.3%
+#############################################################             85.3%
+#############################################################             85.4%
+#############################################################             85.4%
+#############################################################             85.5%
+#############################################################             85.5%
+#############################################################             85.5%
+#############################################################             85.6%
+#############################################################             85.6%
+#############################################################             85.7%
+#############################################################             85.7%
+#############################################################             85.8%
+#############################################################             85.8%
+#############################################################             85.9%
+#############################################################             85.9%
+#############################################################             86.0%
+#############################################################             86.1%
+##############################################################            86.2%
+##############################################################            86.2%
+##############################################################            86.3%
+##############################################################            86.4%
+##############################################################            86.5%
+##############################################################            86.6%
+##############################################################            86.7%
+##############################################################            86.7%
+##############################################################            86.8%
+##############################################################            86.9%
+##############################################################            87.0%
+##############################################################            87.1%
+##############################################################            87.1%
+##############################################################            87.2%
+##############################################################            87.2%
+##############################################################            87.3%
+##############################################################            87.4%
+##############################################################            87.4%
+##############################################################            87.5%
+###############################################################           87.6%
+###############################################################           87.6%
+###############################################################           87.7%
+###############################################################           87.8%
+###############################################################           87.9%
+###############################################################           88.0%
+###############################################################           88.0%
+###############################################################           88.1%
+###############################################################           88.3%
+###############################################################           88.4%
+###############################################################           88.5%
+###############################################################           88.6%
+###############################################################           88.7%
+###############################################################           88.8%
+################################################################          88.9%
+################################################################          89.1%
+################################################################          89.2%
+################################################################          89.3%
+################################################################          89.4%
+################################################################          89.5%
+################################################################          89.6%
+################################################################          89.6%
+################################################################          89.6%
+################################################################          89.7%
+################################################################          89.7%
+################################################################          89.7%
+################################################################          89.7%
+################################################################          89.8%
+################################################################          89.8%
+################################################################          89.9%
+################################################################          89.9%
+################################################################          89.9%
+################################################################          89.9%
+################################################################          90.0%
+################################################################          90.0%
+################################################################          90.0%
+################################################################          90.1%
+################################################################          90.1%
+################################################################          90.1%
+################################################################          90.1%
+################################################################          90.2%
+################################################################          90.2%
+################################################################          90.2%
+#################################################################         90.3%
+#################################################################         90.3%
+#################################################################         90.4%
+#################################################################         90.4%
+#################################################################         90.5%
+#################################################################         90.5%
+#################################################################         90.6%
+#################################################################         90.6%
+#################################################################         90.7%
+#################################################################         90.7%
+#################################################################         90.8%
+#################################################################         90.9%
+#################################################################         90.9%
+#################################################################         91.0%
+#################################################################         91.1%
+#################################################################         91.2%
+#################################################################         91.2%
+#################################################################         91.3%
+#################################################################         91.4%
+#################################################################         91.5%
+#################################################################         91.6%
+##################################################################        91.7%
+##################################################################        91.8%
+##################################################################        92.0%
+##################################################################        92.1%
+##################################################################        92.2%
+##################################################################        92.3%
+##################################################################        92.5%
+##################################################################        92.6%
+##################################################################        92.7%
+##################################################################        92.9%
+##################################################################        93.0%
+##################################################################        93.0%
+###################################################################       93.1%
+###################################################################       93.2%
+###################################################################       93.3%
+###################################################################       93.4%
+###################################################################       93.5%
+###################################################################       93.6%
+###################################################################       93.7%
+###################################################################       93.8%
+###################################################################       93.9%
+###################################################################       94.0%
+###################################################################       94.1%
+###################################################################       94.3%
+###################################################################       94.4%
+####################################################################      94.5%
+####################################################################      94.6%
+####################################################################      94.8%
+####################################################################      94.9%
+####################################################################      95.1%
+####################################################################      95.2%
+####################################################################      95.4%
+####################################################################      95.5%
+####################################################################      95.7%
+####################################################################      95.8%
+#####################################################################     95.9%
+#####################################################################     96.0%
+#####################################################################     96.2%
+#####################################################################     96.3%
+#####################################################################     96.4%
+#####################################################################     96.6%
+#####################################################################     96.7%
+#####################################################################     96.9%
+#####################################################################     97.0%
+#####################################################################     97.2%
+######################################################################    97.3%
+######################################################################    97.5%
+######################################################################    97.6%
+######################################################################    97.7%
+######################################################################    97.9%
+######################################################################    98.0%
+######################################################################    98.1%
+######################################################################    98.2%
+######################################################################    98.3%
+######################################################################    98.4%
+######################################################################    98.5%
+######################################################################    98.6%
+#######################################################################   98.7%
+#######################################################################   98.8%
+#######################################################################   98.9%
+#######################################################################   99.0%
+#######################################################################   99.1%
+#######################################################################   99.2%
+#######################################################################   99.3%
+#######################################################################   99.4%
+#######################################################################   99.5%
+#######################################################################   99.5%
+#######################################################################   99.6%
+#######################################################################   99.6%
+#######################################################################   99.7%
+#######################################################################   99.7%
+#######################################################################   99.7%
+#######################################################################   99.8%
+#######################################################################   99.8%
+#######################################################################   99.9%
+#######################################################################   99.9%
+#######################################################################  100.0%
+######################################################################## 100.0%
+>>> Creating ollama user...
+>>> Adding ollama user to render group...
+>>> Adding ollama user to video group...
+>>> Adding current user to ollama group...
+>>> Creating ollama systemd service...
+>>> Enabling and starting ollama service...
+Created symlink /etc/systemd/system/default.target.wants/ollama.service → /etc/systemd/system/ollama.service.
+WARNING: No NVIDIA/AMD GPU detected. Ollama will run in CPU-only mode.
+>>> The Ollama API is now available at 127.0.0.1:11434.
+>>> Install complete. Run "ollama" from the command line.
+
+=== prepare workdir ===
+
+=== bootstrap complete ===
+Next: ./scripts/02-capture-attestation.sh
+=== requesting AMD SEV-SNP attestation report from /dev/sev-guest ===
+✓ SEV-SNP attestation report captured
+  output:    evidence/snp-attestation-report.bin
+  size:      1184 bytes
+  user_data: cc75e8a99e4fa9b0f030a7073530b1b9a8ac8528f0c9e89b61658b87389cc9fe...
+  fw_err:    0x0
+
+=== file metadata ===
+-rw-r--r-- 1 user user 1.2K Oct 15 00:50 evidence/snp-attestation-report.bin
+size in bytes (should be 1184): 1184
+sha256: f165bdfff840d1ae223b93e132491a49786b5038c7c05c29311225288fda8f90
+
+=== first 96 bytes (response header + start of report) ===
+00000000: 0000 0000 a004 0000 0000 0000 0000 0000  ................
+00000010: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000020: 0500 0000 0000 0000 0000 0300 0000 0000  ................
+00000030: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000040: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000050: 0000 0000 0100 0000 0400 0000 0000 1dde  ................
+
+=== capture kernel SEV log too ===
+Oct 15 00:47:29 localhost kernel: Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP
+Oct 15 00:47:29 localhost kernel: SEV: Status: SEV SEV-ES SEV-SNP 
+Oct 15 00:47:29 localhost kernel: SEV: APIC: wakeup_secondary_cpu() replaced with wakeup_cpu_via_vmgexit()
+Oct 15 00:47:29 localhost kernel: SEV: Using SNP CPUID table, 57 entries present.
+Oct 15 00:47:29 localhost kernel: SEV: SNP running at VMPL0.
+Oct 15 00:47:29 localhost kernel: SEV: SNP guest platform devices initialized.
+Oct 15 00:47:29 localhost kernel: software IO TLB: Memory encryption is active and system is using DMA bounce buffers
+Oct 15 00:47:29 localhost kernel: sev-guest sev-guest: Initialized SEV guest driver (using VMPCK0 communication key)
+Oct 15 00:47:44 vault-genome-sev-snp-test kernel: gve 0000:00:03.0 ens3: Device link is up.
+Oct 15 00:47:50 vault-genome-sev-snp-test kernel: EXT4-fs (nvme0n1p1): resizing filesystem from 786171 to 10223355 blocks
+
+=== done. attestation captured ===
+Next: ./scripts/03-demo1-single-bundle.sh
+=== make the ollama model store readable ===
+
+=== pull the model the demo uses ===
+[?2026h[?25l[1Gpulling manifest ⠋ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠙ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠹ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠸ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠼ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠴ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠦ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠧ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠇ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠏ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest [K
+pulling dde5aa3fc5ff:   1% ▕                  ▏  19 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:   4% ▕                  ▏  90 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:   7% ▕█                 ▏ 132 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  10% ▕█                 ▏ 207 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  12% ▕██                ▏ 239 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  16% ▕██                ▏ 321 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  19% ▕███               ▏ 384 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  21% ▕███               ▏ 430 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  22% ▕████              ▏ 452 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  26% ▕████              ▏ 529 MB/2.0 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  28% ▕█████             ▏ 574 MB/2.0 GB  572 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  31% ▕█████             ▏ 631 MB/2.0 GB  572 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  34% ▕██████            ▏ 693 MB/2.0 GB  572 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  36% ▕██████            ▏ 719 MB/2.0 GB  572 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  38% ▕██████            ▏ 770 MB/2.0 GB  572 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  42% ▕███████           ▏ 840 MB/2.0 GB  572 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  45% ▕████████          ▏ 901 MB/2.0 GB  572 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  47% ▕████████          ▏ 940 MB/2.0 GB  572 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  50% ▕████████          ▏ 1.0 GB/2.0 GB  572 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  53% ▕█████████         ▏ 1.1 GB/2.0 GB  572 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  55% ▕█████████         ▏ 1.1 GB/2.0 GB  551 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  59% ▕██████████        ▏ 1.2 GB/2.0 GB  551 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  61% ▕██████████        ▏ 1.2 GB/2.0 GB  551 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  63% ▕███████████       ▏ 1.3 GB/2.0 GB  551 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  67% ▕████████████      ▏ 1.4 GB/2.0 GB  551 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  70% ▕████████████      ▏ 1.4 GB/2.0 GB  551 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  72% ▕████████████      ▏ 1.5 GB/2.0 GB  551 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  76% ▕█████████████     ▏ 1.5 GB/2.0 GB  551 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  79% ▕██████████████    ▏ 1.6 GB/2.0 GB  551 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  79% ▕██████████████    ▏ 1.6 GB/2.0 GB  551 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  84% ▕███████████████   ▏ 1.7 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  89% ▕███████████████   ▏ 1.8 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  91% ▕████████████████  ▏ 1.8 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  95% ▕█████████████████ ▏ 1.9 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  96% ▕█████████████████ ▏ 1.9 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  97% ▕█████████████████ ▏ 2.0 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  98% ▕█████████████████ ▏ 2.0 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  99% ▕█████████████████ ▏ 2.0 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  99% ▕█████████████████ ▏ 2.0 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff:  99% ▕█████████████████ ▏ 2.0 GB/2.0 GB  563 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕█████████████████ ▏ 2.0 GB/2.0 GB  502 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕█████████████████ ▏ 2.0 GB/2.0 GB  502 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕█████████████████ ▏ 2.0 GB/2.0 GB  502 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕█████████████████ ▏ 2.0 GB/2.0 GB  502 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠋ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠙ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠹ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠸ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠼ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠴ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠦ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠧ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠇ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠏ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠋ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠙ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠹ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠸ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest ⠼ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[A[1Gpulling manifest [K
+pulling dde5aa3fc5ff: 100% ▕██████████████████▏ 2.0 GB                         [K
+pulling 966de95ca8a6: 100% ▕██████████████████▏ 1.4 KB                         [K
+pulling fcc5a6bec9da: 100% ▕██████████████████▏ 7.7 KB                         [K
+pulling a70ff7e570d9: 100% ▕██████████████████▏ 6.0 KB                         [K
+pulling 34bb5ab01051: 100% ▕██████████████████▏  561 B                         [K
+verifying sha256 digest [K
+writing manifest [K
+success [K[?25h[?2026l
+
+=== seal ===
+✓ sealed ollama "llama3.2:3b"  (gen 0)
+  output:        demo1-bundle.genome
+  key file:      demo1-bundle.key  (0600 — it opens the bundle)
+  key id:        genome-c42f7c25e88d-g0-3a878d7111fe
+  components:    8
+  bundle bytes:  2019436684 (1.88 GiB), payload 1.88 GiB in segments of 1.00 MiB
+  payload sha256:sha256:c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074
+  sealed at UTC: 2026-10-15T00:50:29Z
+
+=== inspect ===
+bundle:           demo1-bundle.genome
+format:           vault-genome-v3
+key id:           genome-c42f7c25e88d-g0-3a878d7111fe  (the key is not in the bundle)
+sealed at (UTC):  2026-10-15T00:50:29Z
+generation:       0
+parent bundle:    (none — genesis)
+content kind:     ollama
+content ref:      llama3.2:3b
+bundle bytes:     2019436684 (1.88 GiB)
+bundle sha256:    359206958eceff21b8f241b2def82f59330dce0ef24a67c373a80e0b1c6322e9
+payload sha256:   sha256:c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074
+payload bytes:    2019402752 (1.88 GiB) in segments of 1.00 MiB
+components (8):
+  [config] sha256:34bb5ab01051a11372a91f95f3fbbc51173eed8e7f13ec395b9ae9b8bd0e242b          561  application/vnd.docker.container.image.v1+json
+  [layer] sha256:56bb8bd477a519ffa694fc449c2413c6f0e1d3b1c88fa7e3c9d88d3ae49d4dcb           96  application/vnd.ollama.image.params
+  [layer] sha256:966de95ca8a62200913e3f8bfbf84c8494536f1b94b49166851e76644e966396         1429  application/vnd.ollama.image.template
+  [manifest] sha256:a52a4a87c5affc63e344f4974f75bcc5b478b40e641df57d0f40941dfc406c94         1169  application/vnd.ollama.manifest
+  [layer] sha256:a70ff7e570d97baaf4e62ac6e6ad9975e04caa6d900d3742d37698494479e0cd         6016  application/vnd.ollama.image.license
+  [layer] sha256:a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72         1005  application/vnd.docker.distribution.manifest.v2+json
+  [layer] sha256:dde5aa3fc5ffc17176b5e8bdc82f587b24b2678c6c66101bf7da77af9f7ccdff   2019377376  application/vnd.ollama.image.model
+  [layer] sha256:fcc5a6bec9daf9b561a68827b67ab6088e1dba9d1fa2a50d7bbcc8384e0a265d         7711  application/vnd.ollama.image.license
+
+=== open into /tmp/demo1-restored ===
+✓ unsealed ollama "llama3.2:3b"  (gen 0, vault-genome-v3)
+  bundle:        demo1-bundle.genome
+  key id:        genome-c42f7c25e88d-g0-3a878d7111fe
+  target:        /tmp/demo1-restored
+  files:         8, 2019395363 bytes (1.88 GiB), each checked against its recorded digest
+  payload sha256:sha256:c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074
+  tree sha256:   17284c0e39d8ab98c3dff71c3fbc1d018f2343088703d4f202aa0bc6dd302f4a
+
+=== verify (re-hash every blob in restored tree) ===
+✓ envelope vault-genome-v3 · ollama "llama3.2:3b"  (gen 0)
+  bundle:        demo1-bundle.genome
+  key id:        genome-c42f7c25e88d-g0-3a878d7111fe
+  authenticated: yes — opened with its key; header and payload are as sealed
+  components:    8
+  bundle:        2019436684 bytes (1.88 GiB), sha256 359206958eceff21…
+  payload sha256:sha256:c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074
+  sealed at UTC: 2026-10-15T00:50:29Z
+  restored:      ok: every file matches its recorded digest
+  tree sha256:   17284c0e39d8ab98c3dff71c3fbc1d018f2343088703d4f202aa0bc6dd302f4a
+
+=== tamper test: flip one byte at offset 1 MiB inside the sealed bundle ===
+1 byte flipped at offset 1 MiB
+tamper test exit code: 4 (non-zero == the edited segment failed authentication, expected)
+acpctl genome open: restore: safetar: read entry: bundle: segment 1 of 1926 does not open under key genome-c42f7c25e88d-g0-3a878d7111fe: cipher: message authentication failed
+
+=== Demo 1 complete ===
+Next: ./scripts/04-demo2-chain.sh
+=== installing snpguest from VirTEE upstream ===
+debconf: unable to initialize frontend: Dialog
+debconf: (Dialog frontend will not work on a dumb terminal, an emacs shell buffer, or without a controlling terminal.)
+debconf: falling back to frontend: Readline
+debconf: unable to initialize frontend: Readline
+debconf: (This frontend requires a controlling tty.)
+debconf: falling back to frontend: Teletype
+dpkg-preconfigure: unable to re-open stdin: 
+Selecting previously unselected package binutils-common:amd64.
+(Reading database ... 
+(Reading database ... 5%
+(Reading database ... 10%
+(Reading database ... 15%
+(Reading database ... 20%
+(Reading database ... 25%
+(Reading database ... 30%
+(Reading database ... 35%
+(Reading database ... 40%
+(Reading database ... 45%
+(Reading database ... 50%
+(Reading database ... 55%
+(Reading database ... 60%
+(Reading database ... 65%
+(Reading database ... 70%
+(Reading database ... 75%
+(Reading database ... 80%
+(Reading database ... 85%
+(Reading database ... 90%
+(Reading database ... 95%
+(Reading database ... 100%
+(Reading database ... 80303 files and directories currently installed.)
+Preparing to unpack .../00-binutils-common_2.42-4ubuntu2.10_amd64.deb ...
+Unpacking binutils-common:amd64 (2.42-4ubuntu2.10) ...
+Selecting previously unselected package libsframe1:amd64.
+Preparing to unpack .../01-libsframe1_2.42-4ubuntu2.10_amd64.deb ...
+Unpacking libsframe1:amd64 (2.42-4ubuntu2.10) ...
+Selecting previously unselected package libbinutils:amd64.
+Preparing to unpack .../02-libbinutils_2.42-4ubuntu2.10_amd64.deb ...
+Unpacking libbinutils:amd64 (2.42-4ubuntu2.10) ...
+Selecting previously unselected package libctf-nobfd0:amd64.
+Preparing to unpack .../03-libctf-nobfd0_2.42-4ubuntu2.10_amd64.deb ...
+Unpacking libctf-nobfd0:amd64 (2.42-4ubuntu2.10) ...
+Selecting previously unselected package libctf0:amd64.
+Preparing to unpack .../04-libctf0_2.42-4ubuntu2.10_amd64.deb ...
+Unpacking libctf0:amd64 (2.42-4ubuntu2.10) ...
+Selecting previously unselected package libgprofng0:amd64.
+Preparing to unpack .../05-libgprofng0_2.42-4ubuntu2.10_amd64.deb ...
+Unpacking libgprofng0:amd64 (2.42-4ubuntu2.10) ...
+Selecting previously unselected package binutils-x86-64-linux-gnu.
+Preparing to unpack .../06-binutils-x86-64-linux-gnu_2.42-4ubuntu2.10_amd64.deb ...
+Unpacking binutils-x86-64-linux-gnu (2.42-4ubuntu2.10) ...
+Selecting previously unselected package binutils.
+Preparing to unpack .../07-binutils_2.42-4ubuntu2.10_amd64.deb ...
+Unpacking binutils (2.42-4ubuntu2.10) ...
+Selecting previously unselected package libc-dev-bin.
+Preparing to unpack .../08-libc-dev-bin_2.39-0ubuntu8.9_amd64.deb ...
+Unpacking libc-dev-bin (2.39-0ubuntu8.9) ...
+Selecting previously unselected package linux-libc-dev:amd64.
+Preparing to unpack .../09-linux-libc-dev_6.8.0-147.147_amd64.deb ...
+Unpacking linux-libc-dev:amd64 (6.8.0-147.147) ...
+Selecting previously unselected package libcrypt-dev:amd64.
+Preparing to unpack .../10-libcrypt-dev_1%3a4.4.36-4build1_amd64.deb ...
+Unpacking libcrypt-dev:amd64 (1:4.4.36-4build1) ...
+Selecting previously unselected package rpcsvc-proto.
+Preparing to unpack .../11-rpcsvc-proto_1.4.2-0ubuntu7_amd64.deb ...
+Unpacking rpcsvc-proto (1.4.2-0ubuntu7) ...
+Selecting previously unselected package libc6-dev:amd64.
+Preparing to unpack .../12-libc6-dev_2.39-0ubuntu8.9_amd64.deb ...
+Unpacking libc6-dev:amd64 (2.39-0ubuntu8.9) ...
+Selecting previously unselected package gcc-13-base:amd64.
+Preparing to unpack .../13-gcc-13-base_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking gcc-13-base:amd64 (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package libisl23:amd64.
+Preparing to unpack .../14-libisl23_0.26-3build1.1_amd64.deb ...
+Unpacking libisl23:amd64 (0.26-3build1.1) ...
+Selecting previously unselected package libmpc3:amd64.
+Preparing to unpack .../15-libmpc3_1.3.1-1build1.1_amd64.deb ...
+Unpacking libmpc3:amd64 (1.3.1-1build1.1) ...
+Selecting previously unselected package cpp-13-x86-64-linux-gnu.
+Preparing to unpack .../16-cpp-13-x86-64-linux-gnu_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking cpp-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package cpp-13.
+Preparing to unpack .../17-cpp-13_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking cpp-13 (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package cpp-x86-64-linux-gnu.
+Preparing to unpack .../18-cpp-x86-64-linux-gnu_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking cpp-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package cpp.
+Preparing to unpack .../19-cpp_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking cpp (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package libcc1-0:amd64.
+Preparing to unpack .../20-libcc1-0_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking libcc1-0:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package libgomp1:amd64.
+Preparing to unpack .../21-libgomp1_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking libgomp1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package libitm1:amd64.
+Preparing to unpack .../22-libitm1_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking libitm1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package libatomic1:amd64.
+Preparing to unpack .../23-libatomic1_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking libatomic1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package libasan8:amd64.
+Preparing to unpack .../24-libasan8_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking libasan8:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package liblsan0:amd64.
+Preparing to unpack .../25-liblsan0_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking liblsan0:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package libtsan2:amd64.
+Preparing to unpack .../26-libtsan2_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking libtsan2:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package libubsan1:amd64.
+Preparing to unpack .../27-libubsan1_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking libubsan1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package libhwasan0:amd64.
+Preparing to unpack .../28-libhwasan0_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking libhwasan0:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package libquadmath0:amd64.
+Preparing to unpack .../29-libquadmath0_14.2.0-4ubuntu2~24.04.1_amd64.deb ...
+Unpacking libquadmath0:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Selecting previously unselected package libgcc-13-dev:amd64.
+Preparing to unpack .../30-libgcc-13-dev_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking libgcc-13-dev:amd64 (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package gcc-13-x86-64-linux-gnu.
+Preparing to unpack .../31-gcc-13-x86-64-linux-gnu_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking gcc-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package gcc-13.
+Preparing to unpack .../32-gcc-13_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking gcc-13 (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package gcc-x86-64-linux-gnu.
+Preparing to unpack .../33-gcc-x86-64-linux-gnu_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking gcc-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package gcc.
+Preparing to unpack .../34-gcc_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking gcc (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package libstdc++-13-dev:amd64.
+Preparing to unpack .../35-libstdc++-13-dev_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking libstdc++-13-dev:amd64 (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package g++-13-x86-64-linux-gnu.
+Preparing to unpack .../36-g++-13-x86-64-linux-gnu_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking g++-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package g++-13.
+Preparing to unpack .../37-g++-13_13.3.0-6ubuntu2~24.04.1_amd64.deb ...
+Unpacking g++-13 (13.3.0-6ubuntu2~24.04.1) ...
+Selecting previously unselected package g++-x86-64-linux-gnu.
+Preparing to unpack .../38-g++-x86-64-linux-gnu_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking g++-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package g++.
+Preparing to unpack .../39-g++_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking g++ (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package make.
+Preparing to unpack .../40-make_4.3-4.1build2_amd64.deb ...
+Unpacking make (4.3-4.1build2) ...
+Selecting previously unselected package libdpkg-perl.
+Preparing to unpack .../41-libdpkg-perl_1.22.6ubuntu6.6_all.deb ...
+Unpacking libdpkg-perl (1.22.6ubuntu6.6) ...
+Selecting previously unselected package bzip2.
+Preparing to unpack .../42-bzip2_1.0.8-5.1ubuntu0.1_amd64.deb ...
+Unpacking bzip2 (1.0.8-5.1ubuntu0.1) ...
+Selecting previously unselected package lto-disabled-list.
+Preparing to unpack .../43-lto-disabled-list_47_all.deb ...
+Unpacking lto-disabled-list (47) ...
+Selecting previously unselected package dpkg-dev.
+Preparing to unpack .../44-dpkg-dev_1.22.6ubuntu6.6_all.deb ...
+Unpacking dpkg-dev (1.22.6ubuntu6.6) ...
+Selecting previously unselected package build-essential.
+Preparing to unpack .../45-build-essential_12.10ubuntu1_amd64.deb ...
+Unpacking build-essential (12.10ubuntu1) ...
+Preparing to unpack .../46-curl_8.5.0-2ubuntu10.16_amd64.deb ...
+Unpacking curl (8.5.0-2ubuntu10.16) over (8.5.0-2ubuntu10.15) ...
+Preparing to unpack .../47-libcurl4t64_8.5.0-2ubuntu10.16_amd64.deb ...
+Unpacking libcurl4t64:amd64 (8.5.0-2ubuntu10.16) over (8.5.0-2ubuntu10.15) ...
+Selecting previously unselected package libfakeroot:amd64.
+Preparing to unpack .../48-libfakeroot_1.33-1_amd64.deb ...
+Unpacking libfakeroot:amd64 (1.33-1) ...
+Selecting previously unselected package fakeroot.
+Preparing to unpack .../49-fakeroot_1.33-1_amd64.deb ...
+Unpacking fakeroot (1.33-1) ...
+Selecting previously unselected package fonts-dejavu-mono.
+Preparing to unpack .../50-fonts-dejavu-mono_2.37-8_all.deb ...
+Unpacking fonts-dejavu-mono (2.37-8) ...
+Selecting previously unselected package fonts-dejavu-core.
+Preparing to unpack .../51-fonts-dejavu-core_2.37-8_all.deb ...
+Unpacking fonts-dejavu-core (2.37-8) ...
+Selecting previously unselected package fontconfig-config.
+Preparing to unpack .../52-fontconfig-config_2.15.0-1.1ubuntu2_amd64.deb ...
+Unpacking fontconfig-config (2.15.0-1.1ubuntu2) ...
+Selecting previously unselected package libalgorithm-diff-perl.
+Preparing to unpack .../53-libalgorithm-diff-perl_1.201-1_all.deb ...
+Unpacking libalgorithm-diff-perl (1.201-1) ...
+Selecting previously unselected package libalgorithm-diff-xs-perl:amd64.
+Preparing to unpack .../54-libalgorithm-diff-xs-perl_0.04-8build3_amd64.deb ...
+Unpacking libalgorithm-diff-xs-perl:amd64 (0.04-8build3) ...
+Selecting previously unselected package libalgorithm-merge-perl.
+Preparing to unpack .../55-libalgorithm-merge-perl_0.08-5_all.deb ...
+Unpacking libalgorithm-merge-perl (0.08-5) ...
+Selecting previously unselected package libaom3:amd64.
+Preparing to unpack .../56-libaom3_3.8.2-2ubuntu0.2_amd64.deb ...
+Unpacking libaom3:amd64 (3.8.2-2ubuntu0.2) ...
+Selecting previously unselected package libfontconfig1:amd64.
+Preparing to unpack .../57-libfontconfig1_2.15.0-1.1ubuntu2_amd64.deb ...
+Unpacking libfontconfig1:amd64 (2.15.0-1.1ubuntu2) ...
+Selecting previously unselected package libsharpyuv0:amd64.
+Preparing to unpack .../58-libsharpyuv0_1.3.2-0.4build3_amd64.deb ...
+Unpacking libsharpyuv0:amd64 (1.3.2-0.4build3) ...
+Selecting previously unselected package libheif-plugin-aomdec:amd64.
+Preparing to unpack .../59-libheif-plugin-aomdec_1.17.6-1ubuntu4.9_amd64.deb ...
+Unpacking libheif-plugin-aomdec:amd64 (1.17.6-1ubuntu4.9) ...
+Selecting previously unselected package libheif1:amd64.
+Preparing to unpack .../60-libheif1_1.17.6-1ubuntu4.9_amd64.deb ...
+Unpacking libheif1:amd64 (1.17.6-1ubuntu4.9) ...
+Selecting previously unselected package libjpeg-turbo8:amd64.
+Preparing to unpack .../61-libjpeg-turbo8_2.1.5-2ubuntu2_amd64.deb ...
+Unpacking libjpeg-turbo8:amd64 (2.1.5-2ubuntu2) ...
+Selecting previously unselected package libjpeg8:amd64.
+Preparing to unpack .../62-libjpeg8_8c-2ubuntu11_amd64.deb ...
+Unpacking libjpeg8:amd64 (8c-2ubuntu11) ...
+Selecting previously unselected package libdeflate0:amd64.
+Preparing to unpack .../63-libdeflate0_1.19-1build1.1_amd64.deb ...
+Unpacking libdeflate0:amd64 (1.19-1build1.1) ...
+Selecting previously unselected package libjbig0:amd64.
+Preparing to unpack .../64-libjbig0_2.1-6.1ubuntu2_amd64.deb ...
+Unpacking libjbig0:amd64 (2.1-6.1ubuntu2) ...
+Selecting previously unselected package liblerc4:amd64.
+Preparing to unpack .../65-liblerc4_4.0.0+ds-4ubuntu2_amd64.deb ...
+Unpacking liblerc4:amd64 (4.0.0+ds-4ubuntu2) ...
+Selecting previously unselected package libwebp7:amd64.
+Preparing to unpack .../66-libwebp7_1.3.2-0.4build3_amd64.deb ...
+Unpacking libwebp7:amd64 (1.3.2-0.4build3) ...
+Selecting previously unselected package libtiff6:amd64.
+Preparing to unpack .../67-libtiff6_4.5.1+git230720-4ubuntu2.5_amd64.deb ...
+Unpacking libtiff6:amd64 (4.5.1+git230720-4ubuntu2.5) ...
+Selecting previously unselected package libxpm4:amd64.
+Preparing to unpack .../68-libxpm4_1%3a3.5.17-1ubuntu0.24.04.2_amd64.deb ...
+Unpacking libxpm4:amd64 (1:3.5.17-1ubuntu0.24.04.2) ...
+Selecting previously unselected package libgd3:amd64.
+Preparing to unpack .../69-libgd3_2.3.3-9ubuntu5_amd64.deb ...
+Unpacking libgd3:amd64 (2.3.3-9ubuntu5) ...
+Selecting previously unselected package libc-devtools.
+Preparing to unpack .../70-libc-devtools_2.39-0ubuntu8.9_amd64.deb ...
+Unpacking libc-devtools (2.39-0ubuntu8.9) ...
+Preparing to unpack .../71-libcurl3t64-gnutls_8.5.0-2ubuntu10.16_amd64.deb ...
+Unpacking libcurl3t64-gnutls:amd64 (8.5.0-2ubuntu10.16) over (8.5.0-2ubuntu10.15) ...
+Selecting previously unselected package libfile-fcntllock-perl.
+Preparing to unpack .../72-libfile-fcntllock-perl_0.22-4ubuntu5_amd64.deb ...
+Unpacking libfile-fcntllock-perl (0.22-4ubuntu5) ...
+Selecting previously unselected package libheif-plugin-aomenc:amd64.
+Preparing to unpack .../73-libheif-plugin-aomenc_1.17.6-1ubuntu4.9_amd64.deb ...
+Unpacking libheif-plugin-aomenc:amd64 (1.17.6-1ubuntu4.9) ...
+Selecting previously unselected package libpkgconf3:amd64.
+Preparing to unpack .../74-libpkgconf3_1.8.1-2build1_amd64.deb ...
+Unpacking libpkgconf3:amd64 (1.8.1-2build1) ...
+Selecting previously unselected package libssl-dev:amd64.
+Preparing to unpack .../75-libssl-dev_3.0.13-0ubuntu3.16_amd64.deb ...
+Unpacking libssl-dev:amd64 (3.0.13-0ubuntu3.16) ...
+Preparing to unpack .../76-linux-tools-common_6.8.0-147.147_all.deb ...
+Unpacking linux-tools-common (6.8.0-147.147) over (6.8.0-146.146) ...
+Selecting previously unselected package manpages-dev.
+Preparing to unpack .../77-manpages-dev_6.7-2_all.deb ...
+Unpacking manpages-dev (6.7-2) ...
+Selecting previously unselected package pkgconf-bin.
+Preparing to unpack .../78-pkgconf-bin_1.8.1-2build1_amd64.deb ...
+Unpacking pkgconf-bin (1.8.1-2build1) ...
+Selecting previously unselected package pkgconf:amd64.
+Preparing to unpack .../79-pkgconf_1.8.1-2build1_amd64.deb ...
+Unpacking pkgconf:amd64 (1.8.1-2build1) ...
+Selecting previously unselected package pkg-config:amd64.
+Preparing to unpack .../80-pkg-config_1.8.1-2build1_amd64.deb ...
+Unpacking pkg-config:amd64 (1.8.1-2build1) ...
+Setting up libsharpyuv0:amd64 (1.3.2-0.4build3) ...
+Setting up libaom3:amd64 (3.8.2-2ubuntu0.2) ...
+Setting up manpages-dev (6.7-2) ...
+Setting up lto-disabled-list (47) ...
+Setting up liblerc4:amd64 (4.0.0+ds-4ubuntu2) ...
+Setting up libxpm4:amd64 (1:3.5.17-1ubuntu0.24.04.2) ...
+Setting up libcurl4t64:amd64 (8.5.0-2ubuntu10.16) ...
+Setting up libfile-fcntllock-perl (0.22-4ubuntu5) ...
+Setting up libalgorithm-diff-perl (1.201-1) ...
+Setting up binutils-common:amd64 (2.42-4ubuntu2.10) ...
+Setting up libdeflate0:amd64 (1.19-1build1.1) ...
+Setting up libcurl3t64-gnutls:amd64 (8.5.0-2ubuntu10.16) ...
+Setting up linux-libc-dev:amd64 (6.8.0-147.147) ...
+Setting up libctf-nobfd0:amd64 (2.42-4ubuntu2.10) ...
+Setting up libgomp1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up bzip2 (1.0.8-5.1ubuntu0.1) ...
+Setting up libjbig0:amd64 (2.1-6.1ubuntu2) ...
+Setting up libsframe1:amd64 (2.42-4ubuntu2.10) ...
+Setting up libfakeroot:amd64 (1.33-1) ...
+Setting up fakeroot (1.33-1) ...
+update-alternatives: using /usr/bin/fakeroot-sysv to provide /usr/bin/fakeroot (fakeroot) in auto mode
+Setting up libpkgconf3:amd64 (1.8.1-2build1) ...
+Setting up rpcsvc-proto (1.4.2-0ubuntu7) ...
+Setting up gcc-13-base:amd64 (13.3.0-6ubuntu2~24.04.1) ...
+Setting up make (4.3-4.1build2) ...
+Setting up libquadmath0:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up fonts-dejavu-mono (2.37-8) ...
+Setting up libssl-dev:amd64 (3.0.13-0ubuntu3.16) ...
+Setting up libmpc3:amd64 (1.3.1-1build1.1) ...
+Setting up libatomic1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up fonts-dejavu-core (2.37-8) ...
+Setting up pkgconf-bin (1.8.1-2build1) ...
+Setting up libjpeg-turbo8:amd64 (2.1.5-2ubuntu2) ...
+Setting up libdpkg-perl (1.22.6ubuntu6.6) ...
+Setting up libwebp7:amd64 (1.3.2-0.4build3) ...
+Setting up libubsan1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up libhwasan0:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up libcrypt-dev:amd64 (1:4.4.36-4build1) ...
+Setting up libasan8:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up curl (8.5.0-2ubuntu10.16) ...
+Setting up libtsan2:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up libbinutils:amd64 (2.42-4ubuntu2.10) ...
+Setting up libisl23:amd64 (0.26-3build1.1) ...
+Setting up libc-dev-bin (2.39-0ubuntu8.9) ...
+Setting up linux-tools-common (6.8.0-147.147) ...
+Setting up libalgorithm-diff-xs-perl:amd64 (0.04-8build3) ...
+Setting up libcc1-0:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up liblsan0:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up libitm1:amd64 (14.2.0-4ubuntu2~24.04.1) ...
+Setting up libalgorithm-merge-perl (0.08-5) ...
+Setting up libctf0:amd64 (2.42-4ubuntu2.10) ...
+Setting up libjpeg8:amd64 (8c-2ubuntu11) ...
+Setting up cpp-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1) ...
+Setting up fontconfig-config (2.15.0-1.1ubuntu2) ...
+Setting up pkgconf:amd64 (1.8.1-2build1) ...
+Setting up libgprofng0:amd64 (2.42-4ubuntu2.10) ...
+Setting up pkg-config:amd64 (1.8.1-2build1) ...
+Setting up libgcc-13-dev:amd64 (13.3.0-6ubuntu2~24.04.1) ...
+Setting up libtiff6:amd64 (4.5.1+git230720-4ubuntu2.5) ...
+Setting up libc6-dev:amd64 (2.39-0ubuntu8.9) ...
+Setting up libstdc++-13-dev:amd64 (13.3.0-6ubuntu2~24.04.1) ...
+Setting up binutils-x86-64-linux-gnu (2.42-4ubuntu2.10) ...
+Setting up cpp-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Setting up cpp-13 (13.3.0-6ubuntu2~24.04.1) ...
+Setting up gcc-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1) ...
+Setting up binutils (2.42-4ubuntu2.10) ...
+Setting up dpkg-dev (1.22.6ubuntu6.6) ...
+Setting up gcc-13 (13.3.0-6ubuntu2~24.04.1) ...
+Setting up cpp (4:13.2.0-7ubuntu1) ...
+Setting up g++-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1) ...
+Setting up gcc-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Setting up gcc (4:13.2.0-7ubuntu1) ...
+Setting up g++-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Setting up g++-13 (13.3.0-6ubuntu2~24.04.1) ...
+Setting up g++ (4:13.2.0-7ubuntu1) ...
+update-alternatives: using /usr/bin/g++ to provide /usr/bin/c++ (c++) in auto mode
+Setting up build-essential (12.10ubuntu1) ...
+Setting up libheif-plugin-aomdec:amd64 (1.17.6-1ubuntu4.9) ...
+Setting up libheif1:amd64 (1.17.6-1ubuntu4.9) ...
+Setting up libheif-plugin-aomenc:amd64 (1.17.6-1ubuntu4.9) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.9) ...
+Processing triggers for man-db (2.12.0-4build2) ...
+Processing triggers for sgml-base (1.31) ...
+Setting up libfontconfig1:amd64 (2.15.0-1.1ubuntu2) ...
+Setting up libgd3:amd64 (2.3.3-9ubuntu5) ...
+Setting up libc-devtools (2.39-0ubuntu8.9) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.9) ...
+debconf: unable to initialize frontend: Dialog
+debconf: (Dialog frontend will not work on a dumb terminal, an emacs shell buffer, or without a controlling terminal.)
+debconf: falling back to frontend: Readline
+debconf: unable to initialize frontend: Readline
+debconf: (This frontend requires a controlling tty.)
+debconf: falling back to frontend: Teletype
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart packagekit.service ssh.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+User sessions running outdated binaries:
+ user @ session #5: sshd[1598]
+ user @ user manager service: systemd[1357]
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+/tmp/rustup-init: OK
+info: profile set to minimal
+info: default host tuple is x86_64-unknown-linux-gnu
+info: syncing channel updates for 1.99.0-x86_64-unknown-linux-gnu
+info: latest update on 2026-10-01 for version 1.99.0 (b940084d7 2026-09-28)
+info: downloading 3 components
+
+  1.99.0-x86_64-unknown-linux-gnu installed - rustc 1.99.0 (b940084d7 2026-09-28)
+
+
+Rust is installed now. Great!
+
+To get started you may need to restart your current shell.
+This would reload your PATH environment variable to include
+Cargo's bin directory ($HOME/.cargo/bin).
+
+To configure your current shell, you need to source the
+corresponding env file under $HOME/.cargo.
+
+Consider running the right command for your shell (note the leading DOT):
+. "$HOME/.cargo/env" # For sh/ash/dash/pdksh/bash
+cargo:rerun-if-env-changed=CC_x86_64-unknown-linux-gnu
+CC_x86_64-unknown-linux-gnu = None
+cargo:rerun-if-env-changed=CC_x86_64_unknown_linux_gnu
+CC_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_unknown_linux_gnu
+CFLAGS_x86_64_unknown_linux_gnu = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-unknown-linux-gnu
+CFLAGS_x86_64-unknown-linux-gnu = None
+info: default toolchain set to 1.99.0-x86_64-unknown-linux-gnu
+Cloning into '~/snpguest-src'...
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded anstyle-query v1.1.4
+  Downloaded anstyle v1.0.11
+  Downloaded anstyle-parse v0.2.7
+  Downloaded anstream v0.6.20
+  Downloaded powerfmt v0.2.0
+  Downloaded ppv-lite86 v0.2.21
+  Downloaded hyper-tls v0.5.0
+  Downloaded dirs v6.0.0
+  Downloaded idna_adapter v1.2.1
+  Downloaded option-ext v0.2.0
+  Downloaded potential_utf v0.1.3
+  Downloaded dirs-sys v0.5.0
+  Downloaded futures-core v0.3.31
+  Downloaded asn1-rs-impl v0.2.0
+  Downloaded bitfield v0.19.2
+  Downloaded bitflags v1.3.2
+  Downloaded autocfg v1.5.0
+  Downloaded asn1-rs-derive v0.5.1
+  Downloaded bincode v1.3.3
+  Downloaded openssl-macros v0.1.1
+  Downloaded proc-macro2 v1.0.101
+  Downloaded futures-io v0.3.31
+  Downloaded ryu v1.0.20
+  Downloaded tinystr v0.8.1
+  Downloaded displaydoc v0.2.5
+  Downloaded env_logger v0.10.2
+  Downloaded bitflags v2.9.4
+  Downloaded byteorder v1.5.0
+  Downloaded thiserror-impl v1.0.69
+  Downloaded is-terminal v0.4.16
+  Downloaded mime v0.3.17
+  Downloaded openssl-probe v0.1.6
+  Downloaded thiserror v1.0.69
+  Downloaded utf8parse v0.2.2
+  Downloaded try-lock v0.2.5
+  Downloaded unicode-ident v1.0.19
+  Downloaded tokio-native-tls v0.3.1
+  Downloaded serde_core v1.0.225
+  Downloaded zerofrom-derive v0.1.6
+  Downloaded oid-registry v0.7.1
+  Downloaded anyhow v1.0.100
+  Downloaded bitfield v0.15.0
+  Downloaded data-encoding v2.9.0
+  Downloaded want v0.3.1
+  Downloaded zerofrom v0.1.6
+  Downloaded rdrand v0.8.3
+  Downloaded stable_deref_trait v1.2.0
+  Downloaded serde_urlencoded v0.7.1
+  Downloaded fnv v1.0.7
+  Downloaded futures-sink v0.3.31
+  Downloaded heck v0.5.0
+  Downloaded hex v0.4.3
+  Downloaded yoke-derive v0.8.0
+  Downloaded time-core v0.1.6
+  Downloaded tower-service v0.3.3
+  Downloaded pin-utils v0.1.0
+  Downloaded rusticata-macros v4.1.0
+  Downloaded clap-num v1.2.0
+  Downloaded foreign-types v0.3.2
+  Downloaded http-body v0.4.6
+  Downloaded httpdate v1.0.3
+  Downloaded iocuddle v0.1.1
+  Downloaded is_terminal_polyfill v1.70.1
+  Downloaded rand_core v0.6.4
+  Downloaded slab v0.4.11
+  Downloaded colorchoice v1.0.4
+  Downloaded futures-task v0.3.31
+  Downloaded termcolor v1.4.1
+  Downloaded msru v0.2.0
+  Downloaded equivalent v1.0.2
+  Downloaded colorful v0.2.2
+  Downloaded deranged v0.5.3
+  Downloaded form_urlencoded v1.2.2
+  Downloaded num-conv v0.1.0
+  Downloaded clap_lex v0.7.5
+  Downloaded cfg-if v1.0.3
+  Downloaded foreign-types-shared v0.1.1
+  Downloaded itoa v1.0.15
+  Downloaded lazy_static v1.5.0
+  Downloaded memoffset v0.6.5
+  Downloaded ipnet v2.11.0
+  Downloaded percent-encoding v2.3.2
+  Downloaded rand_chacha v0.3.1
+  Downloaded strsim v0.11.1
+  Downloaded untrusted v0.9.0
+  Downloaded aho-corasick v1.1.3
+  Downloaded time-macros v0.2.24
+  Downloaded serde v1.0.225
+  Downloaded synstructure v0.13.2
+  Downloaded writeable v0.6.1
+  Downloaded zerovec-derive v0.11.1
+  Downloaded static_assertions v1.1.0
+  Downloaded pin-project-lite v0.2.16
+  Downloaded futures-channel v0.3.31
+  Downloaded shlex v1.3.0
+  Downloaded utf8_iter v1.0.4
+  Downloaded getrandom v0.2.16
+  Downloaded native-tls v0.2.14
+  Downloaded num-integer v0.1.46
+  Downloaded find-msvc-tools v0.1.2
+  Downloaded yoke v0.8.0
+  Downloaded der-parser v9.0.0
+  Downloaded httparse v1.10.1
+  Downloaded humantime v2.3.0
+  Downloaded log v0.4.28
+  Downloaded pkg-config v0.3.32
+  Downloaded quote v1.0.40
+  Downloaded smallvec v1.15.1
+  Downloaded litemap v0.8.0
+  Downloaded clap_derive v4.5.47
+  Downloaded bitfield-macros v0.19.2
+  Downloaded zerotrie v0.2.2
+  Downloaded serde_derive v1.0.225
+  Downloaded socket2 v0.5.10
+  Downloaded uuid v1.18.1
+  Downloaded socket2 v0.6.0
+  Downloaded tracing-core v0.1.34
+  Downloaded tracing v0.1.41
+  Downloaded url v2.5.7
+  Downloaded rand v0.8.5
+  Downloaded x509-parser v0.16.0
+  Downloaded time v0.3.44
+  Downloaded zerovec v0.11.4
+  Downloaded reqwest v0.11.10
+  Downloaded tokio-util v0.7.16
+  Downloaded regex v1.11.2
+  Downloaded vcpkg v0.2.15
+  Downloaded once_cell v1.21.3
+  Downloaded sev v7.1.0
+  Downloaded zerocopy v0.8.27
+  Downloaded base64 v0.22.1
+  Downloaded icu_normalizer v2.0.0
+  Downloaded icu_properties v2.0.1
+  Downloaded num-traits v0.2.19
+  Downloaded syn v2.0.106
+  Downloaded asn1-rs v0.6.2
+  Downloaded base64 v0.13.1
+  Downloaded bytes v1.10.1
+  Downloaded clap v4.5.47
+  Downloaded regex-syntax v0.8.6
+  Downloaded regex-automata v0.4.10
+  Downloaded tokio v1.47.1
+  Downloaded ring v0.17.14
+  Downloaded icu_locale_core v2.0.0
+  Downloaded openssl-sys v0.9.109
+  Downloaded cc v1.2.38
+  Downloaded icu_collections v2.0.0
+  Downloaded icu_normalizer_data v2.0.0
+  Downloaded icu_provider v2.0.0
+  Downloaded memchr v2.7.5
+  Downloaded minimal-lexical v0.2.1
+  Downloaded http v0.2.12
+  Downloaded indexmap v2.11.4
+  Downloaded mio v1.0.4
+  Downloaded num-bigint v0.4.6
+  Downloaded nom v7.1.3
+  Downloaded futures-util v0.3.31
+  Downloaded hashbrown v0.16.0
+  Downloaded idna v1.1.0
+  Downloaded icu_properties_data v2.0.1
+  Downloaded clap_builder v4.5.47
+  Downloaded h2 v0.3.27
+  Downloaded hyper v0.14.32
+  Downloaded openssl v0.10.73
+  Downloaded nix v0.23.2
+  Downloaded libc v0.2.175
+  Downloaded encoding_rs v0.8.35
+  Downloaded openssl-src v300.5.2+3.5.2
+   Compiling proc-macro2 v1.0.101
+   Compiling unicode-ident v1.0.19
+   Compiling libc v0.2.175
+   Compiling shlex v1.3.0
+   Compiling find-msvc-tools v0.1.2
+   Compiling cfg-if v1.0.3
+   Compiling memchr v2.7.5
+   Compiling cc v1.2.38
+   Compiling quote v1.0.40
+   Compiling syn v2.0.106
+   Compiling stable_deref_trait v1.2.0
+   Compiling autocfg v1.5.0
+   Compiling itoa v1.0.15
+   Compiling openssl-src v300.5.2+3.5.2
+   Compiling pkg-config v0.3.32
+   Compiling vcpkg v0.2.15
+   Compiling once_cell v1.21.3
+   Compiling pin-project-lite v0.2.16
+   Compiling num-traits v0.2.19
+   Compiling bytes v1.10.1
+   Compiling serde_core v1.0.225
+   Compiling openssl-sys v0.9.109
+   Compiling litemap v0.8.0
+   Compiling serde v1.0.225
+   Compiling writeable v0.6.1
+   Compiling socket2 v0.6.0
+   Compiling synstructure v0.13.2
+   Compiling mio v1.0.4
+   Compiling getrandom v0.2.16
+   Compiling icu_properties_data v2.0.1
+   Compiling foreign-types-shared v0.1.1
+   Compiling openssl v0.10.73
+   Compiling futures-core v0.3.31
+   Compiling zerofrom-derive v0.1.6
+   Compiling displaydoc v0.2.5
+   Compiling yoke-derive v0.8.0
+   Compiling zerovec-derive v0.11.1
+   Compiling serde_derive v1.0.225
+   Compiling zerofrom v0.1.6
+   Compiling yoke v0.8.0
+   Compiling zerotrie v0.2.2
+   Compiling zerovec v0.11.4
+   Compiling icu_normalizer_data v2.0.0
+   Compiling openssl-macros v0.1.1
+   Compiling foreign-types v0.3.2
+   Compiling tokio v1.47.1
+   Compiling tinystr v0.8.1
+   Compiling icu_locale_core v2.0.0
+   Compiling potential_utf v0.1.3
+   Compiling icu_collections v2.0.0
+   Compiling icu_provider v2.0.0
+   Compiling minimal-lexical v0.2.1
+   Compiling time-core v0.1.6
+   Compiling num-conv v0.1.0
+   Compiling bitflags v2.9.4
+   Compiling powerfmt v0.2.0
+   Compiling thiserror v1.0.69
+   Compiling fnv v1.0.7
+   Compiling http v0.2.12
+   Compiling deranged v0.5.3
+   Compiling time-macros v0.2.24
+   Compiling nom v7.1.3
+   Compiling thiserror-impl v1.0.69
+   Compiling tracing-core v0.1.34
+   Compiling futures-sink v0.3.31
+   Compiling zerocopy v0.8.27
+   Compiling futures-task v0.3.31
+   Compiling slab v0.4.11
+   Compiling smallvec v1.15.1
+   Compiling httparse v1.10.1
+   Compiling native-tls v0.2.14
+   Compiling log v0.4.28
+   Compiling hashbrown v0.16.0
+   Compiling futures-io v0.3.31
+   Compiling pin-utils v0.1.0
+   Compiling equivalent v1.0.2
+   Compiling time v0.3.44
+   Compiling indexmap v2.11.4
+   Compiling futures-util v0.3.31
+   Compiling icu_normalizer v2.0.0
+   Compiling tokio-util v0.7.16
+   Compiling tracing v0.1.41
+   Compiling rusticata-macros v4.1.0
+   Compiling icu_properties v2.0.1
+   Compiling asn1-rs-impl v0.2.0
+   Compiling asn1-rs-derive v0.5.1
+   Compiling rand_core v0.6.4
+   Compiling openssl-probe v0.1.6
+   Compiling utf8parse v0.2.2
+   Compiling try-lock v0.2.5
+   Compiling percent-encoding v2.3.2
+   Compiling want v0.3.1
+   Compiling form_urlencoded v1.2.2
+   Compiling asn1-rs v0.6.2
+   Compiling anstyle-parse v0.2.7
+   Compiling idna_adapter v1.2.1
+   Compiling h2 v0.3.27
+   Compiling http-body v0.4.6
+   Compiling futures-channel v0.3.31
+   Compiling num-integer v0.1.46
+   Compiling socket2 v0.5.10
+   Compiling memoffset v0.6.5
+   Compiling ring v0.17.14
+   Compiling aho-corasick v1.1.3
+   Compiling utf8_iter v1.0.4
+   Compiling oid-registry v0.7.1
+   Compiling tower-service v0.3.3
+   Compiling lazy_static v1.5.0
+   Compiling anstyle v1.0.11
+   Compiling is_terminal_polyfill v1.70.1
+   Compiling option-ext v0.2.0
+   Compiling regex-syntax v0.8.6
+   Compiling colorchoice v1.0.4
+   Compiling anstyle-query v1.1.4
+   Compiling httpdate v1.0.3
+   Compiling hyper v0.14.32
+   Compiling anstream v0.6.20
+   Compiling regex-automata v0.4.10
+   Compiling dirs-sys v0.5.0
+   Compiling idna v1.1.0
+   Compiling num-bigint v0.4.6
+   Compiling ppv-lite86 v0.2.21
+   Compiling bitfield-macros v0.19.2
+   Compiling heck v0.5.0
+   Compiling untrusted v0.9.0
+   Compiling ryu v1.0.20
+   Compiling anyhow v1.0.100
+   Compiling sev v7.1.0
+   Compiling strsim v0.11.1
+   Compiling clap_lex v0.7.5
+   Compiling clap_builder v4.5.47
+   Compiling serde_urlencoded v0.7.1
+   Compiling clap_derive v4.5.47
+   Compiling bitfield v0.19.2
+   Compiling rand_chacha v0.3.1
+   Compiling der-parser v9.0.0
+   Compiling regex v1.11.2
+   Compiling url v2.5.7
+   Compiling dirs v6.0.0
+   Compiling rdrand v0.8.3
+   Compiling uuid v1.18.1
+   Compiling is-terminal v0.4.16
+   Compiling encoding_rs v0.8.35
+   Compiling byteorder v1.5.0
+   Compiling iocuddle v0.1.1
+   Compiling static_assertions v1.1.0
+   Compiling bitflags v1.3.2
+   Compiling base64 v0.13.1
+   Compiling ipnet v2.11.0
+   Compiling data-encoding v2.9.0
+   Compiling hex v0.4.3
+   Compiling termcolor v1.4.1
+   Compiling mime v0.3.17
+   Compiling base64 v0.22.1
+   Compiling humantime v2.3.0
+   Compiling env_logger v0.10.2
+   Compiling x509-parser v0.16.0
+   Compiling nix v0.23.2
+   Compiling rand v0.8.5
+   Compiling clap v4.5.47
+   Compiling bincode v1.3.3
+   Compiling clap-num v1.2.0
+   Compiling msru v0.2.0
+   Compiling colorful v0.2.2
+   Compiling bitfield v0.15.0
+   Compiling tokio-native-tls v0.3.1
+   Compiling hyper-tls v0.5.0
+   Compiling reqwest v0.11.10
+   Compiling snpguest v0.10.0 (~/snpguest-src)
+    Finished `release` profile [optimized] target(s) in 2m 25s
+=== Step 1: VM identity ===
+Hostname: vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal
+VM ID:    vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal
+Zone:     us-central1-c
+Region:   us-central1
+Kernel:   7.0.0-1014-gcp
+Captured: 2026-10-15T00:54:13Z
+
+=== Step 2: workload manifest ===
+{
+  "vault_genome_version": "1.0.0",
+  "payload_sha256": "c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074",
+  "payload_size_bytes": 2019402752,
+  "payload_description": "ollama llama3.2:3b, as sealed by acpctl genome seal into demo1-bundle.genome",
+  "payload_measured_by": "acpctl genome inspect --json of demo1-bundle.genome: sha256 over the sealed components, measured in this run",
+  "bundle_sha256": "359206958eceff21b8f241b2def82f59330dce0ef24a67c373a80e0b1c6322e9",
+  "bundle_size_bytes": 2019436684,
+  "sealed_at": "2026-10-15T00:50:29Z",
+  "demo": "vault-genome-cross-vm-attestation",
+  "vm_id": "vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal",
+  "tee_backend": "amd-sev-snp",
+  "region": "us-central1",
+  "zone": "us-central1-c"
+}
+
+=== Step 3: REPORT_DATA = SHA-512(manifest) ===
+REPORT_DATA: f780cea2c08ac482e37f35e6322580a67471e0d5979b32076b152c945a0d717ccc919ff17ac80c613efe95ceb846cec5175f934d0b2f228d24e6802a5503884e
+
+=== Step 4: capture attestation report ===
+-rw-r--r-- 1 user user 1184 Oct 15 00:54 04-attestation-report.bin
+AMD product line (from the report's CPUID family/model): milan
+
+=== Step 5: decode report ===
+Attestation Report:
+
+Version:                      5
+
+Guest SVN:                    0
+
+Guest Policy (0x30000):
+  ABI Major:     0
+  ABI Minor:     0
+  SMT Allowed:   true
+  Migrate MA:    false
+  Debug Allowed: false
+  Single Socket: false
+  CXL Allowed:   false
+  AEX 256 XTS:   false
+  RAPL Allowed:  false
+  Ciphertext hiding: false
+  Page Swap Disable: false
+
+Family ID:
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+Image ID:
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+VMPL:                         1
+
+Signature Algorithm:          1
+
+Current TCB:
+
+=== Step 6: fetch AMD certificates from KDS ===
+--- attempt 1/3 ---
+total 20
+drwxrwxr-x 2 user user 4096 Oct 15 00:54 .
+drwxrwxr-x 3 user user 4096 Oct 15 00:54 ..
+-rw-rw-r-- 1 user user 2277 Oct 15 00:54 ark.pem
+-rw-rw-r-- 1 user user 2325 Oct 15 00:54 ask.pem
+-rw-rw-r-- 1 user user 1887 Oct 15 00:54 vcek.pem
+
+=== Step 7: verify chain ARK → ASK → VCEK ===
+The AMD ARK was self-signed!
+The AMD ASK was signed by the AMD ARK!
+The VCEK was signed by the AMD ASK!
+
+=== Step 8: verify report signature ===
+Reported TCB Boot Loader from certificate matches the attestation report.
+Reported TCB TEE from certificate matches the attestation report.
+Reported TCB SNP from certificate matches the attestation report.
+Reported TCB Microcode from certificate matches the attestation report.
+VEK signed the Attestation Report!
+
+=== Step 9: verify REPORT_DATA binding ===
+Expected REPORT_DATA: f780cea2c08ac482e37f35e6322580a67471e0d5979b32076b152c945a0d717ccc919ff17ac80c613efe95ceb846cec5175f934d0b2f228d24e6802a5503884e
+Reported TCB Boot Loader from certificate matches the attestation report.
+Reported TCB TEE from certificate matches the attestation report.
+Reported TCB SNP from certificate matches the attestation report.
+Reported TCB Microcode from certificate matches the attestation report.
+VEK signed the Attestation Report!
+Report Data verified successfully.
+
+=== Step 10: write policy validation summary ===
+Vault Genome SEV-SNP Attestation Validation — vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal
+=================================================
+
+Date (UTC): 2026-10-15T00:54:13Z
+VM:         vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal (us-central1-c)
+Tool:       snpguest 0.10.0
+Chip:       AMD EPYC Milan (SEV-SNP), from the report's CPUID family/model
+
+POLICY CHECKS
+✓ Report from /dev/sev-guest (real silicon)
+✓ Cert chain valid (ARK self-signed → ASK signed by ARK → VCEK signed by ASK)
+✓ VEK signed attestation report
+✓ TCB values match (cert ↔ report) — Microcode/SNP/TEE/Boot Loader
+✓ Chip ID matches (cert ↔ report)
+✓ REPORT_DATA = SHA-512(manifest)        — the manifest names what Demo 1 sealed, as measured
+
+RESULT: ALL POLICY CHECKS PASSED
+
+=== Step 11: pack evidence ===
+-rw-rw-r-- 1 user user 7.5K Oct 15 00:54 ~/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal-crypto-attestation.tar.gz
+
+=== ✓ DONE — evidence at ~/vg/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal, tarball at ~/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal-crypto-attestation.tar.gz ===
+Next: download ~/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal-crypto-attestation.tar.gz to your laptop for the cross-VM matrix.
+=== no chain bundles found — sealing 6 fresh ones ===
+✓ sealed dir "test-payloads/cycle-0"  (gen 0)
+  output:        generations/gen-0.genome
+  key file:      keys/gen-0.key  (0600 — it opens the bundle)
+  key id:        genome-75a01a5f7a2c-g0-6c0a624f7b7e
+  components:    1
+  bundle bytes:  2752 (2.69 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:75a01a5f7a2c9172f81c1ab9e382ed224df740cba4f1e1f02e1e8cd0a5cb70a0
+  sealed at UTC: 2026-10-15T00:54:13Z
+✓ sealed dir "test-payloads/cycle-1"  (gen 1)
+  output:        generations/gen-1.genome
+  key file:      keys/gen-1.key  (0600 — it opens the bundle)
+  key id:        genome-a5afec6ed450-g1-807c8ed66565
+  parent:        generations/gen-0.genome (sha256:4f56e96c0e4782ea…)
+  components:    1
+  bundle bytes:  2932 (2.86 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:a5afec6ed4502cdb65d9cc3d836badabadb02da5e2868430d44c85b0c57729ff
+  sealed at UTC: 2026-10-15T00:54:13Z
+✓ sealed dir "test-payloads/cycle-2"  (gen 2)
+  output:        generations/gen-2.genome
+  key file:      keys/gen-2.key  (0600 — it opens the bundle)
+  key id:        genome-5620dd9a6723-g2-a513e83833ae
+  parent:        generations/gen-1.genome (sha256:1bf7d0a0743d824c…)
+  components:    1
+  bundle bytes:  2954 (2.88 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:5620dd9a67238f5b1e3eafdab3f66ede4e4046f4fc4afc652dffbafee0f0cc40
+  sealed at UTC: 2026-10-15T00:54:13Z
+✓ sealed dir "test-payloads/cycle-3"  (gen 3)
+  output:        generations/gen-3.genome
+  key file:      keys/gen-3.key  (0600 — it opens the bundle)
+  key id:        genome-5b2ede993c10-g3-210eaff92749
+  parent:        generations/gen-2.genome (sha256:94ecf00a426bc729…)
+  components:    1
+  bundle bytes:  2954 (2.88 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:5b2ede993c10c04775fbdc48ed6cf9f8b2fb143dd541a35810e57a25af1cac28
+  sealed at UTC: 2026-10-15T00:54:13Z
+✓ sealed dir "test-payloads/cycle-4"  (gen 4)
+  output:        generations/gen-4.genome
+  key file:      keys/gen-4.key  (0600 — it opens the bundle)
+  key id:        genome-99d2fa9c340c-g4-43ce1ac9df11
+  parent:        generations/gen-3.genome (sha256:59b56de82e4dc7e2…)
+  components:    1
+  bundle bytes:  2952 (2.88 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:99d2fa9c340cb270c6be0b8dff3441ee11faf36d98ddee07b92a5521d94464fe
+  sealed at UTC: 2026-10-15T00:54:13Z
+✓ sealed dir "test-payloads/cycle-5"  (gen 5)
+  output:        generations/gen-5.genome
+  key file:      keys/gen-5.key  (0600 — it opens the bundle)
+  key id:        genome-7719ae2bffe3-g5-8b3f6afd95f9
+  parent:        generations/gen-4.genome (sha256:05c53ad5d9492b9b…)
+  components:    1
+  bundle bytes:  2954 (2.88 KiB), payload 2.00 KiB in segments of 1.00 MiB
+  payload sha256:sha256:7719ae2bffe3df215e9f4b51fb83efbd910e9e33814ed92182b26d9a2885fa61
+  sealed at UTC: 2026-10-15T00:54:13Z
+
+=== chain validation ===
+chain @ generations — 6 generation(s)
+
+●   gen   0  2.69 KiB  00:54:13  gen-0.genome  (vault-genome-v3)
+          bundle    sha256:4f56e96c0e4782ea…
+          content   dir · test-payloads/cycle-0
+
+├── gen   1  2.86 KiB  00:54:13  gen-1.genome  (vault-genome-v3)
+          bundle    sha256:1bf7d0a0743d824c…
+          parent →  sha256:4f56e96c0e4782ea…
+          content   dir · test-payloads/cycle-1
+
+├── gen   2  2.88 KiB  00:54:13  gen-2.genome  (vault-genome-v3)
+          bundle    sha256:94ecf00a426bc729…
+          parent →  sha256:1bf7d0a0743d824c…
+          content   dir · test-payloads/cycle-2
+
+├── gen   3  2.88 KiB  00:54:13  gen-3.genome  (vault-genome-v3)
+          bundle    sha256:59b56de82e4dc7e2…
+          parent →  sha256:94ecf00a426bc729…
+          content   dir · test-payloads/cycle-3
+
+├── gen   4  2.88 KiB  00:54:13  gen-4.genome  (vault-genome-v3)
+          bundle    sha256:05c53ad5d9492b9b…
+          parent →  sha256:59b56de82e4dc7e2…
+          content   dir · test-payloads/cycle-4
+
+├── gen   5  2.88 KiB  00:54:13  gen-5.genome  (vault-genome-v3)
+          bundle    sha256:9c8f266c4e95d5f3…
+          parent →  sha256:05c53ad5d9492b9b…
+          content   dir · test-payloads/cycle-5
+
+✓ chain valid — every parent reference resolves to an in-dir bundle
+
+=== lineage walk from latest generation back to genesis ===
+lineage of gen-5.genome — depth 6
+
+├── gen   5  2.88 KiB  00:54:13  gen-5.genome  (vault-genome-v3)
+├── gen   4  2.88 KiB  00:54:13  gen-4.genome  (vault-genome-v3)
+├── gen   3  2.88 KiB  00:54:13  gen-3.genome  (vault-genome-v3)
+├── gen   2  2.88 KiB  00:54:13  gen-2.genome  (vault-genome-v3)
+├── gen   1  2.86 KiB  00:54:13  gen-1.genome  (vault-genome-v3)
+●   gen   0  2.69 KiB  00:54:13  gen-0.genome  (vault-genome-v3)
+
+✓ lineage complete — every parent reference resolved to an existing bundle
+
+=== rewind to a middle generation ===
+✓ unsealed dir "test-payloads/cycle-3"  (gen 3, vault-genome-v3)
+  bundle:        generations/gen-3.genome
+  key id:        genome-5b2ede993c10-g3-210eaff92749
+  target:        /tmp/demo2-rewind
+  files:         1, 39 bytes (39 B), each checked against its recorded digest
+  payload sha256:sha256:5b2ede993c10c04775fbdc48ed6cf9f8b2fb143dd541a35810e57a25af1cac28
+  tree sha256:   1da3f5919fe1e5f9e6bfd179061a0a3bbd4a68cc41974186e215b8240314e1e3
+
+=== Demo 2 complete ===
+Next: ./scripts/05-inference-test.sh (optional)
+=== capture original-daemon response (model in /usr/share/ollama) ===
+Here are three companies that have run confidential computing programs:
+
+1. Google - Google has run confidential computing programs through its Google Cloud Platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+2. Microsoft - Microsoft has also run confidential computing programs through its Azure cloud platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+3. IBM - IBM has run confidential computing programs through its IBM Cloud platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+=== overlay restored files onto Ollama default location ===
+
+=== capture restored-from-bundle response ===
+Here are three companies that have run confidential computing programs:
+
+1. Google - Google has run confidential computing programs through its Google Cloud Platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+2. Microsoft - Microsoft has also run confidential computing programs through its Azure cloud platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+3. IBM - IBM has run confidential computing programs through its IBM Cloud platform. Confidential computing allows users to process sensitive data without revealing the data itself.
+
+=== diff ===
+✓ BYTE-IDENTICAL — inference continuity proven empirically
+
+Next: ./scripts/06-pack-evidence.sh
+=== capture VM identity ===
+vm_name:     vault-genome-sev-snp-test
+zone:        us-central1-c
+uname:       Linux vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal 7.0.0-1014-gcp #14~24.04.1-Ubuntu SMP PREEMPT Thu Sep 17 19:52:35 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+captured_at: 2026-10-15T00:55:08Z
+
+=== pack into ~/vault-genome-sev-snp-test-evidence.tar.gz ===
+-rw-rw-r-- 1 user user 12K Oct 15 00:55 ~/vault-genome-sev-snp-test-evidence.tar.gz
+
+=== contents ===
+evidence/
+evidence/snp-attestation-report.hex
+evidence/attestation-validation/
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/03-report-data.bin
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/11-policy-validation-summary.txt
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/10-verify-report-data-binding.txt
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/11-snpguest-version.txt
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/03-snp-chip.txt
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/09-verify-attestation.txt
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/08-verify-certs.txt
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/05-attestation-report-decoded.txt
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/00-vm-identity.txt
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/06-fetch-ca-log.txt
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/02-report-data.hex
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/01-vaultgenome-payload-manifest.json
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/04-attestation-report.bin
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/06-certificates/
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/06-certificates/ark.pem
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/06-certificates/vcek.pem
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/06-certificates/ask.pem
+evidence/attestation-validation/vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal/07-fetch-vcek-log.txt
+evidence/kernel-sev.txt
+evidence/demo1-inspect.txt
+evidence/demo2-chain.txt
+evidence/inference-restored.txt
+evidence/snp-attestation-report.bin
+evidence/demo2-lineage.txt
+evidence/inference-original.txt
+evidence/demo2-rewind.txt
+evidence/demo1-verify.txt
+evidence/vm-identity.txt
+evidence/demo1-tamper.txt
+evidence/demo1-open.txt
+evidence/demo1-seal.txt
+evidence/demo1-inspect.json
+
+=== to download to your laptop ===
+  In SSH-in-browser: click DOWNLOAD FILE, enter path: ~/vault-genome-sev-snp-test-evidence.tar.gz
+  Or via gcloud:     gcloud compute scp vault-genome-sev-snp-test:~/vault-genome-sev-snp-test-evidence.tar.gz ./ --zone=us-central1-c
+
+=== to upload to a Cloud Storage bucket ===
+  gcloud storage cp ~/vault-genome-sev-snp-test-evidence.tar.gz gs://YOUR-BUCKET/
+
+=== 9. download evidence to laptop ===
+
+evidence: <repo>/scripts/hardware-test/gcp-sev-snp/terraform/vault-genome-sev-snp-test-evidence.tar.gz
+-rw-r--r--@ 1 serhiinikolaichuk  staff    12K Oct 14 19:55 vault-genome-sev-snp-test-evidence.tar.gz
+
+=== 10. teardown VM ===
+google_compute_instance.vault_genome: Refreshing state... [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # google_compute_instance.vault_genome will be destroyed
+  - resource "google_compute_instance" "vault_genome" {
+      - can_ip_forward             = false -> null
+      - cpu_platform               = "AMD Milan" -> null
+      - creation_timestamp         = "2026-10-14T17:46:49.466-07:00" -> null
+      - current_status             = "RUNNING" -> null
+      - deletion_policy            = "DELETE" -> null
+      - deletion_protection        = false -> null
+      - effective_labels           = {
+          - "goog-terraform-provisioned" = "true"
+          - "purpose"                    = "vault-genome-hardware-validation"
+          - "sprint"                     = "week-1-gcp-sev-snp"
+        } -> null
+      - enable_display             = false -> null
+      - id                         = "projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test" -> null
+      - instance_id                = "5804481057545624726" -> null
+      - label_fingerprint          = "WgCGlmtkiao=" -> null
+      - labels                     = {
+          - "purpose" = "vault-genome-hardware-validation"
+          - "sprint"  = "week-1-gcp-sev-snp"
+        } -> null
+      - machine_type               = "n2d-standard-4" -> null
+      - metadata                   = {
+          - "enable-oslogin" = "TRUE"
+        } -> null
+      - metadata_fingerprint       = "IKnrpQZemu8=" -> null
+      - name                       = "vault-genome-sev-snp-test" -> null
+      - project                    = "rats-probe" -> null
+      - resource_policies          = [] -> null
+      - self_link                  = "https://www.googleapis.com/compute/v1/projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test" -> null
+      - tags                       = [] -> null
+      - tags_fingerprint           = "42WmSpB8rSM=" -> null
+      - terraform_labels           = {
+          - "goog-terraform-provisioned" = "true"
+          - "purpose"                    = "vault-genome-hardware-validation"
+          - "sprint"                     = "week-1-gcp-sev-snp"
+        } -> null
+      - zone                       = "us-central1-c" -> null
+        # (4 unchanged attributes hidden)
+
+      - boot_disk {
+          - auto_delete                     = true -> null
+          - device_name                     = "persistent-disk-0" -> null
+          - force_attach                    = false -> null
+          - guest_os_features               = [
+              - "VIRTIO_SCSI_MULTIQUEUE",
+              - "SEV_CAPABLE",
+              - "SEV_SNP_CAPABLE",
+              - "SEV_LIVE_MIGRATABLE",
+              - "SEV_LIVE_MIGRATABLE_V2",
+              - "SNP_SVSM_CAPABLE",
+              - "IDPF",
+              - "TDX_CAPABLE",
+              - "UEFI_COMPATIBLE",
+              - "GVNIC",
+            ] -> null
+          - mode                            = "READ_WRITE" -> null
+          - source                          = "https://www.googleapis.com/compute/v1/projects/rats-probe/zones/us-central1-c/disks/vault-genome-sev-snp-test" -> null
+            # (6 unchanged attributes hidden)
+
+          - initialize_params {
+              - architecture                = "X86_64" -> null
+              - enable_confidential_compute = false -> null
+              - image                       = "https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20261009" -> null
+              - labels                      = {} -> null
+              - provisioned_iops            = 0 -> null
+              - provisioned_throughput      = 0 -> null
+              - replica_zones               = [] -> null
+              - resource_manager_tags       = {} -> null
+              - resource_policies           = [] -> null
+              - size                        = 40 -> null
+              - type                        = "pd-balanced" -> null
+                # (2 unchanged attributes hidden)
+            }
+        }
+
+      - confidential_instance_config {
+          - confidential_instance_type  = "SEV_SNP" -> null
+          - enable_confidential_compute = true -> null
+        }
+
+      - network_interface {
+          - enable_vpc_scoped_dns       = false -> null
+          - internal_ipv6_prefix_length = 0 -> null
+          - name                        = "nic0" -> null
+          - network                     = "https://www.googleapis.com/compute/v1/projects/rats-probe/global/networks/default" -> null
+          - network_ip                  = "10.128.15.213" -> null
+          - queue_count                 = 0 -> null
+          - stack_type                  = "IPV4_ONLY" -> null
+          - subnetwork                  = "https://www.googleapis.com/compute/v1/projects/rats-probe/regions/us-central1/subnetworks/default" -> null
+          - subnetwork_project          = "rats-probe" -> null
+          - vlan                        = 0 -> null
+            # (7 unchanged attributes hidden)
+
+          - access_config {
+              - nat_ip                 = "34.56.83.0" -> null
+              - network_tier           = "PREMIUM" -> null
+                # (1 unchanged attribute hidden)
+            }
+        }
+
+      - scheduling {
+          - automatic_restart           = true -> null
+          - availability_domain         = 0 -> null
+          - host_error_timeout_seconds  = 0 -> null
+          - min_node_cpus               = 0 -> null
+          - on_host_maintenance         = "TERMINATE" -> null
+          - preemptible                 = false -> null
+          - provisioning_model          = "STANDARD" -> null
+            # (2 unchanged attributes hidden)
+        }
+
+      - service_account {
+          - email  = "25906955977-compute@developer.gserviceaccount.com" -> null
+          - scopes = [
+              - "https://www.googleapis.com/auth/cloud-platform",
+            ] -> null
+        }
+
+      - shielded_instance_config {
+          - enable_integrity_monitoring = true -> null
+          - enable_secure_boot          = false -> null
+          - enable_vtpm                 = true -> null
+        }
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+
+Changes to Outputs:
+  - external_ip   = "34.56.83.0" -> null
+  - instance_name = "vault-genome-sev-snp-test" -> null
+  - ssh_command   = "gcloud compute ssh vault-genome-sev-snp-test --zone=us-central1-c" -> null
+  - zone          = "us-central1-c" -> null
+google_compute_instance.vault_genome: Destroying... [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test]
+google_compute_instance.vault_genome: Still destroying... [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test, 00m10s elapsed]
+google_compute_instance.vault_genome: Still destroying... [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test, 00m20s elapsed]
+google_compute_instance.vault_genome: Still destroying... [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test, 00m30s elapsed]
+google_compute_instance.vault_genome: Still destroying... [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test, 00m40s elapsed]
+google_compute_instance.vault_genome: Still destroying... [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test, 00m50s elapsed]
+google_compute_instance.vault_genome: Still destroying... [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test, 01m00s elapsed]
+google_compute_instance.vault_genome: Destruction complete after 1m3s
+
+Destroy complete! Resources: 1 destroyed.
+
+=== ✓ all done ===
+exit 0
+2026-10-15T00:56:17Z

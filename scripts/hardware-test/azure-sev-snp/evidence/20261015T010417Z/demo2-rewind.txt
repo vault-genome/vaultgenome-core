@@ -1,0 +1,7 @@
+✓ unsealed dir "test-payloads/cycle-3"  (gen 3, vault-genome-v3)
+  bundle:        generations/gen-3.genome
+  key id:        genome-cbad952a2d32-g3-0dfcb1cfbd90
+  target:        /tmp/demo2-rewind
+  files:         1, 39 bytes (39 B), each checked against its recorded digest
+  payload sha256:sha256:cbad952a2d32ea77568b2c07b6e0166fc00ded6802c3b1fe8d457f285711b83a
+  tree sha256:   a6a6f582391c9ffaa35ba73f99484eafdb8c87106516c9cf9026faa594c39d91

@@ -1,0 +1,17 @@
+{
+  "vault_genome_version": "1.0.0",
+  "payload_sha256": "c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074",
+  "payload_size_bytes": 2019402752,
+  "payload_description": "ollama llama3.2:3b, as sealed by acpctl genome seal into demo1-bundle.genome",
+  "payload_measured_by": "acpctl genome inspect --json of demo1-bundle.genome: sha256 over the sealed components, measured in this run",
+  "bundle_sha256": "1fc00c1a5f229acb9b3930f9d4934520cbe4380c27791618e1583c43ed09c66f",
+  "bundle_size_bytes": 2019436684,
+  "sealed_at": "2026-10-15T00:58:56Z",
+  "demo": "vault-genome-cross-vm-attestation",
+  "vm_id": "vault-genome-sgx-test",
+  "tee_backend": "intel-sgx",
+  "cloud": "azure",
+  "location": "eastus2",
+  "zone": "",
+  "vm_size": "Standard_DC4s_v3"
+}

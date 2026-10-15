@@ -10,6 +10,8 @@
 #   3. ssh + bootstrap        installs Go + Ollama + acpctl
 #   4. captures attestation   1184-byte SEV-SNP report
 #   5. runs Demo 1            single-bundle round-trip + tamper test
+#   5b. validates the chain   ARK -> ASK -> VCEK -> report, REPORT_DATA binding
+#                             the manifest that names what Demo 1 sealed
 #   6. runs Demo 2            chain operations
 #   7. (optional) inference   empirical model output comparison
 #   8. packs evidence         single tar archive
@@ -114,6 +116,9 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --quiet --command='
 
   ~/scripts/01-bootstrap-vm.sh
   ~/scripts/02-capture-attestation.sh
+  # Demo 1 runs before the chain step: the manifest 02b writes names what
+  # Demo 1 sealed, as acpctl measured it, and the report binds that manifest.
+  ~/scripts/03-demo1-single-bundle.sh
   # 02b exits 2 when AMD KDS is unreachable (report captured, chain deferred
   # to 02c); any other failure stops the run.
   rc=0; ~/scripts/02b-cryptographic-attestation.sh || rc=$?
@@ -122,7 +127,6 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --quiet --command='
   elif [ "$rc" -ne 0 ]; then
     echo "02b-cryptographic-attestation.sh failed (exit $rc)"; exit "$rc"
   fi
-  ~/scripts/03-demo1-single-bundle.sh
   ~/scripts/04-demo2-chain.sh
   ~/scripts/05-inference-test.sh || echo "(inference skipped — non-fatal)"
   ~/scripts/06-pack-evidence.sh

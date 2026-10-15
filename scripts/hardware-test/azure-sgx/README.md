@@ -30,7 +30,9 @@ your TEE policy:
 `Standard_DC4s_v3` in East US 2: the quote, the Intel chain validated locally
 by `oeverify` with the workload binding, the MAA token with its claims, Demo 1
 with the tamper refusal, Demo 2, the byte-identical inference comparison and
-the runner's log. Its README reads the files.
+the runner's log. Its README reads the files. `evidence/20261015T010027Z/` is
+the same run an hour later with the workload manifest naming what Demo 1
+sealed, as acpctl measured it, bound into the quote and attested by MAA (#83).
 
 ## What's special about Azure SGX
 
@@ -92,13 +94,13 @@ ssh azureuser@<public-ip>
 # 3. Bootstrap (installs Intel SGX DCAP + Open Enclave + Ollama + Go)
 ./scripts/01-bootstrap-vm.sh
 
-# 4. Capture both attestation chains
+# 4. Capture the quote, run Demo 1, then both attestation chains
 ./scripts/02-capture-attestation.sh           # SGX quote via oeutil
-./scripts/02b-cryptographic-attestation.sh    # Intel chain (PCK + Root CA)
+./scripts/03-demo1-single-bundle.sh           # seals the model; writes evidence/demo1-inspect.json
+./scripts/02b-cryptographic-attestation.sh    # Intel chain (PCK + Root CA); the manifest names what Demo 1 sealed
 ./scripts/02f-capture-maa-jwt.sh              # Microsoft MAA JWT — Azure-specific 2nd verifier
 
-# 5. Run workloads
-./scripts/03-demo1-single-bundle.sh
+# 5. Run the remaining workloads
 ./scripts/04-demo2-chain.sh
 ./scripts/05-inference-test.sh
 

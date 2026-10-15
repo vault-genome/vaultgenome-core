@@ -61,6 +61,19 @@ given release can still open.
   archive now carries the chain validation; the GCP runner tries the next
   zone when one has no capacity and stops on a chain failure instead of
   calling it a KDS outage.
+- The hardware kits' workload manifest names what Demo 1 sealed, as acpctl
+  measured it (#83). The GCP SEV-SNP, Azure SEV-SNP and Azure SGX kits wrote
+  a manifest whose payload digest was a built-in constant for the Llama 3.2
+  3B GGUF — two different constants between kits, and neither the digest of
+  what the run sealed — and, on GCP and SGX, bound that manifest into the
+  hardware report. Demo 1 now runs before the chain step and writes
+  `demo1-inspect.json` (`acpctl genome inspect --json`); the chain step
+  takes the payload digest, the sizes, the bundle digest and the sealing
+  time from it, names the measurement method in the manifest, and refuses
+  to run without the record. On GCP the report's REPORT_DATA binds the
+  measured manifest; on Azure SGX the quote's REPORT_DATA and the MAA token
+  do; on Azure SEV-SNP the manifest is recorded next to the report, which
+  cannot carry a caller's REPORT_DATA.
 - A security review (`docs/security/review-2026-10.md`): eleven findings,
   eight closed on the day (the tag-object pin, the Nitro kit's root check,
   the helper module's dependencies, the release token, the site's CSP, the
