@@ -19,7 +19,7 @@ deployment runs on any machine. For real AMD SEV-SNP attestation see
 
 ```
 make build         # acpctl seals the demo genome
-make demo-certs    # provision deploy/compose/secrets with keygen
+make demo-certs    # provision deploy/compose/secrets with acp-keygen
 make demo-genome   # fine-tune a tiny model, seal its genome into deploy/compose/genomes
 make demo-up       # docker compose build + up, wait for sagvd /readyz
 make demo-submit   # POST /v1/jobs naming the genome, poll the gate's verdict
@@ -45,9 +45,10 @@ downloads nothing. To restore a real model, seal
 its genome with `acpctl genome seal --content-dir` into `genomes/` and mount
 its base directory into the worker with `ACP_BASE_MODEL=/path/to/base`.
 
-## What keygen provisions
+## What acp-keygen provisions
 
-`deploy/compose/keygen` is a standalone, stdlib-only Go tool. It writes:
+`cmd/acp-keygen` (a release binary since 0.4.2, signed and attested like
+the daemons; stdlib-only) writes:
 
 ```
 secrets/
@@ -72,7 +73,7 @@ secrets/
 
 `secrets/` is git-ignored and docker-ignored, and so are `genomes/` (the
 sealed bundles and their key files), `models/` (the base model) and
-`audit/` (the Return Path audit log sagvd writes). keygen
+`audit/` (the Return Path audit log sagvd writes). acp-keygen
 refuses to overwrite an existing tree without `-force`, because regenerating
 under a running pair desynchronises it (sealed material stops opening,
 evidence stops pinning, TLS stops verifying). Files are mode 0644 so the
@@ -83,7 +84,7 @@ a key file other users can read.
 
 The workload descriptors (`sagvd-phase1-demo-v1`,
 `acp-compute-phase1-demo-v1`) must match between the two `config.json`
-files and `keygen/main.go`: peer measurements are SHA-256 of those strings.
+files and `cmd/acp-keygen/main.go`: peer measurements are SHA-256 of those strings.
 
 ## What a job does
 
@@ -185,6 +186,5 @@ real torch runs in the `genome-worker` workflow.
   pinned CPU torch and `vg_genome`, running as uid 65532: the worker needs a
   door.
 - `sagvd/config.json`, `acp-compute/config.json` — in-container configs.
-- `keygen/` — the provisioning tool (own module, stdlib only).
 - `scripts/make_genome.sh` — fine-tunes and seals the demo genome.
 - `scripts/submit_job.sh` — submit-and-poll helper (needs curl, jq).

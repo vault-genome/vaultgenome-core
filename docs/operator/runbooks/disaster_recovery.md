@@ -454,7 +454,7 @@ signatures only from the kids in `workers.registry_path`.
 ### Recovery
 
 1. Give the rebuilt worker a new TEE seed and a new worker signing seed
-   (`tee.seed_path`, `keys.worker_signing`; `deploy/compose/keygen` shows how
+   (`tee.seed_path`, `keys.worker_signing`; ``acp-keygen` (a release binary; `cmd/acp-keygen`)` shows how
    the pinned files are produced).
 2. Put its TEE public key and measurement at sagvd's `tee.peer.public_key_path`
    and `tee.peer.measurement_path`, and its new kid and public key (from the

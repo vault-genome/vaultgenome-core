@@ -146,7 +146,7 @@ echo "capture evidence: $EVIDENCE"
 
 echo "the Return Path on the guest: sagvd and acp-compute as azure-cgpu, the escrow key sealed to the vTPM, the handshake under gpu_policy.evaluation both"
 ( cd "$ROOT" && for b in sagvd acp-compute; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
-( cd "$ROOT/deploy/compose/keygen" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" . )
+( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
 wait_ssh 5 || { echo "the guest did not answer SSH before the Return Path"; exit 1; }
 scp_to "$BUILD/sagvd" "$BUILD/acp-compute" "$BUILD/keygen" "$HERE/returnpath-cgpu.sh" "$HERE/gpu-token.py"
 ssh_vm "sudo env VG_STAMP=$STAMP VG_CAPTURE_STAMP=$STAMP bash returnpath-cgpu.sh 2>&1 | tail -40"

@@ -106,7 +106,7 @@ once after provisioning ([ADR 0023](docs/adr/0023-the-daemons-key-files-sealed-t
 
 Releases are cut by [`release.yml`](.github/workflows/release.yml) from a tag
 signed by a key pinned in [`.github/allowed_signers`](.github/allowed_signers):
-four binaries built reproducibly, each with a keyless cosign signature and a
+five binaries and the worker package built reproducibly, each with a keyless cosign signature and a
 transparency-log entry, an SPDX SBOM, and a SLSA level 3 provenance
 attestation. Check what you downloaded before you run it:
 
@@ -115,9 +115,14 @@ cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
 slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
-  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.4.1
-git verify-tag v0.4.1
+  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.4.2
+git verify-tag v0.4.2
 ```
+
+The same two commands verify `acp-compute`, `acpctl`, `acp-bootstrap`,
+`acp-keygen` and the worker package `genome-worker-v0.4.2.tar.gz`; a
+deployment needs nothing from the source tree
+([`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md)).
 
 [`docs/operator/05_release_procedure.md`](docs/operator/05_release_procedure.md)
 is the whole procedure; [`docs/security/supply_chain.md`](docs/security/supply_chain.md)

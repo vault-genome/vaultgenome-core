@@ -10,7 +10,7 @@ PKG   := ./...
 
 # --- metadata -----------------------------------------------------------------
 
-BINARIES := sagvd acp-compute acpctl acp-bootstrap acp-demo
+BINARIES := sagvd acp-compute acpctl acp-bootstrap acp-keygen acp-demo
 VERSION  ?= 0.0.0-dev
 COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 
@@ -292,12 +292,12 @@ DEMO_READY_TIMEOUT  ?= 30
 .PHONY: demo-certs
 demo-certs:
 	@echo "==> generating demo secrets under $(DEMO_SECRETS_DIR)"
-	@cd $(DEMO_DIR)/keygen && $(GO) run . -out $(DEMO_SECRETS_DIR)
+	@$(GO) run ./cmd/acp-keygen -out $(DEMO_SECRETS_DIR)
 
 .PHONY: demo-certs-force
 demo-certs-force:
 	@echo "==> regenerating demo secrets (force) under $(DEMO_SECRETS_DIR)"
-	@cd $(DEMO_DIR)/keygen && $(GO) run . -out $(DEMO_SECRETS_DIR) -force
+	@$(GO) run ./cmd/acp-keygen -out $(DEMO_SECRETS_DIR) -force
 
 # demo-genome fine-tunes a tiny model with the real vg_genome worker and
 # seals its genome into deploy/compose/genomes (with the base model under

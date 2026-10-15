@@ -2,8 +2,8 @@
 
 What an operator who downloads a release of Vault Genome does, done end to
 end and recorded, so that a first deployment has something to be compared
-with. One command on a laptop with `gh`, `cosign`, `slsa-verifier`, `go`
-and `gcloud`:
+with. One command on a laptop with `gh`, `cosign`, `slsa-verifier`, `go`,
+GNU tar (`gtar` from Homebrew on macOS) and `gcloud`:
 
 ```bash
 ./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.1
@@ -14,24 +14,28 @@ created and deleted by the run.
 
 ## What the run does
 
-1. **Downloads the release's assets** — the four binaries, their keyless
-   cosign signatures and certificates, the SBOMs with theirs, and the SLSA
-   provenance — and **verifies every one** before anything runs:
-   `cosign verify-blob` against the release workflow's identity and the
-   GitHub OIDC issuer (eight signatures), `slsa-verifier verify-artifact`
-   against the source repository and the tag (four binaries), and the tag's
-   own signature against the keys pinned on `main`
-   (`.github/allowed_signers`). A signature that does not verify stops the
-   run.
-2. **Rebuilds the four binaries from the tag** with the inputs `release.yml`
-   uses (the tag as VERSION, the commit as COMMIT, its time as
-   SOURCE_DATE_EPOCH, CGO off, linux/amd64) and requires every rebuilt
-   binary's SHA-256 to equal the released file's — the release procedure's
-   §5.4, done by the kit rather than by hand.
-3. Takes the two pieces that are not release assets from the **tag's
-   source**: the `keygen` helper (`deploy/compose/keygen`) and the worker
-   package (`workers/genome`); and the AMD Milan certificate chain from the
-   tree. Their hashes are recorded.
+1. **Downloads the release's assets** — the five binaries and the worker
+   package, their keyless cosign signatures and certificates, the SBOMs
+   with theirs, and the SLSA provenance — and **verifies every one** before
+   anything runs: `cosign verify-blob` against the release workflow's
+   identity and the GitHub OIDC issuer (twelve signatures), `slsa-verifier
+   verify-artifact` against the source repository and the tag (six
+   artifacts), and the tag's own signature against the keys pinned on
+   `main` (`.github/allowed_signers`). A signature that does not verify
+   stops the run. (A release before 0.4.2 has four binaries and no package:
+   eight signatures, four provenances, and the pieces below from the tag's
+   source — the record of `v0.4.1` says so.)
+2. **Rebuilds the five binaries and the worker package from the tag** with
+   the inputs `release.yml` uses (the tag as VERSION, the commit as COMMIT,
+   its time as SOURCE_DATE_EPOCH, CGO off, linux/amd64; GNU tar with sorted
+   names, numeric owner 0 and that time as every mtime) and requires every
+   rebuilt artifact's SHA-256 to equal the released file's — the release
+   procedure's §5.4, done by the kit rather than by hand.
+3. Uploads **only release assets** to the guest: the released `sagvd`,
+   `acp-compute`, `acpctl`, `acp-keygen` and the worker package. The AMD
+   Milan chain is fetched on the guest by the released `acpctl` from AMD
+   KDS and verified against the roots the binary pins (ADR 0024). Nothing
+   comes from this tree.
 4. Runs the **same guest script as `gcp-sev-snp/returnpath-e2e`** on a fresh
    SEV-SNP VM, with the released `sagvd`, `acp-compute` and `acpctl`: both
    daemons attest with the chip and pin each other's launch measurement; a
@@ -50,11 +54,11 @@ created and deleted by the run.
 evidence/<STAMP>/
 ├── verify/
 │   ├── assets.sha256        every downloaded file, hashed
-│   ├── cosign.txt           eight "Verified OK"
-│   ├── slsa.txt             four "PASSED: SLSA verification passed"
+│   ├── cosign.txt           twelve "Verified OK" (eight before 0.4.2)
+│   ├── slsa.txt             six "PASSED: SLSA verification passed" (four before 0.4.2)
 │   ├── tag.txt              the tag's signature, the key that made it
-│   ├── rebuild.txt          four rebuilt hashes equal to the released files
-│   ├── uploaded.sha256      what went to the VM
+│   ├── rebuild.txt          every rebuilt hash equal to the released file's
+│   ├── uploaded.sha256      what went to the VM: release assets only
 │   └── tools.txt            the tool versions, the tag, the time
 ├── serial-console.txt       the guest's output as captured
 └── results/                 the guest's record (as returnpath-e2e/README.md describes it):

@@ -7,7 +7,7 @@
 # vg_genome worker on the guest and restored by the worker's door, judged
 # and put on the record. On a fresh GCP Confidential VM:
 #
-#   1. builds sagvd, acp-compute, acpctl and keygen for linux/amd64 from this tree;
+#   1. builds sagvd, acp-compute, acpctl and acp-keygen for linux/amd64 from this tree;
 #   2. uploads them, the worker package (workers/genome) and the AMD Milan
 #      cert chain to a new private bucket;
 #   3. boots an n2d SEV-SNP VM whose startup script is cvm-returnpath.sh;
@@ -29,7 +29,6 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 NAME="vg-returnpath-$(echo "$STAMP" | tr 'A-Z' 'a-z')"
 BUCKET="$PROJECT-vg-rp-$(echo "$STAMP" | tr 'A-Z' 'a-z')"
 BUILD="$(mktemp -d)"
-CHAIN="$ROOT/scripts/hardware-test/gcp-sev-snp/keybind-evidence/20260913T222343Z/kds-vcek-cert_chain.pem"
 
 cleanup() {
   echo "cleanup: deleting $NAME and gs://$BUCKET"
@@ -42,8 +41,7 @@ trap cleanup EXIT
 echo "build (linux/amd64)"
 ( cd "$ROOT" && for b in sagvd acp-compute acpctl; do
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
-( cd "$ROOT/deploy/compose/keygen" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" . )
-cp "$CHAIN" "$BUILD/amd-milan-cert_chain.pem"
+( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
 ( cd "$ROOT/workers" && COPYFILE_DISABLE=1 tar czf "$BUILD/genome-worker.tgz" --no-xattrs --exclude '__pycache__' --exclude '.pytest_cache' genome )
 
 echo "upload to gs://$BUCKET"

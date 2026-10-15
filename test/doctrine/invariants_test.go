@@ -918,8 +918,8 @@ func TestInvariant_07c_AuthorityLinksNoMaterialisation(t *testing.T) {
 			}
 		}
 	}
-	if checked < 4 {
-		t.Fatalf("checked %d binaries; expected sagvd, acp-compute, acp-bootstrap and acpctl at least", checked)
+	if checked < 5 {
+		t.Fatalf("checked %d binaries; expected sagvd, acp-compute, acp-bootstrap, acpctl and acp-keygen at least", checked)
 	}
 }
 
@@ -1373,10 +1373,15 @@ func TestInvariant_11_SupplyChainAttested(t *testing.T) {
 		"release workflow must verify the tag's signature before building")
 
 	// Binary coverage — every operational binary participates in the supply chain.
-	for _, bin := range []string{"sagvd", "acp-compute", "acpctl", "acp-bootstrap"} {
+	for _, bin := range []string{"sagvd", "acp-compute", "acpctl", "acp-bootstrap", "acp-keygen"} {
 		require.Containsf(t, content, bin,
 			"release workflow must include binary %q in the signed/SBOM'd set", bin)
 	}
+	// The worker package ships as a release artifact, signed, with an SBOM
+	// and in the provenance's subjects, so a deployment needs nothing from
+	// the source tree.
+	require.Containsf(t, content, "genome-worker-",
+		"release workflow must pack, sign and attest the worker package (workers/genome)")
 }
 
 // parsePackageFiles parses every non-test .go file in pkgDir and returns

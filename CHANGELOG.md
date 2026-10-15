@@ -26,6 +26,14 @@ given release can still open.
 
 ### Added
 
+- `acp-keygen` (`cmd/acp-keygen`): the key-material helper is a release
+  binary, built reproducibly, signed and attested like the four daemons —
+  the former `deploy/compose/keygen` module, with `-out` required, a
+  `-private` mode (0600 files, 0700 directories) and `-version`. The
+  worker package ships as a release asset too: `genome-worker-<tag>.tar.gz`
+  (`workers/genome`, packed reproducibly with GNU tar from the tagged
+  commit's time, packed twice and compared), with its SBOM, its keyless
+  signature and its hash in the SLSA provenance. A release has 36 assets.
 - `.github/workflows/branch-coverage.yml` (`make branch-coverage`,
   `scripts/branch_coverage.sh`): branch coverage of the wire contracts
   (`internal/contracts/...`), measured by gobco — installed at a commit,
@@ -66,6 +74,14 @@ given release can still open.
 
 ### Changed
 
+- `scripts/hardware-test/release-deploy`: everything the guest runs comes
+  from the release — the five binaries and the worker package, every one
+  verified (twelve signatures, six provenances, the tag) and rebuilt from
+  the tag to the released hashes — and nothing from the source tree; the
+  guest fetches the AMD Milan chain from KDS with the released `acpctl`,
+  which verifies it against the pinned roots (ADR 0024). The shared guest
+  script (`gcp-sev-snp/returnpath-e2e/cvm-returnpath.sh`) provisions with
+  `acp-keygen -private`; the kits build `./cmd/acp-keygen`.
 - `scripts/hardware-test/azure-sev-snp`: the workload manifest is bound
   through the vTPM — the attestation key the chip's report names (through
   the runtime data in its REPORT_DATA) quotes PCRs 0–14 with SHA-256 of the
