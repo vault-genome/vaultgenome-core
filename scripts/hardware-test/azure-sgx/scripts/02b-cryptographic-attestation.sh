@@ -223,19 +223,18 @@ fi
 echo
 echo "=== Step 9: write policy validation summary ==="
 INTEL_BIND_OK=$(grep -q "workload binding verified" 06-intel-chain-verify.txt 2>/dev/null && echo "PASS" || echo "FAIL")
-# Note: sgx_qv_verify_quote() local-host chain validation is currently
-# blocked by an az-dcap-client 1.13 ↔ libsgx-dcap-quote-verify 1.26
-# version-skew bug (returns SGX_QL_NO_QUOTE_COLLATERAL_DATA / 0xE03A
-# even when collateral is fetched and explicitly passed). MAA (02f) is
-# the canonical chain validator on Azure — it walks the same Quote →
-# PCK → Intel SGX Root CA chain on Microsoft's side and signs an
-# independent JWT. We treat MAA as the chain-of-record and capture
-# the local verifier output as "best-effort, may need lib upgrade."
-INTEL_CHAIN_OK=$(grep -q "chain VALIDATED" 06-intel-chain-verify.txt 2>/dev/null && echo "PASS" || echo "not validated by the kit's QVL caller (0xE03A); see 07")
+# The kit's own caller of sgx_qv_verify_quote (sgx-quote-binding/host/
+# verify-quote.c) through Intel's QPL configured for Azure (01): PASS with
+# the TCB status Intel's collateral gives the platform (OK, or an advisory
+# such as SW_HARDENING_NEEDED with the chain valid). Until 2026-10-15 this
+# caller returned 0xE03A through the Azure DCAP client; 01 says what was
+# measured and what changed.
+INTEL_CHAIN_OK=$(grep -q "chain VALIDATED" 06-intel-chain-verify.txt 2>/dev/null \
+  && echo "PASS ($(grep -m1 '^verification result:' 06-intel-chain-verify.txt | sed 's/^verification result: *//'))" \
+  || echo "not validated by the kit's QVL caller — see 06")
 # oeverify walks the same Quote -> PCK -> Intel SGX Root CA chain through
-# Open Enclave's verifier with the collateral the Azure DCAP client serves;
-# on 2026-10-15 it validated the OE report where the kit's own QVL caller
-# did not.
+# Open Enclave's verifier with the collateral the same provider serves: a
+# second, independent local verifier on the same quote.
 OE_CHAIN_OK=$(grep -c "Evidence verification succeeded" 07-oe-verify.txt 2>/dev/null || true)
 OE_CHAIN_OK=$([ "${OE_CHAIN_OK:-0}" -ge 1 ] && echo "PASS (oeverify, ${OE_CHAIN_OK} of 2 forms)" || echo "FAIL")
 
@@ -258,10 +257,15 @@ REPORT_DATA layout (64 bytes total):
   bytes 0..31:   $(cat 02-report-data.hex)   ← SHA-256(manifest)
   bytes 32..63:  0000...0000 (32-byte zero pad — MAA convention)
 
-RESULT: $( [ "${INTEL_BIND_OK}" = "PASS" ] && [ "${OE_CHAIN_OK%% *}" = "PASS" ] \
-            && echo "CHAIN VALIDATED LOCALLY (oeverify) AND WORKLOAD BINDING ESTABLISHED" \
-            || { [ "${INTEL_BIND_OK}" = "PASS" ] && echo "WORKLOAD BINDING ESTABLISHED; LOCAL CHAIN NOT VALIDATED — see 06/07" \
-                 || echo "WORKLOAD BINDING NOT VERIFIED — see 06-intel-chain-verify.txt"; } )
+RESULT: $( if [ "${INTEL_BIND_OK}" = "PASS" ] && [ "${INTEL_CHAIN_OK%% *}" = "PASS" ] && [ "${OE_CHAIN_OK%% *}" = "PASS" ]; then
+              echo "CHAIN VALIDATED BY BOTH LOCAL VERIFIERS (QVL AND oeverify) AND WORKLOAD BINDING ESTABLISHED"
+            elif [ "${INTEL_BIND_OK}" = "PASS" ] && [ "${OE_CHAIN_OK%% *}" = "PASS" ]; then
+              echo "CHAIN VALIDATED LOCALLY (oeverify) AND WORKLOAD BINDING ESTABLISHED; the kit's QVL caller did not validate — see 06"
+            elif [ "${INTEL_BIND_OK}" = "PASS" ]; then
+              echo "WORKLOAD BINDING ESTABLISHED; LOCAL CHAIN NOT VALIDATED — see 06/07"
+            else
+              echo "WORKLOAD BINDING NOT VERIFIED — see 06-intel-chain-verify.txt"
+            fi )
 
 CHAIN OF RECORD: Microsoft Azure Attestation (MAA), captured by
 02f-capture-maa-jwt.sh — independent Microsoft-rooted PKI sign-off

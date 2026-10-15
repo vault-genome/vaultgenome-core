@@ -3,9 +3,10 @@
 // verify-quote.c — Vault Genome Intel DCAP chain verifier.
 //
 // Validates a raw SGX_ECDSA quote v3 against the Intel SGX Root CA via
-// libsgx-dcap-quote-verify (the Intel-blessed local verifier),
-// using az-dcap-client's libdcap_quoteprov.so to fetch PCK collateral
-// from the Azure-hosted Intel cache.
+// libsgx-dcap-quote-verify (Intel's local verifier), with the installed
+// quote provider — Intel's QPL configured for Azure by 01-bootstrap-vm.sh:
+// the PCK certificate from Azure THIM, the rest of the collateral from
+// Intel PCS — fetching the collateral.
 //
 // Reports:
 //   * MRENCLAVE, MRSIGNER, ISV_PROD_ID, ISV_SVN
@@ -15,11 +16,13 @@
 //      for SGX/MAA; SHA-512(manifest) for SEV-SNP — file just needs
 //      to be 64 bytes, semantics are documented in 02b script).
 //   * Cryptographic chain Quote → PCK certificate → Intel SGX Root CA
-//     via sgx_qv_verify_quote(). NOTE: this local-host call is known
-//     to surface SGX_QL_NO_QUOTE_COLLATERAL_DATA (0xE03A) on Azure
-//     when az-dcap-client and libsgx-dcap-quote-verify versions
-//     skew — Microsoft Azure Attestation (02f script) walks the same
-//     chain on Microsoft's side and is the chain of record.
+//     via sgx_qv_verify_quote(), with the TCB status the collateral
+//     gives the platform (OK, or an advisory such as SW_HARDENING_NEEDED
+//     with the chain valid). Through the Azure DCAP client this call
+//     returned SGX_QL_TCBINFO_CHAIN_ERROR (0xE03A) until 2026-10-15;
+//     01-bootstrap-vm.sh records what was measured. Microsoft Azure
+//     Attestation (02f) walks the same chain on Microsoft's side,
+//     independently.
 //
 // Usage:
 //   ./verify-quote <quote.bin> <expected-report-data.bin>
@@ -135,13 +138,12 @@ int main(int argc, char** argv)
     uint32_t collateral_expiration_status = 1;
     sgx_ql_qv_result_t qv_result = SGX_QL_QV_RESULT_UNSPECIFIED;
 
-    // Two ways to the collateral. First the one Open Enclave's verifier uses
-    // and that validated this chain on 2026-10-15: collateral = NULL, so the
-    // QVL asks the installed quote provider (az-dcap-client on Azure) for
-    // the collateral of this quote's FMSPC itself. If that returns an error,
-    // the explicit tee_qv_get_collateral buffer is passed instead; on
-    // 2026-10-14 and 2026-10-15 that path answered 0xE03A
-    // (SGX_QL_TCBINFO_CHAIN_ERROR) where the first did not exist yet.
+    // Two ways to the collateral. First the one Open Enclave's verifier
+    // uses: collateral = NULL, so the QVL asks the installed quote provider
+    // for the collateral of this quote's FMSPC itself. If that returns an
+    // error, the buffer from an explicit tee_qv_get_collateral is passed
+    // instead, and both results are printed — the record of which path
+    // answered what (through the Azure DCAP client both answered 0xE03A).
     quote3_error_t r = sgx_qv_verify_quote(
         quote, (uint32_t)quote_size,
         NULL,                          // collateral: the QVL fetches it via the QPL

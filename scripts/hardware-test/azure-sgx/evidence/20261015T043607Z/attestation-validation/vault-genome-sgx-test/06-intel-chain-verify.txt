@@ -1,0 +1,17 @@
+=== SGX quote v3 inspection ===
+quote_size:     4734 bytes
+header.version: 3
+att_key_type:   2 (2 = ECDSA-P256)
+MRENCLAVE:      e187a2a40c5d33d40a0313a01dce263c73355048795f1ef3eb1a0b7c8c10f85c
+MRSIGNER:       734c375c7e38000478d7fd01b8af4fed872829191ba69f0f8e8a801c311ecce2
+ISV_PROD_ID:    1
+ISV_SVN:        1
+REPORT_DATA:    b719ef323f70ad1881ea1e0c3dfeb121311315b10b2f7b0b623dc36770859dbb0000000000000000000000000000000000000000000000000000000000000000
+EXPECTED:       b719ef323f70ad1881ea1e0c3dfeb121311315b10b2f7b0b623dc36770859dbb0000000000000000000000000000000000000000000000000000000000000000
+REPORT_DATA == expected (manifest binding): YES (workload binding verified)
+
+=== chain verification (libsgx-dcap-quote-verify) ===
+collateral path:               QVL via the quote provider (collateral=NULL): 0x0000
+verification result:           SW_HARDENING_NEEDED (chain valid; advisory) (0xa007)
+collateral expiration status:  0 (0 = within validity window)
+✓ Quote → PCK → Intel SGX Root CA chain VALIDATED

@@ -215,10 +215,14 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    `INIT | MODE64BIT`, no `DEBUG`) and the run of 03:58Z
    (`scripts/hardware-test/azure-sgx/evidence/20261015T035830Z`) carries
    MAA's `x-ms-sgx-is-debuggable: false` with the token's claims checked
-   against the quote's own bytes. The kit's Intel QVL caller still reports
-   `0xE03A` (TCB-info chain) through the Azure DCAP client's collateral
-   while `oeverify` validates the chain on the same quote; `oeverify` is the
-   local chain of record until that is resolved.
+   against the quote's own bytes. The kit's Intel QVL caller reported
+   `0xE03A` (TCB-info chain) through the Azure DCAP client's collateral;
+   since the run of 04:36Z the same day
+   (`scripts/hardware-test/azure-sgx/evidence/20261015T043607Z`) the kit
+   uses Intel's quote provider as Microsoft documents it for Azure and both
+   local verifiers validate the chain — the QVL with Intel's current TCB
+   status for the platform (`SW_HARDENING_NEEDED`, an advisory), `oeverify`
+   two of two — next to MAA's token.
    Cross-Cloud Phase 4 is fully **simulated** (`provider: "simulated"`).
    The GCP "four physical chips" is actually 3 distinct chips (two captures
    share a CHIP_ID).

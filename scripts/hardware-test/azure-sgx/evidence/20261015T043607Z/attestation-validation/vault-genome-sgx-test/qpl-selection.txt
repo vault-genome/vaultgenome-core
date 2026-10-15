@@ -1,0 +1,44 @@
+The quote provider for the kit's QVL caller — measured on 2026-10-15 on one Azure DC4s_v3
+(East US 2, Ubuntu 22.04, libsgx-dcap-quote-verify 1.27.101.1, libsgx-dcap-default-qpl 1.27.101.1,
+az-dcap-client 1.13.1), with sgx-quote-binding/host/verify-quote.c on the quote of that VM.
+
+A. Intel QPL (libsgx-dcap-default-qpl) with /etc/sgx_default_qcnl.conf, the quote generated under the Azure DCAP client:
+--- verify_quote with Intel QPL + THIM v3
+collateral path:               QVL via the quote provider (collateral=NULL): 0x0000
+verification result:           OK (0x0000)
+collateral expiration status:  1 (0 = within validity window)
+--- same with collateral_service = Intel PCS v4
+collateral path:               QVL via the quote provider (collateral=NULL): 0x0000
+verification result:           SW_HARDENING_NEEDED (chain valid; advisory) (0xa007)
+collateral expiration status:  0 (0 = within validity window)
+--- THIM v4 for both
+✗ sgx_qv_verify_quote returned 0xe03a — chain NOT validated
+
+B. The Azure DCAP client (loaded through LD_LIBRARY_PATH) by AZDCAP_COLLATERAL_VERSION, on the quote generated under Intel QPL:
+--- AZDCAP_COLLATERAL_VERSION=default
+collateral path:               QVL via the quote provider (collateral=NULL): 0xe03a
+✗ sgx_qv_verify_quote returned 0xe03a — chain NOT validated
+collateral path:               explicit tee_qv_get_collateral: 0xe03a
+--- AZDCAP_COLLATERAL_VERSION=v1
+collateral path:               QVL via the quote provider (collateral=NULL): 0xe03a
+✗ sgx_qv_verify_quote returned 0xe03a — chain NOT validated
+collateral path:               explicit tee_qv_get_collateral: 0xe03a
+--- AZDCAP_COLLATERAL_VERSION=v2
+collateral path:               QVL via the quote provider (collateral=NULL): 0xe01b
+--- AZDCAP_COLLATERAL_VERSION=v3
+collateral path:               QVL via the quote provider (collateral=NULL): 0x0000
+verification result:           OK (0x0000)
+✓ Quote → PCK → Intel SGX Root CA chain VALIDATED
+--- AZDCAP_COLLATERAL_VERSION=v4
+collateral path:               QVL via the quote provider (collateral=NULL): 0xe03a
+✗ sgx_qv_verify_quote returned 0xe03a — chain NOT validated
+collateral path:               explicit tee_qv_get_collateral: 0xe03a
+collateral path:               QVL via the quote provider (collateral=NULL): 0x0000
+verification result:           SW_HARDENING_NEEDED (chain valid; advisory) (0xa007)
+✓ Quote → PCK → Intel SGX Root CA chain VALIDATED
+
+C. Intel QPL as the kit configures it (pccs_url THIM v3, collateral_service Intel PCS v4), the same quote:
+collateral path:               QVL via the quote provider (collateral=NULL): 0x0000
+verification result:           SW_HARDENING_NEEDED (chain valid; advisory) (0xa007)
+collateral expiration status:  0 (0 = within validity window)
+✓ Quote → PCK → Intel SGX Root CA chain VALIDATED

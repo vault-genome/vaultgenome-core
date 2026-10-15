@@ -38,10 +38,18 @@ signed as a **release enclave** (`enc.conf` `Debug=0`; the quote's attributes
 `INIT | MODE64BIT`, no `DEBUG` — the earlier runs' enclave was a debug
 enclave), MAA's `x-ms-sgx-is-debuggable: false`, and the token's claims
 checked against the quote's own bytes by `02f` (MRENCLAVE, MRSIGNER,
-REPORT_DATA, the debug flag). The kit's own QVL caller still returns `0xE03A`
-(TCB-info chain) with the Azure DCAP client's collateral on both of its paths
-while `oeverify` validates the same quote's chain; the run's README says what
-each file shows.
+REPORT_DATA, the debug flag). In that run the kit's own QVL caller still
+returned `0xE03A` (TCB-info chain) with the Azure DCAP client's collateral
+while `oeverify` validated the same quote's chain.
+`evidence/20261015T043607Z/` is the run of 04:36Z with **Intel's quote
+provider** configured as Microsoft documents it for Azure (the PCK
+certificate from THIM, the rest of the collateral from Intel PCS) in place
+of the Azure DCAP client: the kit's QVL caller validates the chain
+(`SW_HARDENING_NEEDED` — the chain valid, Intel's current TCB status for the
+platform an advisory — within the collateral's validity), `oeverify` two of
+two, both chains PASSED; its `qpl-selection.txt` is the measurement of five
+provider configurations behind the choice. Each run's README says what its
+files show.
 
 ## What's special about Azure SGX
 

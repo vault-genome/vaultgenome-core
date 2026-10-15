@@ -16,7 +16,6 @@ GO_SHA256="ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5"  # 
 # Repository signing keys, checked by fingerprint after download (recorded
 # 2026-10-14 with `gpg --show-keys --with-fingerprint`).
 INTEL_SGX_KEY_FPR="150434D1488BF80308B69398E5C7F0FA1C6C6C3C"   # CN=Intel(R) Software Development Products
-MICROSOFT_KEY_FPR="BC528686B50D79E339D3721CEB3E94ADBE1229CF"   # Microsoft (Release signing) <gpgsecurity@microsoft.com>
 
 # Open Enclave 0.19.19 (2026-10-02) for Ubuntu 22.04, from the project's
 # GitHub release, checked against the package's sha256 recorded 2026-10-14.
@@ -76,17 +75,6 @@ sudo apt-get install -y -qq \
 sudo systemctl enable --now aesmd 2>/dev/null || true
 
 echo
-echo "=== install Microsoft Azure DCAP client (caches Intel attestation collateral via Azure) ==="
-if ! dpkg -l az-dcap-client 2>/dev/null | grep -q '^ii'; then
-  import_apt_key https://packages.microsoft.com/keys/microsoft.asc \
-    "${MICROSOFT_KEY_FPR}" /usr/share/keyrings/microsoft.gpg
-  echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/$(lsb_release -rs)/prod $(lsb_release -cs) main" \
-    | sudo tee /etc/apt/sources.list.d/azure-dcap.list
-  sudo apt-get update -qq
-  sudo apt-get install -y -qq az-dcap-client
-fi
-
-echo
 echo "=== install Open Enclave SDK (provides oeutil for quote generation + verification) ==="
 # History: Intel deprecated download.01.org/openenclave/ (returns 404), and
 # Microsoft's prod apt repository no longer carries open-enclave for jammy
@@ -119,40 +107,61 @@ else
   echo "         Workload tests (Demo 1 + 2 + tamper + inference) will run normally."
 fi
 
-# Two libdcap_quoteprov.so files end up on disk:
-#   /usr/lib/x86_64-linux-gnu/libdcap_quoteprov.so.1  ← Intel default QPL
-#                                                       (apt: libsgx-dcap-default-qpl)
-#                                                       Talks to local PCCS
-#                                                       (sgx_default_qcnl.conf →
-#                                                        localhost:8081 → not running)
-#   /usr/local/lib/libdcap_quoteprov.so               ← Microsoft az-dcap-client
-#                                                       Talks to Azure cache
-#                                                       (global.acccache.azure.net)
+# The quote provider: Intel's QPL (libsgx-dcap-default-qpl, installed above)
+# configured for Azure. Azure registers DCsv3 hosts with Intel indirectly, so
+# a PCK certificate is only available from Azure's Trusted Hardware Identity
+# Management (THIM), never from Intel PCS directly; TCB info, QE identity and
+# the CRLs may come from THIM or from Intel PCS. This is the configuration
+# Microsoft documents for Intel QPL with THIM (learn.microsoft.com, "Trusted
+# Hardware Identity Management", 2026-03-26; it also says Ubuntu 24.04 must
+# use the Intel QPL), with collateral_service on Intel's current endpoint as
+# Intel's own sgx_default_qcnl.conf lists it.
 #
-# The dynamic loader resolves "libdcap_quoteprov.so" → /usr/lib/x86_64-linux-gnu
-# by default, so without intervention we'd use Intel's QPL and fail with
-# CURL error 7 (couldn't connect to localhost:8081). Force the dynamic
-# loader onto Microsoft's variant by replacing the standard-path symlinks.
+# Until 2026-10-15 the kit used the Microsoft Azure DCAP client
+# (az-dcap-client 1.13.1) as the provider, at its default collateral
+# version; with it the kit's libsgx-dcap-quote-verify caller returned
+# SGX_QL_TCBINFO_CHAIN_ERROR (0xE03A). Measured that day on one quote
+# (the run's qpl-selection.txt): the Azure DCAP client at its default (v1)
+# and at v4 answers 0xE03A, at v2 0xE01B (no collateral), at v3 0x0000;
+# Intel's QPL on THIM v3 for everything answers 0x0000 with THIM's
+# collateral past its nextUpdate (expiration status 1), on THIM v4 0xE03A,
+# and on THIM v3 for the certificate with Intel PCS v4 for the rest
+# 0xA007 — the chain valid, within validity, with Intel's current TCB
+# status for the platform (SW_HARDENING_NEEDED). The kit takes the last:
+# the provider Microsoft documents, current collateral, Intel's own word on
+# the TCB.
 echo
-echo "=== libdcap_quoteprov.so → Microsoft az-dcap-client (Azure-aware) ==="
-if [ -f /usr/local/lib/libdcap_quoteprov.so ]; then
-  sudo ln -sf /usr/local/lib/libdcap_quoteprov.so \
-              /usr/lib/x86_64-linux-gnu/libdcap_quoteprov.so
-  sudo ln -sf /usr/local/lib/libdcap_quoteprov.so \
-              /usr/lib/x86_64-linux-gnu/libdcap_quoteprov.so.1
-  echo "✓ libdcap_quoteprov.so / .so.1 → /usr/local/lib/libdcap_quoteprov.so (az-dcap)"
-else
-  echo "WARNING: az-dcap-client not at /usr/local/lib/libdcap_quoteprov.so"
-  echo "         Quote generation + verification will use Intel QPL"
-  echo "         (which fails on Azure without a local PCCS)."
-fi
+echo "=== the quote provider: Intel QPL, PCK certificates from Azure THIM, the rest of the collateral from Intel PCS ==="
+sudo tee /etc/sgx_default_qcnl.conf >/dev/null <<'QCNL'
+{
+  "pccs_url": "https://global.acccache.azure.net/sgx/certification/v3/",
+  "use_secure_cert": true,
+  "collateral_service": "https://api.trustedservices.intel.com/sgx/certification/v4/",
+  "pccs_api_version": "3.1",
+  "retry_times": 6,
+  "retry_delay": 5,
+  "local_pck_url": "http://169.254.169.254/metadata/THIM/sgx/certification/v3/",
+  "pck_cache_expire_hours": 24,
+  "verify_collateral_cache_expire_hours": 24,
+  "custom_request_options": {
+    "get_cert": {
+      "headers": { "metadata": "true" },
+      "params": { "api-version": "2021-07-22-preview" }
+    }
+  }
+}
+QCNL
+# libdcap_quoteprov.so.1 is Intel's QPL; the unversioned name the verifiers
+# dlopen points at it too (an earlier bootstrap of the same VM may have
+# pointed it elsewhere).
+sudo ln -sf /usr/lib/x86_64-linux-gnu/libdcap_quoteprov.so.1 /usr/lib/x86_64-linux-gnu/libdcap_quoteprov.so
+ls -la /usr/lib/x86_64-linux-gnu/libdcap_quoteprov.so*
+cat /etc/sgx_default_qcnl.conf
 
-# CRITICAL: aesmd may already be running with the *previous* (Intel)
-# QPL cached in memory. Force it to reload by restarting the unit, so
-# subsequent oe_get_report / sgx_qe_get_target_info calls go through
-# the Microsoft az-dcap-client we just symlinked in.
+# aesmd loads the provider once; restart it so quote generation goes
+# through the configuration above.
 echo
-echo "=== restart aesmd to pick up the swapped libdcap_quoteprov.so ==="
+echo "=== restart aesmd so quote generation uses the configured provider ==="
 sudo systemctl restart aesmd
 sleep 2
 sudo systemctl is-active aesmd && echo "✓ aesmd reloaded"
