@@ -28,6 +28,34 @@ the Return Path handshake carries genuine hardware Evidence on both sides,
 that the pinned identity is the one admitted, and that every decision of
 the authority is on a verifiable record before it took effect.
 
+## Result — run `20261015T143033Z`: the AMD chain fetched on the guest, the keys provisioned privately
+
+The same kit on the tree of the self-contained release (`e0b3fed`, #96),
+with two changes on the guest: the AMD Milan chain is no longer uploaded
+from this tree but fetched on the guest from AMD KDS by `acpctl tee
+fetch-amd-chain`, which verifies it against the roots the binary pins
+before writing it (ADR 0024; `amd-chain.txt`: 4602 bytes, ASK `SEV-Milan`,
+ARK `ARK-Milan` sha256 `69d063b4…0bcd`; `inputs.sha256`: the chain's
+sha256 `22e62f8d…1ce6`, the same bytes as the fixture
+`internal/shared/tee/testdata/amd/kds-Milan-cert_chain.pem` read from
+KDS that morning); and the key material is provisioned by `acp-keygen
+-private` (0600 files in 0700 directories), the helper built from
+`cmd/acp-keygen` and reporting its version next to the daemons'
+(`versions.txt`). us-central1-c, `n2d-standard-4`, the launch measurement
+`7dc7c12e…25acc` as in every run since September.
+
+| Step | Outcome |
+|---|---|
+| Runtime install from the locks | 80.7 s |
+| Fine-tune + seal | 9.9 s; key id `genome-7b3d5aa7528e-g0-953b38e33127` |
+| The unpinned worker | refused at the handshake after 1 s |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 5.2 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `a05cf08e…` |
+| The guest script | 100.5 s |
+
+Checksums: `cd evidence/20261015T143033Z && grep -v ' sha256sums.txt$'
+sha256sums.txt | shasum -a 256 -c` — 33 of 33 match.
+
 ## Result — runs `20261015T043703Z` and `20261015T044521Z`: the runtime from the hash-pinned locks
 
 The same kit, with the guest installing the worker's runtime from the
