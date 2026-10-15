@@ -180,9 +180,9 @@ func TestFlow_StageInputRefusals(t *testing.T) {
 // A session that can no longer be continued stops disclosure with the
 // issuer's own coded refusal: one that expired, or one pinned to a policy
 // the vault has since rotated away from. Nothing is sealed and nothing is
-// recorded. The plaintext is wiped only when the sequencer ran: a
-// refusal from the issuer's constructor leaves the caller's buffers as
-// they were.
+// recorded. The plaintext is wiped on every exit, whether the sequencer
+// ran (an expired session) or the issuer's constructor refused first (a
+// rotated policy).
 func TestFlow_DiscloseRefusesASessionThatCannotContinue(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -193,7 +193,7 @@ func TestFlow_DiscloseRefusesASessionThatCannotContinue(t *testing.T) {
 		wiped    bool
 	}{
 		{"expired", func(h *harness) { h.clock.Step(2 * time.Minute) }, shared_errors.CodeSessionExpired, shared_errors.CategoryAuthority, true},
-		{"policy rotated", func(h *harness) { h.authority.policy = hPolicy + ";rotated" }, shared_errors.CodePolicyDrifted, shared_errors.CategoryAuthority, false},
+		{"policy rotated", func(h *harness) { h.authority.policy = hPolicy + ";rotated" }, shared_errors.CodePolicyDrifted, shared_errors.CategoryAuthority, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -213,11 +213,8 @@ func TestFlow_DiscloseRefusesASessionThatCannotContinue(t *testing.T) {
 			require.Nil(t, msgs)
 			require.Equal(t, tc.code, shared_errors.CodeOf(err))
 			require.Equal(t, tc.category, shared_errors.CategoryOf(err))
-			if tc.wiped {
-				require.Equal(t, []byte{0, 0, 0, 0, 0, 0}, comps[0].Plaintext, "the sequencer wipes the plaintext even when nothing was sealed")
-			} else {
-				require.Equal(t, []byte("secret"), comps[0].Plaintext, "a constructor refusal runs no sequencer and wipes nothing")
-			}
+			require.True(t, tc.wiped)
+			require.Equal(t, []byte{0, 0, 0, 0, 0, 0}, comps[0].Plaintext, "the plaintext is wiped whether the sequencer ran or a refusal came first")
 			require.Equal(t, n, h.chain.Len())
 			require.Equal(t, StateDisclosure, f.State())
 			require.Empty(t, f.Snapshot().Disclosures)

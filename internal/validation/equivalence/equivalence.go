@@ -184,6 +184,9 @@ func compare(f Fixture, act Tensor, tol Tolerance) FixtureResult {
 	for i := range exp {
 		a, e := got[i], exp[i]
 		abs, rel := elemErr(a, e)
+		if abs == math.MaxFloat64 && r.Note == "" {
+			r.Note = "non-finite value differs"
+		}
 		if abs > r.MaxAbsErr {
 			r.MaxAbsErr = abs
 		}
@@ -203,7 +206,10 @@ func elemErr(a, e float64) (abs, rel float64) {
 		if a == e || (math.IsNaN(a) && math.IsNaN(e)) {
 			return 0, 0
 		}
-		return math.Inf(1), math.Inf(1)
+		// A non-finite value that differs is the largest error there is;
+		// reported as the largest finite float so the verdict stays
+		// encodable and signable (infinity has no JSON encoding).
+		return math.MaxFloat64, math.MaxFloat64
 	}
 	abs = math.Abs(a - e)
 	rel = abs / (math.Abs(e) + 1e-30)
@@ -282,8 +288,21 @@ func fixturesHash(fixtures []Fixture) string {
 
 // CanonicalBytes is the deterministic serialisation signed by the authority.
 func (v Verdict) CanonicalBytes() ([]byte, error) {
+	// Infinity and NaN have no JSON encoding; compare never produces them
+	// (a non-finite disagreement is reported as the largest finite error),
+	// so a verdict that carries one was not produced by Evaluate.
+	if !finite(v.MaxAbsErr) || !finite(v.MaxRelErr) {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "equivalence: verdict carries a non-finite error", nil)
+	}
+	for _, r := range v.Results {
+		if !finite(r.MaxAbsErr) || !finite(r.MaxRelErr) {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "equivalence: result "+r.ID+" carries a non-finite error", nil)
+		}
+	}
 	return json.Marshal(v)
 }
+
+func finite(x float64) bool { return !math.IsNaN(x) && !math.IsInf(x, 0) }
 
 // SignedVerdict binds a verdict to an Ed25519 signature by the release authority.
 type SignedVerdict struct {
