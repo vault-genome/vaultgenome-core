@@ -27,6 +27,16 @@ given release can still open.
   the TDX kit with no sealer named (`auto` chose the vTPM); both kits now
   seal both daemons' key files and show a thief with the sealed files
   refused off the TEE, and the unpinned worker refused at the handshake.
+- The authority-loss drill replicates the job store (ADR 0026) beside the
+  audit log and the genomes, the moment a job is accepted and again when
+  it is done, and the runner takes the host away only once the replica
+  has the job in flight. Run `20261015T204339Z` on SEV-SNP: the new
+  host's `sagvd` admitted the lost job again by itself — the same job id
+  and request id, `resumed` on its audit record — and signed it EXACT
+  49.1 s after its runtime was ready, 233.5 s from the deletion with the
+  host created on demand; the chain ran on from the replica's 81 events
+  to 113, verified offline; nothing was resubmitted. The runbook's
+  scenario 4, KNOWN_ISSUES #16, C28 and Drill VI say so.
 - `tee.provider: "auto"` (ADR 0025, step 1): a daemon on a Linux
   confidential VM takes its family from the kernel's configfs-tsm
   `provider` attribute when the configuration is loaded — `sev_guest`

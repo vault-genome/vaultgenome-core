@@ -1,0 +1,18 @@
+/root/w/audit:
+total 264
+drwxr-xr-x 2 root root   4096 Oct 15 20:47 .
+drwxr-xr-x 8 root root   4096 Oct 15 20:51 ..
+-rw------- 1 root root 262144 Oct 15 20:48 returnpath-audit.db
+
+/root/w/genomes:
+total 40
+drwxr-xr-x 2 root root  4096 Oct 15 20:46 .
+drwxr-xr-x 8 root root  4096 Oct 15 20:51 ..
+-rw-r--r-- 1 root root 24729 Oct 15 20:46 gen-0.genome
+-rw------- 1 root root    32 Oct 15 20:46 gen-0.key
+
+/root/w/queue:
+total 264
+drwxr-xr-x 2 root root   4096 Oct 15 20:47 .
+drwxr-xr-x 8 root root   4096 Oct 15 20:51 ..
+-rw------- 1 root root 262144 Oct 15 20:48 sagvd-jobs.db

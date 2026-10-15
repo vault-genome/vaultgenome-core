@@ -484,3 +484,11 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    replica lacks. The drill's next run replicates the job store beside
    the audit log, so that the new host resumes the lost job instead of an
    operator resubmitting it; a continuous replica is the remaining step.
+   **The host-loss case proven (2026-10-15, run `20261015T204339Z`):**
+   the drill replicates the job store the moment a job is accepted; the
+   new host's `sagvd` admitted the lost job again by itself (`resumed`,
+   attempt 2, the same job id and request id) and signed its verdict
+   EXACT 49.1 s after its runtime was ready, 233.5 s from the deletion;
+   nothing was resubmitted, and the chain ran on from the replica's 81
+   events to 113, verified offline. What remains is a continuous replica
+   in place of the drill's per-job copies.

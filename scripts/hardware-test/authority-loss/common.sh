@@ -77,6 +77,7 @@ sagvd = {
   "workers": {"registry_path": S + "/shared/workers.json"},
   "genome": {"bundle_dir": W + "/genomes", "gate": {"atol": 1e-2, "rtol": 1e-3, "max_non_critical_outliers": 0}},
   "audit": {"log_path": W + "/audit/returnpath-audit.db"},
+  "queue": {"path": W + "/queue/sagvd-jobs.db", "max_resume_attempts": 3},
   "runtime": {"job_timeout_seconds": 600, "handshake_timeout_seconds": 30, "queue_poll_ms": 50,
     "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 600, "max_payload_bytes": 4194304},
   "health": {"listen_address": "127.0.0.1:9081"},
@@ -133,13 +134,28 @@ start_daemons() {
 # verdict; the job's view is kept as job-<label>.json. The API token is the
 # operator's copy (api_token.operator, taken before seal-keys sealed the
 # daemon's file to the chip — ADR 0023: the plaintext is the operator's to
-# keep), the same copy the safe holds.
+# keep), the same copy the safe holds. A script that defines after_submit
+# <label> <job id> has it run once the job is accepted, before the wait:
+# authority A replicates the job store there, so the replica carries the
+# job while it runs. A job's deadline counts from its dispatch to a worker
+# (cmd/sagvd/daemon.go), so a job resumed on a new host has its whole
+# window there, however long the host took to come up.
 gate_job() {
-  local W=$1 label=$2 TOKEN JOB ST i
+  local W=$1 label=$2 TOKEN JOB
   TOKEN=$(cat "$W/api_token.operator")
   curl -s -o "$OUT/job-$label-submit.json" -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
     --data '{"genome":{"bundle":"gen-0.genome","key_file":"gen-0.key"},"deadline_seconds_from_now":300}' http://127.0.0.1:9080/v1/jobs > "$OUT/job-$label-submit.status"
+  unset TOKEN
   JOB=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["job_id"])' "$OUT/job-$label-submit.json" 2>/dev/null || echo "")
+  if declare -F after_submit >/dev/null; then after_submit "$label" "$JOB"; fi
+  wait_job "$W" "$label" "$JOB"
+}
+
+# wait_job <work dir> <label> <job id>: wait for the job's verdict (up to
+# 300 s); the view is kept as job-<label>.json, the outcome in steps.txt.
+wait_job() {
+  local W=$1 label=$2 JOB=$3 TOKEN ST i
+  TOKEN=$(cat "$W/api_token.operator")
   ST=""
   for i in $(seq 1 300); do
     sleep 1
@@ -152,7 +168,7 @@ gate_job() {
 import json, sys
 j = json.load(open(sys.argv[1])); g = j.get("gate") or {}; v = (g.get("signed_verdict") or {}).get("verdict") or {}
 flow = j.get("flow") or {}
-print("job %s id=%s status=%s after %ss gate=%s n_exact=%s tip=%s" % (sys.argv[2], j.get("job_id"), j.get("status"), sys.argv[3], g.get("level"), v.get("n_exact"), flow.get("chain_tip") or flow.get("audit_tip") or ""))
+print("job %s id=%s request_id=%s status=%s after %ss gate=%s n_exact=%s tip=%s" % (sys.argv[2], j.get("job_id"), j.get("request_id"), j.get("status"), sys.argv[3], g.get("level"), v.get("n_exact"), flow.get("chain_tip") or flow.get("audit_tip") or ""))
 PY
   [ "$ST" = succeeded ]
 }
