@@ -1,0 +1,25 @@
+{
+  "provider": "gcp-tdx",
+  "measurement_hex": "dfe77c7664cd616dd77d35fae3fee8de9bd379c7b06bfc804ec21659d18ea7ab74b101d19f20ce44f1ba7b5a9a171a9a",
+  "entries": [
+    {
+      "kind": "pcs",
+      "dir": "/root/e2e/cache-sagvd",
+      "file": "tdx-qe-identity.json",
+      "subject": "enclaveIdentity TD_QE",
+      "not_before": "2026-10-15T21:35:46Z",
+      "not_after": "2026-11-14T21:35:46Z",
+      "current": true
+    },
+    {
+      "kind": "pcs",
+      "dir": "/root/e2e/cache-sagvd",
+      "file": "tdx-tcb-00806f050000.json",
+      "subject": "tcbInfo TDX fmspc=00806f050000",
+      "not_before": "2026-10-15T21:23:54Z",
+      "not_after": "2026-11-14T21:23:54Z",
+      "current": true
+    }
+  ],
+  "earliest_expiry": "2026-11-14T21:23:54Z"
+}
