@@ -214,3 +214,23 @@ func TestTEEConfig_Auto(t *testing.T) {
 		t.Fatalf("buildTEEProducer with auto off a confidential VM: %v", err)
 	}
 }
+
+// tee.sealer (ADR 0025, step 1b): auto by default, tee or tpm2 by choice,
+// anything else refused.
+func TestTEEConfig_SealerMode(t *testing.T) {
+	c := DefaultConfig()
+	if c.TEE.SealerMode() != tee.SealerModeAuto {
+		t.Fatalf("default sealer mode %q, want auto", c.TEE.SealerMode())
+	}
+	c.TEE.Sealer = "tpm2"
+	if err := c.Validate(); err != nil && strings.Contains(err.Error(), "tee.sealer") {
+		t.Fatalf("tpm2 refused: %v", err)
+	}
+	if c.TEE.SealerMode() != tee.SealerModeTPM2 {
+		t.Fatalf("sealer mode %q, want tpm2", c.TEE.SealerMode())
+	}
+	c.TEE.Sealer = "hsm"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "tee.sealer \"hsm\"") {
+		t.Fatalf("an unknown sealer was not refused: %v", err)
+	}
+}

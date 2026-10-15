@@ -29,6 +29,8 @@ type workerIdentity struct {
 	TEEProvider       string `json:"tee_provider"`
 	TEEMeasurementHex string `json:"tee_measurement_hex"`
 	TEEPublicKeyPEM   string `json:"tee_public_key_pem,omitempty"`
+	// Sealer is how this host seals its key files (tee.sealer, ADR 0025).
+	Sealer string `json:"sealer,omitempty"`
 	// TDX is what a gcp-tdx measurement is made of.
 	TDX *tdxIdentity `json:"tdx,omitempty"`
 	// VTPM is what an azure-cgpu guest's vTPM measured of its boot.
@@ -71,6 +73,9 @@ func runIdentityCmd(args []string, w io.Writer) error {
 		SigningPublicKeyPEM: string(signPEM),
 		TEEProvider:         string(mat.Provider),
 		TEEMeasurementHex:   hex.EncodeToString(mat.Producer.Measurement()),
+	}
+	if kind, err := tee.SealerKindFor(mat.Producer, cfg.TEE.SealerMode()); err == nil {
+		id.Sealer = string(kind)
 	}
 	if sim, ok := mat.Producer.(*tee.Simulated); ok {
 		teePEM, err := crypto.PublicKeyPEM(sim.PublicKey())

@@ -158,6 +158,13 @@ family in `sagvd`'s verifier registry with the AMD chain the VCEK must chain to
 } ] }
 ```
 
+`vcek_cache_dir` keeps every VCEK fetched from AMD KDS (`<chip id>-<tcb>.der`),
+checked against the pinned chain on every use like a fresh one. A host that
+will lose its route to KDS fills it first — `acpctl tee prefetch --config
+<daemon config>` verifies this host's own report as the peer verifier would,
+with KDS reachable — and `acpctl tee cache-status --config` says what is
+there and until when ([air_gap.md](air_gap.md)).
+
 Set `vcek_cache_dir`: AMD KDS answers bursts with HTTP 429, and every
 `crosscloud-restore` run is a new process. With the cache each chip's VCEK is
 fetched once; a cached certificate is still checked against the pinned chain on

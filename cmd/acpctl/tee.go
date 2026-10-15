@@ -20,17 +20,28 @@ import (
 //	fetch-amd-chain  — the ASK+ARK chain of an AMD product line from AMD
 //	                   KDS, verified against the roots this build pins
 //	                   (ADR 0024), written for amd_cert_chain_path
+//	prefetch         — fill the peer verifier's caches (VCEK from AMD KDS,
+//	                   TCB info and QE identity from Intel PCS) with what
+//	                   this host's own evidence needs, while the vendors
+//	                   are reachable; for a host that will be air-gapped
+//	cache-status     — what the caches hold and until when
 func teeCmd(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: acpctl tee <fetch-amd-chain> [flags]")
+		fmt.Fprintln(stderr, "usage: acpctl tee <fetch-amd-chain|prefetch|cache-status> [flags]")
 		return 2
 	}
 	switch args[0] {
 	case "fetch-amd-chain":
 		return teeFetchAMDChainCmd(args[1:], stdout, stderr)
+	case "prefetch":
+		return teePrefetchCmd(args[1:], stdout, stderr)
+	case "cache-status":
+		return teeCacheStatusCmd(args[1:], stdout, stderr)
 	case "help", "--help", "-h":
 		fmt.Fprintln(stdout, "tee subcommands:")
 		fmt.Fprintln(stdout, "  fetch-amd-chain  — fetch an AMD product line's ASK+ARK chain from AMD KDS, verify it against the pinned roots, write it for amd_cert_chain_path")
+		fmt.Fprintln(stdout, "  prefetch         — fill the peer verifier's caches (the VCEK of this chip from AMD KDS; the TCB info and QE identity of this platform from Intel PCS) while the vendors are reachable: --config <daemon config>")
+		fmt.Fprintln(stdout, "  cache-status     — what the caches a configuration names hold, and until when: --config <daemon config>; exit 1 when anything is expired, unusable or missing")
 		return 0
 	default:
 		fmt.Fprintf(stderr, "acpctl tee: unknown subcommand %q\n", args[0])

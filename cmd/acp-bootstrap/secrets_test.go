@@ -21,7 +21,7 @@ func sealedToSimulatedHost(t *testing.T, cfg TEEConfig, plain []byte, name strin
 	if err != nil {
 		t.Fatal(err)
 	}
-	sealer, closer, err := tee.SealerFor(producer, tee.SealerOptions{})
+	sealer, closer, _, err := tee.SealerFor(producer, tee.SealerOptions{})
 	if err != nil || closer != nil {
 		t.Fatalf("SealerFor: err=%v closer=%v", err, closer)
 	}
@@ -44,7 +44,7 @@ func TestHostSealer_PerProvider(t *testing.T) {
 	dst := newDestination(t)
 	cfg := dst.config()
 
-	s, closer, provider, err := hostSealer(cfg.TEE)
+	s, closer, provider, _, err := hostSealer(cfg.TEE)
 	if err != nil || closer != nil || provider != tee.ProviderSimulated {
 		t.Fatalf("simulated host: closer=%v provider=%q err=%v", closer, provider, err)
 	}
@@ -52,7 +52,7 @@ func TestHostSealer_PerProvider(t *testing.T) {
 		t.Fatalf("the simulated host seals with its own TEE, got %T", s)
 	}
 	for _, p := range []tee.Provider{tee.ProviderGCPTDX, tee.ProviderAzureCGPU} {
-		s, closer, provider, err := hostSealer(TEEConfig{Provider: string(p), VTPMSealPCRs: "sha256:0,1,2"})
+		s, closer, provider, _, err := hostSealer(TEEConfig{Provider: string(p), VTPMSealPCRs: "sha256:0,1,2"})
 		if err != nil || closer != nil || provider != p {
 			t.Fatalf("%s host: closer=%v provider=%q err=%v", p, closer, provider, err)
 		}
@@ -69,7 +69,7 @@ func TestHostSealer_PerProvider(t *testing.T) {
 		"unknown provider":     {TEEConfig{Provider: "nope"}, "acp-bootstrap: tee.provider"},
 		"sev-snp off the chip": {TEEConfig{Provider: "gcp-sev-snp", TSMReportDir: filepath.Join(dst.dir, "no-such-tsm")}, "configfs-tsm"},
 	} {
-		s, closer, provider, err := hostSealer(tc.cfg)
+		s, closer, provider, _, err := hostSealer(tc.cfg)
 		if err == nil || !strings.Contains(err.Error(), tc.want) || s != nil || closer != nil || provider != "" {
 			t.Fatalf("%s: sealer=%v closer=%v provider=%q err=%v, want an error mentioning %q", name, s, closer, provider, err, tc.want)
 		}
