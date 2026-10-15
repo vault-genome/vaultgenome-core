@@ -1,0 +1,18 @@
+== 21:55:58 binaries from gs://rats-probe-vg-airgap-20261015t215408z/e2e
+== 21:55:59 the release v0.4.3-rc1: its assets from the bucket, cosign 2.6.5, and the Sigstore trust root — while connected
+== 21:56:06 the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== 21:56:07 configfs-tsm (sev-snp)
+== 21:56:07 the worker runtime: python, the pinned CPU torch (the door needs it) — while connected
+== 22:01:44 provision (acp-keygen, private modes)
+== 22:01:44 identities: each daemon reads its launch measurement from the chip
+== 22:01:44 acpctl tee prefetch for each daemon's configuration: what this host's evidence needs from AMD KDS, into each peer verifier's cache
+== 22:01:44 ready to be cut off: waiting for the network tag vg-airgap-20261015t215408z (the runner's firewall rule denies all egress to it)
+== 22:01:58 the routes: AMD KDS, the bucket, the metadata server
+== 22:02:14 the release v0.4.3-rc1 verified without a route: every signed file from its Sigstore bundle with --offline; the pair without the bundle, for contrast
+== 22:15:15 the key files sealed to this host (ADR 0023; tee.sealer auto: the chip's derived key on SEV-SNP, the vTPM on TDX)
+== 22:15:25 a real fine-tune with the runtime offline: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 521.94it/s]
+== 22:15:34 both daemons air-gapped: the Return Path handshake verified from the cache alone, a gate job
+== 22:15:55 the negative: the caches wiped, both daemons restarted — the handshake must be refused, naming AMD KDS
+== 22:16:40 the caches restored from the copy; both daemons again; a gate job
+== 22:17:01 verify the audit log with the published key

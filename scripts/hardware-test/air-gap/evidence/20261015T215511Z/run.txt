@@ -1,0 +1,7 @@
+tree fb78833
+stamp 20261015T215401Z
+tee tdx
+zone us-central1-a
+firewall_rule vg-airgap-deny-egress-20261015t215401z
+tag vg-airgap-20261015t215401z
+release none

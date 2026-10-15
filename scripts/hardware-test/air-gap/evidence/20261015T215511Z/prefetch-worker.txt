@@ -1,0 +1,4 @@
+prefetched for a gcp-tdx peer on this host: its evidence verified under measurement dfe77c7664cd616d…
+pcs       current            /root/e2e/cache-worker/tdx-qe-identity.json  enclaveIdentity TD_QE  valid 2026-10-15 → 2026-11-14T21:35Z (29d left)
+pcs       current            /root/e2e/cache-worker/tdx-tcb-00806f050000.json  tcbInfo TDX fmspc=00806f050000  valid 2026-10-15 → 2026-11-14T21:23Z (29d left)
+2 of 2 current; the earliest expiry is 2026-11-14T21:23:54Z — run prefetch again before then, with the vendors reachable

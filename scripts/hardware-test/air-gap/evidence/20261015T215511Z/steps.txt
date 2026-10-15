@@ -1,0 +1,55 @@
+== 21:55:11 binaries from gs://rats-probe-vg-airgap-20261015t215401z/e2e
+== 21:55:12 configfs-tsm (tdx)
+== 21:55:37 the worker runtime: python, the pinned CPU torch (the door needs it) — while connected
+== 21:56:44 provision (acp-keygen, private modes)
+== 21:56:44 identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=dfe77c7664cd616dd77d35fae3fee8de9bd379c7b06bfc804ec21659d18ea7ab74b101d19f20ce44f1ba7b5a9a171a9a
+worker_measurement=dfe77c7664cd616dd77d35fae3fee8de9bd379c7b06bfc804ec21659d18ea7ab74b101d19f20ce44f1ba7b5a9a171a9a
+== 21:56:44 acpctl tee prefetch for each daemon's configuration: what this host's evidence needs from Intel PCS, into each peer verifier's cache
+prefetch sagvd exit=0
+prefetch worker exit=0
+cache-status sagvd exit=0
+cache-status worker exit=0
+files cached: 8
+== 21:56:45 ready to be cut off: waiting for the network tag vg-airgap-20261015t215401z (the runner's firewall rule denies all egress to it)
+tag seen after 8s: ["vg-airgap-20261015t215401z"]
+egress dead after 0s more
+== 21:56:59 the routes: Intel PCS, the bucket, the metadata server
+curl: (28) Connection timed out after 8002 milliseconds
+vendor http=000
+vendor: unreachable (curl exit 28)
+curl: (28) Connection timed out after 8001 milliseconds
+bucket http=000
+bucket: unreachable (curl exit 28)
+metadata http=200
+== 21:57:15 the key files sealed to this host (ADR 0023; tee.sealer auto: the chip's derived key on SEV-SNP, the vTPM on TDX)
+sagvd seal-keys exit=0 sealer=tpm2
+acp-compute seal-keys exit=0 sealer=tpm2
+== 21:57:22 a real fine-tune with the runtime offline: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-f1b3480776cb-g0-d90b48b8f786
+== 21:57:30 both daemons air-gapped: the Return Path handshake verified from the cache alone, a gate job
+sagvd ready after 3s
+session opened after 2s
+job airgap id=7e09d13d2bd4af47de4cc2aa9c5b1cc2 status=succeeded after 4s gate=EXACT door=pinned replay n_exact=6 max_abs_err=0
+daemons stopped after 1s; still running by name: 0 sagvd, 0 acp-compute
+== 21:57:40 the negative: the caches wiped, both daemons restarted — the handshake must be refused, naming Intel PCS
+cache-status after the wipe exit=1
+sagvd ready after 3s
+no session after 32s: {"time":"2026-10-15T21:58:15.44045164Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:40252","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[signature_invalid]: gcp-tdx: TCB info: Get \"https://api.trustedservices.intel.co
+handshake refusals on the record: 1
+refusal: authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[signature_invalid]: gcp-tdx: TCB info: Get "https://api.trustedservices.intel.com/tdx/certification/v4/tcb?fmspc=00806f050000": dial tcp 4.255.75.174:443: i/o timeout: Get "https://api.trustedservices.intel.com/tdx/certification/v4/tcb?fmspc=008
+daemons stopped after 0s; still running by name: 0 sagvd, 0 acp-compute
+== 21:58:15 the caches restored from the copy; both daemons again; a gate job
+cache-status after the restore exit=0
+sagvd ready after 3s
+session opened after 2s
+job restored id=ee79614a80f0915de4fa2c36686caf1d status=succeeded after 4s gate=EXACT door=pinned replay n_exact=6 max_abs_err=0
+daemons stopped after 0s; still running by name: 0 sagvd, 0 acp-compute
+== 21:58:25 verify the audit log with the published key
+audit verify exit=0
+audit query exit=0
+elapsed_seconds=193.7

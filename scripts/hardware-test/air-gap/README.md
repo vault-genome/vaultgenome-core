@@ -14,7 +14,9 @@ and restored from a copy — a job gated again. The runbook
 procedure; this kit puts the record under it.
 
 ```bash
-bash scripts/hardware-test/air-gap/run.sh <gcp-project> [zone]     # one n2d SEV-SNP VM, ~12 minutes
+bash scripts/hardware-test/air-gap/run.sh <gcp-project> [zone]                  # one n2d SEV-SNP VM, ~6 minutes
+VG_TEE=tdx bash scripts/hardware-test/air-gap/run.sh <gcp-project>              # one c3 TDX Trust Domain: the caches are Intel's PCS documents
+VG_RELEASE_TAG=v0.4.3 bash scripts/hardware-test/air-gap/run.sh <gcp-project>   # and that release's twelve Sigstore bundles verified offline on the guest
 ```
 
 `run.sh` builds `sagvd`, `acp-compute`, `acpctl` and `acp-keygen` for
@@ -25,30 +27,41 @@ Confidential VM (`n2d-standard-4`, Ubuntu 24.04) **without** the tag.
 
 - **Connected** ([`cvm-airgap.sh`](cvm-airgap.sh)): the binaries from the
   run's bucket, the AMD Milan chain from KDS verified against the pinned
-  roots (`acpctl tee fetch-amd-chain`, ADR 0024), the worker's runtime
-  from the hash-pinned locks, the key material (`acp-keygen -private`),
-  the identities and pins; then `acpctl tee prefetch --config` for each
-  daemon's configuration — each daemon's peer verifier has its own
-  `vcek_cache_dir` here, and each is filled from its own configuration,
-  as an operator would — and `acpctl tee cache-status --config` for what
-  is there and until when. A copy of the caches is taken aside (the
-  operator's backup). The guest prints `===AIRGAP-READY===` on its serial
-  console and waits.
+  roots (`acpctl tee fetch-amd-chain`, ADR 0024; SEV-SNP only), the
+  worker's runtime from the hash-pinned locks, on TDX `tpm2-tools` (the
+  vTPM seals the key files there), the key material (`acp-keygen
+  -private`), the identities and pins; then `acpctl tee prefetch --config`
+  for each daemon's configuration — each daemon's peer verifier has its
+  own cache directory here, and each is filled from its own
+  configuration, as an operator would: on SEV-SNP the VCEK of this chip
+  (`vcek_cache_dir`), on TDX the TCB info of this platform and the QE
+  identity with their issuer chains (`pcs_cache_dir`) — and `acpctl tee
+  cache-status --config` for what is there and until when. A copy of the
+  caches is taken aside (the operator's backup). With `VG_RELEASE_TAG`,
+  the release's 49 assets come from the bucket too, with cosign 2.6.5
+  (its SHA-256 checked against the checksums cosign's release publishes)
+  and `cosign initialize` — the Sigstore trust root, cached once. The
+  guest prints `===AIRGAP-READY===` on its serial console and waits.
 - **The cut**: the runner adds the tag; the guest sees it in its
   metadata and waits until AMD KDS stops answering, then records the
   three routes — KDS, the bucket, the metadata server — with curl's
   verdicts (`egress.txt`).
-- **Air-gapped**: the key files sealed to the chip (`seal-keys`), a tiny
-  model fine-tuned and sealed with the runtime offline (`HF_HUB_OFFLINE`,
-  `TRANSFORMERS_OFFLINE`), both daemons started — the Return Path
-  handshake verifies each side's report with the VCEK from the cache,
-  nothing asks KDS — and a gate job gated; metrics; both stopped.
+- **Air-gapped**: with `VG_RELEASE_TAG`, first the release's twelve signed
+  files verified from their Sigstore bundles with `cosign verify-blob
+  --bundle --offline`, and the `.sig` + `.cert` pair tried without the
+  bundle for contrast (it needs Rekor, so it cannot verify here); then
+  the key files sealed to the host (`seal-keys`: the chip's derived key on
+  SEV-SNP, the vTPM on TDX), a tiny model fine-tuned and sealed with the
+  runtime offline (`HF_HUB_OFFLINE`, `TRANSFORMERS_OFFLINE`), both daemons
+  started — the Return Path handshake verifies each side's report from
+  the cache, nothing asks the vendor — and a gate job gated; metrics;
+  both stopped.
 - **The negative**: the two caches wiped, both daemons started again:
-  the handshake must be refused with KDS named on the record
-  (`sagvd return-path handshake failed`), and no job dispatched. The
-  kit's `handshake_timeout_seconds` is 60, above the KDS client's 40 s,
-  so a dead route surfaces as the KDS error it is, not as the
-  handshake's own clock.
+  the handshake must be refused with the vendor named on the record
+  (`sagvd return-path handshake failed … KDS …` / `… PCS …`), and no job
+  dispatched. The kit's `handshake_timeout_seconds` is 60, above the
+  vendor clients' timeouts, so a dead route surfaces as the vendor's
+  error, not as the handshake's own clock.
 - **The recovery**: the caches restored from the copy, both daemons
   again, a job gated again; `cache-status` after the wipe (exit 1) and
   after the restore (exit 0).
@@ -90,6 +103,79 @@ for the tag and the serial console only — nothing of the Return Path
 touches it. Checksums: `cd evidence/20261015T212716Z && grep -v
 ' sha256sums.txt$' sha256sums.txt | shasum -a 256 -c` — 52 of 52 match.
 
+## Result — run `20261015T215511Z` (evidence/20261015T215511Z): the same on an Intel TDX Trust Domain — Intel's documents in the cache, a month at a time
+
+`VG_TEE=tdx`: us-central1-a, `c3-standard-4`, Ubuntu 24.04, tree
+`fb78833` (with `tee.sealer`). The guest script took **193.7 s**; from the
+VM's creation to the results, 254.2 s.
+
+| Step | Outcome |
+|---|---|
+| Connected: the runtime from the locks; `tpm2-tools` | 66.8 s; the vTPM (`vtpm.txt`: `/dev/tpm0`, manufacturer `0x474F4F47`) |
+| `acpctl tee prefetch`, both configurations | 0.8 s for the two; each cache holds the TCB info of this platform (`tdx-tcb-00806f050000.json`, 7 953 bytes) and the QE identity (`tdx-qe-identity.json`, 624 bytes), each with its issuer chain (`cache-files.txt`); `cache-status`: `2 of 2 current`, the TCB info valid 2026-10-15 → **2026-11-14T21:23Z**, the QE identity → 2026-11-14T21:35Z — `the earliest expiry is 2026-11-14T21:23:54Z — run prefetch again before then`. The documents themselves are in the record (`pcs-*`), for offline re-verification |
+| The cut | the guest saw the tag 8 s after asking; Intel PCS stopped answering at once; `egress.txt`: PCS and the bucket `Connection timed out`, the metadata server `200` |
+| Air-gapped: `seal-keys` ×2, the fine-tune | both sealed, `sealer=tpm2`; the fine-tune 7.9 s |
+| The Return Path from the cache | `sagvd` ready in 3 s, the session open 2 s later — each quote verified with Intel's documents from the cache; the gate job `succeeded`, **EXACT**, 6 of 6, in 4.2 s |
+| The negative: the caches wiped | `cache-status` exit 1; both daemons restarted: no session; **the handshake refused 34 s after `sagvd` started** — `… server TEE evidence verification failed: integrity[signature_invalid]: gcp-tdx: TCB info: Get "https://api.trustedservices.intel.com/tdx/certification/v4/tcb?fmspc=00806f050000": dial tcp …:443: i/o timeout`; one refusal on the record, no job dispatched |
+| The recovery: the caches restored from the copy | `cache-status` exit 0; the session open 2 s after the worker started; the job `succeeded`, **EXACT**, 6 of 6 |
+| `acpctl audit verify` | **ok — 33 events**, tip `40f500ef…` |
+
+What differs from SEV-SNP: the cache is Intel's word, and Intel's word
+has a date — a month. `cache-status` is the operator's calendar here:
+before the earliest expiry, `prefetch` again with a route, or carry the
+two documents in. A first TDX run of this kit, not kept, had `seal-keys`
+fail on both daemons: the guest had no `tpm2-tools`, and a Trust Domain
+seals with its vTPM — the kit now installs them while connected.
+Checksums: 56 of 56 match.
+
+## Result — run `20261015T215558Z` (evidence/20261015T215558Z): the release `v0.4.3-rc1` on the guest — `--offline` is not offline
+
+`VG_RELEASE_TAG=v0.4.3-rc1`, SEV-SNP, tree `bedc604`. The rehearsal
+release `v0.4.3-rc1` carried its Sigstore bundles in cosign's old bundle
+format, and this kit's first form of the check was `cosign verify-blob
+--bundle <asset>.sigstore.json --offline`, after `cosign initialize`
+while connected — the form the documents of this branch first gave. The
+guest shows what that is worth with the route gone.
+
+| Step | Outcome |
+|---|---|
+| Connected | the release's 49 assets from the bucket, their SHA-256 equal to what the runner downloaded (`release-assets.sha256`, `release-assets.guest.sha256`); cosign 2.6.5 with the SHA-256 the cosign release publishes (`match=yes`); `cosign initialize` exit 0; the runtime from the locks 337 s (a slow mirror); `prefetch` 0.5 s |
+| The release with `--offline`, no route | **0 of 12**: every call `error during command execution: getting Rekor public keys: updating local metadata and targets: error updating to TUF remote mirror: tuf: failed to download 13.root.json: Get "https://tuf-repo-cdn.sigstore.dev/13.root.json": … i/o timeout` (`release-offline.txt`) — each after the connect timeout on the dead route; the step took 13 minutes (22:02:14 → 22:15:15). The pair without the bundle: the same error (`release-pair-offline.txt`) |
+| The rest of the drill | `seal-keys` ×2 (`sealer=sev-snp-derived-key`); the session from the cache, the gate job `succeeded`, **EXACT**, 6 of 6, 5.2 s; the caches wiped — refused 41 s after `sagvd` started, naming KDS; restored — EXACT; `acpctl audit verify` ok, 33 events |
+| The record | 1 263.8 s on the guest; checksums 57 of 57. The runner was stopped at 22:08Z, by hand, so that its 25-minute wait would not delete the guest in the middle of that step; the results were collected from the serial console the same way, and the VM, the bucket and the rule deleted afterwards (`run.txt` says so) |
+
+The finding, measured again on a workstation with cosign 2.6.5 and the
+network denied to the process (`sandbox-exec`): `--offline` still updates
+the TUF metadata from the mirror before it reads the Rekor keys, cache or
+no cache, and fails when it cannot; cosign 3 deprecates the flag with the
+same advice. The check that needs no route is the new bundle format with
+the Sigstore trust root as a file: `cosign verify-blob --new-bundle-format
+--bundle <asset>.sigstore.json --trusted-root trusted_root.json …` — the
+release workflow now signs with `--new-bundle-format`, and the kit copies
+`trusted_root.json` out of `cosign initialize`'s cache while connected and
+verifies with it (the run below).
+
+## Result — run `20261015T223003Z` (evidence/20261015T223003Z): the release `v0.4.3-rc2` verified on the guest with no route — the bundle and the trust root as files
+
+`VG_RELEASE_TAG=v0.4.3-rc2`, SEV-SNP, us-central1-c. The rehearsal
+`v0.4.3-rc2` signs with `--new-bundle-format`; the check is the bundle
+with the Sigstore trust root as a file. The guest script took 320.3 s.
+
+| Step | Outcome |
+|---|---|
+| Connected | the release's 49 assets from the bucket, their SHA-256 equal to the runner's download; cosign 2.6.5 (`match=yes` against the checksums cosign's release publishes); `cosign initialize` into an explicit `TUF_ROOT` (a startup script's `HOME` is unset — a run that looked for the file under `/root/.sigstore` found nothing, not kept); `trusted_root.json` out of that cache, 6 787 bytes, SHA-256 `6494e21e…` — the same bytes a workstation's `cosign initialize` fetched the same day; the runtime 79 s; `prefetch` 0.5 s |
+| The release with the trust root, no route | **12 of 12 `Verified OK`**, 0.05–0.08 s each (`release-offline.txt`): `cosign verify-blob --new-bundle-format --bundle <asset>.sigstore.json --trusted-root trusted_root.json …` for the five binaries, the worker package and the six SBOMs, with egress dead (`egress.txt`: KDS and the bucket `Connection timed out`) |
+| For contrast, no route | `--offline` on the same bundle: `Error: trusted root is required when using new bundle format` — refused outright; the `.sig` + `.cert` pair without the bundle: `Could not fetch trusted_root.json from the TUF repository … tuf refresh failed` — not verified (`release-contrast.txt`) |
+| The rest of the drill | `seal-keys` ×2 (`sealer=sev-snp-derived-key`); the session from the cache, the gate job `succeeded`, **EXACT**, 6 of 6, 5.2 s; the caches wiped — refused 45 s after `sagvd` started, naming KDS; restored — EXACT; `acpctl audit verify` ok, 33 events; checksums 57 of 57 |
+
+With this, nothing of a release host's work needs a route: the release
+verified from the bundle and a 7 KB trust-root file, the caches filled by
+`prefetch`, the Return Path from them. What still comes from a connected
+machine, once: the release's assets with their checksums, the pinned
+cosign, `trusted_root.json`, the worker's runtime from the locks — and,
+on SEV-SNP, a new VCEK when the chip's TCB changes; on TDX, Intel's two
+documents every month.
+
 ## Evidence files
 
 - `steps.txt` — every step with its time and exit code; the routes; the
@@ -103,8 +189,14 @@ touches it. Checksums: `cd evidence/20261015T212716Z && grep -v
 - `prefetch-sagvd.txt`, `prefetch-sagvd.json`, `prefetch-worker.txt` — what
   `prefetch` printed; `cache-status-sagvd.txt`, `cache-status-worker.txt`,
   `cache-status-wiped.txt`, `cache-status-restored.txt`; `cache-files.txt` —
-  the cached files' names (chip id and TCB), sizes and digest prefixes, not
-  their bytes.
+  the cached files' names (chip id and TCB, or the Intel document), sizes
+  and digest prefixes, not their bytes; on TDX `pcs-*` — Intel's documents
+  and their issuer chains, public, as cached; `vtpm.txt` on TDX.
+- With `VG_RELEASE_TAG`: `release-assets.sha256` (the assets as the runner
+  downloaded them) and `release-assets.guest.sha256` (as the guest got
+  them from the bucket), `cosign-version.txt`, `cosign-initialize.txt`,
+  `release-offline.txt` (the twelve `--offline` verdicts),
+  `release-pair-offline.txt` (the pair without the bundle, no route).
 - `egress.txt` — the three routes after the cut.
 - `sagvd-airgap.log`, `acp-compute-airgap.log`, `sagvd-wiped.log`,
   `acp-compute-wiped.log`, `sagvd-restored.log`, `acp-compute-restored.log`;

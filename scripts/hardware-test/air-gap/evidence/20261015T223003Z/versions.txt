@@ -1,0 +1,4 @@
+sagvd 0.0.0-dev (commit bedc604b2f7f-dirty)
+acp-compute 0.0.0-dev (commit bedc604b2f7f-dirty)
+acpctl 0.0.0-dev (commit bedc604b2f7f-dirty)
+acp-keygen 0.0.0-dev (commit bedc604b2f7f-dirty)
