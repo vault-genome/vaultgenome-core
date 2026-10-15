@@ -36,6 +36,9 @@ or upload to your evaluation data room.
 (Milan) in `us-central1-c`: the report, the AMD chain validation (ALL POLICY
 CHECKS PASSED), Demo 1 with the tamper refusal, Demo 2, the byte-identical
 inference comparison and the runner's log. Its README reads the files.
+`evidence/20261015T005508Z/` is the same run a day later with the workload
+manifest naming what Demo 1 sealed, as acpctl measured it, bound into the
+report (#83).
 
 ## Prerequisites
 

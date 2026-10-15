@@ -1,0 +1,17 @@
+Vault Genome SEV-SNP Attestation Validation — vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal
+=================================================
+
+Date (UTC): 2026-10-15T00:54:13Z
+VM:         vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal (us-central1-c)
+Tool:       snpguest 0.10.0
+Chip:       AMD EPYC Milan (SEV-SNP), from the report's CPUID family/model
+
+POLICY CHECKS
+✓ Report from /dev/sev-guest (real silicon)
+✓ Cert chain valid (ARK self-signed → ASK signed by ARK → VCEK signed by ASK)
+✓ VEK signed attestation report
+✓ TCB values match (cert ↔ report) — Microcode/SNP/TEE/Boot Loader
+✓ Chip ID matches (cert ↔ report)
+✓ REPORT_DATA = SHA-512(manifest)        — the manifest names what Demo 1 sealed, as measured
+
+RESULT: ALL POLICY CHECKS PASSED
