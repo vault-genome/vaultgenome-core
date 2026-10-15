@@ -1,0 +1,6 @@
+{"time":"2026-10-15T04:53:06.426669395Z","level":"INFO","msg":"acp-compute starting","version":"0.0.0-dev","commit":"75efe4f13b7b-dirty","config_path":"worker.json","vault_address":"127.0.0.1:9443","workload_descriptor":"acp-compute-returnpath-cgpu-v1"}
+{"time":"2026-10-15T04:53:06.632667947Z","level":"INFO","msg":"worker signing identity","kid":"acp-compute-worker-demo","pubkey_hex":"d2eb262a90492271d3e69a62464593c279b53173252c830212f36ae77c09a405"}
+{"time":"2026-10-15T04:53:06.632688347Z","level":"INFO","msg":"worker TEE identity","tee_provider":"azure-cgpu","measurement_hex":"11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4","peer_provider":"azure-cgpu"}
+{"time":"2026-10-15T04:53:06.632694047Z","level":"INFO","msg":"genome door","command":["/opt/vg/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/opt/base","--device","cuda"],"timeout_seconds":600}
+{"time":"2026-10-15T04:53:06.671091248Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9082"}
+{"time":"2026-10-15T04:54:06.607744307Z","level":"INFO","msg":"acp-compute stopped"}

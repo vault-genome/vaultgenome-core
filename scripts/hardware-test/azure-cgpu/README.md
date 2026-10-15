@@ -163,6 +163,46 @@ in 3 s — the negative back on the record, with keys of its own
 (`rogue-worker.log`). With the frame cap at 128 MiB the 33.6 MB genome
 travelled as one JobRequest.
 
+## The runtime from the hash-pinned locks — run `20261015T043702Z` (evidence/20261015T043702Z, evidence/20261015T043702Z-returnpath)
+
+The 7B kit on the same image and onboarding package as the day before
+(kernel `7.0.0-1016-azure-fde`, NVIDIA driver **595.91.07**, `CC State: ON`),
+with the worker's runtime installed on the H100 host from the hash-pinned
+locks — `requirements-ci.lock` from PyPI, the CUDA 12.6 libraries from
+`requirements-cuda.lock` (PyPI), the torch cu126 wheel with its triton from
+`requirements-torch-cu126.lock` (the PyTorch cu126 index), each under
+`pip --require-hashes --only-binary=:all:` — in 142 s (`timeline.txt`);
+`pip-freeze.txt`: torch 2.14.1+cu126, triton 3.8.0, nvidia-cudnn-cu12
+9.10.2.21, transformers 5.19.0. The capture (439 s end to end): the HCL
+report, the VCEK chain from THIM, two vTPM quotes under our nonces,
+NVIDIA's local verifier and NRAS under the same nonce, Microsoft's own tools
+— every one exit 0 (`steps.txt`); then `Qwen/Qwen2.5-7B-Instruct` @
+`a09a35458c70…` fine-tuned on the H100 NVL in bfloat16 (`finetune.json`:
+2,523,136 adapter parameters, loss 6.053 → 2.2e-04 in 18.8 s), sealed and
+verified (`verify.json`: ok, 10,149,678-byte bundle), gated **EXACT** on the
+GPU (`gate-gpu.json`, rung 0, 17.3 s), measured 16/16 exact in bfloat16
+(`measure-gpu.json`) and, for the record, 16/16 top-1 with max abs err
+0.43 in float32 (`measure-gpu-float32.json`, the cross-dtype reading
+KNOWN_ISSUES #13 describes), replayed bit for bit (`replay-gpu.json`,
+18.7 s).
+
+The Return Path on the same guest: `sagvd seal-keys` and `acp-compute
+seal-keys` sealed the daemons' key files to the vTPM; both daemons read the
+launch measurement `11920f61…91c4` (this boot's); `sagvd escrow-provision`
+sealed the escrow key `01b36cd7dad0b73b` to the vTPM (`tee: azure-cgpu`) and
+the recovery ceremony re-sealed it (`source: stdin`); sagvd ready in 1 s;
+the worker that is not the pinned identity refused at the handshake in 3 s
+(`rogue-worker.log`); the pinned worker's session opened in 1 s under
+`gpu_policy.evaluation: both`, the verifier fetching this driver's manifests
+during the handshake
+(`cache-rim-NV_GPU_DRIVER_GH100_595.91.07.json`,
+`cache-rim-NV_GPU_VBIOS_1010_0210_886_96009F0004.json`; `sagvd-metrics.txt`:
+verify success 1, error 1 — the rogue); the gate job over the Return Path
+restored the 7B genome on the H100 and came back **EXACT** (pinned replay,
+16/16, max abs err 0) in 58 s from submission to verdict; 17 audit events
+verified, tip `b91b9c5f…b7df`. The VM and its disk, NIC, IP and NSG were
+deleted after the evidence was read back and checked (42 and 59 checksums).
+
 ## The raised runtime — run `20261014T113334Z` (evidence/20261014T113334Z, evidence/20261014T113334Z-returnpath)
 
 The 32B kit again on the raised Python runtime (torch 2.14.1+cu126,
