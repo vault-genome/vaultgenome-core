@@ -238,6 +238,13 @@ dco:
 coverage-thresholds: coverage
 	bash scripts/coverage_check.sh
 
+# branch-coverage measures branch coverage of the wire contracts with gobco
+# (pinned in .github/workflows/branch-coverage.yml) and writes the report to
+# dist/branch-coverage/; docs/doctrine/ci-security-policy.md §8. No threshold.
+.PHONY: branch-coverage
+branch-coverage:
+	bash scripts/branch_coverage.sh
+
 .PHONY: dep-allowlist
 dep-allowlist:
 	bash scripts/check_dep_allowlist.sh

@@ -151,6 +151,16 @@ enter below target without a reviewed entry. The same file holds the floor for
 the product total. The gate prints the full table on every run, so progress on
 the listed packages is visible in each CI log.
 
+Branch coverage is measured as well, for the wire contracts
+(`internal/contracts/...`), by gobco in `.github/workflows/branch-coverage.yml`
+(`make branch-coverage`, `scripts/branch_coverage.sh`): every condition is
+instrumented and counted on both sides, and the report — branches covered
+over branches instrumented per package and in total, with the conditions
+never seen on one side — goes to the job summary and to an artifact. It is a
+reading, not a gate: no threshold is enforced yet, so that the number is
+visible first and can be ratcheted later the way the statement floors were.
+gobco is installed at a commit (v1.3.4), not a floating version.
+
 ## 9. Reproducible builds
 
 `make verify-reproducible` builds every binary twice, from a clean tree, with

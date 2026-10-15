@@ -13,6 +13,13 @@ given release can still open.
 
 ### Added
 
+- `.github/workflows/branch-coverage.yml` (`make branch-coverage`,
+  `scripts/branch_coverage.sh`): branch coverage of the wire contracts
+  (`internal/contracts/...`), measured by gobco — installed at a commit,
+  v1.3.4 — and reported per package and in total in the job summary and as
+  an artifact, with the conditions never seen on one side listed. A reading,
+  not a gate: no threshold yet (1365 of 1402 branches, 97.4%, on
+  2026-10-15). Closes #68; `docs/doctrine/ci-security-policy.md` §8.
 - `docs/operator/09_first_deployment.md`: the first deployment of a
   release, step by step against the reference deployment's record
   (`scripts/hardware-test/release-deploy/evidence/20261015T014459Z`) —

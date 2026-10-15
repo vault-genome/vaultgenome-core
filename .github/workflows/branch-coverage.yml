@@ -1,0 +1,50 @@
+# Branch coverage of the wire contracts (internal/contracts/...), measured by
+# gobco and reported — in the job summary and as an artifact. No threshold
+# yet: the number is made visible so it can be ratcheted later the way the
+# statement floors were (docs/doctrine/ci-security-policy.md §8; #68).
+#
+# gobco is installed at a commit, not a floating tag: 4c9ea04 is v1.3.4.
+name: branch-coverage
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: branch-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branch-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.2'
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Install gobco (v1.3.4, by commit)
+        run: go install github.com/rillig/gobco@4c9ea04be46fdf4ee7d40f7bba782f83d0397731
+
+      - name: Branch coverage of the wire contracts
+        run: make branch-coverage
+
+      - name: Upload the report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: branch-coverage
+          path: dist/branch-coverage/
+          if-no-files-found: error
