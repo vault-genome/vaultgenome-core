@@ -1,0 +1,24 @@
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK

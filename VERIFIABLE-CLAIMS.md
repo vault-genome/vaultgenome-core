@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1433,6 +1433,42 @@ tests, so a violating change fails CI rather than being caught in review.
 
 **Reproduce.** `make vault-gate` runs 14 of the 18 locally; the workflow badge
 at the top of the README is live.
+
+---
+
+### C27 — A signed release, downloaded and verified, deploys and attests on real SEV-SNP
+
+**Claim.** The reference deployment is the release itself, not this tree:
+the assets of a tagged release are downloaded, every signature, the SLSA
+provenance and the tag's signature are verified, the binaries are rebuilt
+from the tag and match the released files byte for byte, and the released
+`sagvd`, `acp-compute` and `acpctl` then run the Return Path on a fresh
+SEV-SNP Confidential VM — both daemons attesting with the chip, a rogue
+worker refused, a gate job judged EXACT and every decision on a verified
+audit log — in one command an operator can repeat.
+
+**Evidence.**
+[`scripts/hardware-test/release-deploy/evidence/20261015T012735Z/`](scripts/hardware-test/release-deploy/evidence/20261015T012735Z/)
+— `v0.4.0` on an `n2d-standard-4` (Milan) in `us-central1-c`:
+`verify/cosign.txt` eight "Verified OK" (four binaries, four SBOMs) against
+the release workflow's identity, `verify/slsa.txt` four "PASSED: SLSA
+verification passed" against the repository and the tag, `verify/tag.txt`
+`Good "git" signature` with the key pinned in `.github/allowed_signers`;
+`results/versions.txt` the three released binaries reporting `v0.4.0` at
+the tag's commit; `results/steps.txt` and the identity files: both daemons
+read the launch measurement `7dc7c12e…25acc` from the chip; `rogue-worker.log`
+the simulated-TEE worker refused at the handshake; `results/job.json` gate
+level EXACT, 6 of 6 fixtures, `max_abs_err` 0, state `release_authorized`,
+the verdict signed; `results/audit-verify.json` `ok: true`, 17 events; the
+guest script 99.1 s (`timeline.txt`). The rebuild step (§5.4 of the release
+procedure) joined the kit after that run; later runs carry
+`verify/rebuild.txt`.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.0    # ~15 min, one n2d-standard-4, deletes it
+```
 
 ---
 
