@@ -3,9 +3,10 @@
 // verify-quote.c — Vault Genome Intel DCAP chain verifier.
 //
 // Validates a raw SGX_ECDSA quote v3 against the Intel SGX Root CA via
-// libsgx-dcap-quote-verify (the Intel-blessed local verifier),
-// using az-dcap-client's libdcap_quoteprov.so to fetch PCK collateral
-// from the Azure-hosted Intel cache.
+// libsgx-dcap-quote-verify (Intel's local verifier), with the installed
+// quote provider — Intel's QPL configured for Azure by 01-bootstrap-vm.sh:
+// the PCK certificate from Azure THIM, the rest of the collateral from
+// Intel PCS — fetching the collateral.
 //
 // Reports:
 //   * MRENCLAVE, MRSIGNER, ISV_PROD_ID, ISV_SVN
@@ -15,11 +16,13 @@
 //      for SGX/MAA; SHA-512(manifest) for SEV-SNP — file just needs
 //      to be 64 bytes, semantics are documented in 02b script).
 //   * Cryptographic chain Quote → PCK certificate → Intel SGX Root CA
-//     via sgx_qv_verify_quote(). NOTE: this local-host call is known
-//     to surface SGX_QL_NO_QUOTE_COLLATERAL_DATA (0xE03A) on Azure
-//     when az-dcap-client and libsgx-dcap-quote-verify versions
-//     skew — Microsoft Azure Attestation (02f script) walks the same
-//     chain on Microsoft's side and is the chain of record.
+//     via sgx_qv_verify_quote(), with the TCB status the collateral
+//     gives the platform (OK, or an advisory such as SW_HARDENING_NEEDED
+//     with the chain valid). Through the Azure DCAP client this call
+//     returned SGX_QL_TCBINFO_CHAIN_ERROR (0xE03A) until 2026-10-15;
+//     01-bootstrap-vm.sh records what was measured. Microsoft Azure
+//     Attestation (02f) walks the same chain on Microsoft's side,
+//     independently.
 //
 // Usage:
 //   ./verify-quote <quote.bin> <expected-report-data.bin>
@@ -135,39 +138,54 @@ int main(int argc, char** argv)
     uint32_t collateral_expiration_status = 1;
     sgx_ql_qv_result_t qv_result = SGX_QL_QV_RESULT_UNSPECIFIED;
 
-    // Explicit collateral fetch via the unified `tee_*` API. Direct
-    // sgx_qv_verify_quote(..., collateral=NULL, ...) works with Intel's
-    // default QPL but races with az-dcap-client across libsgx-dcap-
-    // quote-verify versions where the auto-fetch contract differs. The
-    // tee_qv_get_collateral path is the version-tolerant fix.
-    uint8_t* collateral_buf = NULL;
-    uint32_t collateral_size = 0;
-    quote3_error_t coll_r = tee_qv_get_collateral(
-        quote, (uint32_t)quote_size,
-        &collateral_buf, &collateral_size);
-    if (coll_r != SGX_QL_SUCCESS || !collateral_buf || collateral_size == 0)
-    {
-        fprintf(stderr,
-            "✗ tee_qv_get_collateral failed: 0x%04x (size=%u)\n",
-            (unsigned)coll_r, collateral_size);
-        free(quote);
-        if (supp_data) free(supp_data);
-        return 2;
-    }
-    printf("collateral fetched:            %u bytes via tee_qv_get_collateral\n",
-           collateral_size);
-
+    // Two ways to the collateral. First the one Open Enclave's verifier
+    // uses: collateral = NULL, so the QVL asks the installed quote provider
+    // for the collateral of this quote's FMSPC itself. If that returns an
+    // error, the buffer from an explicit tee_qv_get_collateral is passed
+    // instead, and both results are printed — the record of which path
+    // answered what (through the Azure DCAP client both answered 0xE03A).
     quote3_error_t r = sgx_qv_verify_quote(
         quote, (uint32_t)quote_size,
-        (const sgx_ql_qve_collateral_t*)collateral_buf,
+        NULL,                          // collateral: the QVL fetches it via the QPL
         current_time,
         &collateral_expiration_status,
         &qv_result,
         NULL,                          // qve_report_info — NULL = host-side
         supp_data_size,
         supp_data);
-
-    tee_qv_free_collateral(collateral_buf);
+    printf("collateral path:               QVL via the quote provider (collateral=NULL): 0x%04x\n",
+           (unsigned)r);
+    if (r != SGX_QL_SUCCESS)
+    {
+        uint8_t* collateral_buf = NULL;
+        uint32_t collateral_size = 0;
+        quote3_error_t coll_r = tee_qv_get_collateral(
+            quote, (uint32_t)quote_size,
+            &collateral_buf, &collateral_size);
+        if (coll_r != SGX_QL_SUCCESS || !collateral_buf || collateral_size == 0)
+        {
+            fprintf(stderr,
+                "✗ tee_qv_get_collateral failed: 0x%04x (size=%u)\n",
+                (unsigned)coll_r, collateral_size);
+            free(quote);
+            if (supp_data) free(supp_data);
+            return 2;
+        }
+        printf("collateral fetched:            %u bytes via tee_qv_get_collateral\n",
+               collateral_size);
+        r = sgx_qv_verify_quote(
+            quote, (uint32_t)quote_size,
+            (const sgx_ql_qve_collateral_t*)collateral_buf,
+            current_time,
+            &collateral_expiration_status,
+            &qv_result,
+            NULL,
+            supp_data_size,
+            supp_data);
+        tee_qv_free_collateral(collateral_buf);
+        printf("collateral path:               explicit tee_qv_get_collateral: 0x%04x\n",
+               (unsigned)r);
+    }
 
     if (r != SGX_QL_SUCCESS)
     {

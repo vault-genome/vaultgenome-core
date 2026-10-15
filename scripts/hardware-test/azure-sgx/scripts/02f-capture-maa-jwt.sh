@@ -148,6 +148,30 @@ jq '{
   "x-ms-sgx-report-data": ."x-ms-sgx-report-data"
 }' < 17-maa-jwt-payload.json
 
+# ---- Step D2: the claims must describe the quote we sent, and a release enclave ----
+echo
+echo "=== Step D2: MAA claims vs the quote ==="
+python3 - <<'PYEOF' | tee 17-maa-claims-vs-quote.txt
+import json, sys
+p = json.load(open("17-maa-jwt-payload.json"))
+q = open("04-sgx-quote.bin", "rb").read()
+# SGX quote v3: the report body starts at offset 48; MRENCLAVE at body+64, MRSIGNER at body+128, REPORT_DATA at body+320
+body = q[48:48 + 384]
+checks = [
+    ("x-ms-attestation-type", p.get("x-ms-attestation-type"), "sgx"),
+    ("x-ms-sgx-mrenclave", p.get("x-ms-sgx-mrenclave"), body[64:96].hex()),
+    ("x-ms-sgx-mrsigner", p.get("x-ms-sgx-mrsigner"), body[128:160].hex()),
+    ("x-ms-sgx-report-data", p.get("x-ms-sgx-report-data"), body[320:384].hex()),
+    ("x-ms-sgx-is-debuggable", str(p.get("x-ms-sgx-is-debuggable")).lower(), "false"),
+]
+ok = True
+for name, got, want in checks:
+    match = str(got).lower() == str(want).lower()
+    ok = ok and match
+    print("%-26s %s" % (name, "OK" if match else "MISMATCH: claim=%s quote=%s" % (got, want)))
+sys.exit(0 if ok else 1)
+PYEOF
+
 # ---- Step E: verify JWT signature ----
 echo
 echo "=== Step E: verify JWT signature against MAA signing certs ==="

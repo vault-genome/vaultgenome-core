@@ -30,12 +30,14 @@ regexes = [
   # it by shape (`...Key = <mixed-case token>`). The literal string
   # "ed25519.PrivateKey" is only ever a type reference, never a credential.
   '''ed25519\.PrivateKey''',
-  # PGP key fingerprints of the Intel SGX and Microsoft apt repository signing
-  # keys, as the vendors publish them; the Azure SGX kit's bootstrap checks a
-  # downloaded key against them before it enters the keyring
+  # PGP key fingerprints of apt repository signing keys, as the vendors
+  # publish them; the Azure SGX kit's bootstrap checks a downloaded key
+  # against them before it enters the keyring
   # (scripts/hardware-test/azure-sgx/scripts/01-bootstrap-vm.sh). A fingerprint
   # identifies a public key and grants nothing; the generic-api-key rule matches
-  # the assignment by shape (`..._KEY_FPR="<40 hex>"`).
+  # the assignment by shape (`..._KEY_FPR="<40 hex>"`). Intel's is in the tree;
+  # Microsoft's left it on 2026-10-15, when the kit stopped installing the
+  # Azure DCAP client, and stays listed because the gate scans the history.
   '''150434D1488BF80308B69398E5C7F0FA1C6C6C3C''',
   '''BC528686B50D79E339D3721CEB3E94ADBE1229CF''',
 ]

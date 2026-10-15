@@ -1,0 +1,5 @@
+x-ms-attestation-type      OK
+x-ms-sgx-mrenclave         OK
+x-ms-sgx-mrsigner          OK
+x-ms-sgx-report-data       OK
+x-ms-sgx-is-debuggable     OK

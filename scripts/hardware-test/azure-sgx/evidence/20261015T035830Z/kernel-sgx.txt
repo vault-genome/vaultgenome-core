@@ -1,0 +1,5 @@
+Oct 15 03:21:27 ubuntu kernel: sgx: EPC section 0x8c0000000-0xcbfffffff
+Oct 15 03:59:38 vault-genome-sgx-test kernel: EXT4-fs (sda1): resizing filesystem from 548091 to 10457339 blocks
+Oct 15 03:59:39 vault-genome-sgx-test kernel: EXT4-fs (sda1): resized filesystem to 10457339
+Oct 15 03:59:42 vault-genome-sgx-test kernel: loop3: detected capacity change from 0 to 8
+Oct 15 03:59:42 vault-genome-sgx-test kernel: audit: type=1400 audit(1792036782.975:44): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="/usr/lib/snapd/snap-confine" pid=924 comm="apparmor_parser"

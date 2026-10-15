@@ -17,7 +17,7 @@ sgx-quote-binding/
 ├── binding.edl            # Single ECALL: pass 64 bytes, get back an OE-wrapped report
 ├── enc/
 │   ├── enc.c              # Enclave: oe_get_report(REMOTE_ATTESTATION, report_data, ...)
-│   └── enc.conf           # Signing config (Debug=1, ProductID=1, SecurityVersion=1)
+│   └── enc.conf           # Signing config (Debug=0 — a release enclave; ProductID=1, SecurityVersion=1)
 ├── host/
 │   ├── host.c             # Host: read report-data.bin, call ECALL, write quote.bin + .oe
 │   └── verify-quote.c     # Standalone Intel-DCAP chain verifier
