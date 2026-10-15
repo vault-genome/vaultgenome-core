@@ -13,6 +13,13 @@ given release can still open.
 
 ### Added
 
+- `docs/operator/09_first_deployment.md`: the first deployment of a
+  release, step by step against the reference deployment's record
+  (`scripts/hardware-test/release-deploy/evidence/20261015T014459Z`) —
+  the release verified before it runs, the host chosen among the attested
+  ones, the keys sealed in place, the pins from the chips, the refusal of
+  an unpinned worker, the gate job and the verified audit log, each with
+  the number the reference produced.
 - `scripts/hardware-test/release-deploy/`: the reference deployment. One
   command downloads a release's assets, verifies every signature, the SLSA
   provenance and the tag's signature, rebuilds the binaries from the tag
