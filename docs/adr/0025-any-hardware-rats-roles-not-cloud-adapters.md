@@ -1,0 +1,183 @@
+# ADR 0025 — Any hardware: the daemons are RATS roles, not cloud adapters
+
+- **Status:** Proposed (2026-10-15); the first step is the next code change
+- **Tags:** tee, attestation, rats, cmw, ear, verifier, configfs-tsm, tpm, portability
+- **Extends:** ADR 0001 (the frozen Producer/Verifier/Sealer surface), ADR 0014
+  (real SEV-SNP), ADR 0018 (TDX), ADR 0019 (the Azure confidential GPU), ADR
+  0022/0023 (sealing), ADR 0024 (pinned vendor roots)
+- **Supersedes:** the naming of providers after clouds
+
+## Context
+
+A customer runs this software on the hardware it has. A bank's hardware is
+not chosen by us: it may be AMD SEV-SNP or Intel TDX servers on premises,
+Azure confidential VMs with or without a GPU, AWS Nitro Enclaves, Arm CCA
+when it ships in servers, or servers with no memory-encrypting TEE at all
+and only a TPM 2.0. Today the product names its attestation backends after
+clouds — `gcp-sev-snp`, `gcp-tdx`, `azure-cgpu`, `aws-nitro`, `azure-sgx`,
+`intel-sgx-dcap` (`internal/shared/tee/factory.go`) — and each pair of
+producer and verifier is a hand-written adapter. Three of them run on real
+hardware today (KNOWN_ISSUES #1); the rest are refused. A new customer on
+new hardware would mean a new adapter, written by us, before the first
+deployment. That does not scale to every hardware the world has, and it
+misstates what the code does: nothing in `gcp-sev-snp` is Google's. The
+report comes from the Linux kernel's own interface and verifies to AMD's
+root; the same code ran on Azure's SEV-SNP reports in our captures.
+
+What *is* specific is narrower than a cloud:
+
+- **How evidence is obtained on the host.** On Linux, SEV-SNP, TDX and
+  Arm CCA guests expose one interface, configfs-tsm
+  (`/sys/kernel/config/tsm/report`, `Documentation/ABI/testing/configfs-tsm-report`,
+  Linux ≥ 6.7): a caller writes its 64 bytes of challenge, reads the
+  signed report, and reads the `provider` attribute to learn which
+  family produced it. The three guest drivers register under their module
+  names — `sev_guest`, `tdx_guest`, `arm_cca_guest`
+  (`drivers/virt/coco/{sev-guest,tdx-guest,arm-cca-guest}/*.c` at v7.0,
+  `tsm_report_ops.name = KBUILD_MODNAME`). Outside that interface sit the
+  Azure paravisor (the SEV-SNP report comes from the vTPM's HCL report and
+  is bound to a challenge by a TPM quote; ADR 0019), the Nitro Secure
+  Module, SGX's DCAP quoting enclaves, and a plain TPM.
+- **How evidence is appraised.** Every family verifies to its vendor's root
+  with the vendor's collateral (AMD KDS, Intel PCS, NVIDIA NRAS/RIM, AWS's
+  root, a TPM's endorsement chain), against reference values the operator
+  chooses. That is exactly the Verifier role of the IETF RATS architecture
+  (RFC 9334 §4.1, §7.4): a role, not a cloud, that takes Evidence and
+  Endorsements and Reference Values (§8.1–8.3) and produces Attestation
+  Results (§8.4) for a Relying Party. Our daemons are the Attester and the
+  Relying Party of that architecture; the Verifier is a role they can
+  carry themselves or delegate — the background-check model (RFC 9334
+  §5.2), which is what the Return Path already is.
+- **How a secret is sealed to the host.** A SEV-SNP guest has a derived
+  key; TDX, CCA and most VMs and servers have a TPM 2.0; a plain server has
+  a TPM 2.0 and nothing else. ADR 0022 already seals to a vTPM where the
+  TEE gives no key.
+
+The IETF has standardised the pieces that make a verifier hardware-neutral:
+the Conceptual Message Wrapper (RFC 9999) names an evidence format on the
+wire so a receiver can route it; the Entity Attestation Token (RFC 9711,
+media types RFC 9782) and the EAT Attestation Result (draft-ietf-rats-ear,
+with the trustworthiness vector of draft-ietf-rats-ar4si §2.3.5 and the
+tiers of §3.2) carry a Verifier's verdict in one shape for any hardware;
+CoRIM/CoMID (draft-ietf-rats-corim) and CoSERV (draft-ietf-rats-coserv)
+carry reference values and endorsements. Project Veraison implements that
+Verifier as a service with per-family schemes — today SEV-SNP (where our
+2026-10 changes were merged), Arm CCA, PSA, TPM (enacttrust, parsec), RIoT,
+NVIDIA — and returns a signed EAR. A bank can run it on its own premises
+with its own endorsement store.
+
+## Decision
+
+1. **Providers name evidence formats and attestation families, not
+   clouds.** The canonical names become `sev-snp`, `tdx`, `cca`, `nitro`,
+   `sgx-dcap`, `azure-sev-snp` (the paravisor's HCL report bound by a vTPM
+   quote, without a GPU), `azure-cgpu` (the same with NVIDIA's tokens),
+   `tpm2` (a TPM 2.0 quote over PCRs with the event log — the floor every
+   server has), and `simulated`. The old names stay as aliases for one
+   release and are logged as such. Each name is one row of one table —
+   producer, built-in verifier, sealer, CMW media type — and nothing else
+   in the tree knows a cloud.
+2. **One producer for the kernel's interface.** `tee.provider: "auto"`
+   reads configfs-tsm's `provider` attribute and selects `sev-snp`, `tdx`
+   or `cca` from `sev_guest`, `tdx_guest`, `arm_cca_guest`; `sagvd
+   identity` and `acp-compute identity` print what was found. Platforms
+   outside configfs-tsm keep an explicit name. A customer's host needs no
+   provider decided by us: the kernel says what it is.
+3. **The Verifier is a role with two implementations.** `tee.verifier.mode:
+   "builtin"` (the default) is today's code: offline, pinned roots (ADR
+   0024), vendor collateral from caches. `tee.verifier.mode: "rats"` sends
+   the peer's Evidence, wrapped as a CMW record (RFC 9999 §3.1, JSON
+   encoding on our JSON-framed wire) to a RATS Verifier over its API —
+   Veraison's challenge-response API is the first — and appraises the
+   returned EAR: its signature against the Verifier's configured key, the
+   nonce, `ear.status`, and the trustworthiness vector against the policy
+   the operator writes in the same terms (AR4SI tiers). The EAR goes on the
+   audit record beside the decision, as the GPU tokens do today (ADR 0021).
+   Every family the delegated Verifier supports is thereby supported here,
+   with no change to our daemons; families it lacks (TDX, Nitro, SGX
+   today) stay built-in until a scheme exists — which we can contribute.
+4. **Evidence names its format on the wire.** The Return Path's
+   `server_evidence` and `client_evidence` become CMW records whose type
+   names the family; the verifier dispatches on the type, not on a
+   configured expectation. A peer may still be *required* to be a family
+   (the pin stays a policy), but the frame says what it carries. The old
+   frame — bare bytes whose format the config implied — is read for one
+   release and refused after.
+5. **Sealing by what the host has, in this order:** the TEE's own key
+   (`sev-snp` derived key), else a TPM 2.0 — the existing vTPM sealer of
+   ADR 0022 generalised to any TPM 2.0, discrete or virtual, with the PCR
+   policy the operator selects — else refused. `keys.sealer: "auto"`
+   follows that order and `identity` prints the choice.
+6. **What a verdict says about weaker hardware is said, not hidden.** A
+   `tpm2` host has no memory encryption and no attestation of a running
+   workload beyond its measured boot; its trustworthiness tier is lower and
+   the EAR/our verdict carries that; the policy decides whether that host
+   may be a worker, a standby, or nothing. The product runs anywhere; it
+   does not claim the same for every hardware.
+
+## Consequences
+
+- A customer runs the released binaries on the hardware it has; `auto`
+  and a RATS Verifier of their own remove the last per-hardware work from
+  us. The reference deployment (C27) and the drills stay valid: `sev-snp`
+  is what `gcp-sev-snp` was.
+- The verifier surface of ADR 0001 is unchanged: `Verifier.Verify(evidence,
+  nonce) (Measurement, error)` gains an implementation (the delegated
+  one), not a new shape. The measurement a delegated verifier returns is
+  the EAR's measured components, in the same bytes the built-in one
+  returns.
+- A delegated Verifier is a dependency with an availability and a trust of
+  its own: its key is pinned like a vendor root, its EAR is kept on the
+  record, and `builtin` remains the mode a deployment can fall back to.
+- The audit record of a decision carries one more artifact (the EAR); the
+  ledger's readers (`acpctl audit query`) print it.
+- Nothing here changes what is verified about SEV-SNP, TDX or the H100
+  today; it changes where the code that verifies them may run and how the
+  wire names what it carries.
+
+## Plan
+
+1. **Names and `auto`** (the next code change): the table of families,
+   the aliases, the configfs-tsm `auto` producer, `keys.sealer: "auto"`
+   with the TPM 2.0 sealer generalised; proven on GCP `n2d` (`sev_guest`)
+   and `c3` (`tdx_guest`) with `tee.provider: "auto"`; KNOWN_ISSUES #1 and
+   the first-deployment guide rewritten around the kernel's answer.
+2. **The CMW on the wire and the `rats` verifier**: CMW records for every
+   family's Evidence; the Veraison client over its challenge-response API
+   (stdlib HTTP and JSON; the EAR is a JWS our stdlib verifies); the EAR
+   appraisal policy; the audit artifact. Proven first on the bench against
+   a Veraison instance with our captured SEV-SNP reports, then on hardware
+   with the Verifier on a separate host — the bank's topology.
+3. **`tpm2`** producer, verifier and sealer: a quote over the selected
+   PCRs with the event log, verified through the TPM's endorsement
+   certificate to the TPM vendor's root, appraised against a PCR policy —
+   the floor for a server without a TEE.
+4. **`azure-sev-snp`**: the azure-cgpu adapter without the GPU half; the
+   kit of 2026-10-15 already proves the capture.
+5. **Reference values as CoRIM** for the delegated mode; TDX and Nitro
+   schemes contributed upstream so that the delegated mode covers them.
+
+## Alternatives rejected
+
+- **One adapter per customer's hardware, written on demand.** This is what
+  the tree does today; it is the thing to stop.
+- **A cloud attestation service as the only verifier** (Azure Attestation,
+  Intel Trust Authority, NVIDIA's service): ties a bank to a vendor's
+  service and the Internet; the product's offline, pinned verification is
+  a reason customers choose it (ADR 0024). The delegated mode is a role
+  the customer fills, not a vendor's endpoint.
+- **A library operating system (Gramine or similar) to put the daemons
+  inside SGX enclaves.** Large, a different trust model (the enclave's
+  measurement is the LibOS's), and SGX is leaving the server line; `tpm2`
+  and `sgx-dcap` as a worker's evidence cover what is left.
+
+## Sources
+
+RFC 9334 (RATS Architecture) §4.1, §5.2, §7.4, §8; RFC 9711 (EAT); RFC 9782
+(EAT media types); RFC 9999 (RATS Conceptual Message Wrapper) §3, §9.4–9.5;
+draft-ietf-rats-ear-04 §3.1; draft-ietf-rats-ar4si-10 §2.3.5, §3.2;
+draft-ietf-rats-corim; draft-ietf-rats-coserv-07; Linux v7.0
+`Documentation/ABI/testing/configfs-tsm-report` and
+`drivers/virt/coco/{sev-guest,tdx-guest,arm-cca-guest}`; Project Veraison
+`services` (schemes as of 2026-08-31), `apiclient`, `ear`; this tree's
+`internal/shared/tee` and KNOWN_ISSUES #1.
