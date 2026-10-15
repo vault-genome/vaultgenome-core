@@ -387,6 +387,108 @@ the door.
 
 ---
 
+## Drill VI — The authority is lost
+
+*Runs `20261015T171848Z`, `20261015T173009Z`, `20261015T174115Z`. Two GCP SEV-SNP
+machines, one after the other. Evidence:
+[`scripts/hardware-test/authority-loss/evidence/`](../scripts/hardware-test/authority-loss/evidence/)*
+
+Drills II to V lose a primary and watch the authority move the model.
+This one loses the **authority** — `sagvd`, the process that signs every
+verdict and holds the escrow key — and asks how long until a fresh
+machine *is* that authority again, and what of it comes back.
+
+### 1. What an authority is made of
+
+Before the first job, machine A does what an operator does before relying
+on an authority. The key material `acp-keygen -private` made — the signing
+seeds, the TLS identities, the API token, the worker registry — goes to
+the **operator's safe** before the host seals its own copies to its chip
+(`sagvd seal-keys`, `acp-compute seal-keys`,
+[ADR 0023](adr/0023-the-daemons-key-files-sealed-to-the-host.md)); in the
+drill the safe is an object in the run's private bucket, the model of a
+secrets manager. The escrow key is made inside `sagvd`, sealed to the chip,
+and wrapped to the operator's recovery key
+([ADR 0016](adr/0016-escrow-key-sealed-to-the-release-host.md)); the
+envelope goes to the safe. Then A fine-tunes a tiny model, seals it, and
+runs gate jobs over the Return Path in a loop — a job every eight seconds,
+5.3 s each, sixteen audit events each — replicating its state after every
+job: the audit log and the genomes, as one tar in the bucket, with the
+job's tip in a manifest.
+
+### 2. The deletion
+
+The runner waits until A has completed three jobs, then deletes the VM
+while a job is in flight. The guest gets no warning: `gcloud compute
+instances delete`, issued at a moment the runner records. In the three
+runs A had completed four, five and four jobs; the job submitted
+after the last completed one was never done. Its audit events, appended
+on A after the last replica, died with A.
+
+### 3. A fresh machine becomes the authority
+
+Machine B is created the moment A's deletion is issued. It reads nothing
+of A but the safe and the replica:
+
+1. the key material from the safe, sealed to **B's** chip (`sagvd
+   seal-keys`, `acp-compute seal-keys`) — the same seeds, so the same
+   signing key, the same audit key, the same certificate, the same token;
+2. the replica of the audit log and the genomes; `acpctl audit verify`
+   on the replica before anything appends to it: `ok: true`, 64, 80 and
+   64 events, with the tip A's last manifest named;
+3. the escrow key through the recovery ceremony — `acpctl escrow recover
+   | sagvd escrow-provision -stdin` — sealed to B's chip: the key tag A's
+   provisioning printed (`ced42a93…`, `ad0f082e…`, `a08e386a…`) comes out
+   of the ceremony on B;
+4. `sagvd identity` and `acp-compute identity` on B: each daemon reads
+   its launch measurement from the chip and pins the other's (on the same
+   image, the same value A had: `7dc7c12e…25acc`);
+5. `sagvd` starts over the replica — `sagvd audit log open … events=64
+   tip=75b63362…` in its log (the third run) — the worker connects, and B finds from A's
+   markers which job was lost, submits it again, and signs the first
+   verdict after the loss: EXACT 6/6, sealing the next event on A's chain.
+
+### 4. The numbers
+
+| Phase (run `…174115Z`; the other two runs' values are in the kit's README) | Measured |
+| - | - |
+| A's deletion issued → B created | 33.6 s |
+| B's boot until its first line | 74.8 s |
+| the worker's runtime from the hash-pinned locks | 330.2 s |
+| the replica restored | 1.1 s |
+| identities, the replica verified, both daemons' key files sealed | 10.5 s |
+| the recovery ceremony | 10.3 s |
+| both daemons up, the session open | 22.2 s |
+| the first verdict after the loss | 5.4 s |
+| **RTO cold** — deletion issued → first verdict, B created on demand | **489.3 s** |
+| **RTO warm** — the runtime in place → first verdict | **49.5 s** |
+
+Three runs: RTO warm 49.7 s, 49.3 s, 49.5 s — the procedure does not
+move; RTO cold 235.8 s, 237.2 s, 489.3 s — the third run's fresh VM took
+330 s for the runtime from the locks against 78–80 s in the other two, a
+package mirror's day, not the product's. The runner checks four facts from the two records
+(`timeline.txt`): the authority signing key and the audit key the same on
+A and B; the escrow key the same after the ceremony; the replica's chain
+intact before B appends to it; the final chain — A's events and B's in
+one file — intact under the one audit key (the third run; the first two
+runs' stop step signalled the daemons' subshells and left `sagvd` holding
+the file's lock, a bug of the kit, fixed and recorded in its README).
+
+### 5. What it says
+
+The authority is not the machine: it is the key material in the safe, the
+escrow envelope, and the audit log's replica. Given those three, a machine
+nobody had seen before is the authority in fifty seconds, and the chain of
+decisions does not break. What the drill loses is exactly what the design
+says it loses today — the job in flight, because the queue is in memory
+([KNOWN_ISSUES.md](../KNOWN_ISSUES.md) #16) — and what the cold number is
+mostly made of is not the product: a VM's boot and a package mirror's
+speed. A standby with the runtime and the binaries in place is the warm
+number; the durable queue and a continuous replica are the next two
+pieces, and this drill is how their effect will be measured.
+
+---
+
 ## The line we will not cross
 
 A system that relocates itself to new hardware when it detects a threat is one
@@ -470,6 +572,7 @@ bash scripts/hardware-test/gcp-failover/run.sh <gcp-project>   # Drill II  (~25 
 bash scripts/hardware-test/failover-cgpu/run.sh <gcp-project> [gcp-zone] [azure-rg]   # Drill III (~25 min; GCP + an Azure NCC H100 v5)
 bash scripts/hardware-test/failover-tdx/run.sh <gcp-project> [n2d-zone] [tdx-zone]     # Drill IV  (~15 min; two GCP n2d SEV-SNP CVMs + a c3 TDX Trust Domain)
 bash scripts/hardware-test/failover-negatives/run.sh <gcp-project> [zone]          # Drill V   (~15 min; two GCP n2d SEV-SNP CVMs)
+bash scripts/hardware-test/authority-loss/run.sh <gcp-project> [zone]              # Drill VI  (~10 min; two GCP n2d SEV-SNP CVMs, one after the other)
 bash scripts/hardware-test/gpu-exact/run.sh    <gcp-project>   # the CPU↔GPU probe (~20 min)
 ```
 

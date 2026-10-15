@@ -11,6 +11,20 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- The authority-loss drill (`scripts/hardware-test/authority-loss`): the
+  release authority's host is deleted in the middle of a job on real
+  SEV-SNP, and a fresh host becomes the same authority — its key material
+  from the operator's safe sealed to the new chip, its escrow key through
+  the recovery ceremony, its audit chain continued from the replica — and
+  signs the next verdict. Three runs measured: 49–50 s from the host's
+  runtime being ready to the first verdict; 236 s, 237 s and 489 s from
+  the deletion with the host created on demand (the third on a slow
+  package mirror); the job in flight is lost and resubmitted. The
+  disaster-recovery runbook's scenario 4 carries the procedure and the
+  numbers; KNOWN_ISSUES #16 states what the in-memory queue loses.
+
 ### Changed
 
 - The package rebuild of the release procedure (§5.4) and of the

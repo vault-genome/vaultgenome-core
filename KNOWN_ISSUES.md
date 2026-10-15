@@ -449,3 +449,20 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    (`--bundle <asset>.sigstore.json`, `cosign verify-blob --bundle`) changes
    the assets and all of those documents together and is made as one
    release, not in passing.
+16. **The job queue is in memory: a job in flight when the authority's
+   host is lost is lost with it (2026-10-15).**
+   `sagvd` keeps accepted jobs in memory (`cmd/sagvd/job_queue.go`); the
+   audit log is on disk. The authority-loss drill
+   (`scripts/hardware-test/authority-loss`) deleted the authority's VM in
+   the middle of a job on real SEV-SNP, three times: a fresh host became
+   the same authority — its key material from the operator's safe sealed
+   to the new chip, its escrow key through the recovery ceremony, its
+   audit chain continued from the replica — and signed the next verdict
+   49–50 s after the host had its runtime, in all three runs (236 s, 237 s
+   and 489 s from the deletion with the host created on demand, the third
+   on a slow package mirror); the job in flight had to be resubmitted,
+   and the audit events the old host appended for it after its last
+   replica died with the host. The disaster-recovery runbook's scenario 4
+   carries the procedure and the numbers. A durable queue on disk, like
+   the audit log, and a continuous replica are the planned fix; until
+   then an operator resubmits, as the runbook says.
