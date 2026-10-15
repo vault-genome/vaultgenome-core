@@ -175,7 +175,10 @@ changed — the review is itself a policy-alignment signal.
 
 `sagvd` writes two audit logs under `keys.audit_signing`: the Return Path
 log (`audit.log_path`, required with gate jobs) and the cross-cloud log
-(`crosscloud.audit_log_path`). Check each.
+(`crosscloud.audit_log_path`). Check each. It also keeps its job store
+(`queue.path`, ADR 0026) — a bbolt file of its own, never the audit log's
+— and says at start how many records it holds; a daemon without
+`queue.path` warns that its queue is in memory.
 
 1. `acpctl audit verify --audit <path> --audit-pubkey <audit.pem> --audit-kid <kid> --json`
    must report `"ok": true`.

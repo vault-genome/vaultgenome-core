@@ -73,7 +73,7 @@ secrets/
 
 `secrets/` is git-ignored and docker-ignored, and so are `genomes/` (the
 sealed bundles and their key files), `models/` (the base model) and
-`audit/` (the Return Path audit log sagvd writes). acp-keygen
+`audit/` (the Return Path audit log sagvd writes, and its job store `sagvd-jobs.db`, from which a restarted sagvd admits again what was queued or in flight — ADR 0026). acp-keygen
 refuses to overwrite an existing tree without `-force`, because regenerating
 under a running pair desynchronises it (sealed material stops opening,
 evidence stops pinning, TLS stops verifying). Files are mode 0644 so the

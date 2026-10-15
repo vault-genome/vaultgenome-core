@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/jobstore"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
 )
 
@@ -157,4 +159,84 @@ func TestStatusRecorderAndWriteJSON(t *testing.T) {
 	s, err := NewHTTPAPIServer(HTTPAPIConfig{}, RuntimeConfig{}, NewJobQueue(shared_time.NewSystemClock(), time.Second), nil, nil, nil, metrics.NewRegistry(), nil)
 	require.NoError(t, err)
 	require.NoError(t, s.Close(t.Context()))
+}
+
+// A restart (ADR 0026): the store's unfinished jobs are admitted again
+// under their own ids and request ids as one more attempt, and a job a
+// previous process finished answers from its kept view.
+func TestHTTPAPI_ResumesStoredJobsAndAnswersForKeptViews(t *testing.T) {
+	fx := newTestFixtureWith(t, "", true)
+	store := openTestStore(t)
+	fx.queue.AttachStore(store, 3, nil)
+
+	before := time.Date(2026, 10, 15, 17, 0, 0, 0, time.UTC)
+	request, _ := json.Marshal(submitBody{Genome: map[string]string{"bundle": fx.genome.Bundle, "key_file": fx.genome.KeyFile}, RequestID: "req-before"})
+	for _, rec := range []jobstore.Record{
+		{ID: "job-in-flight", Request: request, RequestID: "req-before", DeadlineSeconds: 30, SubmittedAt: before, Status: jobstore.StatusRunning, Attempts: 1},
+		{ID: "job-gone", Request: json.RawMessage(`{"genome":{"bundle":"vanished.genome","key_file":"vanished.key"}}`), RequestID: "req-gone", DeadlineSeconds: 30, SubmittedAt: before.Add(time.Second), Status: jobstore.StatusQueued, Attempts: 1},
+	} {
+		if err := store.Put(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.PutView("job-done", []byte(`{"job_id":"job-done","status":"succeeded","kept":true}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	resumed, failed, err := fx.server.ResumeJobs()
+	if err != nil || resumed != 1 || failed != 1 {
+		t.Fatalf("ResumeJobs: resumed %d failed %d err %v, want 1, 1, nil", resumed, failed, err)
+	}
+	view, ok := fx.queue.Get("job-in-flight")
+	if !ok || view.Status != JobStatusQueued || view.RequestID != "req-before" || !view.SubmittedAt.Equal(before) {
+		t.Fatalf("the resumed job: ok=%v %+v", ok, view)
+	}
+	rec, _, _ := store.Get("job-in-flight")
+	if rec.Status != jobstore.StatusQueued || rec.Attempts != 2 || rec.RequestID != "req-before" {
+		t.Fatalf("the resumed job's record: %+v", rec)
+	}
+	if gone, _, _ := store.Get("job-gone"); gone.Status != jobstore.StatusFailed || !strings.Contains(gone.LastError, "not admitted again") {
+		t.Fatalf("the job whose bundle vanished: %+v", gone)
+	}
+
+	// GET answers for all three: from memory, from the kept view, and
+	// from the view the failed resume left.
+	for id, want := range map[string]string{
+		"job-in-flight": `"status":"queued"`,
+		"job-done":      `"kept":true`,
+		"job-gone":      `"status":"failed"`,
+	} {
+		status, body := getJob(t, fx, id)
+		if status != http.StatusOK || !strings.Contains(string(body), want) {
+			t.Fatalf("GET /v1/jobs/%s: %d %s (want %s)", id, status, body, want)
+		}
+	}
+	if status, _ := getJob(t, fx, "never"); status != http.StatusNotFound {
+		t.Fatalf("GET of a job that never was: %d", status)
+	}
+
+	// The record of the re-admission says why it is one.
+	var resumedRecords int
+	for _, e := range fx.audit.Chain().Events() {
+		if e.Kind == "REQUEST_RECEIVED" && strings.Contains(string(e.Payload), `"resumed":{"attempt":2,`) {
+			resumedRecords++
+		}
+	}
+	if resumedRecords != 1 {
+		t.Fatalf("REQUEST_RECEIVED with the resumed detail: %d, want 1", resumedRecords)
+	}
+}
+
+func getJob(t *testing.T, fx *testHTTPFixture, id string) (int, []byte) {
+	t.Helper()
+	resp, err := fx.client.Get(fx.base + "/v1/jobs/" + id)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp.StatusCode, data
 }

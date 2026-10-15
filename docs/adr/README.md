@@ -38,6 +38,7 @@ ADRs interact with the test-enforced invariant system.
 | 0023 | [The daemons' key files sealed to the host](0023-the-daemons-key-files-sealed-to-the-host.md) | Accepted | keys, sealing, tee, sagvd, acp-compute |
 | 0024 | [Vendor trust anchors are pinned in the binary](0024-vendor-trust-anchors-pinned-in-the-binary.md) | Accepted | tee, attestation, amd, sev-snp, azure-cgpu, trust-anchors |
 | 0025 | [Any hardware: the daemons are RATS roles, not cloud adapters](0025-any-hardware-rats-roles-not-cloud-adapters.md) | Accepted | tee, attestation, rats, cmw, ear, verifier, configfs-tsm, tpm, portability |
+| 0026 | [The job queue is on disk: a restart resumes what was accepted](0026-the-job-queue-on-disk.md) | Accepted | sagvd, queue, durability, restart, bbolt, audit |
 
 ## Adding an ADR
 

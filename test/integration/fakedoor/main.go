@@ -22,6 +22,8 @@ import (
 	"io"
 	"math"
 	"os"
+	"strconv"
+	"time"
 )
 
 type request struct {
@@ -46,6 +48,11 @@ type tensor struct {
 }
 
 func main() {
+	// FAKEDOOR_SLEEP_MS makes the door slow, so a test can catch a job in
+	// flight (a restore of a real model takes seconds).
+	if ms, err := strconv.Atoi(os.Getenv("FAKEDOOR_SLEEP_MS")); err == nil && ms > 0 {
+		time.Sleep(time.Duration(ms) * time.Millisecond)
+	}
 	if err := run(os.Stdin, os.Stdout, os.Getenv("FAKEDOOR_EXPECT_GENOME")); err != nil {
 		fmt.Fprintln(os.Stderr, "fakedoor:", err)
 		os.Exit(1)

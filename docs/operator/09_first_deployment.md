@@ -153,7 +153,8 @@ In the order the reference guest script does it
 1. **`sagvd`** with its config: the Return Path on `vault.listen_address`
    under mutual TLS 1.3 (`vault.tls`), the REST API with its bearer token
    (`http_api.bearer_token_file`), the health listener, `genome.bundle_dir`,
-   `audit.log_path`. Off loopback it refuses to start with either listener
+   `audit.log_path`, and `queue.path` for the job store a restart resumes
+   from (ADR 0026). Off loopback it refuses to start with either listener
    unauthenticated ([01](01_preflight.md) §8). `GET /readyz` answers once
    it is up.
 2. **The refusal first.** Before the real worker, the reference starts a
