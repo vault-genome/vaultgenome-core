@@ -156,7 +156,56 @@ SNP_CHIP="${SNP_CHIP:-$(detect_snp_chip 04-attestation-report.bin)}"
 echo "AMD product line (from the report's CPUID family/model): ${SNP_CHIP}"
 echo "${SNP_CHIP}" > 03-snp-chip.txt
 
-# ---- Step 4: (no request on Azure; see Step 3) ----
+# ---- Step 4: bind the manifest through the vTPM ----
+# The report's REPORT_DATA names the runtime data, and the runtime data
+# names the vTPM's attestation key (HCLAkPub). A quote signed by that key
+# with SHA-256(manifest) as its qualifying data therefore binds the
+# manifest to this report: chip -> runtime data -> AK -> quote -> manifest.
+# The kit takes the quote here and verifies it: the key that signed it is
+# the one the runtime data names, and the quote's extra data is the
+# manifest's hash.
+echo
+echo "=== Step 4: the vTPM quote that binds the manifest to the report ==="
+# The vTPM device is root/tss-only on this image (02 reads the NV index
+# with sudo for the same reason); the files the TPM tools write are handed
+# back to the user afterwards.
+sudo tpm2_getcap handles-persistent > 14-tpm-handles.txt 2>&1
+python3 - "$(pwd)" <<'PYEOF'
+import base64, json, os, subprocess, sys
+out = sys.argv[1]
+owner = f"{os.getuid()}:{os.getgid()}"
+j = json.load(open(out + "/03-runtime-data.json"))
+ak = next(k for k in j["keys"] if k["kid"] == "HCLAkPub")
+n = int.from_bytes(base64.urlsafe_b64decode(ak["n"] + "=" * (-len(ak["n"]) % 4)), "big")
+handles = [h for h in open(out + "/14-tpm-handles.txt").read().split() if h.startswith("0x")]
+match = None
+for h in handles:
+    pem = subprocess.run(["sudo", "tpm2_readpublic", "-c", h, "-f", "pem", "-o", f"{out}/14-tpm-{h}.pem"], capture_output=True, text=True)
+    if pem.returncode != 0:
+        continue
+    # The TPM tools create their output 0660; a file root made is handed to the user before it is read.
+    subprocess.run(["sudo", "chown", owner, f"{out}/14-tpm-{h}.pem"], check=True)
+    txt = subprocess.run(["openssl", "rsa", "-pubin", "-in", f"{out}/14-tpm-{h}.pem", "-modulus", "-noout"], capture_output=True, text=True).stdout
+    if txt.startswith("Modulus=") and int(txt.split("=")[1].strip(), 16) == n:
+        match = h
+print("persistent handles:", handles, "| the runtime data's HCLAkPub is", match or "NOT FOUND")
+open(out + "/14-ak-handle.txt", "w").write((match or "") + "\n")
+if match:
+    subprocess.run(["cp", f"{out}/14-tpm-{match}.pem", f"{out}/14-ak-pub.pem"], check=True)
+PYEOF
+AK=$(tr -d '\n' < 14-ak-handle.txt)
+[ -n "${AK}" ] || { echo "ERROR: no persistent TPM key matches the runtime data's HCLAkPub"; exit 1; }
+MANIFEST_SHA256=$(sha256sum 01-vaultgenome-payload-manifest.json | awk '{print $1}')
+echo "${MANIFEST_SHA256}" > 14-manifest-sha256.hex
+sudo tpm2_quote -c "${AK}" -l sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 -q "${MANIFEST_SHA256}" -g sha256 \
+  -m 14-manifest-quote.msg -s 14-manifest-quote.sig -o 14-manifest-quote.pcrs -f plain > 14-manifest-quote.txt 2>&1
+sudo chown "$USER:$USER" 14-manifest-quote.msg 14-manifest-quote.sig 14-manifest-quote.pcrs
+# tpm2_checkquote verifies the signature with the AK's public key and that
+# the quote's qualifying data is the manifest's hash and its PCR digest
+# matches the PCR values it carries.
+tpm2_checkquote -u 14-ak-pub.pem -m 14-manifest-quote.msg -s 14-manifest-quote.sig -f 14-manifest-quote.pcrs -g sha256 -q "${MANIFEST_SHA256}" > 14-manifest-binding.txt 2>&1 \
+  && echo "vTPM quote by ${AK} (HCLAkPub) over SHA-256(manifest)=${MANIFEST_SHA256}: VERIFIED" | tee -a 14-manifest-binding.txt \
+  || { echo "ERROR: the manifest quote did not verify (14-manifest-binding.txt)"; cat 14-manifest-binding.txt; exit 1; }
 
 # ---- Step 5: decoded report ----
 echo
@@ -285,9 +334,10 @@ POLICY CHECKS
 ✓ Chip ID matches (cert ↔ report)
 ✓ REPORT_DATA = SHA-256(vTPM runtime data) || 0^32 — Azure's binding, checked
 $([ -f 13-vcek-thim-vs-kds.txt ] && echo "✓ VCEK from Azure THIM: same key and chip id as AMD KDS's, chains to the same ARK")
-  Workload manifest recorded with the measured digest of what Demo 1 sealed
-  (01-vaultgenome-payload-manifest.json); on Azure a caller cannot place its
-  own REPORT_DATA in the report, so it is recorded, not bound.
+✓ Workload manifest bound through the vTPM: the attestation key the report's
+  runtime data names (HCLAkPub) signed a quote whose qualifying data is
+  SHA-256(manifest) (14-manifest-quote.*, checked by tpm2_checkquote);
+  the manifest names what Demo 1 sealed, as measured
 
 RESULT: AMD CHAIN VALIDATION PASSED
 

@@ -53,6 +53,15 @@ reads the files and says where the runner stopped. `evidence/20261015T010417Z/`
 is the same run a day later with the workload manifest naming what Demo 1
 sealed, as acpctl measured it, recorded next to the report (#83).
 
+`evidence/20261015T042715Z/` is the run of 04:27Z with the workload manifest
+**bound through the vTPM**: the runtime data the chip's report commits to
+names the vTPM's attestation key, the kit finds that key among the vTPM's
+persistent handles by its modulus (`0x81000003`), asks it for a quote over
+PCRs 0–14 with SHA-256(manifest) as the qualifying data and verifies the
+quote with the key the report names — so the manifest is no longer only
+recorded next to the report. Its README says what each `14-*` file is, and
+why the 03:58Z attempt stopped at that step.
+
 ## Verification
 
 `internal/shared/tee/azure_sev_snp_verify_test.go` proves, with the SAME real

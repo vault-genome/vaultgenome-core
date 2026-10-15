@@ -237,6 +237,12 @@ the operator's policy admits.
 ADR [0007](docs/adr/0007-measurement-variable-length.md) /
 [0009](docs/adr/0009-x25519-kem-cross-cloud-key-delivery.md); operator procedure in
 [`docs/operator/06_cross_cloud_restore.md`](docs/operator/06_cross_cloud_restore.md).
+On Azure, where the chip's report carries the paravisor's binding of the
+vTPM's runtime data and not a caller's REPORT_DATA, the kit binds the
+workload manifest through the vTPM since 2026-10-15: a quote by the
+attestation key the runtime data names, over SHA-256(manifest), verified
+with that key (`scripts/hardware-test/azure-sev-snp/evidence/20261015T042715Z`,
+the `14-*` files).
 A concrete released-to measurement appears in the failover report below
 (`destination_measurement_hex: 7dc7c12e…125acc`, `destination_kind:
 gcp-sev-snp`).

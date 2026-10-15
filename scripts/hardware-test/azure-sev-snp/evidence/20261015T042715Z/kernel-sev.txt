@@ -1,0 +1,10 @@
+Oct 15 04:00:00 ubuntu kernel: efi: ACPI=0xbfffa000 ACPI 2.0=0xbfffa014 SMBIOS=0xbff88000 SMBIOS 3.0=0xbff86000 TPMFinalLog=0xbecf1000 MEMATTR=0xbecb6018 MOKvar=0xbff84000 INITRD=0xbeca7598 RNG=0xbffd2018 TPMEventLog=0xbec87018 
+Oct 15 04:00:00 ubuntu kernel: ACPI: TPM2 0x00000000BFFD3000 000034 (v03 VRTUAL VTPM     00000001 MSFT 00000001)
+Oct 15 04:00:00 ubuntu kernel: ACPI: Reserving TPM2 table memory at [mem 0xbffd3000-0xbffd3033]
+Oct 15 04:00:00 ubuntu kernel: Memory Encryption Features active: AMD SEV
+Oct 15 04:00:00 ubuntu kernel: tpm_crb MSFT1001:00: Disabling hwrng
+Oct 15 04:00:00 ubuntu kernel: software IO TLB: Memory encryption is active and system is using DMA bounce buffers
+Oct 15 04:00:00 ubuntu kernel: kvm-guest: setup_efi_kvm_sev_migration : EFI live migration variable not found
+Oct 15 04:30:26 vault-genome-sev-snp-test kernel: EXT4-fs (sda1): resizing filesystem from 785147 to 10222331 blocks
+Oct 15 04:30:26 vault-genome-sev-snp-test kernel: EXT4-fs (sda1): resized filesystem to 10222331
+Oct 15 04:30:33 vault-genome-sev-snp-test kernel: loop3: detected capacity change from 0 to 8
