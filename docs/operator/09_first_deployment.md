@@ -41,11 +41,14 @@ slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
 
 and the same `cosign verify-blob` for each `*.sbom.spdx.json` with its
 `.sbom.sig` and `.sbom.cert`. The bundle checks the same thing from one
-file, and does it without a route to Rekor once `cosign initialize` has
-cached the Sigstore trust root (while connected): `cosign verify-blob
---bundle sagvd.sigstore.json --offline` with the same two identity flags
-— the check an air-gapped site runs
-([runbooks/air_gap.md](runbooks/air_gap.md)). Then the tag, against the
+file, and does it with no route at all when the Sigstore trust root is a
+file beside it (`cosign initialize` on a connected machine fetches it
+into `~/.sigstore/root/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json`;
+carry it in): `cosign verify-blob --new-bundle-format --bundle
+sagvd.sigstore.json --trusted-root trusted_root.json` with the same two
+identity flags — the check an air-gapped site runs
+([runbooks/air_gap.md](runbooks/air_gap.md)); not `--offline`, which on
+cosign 2.6.5 still reaches for the TUF mirror. Then the tag, against the
 keys pinned on `main`, never against keys in the tagged tree:
 
 ```bash

@@ -88,8 +88,9 @@ The tag push runs `.github/workflows/release.yml`:
 5. `cosign sign-blob` (keyless): a signature and certificate for each binary
    and for the package (`dist/<artifact>.sig`, `.cert`) and for each SBOM
    (`.sbom.sig`, `.sbom.cert`), and beside each pair the Sigstore bundle
-   (`.sigstore.json`: the signature, the certificate and the Rekor entry
-   in one file, for verification without a route to Rekor).
+   (`.sigstore.json`, the new bundle format: the signature, the
+   certificate and the Rekor entry in one file, for verification with a
+   trusted-root file and no route).
 6. Upload `bin/sagvd`, `bin/acp-compute`, `bin/acpctl`, `bin/acp-bootstrap`,
    `bin/acp-keygen`, the package, the SBOMs, signatures, certificates and
    bundles to the GitHub Release: 48 assets.
@@ -120,11 +121,14 @@ page's revision is rehearsed as `v0.4.1-rc1`; the fifth binary and the
 worker package as `v0.4.2-rc1` on 2026-10-15 (37 assets, 12 signatures,
 6 provenances and the tag verified, the six artifacts rebuilt byte for
 byte — once the package was repacked with GNU gzip, §5.4); the Sigstore
-bundles as `v0.4.3-rc1` on 2026-10-15 (49 assets: the twelve pairs, the
-twelve bundles online and — after `cosign initialize` — with `--offline`,
-6 provenances and the tag verified, the six artifacts rebuilt byte for
-byte; on the air-gap drill's guest the twelve bundles verified with
-egress denied, `scripts/hardware-test/air-gap/`).
+bundles as `v0.4.3-rc1` and `v0.4.3-rc2` on 2026-10-15 (49 assets each;
+rc1's bundles were the old format, and `--offline` — the check first
+written for them — turned out to reach for the TUF mirror on cosign
+2.6.5 and fail without a route; rc2's are the new bundle format: the
+twelve pairs online, the twelve bundles with `--trusted-root` and the
+network denied, 6 provenances and the tag verified, the six artifacts
+rebuilt byte for byte; on the air-gap drill's guest the twelve bundles
+verified with egress denied, `scripts/hardware-test/air-gap/`).
 
 ## 5. Post-release verification
 
@@ -141,15 +145,19 @@ Once the release workflow completes:
      sagvd
    ```
    `docs/security/supply_chain.md` explains what a successful check proves.
-   Then the bundle of each of the twelve, once online and once with
-   `--offline` after `cosign initialize`:
+   Then the bundle of each of the twelve, with the Sigstore trust root as
+   a file (`cosign initialize` fetches it into
+   `~/.sigstore/root/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json`),
+   which needs no route — run it with the network denied, as the
+   release-deploy kit does:
    ```
-   cosign verify-blob --bundle sagvd.sigstore.json --offline \
+   cosign verify-blob --new-bundle-format --bundle sagvd.sigstore.json --trusted-root trusted_root.json \
      --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
      sagvd
    ```
-   — the check an air-gapped site runs (`runbooks/air_gap.md`).
+   — the check an air-gapped site runs (`runbooks/air_gap.md`). Not
+   `--offline`: on cosign 2.6.5 it still updates TUF from the mirror.
 3. Check that the SLSA provenance attached to the release names each
    binary's and the worker package's SHA-256 (for example with
    `slsa-verifier`).
@@ -213,7 +221,7 @@ it is an unattested binary and per invariant #11 is not shippable.
 [ ] Tag: git tag -s vX.Y.Z
 [ ] Push: git push origin vX.Y.Z
 [ ] release.yml workflow green
-[ ] cosign verify-blob on every binary and SBOM: the pair, and the bundle with --offline
+[ ] cosign verify-blob on every binary and SBOM: the pair, and the bundle with --trusted-root and the network denied
 [ ] SLSA provenance names every binary's SHA-256
 [ ] Rebuild from the tag is byte-identical
 [ ] Tag signature verified externally

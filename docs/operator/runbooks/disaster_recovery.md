@@ -567,7 +567,7 @@ own TLS terminator.
 
 - Releases appear without corresponding signed tags
 - `cosign verify-blob` against released binaries fails — the pair or
-  the bundle (from 0.4.3; `--offline` on a host without a route)
+  the bundle (from 0.4.3; with `--trusted-root` on a host without a route)
 - SLSA provenance attestation references a workflow run that doesn't
   exist in the GitHub Actions log
 
