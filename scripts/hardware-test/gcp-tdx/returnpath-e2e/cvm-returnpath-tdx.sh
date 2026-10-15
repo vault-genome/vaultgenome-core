@@ -12,8 +12,13 @@
 # worker fine-tunes a genome on this guest, acpctl seals it, a gate job
 # goes over the Return Path, acp-compute restores the model in memory
 # through the door and answers, sagvd judges the answer and puts every
-# decision on its signed audit log. A worker whose Evidence is not the
-# pinned identity must be refused, and the refusal recorded. The verifier
+# decision on its signed audit log. Both daemons' key files are sealed to
+# this host by what it has: a Trust Domain has no derived key of its own, so
+# tee.sealer's default, auto, takes the guest's vTPM through tpm2-tools
+# (ADR 0025 step 1b) — the configs do not name a sealer. A worker whose
+# Evidence is not the pinned identity must be refused, and the refusal
+# recorded; a copy of the sealed key files must be no key at all off this
+# host. The verifier
 # on each side fetches Intel's TCB info and QE identity from Intel PCS and
 # keeps them in a cache directory; the documents are public and go into
 # the results.
@@ -68,8 +73,14 @@ pip install --require-hashes --only-binary=:all: --no-deps --index-url https://d
 python3 -c 'import torch, transformers, safetensors; print("torch", torch.__version__, "transformers", transformers.__version__, "safetensors", safetensors.__version__)' > "$OUT/runtime.txt" 2>&1
 mark runtime_install_end
 
-step "provision (keygen)"
-./keygen -out secrets -quiet
+step "the host's vTPM: tee.sealer auto resolves to tpm2 on a Trust Domain (tpm2-tools)"
+export DEBIAN_FRONTEND=noninteractive
+for i in $(seq 1 12); do apt-get install -y -qq tpm2-tools >/dev/null 2>&1 && break; apt-get update -qq >/dev/null 2>&1 || true; sleep 10; done
+command -v tpm2_createprimary >/dev/null || echo "tpm2-tools did not install" >> "$OUT/steps.txt"
+{ ls -la /dev/tpm0 /dev/tpmrm0 2>&1; tpm2_getcap properties-fixed 2>&1 | grep -A1 -E "TPM2_PT_MANUFACTURER|TPM2_PT_VENDOR_STRING_1" | head -4; } > "$OUT/vtpm.txt" 2>&1
+
+step "provision (acp-keygen, private modes; every key file is sealed to this host below)"
+./keygen -out secrets -quiet -private
 S=$WORK/secrets
 mkdir -p genomes audit pcs-cache
 # The pins are filled in from each daemon's identity below; identity needs
@@ -138,6 +149,31 @@ python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_ke
 # MRTD and RTMRs; each pins the other's.
 write_configs "$VMEAS" "$WMEAS"
 
+step "the key files sealed to this host (ADR 0023; tee.sealer unset — auto, which is tpm2 here, ADR 0025 step 1b)"
+# seal-keys seals the API token file too: the operator's copy is taken first.
+cp "$S/sagvd/api_token" "$WORK/api_token.operator" && chmod 600 "$WORK/api_token.operator"
+# The second rogue below plays a thief who held the worker's plaintext key
+# files at provisioning time: its copies are taken now, before seal-keys
+# turns the originals into files only this host opens.
+mkdir -p rogue && chmod 700 rogue
+cp "$S/acp-compute/worker_signing_seed" rogue/worker_signing_seed
+cp "$S/acp-compute/tls/client.key" rogue/client.key
+cp "$S/shared/sealing.key" rogue/sealing.key
+chmod 600 rogue/*
+./sagvd seal-keys -config sagvd.json > "$OUT/seal-keys-sagvd.json" 2> "$OUT/seal-keys-sagvd.err"; echo "sagvd seal-keys exit=$? sealer=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("sealer"))' "$OUT/seal-keys-sagvd.json" 2>/dev/null) sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/seal-keys-sagvd.json" 2>/dev/null)" >> "$OUT/steps.txt"
+./acp-compute seal-keys -config worker.json > "$OUT/seal-keys-worker.json" 2> "$OUT/seal-keys-worker.err"; echo "acp-compute seal-keys exit=$? sealer=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("sealer"))' "$OUT/seal-keys-worker.json" 2>/dev/null) sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/seal-keys-worker.json" 2>/dev/null)" >> "$OUT/steps.txt"
+# The sealed files' shape, without their bytes: the sealer each names.
+python3 - "$S" > "$OUT/sealed-files.txt" 2>&1 <<'SHAPE'
+import json, os, sys
+S = sys.argv[1]
+for p in ("sagvd/authority_signing_seed", "sagvd/audit_signing_seed", "sagvd/api_token", "sagvd/tls/server.key", "shared/sealing.key", "acp-compute/worker_signing_seed", "acp-compute/tls/client.key"):
+    try:
+        d = json.load(open(os.path.join(S, p)))
+        print(p, {"schema": d.get("schema"), "tee": d.get("tee"), "sealer": d.get("sealer"), "name": d.get("name"), "sealed_bytes": len(d.get("sealed", ""))})
+    except Exception as e:
+        print(p, "not a sealed file:", type(e).__name__)
+SHAPE
+
 step "a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl"
 mark finetune_start
 export PYTHONPATH=$WORK/workers/genome TOKENIZERS_PARALLELISM=false
@@ -158,10 +194,11 @@ SAGVD=$!
 n=0; until curl -sf http://127.0.0.1:9081/readyz >/dev/null || [ $n -ge 60 ]; do sleep 1; n=$((n+1)); done
 echo "sagvd ready after ${n}s" >> "$OUT/steps.txt"
 
-step "a worker that is not the pinned identity: refused at the Return Path handshake, on the record"
-# Same certificate, same sealing key, a different attestation: the
-# simulated TEE. sagvd's pin is the Trust Domain's measurement; this
-# Evidence is not a TDX quote at all.
+step "a thief with the sealed key files, off this host: they do not open (ADR 0023; the vTPM's seal)"
+# The worker's own key files, as they sit on disk after seal-keys, in the
+# hands of a process whose TEE is the simulated one: the seal names the
+# Trust Domain, and the files are refused before any key is read. A hang
+# here would mean they opened; timeout makes that an exit code on the record.
 head -c 32 /dev/urandom > rogue.seed; chmod 600 rogue.seed
 python3 - <<'PY'
 import json
@@ -171,13 +208,25 @@ c["tee"] = {"provider": "simulated", "workload_descriptor": "rogue-worker-v1", "
 c["health"] = {"listen_address": "127.0.0.1:9083"}
 c["runtime"]["dial_backoff_initial_ms"] = 2000
 c["runtime"]["dial_backoff_max_ms"] = 2000
+json.dump(c, open(W + "/rogue-sealed.json", "w"), indent=2)
+# The same rogue with the plaintext copies taken before sealing.
+c["keys"]["worker_signing"]["seed_path"] = W + "/rogue/worker_signing_seed"
+c["keys"]["session_sealing"]["material_path"] = W + "/rogue/sealing.key"
+c["vault"]["tls"]["client_key"] = W + "/rogue/client.key"
 json.dump(c, open(W + "/rogue.json", "w"), indent=2)
 PY
+timeout 30 ./acp-compute -config rogue-sealed.json > "$OUT/rogue-sealed-worker.log" 2>&1
+echo "rogue with the sealed files exit=$? $(grep -o 'sealed to [a-z0-9-]*, this host is [a-z0-9-]*' "$OUT/rogue-sealed-worker.log" | head -1)" >> "$OUT/steps.txt"
+
+step "a worker that is not the pinned identity: refused at the Return Path handshake, on the record"
+# Same certificate, same signing key, same sealing key — the plaintext
+# copies — and a different attestation: the simulated TEE. sagvd's pin is
+# the Trust Domain's measurement; this Evidence is not a TDX quote at all.
 ./acp-compute -config rogue.json > "$OUT/rogue-worker.log" 2>&1 &
 ROGUE=$!
 n=0; until grep -q "sagvd return-path handshake failed" "$OUT/sagvd.log" || [ $n -ge 60 ]; do sleep 1; n=$((n+1)); done
-echo "rogue refused after ${n}s" >> "$OUT/steps.txt"
-kill -TERM $ROGUE; wait $ROGUE 2>/dev/null
+if grep -q "sagvd return-path handshake failed" "$OUT/sagvd.log"; then echo "rogue refused after ${n}s" >> "$OUT/steps.txt"; else echo "rogue NOT refused within ${n}s" >> "$OUT/steps.txt"; fi
+kill -TERM $ROGUE 2>/dev/null; wait $ROGUE 2>/dev/null
 
 step "acp-compute on TDX, the real door"
 ./acp-compute -config worker.json > "$OUT/acp-compute.log" 2>&1 &
@@ -187,7 +236,7 @@ n=0; until grep -q "sagvd session opened" "$OUT/sagvd.log" || [ $n -ge 90 ]; do 
 echo "session opened after ${n}s" >> "$OUT/steps.txt"
 
 step "the gate job over the Return Path"
-TOKEN=$(cat "$S/sagvd/api_token")
+TOKEN=$(cat "$WORK/api_token.operator")
 mark job_submit
 curl -s -o "$OUT/job-submit.json" -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   --data '{"genome":{"bundle":"gen-0.genome","key_file":"gen-0.key"},"deadline_seconds_from_now":300}' http://127.0.0.1:9080/v1/jobs > "$OUT/job-submit.status"

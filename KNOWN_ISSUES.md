@@ -74,6 +74,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    sealing key; since ADR 0022 the escrow key is sealed to the guest's vTPM
    under a policy of this boot's PCRs (tpm2-tools; proven on a c3 Trust
    Domain, `scripts/hardware-test/failover-tdx-authority`).
+   Since 2026-10-15 the sealer is the operator's choice by what the host
+   has (`tee.sealer`, ADR 0025 step 1b): the TEE's own key, the host's TPM
+   2.0 — virtual or discrete, on any TEE or none — or the simulated key;
+   every sealed file names its sealer.
    The Azure confidential GPU adapter (ADR 0019, `tee.provider:
    "azure-cgpu"`, NCC H100 v5) carries the SEV-SNP report from the vTPM's
    HCL report, a TPM quote by the vTPM's attestation key binding the

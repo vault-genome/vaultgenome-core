@@ -291,10 +291,27 @@ type TEEConfig struct {
 	// Simulated only.
 	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
 
+	// Sealer is how the daemon seals its key files to this host (ADR 0025,
+	// step 1b): "auto" (the TEE's own key where it has one — SEV-SNP's
+	// derived key — else the host's TPM 2.0, else the simulated key),
+	// "tee" (the TEE's own key only; refused on TDX and Azure, which have
+	// none), or "tpm2" (the host's TPM 2.0 through tpm2-tools, whatever
+	// the TEE). Every sealed file names the sealer it was made with.
+	Sealer string `json:"sealer,omitempty"`
+
 	// AutoResolvedFrom is set by ResolveAuto when Provider was "auto": the
 	// configfs-tsm provider name the family was taken from (ADR 0025).
 	// Not read from the file.
 	AutoResolvedFrom string `json:"-"`
+}
+
+// SealerMode is tee.sealer with the default applied.
+func (t TEEConfig) SealerMode() tee.SealerMode {
+	m, err := tee.ParseSealerMode(t.Sealer)
+	if err != nil {
+		return tee.SealerModeAuto
+	}
+	return m
 }
 
 // ResolveAuto replaces tee.provider "auto" with the family the kernel's
@@ -508,6 +525,9 @@ func (p PeerTEEConfig) ProviderKind() (tee.Provider, error) {
 // peer by measurement and the AMD chain.
 func validateTEE(t TEEConfig) []error {
 	var errs []error
+	if _, err := tee.ParseSealerMode(t.Sealer); err != nil {
+		errs = append(errs, err)
+	}
 	switch provider, err := t.ProviderKind(); {
 	case err != nil:
 		errs = append(errs, fmt.Errorf("tee.provider invalid: %w", err))

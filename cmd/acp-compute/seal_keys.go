@@ -22,6 +22,7 @@ import (
 type sealKeysOutput struct {
 	TEE            string           `json:"tee"`
 	MeasurementHex string           `json:"measurement_hex"`
+	Sealer         string           `json:"sealer"`
 	Sealed         []sealedKeyEntry `json:"sealed"`
 	AlreadySealed  []sealedKeyEntry `json:"already_sealed,omitempty"`
 }
@@ -84,18 +85,18 @@ func runSealKeysCmd(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	defer mat.Store.Zeroize()
-	sealer, closer, err := tee.SealerFor(mat.Producer, tee.SealerOptions{SEVGuestDevice: cfg.TEE.SEVDevice(), TPM2ToolsDir: cfg.TEE.TPM2ToolsDir, VTPMSealPCRs: cfg.TEE.VTPMSealPCRs})
+	sealer, closer, kind, err := tee.SealerFor(mat.Producer, tee.SealerOptions{Mode: cfg.TEE.SealerMode(), SEVGuestDevice: cfg.TEE.SEVDevice(), TPM2ToolsDir: cfg.TEE.TPM2ToolsDir, VTPMSealPCRs: cfg.TEE.VTPMSealPCRs})
 	if err != nil {
 		return fmt.Errorf("seal-keys: %w", err)
 	}
 	if closer != nil {
 		defer func() { _ = closer.Close() }()
 	}
-	if mat.Provider == tee.ProviderSimulated {
+	if kind == tee.SealerKindSimulated {
 		fmt.Fprintln(stderr, "seal-keys: SIMULATED TEE: the keys are sealed under a key derived from the simulated measurement, with no hardware behind it; development and tests only")
 	}
 	measurement := mat.Producer.Measurement()
-	out := sealKeysOutput{TEE: string(mat.Provider), MeasurementHex: hex.EncodeToString(measurement)}
+	out := sealKeysOutput{TEE: string(mat.Provider), MeasurementHex: hex.EncodeToString(measurement), Sealer: string(kind)}
 	for _, f := range keyFiles(cfg) {
 		raw, err := os.ReadFile(f.path)
 		if err != nil {
@@ -108,7 +109,7 @@ func runSealKeysCmd(args []string, stdout, stderr io.Writer) error {
 		if (f.n > 0 && len(raw) != f.n) || len(raw) == 0 {
 			return fmt.Errorf("seal-keys: %s (%q) must be exactly %d bytes (got %d)", f.name, f.path, f.n, len(raw))
 		}
-		sealed, err := tee.SealSecret(raw, sealer, mat.Provider, measurement, f.name)
+		sealed, err := tee.SealSecretWith(raw, sealer, kind, mat.Provider, measurement, f.name)
 		for i := range raw {
 			raw[i] = 0
 		}
@@ -116,7 +117,7 @@ func runSealKeysCmd(args []string, stdout, stderr io.Writer) error {
 			return fmt.Errorf("seal-keys: %s: %w", f.name, err)
 		}
 		// The sealed file must open here before the bare one is gone.
-		if _, err := tee.OpenSecret(sealed, sealer, mat.Provider, f.name); err != nil {
+		if _, err := tee.OpenSecretWith(sealed, sealer, kind, mat.Provider, f.name); err != nil {
 			return fmt.Errorf("seal-keys: %s: the sealed key does not open on this host: %w", f.name, err)
 		}
 		if err := replaceFile(f.path, sealed); err != nil {

@@ -20,7 +20,7 @@ func sealedToSimulatedHost(t *testing.T, cfg TEEConfig, plain []byte, name strin
 	provider, producer, err := buildTEEProducer(cfg)
 	require.NoError(t, err)
 	require.Equal(t, tee.ProviderSimulated, provider)
-	sealer, closer, err := tee.SealerFor(producer, tee.SealerOptions{})
+	sealer, closer, _, err := tee.SealerFor(producer, tee.SealerOptions{})
 	require.NoError(t, err)
 	require.Nil(t, closer)
 	raw, err := tee.SealSecret(plain, sealer, provider, producer.Measurement(), name)
@@ -38,14 +38,14 @@ func TestHostSealer_PerProvider(t *testing.T) {
 	t.Parallel()
 	cfg, dir := testKeyDir(t)
 
-	s, closer, provider, err := hostSealer(cfg.TEE)
+	s, closer, provider, _, err := hostSealer(cfg.TEE)
 	require.NoError(t, err)
 	require.IsType(t, &tee.Simulated{}, s)
 	require.Nil(t, closer)
 	require.Equal(t, tee.ProviderSimulated, provider)
 
 	for _, p := range []tee.Provider{tee.ProviderGCPTDX, tee.ProviderAzureCGPU} {
-		s, closer, provider, err := hostSealer(TEEConfig{Provider: string(p), VTPMSealPCRs: "sha256:0,1,2"})
+		s, closer, provider, _, err := hostSealer(TEEConfig{Provider: string(p), VTPMSealPCRs: "sha256:0,1,2"})
 		require.NoError(t, err, p)
 		require.Nil(t, closer)
 		require.Equal(t, p, provider)
@@ -62,7 +62,7 @@ func TestHostSealer_PerProvider(t *testing.T) {
 		"unknown provider":     {TEEConfig{Provider: "nope"}, "unknown provider"},
 		"sev-snp off the chip": {TEEConfig{Provider: "gcp-sev-snp", TSMReportDir: filepath.Join(dir, "no-such-tsm")}, "configfs-tsm"},
 	} {
-		s, closer, provider, err := hostSealer(tc.cfg)
+		s, closer, provider, _, err := hostSealer(tc.cfg)
 		require.ErrorContains(t, err, tc.want, name)
 		require.Nil(t, s, name)
 		require.Nil(t, closer, name)

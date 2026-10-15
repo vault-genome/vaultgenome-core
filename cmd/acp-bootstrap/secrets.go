@@ -15,29 +15,32 @@ import (
 // vTPM on a TDX or Azure confidential GPU host (ADR 0022), the chip's
 // derived key on SEV-SNP, the simulated TEE's weak key off hardware.
 // The closer, when not nil, holds the device the sealer opened.
-func hostSealer(cfg TEEConfig) (tee.Sealer, io.Closer, tee.Provider, error) {
+func hostSealer(cfg TEEConfig) (tee.Sealer, io.Closer, tee.Provider, tee.SealerKind, error) {
 	provider, err := tee.ParseProvider(cfg.Provider)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("acp-bootstrap: tee.provider: %w", err)
+		return nil, nil, "", "", fmt.Errorf("acp-bootstrap: tee.provider: %w", err)
 	}
-	switch provider {
-	case tee.ProviderGCPTDX, tee.ProviderAzureCGPU:
+	kind, err := tee.SealerKindForProvider(provider, cfg.SealerMode())
+	if err != nil {
+		return nil, nil, "", "", fmt.Errorf("acp-bootstrap: %w", err)
+	}
+	if kind == tee.SealerKindTPM2 {
+		// The TPM needs no producer (ADR 0022).
 		s, err := tee.NewVTPMSealer(tee.VTPMSealerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, PCRs: cfg.VTPMSealPCRs})
 		if err != nil {
-			return nil, nil, "", fmt.Errorf("acp-bootstrap: tee.vtpm_seal_pcrs: %w", err)
+			return nil, nil, "", "", fmt.Errorf("acp-bootstrap: tee.vtpm_seal_pcrs: %w", err)
 		}
-		return s, nil, provider, nil
-	default:
-		producer, err := buildTEEProducer(cfg)
-		if err != nil {
-			return nil, nil, "", err
-		}
-		s, closer, err := tee.SealerFor(producer, tee.SealerOptions{SEVGuestDevice: cfg.SEVDevice(), TPM2ToolsDir: cfg.TPM2ToolsDir, VTPMSealPCRs: cfg.VTPMSealPCRs})
-		if err != nil {
-			return nil, nil, "", fmt.Errorf("acp-bootstrap: %w", err)
-		}
-		return s, closer, provider, nil
+		return s, nil, provider, kind, nil
 	}
+	producer, err := buildTEEProducer(cfg)
+	if err != nil {
+		return nil, nil, "", "", err
+	}
+	s, closer, kind, err := tee.SealerFor(producer, tee.SealerOptions{Mode: cfg.SealerMode(), SEVGuestDevice: cfg.SEVDevice(), TPM2ToolsDir: cfg.TPM2ToolsDir, VTPMSealPCRs: cfg.VTPMSealPCRs})
+	if err != nil {
+		return nil, nil, "", "", fmt.Errorf("acp-bootstrap: %w", err)
+	}
+	return s, closer, provider, kind, nil
 }
 
 // readSecret reads the secret file named by field: bare bytes (exactly
@@ -58,14 +61,14 @@ func readSecret(cfg TEEConfig, path string, wantLen int, field string) ([]byte, 
 		}
 		return raw, nil
 	}
-	sealer, closer, provider, err := hostSealer(cfg)
+	sealer, closer, provider, kind, err := hostSealer(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("acp-bootstrap: %s (%q) is sealed and this host cannot open it: %w", field, path, err)
 	}
 	if closer != nil {
 		defer func() { _ = closer.Close() }()
 	}
-	plain, err := tee.OpenSecret(raw, sealer, provider, field)
+	plain, err := tee.OpenSecretWith(raw, sealer, kind, provider, field)
 	if err != nil {
 		return nil, fmt.Errorf("acp-bootstrap: %s (%q): %w", field, path, err)
 	}

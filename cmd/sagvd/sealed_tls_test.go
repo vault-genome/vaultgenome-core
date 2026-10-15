@@ -89,7 +89,7 @@ func TestSealKeys_SealsTheTLSKeysAndTheTokenToo(t *testing.T) {
 
 	// A key sealed for the cross-cloud transport, by hand under its name,
 	// opens for the transport; the vault's listener refuses it.
-	sealer, closer, provider, err := hostSealer(cfg.TEE)
+	sealer, closer, provider, _, err := hostSealer(cfg.TEE)
 	require.NoError(t, err)
 	if closer != nil {
 		defer func() { _ = closer.Close() }()
