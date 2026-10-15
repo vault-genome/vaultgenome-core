@@ -11,6 +11,19 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-15
+
+A hardening and evidence release on the runtime of 0.4.0. Two findings of
+the new refusal tables are fixed: the disclosure flow wipes every plaintext
+on every exit, and an equivalence verdict is always finite and signable.
+The product's statement coverage is 95.5% behind a 90% floor; every commit
+certifies the Developer Certificate of Origin; the governance, assurance
+case, upgrading guide and a security review are written down. The hardware
+kits check every download before it runs, the Azure SEV-SNP kit captures
+the report the way Azure exposes it (the vTPM), and the GCP SEV-SNP (Milan),
+Azure SEV-SNP (Genoa) and Azure SGX kits each ran end to end on a fresh VM
+with the evidence committed; the AWS Nitro kit ran on the release toolchain.
+
 ### Security
 
 - The AWS Nitro kit's toolchain is the release's: the parent host installs
