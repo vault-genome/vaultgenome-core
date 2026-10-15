@@ -20,6 +20,11 @@ given release can still open.
   ones, the keys sealed in place, the pins from the chips, the refusal of
   an unpinned worker, the gate job and the verified audit log, each with
   the number the reference produced.
+- `workers/genome/requirements-cuda.lock` and `requirements-torch-cu126.lock`:
+  the CUDA 12.6 libraries the torch cu126 wheel needs, hash-pinned from
+  PyPI (the same files NVIDIA publishes on its own index, sha256 equal), and
+  the torch cu126 wheel with its triton from the PyTorch cu126 index —
+  resolved on Linux x86_64 / CPython 3.12 with pip's `--report`.
 - `scripts/hardware-test/release-deploy/`: the reference deployment. One
   command downloads a release's assets, verifies every signature, the SLSA
   provenance and the tag's signature, rebuilds the binaries from the tag
@@ -42,6 +47,26 @@ given release can still open.
   (13.51 s, EQUIVALENT), `azure-cgpu` (capture and Return Path on the H100,
   gate EXACT 16/16), `failover-cgpu` (15.06 s to the H100, EQUIVALENT) and
   `gcp-drill` (the fine-tune sealed inside the SEV-SNP guest, EXACT on the sealing CPU, restored byte-exact on the L4 VM and gated EQUIVALENT there, 1.61e-4).
+
+- The hardware kits install every Python package from the hash-pinned
+  locks, each from its own index with `--require-hashes
+  --only-binary=:all:`: the drills (`gcp-drill`, `gcp-failover`, `gpu-7b`,
+  `gpu-exact`, `integer-door`), the confidential-GPU scripts (`azure-cgpu`,
+  `failover-cgpu`) and the Return Path guests (`gcp-sev-snp`, `gcp-tdx`)
+  take `requirements-ci.lock` from PyPI, a GPU host adds
+  `requirements-cuda.lock`, then the torch wheel for the host alone from
+  the PyTorch index that carries it; the runners pack the locks with the
+  worker; the Return Path guests log what pip installed. The three
+  inference tests and the demo script save Ollama's reply to a file and
+  parse it; the AWS Nitro kit's unpinned Python fallback is an error
+  (`acpctl` is the verifier). On hardware, 2026-10-15: `gcp-drill`
+  (`evidence/20261015T043402Z`: EXACT on the SEV-SNP source, EQUIVALENT on
+  the L4 and on its CPU), `gcp-sev-snp/returnpath-e2e`
+  (`evidence/20261015T043703Z`, `20261015T044521Z`: EXACT 6/6, the audit
+  log verified) and `azure-cgpu` (`evidence/20261015T043702Z` and
+  `-returnpath`: the 7B genome EXACT on the H100 in the capture and over
+  the Return Path, the audit log verified). Closes F10 of the security
+  review.
 
 ## [0.4.1] — 2026-10-15
 

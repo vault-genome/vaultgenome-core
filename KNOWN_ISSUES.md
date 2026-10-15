@@ -402,7 +402,13 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    hash-pinned locks — `requirements-ci.lock` from PyPI, the torch wheel in
    `requirements-torch-cpu.lock` from the PyTorch CPU index — each with its
    own `--index-url` under `pip --require-hashes`, every wheel checked
-   against its sha256 and no index standing in for another. The AWS Nitro
+   against its sha256 and no index standing in for another; since
+   2026-10-15 so do the hardware kits, a GPU host adding the CUDA 12.6
+   libraries from `requirements-cuda.lock` (PyPI, the same files NVIDIA
+   publishes on its own index) and the torch cu126 wheel with its triton
+   from `requirements-torch-cu126.lock` (the PyTorch cu126 index), proven
+   on the drill's two legs, the Return Path guest and the confidential
+   H100 that day. The AWS Nitro
    kit is the one kit the runtime raise does not reach: its records
    (`scripts/hardware-test/aws-nitro/evidence`, May 2026) are attestation
    documents and certificate chains, not the worker's arithmetic. Its own
