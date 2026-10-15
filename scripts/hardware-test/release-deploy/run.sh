@@ -82,6 +82,32 @@ done
 grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt" | sed 's/^/  cosign Verified OK: /'
 grep -c 'PASSED: SLSA verification passed' "$EVIDENCE/verify/slsa.txt" | sed 's/^/  slsa PASSED: /'
 test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = 12 || { echo "ERROR: a signature did not verify"; exit 1; }
+# From 0.4.3 the release carries a Sigstore bundle beside each pair: the
+# same twelve files verified from their bundles with the Sigstore trust
+# root as a file (cosign initialize fetches it) and no route — the check
+# an air-gapped site runs. On macOS the route is taken away from cosign
+# with sandbox-exec; elsewhere the check runs with the route and says so.
+if [ "$(ls "$DL"/*.sigstore.json 2>/dev/null | wc -l | tr -d ' ')" = 12 ]; then
+  cosign initialize 2>&1 | rec cosign-initialize.txt >/dev/null || true
+  TRUSTED_ROOT="$(find "${TUF_ROOT:-$HOME/.sigstore/root}" -name trusted_root.json 2>/dev/null | head -1)"
+  [ -n "$TRUSTED_ROOT" ] || { echo "ERROR: no trusted_root.json in cosign's TUF cache after cosign initialize"; exit 1; }
+  cp "$TRUSTED_ROOT" "$DL/trusted_root.json"
+  echo "  trusted_root.json: $(sha "$DL/trusted_root.json")" | rec tools.txt
+  if command -v sandbox-exec >/dev/null 2>&1; then NONET=(sandbox-exec -p '(version 1)(allow default)(deny network*)' env TUF_ROOT=/nonexistent); echo "  the bundle check runs with the network denied (sandbox-exec)"; else NONET=(env); echo "  the bundle check runs with the route (no sandbox-exec here)"; fi
+  for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen "$WORKER_PKG"; do
+    sbom="$b.sbom.spdx.json"; sbombundle="$b.sbom.sigstore.json"
+    [ "$b" = "$WORKER_PKG" ] && { sbom="genome-worker-$TAG.sbom.spdx.json"; sbombundle="genome-worker-$TAG.sbom.sigstore.json"; }
+    for f in "$b" "$sbom"; do
+      bundle="$f.sigstore.json"; [ "$f" = "$sbom" ] && bundle="$sbombundle"
+      ( cd "$DL" && "${NONET[@]}" cosign verify-blob --new-bundle-format --bundle "$bundle" --trusted-root trusted_root.json \
+          --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$f" ) 2>&1 | rec cosign-bundle-nonet.txt | tail -1 | sed "s|^|  bundle, no route, $f: |"
+    done
+  done
+  grep -c 'Verified OK' "$EVIDENCE/verify/cosign-bundle-nonet.txt" | sed 's/^/  cosign bundle with --trusted-root Verified OK: /'
+  test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign-bundle-nonet.txt")" = 12 || { echo "ERROR: a bundle did not verify with --trusted-root"; exit 1; }
+else
+  echo "  no Sigstore bundles in this release (before 0.4.3): the pairs only"
+fi
 test "$(grep -c 'PASSED: SLSA verification passed' "$EVIDENCE/verify/slsa.txt")" = 6 || { echo "ERROR: a provenance did not verify"; exit 1; }
 grep -q 'Good "git" signature' "$EVIDENCE/verify/tag.txt" || { echo "ERROR: the tag's signature did not verify against .github/allowed_signers"; exit 1; }
 

@@ -463,6 +463,21 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    (`--bundle <asset>.sigstore.json`, `cosign verify-blob --bundle`) changes
    the assets and all of those documents together and is made as one
    release, not in passing.
+   **RESOLVED (2026-10-15, from 0.4.3):** `release.yml` writes a Sigstore
+   bundle in the new bundle format (`<asset>.sigstore.json`: the
+   signature, the certificate and the Rekor entry in one file) beside
+   each `.sig` + `.cert` pair — 48 signed assets and the provenance. The
+   check that needs no route is `cosign verify-blob --new-bundle-format
+   --bundle <asset>.sigstore.json --trusted-root trusted_root.json`, the
+   trust root a file from `cosign initialize`'s cache on a connected
+   machine; `--offline` is not it — on cosign 2.6.5 it still updates TUF
+   from the mirror and fails without a route (measured on the rehearsal
+   `v0.4.3-rc1`, whose bundles were the old format). The rehearsal
+   `v0.4.3-rc2` verified all twelve bundles with the network denied, and
+   on the air-gap drill's guest with egress denied; the README, the
+   first-deployment guide, the release procedure §5, the supply-chain
+   page, the disaster-recovery runbook and the release-deploy kit give the
+   bundle check beside the pair. cosign stays pinned at 2.6.5.
 16. **The job queue is in memory: a job in flight when the authority's
    host is lost is lost with it (2026-10-15).**
    `sagvd` keeps accepted jobs in memory (`cmd/sagvd/job_queue.go`); the

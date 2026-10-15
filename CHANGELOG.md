@@ -13,6 +13,19 @@ given release can still open.
 
 ### Added
 
+- The release workflow writes a Sigstore bundle in the new bundle format
+  (`<asset>.sigstore.json`) beside each asset's `.sig` + `.cert` pair —
+  the signature, the certificate and the Rekor entry in one file — for
+  `cosign verify-blob --new-bundle-format --bundle … --trusted-root
+  trusted_root.json` on a host with no route at all; 48 signed assets and
+  the provenance per release. Rehearsed as `v0.4.3-rc1` and `v0.4.3-rc2`:
+  the first showed that `--offline` on cosign 2.6.5 still reaches for the
+  TUF mirror and fails without a route; the second's twelve bundles
+  verified with the network denied, and on the air-gap drill's guest with
+  egress denied. The README, the first-deployment guide, the release
+  procedure, the supply-chain page, the disaster-recovery runbook and the
+  release-deploy kit give the bundle check beside the pair
+  (KNOWN_ISSUES #15 resolved).
 - `acpctl tee prefetch --config <daemon config>`: a host that will have no
   route to the hardware vendors fills its peer verifier's caches while it
   has one — the VCEK of its chip from AMD KDS into `tee.peer.vcek_cache_dir`,

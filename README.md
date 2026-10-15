@@ -124,6 +124,25 @@ The same two commands verify `acp-compute`, `acpctl`, `acp-bootstrap`,
 deployment needs nothing from the source tree
 ([`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md)).
 
+From 0.4.3 on, every signed file also has a Sigstore bundle,
+`<asset>.sigstore.json` — the signature, the certificate and the Rekor
+entry in one file — so a host with no route at all verifies it too, with
+the Sigstore trust root carried in as a file (`cosign initialize` on a
+connected machine fetches it into its cache,
+`~/.sigstore/root/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json`):
+
+```bash
+cosign verify-blob --new-bundle-format --bundle sagvd.sigstore.json --trusted-root trusted_root.json \
+  --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
+```
+
+Not `--offline`: on the pinned cosign 2.6.5 that flag still reaches for
+the TUF mirror and fails without a route (measured).
+([`docs/operator/runbooks/air_gap.md`](docs/operator/runbooks/air_gap.md) is
+the air-gapped procedure; the rehearsal `v0.4.3-rc2` verified all twelve
+bundles this way with the network denied.)
+
 [`docs/operator/05_release_procedure.md`](docs/operator/05_release_procedure.md)
 is the whole procedure; [`docs/security/supply_chain.md`](docs/security/supply_chain.md)
 says what each check proves.

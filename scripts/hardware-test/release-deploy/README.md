@@ -23,9 +23,14 @@ created and deleted by the run.
    verify-artifact` against the source repository and the tag (six
    artifacts), and the tag's own signature against the keys pinned on
    `main` (`.github/allowed_signers`). A signature that does not verify
-   stops the run. (A release before 0.4.2 has four binaries and no package:
-   eight signatures, four provenances, and the pieces below from the tag's
-   source — the record of `v0.4.1` says so.)
+   stops the run. From 0.4.3 the release carries a Sigstore bundle beside
+   each pair, and the kit verifies the same twelve files from their
+   bundles with the Sigstore trust root as a file (`--trusted-root`, the
+   file from `cosign initialize`'s cache) and, on macOS, the network
+   denied to cosign — the check an air-gapped site runs. (A release before
+   0.4.2 has four binaries and no
+   package: eight signatures, four provenances, and the pieces below from
+   the tag's source — the record of `v0.4.1` says so.)
 2. **Rebuilds the five binaries and the worker package from the tag** with
    the inputs `release.yml` uses (the tag as VERSION, the commit as COMMIT,
    its time as SOURCE_DATE_EPOCH, CGO off, linux/amd64; GNU tar with sorted

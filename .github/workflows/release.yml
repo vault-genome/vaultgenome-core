@@ -133,10 +133,15 @@ jobs:
         with:
           # cosign 3 signs a blob into one Sigstore bundle by default and ignores
           # --output-signature / --output-certificate; the 0.3.0 run failed on it
-          # after the installer moved to v4. The release's assets and every
-          # documented verification command are the .sig + .cert pair, so the
-          # pin stays until the move to bundles is made together with the
-          # documents that describe verification (KNOWN_ISSUES #15).
+          # after the installer moved to v4. Pinned to 2.6.5: every asset gets
+          # the .sig + .cert pair the documents of earlier releases verify
+          # with, and beside it the Sigstore bundle (<asset>.sigstore.json,
+          # the new bundle format: signature, certificate and the Rekor
+          # entry in one file) that `cosign verify-blob --new-bundle-format
+          # --bundle … --trusted-root trusted_root.json` checks with no route
+          # at all — what an air-gapped site needs (KNOWN_ISSUES #15).
+          # Measured on 2.6.5: `--offline` is not that; it still reaches for
+          # the TUF mirror and fails without a route.
           cosign-release: 'v2.6.5'
 
       - name: Sign binaries and the worker package (keyless)
@@ -144,26 +149,30 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           for b in $RELEASE_BINARIES; do
-            cosign sign-blob --yes "bin/$b" \
+            cosign sign-blob --yes --new-bundle-format "bin/$b" \
               --output-signature "dist/${b}.sig" \
-              --output-certificate "dist/${b}.cert"
+              --output-certificate "dist/${b}.cert" \
+              --bundle "dist/${b}.sigstore.json"
           done
-          cosign sign-blob --yes "dist/genome-worker-${VERSION}.tar.gz" \
+          cosign sign-blob --yes --new-bundle-format "dist/genome-worker-${VERSION}.tar.gz" \
             --output-signature "dist/genome-worker-${VERSION}.tar.gz.sig" \
-            --output-certificate "dist/genome-worker-${VERSION}.tar.gz.cert"
+            --output-certificate "dist/genome-worker-${VERSION}.tar.gz.cert" \
+            --bundle "dist/genome-worker-${VERSION}.tar.gz.sigstore.json"
 
       - name: Sign SBOMs (keyless)
         env:
           VERSION: ${{ github.ref_name }}
         run: |
           for b in $RELEASE_BINARIES; do
-            cosign sign-blob --yes "dist/${b}.sbom.spdx.json" \
+            cosign sign-blob --yes --new-bundle-format "dist/${b}.sbom.spdx.json" \
               --output-signature "dist/${b}.sbom.sig" \
-              --output-certificate "dist/${b}.sbom.cert"
+              --output-certificate "dist/${b}.sbom.cert" \
+              --bundle "dist/${b}.sbom.sigstore.json"
           done
-          cosign sign-blob --yes "dist/genome-worker-${VERSION}.sbom.spdx.json" \
+          cosign sign-blob --yes --new-bundle-format "dist/genome-worker-${VERSION}.sbom.spdx.json" \
             --output-signature "dist/genome-worker-${VERSION}.sbom.sig" \
-            --output-certificate "dist/genome-worker-${VERSION}.sbom.cert"
+            --output-certificate "dist/genome-worker-${VERSION}.sbom.cert" \
+            --bundle "dist/genome-worker-${VERSION}.sbom.sigstore.json"
 
       - name: Emit hashes for SLSA provenance
         id: hash
@@ -199,7 +208,7 @@ jobs:
             || gh release create "$TAG" --title "$TAG" --notes "See CHANGELOG.md for $TAG." --draft=false
           uploaded=0
           for f in bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen \
-                   dist/genome-worker-*.tar.gz dist/*.sbom.spdx.json dist/*.sig dist/*.cert; do
+                   dist/genome-worker-*.tar.gz dist/*.sbom.spdx.json dist/*.sig dist/*.cert dist/*.sigstore.json; do
             [ -f "$f" ] || { echo "missing artifact: $f"; exit 1; }
             for attempt in 1 2 3; do
               if gh release upload "$TAG" "$f" --clobber; then
@@ -211,8 +220,9 @@ jobs:
           done
           echo "uploaded $uploaded assets"
           # 5 binaries + the worker package = 6 artifacts, each with an SBOM,
-          # and two signatures and two certificates per artifact: 36 assets
-          [ "$uploaded" -eq 36 ] || { echo "expected 36 assets, uploaded $uploaded"; exit 1; }
+          # and for each of those twelve files a signature, a certificate and
+          # a Sigstore bundle: 48 assets
+          [ "$uploaded" -eq 48 ] || { echo "expected 48 assets, uploaded $uploaded"; exit 1; }
 
   slsa-provenance:
     needs: [build-and-sign]

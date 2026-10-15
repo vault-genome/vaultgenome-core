@@ -26,6 +26,7 @@ For each binary (`sagvd`, `acp-compute`, `acpctl`):
 | `<binary>.cert`               | x509 cert    | sigstore Fulcio | embedded in `verify-blob` |
 | `<binary>.sbom.spdx.json`     | SPDX 2.3 JSON| syft DIR scan   | parse + cross-check go.mod |
 | `<binary>.sbom.sig`           | Sigstore sig | cosign keyless | same as `.sig` |
+| `<binary>.sigstore.json`, `<binary>.sbom.sigstore.json` (from 0.4.3) | Sigstore bundle (v0.3): the signature, the certificate and the Rekor entry in one file | cosign keyless (`--new-bundle-format --bundle`) | `cosign verify-blob --new-bundle-format --bundle`, with `--trusted-root` and no route |
 | SLSA provenance (`*.intoto.jsonl`) | in-toto v1.0 | slsa-github-generator | SLSA verifier CLI |
 
 All artifacts are attached to the GitHub Release for the corresponding
@@ -108,6 +109,32 @@ A successful exit means:
 - Anyone who downloaded the same release can independently confirm
   byte equivalence.
 
+With the bundle (from 0.4.3), one file carries all three — and a host
+with no route at all still verifies, given the Sigstore trust root as a
+file:
+
+```bash
+# on a connected machine, once: the trust root, through TUF, into cosign's cache
+cosign initialize
+cp ~/.sigstore/root/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json .
+# on the host, no route needed
+curl -L -O https://github.com/vault-genome/vaultgenome-core/releases/download/v1.2.3/sagvd.sigstore.json
+cosign verify-blob --new-bundle-format \
+  --bundle sagvd.sigstore.json --trusted-root trusted_root.json \
+  --certificate-identity-regexp 'https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v.*' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  sagvd
+```
+
+`--trusted-root` gives cosign Fulcio's, Rekor's and the CT logs' keys
+from the file; the certificate chain, the signed certificate timestamp
+and the Rekor entry's inclusion proof are checked from the bundle, and
+nothing is fetched. `--offline` is not that: on cosign 2.6.5 it still
+updates TUF from the mirror and fails without a route (measured; cosign 3
+deprecates the flag with the same advice). The rehearsal `v0.4.3-rc2`
+verified all twelve bundles with the network denied, and on an
+air-gapped host with egress denied (`scripts/hardware-test/air-gap/`).
+
 ## SBOM — what's in a binary
 
 `syft` produces an SPDX-2.3-format SBOM listing every Go module
@@ -148,7 +175,8 @@ documented in [docs/doctrine/ci-security-policy.md] (private repo).
 **Q: Can you produce evidence the binary I'm running was built from
 the source you publish?**
 A: Yes. `cosign verify-blob` against the binary, sig, and cert from
-the release. The cert chains to GitHub Actions via Fulcio, the
+the release — or against the binary and its Sigstore bundle, offline.
+The cert chains to GitHub Actions via Fulcio, the
 signature is logged in Rekor, and the build provenance attestation
 identifies the exact git commit + workflow run. SLSA L3 today; L4
 moves to a hermetic builder when funded.
