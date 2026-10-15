@@ -172,6 +172,10 @@ func runDaemon(args []string) error {
 	logger.Info("sagvd session sealing identity",
 		"kid", string(mat.SessionSealingKeyID),
 	)
+	if cfg.TEE.AutoResolvedFrom != "" {
+		logger.Info("sagvd tee.provider auto: the family is the kernel's to say",
+			"tsm_provider", cfg.TEE.AutoResolvedFrom, "tee_provider", cfg.TEE.Provider)
+	}
 	logger.Info("sagvd TEE identity",
 		"tee_provider", string(mat.Provider),
 		"measurement_hex", hex.EncodeToString(mat.Producer.Measurement()),

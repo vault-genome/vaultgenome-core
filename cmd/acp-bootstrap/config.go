@@ -99,7 +99,9 @@ type TLSServerConfig struct {
 // TEEConfig holds the destination's local TEE producer
 // configuration.
 type TEEConfig struct {
-	// Provider names the TEE backend: "gcp-sev-snp" (AMD SEV-SNP
+	// Provider names the TEE backend: "auto" (the family the kernel's
+	// configfs-tsm serves on this host, resolved when the file is loaded,
+	// ADR 0025), "gcp-sev-snp" (AMD SEV-SNP
 	// reports through the kernel's configfs-tsm, on any SEV-SNP
 	// Confidential VM running Linux 6.7 or later) or "simulated" (a
 	// seed-derived stand-in for development and tests). The provider is
@@ -125,6 +127,11 @@ type TEEConfig struct {
 	// destination has no hardware isolation — its "Evidence" is signed
 	// by a key read from a file — and is for development and tests.
 	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
+
+	// AutoResolvedFrom is set by ResolveAuto when Provider was "auto": the
+	// configfs-tsm provider name the family was taken from (ADR 0025).
+	// Not read from the file.
+	AutoResolvedFrom string `json:"-"`
 
 	// GPUAttestCommand, TPM2ToolsDir and AKHandle configure the
 	// azure-cgpu producer: the command that obtains NVIDIA's signed
@@ -158,7 +165,7 @@ func (t TEEConfig) SEVDevice() string {
 }
 
 // supportedProviders are the TEE backends this build can run.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated, tee.ProviderAuto}
 
 // SourceAuthorityConfig points at the source-authority signing
 // public key file. Used by the receiver to verify every handshake +
@@ -257,6 +264,24 @@ func (h HTTPConfig) WriteTimeout() time.Duration {
 
 // DefaultConfig returns sensible defaults that operators can
 // override field-by-field via JSON.
+// ResolveAuto replaces tee.provider "auto" with the family the kernel's
+// configfs-tsm serves on this host (ADR 0025), keeping the kernel's name
+// in AutoResolvedFrom; any other provider is left as it is. It runs when
+// the file is loaded, before validation, so that the family's own rules
+// apply to the rest of the section.
+func (t *TEEConfig) ResolveAuto() error {
+	p, err := tee.ParseProvider(t.Provider)
+	if err != nil || p != tee.ProviderAuto {
+		return nil
+	}
+	family, name, err := tee.ResolveAuto(t.TSMReportDir)
+	if err != nil {
+		return fmt.Errorf("tee.provider=auto: %w", err)
+	}
+	t.Provider, t.AutoResolvedFrom = string(family), name
+	return nil
+}
+
 func DefaultConfig() Config {
 	return Config{
 		HTTP: HTTPConfig{
@@ -284,7 +309,14 @@ func LoadConfigFile(path string) (Config, error) {
 		return Config{}, fmt.Errorf("acp-bootstrap: open config %q: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()
-	return DecodeConfig(f)
+	c, err := DecodeConfig(f)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := c.TEE.ResolveAuto(); err != nil {
+		return Config{}, fmt.Errorf("acp-bootstrap: %w", err)
+	}
+	return c, nil
 }
 
 // DecodeConfig decodes JSON from r into a Config on top of
@@ -391,6 +423,15 @@ func (c Config) Validate() error {
 		}
 		if c.TEE.TSMReportDir != "" {
 			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp and gcp-tdx only"))
+		}
+	case provider == tee.ProviderAuto:
+		if c.TEE.SeedPath != "" || c.TEE.InsecureSimulation {
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only; tee.provider=auto runs the family configfs-tsm serves"))
+		}
+		if c.TEE.VTPMSealPCRs != "" {
+			if err := tee.ValidatePCRSelection(c.TEE.VTPMSealPCRs); err != nil {
+				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+			}
 		}
 	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
 		if c.TEE.SeedPath != "" {

@@ -87,7 +87,7 @@ sagvd = {
   "vault": {"listen_address": "127.0.0.1:9443",
     "tls": {"enabled": True, "server_cert": S + "/sagvd/tls/server.crt", "server_key": S + "/sagvd/tls/server.key", "client_cas": S + "/shared/tls/ca.crt"}},
   "http_api": {"listen_address": "127.0.0.1:9080", "bearer_token_file": S + "/sagvd/api_token"},
-  "tee": {"provider": "gcp-tdx", "workload_descriptor": "sagvd-returnpath-e2e-v1",
+  "tee": {"provider": "auto", "workload_descriptor": "sagvd-returnpath-e2e-v1",
     "peer": {"provider": "gcp-tdx", "measurement_path": W + "/peer-worker.meas", "pcs_cache_dir": W + "/pcs-cache"}},
   "keys": {"authority_signing": {"kid": "sagvd-authority-e2e", "seed_path": S + "/sagvd/authority_signing_seed"},
            "audit_signing": {"kid": "sagvd-audit-e2e", "seed_path": S + "/sagvd/audit_signing_seed"},
@@ -103,7 +103,7 @@ sagvd = {
 worker = {
   "vault": {"address": "127.0.0.1:9443",
     "tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt", "client_key": S + "/acp-compute/tls/client.key", "ca_bundle": S + "/shared/tls/ca.crt", "server_name": "localhost"}},
-  "tee": {"provider": "gcp-tdx", "workload_descriptor": "acp-compute-returnpath-e2e-v1",
+  "tee": {"provider": "auto", "workload_descriptor": "acp-compute-returnpath-e2e-v1",
     "peer": {"provider": "gcp-tdx", "measurement_path": W + "/peer-vault.meas", "pcs_cache_dir": W + "/pcs-cache"}},
   "keys": {"worker_signing": {"kid": "acp-compute-worker-demo", "seed_path": S + "/acp-compute/worker_signing_seed"},
            "session_sealing": {"kid": "session-sealing-e2e", "material_path": S + "/shared/sealing.key"}},

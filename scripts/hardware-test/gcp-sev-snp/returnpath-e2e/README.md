@@ -56,6 +56,32 @@ KDS that morning); and the key material is provisioned by `acp-keygen
 Checksums: `cd evidence/20261015T143033Z && grep -v ' sha256sums.txt$'
 sha256sums.txt | shasum -a 256 -c` — 33 of 33 match.
 
+## Result — run `20261015T190305Z`: `tee.provider: "auto"` — the kernel names the family
+
+The same kit with neither daemon told what hardware it runs on: both
+configs say `tee.provider: "auto"` (the peer pin stays `gcp-sev-snp`), and
+each daemon takes its family from the kernel's configfs-tsm when the
+configuration is loaded (ADR 0025, step 1). us-central1-c, `n2d-standard-4`,
+the image of every run since September (measurement `7dc7c12e…25acc`).
+
+| | `20261015T190305Z` (tree `de6bccd` + this branch) |
+| - | - |
+| The kernel's answer | `sagvd.log`, `acp-compute.log`: `tee.provider auto: the family is the kernel's to say` — `tsm_provider: sev_guest`, `tee_provider: gcp-sev-snp`, before each daemon's TEE identity line |
+| The identities | `tee_provider: gcp-sev-snp` on both, measurement `7dc7c12e…25acc` from the chip |
+| The AMD chain | fetched on the guest by `acpctl tee fetch-amd-chain`, checked against the pinned ARK-Milan (`amd-chain.txt`) |
+| Runtime install from the locks | 84.3 s |
+| Fine-tune + seal | 9.2 s; key id `genome-494a27fce81b-g0-d7f07cebe9f7` |
+| The unpinned worker | refused at the handshake after 1 s |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 5.2 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `dc6c3c82…` |
+| The guest script | 103.4 s |
+
+Nothing else differs from the runs below: the family the kernel named is
+the family the daemons ran, attested and recorded as. The same kit on a
+TDX Trust Domain the same minute, with the same two words in its config:
+[`../../gcp-tdx/returnpath-e2e/`](../../gcp-tdx/returnpath-e2e/README.md),
+run `20261015T190232Z` (`tsm_provider: tdx_guest`).
+
 ## Result — runs `20261015T043703Z` and `20261015T044521Z`: the runtime from the hash-pinned locks
 
 The same kit, with the guest installing the worker's runtime from the

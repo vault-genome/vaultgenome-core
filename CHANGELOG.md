@@ -13,6 +13,16 @@ given release can still open.
 
 ### Added
 
+- `tee.provider: "auto"` (ADR 0025, step 1): a daemon on a Linux
+  confidential VM takes its family from the kernel's configfs-tsm
+  `provider` attribute when the configuration is loaded — `sev_guest`
+  runs as `gcp-sev-snp`, `tdx_guest` as `gcp-tdx`, `arm_cca_guest` is
+  recognised and refused by name until a producer exists — and names the
+  family in its identity, logs and audit records; the start log names the
+  kernel's answer. The family names `sev-snp`, `tdx`, `nitro` and
+  `sgx-dcap` are accepted wherever a provider is named, beside the names
+  this tree has used, which stay the canonical values until the wire
+  names the family. A peer's provider cannot be `auto`.
 - The authority-loss drill (`scripts/hardware-test/authority-loss`): the
   release authority's host is deleted in the middle of a job on real
   SEV-SNP, and a fresh host becomes the same authority — its key material

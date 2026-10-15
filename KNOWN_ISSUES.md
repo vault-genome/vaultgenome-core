@@ -146,8 +146,13 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    The path to every other hardware — providers named after families, not
    clouds; the family taken from the kernel's configfs-tsm; the Verifier as
    a RATS role that can be delegated to a Verifier the customer runs; a
-   TPM 2.0 floor for servers without a TEE — is ADR 0025, and its first
-   step is the next code change.
+   TPM 2.0 floor for servers without a TEE — is ADR 0025; its first step is in the tree:
+   Since 2026-10-15 a daemon need not name its hardware: `tee.provider:
+   "auto"` takes the family from the kernel's configfs-tsm `provider`
+   attribute (`sev_guest`, `tdx_guest`; `arm_cca_guest` is recognised and
+   refused by name until a producer exists), and the family names
+   `sev-snp` and `tdx` are accepted beside `gcp-sev-snp` and `gcp-tdx`
+   (ADR 0025, step 1).
 2. **RESOLVED (ADR 0013, 2026-09-15).** The acp-compute worker's
    "reconstruction" was a placeholder: SHA-256 digest expansion (V1), then a
    byte-level order-3 Markov chain (V2), both self-documented as "not a

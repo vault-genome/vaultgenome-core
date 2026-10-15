@@ -75,11 +75,14 @@ type TLSConfig struct {
 // TEEConfig names the TEE this worker attests with on the Return Path
 // and pins the vault's TEE it will accept.
 type TEEConfig struct {
-	// Provider is the local TEE backend: "gcp-sev-snp" (AMD SEV-SNP
-	// reports through the kernel's configfs-tsm, on any SEV-SNP guest
-	// with Linux 6.7 or later — the chip signs) or "simulated" (a key
-	// read from SeedPath signs; no hardware isolation; development and
-	// tests only). Default "simulated".
+	// Provider is the local TEE backend: "auto" (the family the kernel's
+	// configfs-tsm serves on this host — sev_guest or tdx_guest — resolved
+	// when the file is loaded, ADR 0025), "gcp-sev-snp" (AMD SEV-SNP
+	// reports through configfs-tsm, on any SEV-SNP guest with Linux 6.7
+	// or later — the chip signs), "gcp-tdx", "azure-cgpu", or "simulated"
+	// (a key read from SeedPath signs; no hardware isolation; development
+	// and tests only). The family names "sev-snp" and "tdx" are accepted
+	// for the first two. Default "simulated".
 	Provider string `json:"provider,omitempty"`
 
 	// WorkloadDescriptor names this workload. The simulated provider
@@ -121,6 +124,29 @@ type TEEConfig struct {
 	// hardware isolation. The flag puts that in the config itself.
 	// Simulated only.
 	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
+
+	// AutoResolvedFrom is set by ResolveAuto when Provider was "auto": the
+	// configfs-tsm provider name the family was taken from (ADR 0025).
+	// Not read from the file.
+	AutoResolvedFrom string `json:"-"`
+}
+
+// ResolveAuto replaces tee.provider "auto" with the family the kernel's
+// configfs-tsm serves on this host (ADR 0025), keeping the kernel's name
+// in AutoResolvedFrom; any other provider is left as it is. It runs when
+// the file is loaded, before validation, so that the family's own rules
+// apply to the rest of the section.
+func (t *TEEConfig) ResolveAuto() error {
+	p, err := tee.ParseProvider(t.Provider)
+	if err != nil || p != tee.ProviderAuto {
+		return nil
+	}
+	family, name, err := tee.ResolveAuto(t.TSMReportDir)
+	if err != nil {
+		return fmt.Errorf("tee.provider=auto: %w", err)
+	}
+	t.Provider, t.AutoResolvedFrom = string(family), name
+	return nil
 }
 
 // PeerTEEConfig pins the vault-side TEE the worker will accept.
@@ -265,7 +291,7 @@ func (g *GPUPolicyConfig) apply(cfg *tee.AzureCGPUVerifierConfig) error {
 
 // supportedProviders are the TEE backends this build can attest with
 // on the Return Path, and verify a peer's Evidence for.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated, tee.ProviderAuto}
 
 // DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
 const DefaultSEVGuestDevice = "/dev/sev-guest"
@@ -425,6 +451,18 @@ func validateTEE(t TEEConfig) []error {
 		if t.TSMReportDir != "" {
 			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp and gcp-tdx only"))
 		}
+	case provider == tee.ProviderAuto:
+		// The family is the kernel's to say at start (configfs-tsm); the
+		// rules of a hardware provider apply, and the per-family settings
+		// are checked for form here and for fit by the family resolved.
+		if t.SeedPath != "" || t.InsecureSimulation {
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only; tee.provider=auto runs the family configfs-tsm serves"))
+		}
+		if t.VTPMSealPCRs != "" {
+			if err := tee.ValidatePCRSelection(t.VTPMSealPCRs); err != nil {
+				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+			}
+		}
 	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
 		if t.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
@@ -450,6 +488,8 @@ func validateTEE(t TEEConfig) []error {
 		errs = append(errs, errors.New("tee.peer.measurement_path required"))
 	}
 	switch peer, err := t.Peer.ProviderKind(); {
+	case peer == tee.ProviderAuto:
+		errs = append(errs, errors.New("tee.peer.provider cannot be auto: name the family the peer must attest as (gcp-sev-snp, gcp-tdx, azure-cgpu or simulated); only the daemon's own tee.provider may be auto"))
 	case err != nil:
 		errs = append(errs, fmt.Errorf("tee.peer.provider invalid: %w", err))
 	case !slices.Contains(supportedProviders, peer):
@@ -544,7 +584,14 @@ func LoadConfigFile(path string) (Config, error) {
 		return Config{}, fmt.Errorf("acp-compute: open config %q: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()
-	return DecodeConfig(f)
+	c, err := DecodeConfig(f)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := c.TEE.ResolveAuto(); err != nil {
+		return Config{}, fmt.Errorf("acp-compute: %w", err)
+	}
+	return c, nil
 }
 
 // DecodeConfig decodes JSON from r into a Config, applied on top of

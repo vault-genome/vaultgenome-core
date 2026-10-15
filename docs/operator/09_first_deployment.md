@@ -82,6 +82,15 @@ they cannot attest. What a release can run on today
 | GCP `c3` Confidential VM, Intel TDX | `gcp-tdx` | `gcp-tdx/returnpath-e2e` (C15); a TDX authority with its escrow key in the vTPM (C23) |
 | Azure NCC H100 v5, AMD SEV-SNP (Genoa) + the confidential H100 | `azure-cgpu` | `azure-cgpu` (C17, C20, C26), `failover-cgpu` (C18) |
 
+A daemon on a Linux confidential VM need not name its hardware:
+`tee.provider: "auto"` reads which family the kernel's configfs-tsm
+serves (`sev_guest` or `tdx_guest`) when the configuration is loaded and
+runs as that family — its identity, its logs and its audit records name
+the family, and the start log names the kernel's answer. The family
+names `sev-snp` and `tdx` are accepted beside the names above (ADR 0025).
+The peer's provider is still named: a pin says what the other side must
+be.
+
 A simulated TEE runs anywhere and is for development: both daemons refuse
 to start with it unless the config says `tee.provider: "simulated"` with
 `tee.insecure_simulation: true`, and a first deployment on real hardware

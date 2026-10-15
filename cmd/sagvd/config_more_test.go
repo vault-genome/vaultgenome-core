@@ -179,3 +179,38 @@ func TestConfig_QueueValidation(t *testing.T) {
 		t.Fatalf("a distinct queue.path was refused: %v", err)
 	}
 }
+
+// tee.provider "auto" (ADR 0025): accepted for the daemon's own provider
+// without a seed, refused for a peer, and resolved from configfs-tsm when
+// the file is loaded — which, off a confidential VM, is a refusal that
+// names the lack.
+func TestTEEConfig_Auto(t *testing.T) {
+	c := DefaultConfig()
+	c.TEE.Provider = "auto"
+	c.TEE.SeedPath = ""
+	c.TEE.InsecureSimulation = false
+	if err := c.Validate(); err != nil && (strings.Contains(err.Error(), "tee.provider") || strings.Contains(err.Error(), "tee.seed_path")) {
+		t.Fatalf("auto refused for the daemon's own provider: %v", err)
+	}
+	c.TEE.SeedPath = "/tmp/seed"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "tee.provider=auto") {
+		t.Fatalf("a seed with auto was not refused: %v", err)
+	}
+	c = DefaultConfig()
+	c.TEE.Peer.Provider = "auto"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "tee.peer.provider cannot be auto") {
+		t.Fatalf("auto for the peer was not refused: %v", err)
+	}
+
+	tc := TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}
+	if err := tc.ResolveAuto(); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("ResolveAuto off a confidential VM: %v", err)
+	}
+	tc = TEEConfig{Provider: "simulated"}
+	if err := tc.ResolveAuto(); err != nil || tc.Provider != "simulated" || tc.AutoResolvedFrom != "" {
+		t.Fatalf("ResolveAuto touched a named provider: %+v %v", tc, err)
+	}
+	if _, _, err := buildTEEProducer(TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("buildTEEProducer with auto off a confidential VM: %v", err)
+	}
+}
