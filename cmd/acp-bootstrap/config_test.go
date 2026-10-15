@@ -296,3 +296,22 @@ func TestValidate_GenomeGate(t *testing.T) {
 		})
 	}
 }
+
+// tee.provider "auto" (ADR 0025): accepted for the destination's own
+// provider and resolved from configfs-tsm at load.
+func TestTEEConfig_Auto(t *testing.T) {
+	c := DefaultConfig()
+	c.TEE.Provider = "auto"
+	c.TEE.SeedPath = ""
+	c.TEE.InsecureSimulation = false
+	if err := c.Validate(); err != nil && (strings.Contains(err.Error(), "tee.provider") || strings.Contains(err.Error(), "tee.seed_path")) {
+		t.Fatalf("auto refused for the destination's own provider: %v", err)
+	}
+	tc := TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}
+	if err := tc.ResolveAuto(); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("ResolveAuto off a confidential VM: %v", err)
+	}
+	if _, err := buildTEEProducer(TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("buildTEEProducer with auto off a confidential VM: %v", err)
+	}
+}

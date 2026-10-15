@@ -288,7 +288,8 @@ func TestConfig_Validate_TEEProviders(t *testing.T) {
 		want   []string
 	}{
 		"simulated by default":              {func(c *Config) {}, nil},
-		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "tdx" }, []string{"tee.provider invalid"}},
+		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "no-such-tee" }, []string{"tee.provider invalid"}},
+		"family name accepted (ADR 0025)":   {func(c *Config) { c.TEE.Provider = "sev-snp"; c.TEE.SeedPath = ""; c.TEE.InsecureSimulation = false }, nil},
 		"unsupported provider":              {func(c *Config) { c.TEE.Provider = "aws-nitro" }, []string{"not available in this build"}},
 		"simulated without acknowledgement": {func(c *Config) { c.TEE.InsecureSimulation = false }, []string{"tee.insecure_simulation=true"}},
 		"simulated without seed":            {func(c *Config) { c.TEE.SeedPath = "" }, []string{"tee.seed_path required"}},
@@ -346,4 +347,28 @@ func TestPCRDigests(t *testing.T) {
 	out, err = pcrDigests(nil)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+// tee.provider "auto" (ADR 0025): accepted for the worker's own provider,
+// refused for the vault it pins, resolved from configfs-tsm at load.
+func TestTEEConfig_Auto(t *testing.T) {
+	c := DefaultConfig()
+	c.TEE.Provider = "auto"
+	c.TEE.SeedPath = ""
+	c.TEE.InsecureSimulation = false
+	if err := c.Validate(); err != nil && (strings.Contains(err.Error(), "tee.provider") || strings.Contains(err.Error(), "tee.seed_path")) {
+		t.Fatalf("auto refused for the worker's own provider: %v", err)
+	}
+	c = DefaultConfig()
+	c.TEE.Peer.Provider = "auto"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "tee.peer.provider cannot be auto") {
+		t.Fatalf("auto for the peer was not refused: %v", err)
+	}
+	tc := TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}
+	if err := tc.ResolveAuto(); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("ResolveAuto off a confidential VM: %v", err)
+	}
+	if _, _, err := buildTEEProducer(TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("buildTEEProducer with auto off a confidential VM: %v", err)
+	}
 }

@@ -1,6 +1,6 @@
 # ADR 0025 — Any hardware: the daemons are RATS roles, not cloud adapters
 
-- **Status:** Proposed (2026-10-15); the first step is the next code change
+- **Status:** Accepted (2026-10-15); step 1a is in the tree, the rest follows in order
 - **Tags:** tee, attestation, rats, cmw, ear, verifier, configfs-tsm, tpm, portability
 - **Extends:** ADR 0001 (the frozen Producer/Verifier/Sealer surface), ADR 0014
   (real SEV-SNP), ADR 0018 (TDX), ADR 0019 (the Azure confidential GPU), ADR
@@ -137,11 +137,14 @@ with its own endorsement store.
 
 ## Plan
 
-1. **Names and `auto`** (the next code change): the table of families,
-   the aliases, the configfs-tsm `auto` producer, `keys.sealer: "auto"`
-   with the TPM 2.0 sealer generalised; proven on GCP `n2d` (`sev_guest`)
-   and `c3` (`tdx_guest`) with `tee.provider: "auto"`; KNOWN_ISSUES #1 and
-   the first-deployment guide rewritten around the kernel's answer.
+1. **Names and `auto`**, in two parts. *1a (done 2026-10-15):* the family
+   names accepted on input beside the names this tree has used, which
+   stay the canonical values — in identities, audit records and on the
+   wire — until step 2 renames them with the wire; `tee.provider: "auto"`
+   resolved from configfs-tsm when the configuration is loaded; proven on
+   GCP `n2d` (`sev_guest`) and `c3` (`tdx_guest`); KNOWN_ISSUES #1 and
+   the first-deployment guide say so. *1b:* `keys.sealer: "auto"` with
+   the TPM 2.0 sealer of ADR 0022 generalised to any TPM 2.0.
 2. **The CMW on the wire and the `rats` verifier**: CMW records for every
    family's Evidence; the Veraison client over its challenge-response API
    (stdlib HTTP and JSON; the EAR is a JWS our stdlib verifies); the EAR

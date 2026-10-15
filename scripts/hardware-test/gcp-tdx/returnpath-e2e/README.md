@@ -36,6 +36,26 @@ sides, verified to Intel's root and Intel's TCB word, that the pinned
 identity is the one admitted, and that every decision of the authority is
 on a verifiable record before it took effect.
 
+## Result — run `20261015T190232Z` (evidence/20261015T190232Z): `tee.provider: "auto"` — the kernel names the family
+
+The same kit with neither daemon told what hardware it runs on: both
+configs say `tee.provider: "auto"` (the peer pin stays `gcp-tdx`), and
+each daemon takes its family from the kernel's configfs-tsm when the
+configuration is loaded (ADR 0025, step 1). us-central1-a, `c3-standard-4`,
+the same image as the October runs (measurement `dfe77c76…1a9a`, MRTD
+`c1ee9c16…70a5`, RTMR3 zero). The whole script took **89.2 s**.
+
+| Step | Outcome |
+|---|---|
+| The kernel's answer | `sagvd.log`, `acp-compute.log`: `tee.provider auto: the family is the kernel's to say` — `tsm_provider: tdx_guest`, `tee_provider: gcp-tdx`, before each daemon's TEE identity line |
+| The identities | `sagvd-identity.json`, `acp-compute-identity.json`: `tee_provider: gcp-tdx`, the measurement recomputed from the `tdx` block as in every run (`steps.txt`) |
+| A worker with a simulated TEE | **refused** at the handshake after 1 s (`gcp-tdx: parse quote: quote is 147 bytes…`), on the record |
+| The pinned worker | session opened at once; the gate job `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 4 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `d5588019…`; the two Intel PCS documents in the results |
+
+Nothing else differs from the run below: the family the kernel named is
+the family the daemons ran, attested and recorded as.
+
 ## Result — run `20260916T040416Z` (evidence/20260916T040416Z)
 
 us-central1-a, `c3-standard-4`, kernel `7.0.0-1011-gcp`; `tsm.txt`:

@@ -91,9 +91,17 @@ func ParseProvider(s string) (Provider, error) {
 			return p, nil
 		}
 	}
+	// The family names of ADR 0025, and "auto": accepted on input, mapped
+	// to the names this build runs (provider_auto.go).
+	if canonical, ok := providerAliases[norm]; ok {
+		return canonical, nil
+	}
+	if norm == ProviderAuto {
+		return ProviderAuto, nil
+	}
 	return "", shared_errors.Structural(
 		shared_errors.CodeFieldValueInvalid,
-		fmt.Sprintf("tee: unknown provider %q (valid: %v)", s, AllProviders()),
+		fmt.Sprintf("tee: unknown provider %q (valid: %v; also %v and %q)", s, AllProviders(), ProviderAliases(), ProviderAuto),
 		nil,
 	)
 }
@@ -234,6 +242,12 @@ func BuildVerifier(spec VerifierSpec) (Verifier, error) {
 // override the Capability() return for that provider.
 func Capability(p Provider) (available bool, reason string) {
 	switch p {
+	case ProviderAuto:
+		family, name, err := ResolveAuto("")
+		if err != nil {
+			return false, "auto: " + err.Error()
+		}
+		return true, fmt.Sprintf("auto: configfs-tsm serves %s, this build runs it as %s", name, family)
 	case ProviderSimulated:
 		return true, "simulated TEE always available (software-only)"
 	case ProviderAWSNitro:

@@ -162,6 +162,10 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 	if err != nil {
 		return nil, fmt.Errorf("acp-bootstrap: tee.provider: %w", err)
 	}
+	if cfg.TEE.AutoResolvedFrom != "" {
+		logger.Info("acp-bootstrap tee.provider auto: the family is the kernel's to say",
+			"tsm_provider", cfg.TEE.AutoResolvedFrom, "tee_provider", cfg.TEE.Provider)
+	}
 	producer, err := buildTEEProducer(cfg.TEE)
 	if err != nil {
 		return nil, err
@@ -330,7 +334,19 @@ func gateConfig(g *GateConfig) *restorer.GateConfig {
 
 // buildTEEProducer constructs the local TEE producer per cfg.Provider.
 func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
-	switch cfg.Provider {
+	provider := cfg.Provider
+	if p, err := tee.ParseProvider(provider); err == nil {
+		provider = string(p)
+	}
+	if provider == string(tee.ProviderAuto) {
+		// The kernel names the family (ADR 0025).
+		family, _, err := tee.ResolveAuto(cfg.TSMReportDir)
+		if err != nil {
+			return nil, fmt.Errorf("acp-bootstrap: tee.provider=auto: %w", err)
+		}
+		provider = string(family)
+	}
+	switch provider {
 	case string(tee.ProviderGCPSEVSNP):
 		return tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})
 	case string(tee.ProviderGCPTDX):

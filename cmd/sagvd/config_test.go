@@ -486,7 +486,8 @@ func TestValidate_TEEProviders(t *testing.T) {
 		want   []string
 	}{
 		"simulated by default":              {func(c *Config) {}, nil},
-		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "tdx" }, []string{"tee.provider invalid"}},
+		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "no-such-tee" }, []string{"tee.provider invalid"}},
+		"family name accepted (ADR 0025)":   {func(c *Config) { c.TEE.Provider = "tdx"; c.TEE.SeedPath = ""; c.TEE.InsecureSimulation = false }, nil},
 		"unsupported provider":              {func(c *Config) { c.TEE.Provider = "intel-sgx-dcap" }, []string{"not available in this build"}},
 		"simulated without acknowledgement": {func(c *Config) { c.TEE.InsecureSimulation = false }, []string{"tee.insecure_simulation=true"}},
 		"simulated without seed":            {func(c *Config) { c.TEE.SeedPath = "" }, []string{"tee.seed_path required"}},
