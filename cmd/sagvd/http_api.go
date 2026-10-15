@@ -333,13 +333,13 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 	}
 	s.metrics.jobsSubmitted.Inc()
 	s.log.Info("sagvd gate job accepted",
-		"job_id", res.jobID,
+		"job_id", logSafe(res.jobID),
 		"request_id", logSafe(res.requestID),
 		"policy_profile", logSafe(res.policyProfile),
 		"requester", logSafe(res.requester),
 		"genome_id", logSafe(res.info.GenomeID),
 		"bundle", logSafe(res.info.View.Bundle),
-		"key_source", res.info.View.KeySource,
+		"key_source", logSafe(res.info.View.KeySource),
 		"fixtures", res.info.View.Fixtures,
 		"shipped_bytes", res.info.View.Bytes,
 		"output_budget_bytes", res.info.Budget,

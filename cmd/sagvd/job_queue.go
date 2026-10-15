@@ -419,7 +419,7 @@ func (q *JobQueue) GetRaw(id string) ([]byte, bool) {
 	}
 	raw, ok, err := q.store.View(id)
 	if err != nil {
-		q.log.Error("sagvd job store could not read a view", "job_id", id, "err", err)
+		q.log.Error("sagvd job store could not read a view", "job_id", logSafe(id), "err", err)
 		return nil, false
 	}
 	return raw, ok
