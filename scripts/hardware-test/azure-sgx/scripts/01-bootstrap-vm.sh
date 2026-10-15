@@ -96,7 +96,8 @@ echo "=== install Open Enclave SDK (provides oeutil for quote generation + verif
 # fallback in 02-capture-attestation.sh).
 if ! dpkg -l open-enclave 2>/dev/null | grep -q '^ii'; then
   OE_URL="https://github.com/openenclave/openenclave/releases/download/v${OE_VERSION}/Ubuntu_2204_open-enclave_${OE_VERSION}_amd64.deb"
-  OE_DEB="$(mktemp)"
+  # apt treats an argument as a local package only when its path ends in .deb
+  OE_DEB="$(mktemp --suffix=.deb)"
   if curl -fsSL --connect-timeout 15 "${OE_URL}" -o "${OE_DEB}" \
      && echo "${OE_DEB_SHA256}  ${OE_DEB}" | sha256sum -c - \
      && sudo apt-get install -y -qq "${OE_DEB}"; then

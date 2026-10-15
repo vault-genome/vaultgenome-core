@@ -52,8 +52,10 @@ SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${SSH_KE
 SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${SSH_KEY}"
 
 echo
-echo "=== 2. upload scripts + acpctl to VM ==="
+echo "=== 2. upload scripts, the quote-binding sources and acpctl to VM ==="
 ${SCP} -r "$KIT_DIR/scripts" "azureuser@${PUBLIC_IP}:~/scripts"
+# 02b builds the enclave and verifier from these on the VM.
+${SCP} -r "$KIT_DIR/sgx-quote-binding" "azureuser@${PUBLIC_IP}:~/sgx-quote-binding"
 ${SCP} "$ACPCTL" "azureuser@${PUBLIC_IP}:~/acpctl"
 
 echo
