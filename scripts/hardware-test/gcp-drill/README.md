@@ -38,6 +38,57 @@ GPU under attestation needs confidential GPUs (H100 CC).
 | Sealed bundle | 2,208,446 bytes, one 447th of the base weights. v3 format: AES-256-GCM segments under a fresh key. Key ID `genome-fe5271f12d8c-g0-86a89c199469`. |
 | Fixtures | 16 prompts. Each records its last-position logits at the reference top-64 tokens, plus its greedy 16-token continuation. The first 4 fixtures are critical. |
 
+## Results — run `evidence/20261015T043402Z` (the runtime from the hash-pinned locks)
+
+The same drill, the same recipe and the same base, with the worker's
+runtime installed on both machines from the hash-pinned locks — each from
+its own index under `pip --require-hashes --only-binary=:all:`:
+`requirements-ci.lock` from PyPI on both; on the source the torch CPU wheel
+from `requirements-torch-cpu.lock`; on the destination the CUDA 12.6
+libraries from `requirements-cuda.lock` (PyPI) and the torch cu126 wheel
+with its triton from `requirements-torch-cu126.lock` (the PyTorch cu126
+index). `source/pip-freeze.txt`: torch 2.14.1+cpu; `gpu/pip-freeze.txt`:
+torch 2.14.1+cu126, triton 3.8.0, nvidia-cudnn-cu12 9.10.2.21 and the rest
+of the set; transformers 5.19.0 and numpy 2.5.4 on both. The install took
+74 s on the source and 199 s on the GPU host (`steps.txt`).
+
+**The genome.** Trained in 70.0 s inside the SEV-SNP guest, loss
+5.325 → 0.000896 (2026-10-14: 72.2 s, 0.000896). Sealed bundle 2,216,638
+bytes, key ID `genome-c56d8a62207a-g0-0c04be42f0c9`.
+
+**Machines**
+
+- **Source:** GCP `n2d-standard-8` in us-central1-c. AMD EPYC 7B13, with
+  SEV-SNP active. torch 2.14.1+cpu.
+- **Destination:** GCP `g2-standard-4` in us-east4-c (us-central1 had no L4
+  that hour). NVIDIA L4 (driver 580.178.04), with an Intel Xeon @ 2.20 GHz
+  host CPU. torch 2.14.1+cu126.
+
+**Fidelity after restore** — the same numbers as on 2026-10-14, to the
+rounding:
+
+| Where the restored genome ran | Gate verdict | Top-1 token | Greedy 16-token continuation | max \|Δ logit\| | max rel. err | Recompute time |
+| - | - | - | - | - | - | - |
+| Source CPU (AMD EPYC, the pinned runtime) | **EXACT**, door 0 (pinned replay) | 16 / 16 | 16 / 16 | 0 | 0 | 33.0 s |
+| **NVIDIA L4 GPU** | **EQUIVALENT**, door 1 (native float) | **16 / 16** | **16 / 16** | 1.61e-04 | 1.57e-05 | **6.2 s** |
+| Destination CPU (Intel Xeon, 4 vCPU) | **EQUIVALENT**, door 1 (native float) | 16 / 16 | 16 / 16 | 1.46e-04 | 1.30e-05 | 93.5 s |
+
+**Restore on the destination:** authenticated, all or nothing — 5 files,
+2,210,904 bytes, each matching its sealed digest; tree digest
+`bf8882a3…`.
+
+**Replaying the recipe**
+
+| Where | Adapter | Loss curve |
+| - | - | - |
+| Source CPU | bit-identical to the sealed adapter (`max_rel_l2` 0) | identical, step by step (67.3 s) |
+| L4 GPU | max \|Δ weight\| 2.0e-03, `max_rel_l2` 0.032; not bit-identical | same end point (final loss 0.000888 vs 0.000896), largest per-step difference 0.051 (17.3 s) |
+
+The same warning as on 2026-10-14 in `gpu/replay-gpu.log` (memory-efficient
+attention's backward under `warn_only`). Nothing changed in the arithmetic;
+what changed is that every wheel on both machines was checked against its
+sha256 before it was installed.
+
 ## Results — run `evidence/20261014T032714Z` (torch 2.14.1, the raised runtime)
 
 The same drill on the raised Python runtime (torch 2.14.1, transformers

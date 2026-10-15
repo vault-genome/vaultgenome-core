@@ -33,8 +33,14 @@ tar -xzf "$H/worker.tgz" -C /opt/worker
 sha256sum /usr/local/bin/acp-bootstrap /usr/local/bin/acpctl "$H/worker.tgz" "$H/gpu-token.py" > "$OUT/inputs.sha256"
 
 step "the worker runtime (CUDA wheels) and the base model the genome names"
-[ -x /opt/vg/bin/python ] || { apt-get install -y -qq python3-venv python3-pip >/dev/null 2>&1; python3 -m venv /opt/vg; /opt/vg/bin/pip install -q --upgrade pip; /opt/vg/bin/pip install -q --index-url https://download.pytorch.org/whl/cu126 torch==2.14.1; }
-/opt/vg/bin/pip install -q -r /opt/worker/requirements.txt huggingface_hub==2.2.0
+[ -x /opt/vg/bin/python ] || { apt-get install -y -qq python3-venv python3-pip >/dev/null 2>&1; python3 -m venv /opt/vg; }
+# The runtime from the hash-pinned locks, each from its own index: the worker's packages, torch's
+# dependencies and huggingface_hub from PyPI, the CUDA libraries from PyPI, then the torch cu126
+# wheel alone from the PyTorch index. No --extra-index-url anywhere.
+PIP="/opt/vg/bin/pip install -q --require-hashes --only-binary=:all:"
+$PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-ci.lock
+$PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-cuda.lock
+$PIP --no-deps --index-url https://download.pytorch.org/whl/cu126 -r /opt/worker/requirements-torch-cu126.lock
 /opt/vg/bin/pip freeze > "$OUT/pip-freeze.txt"
 /opt/vg/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download('$BASE_REPO', revision='$BASE_REV', local_dir='/opt/base')"
 /opt/vg/bin/python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))" > "$OUT/torch.txt"

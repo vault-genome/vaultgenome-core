@@ -22,15 +22,22 @@ gcs_put() { # gcs_put <file> <object>
 # Qwen2.5-7B-Instruct: 15.2 GB of bfloat16 safetensors in four shards.
 BASE_REPO="Qwen/Qwen2.5-7B-Instruct"
 BASE_REV="a09a35458c702b33eeacc393d103063234e8bc28"
-HF_HUB="huggingface_hub==2.2.0"
-
-python_runtime() { # python_runtime <torch index url>
+python_runtime() { # python_runtime <torch index: https://download.pytorch.org/whl/cu126 or …/whl/cpu>
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq > /dev/null && apt-get install -y -qq python3-venv python3-pip > /dev/null
   python3 -m venv /opt/vg
-  /opt/vg/bin/pip install -q --upgrade pip
-  /opt/vg/bin/pip install -q --index-url "$1" torch==2.14.1
-  /opt/vg/bin/pip install -q -r /opt/worker/requirements.txt "$HF_HUB"
+  # The runtime from the hash-pinned locks, each from its own index (no --extra-index-url,
+  # so no index can stand in for another): the worker's packages, torch's dependencies and
+  # huggingface_hub from PyPI; on a GPU host the CUDA libraries from PyPI; then the torch
+  # wheel for this host alone, from the PyTorch index that carries it.
+  PIP="/opt/vg/bin/pip install -q --require-hashes --only-binary=:all:"
+  $PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-ci.lock
+  case "$1" in
+    */cu126) $PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-cuda.lock
+             $PIP --no-deps --index-url "$1" -r /opt/worker/requirements-torch-cu126.lock ;;
+    */cpu)   $PIP --no-deps --index-url "$1" -r /opt/worker/requirements-torch-cpu.lock ;;
+    *)       echo "python_runtime: no lock for the torch index $1" >&2; return 1 ;;
+  esac
   /opt/vg/bin/pip freeze > "$OUT/pip-freeze.txt"
 }
 

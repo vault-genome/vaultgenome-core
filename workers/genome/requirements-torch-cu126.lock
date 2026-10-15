@@ -1,0 +1,9 @@
+# The torch CUDA 12.6 wheel of the pinned runtime and its triton (linux x86_64, CPython 3.12),
+# hash-pinned, from the PyTorch cu126 wheel index — installed on their own, with --no-deps:
+# torch's dependencies are in requirements-ci.lock (PyPI) and requirements-cuda.lock (PyPI),
+# which are installed first. No --extra-index-url anywhere.
+#   python -m pip install --require-hashes --only-binary=:all: --no-deps --index-url https://download.pytorch.org/whl/cu126 -r requirements-torch-cu126.lock
+torch==2.14.1+cu126 \
+    --hash=sha256:75727245346d8f92224a860bf40c56bd681edcfa0456d01d7dfcb0bf6f0cf86c
+triton==3.8.0 \
+    --hash=sha256:07a88b13e4f7e8b1769094238ab75109a5db2a8160a24ddc49c24d2efa44cb58

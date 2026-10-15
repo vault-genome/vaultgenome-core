@@ -27,10 +27,21 @@ make demo-down     # stop and remove
 ```
 
 `make demo-test` adds a health probe of both services around the
-round trip. `make demo-genome` needs the worker runtime on the host
-(`pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1`,
-then `pip install -r workers/genome/requirements.txt`); it builds a tiny
-random model locally and downloads nothing. To restore a real model, seal
+round trip. `make demo-genome` needs the worker runtime on the host: on a
+Linux x86_64 host with CPython 3.12, from the hash-pinned locks the way
+CI, the image and the hardware kits install it —
+
+```
+python -m pip install --require-hashes --only-binary=:all: --index-url https://pypi.org/simple -r workers/genome/requirements-ci.lock
+python -m pip install --require-hashes --only-binary=:all: --no-deps --index-url https://download.pytorch.org/whl/cpu -r workers/genome/requirements-torch-cpu.lock
+```
+
+— and on any other platform (a macOS laptop, say), where those wheels do
+not apply, from the pins of `workers/genome/requirements.txt` with the torch
+wheel of the PyTorch CPU index (`pip install --index-url
+https://download.pytorch.org/whl/cpu torch==2.14.1`, then `pip install -r
+workers/genome/requirements.txt`). It builds a tiny random model locally and
+downloads nothing. To restore a real model, seal
 its genome with `acpctl genome seal --content-dir` into `genomes/` and mount
 its base directory into the worker with `ACP_BASE_MODEL=/path/to/base`.
 

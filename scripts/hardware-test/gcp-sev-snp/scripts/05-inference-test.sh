@@ -29,10 +29,11 @@ fi
 echo "=== capture original-daemon response (model in /usr/share/ollama) ==="
 sudo systemctl restart ollama
 sleep 5
-ORIG=$(curl -s http://127.0.0.1:11434/api/generate \
+curl -s http://127.0.0.1:11434/api/generate \
   -d "$(printf '{"model":"%s","prompt":%s,"stream":false,"options":{"seed":%d,"temperature":0}}' \
         "$MODEL" "$(printf '%s' "$PROMPT" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')" "$SEED")" \
-  | python3 -c 'import sys,json; print(json.load(sys.stdin)["response"])')
+  -o evidence/inference-original.json
+ORIG=$(python3 -c 'import sys,json; print(json.load(open(sys.argv[1]))["response"])' evidence/inference-original.json)
 echo "$ORIG" >evidence/inference-original.txt
 echo "$ORIG"
 
@@ -47,10 +48,11 @@ sleep 5
 
 echo
 echo "=== capture restored-from-bundle response ==="
-REST=$(curl -s http://127.0.0.1:11434/api/generate \
+curl -s http://127.0.0.1:11434/api/generate \
   -d "$(printf '{"model":"%s","prompt":%s,"stream":false,"options":{"seed":%d,"temperature":0}}' \
         "$MODEL" "$(printf '%s' "$PROMPT" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')" "$SEED")" \
-  | python3 -c 'import sys,json; print(json.load(sys.stdin)["response"])')
+  -o evidence/inference-restored.json
+REST=$(python3 -c 'import sys,json; print(json.load(open(sys.argv[1]))["response"])' evidence/inference-restored.json)
 echo "$REST" >evidence/inference-restored.txt
 echo "$REST"
 

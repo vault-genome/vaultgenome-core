@@ -28,6 +28,32 @@ the Return Path handshake carries genuine hardware Evidence on both sides,
 that the pinned identity is the one admitted, and that every decision of
 the authority is on a verifiable record before it took effect.
 
+## Result — runs `20261015T043703Z` and `20261015T044521Z`: the runtime from the hash-pinned locks
+
+The same kit, with the guest installing the worker's runtime from the
+hash-pinned locks instead of plain pins — `requirements-ci.lock` from PyPI,
+then the torch CPU wheel alone from `requirements-torch-cpu.lock` on the
+PyTorch CPU index, each under `pip --require-hashes --only-binary=:all:`.
+us-central1-c, `n2d-standard-4`, both daemons reading the launch
+measurement `7dc7c12e…25acc` from the chip as in every run since September.
+
+| | `20261015T043703Z` (tree `4d289a5`) | `20261015T044521Z` (tree `75efe4f`) |
+| - | - | - |
+| Runtime install from the locks | 82.9 s | 75.2 s |
+| `runtime.txt` | torch 2.14.1+cpu, transformers 5.19.0, safetensors 0.8.0 | the same |
+| Fine-tune + seal | 10.3 s; key id `genome-8b157371311d-g0-bc5f5067c40a` | 8.8 s; `genome-f219ea41724c-g0-b7a2314633ea` |
+| The unpinned worker | refused at the handshake after 1 s | the same |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 5.2 s | the same; 5.2 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `0c251fc9…` | **ok — 17 events**, tip `861ddc27…` |
+| The guest script | 103.4 s | 93.7 s |
+| `pip-requirements.log`, `pip-torch.log` | empty: pip ran with `-q` | what pip installed and from where — the torch wheel from `download-r2.pytorch.org/whl/cpu`, the rest from PyPI, every file by hash |
+
+The second run is the first with `-q` removed from the guest's two pip
+calls, so that the two logs are the record of the install; nothing else
+differs between the trees. Checksums: `cd evidence/<run> && grep -v
+' sha256sums.txt$' sha256sums.txt | shasum -a 256 -c` — 32 of 32 match in
+each.
+
 ## Result — run `20260916T003940Z` (evidence/20260916T003940Z): the nine-stage flow on the chip
 
 The same kit, with `sagvd` driving every gate job through the nine stages

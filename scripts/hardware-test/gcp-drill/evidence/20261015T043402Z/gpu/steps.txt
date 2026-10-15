@@ -1,0 +1,9 @@
+== 04:34:57 inputs
+== 04:34:58 GPU driver
+== 04:34:58 python runtime (CUDA 12.6 wheels)
+== 04:38:17 base model Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775
+== 04:38:27 wait for the hand-off from the SEV-SNP source
+== 04:43:46 restore the sealed genome
+== 04:43:46 gate and measure on the GPU
+== 04:44:15 gate and measure on this VM's CPU
+== 04:46:15 replay the recipe on the GPU

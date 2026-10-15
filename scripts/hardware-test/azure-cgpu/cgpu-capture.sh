@@ -119,9 +119,14 @@ step "the 7B genome path on the confidential GPU"
 mark runtime_start
 apt-get install -y -qq python3-venv python3-pip >/dev/null 2>&1
 mkdir -p /opt/worker && tar -xzf "$HOME_DIR/worker.tgz" -C /opt/worker && install -m 0755 "$HOME_DIR/acpctl" /usr/local/bin/acpctl
-python3 -m venv /opt/vg && /opt/vg/bin/pip install -q --upgrade pip
-/opt/vg/bin/pip install -q --index-url https://download.pytorch.org/whl/cu126 torch==2.14.1
-/opt/vg/bin/pip install -q -r /opt/worker/requirements.txt huggingface_hub==2.2.0
+python3 -m venv /opt/vg
+# The runtime from the hash-pinned locks, each from its own index: the worker's packages, torch's
+# dependencies and huggingface_hub from PyPI, the CUDA libraries from PyPI, then the torch cu126
+# wheel alone from the PyTorch index. No --extra-index-url anywhere.
+PIP="/opt/vg/bin/pip install -q --require-hashes --only-binary=:all:"
+$PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-ci.lock
+$PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-cuda.lock
+$PIP --no-deps --index-url https://download.pytorch.org/whl/cu126 -r /opt/worker/requirements-torch-cu126.lock
 /opt/vg/bin/pip freeze > "$OUT/pip-freeze.txt"
 /opt/vg/bin/python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0), torch.cuda.get_device_properties(0).total_memory)" > "$OUT/torch.txt" 2>&1
 cat "$OUT/torch.txt"
