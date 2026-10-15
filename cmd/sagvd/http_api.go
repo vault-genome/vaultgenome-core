@@ -343,7 +343,7 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 		"fixtures", res.info.View.Fixtures,
 		"shipped_bytes", res.info.View.Bytes,
 		"output_budget_bytes", res.info.Budget,
-		"deadline_seconds", res.deadlineSecs,
+		"deadline_from_now", logSafe((time.Duration(res.deadlineSecs) * time.Second).String()),
 	)
 	writeJSON(w, http.StatusAccepted, submitResponse{
 		JobID: res.jobID, RequestID: res.requestID, State: res.view.State, Genome: res.info.View,
