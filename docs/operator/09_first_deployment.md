@@ -12,18 +12,21 @@ downloads a release's assets, verifies every signature, the SLSA provenance
 and the tag, rebuilds the binaries from the tag and requires the hashes to
 equal the released files, then runs the Return Path on a fresh SEV-SNP
 Confidential VM with the released daemons and records what the guest did.
-Its record of `v0.4.1` is
-[`evidence/20261015T014459Z/`](../../scripts/hardware-test/release-deploy/evidence/20261015T014459Z/README.md);
-the numbers below are that record's. A first deployment that reproduces
-them is on the reference path; one that does not has found something worth
-stopping for.
+Its record of `v0.4.2` is
+[`evidence/20261015T170743Z/`](../../scripts/hardware-test/release-deploy/evidence/20261015T170743Z/README.md)
+— the first in which nothing came from the source tree: the key helper,
+the worker package and the AMD chain are the release's too; the numbers
+below are that record's. A first deployment that reproduces them is on the
+reference path; one that does not has found something worth stopping for.
 
 ---
 
 ## 1. Verify the release before it runs anywhere
 
-Nothing from a release runs until its assets verify. Download all 36 assets
-of the release to a clean machine and run, for each of `sagvd`,
+Nothing from a release runs until its assets verify. Download all 37 assets
+of the release (the five binaries, the worker package, their six SBOMs, a
+signature and a certificate for each of those twelve, and the SLSA
+provenance) to a clean machine and run, for each of `sagvd`,
 `acp-compute`, `acpctl`, `acp-bootstrap`, `acp-keygen` and the worker
 package `genome-worker-<tag>.tar.gz`:
 
@@ -32,7 +35,7 @@ cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
 slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
-  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.4.1
+  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.4.2
 ```
 
 and the same `cosign verify-blob` for each `*.sbom.spdx.json` with its
@@ -40,16 +43,17 @@ and the same `cosign verify-blob` for each `*.sbom.spdx.json` with its
 `main`, never against keys in the tagged tree:
 
 ```bash
-git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.4.1
+git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.4.2
 ```
 
-| Check | What the reference saw for `v0.4.1` | Where |
+| Check | What the reference saw for `v0.4.2` | Where |
 | - | - | - |
 | cosign, artifacts and SBOMs | twelve `Verified OK` (eight for `v0.4.1`, which had four artifacts) | `verify/cosign.txt` |
 | slsa-verifier, the artifacts | six `PASSED: SLSA verification passed` (four for `v0.4.1`) | `verify/slsa.txt` |
 | the tag | `Good "git" signature` with the ED25519 key of `.github/allowed_signers` | `verify/tag.txt` |
-| the assets' hashes | 36 lines (25 for `v0.4.1`) | `verify/assets.sha256` |
-| rebuilt from the tag on another machine | every sha256 equal to the released file's: the binaries, and the worker package repacked with GNU tar and GNU gzip | `verify/rebuild.txt` |
+| the assets' hashes | 37 lines (25 for `v0.4.1`) | `verify/assets.sha256` |
+| rebuilt from the tag on another machine | every sha256 equal to the released file's: the five binaries, and the worker package repacked with GNU tar and GNU gzip | `verify/rebuild.txt` |
+| uploaded to the guest | five files, every one a release asset: `sagvd`, `acp-compute`, `acpctl`, `acp-keygen` (as `keygen`) and the worker package; the AMD chain fetched on the guest by the released `acpctl` and checked against the pinned root (`results/amd-chain.txt`) | `verify/uploaded.sha256`, `verify/tools.txt` |
 
 The hashes in `verify/assets.sha256` are the hashes of the files you
 downloaded, or you have different files. The rebuild is the release
@@ -60,7 +64,7 @@ If you have a GCP project, run the kit itself and compare its record with
 the one in the tree:
 
 ```bash
-./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.1
+./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.2
 ```
 
 About fifteen minutes and one `n2d-standard-4`, created and deleted by the
@@ -94,7 +98,9 @@ then the torch wheel for the host from the PyTorch index that carries it
 cu126 wheel from their own locks), each lock from its own index with
 `pip --require-hashes --only-binary=:all:` — and the public base model the
 genome names, at the pinned revision, on local disk. The reference guest
-installed the runtime in 80 s (`results/timeline.txt`).
+installed the runtime in 84 s (`results/timeline.txt`); on a fresh image
+that step is the package mirror's to decide, which is why a standby that
+matters keeps its runtime installed.
 
 ## 3. Prepare the host
 
@@ -131,7 +137,7 @@ In the order the reference guest script does it
 4. **A genome to gate.** Seal one with `acpctl genome seal --content-dir
    <genome> --output <bundle> --key-out <key file>`; the key file is `0600`
    and never on a command line. The reference sealed a tiny fine-tune made
-   on the guest (9.5 s); a real model's genome seals the same way (C1–C4).
+   on the guest (10 s); a real model's genome seals the same way (C1–C4).
 
 ## 4. Start it, and prove it the way the reference did
 

@@ -7,7 +7,7 @@ GNU tar and GNU gzip (`gtar` and `gzip` from Homebrew on macOS) and
 `gcloud`:
 
 ```bash
-./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.1
+./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.2
 ```
 
 It takes about fifteen minutes and one `n2d-standard-4` Confidential VM,
@@ -79,3 +79,4 @@ holds reports, decisions and logs only.
 |---|---|---|
 | `v0.4.0` | [`evidence/20261015T012735Z/`](evidence/20261015T012735Z/) | 8 signatures, 4 provenances and the tag verified; both daemons attested with the chip; the rogue worker refused; the gate job EXACT 6/6; the audit log verified (17 events). 99 s on the guest. |
 | `v0.4.1` | [`evidence/20261015T014459Z/`](evidence/20261015T014459Z/) | 8 signatures, 4 provenances and the tag verified; the four binaries rebuilt from the tag on another machine with the same sha256 as the released files; both daemons attested with the chip; the rogue worker refused; the gate job EXACT 6/6; the audit log verified (17 events). 101 s on the guest; three minutes after the release was published. |
+| `v0.4.2` | [`evidence/20261015T170743Z/`](evidence/20261015T170743Z/) | The first record with nothing from the source tree: 12 signatures, 6 provenances and the tag verified; the five binaries and the worker package rebuilt from the tag on another machine (GNU tar, GNU gzip) with the same sha256 as the released files; only release assets uploaded, the AMD Milan chain fetched on the guest by the released `acpctl` and checked against the pinned ARK-Milan (`results/amd-chain.txt`); the released `acp-keygen` provisioned the keys; both daemons attested with the chip; the rogue worker refused; the gate job EXACT 6/6; the audit log verified (17 events). 103 s on the guest; three minutes after the release was published. |
