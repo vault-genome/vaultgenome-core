@@ -17,8 +17,12 @@ given release can still open.
   beside each asset's `.sig` + `.cert` pair — the signature, the
   certificate and the Rekor entry in one file, for `cosign verify-blob
   --bundle … --offline` on a host without a route to Rekor; 48 signed
-  assets and the provenance per release from the next one on. The pair
-  and its documented check are unchanged (KNOWN_ISSUES #15).
+  assets and the provenance per release. Rehearsed as `v0.4.3-rc1`: the
+  twelve bundles verified online and, after `cosign initialize`, with
+  `--offline`, and on the air-gap drill's guest with egress denied. The
+  README, the first-deployment guide, the release procedure, the
+  supply-chain page, the disaster-recovery runbook and the release-deploy
+  kit give the bundle check beside the pair (KNOWN_ISSUES #15 resolved).
 - The authority-loss drill replicates the job store (ADR 0026) beside the
   audit log and the genomes, the moment a job is accepted and again when
   it is done, and the runner takes the host away only once the replica

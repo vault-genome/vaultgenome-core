@@ -124,6 +124,21 @@ The same two commands verify `acp-compute`, `acpctl`, `acp-bootstrap`,
 deployment needs nothing from the source tree
 ([`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md)).
 
+From 0.4.3 on, every signed file also has a Sigstore bundle,
+`<asset>.sigstore.json` — the signature, the certificate and the Rekor
+entry in one file — so a host with no route to Rekor verifies it too,
+after one `cosign initialize` while connected:
+
+```bash
+cosign verify-blob --bundle sagvd.sigstore.json --offline \
+  --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
+```
+
+([`docs/operator/runbooks/air_gap.md`](docs/operator/runbooks/air_gap.md) is
+the air-gapped procedure; the rehearsal `v0.4.3-rc1` verified all twelve
+bundles this way.)
+
 [`docs/operator/05_release_procedure.md`](docs/operator/05_release_procedure.md)
 is the whole procedure; [`docs/security/supply_chain.md`](docs/security/supply_chain.md)
 says what each check proves.

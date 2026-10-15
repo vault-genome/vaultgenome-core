@@ -459,14 +459,15 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    (`--bundle <asset>.sigstore.json`, `cosign verify-blob --bundle`) changes
    the assets and all of those documents together and is made as one
    release, not in passing.
-   **In progress (2026-10-15):** `release.yml` now writes a Sigstore bundle
-   (`<asset>.sigstore.json`: signature, certificate and the Rekor entry in
-   one file) beside each `.sig` + `.cert` pair — 48 signed assets and the
-   provenance from the next release on. The documents move to `cosign
-   verify-blob --bundle … --offline` (the check an air-gapped site can run,
-   after one `cosign initialize` while connected) once that command has
-   been run against a rehearsal release and recorded; until then the pair
-   stays the documented check and the bundle is the extra file.
+   **RESOLVED (2026-10-15, from 0.4.3):** `release.yml` writes a Sigstore
+   bundle (`<asset>.sigstore.json`: the signature, the certificate and the
+   Rekor entry in one file) beside each `.sig` + `.cert` pair — 48 signed
+   assets and the provenance. The rehearsal `v0.4.3-rc1` verified all
+   twelve bundles online and, after `cosign initialize`, with `--offline`
+   (and on the air-gap drill's guest with egress denied); the README, the
+   first-deployment guide, the release procedure §5, the supply-chain
+   page, the disaster-recovery runbook and the release-deploy kit give the
+   bundle check beside the pair. cosign stays pinned at 2.6.5.
 16. **The job queue is in memory: a job in flight when the authority's
    host is lost is lost with it (2026-10-15).**
    `sagvd` keeps accepted jobs in memory (`cmd/sagvd/job_queue.go`); the

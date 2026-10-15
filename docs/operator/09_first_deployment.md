@@ -23,12 +23,13 @@ reference path; one that does not has found something worth stopping for.
 
 ## 1. Verify the release before it runs anywhere
 
-Nothing from a release runs until its assets verify. Download all 37 assets
+Nothing from a release runs until its assets verify. Download all 49 assets
 of the release (the five binaries, the worker package, their six SBOMs, a
-signature and a certificate for each of those twelve, and the SLSA
-provenance) to a clean machine and run, for each of `sagvd`,
-`acp-compute`, `acpctl`, `acp-bootstrap`, `acp-keygen` and the worker
-package `genome-worker-<tag>.tar.gz`:
+signature, a certificate and a Sigstore bundle for each of those twelve,
+and the SLSA provenance; 37 for 0.4.2, which has no bundles) to a clean
+machine and run, for each of `sagvd`, `acp-compute`, `acpctl`,
+`acp-bootstrap`, `acp-keygen` and the worker package
+`genome-worker-<tag>.tar.gz`:
 
 ```bash
 cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
@@ -39,8 +40,13 @@ slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
 ```
 
 and the same `cosign verify-blob` for each `*.sbom.spdx.json` with its
-`.sbom.sig` and `.sbom.cert`. Then the tag, against the keys pinned on
-`main`, never against keys in the tagged tree:
+`.sbom.sig` and `.sbom.cert`. The bundle checks the same thing from one
+file, and does it without a route to Rekor once `cosign initialize` has
+cached the Sigstore trust root (while connected): `cosign verify-blob
+--bundle sagvd.sigstore.json --offline` with the same two identity flags
+— the check an air-gapped site runs
+([runbooks/air_gap.md](runbooks/air_gap.md)). Then the tag, against the
+keys pinned on `main`, never against keys in the tagged tree:
 
 ```bash
 git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.4.2
