@@ -273,6 +273,48 @@ Does /healthz answer on the health listener?
    (`sagvd: listen …`, `sagvd: HTTP API listen …`, `sagvd: health server: …`).
 3. **After a restart**: jobs that were queued or running are gone (the queue
    is in memory) — resubmit them. Workers reconnect by themselves.
+4. **If the host itself is gone** — deleted, dead, or not to be trusted
+   again — a fresh host becomes the authority. In this order (the
+   authority-loss drill, `scripts/hardware-test/authority-loss`, does
+   exactly this on real SEV-SNP and measured it):
+   1. The operator's copies of the key material `acp-keygen` made — the
+      seeds, the TLS identities, the API token, the worker registry — from
+      the safe they were put in before the host sealed its own copies
+      (ADR 0023: the plaintext is the operator's to keep, off every release
+      host). On the new host, `sagvd seal-keys` and `acp-compute seal-keys`
+      seal them to its chip.
+   2. The last replica of the audit log and of the genome bundles (the
+      operator's replication; the drills copy both to a private bucket
+      after every job). Verify the replica before the daemon touches it:
+      `acpctl audit verify --audit <replica> --audit-pubkey audit.pem
+      --audit-kid <keys.audit_signing.kid>`.
+   3. The escrow key, through the recovery ceremony: `acpctl escrow
+      recover --in <envelope> --key <recovery key> | sagvd escrow-provision
+      -config sagvd.json -out <sealed> -pub <pem> -stdin` (ADR 0016). The
+      recovery key's file must be `0600`.
+   4. `sagvd identity` and `acp-compute identity` on the new host: the
+      launch measurement is the new host's; the worker's pin of the
+      authority changes to it (and the authority's pin of the worker, if
+      the worker moved too).
+   5. Start `sagvd` over the replica — it opens the file and continues the
+      chain from its last event (`sagvd audit log open … events=N tip=…`
+      in the log) — then the worker; resubmit what was in flight.
+
+   The same authority comes back: the same signing key, the same audit
+   key, the same escrow key, the chain continued from the replica's tip.
+   Measured (the drill's runs of 2026-10-15; `evidence/*/timeline.txt`):
+   a standby that already has the runtime and the binaries needs
+   **49–50 s** in all three runs: the replica restored in a second, the
+   key files sealed in 10 s, the ceremony 11 s, both daemons up with the
+   session open 22 s, the first verdict 5 s later. From the moment the
+   old host's deletion was issued to that verdict on a host created on
+   demand, **236 s and 237 s** in two runs — about 80 s the VM's creation
+   and boot, about 80 s the worker's runtime from the locks — and
+   **489 s** in the third, whose package mirror took 330 s for the same
+   runtime: the cold number is the mirror's and the image's, which is
+   what a standby with the runtime in place removes. What is lost: the job in
+   flight (item 3) and the audit events the old host appended after its
+   last replica.
 
 ---
 

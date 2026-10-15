@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1437,6 +1437,68 @@ same-device replay of [C16](#c16) and [C17](#c17) at 32B; cross-device
 equivalence at 32B is not measured, and 70B was not run (no
 non-confidential H100 quota; a 70B in bfloat16 does not fit one 94 GB
 GPU without quantisation, which would change the base the genome names).
+
+---
+
+### C28 — The release authority's host is deleted in the middle of a job, and a fresh SEV-SNP host becomes the same authority: the same keys sealed to its chip, the same escrow key through the recovery ceremony, the audit chain continued from the replica, the next verdict signed in under a minute from the runtime being ready
+
+**Claim.** On real AMD SEV-SNP, with the authority and its worker on one
+Confidential VM running gate jobs over the Return Path, the VM is deleted
+without warning while a job is in flight; a fresh VM, created at that
+moment, takes only the operator's safe (the key material `acp-keygen`
+made, the recovery key, the escrow envelope) and the last replica of the
+audit log and the genomes, seals the key files to its own chip, verifies
+the replica, re-provisions the escrow key through the recovery ceremony,
+starts both daemons over the replicated log, resubmits the lost job and
+signs its verdict — the same authority signing key, the same audit key,
+the same escrow key, the chain continued from the replica's tip — in
+49–50 s from the host's runtime being ready, in all three runs; from the
+deletion, with the host created on demand, 236 s, 237 s and 489 s, the
+third with a package mirror that took 330 s for the runtime.
+
+**Evidence.**
+[`scripts/hardware-test/authority-loss/evidence/20261015T174115Z/`](scripts/hardware-test/authority-loss/evidence/20261015T174115Z/)
+(the full record; `20261015T171848Z/` and `20261015T173009Z/` are the same
+drill, within two seconds on every number but the fresh host's package
+install — 78–80 s there, 330 s in the third run — and without the final
+offline verification: their stop step left `sagvd` holding the file's
+lock, a bug of the kit fixed before the third run and stated in its
+README). In the third run: `runner-timeline.txt` A's deletion issued at 17:45:27.82Z
+with job 4 in flight, B created 9.4 s later;
+`a-markers.txt` jobs 1–4 submitted and done, job 5
+submitted and never done; `b/audit-verify-replica.json` `ok: true`,
+64 events, tip `75b63362…` — the tip A's last manifest
+named (`a/state-manifest-4.json`); `b/seal-keys-sagvd.json`,
+`b/seal-keys-worker.json` the key files from the safe sealed to B's chip;
+`b/escrow-reprovision.json` the escrow key `a08e386a…` out of the
+ceremony — the tag `a/escrow-provision.json` printed on A — `source:
+stdin`, `tee: gcp-sev-snp`; `b/sagvd.log` `sagvd audit log open …
+events=64 tip=75b63362…`; `b/steps.txt` `lost_jobs=5`,
+the resubmitted job `succeeded`, gate EXACT, 6 of 6, its event sealed on
+the chain; `b/audit-verify.json` `ok: true`, 96 events —
+A's and B's under the one audit key, tip `c3269c3e…`;
+`timeline.txt` the four facts checked by the runner from the two records
+— the authority key, the audit key and the escrow key the same on A and
+B, the replica intact, the final chain intact — and the recovery times:
+RTO cold **489.3 s** (VM creation 9.4 s, boot to the first
+line 74.8 s, the runtime from the locks 330.2 s), RTO warm
+**49.5 s** (the replica restored 1.1 s, identities and
+sealing 10.5 s, the ceremony 10.3 s, the daemons and the
+session 22.2 s, the verdict 5.4 s).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/authority-loss/run.sh <gcp-project>    # ~10 min, two n2d-standard-4 one after the other, deletes both and the bucket
+```
+
+**Scope.** One zone, one image (so one launch measurement on both
+hosts), a tiny model, a safe that is a bucket object and a replica that
+is a tar after every job. The job in flight is lost by today's design
+(KNOWN_ISSUES #16); what the cold number mostly measures is a VM's boot
+and a package mirror, not the product. The drill does not say what a
+standby with the daemons already running would need; the warm number is
+the floor it starts from.
 
 ---
 
