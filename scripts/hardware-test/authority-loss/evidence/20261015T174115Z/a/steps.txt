@@ -1,0 +1,27 @@
+== 17:42:48 inputs
+== 17:42:49 configfs-tsm
+== 17:42:49 the worker runtime from the locks
+== 17:44:07 the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== 17:44:07 provision (acp-keygen -private); the operator's safe keeps the plaintext key material before it is sealed to this chip
+== 17:44:08 identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+worker_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+authority_public_key sha256=7ff568b482c819da audit_public_key sha256=1bb30090a4937601
+== 17:44:08 a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl as gen-0; the base goes to the safe (the genome names its digest)
+finetune exit=0
+seal exit=0 key_id=genome-0e1bb5184010-g0-546baad701e4
+== 17:44:18 the key files sealed to this chip (ADR 0023)
+sagvd seal-keys exit=0
+acp-compute seal-keys exit=0
+== 17:44:28 the escrow key made inside sagvd, sealed to this chip, wrapped to the operator's recovery key (ADR 0016); the envelope to the safe
+escrow-provision exit=0 tee=gcp-sev-snp
+== 17:44:39 sagvd and its worker on this chip
+sagvd ready after 11s
+session opened after 11s
+== 17:45:01 gate jobs in a loop; the state replicated after each; the runner takes the machine away in the middle of one
+job 1 id=3b183cc0e385ec448abac16070882560 status=succeeded after 5s gate=EXACT n_exact=6 tip=9e7cc0e4a0afd610b44f0f54e3c382b3dab366d6b2d3b7f6eb52bff71e4ea1c4
+job 2 id=903b1670b6d352435b13bfc1f9980b5a status=succeeded after 5s gate=EXACT n_exact=6 tip=d9e16811fbc97d62db2941e7f46a0791ff05d0b85c283ea8807a31cda778052b
+job 3 id=92c73d9cf4f51c05737da93ac0bb2c21 status=succeeded after 5s gate=EXACT n_exact=6 tip=d7ef9547568b54732326ca74ec848b58ab81b8e9032cd8abc49896e24e2f746c
+job 4 id=3f1356f7efc70f6547d96cf94dad796c status=succeeded after 5s gate=EXACT n_exact=6 tip=75b63362061dc85119b8e8eb11855c4ce1ccd491150336d75834e4ebf66a8a7f

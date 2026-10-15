@@ -1,0 +1,31 @@
+== 17:36:10 inputs
+== 17:36:12 configfs-tsm
+== 17:36:12 the worker runtime from the locks (a warm standby would have this already)
+== 17:37:30 the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== 17:37:30 the operator's safe: the key material A provisioned, the recovery key, the escrow envelope, the base model
+== 17:37:30 the replica of A's state: the audit log and the genomes, as last synced
+== 17:37:31 identities on this chip: the same seeds, this machine's launch measurement
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+worker_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+authority_public_key sha256=9534ba0d68fa0698 audit_public_key sha256=e693c2decaef5101
+== 17:37:31 the replicated audit chain, verified before anything appends to it
+replica audit verify: {"ok":true,"audit_path":"/root/w/audit/returnpath-audit.db","event_count":80,"tip":"dc821f49f4a10782738a61b3415703d6f442ec4bc20536e03a45cfae4c841718"}
+== 17:37:31 the key files sealed to THIS chip (ADR 0023)
+sagvd seal-keys exit=0
+acp-compute seal-keys exit=0
+== 17:37:41 the recovery ceremony: A's escrow key, from the envelope, sealed to this chip (ADR 0016)
+escrow re-provision exit=0 escrow_key=ad0f082e6a3f8350
+== 17:37:52 sagvd on this chip over the replicated audit log, and its worker
+sagvd ready after 10s
+session opened after 11s
+== 17:38:14 which job A lost: submitted and never completed
+lost_jobs=6
+== 17:38:14 the lost job (6) submitted again here — the same gate job for gen-0 — and the first verdict after the loss
+job first-after-loss id=fd5998590cb42449d495f783bb47e02c status=succeeded after 5s gate=EXACT n_exact=6 tip=667876de3906ec91593f0c0c692e7afaa1ced7ccc480425cc5b02b28c6a15c73
+first job after the loss: succeeded
+job second-after-loss id=1bac845818d444f95eebe5dad273aced status=succeeded after 5s gate=EXACT n_exact=6 tip=9a28153703764c3307478f9a9361bd53440945bc190511530bac9d6bb58b0bc7
+== 17:38:24 metrics; stop both; the whole chain — A's events and B's — verified under the published key
+daemons stopped after 0s
+final audit verify: 

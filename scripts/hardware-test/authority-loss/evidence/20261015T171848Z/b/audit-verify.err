@@ -1,0 +1,1 @@
+acpctl audit verify: open audit store: operational[resource_exhausted]: audit/store: open "/root/w/audit/returnpath-audit.db" failed: timeout
