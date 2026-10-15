@@ -143,6 +143,11 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    confidential GPU VM with the door on the H100
    (`scripts/hardware-test/azure-cgpu/`); the older captures under
    `evidence/` were produced by standalone tooling.
+   The path to every other hardware — providers named after families, not
+   clouds; the family taken from the kernel's configfs-tsm; the Verifier as
+   a RATS role that can be delegated to a Verifier the customer runs; a
+   TPM 2.0 floor for servers without a TEE — is ADR 0025, and its first
+   step is the next code change.
 2. **RESOLVED (ADR 0013, 2026-09-15).** The acp-compute worker's
    "reconstruction" was a placeholder: SHA-256 digest expansion (V1), then a
    byte-level order-3 Markov chain (V2), both self-documented as "not a
