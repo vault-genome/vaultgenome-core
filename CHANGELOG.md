@@ -13,6 +13,26 @@ given release can still open.
 
 ### Added
 
+- **The `azure-sev-snp` provider: an Azure SEV-SNP Confidential VM without
+  a GPU attests with the chip and the vTPM (ADR 0025, plan item 4).** The
+  paravisor gives an Azure guest no `/dev/sev-guest`: the SNP report is
+  issued at boot and kept in the vTPM's NV index as the HCL report, whose
+  REPORT_DATA names the vTPM's attestation key, and a TPM quote by that
+  key binds a challenger's nonce to it. `azure-cgpu` carried this and
+  NVIDIA's tokens; `azure-sev-snp` is this alone, for DCasv5, ECasv5 and
+  their kin, and the chip-and-vTPM half is one piece of code for both
+  families (`internal/shared/tee/azure_vtpm.go`). One row of every table:
+  the factory, the media type
+  `application/vnd.vault-genome.azure-sev-snp-evidence` on the wire, the
+  vTPM as the sealer (`tpm2`), the capability check; `sagvd`,
+  `acp-compute` and `acp-bootstrap` accept it as `tee.provider` and as
+  `tee.peer.provider` (the AMD chain of the chip's product, the VCEK
+  cache, the TCB floor, `pcr_digests`; no GPU fields), and the cross-cloud
+  verifier registry takes it. Runbook:
+  `docs/operator/runbooks/real-tee-azure-sev-snp.md`; the kit
+  `scripts/hardware-test/azure-sev-snp/returnpath-e2e` runs the Return
+  Path on one `Standard_DC4as_v5`.
+
 - `scripts/hardware-test/failover-region-loss`: the continuity drill with
   the failure that gives no warning. The primary (GCP SEV-SNP, us-central1)
   switches itself off while it trains — no shutdown, no report, no
