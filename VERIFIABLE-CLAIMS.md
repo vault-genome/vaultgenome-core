@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1735,6 +1735,76 @@ three is the host's, not the protocol's; a fleet puts workers on their
 own machines. The host's rate limit is observed, not read from a
 document: its exact policy is GCP's, and whether TDX or Azure throttle
 the same way is a separate measurement (the kit has a TDX twin).
+
+<a id="c33"></a>
+
+### C33 — One authority serves three workers for an hour on real TDX and SEV-SNP without a failure: 2429 jobs on TDX (40 a minute, every one EXACT, p99 9.3 s), 1607 on SEV-SNP (27 a minute under the chip's throttle, p99 17.7 s), 38,864 and 25,712 audit events on one verified chain each — and the authority's memory grows about 110 KB a job, which the soak found
+
+**Claim.** On one c3-standard-8 Trust Domain, sagvd with
+`runtime.max_sessions: 3`, three acp-compute workers (the real CPU door,
+contending for the cores) and six jobs kept in flight on the same sealed
+genome for sixty minutes: 2429 jobs, 2429 verdicts EXACT, none failed,
+no connection refused, no handshake failed; 40.4 jobs a minute, the
+slowest minute 38 and the fastest 42; from submission to verdict p50
+8.58 s, p90 8.71 s, p99 9.26 s, max 9.41 s, of which the wait for a
+session p50 4.42 s and the worker's restore and answer p50 4.15 s (p99
+4.50 s); the median job of the last ten minutes 8.59 s against 8.58 s
+in the first ten; 2432 handshakes p50 94 ms, p90 107 ms, p99 126 ms,
+max 490 ms, none above half a second; the authority's 2432 quotes 110 s
+together and their verification 4.5 s. On one n2d-standard-8 SEV-SNP
+guest, the same hour: 1607 jobs, 1607 EXACT, nothing refused or failed;
+26.7 a minute (24–30); p50 11.30 s, p90 17.34 s, p99 17.74 s, max
+17.98 s, the restore p50 4.95 s (p99 5.21 s) and the wait for a session
+p50 6.34 s, because 767 of the 1609 handshakes waited between one and
+seven seconds for the host's throttle (p50 58 ms, p90 6.16 s, max
+10.3 s; 2610 s of waiting in the hour), the authority's quote histogram
+agreeing (909 of 1609 under 50 ms, 671 above a second). The hour's
+audit log is one chain on each chip — 38,864 events on TDX, 25,712 on
+SEV-SNP, sixteen a job in ten kinds — verified under the published key
+at the end in 3.2 s and 2.4 s. The authority's resident memory grew
+linearly on both chips, 16 → 280 MB on TDX (108 KB a job) and 17 →
+205 MB on SEV-SNP (117 KB a job), while its open descriptors stayed at
+13–14 and the three workers' memory at 39–51 MB: the in-memory job map
+keeps every finished job's flow and the persistent audit chain keeps
+every sealed event in memory (KNOWN_ISSUES #18).
+
+**Evidence.**
+[`scripts/hardware-test/gcp-tdx/returnpath-soak/evidence/20261016T130106Z/`](scripts/hardware-test/gcp-tdx/returnpath-soak/evidence/20261016T130106Z/)
+and
+[`scripts/hardware-test/gcp-sev-snp/returnpath-soak/evidence/20261016T130128Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-soak/evidence/20261016T130128Z/)
+— `jobs.csv` (every job: its stamps from the job view, status, gate
+level, queue, run and total seconds), `snapshots.csv` (every minute:
+jobs done, in flight, `sagvd_sessions_active`, `sagvd_queue_depth`,
+sessions opened, handshake failures, refusals, the authority's RSS and
+descriptors, the workers' RSS, the load), `summary.json` (the
+percentiles, rates and drifts, derived by the kit's `summarize.py` from
+those two files), `steps.txt` (`soak: minutes=60 workers=3
+jobs_done=2429 ok=2429 exact=2429 in_flight_at_end=0 first_error=None`;
+`jobs_done=1607 ok=1607 exact=1607` on SEV-SNP; `audit verify exit=0`,
+`audit_events=38864` / `25712`), `audit-kinds.txt` (the ten kinds and
+their counts), `audit-verify.json` (`ok: true`, the tip),
+`sagvd-soak.handshake_ms.txt` and `acp-compute-soak-{1,2,3}.handshake_ms.txt`
+(every handshake), `sagvd-soak.{size,warnings,head,tail}.txt` and the
+workers' (the long logs by size, warnings — none — and ends),
+`sagvd-metrics-end.txt` (`vg_tee_attestation_duration_seconds`
+histograms, `sagvd_gate_verdicts_total{level="EXACT"}`,
+`sagvd_sessions_refused_total` absent), `ps-end.txt` (the four processes
+after the hour), `timeline.txt`, `metadata.txt`, `nproc.txt` 8,
+`sha256sums.txt`. The kits:
+[`scripts/hardware-test/gcp-tdx/returnpath-soak/`](scripts/hardware-test/gcp-tdx/returnpath-soak/),
+[`scripts/hardware-test/gcp-sev-snp/returnpath-soak/`](scripts/hardware-test/gcp-sev-snp/returnpath-soak/);
+the tables: [`docs/operator/limits.md`](docs/operator/limits.md).
+
+**Scope.** One host for the authority and the workers, one hour, one
+genome, one sealed key: a rate for one host, not a fleet's. The queue
+time is the submitter's doing (six in flight for three workers), so the
+rate is the number to read, the latency is a job's restore plus the one
+ahead of it. The memory growth is measured, not bounded: an hour at this
+rate is a quarter of a gigabyte; the fix is named in KNOWN_ISSUES #18.
+The throttle on SEV-SNP is the host's (KNOWN_ISSUES #17), observed again
+here over an hour.
+
+---
 
 ---
 

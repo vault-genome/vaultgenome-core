@@ -1,0 +1,34 @@
+workers=3
+== binaries from gs://rats-probe-vg-tdxsoak-20261016t130002z/e2e
+== the Trust Domain: configfs-tsm (tdx_guest)
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== the host's vTPM: tee.sealer auto resolves to tpm2 on a Trust Domain (tpm2-tools)
+== provision (acp-keygen, private modes; every key file is sealed to this host below)
+== identities: each daemon reads MRTD and RTMR0..3 from a quote of this Trust Domain
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=7c09aa71575f3eeb556eb0ea924a674f1467cd73f60c9d8a8690ca2e79d903b03712a1bddcdaeb6de3db29c08d99e9ab
+worker_measurement=7c09aa71575f3eeb556eb0ea924a674f1467cd73f60c9d8a8690ca2e79d903b03712a1bddcdaeb6de3db29c08d99e9ab
+sagvd-identity.json: provider=gcp-tdx mrtd=c1ee9c16e3afc506… rtmr3=0000000000000000… sha384(mrtd||rtmr0..3)==measurement: True
+acp-compute-identity.json: provider=gcp-tdx mrtd=c1ee9c16e3afc506… rtmr3=0000000000000000… sha384(mrtd||rtmr0..3)==measurement: True
+== the key files sealed to this host (ADR 0023; tee.sealer unset — auto, which is tpm2 here, ADR 0025 step 1b)
+sagvd seal-keys exit=0 sealer=tpm2 sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+acp-compute seal-keys exit=0 sealer=tpm2 sealed=keys.worker_signing.seed_path,vault.tls.client_key
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-a1ec7841b054-g0-f5ea41331064
+soak_minutes=60
+== soak: sagvd at max_sessions=3, 3 workers, jobs kept queued for 60 minutes
+sagvd ready after 5s pid=3656
+soak: minutes=60 workers=3 jobs_done=2429 ok=2429 exact=2429 in_flight_at_end=0 first_error=None
+== snapshots of the daemons' state at the end
+== verify the audit log of the whole soak with the published key; count its records by kind
+audit verify exit=0
+audit_verify_seconds=3.2
+audit query exit=0
+audit_events=38864
+  CANDIDATE_RECEIVED=2429
+  DISCLOSURE_AUTHORIZED=12145
+== the Intel PCS documents both verifiers fetched (public), for offline re-verification
+elapsed_seconds=3708.6

@@ -37,6 +37,25 @@ given release can still open.
   `20261016T123114Z`, c3-standard-8): 23.7 s at one, 9.6 s at three,
   no throttling — three sessions at once at 90–165 ms each.
 
+- **The soak: one authority and three workers for an hour on real TDX
+  and SEV-SNP** (`scripts/hardware-test/gcp-tdx/returnpath-soak`, run
+  `20261016T130106Z`; `gcp-sev-snp/returnpath-soak`, run
+  `20261016T130128Z`; C33). 2429 jobs on the c3-standard-8 Trust Domain
+  — 40 a minute, steady from the first minute to the last, p50 8.6 s and
+  p99 9.3 s from submission to verdict, handshakes p50 94 ms and none
+  above half a second — and 1607 on the n2d-standard-8 SEV-SNP guest —
+  27 a minute, p50 11.3 s and p99 17.7 s, half of the handshakes held
+  1–7 s by the host's throttle (KNOWN_ISSUES #17, now measured over an
+  hour). Every job EXACT, no refusal, no handshake failure, no warning in
+  any log; 38,864 and 25,712 audit events on one chain each, verified at
+  the end in 3.2 s and 2.4 s. The soak found that the authority's memory
+  grows about 110 KB for every job served — the in-memory job map keeps
+  every finished job's flow and the persistent audit chain keeps every
+  sealed event in memory — 16 → 280 MB over the hour, while the workers'
+  memory and the authority's descriptors stayed flat (KNOWN_ISSUES #18).
+  `docs/operator/limits.md` has the tables; the kit's `summarize.py`
+  derives every number from the evidence.
+
 ### Changed
 
 - **Return Path wire 1.1: Evidence names its format (ADR 0025, step

@@ -490,6 +490,34 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    first-deployment guide, the release procedure §5, the supply-chain
    page, the disaster-recovery runbook and the release-deploy kit give the
    bundle check beside the pair. cosign stays pinned at 2.6.5.
+18. **The authority's memory grows with every job served, about 110 KB
+   a job, without bound (2026-10-16).** The soak (C33) ran one sagvd at
+   `runtime.max_sessions: 3` with three workers for an hour: its
+   resident memory went from 16 to 280 MB over 2429 jobs on TDX (108 KB
+   a job) and from 17 to 205 MB over 1607 jobs on SEV-SNP (117 KB a
+   job), linearly, while its open descriptors stayed at 13–14 and the
+   workers' memory at 39–51 MB. Two things keep every job: the in-memory
+   job map (`cmd/sagvd/job_queue.go`, `jobs`) holds each finished job's
+   flow, verdict and candidate so that `GET /v1/jobs/{id}` answers from
+   memory, although the store on disk already keeps the view (ADR 0026)
+   and `GetRaw` already falls back to it; and the persistent audit chain
+   (`internal/audit/chain/persistent.go`, `events`) appends every sealed
+   event to an in-memory slice and loads every stored event when it
+   opens, so a restart reloads what the previous process accumulated and
+   the time to open grows with the log (38,864 events verified in 3.2 s;
+   a month at the soak's rate is 28 million). Consequence: at 40 jobs a
+   minute the authority grows about 260 MB an hour, 6 GB a day; an
+   authority left running at that rate for a week is out of memory.
+   Workaround: restart the authority on a schedule sized to its memory
+   (the queue and the views are on disk and resume, the chain reopens
+   and verifies; the authority-loss drill is the restart's proof, C28).
+   The fix: evict a finished job from the map once its view is on the
+   store (a bounded recent set for the common `GET` right after the
+   verdict), and keep only the chain's tip and count in memory — verify
+   the stored chain at open without retaining it and serve `Events`,
+   `EventAt` from the store. Both land as one change, proven by the
+   same soak run again with a flat line.
+
 17. **A burst of attestation requests on one GCP SEV-SNP guest is
    rate-limited by the host: all but the first wait about 10 s
    (2026-10-16).** Every Return Path session makes the authority quote
@@ -512,6 +540,11 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    GCP does not throttle this way: the kit's TDX twin (run
    `20261016T123114Z`, c3-standard-8) opened three sessions at once at
    90–165 ms each and the authority's nine quotes took 0.52 s together.
+   Over an hour under steady load (the soak, C33: three workers dialing
+   as fast as they finish, 27 handshakes a minute) 767 of the authority's
+   1609 handshakes waited between one and seven seconds (p50 58 ms, p90
+   6.16 s, two of 10.3 s; 2610 s of waiting in the hour across the three
+   workers), and the host did 1607 jobs where the TDX twin did 2429.
    Not yet known: Azure's SEV-SNP hosts; whether a quote could cover
    several sessions is a wire question for ADR 0025's successor.
 
