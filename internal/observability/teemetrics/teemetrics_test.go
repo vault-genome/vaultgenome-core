@@ -251,3 +251,45 @@ func TestRecorder_WrapVerifier_KeepsTheDetail(t *testing.T) {
 	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="azure-cgpu",result="success",role="verify"} 1`)
 	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="simulated",result="success",role="verify"} 1`)
 }
+
+type recordVerifierStub struct{ calls int }
+
+func (s *recordVerifierStub) Verify(tee.Evidence, tee.Nonce) (tee.Measurement, error) {
+	return tee.Measurement{1}, nil
+}
+
+func (s *recordVerifierStub) VerifyRecord(string, []byte, tee.Nonce) (tee.Measurement, *tee.AttestationDetail, error) {
+	s.calls++
+	return tee.Measurement{2}, &tee.AttestationDetail{Provider: tee.ProviderSimulated}, nil
+}
+
+type bareVerifierStub struct{}
+
+func (bareVerifierStub) Verify(tee.Evidence, tee.Nonce) (tee.Measurement, error) {
+	return tee.Measurement{1}, nil
+}
+
+// The wrapper forwards the record path to a verifier that reads records,
+// counting it as a verification, and is not taken for one around a
+// verifier that reads bare evidence.
+func TestRecorder_WrapVerifier_ForwardsTheRecordPath(t *testing.T) {
+	t.Parallel()
+	r := metrics.NewRegistry()
+	rec := teemetrics.New(r)
+	inner := &recordVerifierStub{}
+	w := rec.WrapVerifier("simulated", inner)
+	rv := tee.RecordVerifierOf(w)
+	if rv == nil {
+		t.Fatal("the wrapper around a record verifier is not seen as one")
+	}
+	m, d, err := rv.VerifyRecord("application/x-test", []byte("value"), tee.Nonce("a thirty-two byte challenger nonce!"))
+	if err != nil || !m.Equal(tee.Measurement{2}) || d == nil || inner.calls != 1 {
+		t.Fatalf("forwarding: %v %v %v %d", m, d, err, inner.calls)
+	}
+	if tee.RecordVerifierOf(rec.WrapVerifier("simulated", bareVerifierStub{})) != nil {
+		t.Fatal("the wrapper around a bare verifier is taken for a record verifier")
+	}
+	var buf bytes.Buffer
+	require.NoError(t, r.WriteMetricsTo(&buf))
+	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="simulated",result="success",role="verify"} 1`)
+}

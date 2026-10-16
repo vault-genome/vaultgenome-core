@@ -190,3 +190,113 @@ func TestHandshake_TSMFamily_WrongProviderNameIsRefusedByName(t *testing.T) {
 	require.Nil(t, serverSaw, "no verifier ran on the server")
 	require.Equal(t, report, clientSaw, "the client had verified the server's report before it attested")
 }
+
+// recordingRecordVerifier reads records, as the delegated Verifier does:
+// it keeps the record it was handed and answers with a fixed measurement,
+// or refuses.
+type recordingRecordVerifier struct {
+	gotType  *string
+	gotValue *[]byte
+	m        tee.Measurement
+	refuse   error
+}
+
+func (v recordingRecordVerifier) Verify(tee.Evidence, tee.Nonce) (tee.Measurement, error) {
+	return nil, errors.New("the record path is the only path")
+}
+
+func (v recordingRecordVerifier) VerifyRecord(mediaType string, value []byte, _ tee.Nonce) (tee.Measurement, *tee.AttestationDetail, error) {
+	*v.gotType = mediaType
+	*v.gotValue = append([]byte(nil), value...)
+	if v.refuse != nil {
+		return nil, nil, v.refuse
+	}
+	return v.m, &tee.AttestationDetail{Provider: tee.ProviderGCPSEVSNP, Verifier: &tee.VerifierResult{URL: "https://verifier.test", Status: tee.EARStatusAffirming}}, nil
+}
+
+// A verifier that reads records is handed the record as it travelled —
+// the TSM report with the certificate table inside, not the bare report
+// — and what it says beyond the measurement reaches the session state.
+func TestHandshake_ARecordVerifierIsHandedTheRecord(t *testing.T) {
+	t.Parallel()
+	peers := newPeerTEEs(t)
+	clientReport := bytes.Repeat([]byte{0xB2}, 1184)
+	clientM := tee.Measurement(bytes.Repeat([]byte{0x52}, 48))
+	serverM := tee.Measurement(bytes.Repeat([]byte{0x51}, 48))
+	var gotType string
+	var gotValue, clientSaw []byte
+	c, s, _, ss := runLoopbackHandshake(t, peers, func(cfg *HandshakeConfig) {
+		cfg.LocalProvider, cfg.PeerProvider = tee.ProviderGCPSEVSNP, tee.ProviderGCPSEVSNP
+		if cfg.Role == RoleServer {
+			cfg.Producer = tsmProducer{report: bytes.Repeat([]byte{0xA1}, 1184), m: serverM}
+			cfg.Verifier = recordingRecordVerifier{gotType: &gotType, gotValue: &gotValue, m: clientM}
+		} else {
+			cfg.Producer = tsmProducer{report: clientReport, aux: []byte("the client host's table"), m: clientM}
+			cfg.Verifier = recordingVerifier{got: &clientSaw, m: serverM}
+		}
+	})
+	defer func() { _ = c.Close(); _ = s.Close() }()
+	require.Equal(t, tee.MediaTypeTSMReportJSON, gotType)
+	var tsm tee.TSMReport
+	require.NoError(t, json.Unmarshal(gotValue, &tsm))
+	require.Equal(t, clientReport, tsm.OutBlob)
+	require.Equal(t, []byte("the client host's table"), tsm.AuxBlob, "the delegated Verifier sees the certificates")
+	require.True(t, clientM.Equal(ss.PeerMeasurement))
+	require.NotNil(t, ss.PeerDetail)
+	require.NotNil(t, ss.PeerDetail.Verifier)
+	require.Equal(t, "https://verifier.test", ss.PeerDetail.Verifier.URL)
+}
+
+// The family a peer must be stays this side's policy whoever appraises: a
+// record of another type never reaches the record verifier; and the
+// verifier's refusal is the handshake failure it always was.
+func TestHandshake_RecordVerifier_TypeIsPolicyAndRefusalIsFailure(t *testing.T) {
+	t.Parallel()
+	report := bytes.Repeat([]byte{0xA1}, 1184)
+	m := tee.Measurement(bytes.Repeat([]byte{0x51}, 48))
+	run := func(peerProvider tee.Provider, refuse error) (serverErr error, handed bool) {
+		var gotType string
+		var gotValue, clientSaw []byte
+		lis := listenLoopback(t)
+		errCh := make(chan error, 1)
+		go func() {
+			conn, err := lis.Accept()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			defer func() { _ = conn.Close() }()
+			_ = conn.SetDeadline(time.Now().Add(testHandshakeTimeout))
+			_, err = DoHandshake(HandshakeConfig{
+				Role: RoleServer, Conn: conn, Clock: shared_time.NewSystemClock(),
+				LocalProvider: tee.ProviderGCPSEVSNP, PeerProvider: peerProvider,
+				Producer: tsmProducer{report: report, m: m},
+				Verifier: recordingRecordVerifier{gotType: &gotType, gotValue: &gotValue, m: m, refuse: refuse},
+			})
+			errCh <- err
+		}()
+		conn, err := net.Dial("tcp", lis.Addr().String())
+		require.NoError(t, err)
+		defer func() { _ = conn.Close() }()
+		_ = conn.SetDeadline(time.Now().Add(testHandshakeTimeout))
+		_, _ = DoHandshake(HandshakeConfig{
+			Role: RoleClient, Conn: conn, Clock: shared_time.NewSystemClock(), ProposedChallenge: []byte("test-proposed-challenge"),
+			LocalProvider: tee.ProviderGCPSEVSNP, PeerProvider: tee.ProviderGCPSEVSNP,
+			Producer: tsmProducer{report: report, m: m},
+			Verifier: recordingVerifier{got: &clientSaw, m: m},
+		})
+		return <-errCh, gotType != ""
+	}
+	// The server expects a TDX peer: a sev_guest record is refused by name, the verifier never asked.
+	err, handed := run(tee.ProviderGCPTDX, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "client evidence is not what this server's verifier reads")
+	require.Contains(t, err.Error(), "this peer verifier is gcp-tdx")
+	require.False(t, handed)
+	// The verifier refuses: the handshake fails with its reason.
+	err, handed = run(tee.ProviderGCPSEVSNP, errors.New("the Verifier at https://verifier.test says SEV: contraindicated"))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "client TEE evidence verification failed")
+	require.Contains(t, err.Error(), "contraindicated")
+	require.True(t, handed)
+}

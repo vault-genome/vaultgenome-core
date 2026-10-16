@@ -12,6 +12,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -394,6 +395,103 @@ type PeerTEEConfig struct {
 	// measured of its boot: the quote's PCR digest must be one of them
 	// (`identity` prints it as vtpm.pcr_digest_hex). azure-cgpu peers only.
 	PCRDigests []string `json:"pcr_digests,omitempty"`
+
+	// Verifier chooses who appraises the worker's Evidence (ADR 0025,
+	// step 2b): this daemon's builtin verifier for the family (the
+	// default), or a RATS Verifier asked over Veraison's
+	// challenge-response API. The pin (measurement_path) is held here
+	// either way.
+	Verifier *PeerVerifierConfig `json:"verifier,omitempty"`
+}
+
+// PeerVerifierConfig is tee.peer.verifier: builtin, or a delegated RATS
+// Verifier whose attestation result (EAR) this daemon verifies under the
+// key on file and judges by the policy here. In the delegated mode the
+// family's own inputs (the AMD chain, Intel's PCS) are the Verifier's
+// business and need not be configured here; the peer's family and its
+// measurement still are.
+type PeerVerifierConfig struct {
+	// Mode is "builtin" (default) or "rats".
+	Mode string `json:"mode,omitempty"`
+	// URL is the Verifier's base URL (https; plain http reaches loopback
+	// only). rats only.
+	URL string `json:"url,omitempty"`
+	// EARPublicKeyPath holds the key the Verifier signs EARs with: a PEM
+	// "PUBLIC KEY" block or a JSON Web Key, as its well-known document
+	// publishes it (`ear-verification-key`). ES256, so EC P-256. rats only.
+	EARPublicKeyPath string `json:"ear_public_key_path,omitempty"`
+	// CAPath, when set, is the CA bundle (PEM) the Verifier's TLS
+	// certificate must chain to; otherwise the system roots. rats only.
+	CAPath string `json:"ca_path,omitempty"`
+	// PolicyID, when set, is the ear.appraisal-policy-id the appraisal
+	// must name. rats only.
+	PolicyID string `json:"policy_id,omitempty"`
+	// Submod, when set, is the appraisal (attester component) judged
+	// by; otherwise the EAR must carry exactly one. rats only.
+	Submod string `json:"submod,omitempty"`
+	// Accept are the ear.status values that admit the peer: affirming
+	// (the default), and warning if the operator says so. rats only.
+	Accept []string `json:"accept,omitempty"`
+	// TimeoutSeconds bounds each request to the Verifier; 10 by default.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+}
+
+// delegatedPeerFamilies are the families whose measurement this side
+// reads from the Evidence itself, so a delegated verdict can be pinned.
+var delegatedPeerFamilies = []tee.Provider{tee.ProviderSimulated, tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX}
+
+func (c *PeerVerifierConfig) mode() string {
+	if c == nil || c.Mode == "" {
+		return "builtin"
+	}
+	return c.Mode
+}
+
+// delegated reports whether appraisal goes to a RATS Verifier.
+func (c *PeerVerifierConfig) delegated() bool { return c.mode() == "rats" }
+
+func (c *PeerVerifierConfig) timeout() time.Duration {
+	if c == nil || c.TimeoutSeconds <= 0 {
+		return 10 * time.Second
+	}
+	return time.Duration(c.TimeoutSeconds) * time.Second
+}
+
+// validate checks tee.peer.verifier for a peer of family peer.
+func (c *PeerVerifierConfig) validate(peer tee.Provider) []error {
+	if c == nil {
+		return nil
+	}
+	var errs []error
+	switch c.mode() {
+	case "builtin":
+		if c.URL != "" || c.EARPublicKeyPath != "" || c.CAPath != "" || c.PolicyID != "" || c.Submod != "" || len(c.Accept) > 0 || c.TimeoutSeconds != 0 {
+			errs = append(errs, errors.New("tee.peer.verifier: url, ear_public_key_path, ca_path, policy_id, submod, accept and timeout_seconds apply to mode=rats only"))
+		}
+	case "rats":
+		if c.URL == "" {
+			errs = append(errs, errors.New("tee.peer.verifier.url required when tee.peer.verifier.mode=rats"))
+		} else if u, err := url.Parse(c.URL); err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+			errs = append(errs, fmt.Errorf("tee.peer.verifier.url %q is not an http(s) URL", c.URL))
+		}
+		if c.EARPublicKeyPath == "" {
+			errs = append(errs, errors.New("tee.peer.verifier.ear_public_key_path required when tee.peer.verifier.mode=rats (the key the Verifier signs its results with)"))
+		}
+		for _, a := range c.Accept {
+			if a != tee.EARStatusAffirming && a != tee.EARStatusWarning {
+				errs = append(errs, fmt.Errorf("tee.peer.verifier.accept %q: only affirming and warning can admit a peer", a))
+			}
+		}
+		if c.TimeoutSeconds < 0 {
+			errs = append(errs, errors.New("tee.peer.verifier.timeout_seconds must not be negative"))
+		}
+		if peer != "" && !slices.Contains(delegatedPeerFamilies, peer) {
+			errs = append(errs, fmt.Errorf("tee.peer.verifier.mode=rats holds the pin by reading the Evidence itself, which this build does for %v, not %q", delegatedPeerFamilies, peer))
+		}
+	default:
+		errs = append(errs, fmt.Errorf("tee.peer.verifier.mode %q: builtin or rats", c.Mode))
+	}
+	return errs
 }
 
 // pcrDigests decodes PCRDigests; a malformed entry is a config error.
@@ -615,7 +713,7 @@ func validateTEE(t TEEConfig) []error {
 	case !slices.Contains(supportedProviders, peer):
 		errs = append(errs, fmt.Errorf("tee.peer.provider %q: no verifier this build can run end to end (supported: %v)", peer, supportedProviders))
 	case peer == tee.ProviderSimulated:
-		if t.Peer.PublicKeyPath == "" {
+		if t.Peer.PublicKeyPath == "" && !t.Peer.Verifier.delegated() {
 			errs = append(errs, errors.New("tee.peer.public_key_path required when tee.peer.provider=simulated"))
 		}
 		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
@@ -628,7 +726,7 @@ func validateTEE(t TEEConfig) []error {
 		if t.Peer.PublicKeyPath != "" {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a SEV-SNP report is signed by the chip's VCEK"))
 		}
-		if t.Peer.AMDCertChainPath == "" {
+		if t.Peer.AMDCertChainPath == "" && !t.Peer.Verifier.delegated() {
 			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=gcp-sev-snp (the AMD ASK+ARK chain the VCEK must chain to)"))
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
@@ -645,12 +743,17 @@ func validateTEE(t TEEConfig) []error {
 		if t.Peer.PublicKeyPath != "" {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; an Azure confidential GPU VM's report is signed by the chip's VCEK"))
 		}
-		if t.Peer.AMDCertChainPath == "" {
+		if t.Peer.AMDCertChainPath == "" && !t.Peer.Verifier.delegated() {
 			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=azure-cgpu (the AMD ASK+ARK chain of the chip's product, Genoa for NCC H100 v5)"))
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
 		}
+	}
+	if peer, err := t.Peer.ProviderKind(); err == nil {
+		errs = append(errs, t.Peer.Verifier.validate(peer)...)
+	} else {
+		errs = append(errs, t.Peer.Verifier.validate("")...)
 	}
 	if err := t.Peer.GPUPolicy.validate(); err != nil {
 		errs = append(errs, fmt.Errorf("tee.peer.%w", err))

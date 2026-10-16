@@ -56,6 +56,42 @@ func unwrapRecord(p tee.Provider, r CMWRecord) (tee.Evidence, error) {
 	return ev, err
 }
 
+// verifyPeerRecord verifies the peer's record with the configured
+// verifier over the challenge. A verifier that reads records (the
+// delegated Verifier, ADR 0025 step 2b) is handed the record as it
+// travelled — once its type is the configured peer family's, because
+// the family a peer must be is a policy of this side whoever appraises;
+// every other verifier is handed the family's bare Evidence. notRead is
+// the refusal for a record the verifier cannot be given; failed the one
+// for a verdict against it.
+func verifyPeerRecord(cfg HandshakeConfig, r CMWRecord, challenge []byte, notRead, failed string) (tee.Measurement, *tee.AttestationDetail, error) {
+	if rv := tee.RecordVerifierOf(cfg.Verifier); rv != nil {
+		if !r.IsEvidence() {
+			return nil, nil, shared_errors.Authority(CodeHandshakeFailure, notRead, cmwErr(fmt.Sprintf("indicator %d does not say Evidence", r.Ind), nil))
+		}
+		// The same family check the bare path makes — the type, and
+		// for a TSM report the provider's name — before the record
+		// goes anywhere; the record itself travels whole.
+		if _, _, err := tee.UnwrapEvidence(cfg.PeerProvider, r.Type, r.Value); err != nil {
+			return nil, nil, shared_errors.Authority(CodeHandshakeFailure, notRead, err)
+		}
+		m, d, err := rv.VerifyRecord(r.Type, r.Value, tee.Nonce(challenge))
+		if err != nil {
+			return nil, nil, shared_errors.Authority(CodeHandshakeFailure, failed, err)
+		}
+		return m, d, nil
+	}
+	ev, err := unwrapRecord(cfg.PeerProvider, r)
+	if err != nil {
+		return nil, nil, shared_errors.Authority(CodeHandshakeFailure, notRead, err)
+	}
+	m, d, err := tee.VerifyDetailed(cfg.Verifier, ev, tee.Nonce(challenge))
+	if err != nil {
+		return nil, nil, shared_errors.Authority(CodeHandshakeFailure, failed, err)
+	}
+	return m, d, nil
+}
+
 // CMWIndEvidence is the indicator bit for Evidence (RFC 9999 §3.1.1,
 // cm-type evidence = 2).
 const CMWIndEvidence uint32 = 1 << 2
