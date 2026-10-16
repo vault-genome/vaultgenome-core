@@ -131,7 +131,25 @@ In the order the reference guest script does it
    ([SEV-SNP](runbooks/real-tee-sev-snp.md), [TDX](runbooks/real-tee-tdx.md),
    [Azure cGPU](runbooks/real-tee-azure-cgpu.md)) show the report chained
    to the vendor's root before anything else is trusted.
-2. **Provision the key material** with the release's `acp-keygen`
+2. **Provision — one command, or by hand.** `acpctl provision --out
+   /etc/acp --provider <family> --fetch-amd-chain <milan|genoa|turin>
+   --door-python <python> --base-model <dir> --worker-package <dir>`
+   does steps 2 and 3 with the release's own binaries (found beside
+   `acpctl`, in `--bin-dir`, or on PATH): `acp-keygen` writes the secrets
+   tree, the two configurations are written for the family named
+   (`gcp-sev-snp`, `gcp-tdx`, `azure-sev-snp`, `auto`, or `simulated` with
+   `--insecure-simulation`), each daemon's `identity` reads its
+   measurement from the hardware and the other side pins it, the
+   operator's copy of the REST token and the audit public key go under
+   `<out>/operator/`, and each daemon's `seal-keys` seals its key files;
+   `<out>/provision.json` records what was written and learned (never a
+   secret), and `<out>/sagvd.json`, `<out>/acp-compute.json` are the
+   configurations to start the daemons with. Both daemons on one host is
+   what it sets up; two hosts carry the worker's subtree over and pin the
+   other side's measurement from its `identity`. By hand, the same steps
+   are (the command on real SEV-SNP is C37, kit
+   `scripts/hardware-test/gcp-sev-snp/provision-e2e`): provision the key
+   material with the release's `acp-keygen`
    (`acp-keygen -out <dir> -private`; stdlib-only, signed and attested like
    the daemons): the private CA and the two TLS identities, the session
    sealing key, the signing seeds, the REST token, the worker registry

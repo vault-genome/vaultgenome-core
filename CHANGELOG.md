@@ -13,6 +13,29 @@ given release can still open.
 
 ### Added
 
+- **`acpctl provision`: one command stands up a deployment.** The
+  first-deployment procedure's steps 2 and 3
+  (`docs/operator/09_first_deployment.md`) done by the release's own
+  binaries from one place: `acp-keygen` writes the key material, both
+  daemons' configurations are written for the family named
+  (`gcp-sev-snp`, `gcp-tdx`, `azure-sev-snp`, `auto`, or `simulated` for
+  development), the AMD chain of the chip's product fetched and verified
+  on request, each daemon's `identity` read from the hardware and pinned
+  on the other side, the operator's copy of the REST token and the audit
+  public key kept under `operator/`, each daemon's key files sealed by its
+  own `seal-keys` (the worker seals its own copy of the session sealing
+  key, as a worker on another host would), and `provision.json` recording
+  what was written and learned — never a secret. Proven in process with a
+  stub release and live with the real binaries: the daemons start on what
+  it wrote, a job comes back EXACT, the audit log verifies under the key
+  it kept. Proven on hardware
+  (`scripts/hardware-test/gcp-sev-snp/provision-e2e`, run
+  `20261016T222951Z`, C37): on an n2d-standard-4 the command took 10.6 s
+  — the Milan chain from KDS, both identities from the chip, eight key
+  files sealed to its derived key — and the deployment it wrote served a
+  gate job EXACT six seconds after submission, sixteen audit events
+  verified under the key it kept.
+
 - **The `azure-sev-snp` provider: an Azure SEV-SNP Confidential VM without
   a GPU attests with the chip and the vTPM (ADR 0025, plan item 4).** The
   paravisor gives an Azure guest no `/dev/sev-guest`: the SNP report is
