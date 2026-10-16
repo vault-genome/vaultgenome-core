@@ -887,6 +887,25 @@ type RuntimeConfig struct {
 	// dials again, attests again). 0 takes the attestation default
 	// (5 minutes).
 	EvidenceMaxAgeSeconds int `json:"evidence_max_age_seconds,omitempty"`
+
+	// MaxSessions is how many Return Path sessions the authority serves
+	// at once — each a worker attested, a job dispatched, an answer
+	// judged, on the record. 0 means 1: one session at a time, the
+	// behaviour before this setting. A worker that connects while every
+	// slot is taken waits up to handshake_timeout_seconds for one, then
+	// is closed before any handshake and counted as refused (busy); it
+	// dials again after its backoff. Every stage a session takes is
+	// under the audit log's and the queue's own locks, so sessions do
+	// not see each other's jobs.
+	MaxSessions int `json:"max_sessions,omitempty"`
+}
+
+// SessionSlots returns RuntimeConfig.MaxSessions, 1 when unset.
+func (r RuntimeConfig) SessionSlots() int {
+	if r.MaxSessions <= 0 {
+		return 1
+	}
+	return r.MaxSessions
 }
 
 // JobTimeout returns RuntimeConfig.JobTimeoutSeconds as a Duration.
@@ -1290,6 +1309,9 @@ func (c Config) Validate() error {
 	}
 	if c.Runtime.MaxPayloadBytes == 0 {
 		errs = append(errs, errors.New("runtime.max_payload_bytes must be > 0"))
+	}
+	if c.Runtime.MaxSessions < 0 {
+		errs = append(errs, errors.New("runtime.max_sessions must be >= 0 (0 = one session at a time)"))
 	}
 
 	switch strings.ToLower(c.Log.Level) {

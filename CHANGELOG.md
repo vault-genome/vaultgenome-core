@@ -11,6 +11,23 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- **Sessions in parallel: `runtime.max_sessions`.** The authority
+  serves that many Return Path sessions at once (one by default, the
+  behaviour until now): every accepted connection takes a session slot
+  in its own goroutine; the queue hands each job to exactly one session,
+  the audit chain appends under its own lock, each job's flow is its own
+  object, and shutdown waits for the sessions in flight. A worker that
+  connects while every slot is taken waits up to
+  `handshake_timeout_seconds` for one, then is closed before any
+  handshake — counted as `sagvd_sessions_refused_total{reason="busy"}`,
+  not a trust decision — and dials again after its backoff. New gauges
+  `sagvd_sessions_active` and `sagvd_sessions_limit`. Proven in process
+  (two sessions inside their jobs while a third waits; the busy refusal
+  with the job unaffected) and live (two workers attested at once, two
+  jobs EXACT on one verified chain).
+
 ### Changed
 
 - **Return Path wire 1.1: Evidence names its format (ADR 0025, step

@@ -21,7 +21,9 @@ the shipped binaries run today.*
 | `acp-demo` | Self-contained cross-hardware regeneration demo. | yes |
 
 The nine-stage flow in §2 is library code under `internal/`, and `sagvd`
-drives it for every gate job (ADR 0015): `POST /v1/jobs` is a RecoveryRequest
+drives it for every gate job (ADR 0015), for `runtime.max_sessions`
+workers at once (one unless set; `sagvd_sessions_active` says how many
+now): `POST /v1/jobs` is a RecoveryRequest
 admitted at intake, and a worker's session carries it through trust, session,
 disclosure, manifest, candidate, validation, decision and audit. The
 vertical-slice tests (`make demo`, `internal/integration`) remain the
