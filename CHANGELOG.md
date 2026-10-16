@@ -63,6 +63,14 @@ given release can still open.
   the integration suite runs both daemons against it with the simulated
   family, the rogue contraindicated and the unreachable Verifier refused
   on the record. Runbook: `docs/operator/runbooks/delegated-verifier.md`.
+  A Verifier that takes only known callers is answered with a client
+  certificate (`client_cert_path`, `client_key_path`). Proven against a
+  live Veraison with a real GCP SEV-SNP report — the bench's deployment,
+  the `sevsnp` scheme, the report's REPORT_DATA as the session nonce, the
+  EAR `affirming` under Veraison's published key, the pin read from the
+  report: run `20261016T024628Z`
+  (`scripts/hardware-test/veraison-live/evidence/`, kit `veraison-live`,
+  claim C30).
 
 ## [0.4.3] — 2026-10-16
 

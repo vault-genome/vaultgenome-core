@@ -250,6 +250,11 @@ type PeerVerifierConfig struct {
 	// CAPath, when set, is the CA bundle (PEM) the Verifier's TLS
 	// certificate must chain to; otherwise the system roots. rats only.
 	CAPath string `json:"ca_path,omitempty"`
+	// ClientCertPath and ClientKeyPath, when set, are this daemon's TLS
+	// client certificate and key for a Verifier that takes only known
+	// callers (mutual TLS). Both or neither. rats only.
+	ClientCertPath string `json:"client_cert_path,omitempty"`
+	ClientKeyPath  string `json:"client_key_path,omitempty"`
 	// PolicyID, when set, is the ear.appraisal-policy-id the appraisal
 	// must name. rats only.
 	PolicyID string `json:"policy_id,omitempty"`
@@ -292,8 +297,8 @@ func (c *PeerVerifierConfig) validate(peer tee.Provider) []error {
 	var errs []error
 	switch c.mode() {
 	case "builtin":
-		if c.URL != "" || c.EARPublicKeyPath != "" || c.CAPath != "" || c.PolicyID != "" || c.Submod != "" || len(c.Accept) > 0 || c.TimeoutSeconds != 0 {
-			errs = append(errs, errors.New("tee.peer.verifier: url, ear_public_key_path, ca_path, policy_id, submod, accept and timeout_seconds apply to mode=rats only"))
+		if c.URL != "" || c.EARPublicKeyPath != "" || c.CAPath != "" || c.ClientCertPath != "" || c.ClientKeyPath != "" || c.PolicyID != "" || c.Submod != "" || len(c.Accept) > 0 || c.TimeoutSeconds != 0 {
+			errs = append(errs, errors.New("tee.peer.verifier: url, ear_public_key_path, ca_path, client_cert_path, client_key_path, policy_id, submod, accept and timeout_seconds apply to mode=rats only"))
 		}
 	case "rats":
 		if c.URL == "" {
@@ -311,6 +316,9 @@ func (c *PeerVerifierConfig) validate(peer tee.Provider) []error {
 		}
 		if c.TimeoutSeconds < 0 {
 			errs = append(errs, errors.New("tee.peer.verifier.timeout_seconds must not be negative"))
+		}
+		if (c.ClientCertPath == "") != (c.ClientKeyPath == "") {
+			errs = append(errs, errors.New("tee.peer.verifier.client_cert_path and client_key_path go together"))
 		}
 		if peer != "" && !slices.Contains(delegatedPeerFamilies, peer) {
 			errs = append(errs, fmt.Errorf("tee.peer.verifier.mode=rats holds the pin by reading the Evidence itself, which this build does for %v, not %q", delegatedPeerFamilies, peer))

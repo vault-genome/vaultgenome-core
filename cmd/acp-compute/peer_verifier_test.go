@@ -60,6 +60,8 @@ func TestValidateTEE_PeerVerifier(t *testing.T) {
 			"only affirming and warning can admit"},
 		"rats accepting warning":   {with("simulated", rats(func(v *PeerVerifierConfig) { v.Accept = []string{"affirming", "warning"} }), nil), ""},
 		"rats negative timeout":    {with("simulated", rats(func(v *PeerVerifierConfig) { v.TimeoutSeconds = -1 }), nil), "must not be negative"},
+		"rats client cert alone":   {with("simulated", rats(func(v *PeerVerifierConfig) { v.ClientCertPath = "/c.crt" }), nil), "client_cert_path and client_key_path go together"},
+		"rats mutual tls":          {with("simulated", rats(func(v *PeerVerifierConfig) { v.ClientCertPath, v.ClientKeyPath = "/c.crt", "/c.key" }), nil), ""},
 		"builtin sev-snp no chain": {with("gcp-sev-snp", nil, func(p *PeerTEEConfig) { p.AMDCertChainPath = "" }), "amd_cert_chain_path required"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -119,6 +121,8 @@ func TestBuildPeerVerifier_Delegated(t *testing.T) {
 		"pin of wrong length": {PeerTEEConfig{Provider: "gcp-sev-snp", MeasurementPath: m32, Verifier: rats(nil)}, "the pin for gcp-sev-snp is 48 bytes"},
 		"plain http afar":     {PeerTEEConfig{MeasurementPath: m32, Verifier: rats(func(v *PeerVerifierConfig) { v.URL = "http://verifier.bank.example" })}, "plain http to a host that is not loopback"},
 		"azure-cgpu":          {PeerTEEConfig{Provider: "azure-cgpu", MeasurementPath: m48, Verifier: rats(nil)}, "no reader for the measurement"},
+		"client cert missing": {PeerTEEConfig{MeasurementPath: m32, Verifier: rats(func(v *PeerVerifierConfig) { v.ClientCertPath, v.ClientKeyPath = absent, absent })}, "read tee.peer.verifier.client_cert_path"},
+		"client pair broken":  {PeerTEEConfig{MeasurementPath: m32, Verifier: rats(func(v *PeerVerifierConfig) { v.ClientCertPath, v.ClientKeyPath = ca, m32 })}, "do not make a pair"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := buildPeerVerifier(tc.cfg)

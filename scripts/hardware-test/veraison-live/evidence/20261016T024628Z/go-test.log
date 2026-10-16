@@ -1,0 +1,5 @@
+=== RUN   TestRATSVerifier_LiveVeraison_GCPSEVSNPReport
+    rats_live_test.go:100: Veraison +f997c52: SEVSNP affirming, policy "policy:SEVSNP", trust vector map[configuration:0 executables:0 file-system:0 hardware:2 instance-identity:0 runtime-opaque:2 sourced-data:0 storage-opaque:0], verifier {Developer:Veraison Project Build:N/A}, 371.2775ms
+--- PASS: TestRATSVerifier_LiveVeraison_GCPSEVSNPReport (0.39s)
+PASS
+ok  	github.com/vault-genome/vaultgenome-core/internal/shared/tee	1.480s

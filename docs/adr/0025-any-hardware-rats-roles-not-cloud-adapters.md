@@ -189,9 +189,13 @@ with its own endorsement store.
    scheme compares byte for byte. Proven on the bench: both daemons
    against the API double with the simulated family, the rogue
    contraindicated and the unreachable Verifier refused on the record
-   (`test/integration/delegated_verifier_test.go`). Still to do: a live
-   Veraison with a chip's report, then hardware with the Verifier on a
-   separate host — the bank's topology.
+   (`test/integration/delegated_verifier_test.go`); and against a live
+   Veraison with a real GCP SEV-SNP report — the bench's deployment,
+   the report's REPORT_DATA as the session nonce, the EAR affirming
+   under Veraison's published key, the pin read from the report (run
+   `20261016T024628Z`, C30). Still to do: the Return Path kits on a chip
+   with `rats` on both sides and the Verifier on a separate host — the
+   bank's topology.
 3. **`tpm2`** producer, verifier and sealer: a quote over the selected
    PCRs with the event log, verified through the TPM's endorsement
    certificate to the TPM vendor's root, appraised against a PCR policy —
