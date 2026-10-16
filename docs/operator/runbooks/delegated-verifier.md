@@ -122,6 +122,36 @@ deployment and keeps the EAR (claim C30).
 | The EAR does not verify under the key on file, or carries another nonce | refused; `reason` «EAR: signature does not verify …» / «eat_nonce is not this session's nonce» |
 | A record of another family | refused before the Verifier is asked; `reason` «evidence type …, this peer verifier is … and reads …» |
 
+## The Verifier on another host
+
+The kit `scripts/hardware-test/gcp-sev-snp/returnpath-rats` runs the
+bank's topology end to end on GCP: Veraison built and deployed natively on
+a VM of its own, its services under a root CA the operator holds, the
+verification API taking only callers with a certificate of that CA; the
+attester — an n2d SEV-SNP VM with both daemons — reaching it by name over
+mutual TLS. The order of operations is the one a bank follows:
+
+1. **The Verifier's trust anchor and reference values first.** AMD's root
+   for the product line (the ARK of KDS's `cert_chain`) as the trust
+   anchor; the approved launch's MEASUREMENT as a reference value — a
+   CoRIM under the profile `tag:amd.com,2024:snp-corim-profile`,
+   submitted to `POST /endorsement-provisioning/v1/submit`. The bench's
+   `mkcorim` makes it from a chip's report (trust on first use); a signed
+   launch endorsement from the firmware vendor is the better source when
+   the vendor gives one. Veraison's sevsnp scheme looks a reference value
+   up by the launch measurement, so one entry serves every chip running
+   that launch.
+2. **The Verifier's EAR key to the daemons**, from its well-known document
+   (`ear-verification-key`), as a file beside the pins; the daemons never
+   fetch it.
+3. **The daemons' client certificates** under the Verifier's client CA
+   (`client_cert_path`, `client_key_path`), the CA that signed the
+   Verifier's service certificate as `ca_path`, the Verifier's name in
+   `url`.
+4. **Then the daemons.** Each session's EAR is on the admission;
+   `handshake_ms` on the `session opened` line says what delegation costs
+   on that network.
+
 ## Air gap
 
 A delegated Verifier is a route. A site that runs with no route

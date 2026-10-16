@@ -117,6 +117,19 @@ func (p *instrumentedProducer) Measurement() tee.Measurement {
 	return p.inner.Measurement()
 }
 
+// QuoteWithAux keeps the inner producer's auxblob (tee.AuxblobProducer —
+// on SEV-SNP the certificate table the host wrote, which a delegated
+// Verifier needs) beside the Evidence; a plain inner producer gives none.
+// Found on hardware, 16.10.2026: without it the wrapped sagvd producer
+// sent the report alone and Veraison said «evidence missing certificate
+// chain».
+func (p *instrumentedProducer) QuoteWithAux(nonce tee.Nonce) (tee.Evidence, []byte, error) {
+	start := p.rec.clock.Now()
+	ev, aux, err := tee.QuoteWithAux(p.inner, nonce)
+	p.rec.observeAttest(p.provider, "produce", p.rec.clock.Now().Sub(start), err)
+	return ev, aux, err
+}
+
 // ---- verifier wrapper -----------------------------------------------------
 
 type instrumentedVerifier struct {

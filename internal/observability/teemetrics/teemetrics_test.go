@@ -263,6 +263,35 @@ func (s *recordVerifierStub) VerifyRecord(string, []byte, tee.Nonce) (tee.Measur
 	return tee.Measurement{2}, &tee.AttestationDetail{Provider: tee.ProviderSimulated}, nil
 }
 
+type auxProducerStub struct{ stubProducer }
+
+func (s *auxProducerStub) QuoteWithAux(tee.Nonce) (tee.Evidence, []byte, error) {
+	return s.ev, []byte("the certificate table"), s.err
+}
+
+// The producer wrapper keeps the auxblob beside the Evidence (the
+// delegated Verifier needs the certificate table) and counts the quote.
+func TestRecorder_WrapProducer_KeepsTheAuxblob(t *testing.T) {
+	t.Parallel()
+	r := metrics.NewRegistry()
+	rec := teemetrics.New(r)
+	inner := &auxProducerStub{stubProducer{measurement: tee.MeasurementOf([]byte("m")), ev: tee.Evidence("report")}}
+	w := rec.WrapProducer("gcp-sev-snp", inner)
+	ev, aux, err := tee.QuoteWithAux(w, make(tee.Nonce, tee.NonceMinBytes))
+	require.NoError(t, err)
+	require.Equal(t, tee.Evidence("report"), ev)
+	require.Equal(t, []byte("the certificate table"), aux, "the wrapper dropped the auxblob")
+	// A plain inner producer still gives none, through the same wrapper.
+	plain := rec.WrapProducer("simulated", &stubProducer{ev: tee.Evidence("statement")})
+	ev, aux, err = tee.QuoteWithAux(plain, make(tee.Nonce, tee.NonceMinBytes))
+	require.NoError(t, err)
+	require.Equal(t, tee.Evidence("statement"), ev)
+	require.Nil(t, aux)
+	var buf bytes.Buffer
+	require.NoError(t, r.WriteMetricsTo(&buf))
+	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="gcp-sev-snp",result="success",role="produce"} 1`)
+}
+
 type bareVerifierStub struct{}
 
 func (bareVerifierStub) Verify(tee.Evidence, tee.Nonce) (tee.Measurement, error) {

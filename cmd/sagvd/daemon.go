@@ -308,6 +308,7 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		conn = tlsConn
 	}
 	remote := conn.RemoteAddr().String()
+	handshakeStart := d.clock.Now()
 
 	// tamper is set when the wire signals tamper during the session; it
 	// is what op.tamper_absent checks at validation.
@@ -332,6 +333,7 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 				"peer_measurement", hex.EncodeToString(state.PeerMeasurement[:]),
 				"peer_evidence_type", logSafe(state.PeerEvidenceType),
 				"peer_evidence_bytes", state.PeerEvidenceBytes,
+				"handshake_ms", state.ReadyAt.Sub(handshakeStart).Milliseconds(),
 				"ready_at", state.ReadyAt.Format(time.RFC3339Nano),
 			}, peerDetailLogFields(state.PeerDetail)...)...)
 		},
