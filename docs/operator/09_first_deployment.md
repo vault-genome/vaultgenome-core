@@ -147,7 +147,9 @@ In the order the reference guest script does it
    configurations to start the daemons with. Both daemons on one host is
    what it sets up; two hosts carry the worker's subtree over and pin the
    other side's measurement from its `identity`. By hand, the same steps
-   are: provision the key material with the release's `acp-keygen`
+   are (the command on real SEV-SNP is C37, kit
+   `scripts/hardware-test/gcp-sev-snp/provision-e2e`): provision the key
+   material with the release's `acp-keygen`
    (`acp-keygen -out <dir> -private`; stdlib-only, signed and attested like
    the daemons): the private CA and the two TLS identities, the session
    sealing key, the signing seeds, the REST token, the worker registry

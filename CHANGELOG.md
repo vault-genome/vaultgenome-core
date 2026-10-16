@@ -28,7 +28,13 @@ given release can still open.
   what was written and learned — never a secret. Proven in process with a
   stub release and live with the real binaries: the daemons start on what
   it wrote, a job comes back EXACT, the audit log verifies under the key
-  it kept.
+  it kept. Proven on hardware
+  (`scripts/hardware-test/gcp-sev-snp/provision-e2e`, run
+  `20261016T222951Z`, C37): on an n2d-standard-4 the command took 10.6 s
+  — the Milan chain from KDS, both identities from the chip, eight key
+  files sealed to its derived key — and the deployment it wrote served a
+  gate job EXACT six seconds after submission, sixteen audit events
+  verified under the key it kept.
 
 - **The `azure-sev-snp` provider: an Azure SEV-SNP Confidential VM without
   a GPU attests with the chip and the vTPM (ADR 0025, plan item 4).** The

@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -2043,6 +2043,73 @@ configured with the other product's chain refuses. The gate is the e2e
 kits' tiny model through the pinned-replay door, as on GCP
 ([C31](#c31) scope); the 0.5B and 32B gates on Azure are the GPU host's
 ([C17](#c17), [C26](#c26)).
+
+---
+
+<a id="c37"></a>
+
+### C37 — One command stands up a deployment on real SEV-SNP: `acpctl provision` makes the key material, both configurations, the identities and pins, and seals every key file to the chip in 10.6 s; the deployment it wrote serves a gate job EXACT, its audit log verified under the key it kept
+
+**Claim.** On one n2d-standard-4 GCP Confidential VM (Milan), `acpctl
+provision --provider auto --fetch-amd-chain milan …` did the
+first-deployment procedure's steps 2 and 3 in 10.6 s: the release's
+`acp-keygen` wrote the secrets tree; configfs-tsm said `sev_guest` and
+both configurations were written for `gcp-sev-snp`; the Milan chain came
+from AMD KDS and verified against the root the binary pins (ARK
+`69d063b4…40bcd`); `sagvd identity` and `acp-compute identity` read the
+chip's launch measurement (`7dc7c12e…5acc`) and each side pinned the
+other's; the operator's copy of the REST token and the audit public key
+went under `operator/`; each daemon's `seal-keys` sealed its key files to
+the chip's derived key — eight in all, five of the authority's and three
+of the worker's, the worker's own copy of the session sealing key among
+them. The daemons then started on what it wrote: the worker's handshake
+took 232 ms with 7980 bytes of evidence (the TSM report with the host's
+certificate table); a genome fine-tuned on the guest and sealed into the
+directory provision made came back EXACT six seconds after submission
+(6 fixtures, `max_abs_err` 0); sixteen audit events on one chain verified
+under `operator/audit_public_key.pem`. The guest script took 122.8 s end
+to end. The command printed no secret: `provision.out` and
+`provision.json` are on the record as printed.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-sev-snp/provision-e2e/evidence/20261016T222951Z/`](scripts/hardware-test/gcp-sev-snp/provision-e2e/evidence/20261016T222951Z/)
+— `provision.out` (what the command printed), `provision.json`
+(`provider: auto`, `peer_provider: gcp-sev-snp`, the measurements, the
+sealers, the sealed lists, `configs_sha256`, `amd_cert_chain`),
+`sagvd-identity.json` and `acp-compute-identity.json`, `sagvd.json` and
+`acp-compute.json` (paths, no secret), `sealed-files.txt` (eight files,
+each `sealer: sev-snp-derived-key`), `steps.txt` (`provision exit=0`,
+`vault_sealer=sev-snp-derived-key worker_sealer=sev-snp-derived-key`,
+`session opened after 0s`, `job status=succeeded after 6s`,
+`gate_level=EXACT … fixtures=6 n_exact=6 max_abs_err=0`, `audit verify
+exit=0`, `elapsed_seconds=122.8`), `timeline.txt` (`provision_start`
+22:31:12.19Z, `provision_end` 22:31:22.74Z), `sagvd.log` (`sagvd session
+opened` with `handshake_ms: 232`, `peer_evidence_bytes: 7980`),
+`job.json`, `audit-verify.json` (`ok: true`, `event_count: 16`, tip
+`ca478e4b…0344`), `audit-events.jsonl`, `audit-public-key.pem`,
+`versions.txt` (commit `44e46e69`), `sha256sums.txt`. The command:
+`cmd/acpctl/provision.go`, proven in process with a stub release
+(`cmd/acpctl/provision_test.go`) and live with the real binaries
+(`test/integration/provision_test.go`: the daemons start on what it
+wrote, a job EXACT, the audit log verified under the key it kept). The
+kit: [`scripts/hardware-test/gcp-sev-snp/provision-e2e/`](scripts/hardware-test/gcp-sev-snp/provision-e2e/).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-sev-snp/provision-e2e/run.sh <gcp-project>   # ~15 min, one n2d-standard-4
+```
+
+**Scope.** Both daemons on one host, so each pins the other's measurement
+and the two are the same value; two hosts carry the worker's subtree over
+and pin the other side's identity by hand (`provision.json` carries
+both). The family came from configfs-tsm (`auto`); the Azure families are
+named on the command line, and `azure-cgpu` is set up by its runbook (the
+GPU command and policy are not the command's). The chain came from AMD
+KDS (`--fetch-amd-chain`), not from a file the operator supplied; the
+sealer was the chip's derived key (`auto` on SEV-SNP), the vTPM being
+`tpm2`. The gate is the e2e kits' tiny model through the pinned-replay
+door, as in [C31](#c31).
 
 ---
 

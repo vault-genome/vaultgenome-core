@@ -23,3 +23,10 @@ configurations (paths, no secret), `sealed-files.txt` (every key file's
 sealer and size), `steps.txt`, `timeline.txt`, `job.json`, the daemons'
 logs and metrics, `audit-verify.json`, `audit-events.jsonl`,
 `audit-public-key.pem`, `sha256sums.txt`.
+
+Run on record: `evidence/20261016T222951Z/` (claim C37) — an
+n2d-standard-4, Milan: `acpctl provision` in 10.6 s (the chain from KDS,
+both identities `7dc7c12e…5acc` from the chip, eight key files sealed to
+the chip's derived key), the handshake 232 ms, the gate job EXACT six
+seconds after submission, sixteen audit events verified under
+`operator/audit_public_key.pem`; the whole guest script in 122.8 s.
