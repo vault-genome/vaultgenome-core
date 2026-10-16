@@ -44,6 +44,8 @@ func main() {
 			os.Exit(failoverCmd(os.Args[2:], os.Stdout, os.Stderr))
 		case "tee":
 			os.Exit(teeCmd(os.Args[2:], os.Stdout, os.Stderr))
+		case "provision":
+			os.Exit(provisionCmd(os.Args[2:], os.Stdout, os.Stderr))
 		}
 	}
 
@@ -60,6 +62,7 @@ func printUsage() {
 	fmt.Println("Commands:")
 	fmt.Println("  version       Print the build version and exit")
 	fmt.Println("  help          Print this message")
+	fmt.Println("  provision     Stand up a deployment: key material, both daemons' configurations, identities and pins, the key files sealed to the host")
 	fmt.Println("  recover       Restore a sealed vault inside a fresh TEE")
 	fmt.Println("  status        Print a read-only summary of the audit log")
 	fmt.Println("  audit query   List events filtered by kind / session / time")
