@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1562,6 +1562,56 @@ metadata server stays reachable, used by the guest for the network tag
 and the serial console only. The release itself was verified on the
 connected side: its offline verification waits on Sigstore bundles
 (KNOWN_ISSUES #15).
+
+<a id="c30"></a>
+
+### C30 — The delegated verifier runs a real session against a live Veraison with a real GCP SEV-SNP report: the EAR verifies under Veraison's key, names the session's nonce, says affirming, and the measurement this side reads from the report is the pin
+
+**Claim.** With `tee.peer.verifier.mode: rats` the daemons do not appraise
+a peer's Evidence themselves: the Evidence record goes to a RATS Verifier
+over Veraison's challenge-response API and the attestation result (an
+EAR) comes back. Against Veraison itself — the bench's native deployment
+with the `sevsnp` scheme, provisioned with AMD's Milan trust anchor and
+the approved launches — `tee.RATSVerifier` opened a session with the
+report's REPORT_DATA as the nonce, posted a real GCP n2d report in the
+JSON TSM-report form the wire carries (the 1184-byte report and the
+host's 4763-byte certificate table inside, 7980 bytes under
+`application/vnd.veraison.tsm-report+json`), received an EAR signed
+ES256 under the key Veraison publishes in its well-known document,
+verified it, found `eat_nonce` equal to the session's nonce, the
+`SEVSNP` appraisal `affirming` under `policy:SEVSNP` with `hardware: 2`
+and `runtime-opaque: 2` (genuine, encrypted), and read from the posted
+report the launch measurement it had been pinned to. The round trip took
+371 ms. The daemons' integration suite does the same against the API's
+test double with the simulated family, both directions, with the rogue
+contraindicated and the unreachable Verifier refused on the record.
+
+**Evidence.**
+[`scripts/hardware-test/veraison-live/evidence/20261016T024628Z/`](scripts/hardware-test/veraison-live/evidence/20261016T024628Z/)
+— `well-known.json` Veraison `+f997c52`, `ear-verification-key` (EC
+P-256), the media types including the JSON TSM report; `ear.jwt` the
+EAR as received; `summary.json` — `ear_status: affirming`,
+`ear_policy_id: policy:SEVSNP`, the trust vector, `ear_verifier_id:
+Veraison Project`, `ear_nonce_equals_session: true`,
+`local_measurement_equals_pin: true`, `measurement_hex: ccdc5cf0…`,
+`session_nonce_hex: f896ba42…`, `round_trip_ms: 371`, the fixture's
+SHA-256 `aa63db18…`; `metadata.txt` the tree, the four Veraison services
+running, the CoRIM's SHA-256 `77c4da9c…`; `go-test.log`;
+`sha256sums.txt`. The report: Veraison's own captured
+`sevsnp-gcp-tsm-report.cbor` (SHA-256 `ddc3306c…`), re-encoded to JSON
+without a byte changed inside
+([`internal/shared/tee/testdata/veraison/`](internal/shared/tee/testdata/veraison/)).
+The kit: [`scripts/hardware-test/veraison-live/`](scripts/hardware-test/veraison-live/);
+the test it runs: `internal/shared/tee/rats_live_test.go`; the mode:
+[`docs/operator/runbooks/delegated-verifier.md`](docs/operator/runbooks/delegated-verifier.md).
+
+**Scope.** A captured report, not a fresh one over a fresh challenge:
+the session nonce was the report's own REPORT_DATA, which is what the
+handshake derives for a live peer, so the client's path is the same
+up to where the challenge is made. Veraison ran on the same machine as
+the client, over TLS with the bench's client certificate. Not yet: the
+Return Path kits on a chip with `rats` on both sides, and a Verifier on
+another host — the bank's topology (ADR 0025, plan 2b).
 
 ---
 

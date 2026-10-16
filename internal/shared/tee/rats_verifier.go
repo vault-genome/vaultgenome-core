@@ -61,6 +61,10 @@ type RATSVerifierConfig struct {
 	// CAPEM, when set, is the certificate pool the Verifier's TLS
 	// certificate must chain to; otherwise the system roots.
 	CAPEM []byte
+	// ClientCertPEM and ClientKeyPEM, when set, are this side's TLS
+	// client certificate and key: a Verifier that takes only known
+	// callers (mutual TLS) is answered with them. Both or neither.
+	ClientCertPEM, ClientKeyPEM []byte
 	// PolicyID, when set, is the ear.appraisal-policy-id the appraisal
 	// must name.
 	PolicyID string
@@ -137,6 +141,13 @@ func NewRATSVerifier(peer Provider, expected Measurement, cfg RATSVerifierConfig
 				return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "tee: rats verifier: the CA file holds no certificate", nil)
 			}
 			tlsCfg.RootCAs = pool
+		}
+		if len(cfg.ClientCertPEM) > 0 || len(cfg.ClientKeyPEM) > 0 {
+			cert, err := tls.X509KeyPair(cfg.ClientCertPEM, cfg.ClientKeyPEM)
+			if err != nil {
+				return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "tee: rats verifier: the client certificate and key do not make a pair", err)
+			}
+			tlsCfg.Certificates = []tls.Certificate{cert}
 		}
 		transport = &http.Transport{TLSClientConfig: tlsCfg, Proxy: nil, ForceAttemptHTTP2: true}
 	}

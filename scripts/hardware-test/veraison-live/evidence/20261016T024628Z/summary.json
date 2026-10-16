@@ -1,0 +1,33 @@
+{
+  "auxblob_bytes": 4763,
+  "ear_iat": 1792118790,
+  "ear_nonce_equals_session": true,
+  "ear_policy_id": "policy:SEVSNP",
+  "ear_status": "affirming",
+  "ear_submod": "SEVSNP",
+  "ear_trust_vector": {
+    "configuration": 0,
+    "executables": 0,
+    "file-system": 0,
+    "hardware": 2,
+    "instance-identity": 0,
+    "runtime-opaque": 2,
+    "sourced-data": 0,
+    "storage-opaque": 0
+  },
+  "ear_verifier_id": {
+    "developer": "Veraison Project",
+    "build": "N/A"
+  },
+  "fixture": "testdata/veraison/sevsnp-gcp-tsm-report.json",
+  "fixture_sha256": "aa63db181477684671093b59b70cea1b7adb3b4c95b1cf2ecf71905ba020f508",
+  "local_measurement_equals_pin": true,
+  "measurement_hex": "ccdc5cf01ba25526bd65503d95931b787b4385a3277cfe4448addf9c3e894948ae8cf7b099620e3e22717de2fb5d26fa",
+  "media_type": "application/vnd.veraison.tsm-report+json",
+  "posted_bytes": 7980,
+  "report_bytes": 1184,
+  "round_trip_ms": 371,
+  "session_nonce_hex": "f896ba422824bb5bb0201da4599c9124d24ab896cc3cec0a0c3a9ceac9a5208f4cbc7d3aa0f895ccc61cf7811c5b2cc62ea41c70771150e64c09cb7668539524",
+  "veraison_version": "+f997c52",
+  "verifier_url": "https://localhost:8443"
+}

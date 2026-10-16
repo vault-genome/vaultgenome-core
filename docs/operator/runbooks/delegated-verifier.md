@@ -67,6 +67,7 @@ Both daemons take the same block under `tee.peer`:
 | `url` | The Verifier's base URL. `https` to anywhere; plain `http` reaches loopback only (a bench). |
 | `ear_public_key_path` | The key the Verifier signs its results with: a PEM `PUBLIC KEY` block or a JSON Web Key — Veraison publishes it at `GET /.well-known/veraison/verification` as `ear-verification-key`. ES256, so EC P-256. Take it from the Verifier's operator out of band and keep it with the pins; the daemon never fetches it. |
 | `ca_path` | Optional: the CA bundle (PEM) the Verifier's TLS certificate must chain to. Without it, the system roots. |
+| `client_cert_path`, `client_key_path` | Optional, together: this daemon's TLS client certificate and key, for a Verifier that takes only known callers (mutual TLS). |
 | `policy_id` | Optional: `ear.appraisal-policy-id` the appraisal must name. |
 | `submod` | Optional: the appraisal (attester component) to judge by. Without it the result must carry exactly one. |
 | `accept` | The `ear.status` values that admit: `affirming` by default; add `warning` only on purpose. |
@@ -106,7 +107,10 @@ measurement and TCB) of the workloads it should affirm; the certificate
 table Google writes in DER is accepted since Veraison's PR #488.
 `ratstest` (`internal/shared/tee/ratstest`) is the same API as a test
 double; the integration suite runs both daemons against it with the
-simulated family (`test/integration/delegated_verifier_test.go`).
+simulated family (`test/integration/delegated_verifier_test.go`). Against
+Veraison itself, `scripts/hardware-test/veraison-live/run.sh` runs the
+verifier's session with a real GCP SEV-SNP report on the bench's
+deployment and keeps the EAR (claim C30).
 
 ## Failure modes, as recorded
 

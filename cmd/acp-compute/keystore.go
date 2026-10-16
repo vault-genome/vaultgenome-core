@@ -264,15 +264,26 @@ func buildDelegatedVerifier(provider tee.Provider, measurement tee.Measurement, 
 	if err != nil {
 		return nil, fmt.Errorf("acp-compute: tee.peer.verifier.ear_public_key_path (%q): %w", c.EARPublicKeyPath, err)
 	}
-	var caPEM []byte
+	var caPEM, clientCert, clientKey []byte
 	if c.CAPath != "" {
 		caPEM, err = os.ReadFile(c.CAPath)
 		if err != nil {
 			return nil, fmt.Errorf("acp-compute: read tee.peer.verifier.ca_path (%q): %w", c.CAPath, err)
 		}
 	}
+	if c.ClientCertPath != "" {
+		clientCert, err = os.ReadFile(c.ClientCertPath)
+		if err != nil {
+			return nil, fmt.Errorf("acp-compute: read tee.peer.verifier.client_cert_path (%q): %w", c.ClientCertPath, err)
+		}
+		clientKey, err = os.ReadFile(c.ClientKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("acp-compute: read tee.peer.verifier.client_key_path (%q): %w", c.ClientKeyPath, err)
+		}
+	}
 	v, err := tee.NewRATSVerifier(provider, measurement, tee.RATSVerifierConfig{
-		URL: c.URL, EARPublicKey: key, CAPEM: caPEM, PolicyID: c.PolicyID, Submod: c.Submod, Accept: c.Accept, Timeout: c.timeout(),
+		URL: c.URL, EARPublicKey: key, CAPEM: caPEM, ClientCertPEM: clientCert, ClientKeyPEM: clientKey,
+		PolicyID: c.PolicyID, Submod: c.Submod, Accept: c.Accept, Timeout: c.timeout(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("acp-compute: tee.peer.verifier: %w", err)
