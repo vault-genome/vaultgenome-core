@@ -215,3 +215,32 @@ through a fine-tune that saturated the primary's CPUs (generation 1) and
 the start of another, and is not a recommendation. Model
 size, the GPU's measurements and the other limits are those of the GPU leg
 ([failover-cgpu, Scope](../failover-cgpu/README.md#scope)).
+
+## Results — run `20261016T210544Z`
+
+The same drill on the tree of 16 October 2026, sixteen days after the first
+run: the same three machines, the same policy, the kit carrying the worker's
+hash-pinned lock files its primary now installs from. `TIMELINE.txt` is
+`timeline.py`'s output for the run.
+
+| | Measured |
+| - | - |
+| Last heartbeat the primary sent | #206, 21:25:11.14Z, `watching`, newest sealed generation 1 |
+| Power-off (the primary's clock) | 21:25:15.68Z, generation 2 still training, the sentinel running |
+| Detect | **15.01 s** (the policy's timeout) |
+| RPO | **21.00 s** |
+| Key release — the H100 host attested across the Internet | 3.13 s |
+| Restore — 5 files | **11.8 ms** |
+| Gate on the H100 | **EQUIVALENT** — 16 fixtures, max abs err **2.48e-4**, max rel err 1.94e-5 (atol 1e-2, rtol 1e-3), 6.82 s |
+| RTO | **26.24 s** |
+| Power-off → the restore confirmed, across clocks | 24.74 s |
+| Google's audit log: `guestTerminate` | 21:25:45.80Z — 30.1 s after the power-off, 5.4 s after the restore was confirmed; the API showed `RUNNING` for 29 s |
+| Audit chain | 5 events, tip `16f6058b…c896`, `acpctl audit verify` ok |
+
+The two things the first run did not do as designed did not recur: generation
+1 was on the standby before the power-off (the copy loop had it in place), and
+the cleanup ran to the end — both machines, the bucket, the H100 and its disk
+and network were gone when the run returned. A run of this kit that is
+stopped by hand (SIGTERM) is another matter: the signal reaches the cleanup's
+`gcloud` and `az` children too, and what they were deleting stays; list both
+clouds afterwards.

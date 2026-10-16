@@ -24,8 +24,10 @@ given release can still open.
   and the primary's last heartbeat for an offline check; `timeline.py`
   merges a run's evidence into one timeline; `VERIFY.md` says how to check
   a run without us. Run `20260930T194321Z`: RTO 25.97 s, RPO 21.01 s, the
-  gate EQUIVALENT on the H100 (VERIFIABLE-CLAIMS C35, CONTINUITY-DRILL
-  Drill VII).
+  gate EQUIVALENT on the H100; run `20261016T210544Z` on the tree of 16
+  October: RTO 26.24 s, RPO 21.00 s, EQUIVALENT again, the model confirmed
+  back 5.4 s before Google logged the guest's termination
+  (VERIFIABLE-CLAIMS C35, CONTINUITY-DRILL Drill VII).
 
 - **Sessions in parallel: `runtime.max_sessions`.** The authority
   serves that many Return Path sessions at once (one by default, the

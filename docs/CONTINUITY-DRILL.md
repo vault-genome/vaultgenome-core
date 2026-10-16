@@ -555,6 +555,33 @@ audit log recorded that the machine had stopped. The failover did not wait
 for anyone to say the primary was dead. Its silence was enough, because the
 operator had signed for it in advance.
 
+### 4. The same drill, sixteen days later
+
+*Run `20261016T210544Z`, on the tree of 16 October, the same three machines.
+Evidence:
+[`scripts/hardware-test/failover-region-loss/evidence/20261016T210544Z/`](../scripts/hardware-test/failover-region-loss/evidence/20261016T210544Z/)*
+
+| Phase | Measured |
+| - | - |
+| Detect — the heartbeat's last rise → the authority acts | **15.01 s** (the policy's timeout) |
+| **RPO** — generation 2's unsealed training | **21.00 s** |
+| Key release — the H100 host attested, across the Internet | 3.13 s |
+| Restore — 5 files | **11.8 ms** |
+| Gate on the H100 | 6.82 s |
+| **RTO — last heartbeat seen → gated, confirmed, running model on the GPU** | **26.24 s** |
+
+The same shape to the hundredth of a second where the policy sets it, and
+within a third of a second elsewhere: EQUIVALENT on the H100 again
+(`max_abs_err: 2.48e-4`), five audit events, tip `16f6058b…c896`, verified
+offline. The model was confirmed back 24.74 s after the power-off by the
+primary's own clock, and 5.4 s before Google's audit log recorded that the
+guest had terminated; Google's API showed the machine `RUNNING` for 29 s
+after it had switched itself off. Generation 1 was already on the standby
+when the power went: the copy loop that raced the primary's uploads in the
+first run had the bundle in place this time.
+
+
+---
 
 ## The line we will not cross
 

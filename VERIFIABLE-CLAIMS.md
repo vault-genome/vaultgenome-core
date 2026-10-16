@@ -1875,7 +1875,7 @@ C32 and C33.
 ---
 
 <a id="c35"></a>
-### C35 — A primary that goes dark without a word: switched off while it trains and deleted, it triggers the failover by its silence alone, and the model comes back on an attested confidential GPU across the Atlantic
+### C35 — A primary that goes dark without a word: switched off while it trains and deleted, it triggers the failover by its silence alone, and the model comes back on an attested confidential GPU across the Atlantic — in two runs, RTO 25.97 s and 26.24 s
 
 **Claim.** The failover of [C18](#c18) with the failure that gives no
 warning. The primary (GCP SEV-SNP, us-central1) wrote no compromise report
@@ -1889,9 +1889,35 @@ TPM quote against the pinned PCR digest, NVIDIA's tokens and its own
 evaluation of the H100's report — released the key for the last generation
 the primary sealed, and confirmed the standby's receipt: the genome
 restored and gated EQUIVALENT on the H100 in confidential-computing mode.
-Every step is on the audit record.
+Every step is on the audit record. Run again on 16 October 2026, on
+the tree of that day (`20261016T210544Z`): the primary's last heartbeat,
+#206 at 21:25:11.14Z; the power-off at 21:25:15.68Z by its own clock;
+the authority's trigger at 21:25:29.18Z — detect 15.01 s, RPO 21.00 s,
+release 3.13 s, restore 11.8 ms, gate 6.82 s, **RTO 26.24 s**; the gate
+EQUIVALENT on the H100, 16 fixtures, `max_abs_err: 2.48e-4`; five audit
+events verified, tip 16f6058b…c896. The model was confirmed back 24.74 s
+after the power-off and 5.4 s before Google's audit log recorded the
+guest's termination (21:25:45.80Z); Google's API showed the machine
+`RUNNING` for 29 s after it had switched itself off. Generation 1 was
+on the standby before the power-off this time.
 
-**Evidence.**
+**Evidence.** The second run:
+[`scripts/hardware-test/failover-region-loss/evidence/20261016T210544Z/`](scripts/hardware-test/failover-region-loss/evidence/20261016T210544Z/)
+— `authority/report.json` (`status: restored`; `trigger.at`
+21:25:11.136Z, `alive_observed_at` 21:25:14.168Z, `observed_at`
+21:25:29.178Z; `timing`: `detect_seconds` 15.01, `rpo_seconds` 21.00,
+`release_seconds` 3.13, `restore_seconds` 0.0118, `gate_seconds` 6.82,
+`rto_seconds` 26.24; `restore.gate.level` EQUIVALENT, `max_abs_err`
+0.000248; `audit_chain_length` 5), `authority/audit-verify.json`
+(`ok: true`, tip `16f6058b…c896`), `authority/xcc-audit.db` with
+`audit.pem`, `authority/audit-events.jsonl` (the five events),
+`authority/last-heartbeat.json` (#206), `primary/steps.txt` (*generation 2
+when the power went: still training*, *sentinel running when the power
+went: yes*), `operator/primary-destroyed-at.txt` (21:25:15.677Z),
+`operator/operator-destroy.txt` (`RUNNING` until 21:25:44.66Z, `STOPPING`
+at 21:25:47.77Z, `TERMINATED` at 21:25:57.37Z, then deleted),
+`operator/gcp-audit-primary.json` (`guestTerminate` at 21:25:45.80Z),
+`destination/steps.txt`, `TIMELINE.txt`. The first run:
 [`scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/`](scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/)
 — `authority/report.json`: `status: restored`; trigger `heartbeat-timeout`,
 `at: 20:01:57.12Z` (the last heartbeat), `alive_observed_at: 20:02:02.62Z`,
@@ -1928,13 +1954,14 @@ scripts/hardware-test/failover-region-loss/run.sh <gcp-project> us-central1-c vg
 python3 scripts/hardware-test/failover-region-loss/timeline.py scripts/hardware-test/failover-region-loss/evidence/<run>
 ```
 
-**Scope.** One run, with the 0.5B model of the failover drill. The
-power-off was self-inflicted, from inside the guest, and the deletion came
-after it; one machine in us-central1 went dark, not the region, and the
-run's bucket was placed in europe-west4 on purpose. Generation 1 reached
-the standby from that bucket 15 s after the power-off, because the
-orchestrator's copy loop raced the primary's uploads — 3.5 s before the
-key. The detect time is the policy's timeout by construction; 15 s is the
+**Scope.** Two runs, sixteen days apart, with the 0.5B model of the
+failover drill. The power-off was self-inflicted, from inside the guest,
+and the deletion came after it; one machine in us-central1 went dark,
+not the region, and the run's bucket was placed in europe-west4 on
+purpose. In the first run generation 1 reached the standby from that
+bucket 15 s after the power-off, because the orchestrator's copy loop
+raced the primary's uploads — 3.5 s before the key; in the second it
+was on the standby before the power-off. The detect time is the policy's timeout by construction; 15 s is the
 drill's choice, not a recommendation. The limits of the GPU leg stand
 ([C18](#c18) scope).
 
