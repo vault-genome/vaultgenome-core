@@ -144,22 +144,30 @@ func (c *InMemoryChain) Verify(resolver keys.Resolver) error {
 func verifyEvents(events []audit_event.AuditEvent, resolver keys.Resolver) error {
 	expectedPrev := make([]byte, audit_event.HashSize) // genesis
 	for i := range events {
-		evt := events[i]
-		if !bytes.Equal(evt.PrevHash, expectedPrev) {
-			return shared_errors.Integrity(
-				shared_errors.CodeSignatureInvalid,
-				fmt.Sprintf("audit/chain: event #%d: prev_hash does not link to the previous event", i),
-				nil,
-			)
+		if err := verifyLink(i, events[i], expectedPrev, resolver); err != nil {
+			return err
 		}
-		if err := evt.VerifySignature(resolver); err != nil {
-			return shared_errors.Integrity(
-				shared_errors.CodeSignatureInvalid,
-				fmt.Sprintf("audit/chain: event #%d does not verify", i),
-				err,
-			)
-		}
-		expectedPrev = evt.Hash
+		expectedPrev = events[i].Hash
+	}
+	return nil
+}
+
+// verifyLink checks one event of a walk, the i-th: it links to
+// expectedPrev and carries a valid audit signature.
+func verifyLink(i int, evt audit_event.AuditEvent, expectedPrev []byte, resolver keys.Resolver) error {
+	if !bytes.Equal(evt.PrevHash, expectedPrev) {
+		return shared_errors.Integrity(
+			shared_errors.CodeSignatureInvalid,
+			fmt.Sprintf("audit/chain: event #%d: prev_hash does not link to the previous event", i),
+			nil,
+		)
+	}
+	if err := evt.VerifySignature(resolver); err != nil {
+		return shared_errors.Integrity(
+			shared_errors.CodeSignatureInvalid,
+			fmt.Sprintf("audit/chain: event #%d does not verify", i),
+			err,
+		)
 	}
 	return nil
 }

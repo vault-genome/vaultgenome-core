@@ -297,3 +297,64 @@ func TestBBoltStore_SecondOpenLockedOut(t *testing.T) {
 	require.Less(t, time.Since(start), 30*time.Second,
 		"second Open hung beyond configured timeout")
 }
+
+// Walk hands the events over one at a time in insertion order and stops
+// at the first error fn returns; At reads one event by its position; both
+// refuse on a closed store.
+func TestBBoltStore_WalkAndAt(t *testing.T) {
+	t.Parallel()
+	s, err := store.Open(filepath.Join(t.TempDir(), "audit.db"))
+	require.NoError(t, err)
+	for i := range 5 {
+		require.NoError(t, s.Append(sampleEvent(i)))
+	}
+
+	var seen []string
+	require.NoError(t, s.Walk(func(idx int, evt audit_event.AuditEvent) error {
+		require.Equal(t, len(seen), idx)
+		seen = append(seen, string(evt.EventID))
+		return nil
+	}))
+	require.Equal(t, []string{"evt-persist-0000", "evt-persist-0001", "evt-persist-0002", "evt-persist-0003", "evt-persist-0004"}, seen)
+
+	stop := errors.New("enough")
+	walked := 0
+	err = s.Walk(func(idx int, _ audit_event.AuditEvent) error {
+		walked++
+		if idx == 1 {
+			return stop
+		}
+		return nil
+	})
+	require.ErrorIs(t, err, stop)
+	require.Equal(t, 2, walked, "the walk stops where fn stops it")
+
+	for i := range 5 {
+		evt, ok, err := s.At(i)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, sampleEvent(i).EventID, evt.EventID)
+		require.Equal(t, sampleEvent(i).Payload, evt.Payload)
+	}
+	for _, idx := range []int{5, 100, -1} {
+		_, ok, err := s.At(idx)
+		require.NoError(t, err)
+		require.False(t, ok, "index %d", idx)
+	}
+
+	empty, err := store.Open(filepath.Join(t.TempDir(), "empty.db"))
+	require.NoError(t, err)
+	require.NoError(t, empty.Walk(func(int, audit_event.AuditEvent) error { return errors.New("never called") }))
+	_, ok, err := empty.At(0)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.NoError(t, empty.Close())
+
+	require.NoError(t, s.Close())
+	err = s.Walk(func(int, audit_event.AuditEvent) error { return nil })
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryOperational))
+	_, _, err = s.At(0)
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryOperational))
+}

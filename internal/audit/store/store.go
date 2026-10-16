@@ -60,6 +60,15 @@ type Store interface {
 	// Len returns the current number of events in the store.
 	Len() (int, error)
 
+	// Walk calls fn for every event in insertion order, decoded one at a
+	// time, so a log of any length is read in constant memory; fn's
+	// error stops the walk and is returned as it is.
+	Walk(fn func(idx int, evt audit_event.AuditEvent) error) error
+
+	// At returns the event at idx in insertion order, counting from 0;
+	// the bool is false when idx is out of range.
+	At(idx int) (audit_event.AuditEvent, bool, error)
+
 	// Close releases the underlying file handle / OS resources. After
 	// Close, all further calls MUST return an error classified as
 	// Operational with Code equal to CodeResourceExhausted (see
@@ -254,6 +263,111 @@ func (s *BBoltStore) Load() ([]audit_event.AuditEvent, error) {
 		out = append(out, evt)
 	}
 	return out, nil
+}
+
+// Walk implements Store.Walk: one read transaction, the events decoded
+// one at a time in key order — bbolt walks keys in byte order, which for
+// big-endian sequence numbers is insertion order.
+func (s *BBoltStore) Walk(fn func(idx int, evt audit_event.AuditEvent) error) error {
+	if s.db == nil {
+		return shared_errors.Operational(
+			shared_errors.CodeResourceExhausted,
+			"audit/store: walk on closed store",
+			ErrStoreClosed,
+		)
+	}
+	idx := 0
+	return s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(bucketName))
+		if b == nil {
+			return nil // empty store
+		}
+		return b.ForEach(func(k, v []byte) error {
+			if len(k) != 8 {
+				return shared_errors.Integrity(
+					shared_errors.CodeFieldValueInvalid,
+					fmt.Sprintf("audit/store: malformed key length=%d", len(k)),
+					nil,
+				)
+			}
+			var evt audit_event.AuditEvent
+			if err := json.Unmarshal(v, &evt); err != nil {
+				return shared_errors.Integrity(
+					shared_errors.CodeFieldValueInvalid,
+					fmt.Sprintf("audit/store: unmarshal seq=%d failed", binary.BigEndian.Uint64(k)),
+					err,
+				)
+			}
+			if err := fn(idx, evt); err != nil {
+				return err
+			}
+			idx++
+			return nil
+		})
+	})
+}
+
+// errFound stops a walk that has what it came for.
+var errFound = errors.New("found")
+
+// At implements Store.At. Sequence numbers start at 1 and every append
+// takes the next one, so the event at idx is under key idx+1 whenever
+// the keys are exactly 1..n; a log whose keys are not (this store never
+// writes such a log) is walked to its idx-th key instead.
+func (s *BBoltStore) At(idx int) (audit_event.AuditEvent, bool, error) {
+	if s.db == nil {
+		return audit_event.AuditEvent{}, false, shared_errors.Operational(
+			shared_errors.CodeResourceExhausted,
+			"audit/store: read on closed store",
+			ErrStoreClosed,
+		)
+	}
+	if idx < 0 {
+		return audit_event.AuditEvent{}, false, nil
+	}
+	var data []byte
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(bucketName))
+		if b == nil {
+			return nil
+		}
+		if b.Stats().KeyN == int(b.Sequence()) {
+			var key [8]byte
+			binary.BigEndian.PutUint64(key[:], uint64(idx)+1)
+			if v := b.Get(key[:]); v != nil {
+				data = append([]byte(nil), v...)
+			}
+			return nil
+		}
+		i := 0
+		return b.ForEach(func(_, v []byte) error {
+			if i == idx {
+				data = append([]byte(nil), v...)
+				return errFound
+			}
+			i++
+			return nil
+		})
+	})
+	if err != nil && !errors.Is(err, errFound) {
+		return audit_event.AuditEvent{}, false, shared_errors.Operational(
+			shared_errors.CodeResourceExhausted,
+			"audit/store: read failed",
+			err,
+		)
+	}
+	if data == nil {
+		return audit_event.AuditEvent{}, false, nil
+	}
+	var evt audit_event.AuditEvent
+	if err := json.Unmarshal(data, &evt); err != nil {
+		return audit_event.AuditEvent{}, false, shared_errors.Integrity(
+			shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("audit/store: unmarshal #%d failed", idx),
+			err,
+		)
+	}
+	return evt, true, nil
 }
 
 // Len implements Store.Len.

@@ -160,6 +160,14 @@ func (loadFailingPersister) Load() ([]audit_event.AuditEvent, error) {
 	return nil, errors.New("log unreadable")
 }
 
+func (loadFailingPersister) Walk(func(int, audit_event.AuditEvent) error) error {
+	return errors.New("log unreadable")
+}
+
+func (loadFailingPersister) At(int) (audit_event.AuditEvent, bool, error) {
+	return audit_event.AuditEvent{}, false, errors.New("log unreadable")
+}
+
 // TestOpenPersistentChain_LoadFailureSurfaces proves that a log that
 // cannot be read is not silently treated as empty: the store's error is
 // returned and no chain is handed out.
