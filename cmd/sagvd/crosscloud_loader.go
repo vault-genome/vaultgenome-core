@@ -341,6 +341,19 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			}
 		case tee.ProviderGCPTDX:
 			spec.GCPTDX = tee.GCPTDXVerifierConfig{PCSURL: e.PCSURL, PCSCacheDir: e.PCSCacheDir, AcceptableTCBStatuses: e.AcceptableTCBStatuses}
+		case tee.ProviderAzureSEVSNP:
+			if e.AMDCertChainPath == "" {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: azure-sev-snp requires amd_cert_chain_path (the AMD ASK+ARK chain of the chip's product, Milan or Genoa as the report says)", i)
+			}
+			chain, err := os.ReadFile(e.AMDCertChainPath)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].amd_cert_chain_path: %w", i, err)
+			}
+			digests, err := pcrDigests(e.PCRDigests)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
+			}
+			spec.AzureSEVSNP = tee.AzureSEVSNPVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB, AcceptablePCRDigests: digests}
 		case tee.ProviderAzureCGPU:
 			if e.AMDCertChainPath == "" {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: azure-cgpu requires amd_cert_chain_path (the AMD ASK+ARK chain of the chip's product, Genoa for NCC H100 v5)", i)
@@ -364,7 +377,7 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 		default:
 			// Fail closed: a family whose verifier this build cannot run
 			// end to end must not be trusted with key releases.
-			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx, azure-cgpu)", i, provider)
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx, azure-cgpu, azure-sev-snp)", i, provider)
 		}
 		specs = append(specs, tee.RegistrySpec{Provider: provider, Spec: spec})
 	}
