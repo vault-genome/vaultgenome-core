@@ -145,6 +145,9 @@ another address on a shared host), next to `/healthz` (`ok`) and `/readyz`
 | `sagvd_audit_events_total{kind}` | Return Path audit events written to `audit.log_path`, by kind — every writer: the flow, the disclosure sequencer, the validation and incident services, the daemon's refusals (ADR 0014, 0015) |
 | `sagvd_release_decisions_total{decision}` | Release decisions the authority signed: `release`, `refuse` (validation did not pass), `trust_denied` (ADR 0015) |
 | `sagvd_sessions_opened_total` | Return Path handshakes completed |
+| `sagvd_sessions_active` | Sessions being served now, each holding one of `runtime.max_sessions` slots |
+| `sagvd_sessions_limit` | `runtime.max_sessions` as configured (1 unless set) |
+| `sagvd_sessions_refused_total{reason="busy"}` | Connections closed before any handshake because every slot stayed taken for `handshake_timeout_seconds`; the worker dials again |
 | `sagvd_handshake_failures_total{phase}` | `tls` or `handshake` |
 | `sagvd_queue_depth` | Jobs waiting for a worker |
 | `sagvd_last_success_unix`, `sagvd_start_unix` | Timestamps |

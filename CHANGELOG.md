@@ -11,6 +11,32 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- **Sessions in parallel: `runtime.max_sessions`.** The authority
+  serves that many Return Path sessions at once (one by default, the
+  behaviour until now): every accepted connection takes a session slot
+  in its own goroutine; the queue hands each job to exactly one session,
+  the audit chain appends under its own lock, each job's flow is its own
+  object, and shutdown waits for the sessions in flight. A worker that
+  connects while every slot is taken waits up to
+  `handshake_timeout_seconds` for one, then is closed before any
+  handshake — counted as `sagvd_sessions_refused_total{reason="busy"}`,
+  not a trust decision — and dials again after its backoff. New gauges
+  `sagvd_sessions_active` and `sagvd_sessions_limit`. Proven in process
+  (two sessions inside their jobs while a third waits; the busy refusal
+  with the job unaffected) and live (two workers attested at once, two
+  jobs EXACT on one verified chain). Measured on real SEV-SNP
+  (`scripts/hardware-test/gcp-sev-snp/returnpath-parallel`, run
+  `20261016T122044Z`, C32): three workers on one n2d-standard-8, six
+  jobs per round, all EXACT — 28.7 s at one session at a time, 17.2 s
+  at three (`docs/operator/limits.md`). The run found the chip's own
+  limit: a burst of attestation requests on one GCP SEV-SNP guest is
+  rate-limited by the host, all but the first answered about 10 s later
+  (KNOWN_ISSUES #17). The TDX twin (`gcp-tdx/returnpath-parallel`, run
+  `20261016T123114Z`, c3-standard-8): 23.7 s at one, 9.6 s at three,
+  no throttling — three sessions at once at 90–165 ms each.
+
 ### Changed
 
 - **Return Path wire 1.1: Evidence names its format (ADR 0025, step
