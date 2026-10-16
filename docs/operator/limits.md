@@ -16,6 +16,8 @@ or its evidence directory); what has not been measured is said so.
 | Evidence on the wire | 7980 bytes each way for SEV-SNP (the 1184-byte report with the host's certificate table); 10704 bytes for TDX | C31, wire 1.1 |
 | Authority lost, the same authority back on a fresh chip | 49–50 s from a standby with the runtime in place | C28 |
 | Air-gapped, from caches filled while connected | the same flow, no route; the VCEK cache good for seven years | C29 |
+| Sustained: one host, three workers, an hour | 40.4 jobs a minute on TDX, 26.7 on SEV-SNP (the chip's throttle, below); every job EXACT, nothing refused or failed, the hour's audit log one verified chain | C33 (the soak, below) |
+| Memory per job served | about 110–120 KB, growing without bound until KNOWN_ISSUES #18 is fixed: 280 MB after 2429 jobs | C33, KNOWN_ISSUES #18 |
 
 ## Parallel restores on one host
 
@@ -72,6 +74,62 @@ host's to give, not the protocol's. A fleet puts workers on their own
 machines; the authority's cost per session is the handshake, the
 disclosures and the gate, measured above.
 
+## One authority over an hour (the soak)
+
+Runs `20261016T130106Z` (`scripts/hardware-test/gcp-tdx/returnpath-soak`)
+and `20261016T130128Z` (`scripts/hardware-test/gcp-sev-snp/returnpath-soak`),
+claim C33: one host for the authority and three workers (the real CPU
+door), `runtime.max_sessions: 3`, six jobs kept in flight for sixty
+minutes on the same sealed genome; every completion timed from the job
+view's own stamps, the daemons' memory and descriptors and the
+authority's metrics snapshotted every minute; the kit's `summarize.py`
+derives every number below from the evidence.
+
+| | TDX, c3-standard-8 | SEV-SNP, n2d-standard-8 |
+| - | - | - |
+| Jobs in sixty minutes, every one EXACT | 2429 | 1607 |
+| Jobs a minute (the slowest and fastest minute) | 40.4 (38–42) | 26.7 (24–30) |
+| Submission → verdict, p50 / p90 / p99 / max | 8.58 / 8.71 / 9.26 / 9.41 s | 11.30 / 17.34 / 17.74 / 17.98 s |
+| of which waiting for a session, p50 / p99 | 4.42 / 4.79 s | 6.34 / 12.69 s |
+| of which the worker's restore and answer, p50 / p99 | 4.15 / 4.50 s | 4.95 / 5.21 s |
+| The first ten minutes → the last ten, p50 | 8.58 → 8.59 s | 11.35 → 11.29 s |
+| Handshake, p50 / p90 / p99 / max | 94 / 107 / 126 / 490 ms | 58 ms / 6.16 s / 6.20 s / 10.3 s |
+| Handshakes above one second | 0 of 2432 | 767 of 1609 (48 %) |
+| Refused (busy) / handshake failures / jobs failed | 0 / 0 / 0 | 0 / 0 / 0 |
+| Audit events (sixteen a job), verified at the end | 38,864 in 3.2 s | 25,712 in 2.4 s |
+| Authority's resident memory, start → end | 16 → 280 MB (+108 KB a job) | 17 → 205 MB (+117 KB a job) |
+| Authority's open descriptors | 13, at most 14 | 13, at most 14 |
+| The three workers' resident memory | 48 → 51 MB | 39 → 50 MB |
+| Load (one minute) on 8 vCPU, mean / max | 3.3 / 4.9 | 3.3 / 5.0 |
+
+**What the numbers say.** The submitter keeps six jobs in flight, so each
+job waits for roughly one job ahead of it before its session opens: the
+queue time is the restore time of the job before, and the figure to size
+by is the rate, not the latency. The rate is the workers' restore time
+plus the handshake: on TDX three workers at 4.15 s a restore and 94 ms a
+handshake give 40 jobs a minute; on SEV-SNP 4.95 s a restore and the
+host's throttle (half of the handshakes wait 1–7 s, 2610 s of waiting in
+the hour across the three workers) give 27. Neither chip drifted: the
+median job of the last ten minutes is the median job of the first ten,
+and the per-minute count stayed within four of its mean. No refusal, no
+handshake failure, no warning or error in any daemon's log; the hour's
+audit log — 38,864 events on TDX, 25,712 on SEV-SNP, sixteen a job in
+ten kinds — is one chain that verifies under the published key.
+
+**What the soak found.** The authority's resident memory grew linearly,
+about 110 KB for every job served, on both chips; the workers' memory
+and the authority's descriptors stayed flat. Two things keep every job:
+the in-memory job map (`cmd/sagvd/job_queue.go`) holds each finished
+job's flow and verdict for `GET /v1/jobs/{id}` although the store on disk
+already has the view (ADR 0026), and the persistent audit chain
+(`internal/audit/chain/persistent.go`) keeps every sealed event in memory
+and loads them all when it opens. KNOWN_ISSUES #18 carries the numbers,
+the workaround (a scheduled restart: the queue and the views are on disk,
+the chain reopens and verifies) and the fix. At 40 jobs a minute the
+growth is about 260 MB an hour; a day at that rate is 6 GB. Until the
+fix lands, size the authority's memory for its restart interval, not for
+its working set.
+
 ## Models
 
 | Limit | Value | Where measured |
@@ -91,6 +149,7 @@ disclosures and the gate, measured above.
 
 ## Not measured yet
 
-Throughput of one authority over hours (a soak), many workers on many
-hosts against one authority, a Verifier across the Internet, more than
-one confidential GPU in one restore.
+Longer than an hour (the memory growth of KNOWN_ISSUES #18 bounds it
+until fixed), many workers on many hosts against one authority, a
+Verifier across the Internet, more than one confidential GPU in one
+restore.

@@ -16,4 +16,13 @@ n2d-standard-8 (`VG_MACHINE`).
 VG_WORKERS=3 VG_SOAK_MINUTES=60 scripts/hardware-test/gcp-sev-snp/returnpath-soak/run.sh <project> [zone]
 ```
 
-The TDX twin: `../../gcp-tdx/returnpath-soak/`.
+After the run, `summarize.py <evidence dir>` derives the percentiles, the
+rate and the drifts from `jobs.csv` and `snapshots.csv` into
+`summary.json` beside them.
+
+Run on record: `evidence/20261016T130128Z/` (claim C33) — 1607 jobs in
+sixty minutes, every one EXACT, nothing refused or failed; 26.7 a minute,
+p50 11.3 s and p99 17.7 s from submission to verdict, half of the
+handshakes held 1–7 s by the host's throttle (KNOWN_ISSUES #17); 25,712
+audit events verified in 2.4 s; and the authority's memory 17 → 205 MB
+over the hour (KNOWN_ISSUES #18). The TDX twin: `../../gcp-tdx/returnpath-soak/`.
