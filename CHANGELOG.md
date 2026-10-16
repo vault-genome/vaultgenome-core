@@ -29,9 +29,14 @@ given release can still open.
   `tee.peer.provider` (the AMD chain of the chip's product, the VCEK
   cache, the TCB floor, `pcr_digests`; no GPU fields), and the cross-cloud
   verifier registry takes it. Runbook:
-  `docs/operator/runbooks/real-tee-azure-sev-snp.md`; the kit
-  `scripts/hardware-test/azure-sev-snp/returnpath-e2e` runs the Return
-  Path on one `Standard_DC4as_v5`.
+  `docs/operator/runbooks/real-tee-azure-sev-snp.md`. Proven on hardware
+  (`scripts/hardware-test/azure-sev-snp/returnpath-e2e`, run
+  `20261016T215807Z` on a `Standard_DC4as_v5` in West Europe, Genoa;
+  C36): the handshake 104 ms with 4515 bytes of evidence, the gate job
+  EXACT seven seconds after submission, every key file sealed to the
+  vTPM, a thief's copy of the sealed files refused off this vTPM, a
+  worker of another attestation refused at the handshake by evidence
+  type, seventeen audit events verified.
 
 - `scripts/hardware-test/failover-region-loss`: the continuity drill with
   the failure that gives no warning. The primary (GCP SEV-SNP, us-central1)

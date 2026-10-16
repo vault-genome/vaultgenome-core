@@ -29,3 +29,11 @@ verdict, the daemons' logs and metrics, `audit-verify.json`,
 runner adds `runner-guest.log`. The capture kit that preceded the provider
 is the parent directory (`../README.md`: the HCL report's layout and the
 REPORT_DATA binding).
+
+Run on record: `evidence/20261016T215807Z/` (claim C36) — a
+`Standard_DC4as_v5` in West Europe, Genoa by the report; the handshake
+104 ms with 4515 bytes of evidence, the gate job EXACT seven seconds after
+submission, every key file sealed to the vTPM, the rogue with the sealed
+files refused (*sealed to azure-sev-snp, this host is simulated*), the
+rogue with another attestation refused at the handshake by evidence type,
+seventeen audit events verified; the whole guest script in 137 s.
