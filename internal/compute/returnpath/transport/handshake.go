@@ -115,12 +115,19 @@ type SessionState struct {
 	// platform, the GPUs), for the audit record; nil for a verifier
 	// with nothing more to say.
 	PeerDetail *tee.AttestationDetail
-	ReadyAt    time.Time
+	// PeerEvidenceType and PeerEvidenceBytes say what the peer's
+	// Evidence record carried: its media type and the size of its
+	// value — the measure of the wire, for the operator's log.
+	PeerEvidenceType  string
+	PeerEvidenceBytes int
+	ReadyAt           time.Time
 }
 
 // handshake-level domain-separation labels. These are concatenated into
 // the SHA-256 pre-image that forms each side's TEE challenge. A change
 // in any of them requires a wire-version bump (MAGIC change) per §3.1.
+// Wire 1.1 changed the form of the evidence fields, not the challenge
+// derivation, so the labels keep the derivation's name.
 var (
 	labelServerAtt = []byte("rp-wire-v1.0 SERVER-ATT")
 	labelClientAtt = []byte("rp-wire-v1.0 CLIENT-ATT")
@@ -450,13 +457,15 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		return nil, err
 	}
 	return &SessionState{
-		Role:            RoleClient,
-		Transcript:      tr,
-		TxKey:           c2s,
-		RxKey:           s2c,
-		PeerMeasurement: peerM,
-		PeerDetail:      peerDetail,
-		ReadyAt:         sr.ReadyAt,
+		Role:              RoleClient,
+		Transcript:        tr,
+		TxKey:             c2s,
+		RxKey:             s2c,
+		PeerMeasurement:   peerM,
+		PeerDetail:        peerDetail,
+		PeerEvidenceType:  hs.ServerEvidence.Type,
+		PeerEvidenceBytes: len(hs.ServerEvidence.Value),
+		ReadyAt:           sr.ReadyAt,
 	}, nil
 }
 
@@ -545,13 +554,15 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		return nil, err
 	}
 	return &SessionState{
-		Role:            RoleServer,
-		Transcript:      tr,
-		TxKey:           s2c,
-		RxKey:           c2s,
-		PeerMeasurement: peerM,
-		PeerDetail:      peerDetail,
-		ReadyAt:         ready.ReadyAt,
+		Role:              RoleServer,
+		Transcript:        tr,
+		TxKey:             s2c,
+		RxKey:             c2s,
+		PeerMeasurement:   peerM,
+		PeerDetail:        peerDetail,
+		PeerEvidenceType:  ac.ClientEvidence.Type,
+		PeerEvidenceBytes: len(ac.ClientEvidence.Value),
+		ReadyAt:           ready.ReadyAt,
 	}, nil
 }
 

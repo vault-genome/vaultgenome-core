@@ -128,6 +128,23 @@ func TestHandshake_TSMFamily_TheVerifierReadsTheReportNotTheWrapper(t *testing.T
 	require.Equal(t, serverReport, clientSaw, "the client's verifier was handed the server's report")
 	require.True(t, clientM.Equal(ss.PeerMeasurement))
 	require.True(t, serverM.Equal(cs.PeerMeasurement))
+	// The state says what the wire carried: the TSM report's type and size — more than the report, the auxblob rides inside.
+	require.Equal(t, tee.MediaTypeTSMReportJSON, ss.PeerEvidenceType)
+	require.Equal(t, tee.MediaTypeTSMReportJSON, cs.PeerEvidenceType)
+	require.Greater(t, ss.PeerEvidenceBytes, len(clientReport))
+	require.Greater(t, cs.PeerEvidenceBytes, len(serverReport))
+}
+
+// The simulated family's state names its own type and the statement's size.
+func TestHandshake_StateNamesThePeerEvidenceType(t *testing.T) {
+	t.Parallel()
+	peers := newPeerTEEs(t)
+	c, s, cs, ss := runLoopbackHandshake(t, peers)
+	defer func() { _ = c.Close(); _ = s.Close() }()
+	require.Equal(t, tee.MediaTypeSimulatedEvidence, cs.PeerEvidenceType)
+	require.Equal(t, tee.MediaTypeSimulatedEvidence, ss.PeerEvidenceType)
+	require.Positive(t, cs.PeerEvidenceBytes)
+	require.Positive(t, ss.PeerEvidenceBytes)
 }
 
 // A record of another family is refused by name before any verifier
