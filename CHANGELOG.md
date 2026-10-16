@@ -11,6 +11,31 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-16
+
+The release that is proven under load and stood up in one command. One
+authority served three workers for an hour on real TDX and on real
+SEV-SNP — 2429 and 1607 jobs, every one EXACT — and the soak found the
+authority keeping about 110 KB of every job it had ever served; the three
+retentions are gone, and two more hours on each chip show its private
+memory flat at 9–15 MB (C33, C34, KNOWN_ISSUES #18). Sessions run in
+parallel (`runtime.max_sessions`), measured on both chips, and the
+measurement found the SEV-SNP host's own limit: a burst of attestation
+requests waits about 10 s (C32, KNOWN_ISSUES #17). The Return Path wire
+is 1.1 — Evidence names its format on the wire as a RATS record — and
+either daemon can delegate the appraisal to a RATS Verifier, proven
+against a live Veraison with a real SEV-SNP report and with the Verifier
+on its own VM over mutual TLS (C30, C31). A new family: an Azure SEV-SNP
+Confidential VM without a GPU attests with the chip and the vTPM
+(`azure-sev-snp`, C36). The region-loss drill is on record twice — a
+primary that goes dark without a word, the model back on an attested H100
+in 26 s on silence alone (C35, Drill VII). And `acpctl provision` stands
+a deployment up in one command, proven on real SEV-SNP in 10.6 s (C37).
+Bundle, audit and policy schemas unchanged; the Return Path wire is 1.1,
+so both daemons move together — a 1.0 peer is refused at the first frame,
+naming both versions; every new configuration key is optional, and files
+sealed by 0.4.x open as before.
+
 ### Added
 
 - **`acpctl provision`: one command stands up a deployment.** The
@@ -61,21 +86,44 @@ given release can still open.
   worker of another attestation refused at the handshake by evidence
   type, seventeen audit events verified.
 
-- `scripts/hardware-test/failover-region-loss`: the continuity drill with
-  the failure that gives no warning. The primary (GCP SEV-SNP, us-central1)
-  switches itself off while it trains — no shutdown, no report, no
-  `stopped` — and the operator deletes it; the authority (europe-west4)
-  acts on a policy whose only trigger is 15 s without a heartbeat and
-  releases the key to the attested Azure H100. The orchestrator records
-  Google's status, `lastStopTimestamp`, the deletion and Google's audit log
-  for the primary; the authority keeps the audit log file, its public key
-  and the primary's last heartbeat for an offline check; `timeline.py`
-  merges a run's evidence into one timeline; `VERIFY.md` says how to check
-  a run without us. Run `20260930T194321Z`: RTO 25.97 s, RPO 21.01 s, the
-  gate EQUIVALENT on the H100; run `20261016T210544Z` on the tree of 16
-  October: RTO 26.24 s, RPO 21.00 s, EQUIVALENT again, the model confirmed
-  back 5.4 s before Google logged the guest's termination
-  (VERIFIABLE-CLAIMS C35, CONTINUITY-DRILL Drill VII).
+- **A delegated Verifier: `tee.peer.verifier.mode: rats` (ADR 0025, step
+  2b).** Either daemon can send the peer's Evidence record to a RATS
+  Verifier over Veraison's challenge-response API instead of appraising
+  it itself: the session is opened with what the Evidence carries for the
+  challenge (the 64-byte REPORT_DATA for SEV-SNP and TDX), the record is
+  posted under its media type, the attestation result (an EAR, a compact
+  JWS signed ES256) is verified under the Verifier's key on file and
+  judged by the policy here — `accept` (affirming; warning on purpose),
+  `policy_id`, `submod`. The pin stays the daemon's: the launch
+  measurement is read from the message it posted, by its own parser, and
+  held against `measurement_path`; the family stays its policy too. The
+  admission on the record carries the EAR (`peer_detail.verifier`),
+  re-verifiable offline; a refusal carries the Verifier's word, and a
+  Verifier that cannot be asked refuses the peer (`verifier_unavailable`).
+  The family's own inputs (the AMD chain, Intel's PCS) are not required in
+  this mode. `internal/shared/tee/ratstest` is the API as a test double;
+  the integration suite runs both daemons against it with the simulated
+  family, the rogue contraindicated and the unreachable Verifier refused
+  on the record. Runbook: `docs/operator/runbooks/delegated-verifier.md`.
+  A Verifier that takes only known callers is answered with a client
+  certificate (`client_cert_path`, `client_key_path`). Proven against a
+  live Veraison with a real GCP SEV-SNP report — the bench's deployment,
+  the `sevsnp` scheme, the report's REPORT_DATA as the session nonce, the
+  EAR `affirming` under Veraison's published key, the pin read from the
+  report: run `20261016T024628Z`
+  (`scripts/hardware-test/veraison-live/evidence/`, kit `veraison-live`,
+  claim C30). And on real SEV-SNP with the Verifier on another VM — the
+  bank's topology: Veraison built and deployed natively on a VM of its
+  own under the kit's root CA, its verification API on mutual TLS, the
+  operator provisioning it with AMD's root and the chip's launch before
+  the session; both daemons delegating by name; handshake 145/146 ms
+  delegated beside 219/220 ms builtin on the same chip; the job EXACT; the
+  EAR on the admission, re-verified offline; a worker of another family,
+  a policy naming another appraisal and an unreachable Verifier refused
+  on the record: run `20261016T033936Z`
+  (`scripts/hardware-test/gcp-sev-snp/returnpath-rats/evidence/`, kit
+  `returnpath-rats`, claim C31). Both daemons log `handshake_ms` on the
+  session-opened line.
 
 - **Sessions in parallel: `runtime.max_sessions`.** The authority
   serves that many Return Path sessions at once (one by default, the
@@ -120,6 +168,22 @@ given release can still open.
   `docs/operator/limits.md` has the tables; the kit's `summarize.py`
   derives every number from the evidence.
 
+- `scripts/hardware-test/failover-region-loss`: the continuity drill with
+  the failure that gives no warning. The primary (GCP SEV-SNP, us-central1)
+  switches itself off while it trains — no shutdown, no report, no
+  `stopped` — and the operator deletes it; the authority (europe-west4)
+  acts on a policy whose only trigger is 15 s without a heartbeat and
+  releases the key to the attested Azure H100. The orchestrator records
+  Google's status, `lastStopTimestamp`, the deletion and Google's audit log
+  for the primary; the authority keeps the audit log file, its public key
+  and the primary's last heartbeat for an offline check; `timeline.py`
+  merges a run's evidence into one timeline; `VERIFY.md` says how to check
+  a run without us. Run `20260930T194321Z`: RTO 25.97 s, RPO 21.01 s, the
+  gate EQUIVALENT on the H100; run `20261016T210544Z` on the tree of 16
+  October: RTO 26.24 s, RPO 21.00 s, EQUIVALENT again, the model confirmed
+  back 5.4 s before Google logged the guest's termination
+  (VERIFIABLE-CLAIMS C35, CONTINUITY-DRILL Drill VII).
+
 ### Changed
 
 - **Return Path wire 1.1: Evidence names its format (ADR 0025, step
@@ -150,47 +214,6 @@ given release can still open.
   run `20261016T011514Z` (c3, `tdx_guest`; a TSM report of 10704 bytes around the
   8000-byte quote, no auxblob; same outcome) — `scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20261016T011546Z`,
   `scripts/hardware-test/gcp-tdx/returnpath-e2e/evidence/20261016T011514Z`.
-
-### Added
-
-- **A delegated Verifier: `tee.peer.verifier.mode: rats` (ADR 0025, step
-  2b).** Either daemon can send the peer's Evidence record to a RATS
-  Verifier over Veraison's challenge-response API instead of appraising
-  it itself: the session is opened with what the Evidence carries for the
-  challenge (the 64-byte REPORT_DATA for SEV-SNP and TDX), the record is
-  posted under its media type, the attestation result (an EAR, a compact
-  JWS signed ES256) is verified under the Verifier's key on file and
-  judged by the policy here — `accept` (affirming; warning on purpose),
-  `policy_id`, `submod`. The pin stays the daemon's: the launch
-  measurement is read from the message it posted, by its own parser, and
-  held against `measurement_path`; the family stays its policy too. The
-  admission on the record carries the EAR (`peer_detail.verifier`),
-  re-verifiable offline; a refusal carries the Verifier's word, and a
-  Verifier that cannot be asked refuses the peer (`verifier_unavailable`).
-  The family's own inputs (the AMD chain, Intel's PCS) are not required in
-  this mode. `internal/shared/tee/ratstest` is the API as a test double;
-  the integration suite runs both daemons against it with the simulated
-  family, the rogue contraindicated and the unreachable Verifier refused
-  on the record. Runbook: `docs/operator/runbooks/delegated-verifier.md`.
-  A Verifier that takes only known callers is answered with a client
-  certificate (`client_cert_path`, `client_key_path`). Proven against a
-  live Veraison with a real GCP SEV-SNP report — the bench's deployment,
-  the `sevsnp` scheme, the report's REPORT_DATA as the session nonce, the
-  EAR `affirming` under Veraison's published key, the pin read from the
-  report: run `20261016T024628Z`
-  (`scripts/hardware-test/veraison-live/evidence/`, kit `veraison-live`,
-  claim C30). And on real SEV-SNP with the Verifier on another VM — the
-  bank's topology: Veraison built and deployed natively on a VM of its
-  own under the kit's root CA, its verification API on mutual TLS, the
-  operator provisioning it with AMD's root and the chip's launch before
-  the session; both daemons delegating by name; handshake 145/146 ms
-  delegated beside 219/220 ms builtin on the same chip; the job EXACT; the
-  EAR on the admission, re-verified offline; a worker of another family,
-  a policy naming another appraisal and an unreachable Verifier refused
-  on the record: run `20261016T033936Z`
-  (`scripts/hardware-test/gcp-sev-snp/returnpath-rats/evidence/`, kit
-  `returnpath-rats`, claim C31). Both daemons log `handshake_ms` on the
-  session-opened line.
 
 ### Fixed
 
