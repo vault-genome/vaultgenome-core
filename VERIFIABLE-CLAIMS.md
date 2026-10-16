@@ -1659,10 +1659,37 @@ at the handshake; `results/job.json` gate level EXACT, 6 of 6, `max_abs_err`
 103.3 s on the guest (`timeline.txt`: the runtime from the locks 84 s, the
 fine-tune 10 s, the job 5 s).
 
+The same kit on `v0.4.3`, two and a half minutes after the release was
+published (2026-10-16):
+[`scripts/hardware-test/release-deploy/evidence/20261016T001614Z/`](scripts/hardware-test/release-deploy/evidence/20261016T001614Z/)
+— the first release with a Sigstore bundle beside every signature, and the
+first record in which the bundles are verified **with the network denied**:
+`verify/assets.sha256` 49 assets; `verify/cosign.txt` twelve "Verified OK"
+(the pairs); `verify/cosign-bundle-nonet.txt` the same twelve files from
+their bundles, `cosign verify-blob --new-bundle-format --bundle
+--trusted-root trusted_root.json` under `sandbox-exec` with no route and
+no TUF cache, twelve "Verified OK" (the trust root, SHA-256 `6494e21e…`,
+the file `cosign initialize` caches on a connected machine); `verify/slsa.txt`
+six "PASSED"; `verify/tag.txt` the tag's signature; `verify/rebuild.txt`
+the five binaries and the package rebuilt from the tag (commit
+`a40eee694289`, go1.27.2, GNU tar 1.35, GNU gzip 1.15) with the same sha256
+as the released files; `results/versions.txt` the four released binaries
+reporting `v0.4.3` at the tag's commit; `results/amd-chain.txt` the Milan
+chain fetched on the guest by the released `acpctl` and checked against
+the pinned ARK-Milan; both daemons, `tee.provider: "auto"`, read
+`7dc7c12e…25acc` from the chip and sealed their key files to it
+(`results/sealed-files.txt`); `results/rogue-sealed-worker.log` the thief
+with the sealed files refused before any key is read,
+`results/rogue-worker.log` the unpinned worker refused at the handshake;
+`results/job.json` gate level EXACT, 6 of 6, `max_abs_err` 0,
+`release_authorized`; `results/audit-verify.json` `ok: true`, 17 events;
+124.7 s on the guest (the runtime from the locks 75 s, the fine-tune 9 s,
+the job 5 s).
+
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.2    # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.3    # ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
