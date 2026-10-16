@@ -92,7 +92,7 @@ if [ "$(ls "$DL"/*.sigstore.json 2>/dev/null | wc -l | tr -d ' ')" = 12 ]; then
   TRUSTED_ROOT="$(find "${TUF_ROOT:-$HOME/.sigstore/root}" -name trusted_root.json 2>/dev/null | head -1)"
   [ -n "$TRUSTED_ROOT" ] || { echo "ERROR: no trusted_root.json in cosign's TUF cache after cosign initialize"; exit 1; }
   cp "$TRUSTED_ROOT" "$DL/trusted_root.json"
-  echo "  trusted_root.json: $(sha "$DL/trusted_root.json")" | rec tools.txt
+  echo "  trusted_root.json: sha256 $(shasum -a 256 "$DL/trusted_root.json" | awk '{print $1}')" | rec tools.txt
   if command -v sandbox-exec >/dev/null 2>&1; then NONET=(sandbox-exec -p '(version 1)(allow default)(deny network*)' env TUF_ROOT=/nonexistent); echo "  the bundle check runs with the network denied (sandbox-exec)"; else NONET=(env); echo "  the bundle check runs with the route (no sandbox-exec here)"; fi
   for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen "$WORKER_PKG"; do
     sbom="$b.sbom.spdx.json"; sbombundle="$b.sbom.sigstore.json"

@@ -11,7 +11,7 @@ given release can still open.
 
 ## [Unreleased]
 
-## [0.4.3] — 2026-10-15
+## [0.4.3] — 2026-10-16
 
 The release that runs with no route. A host that will be air-gapped
 fills its verifiers' caches with `acpctl tee prefetch` while it still has
