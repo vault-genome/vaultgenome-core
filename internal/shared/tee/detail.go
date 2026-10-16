@@ -26,6 +26,31 @@ type AttestationDetail struct {
 	// Evaluations are the verifier's own evaluations of the GPUs'
 	// reports, one per report, when the policy asked for them.
 	Evaluations []GPUEvaluation `json:"evaluations,omitempty"`
+	// Verifier is the delegated Verifier's result (ADR 0025, step 2b)
+	// when appraisal was delegated: the EAR itself, re-verifiable
+	// offline under the Verifier's key, and what this side read from it.
+	Verifier *VerifierResult `json:"verifier,omitempty"`
+}
+
+// VerifierResult is what a delegated RATS Verifier said, as recorded.
+type VerifierResult struct {
+	// URL is the Verifier asked.
+	URL string `json:"url"`
+	// EAR is the attestation result as received: a compact JWS.
+	EAR string `json:"ear"`
+	// Submod is the appraisal this side judged by.
+	Submod string `json:"submod"`
+	// Status is that appraisal's ear.status.
+	Status string `json:"status"`
+	// PolicyID is its ear.appraisal-policy-id.
+	PolicyID string `json:"policy_id,omitempty"`
+	// TrustVector is its ear.trustworthiness-vector.
+	TrustVector map[string]int `json:"trustworthiness_vector,omitempty"`
+	// VerifierDeveloper and VerifierBuild are ear.verifier-id.
+	VerifierDeveloper string `json:"verifier_developer,omitempty"`
+	VerifierBuild     string `json:"verifier_build,omitempty"`
+	// IssuedAt is the EAR's iat.
+	IssuedAt int64 `json:"issued_at"`
 }
 
 // DetailedVerifier is a Verifier that can also say what it verified.

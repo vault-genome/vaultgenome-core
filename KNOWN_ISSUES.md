@@ -82,7 +82,12 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    record (RFC 9999) whose type is the family's media type — ratsd's TSM
    report for SEV-SNP and TDX, the certificate table beside the SEV-SNP
    report — and a peer of another family is refused by name before any
-   verifier runs.
+   verifier runs. Since 2026-10-16 (step 2b) the appraisal can be
+   delegated: `tee.peer.verifier.mode: rats` sends the record to a RATS
+   Verifier (Veraison's API) and judges the returned EAR; the pin and
+   the family stay the daemon's; proven on the bench against the test
+   double with the simulated family (`delegated-verifier.md`), not yet
+   against Veraison with a chip's report on hardware.
    The Azure confidential GPU adapter (ADR 0019, `tee.provider:
    "azure-cgpu"`, NCC H100 v5) carries the SEV-SNP report from the vTPM's
    HCL report, a TPM quote by the vTPM's attestation key binding the

@@ -4,6 +4,7 @@
 package teemetrics
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
@@ -136,6 +137,24 @@ func (v *instrumentedVerifier) VerifyDetailed(ev tee.Evidence, nonce tee.Nonce) 
 	v.rec.observeAttest(v.provider, "verify", time.Since(start), err)
 	return m, d, err
 }
+
+// VerifyRecord forwards the record path to an inner tee.RecordVerifier
+// (the delegated Verifier) and records it as a verification. Unwrap
+// lets tee.RecordVerifierOf see whether the inner verifier reads
+// records at all; this wrapper counts as one only when it does.
+func (v *instrumentedVerifier) VerifyRecord(mediaType string, value []byte, nonce tee.Nonce) (tee.Measurement, *tee.AttestationDetail, error) {
+	rv := tee.RecordVerifierOf(v.inner)
+	if rv == nil {
+		return nil, nil, fmt.Errorf("teemetrics: the wrapped verifier reads bare evidence, not records")
+	}
+	start := time.Now()
+	m, d, err := rv.VerifyRecord(mediaType, value, nonce)
+	v.rec.observeAttest(v.provider, "verify", time.Since(start), err)
+	return m, d, err
+}
+
+// Unwrap implements tee.VerifierUnwrapper.
+func (v *instrumentedVerifier) Unwrap() tee.Verifier { return v.inner }
 
 // ---- sealer wrapper -------------------------------------------------------
 

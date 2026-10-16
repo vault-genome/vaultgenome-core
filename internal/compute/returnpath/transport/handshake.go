@@ -401,21 +401,11 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	// pre-binds the expected measurement so an attacker cannot
 	// substitute a valid quote from a different enclave.
 	serverChallenge := transcriptServerChallenge(clientNonce, cfg.ProposedChallenge)
-	serverEvidence, err := unwrapRecord(cfg.PeerProvider, hs.ServerEvidence)
+	peerM, peerDetail, err := verifyPeerRecord(cfg, hs.ServerEvidence, serverChallenge,
+		"returnpath/transport: server evidence is not what this client's verifier reads",
+		"returnpath/transport: server TEE evidence verification failed")
 	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: server evidence is not what this client's verifier reads",
-			err,
-		))
-	}
-	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, serverEvidence, tee.Nonce(serverChallenge))
-	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: server TEE evidence verification failed",
-			err,
-		))
+		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 
 	// Step 3: ATTEST_CLIENT. Produce our evidence over the full
@@ -519,21 +509,11 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	clientChallenge := transcriptClientChallenge(
 		hc.ClientNonce, serverNonce, derivationContext,
 	)
-	clientEvidence, err := unwrapRecord(cfg.PeerProvider, ac.ClientEvidence)
+	peerM, peerDetail, err := verifyPeerRecord(cfg, ac.ClientEvidence, clientChallenge,
+		"returnpath/transport: client evidence is not what this server's verifier reads",
+		"returnpath/transport: client TEE evidence verification failed")
 	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: client evidence is not what this server's verifier reads",
-			err,
-		))
-	}
-	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, clientEvidence, tee.Nonce(clientChallenge))
-	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: client TEE evidence verification failed",
-			err,
-		))
+		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 
 	// Step 4: send SESSION_READY.

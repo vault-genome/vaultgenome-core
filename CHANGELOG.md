@@ -42,6 +42,28 @@ given release can still open.
   8000-byte quote, no auxblob; same outcome) — `scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20261016T011546Z`,
   `scripts/hardware-test/gcp-tdx/returnpath-e2e/evidence/20261016T011514Z`.
 
+### Added
+
+- **A delegated Verifier: `tee.peer.verifier.mode: rats` (ADR 0025, step
+  2b).** Either daemon can send the peer's Evidence record to a RATS
+  Verifier over Veraison's challenge-response API instead of appraising
+  it itself: the session is opened with what the Evidence carries for the
+  challenge (the 64-byte REPORT_DATA for SEV-SNP and TDX), the record is
+  posted under its media type, the attestation result (an EAR, a compact
+  JWS signed ES256) is verified under the Verifier's key on file and
+  judged by the policy here — `accept` (affirming; warning on purpose),
+  `policy_id`, `submod`. The pin stays the daemon's: the launch
+  measurement is read from the message it posted, by its own parser, and
+  held against `measurement_path`; the family stays its policy too. The
+  admission on the record carries the EAR (`peer_detail.verifier`),
+  re-verifiable offline; a refusal carries the Verifier's word, and a
+  Verifier that cannot be asked refuses the peer (`verifier_unavailable`).
+  The family's own inputs (the AMD chain, Intel's PCS) are not required in
+  this mode. `internal/shared/tee/ratstest` is the API as a test double;
+  the integration suite runs both daemons against it with the simulated
+  family, the rogue contraindicated and the unreachable Verifier refused
+  on the record. Runbook: `docs/operator/runbooks/delegated-verifier.md`.
+
 ## [0.4.3] — 2026-10-16
 
 The release that runs with no route. A host that will be air-gapped

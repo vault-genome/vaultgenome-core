@@ -118,6 +118,7 @@ func runDaemon(args []string) error {
 		"tee_provider", string(mat.Provider),
 		"measurement_hex", hex.EncodeToString(mat.Producer.Measurement()),
 		"peer_provider", string(mat.PeerProvider),
+		"peer_verifier", tee.DescribeVerifier(mat.Verifier),
 	)
 	if mat.Provider == tee.ProviderSimulated {
 		logger.Warn("SIMULATED TEE: no hardware isolation — this worker's Return Path Evidence is signed by a key read from a file; development and tests only")

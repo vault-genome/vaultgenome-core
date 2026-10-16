@@ -212,7 +212,10 @@ the chip signs, and the verifier fetches the VCEK from AMD KDS (cached in
 `vcek_cache_dir`), checks the ECDSA-P384 signature, the VCEK → ASK → ARK
 chain, no DEBUG, VMPL 0, the TCB floor, and REPORT_DATA binding the
 handshake's transcript challenge. A peer whose Evidence does not verify never
-receives a job, and the refusal is on `audit.log_path`.
+receives a job, and the refusal is on `audit.log_path`. A site that runs one
+RATS Verifier for its estate can delegate this appraisal to it and keep the
+pin here — `tee.peer.verifier.mode: rats`,
+[delegated-verifier.md](delegated-verifier.md).
 
 This exact configuration has run end to end on a GCP SEV-SNP Confidential VM
 — both daemons on the chip, the real `vg_genome` door, a genome fine-tuned on

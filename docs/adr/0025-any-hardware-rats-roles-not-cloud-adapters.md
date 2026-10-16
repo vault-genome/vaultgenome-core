@@ -177,11 +177,20 @@ with its own endorsement store.
    the outblob as before; each side's family is required in the handshake
    configuration (`auto` resolves before it). Proven on the loopback and
    integration suites and on the two Return Path kits (see CHANGELOG
-   [Unreleased] for the run ids). *2b:* the `rats` verifier — the Veraison
-   client over its challenge-response API (stdlib HTTP and JSON; the EAR
-   is a JWS our stdlib verifies), the EAR appraisal policy, the audit
-   artifact. Proven first on the bench against a Veraison instance with
-   our captured SEV-SNP reports, then on hardware with the Verifier on a
+   [Unreleased] for the run ids). *2b (2026-10-16, code and bench):*
+   `tee.peer.verifier.mode: rats` — the Veraison challenge-response client
+   (stdlib HTTP and JSON), the EAR verified under the Verifier's pinned
+   key (ES256, stdlib) and judged by `accept`/`policy_id`/`submod`, the
+   EAR on the `TRUST_EVALUATED` record. The pin is held by reading the
+   measurement from the message this side posted, by its own parser: the
+   EAR's annotated evidence is the scheme's own shape (for SEV-SNP a
+   CoRIM whose CoMID is CBOR), and the bytes posted are the bytes
+   appraised — the session nonce is the report's REPORT_DATA, which the
+   scheme compares byte for byte. Proven on the bench: both daemons
+   against the API double with the simulated family, the rogue
+   contraindicated and the unreachable Verifier refused on the record
+   (`test/integration/delegated_verifier_test.go`). Still to do: a live
+   Veraison with a chip's report, then hardware with the Verifier on a
    separate host — the bank's topology.
 3. **`tpm2`** producer, verifier and sealer: a quote over the selected
    PCRs with the event log, verified through the TPM's endorsement

@@ -285,6 +285,13 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	if cfg.Verifier.delegated() {
+		v, err := buildDelegatedVerifier(provider, measurement, cfg.Verifier)
+		if err != nil {
+			return "", nil, err
+		}
+		return provider, v, nil
+	}
 	spec := tee.VerifierSpec{Provider: provider, ExpectedMeasurement: measurement}
 	switch provider {
 	case tee.ProviderSimulated:
@@ -359,6 +366,34 @@ func (m *materials) InstrumentTEE(rec *teemetrics.Recorder, provider string) {
 	if m.Verifier != nil {
 		m.Verifier = rec.WrapVerifier(provider, m.Verifier)
 	}
+}
+
+// buildDelegatedVerifier builds the RATS verifier of tee.peer.verifier
+// (mode rats): the Verifier's EAR key and, when given, the CA its TLS
+// certificate must chain to, read here; the pin held by the verifier.
+func buildDelegatedVerifier(provider tee.Provider, measurement tee.Measurement, c *PeerVerifierConfig) (tee.Verifier, error) {
+	keyRaw, err := os.ReadFile(c.EARPublicKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: read tee.peer.verifier.ear_public_key_path (%q): %w", c.EARPublicKeyPath, err)
+	}
+	key, err := tee.ParseEARPublicKey(keyRaw)
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: tee.peer.verifier.ear_public_key_path (%q): %w", c.EARPublicKeyPath, err)
+	}
+	var caPEM []byte
+	if c.CAPath != "" {
+		caPEM, err = os.ReadFile(c.CAPath)
+		if err != nil {
+			return nil, fmt.Errorf("sagvd: read tee.peer.verifier.ca_path (%q): %w", c.CAPath, err)
+		}
+	}
+	v, err := tee.NewRATSVerifier(provider, measurement, tee.RATSVerifierConfig{
+		URL: c.URL, EARPublicKey: key, CAPEM: caPEM, PolicyID: c.PolicyID, Submod: c.Submod, Accept: c.Accept, Timeout: c.timeout(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: tee.peer.verifier: %w", err)
+	}
+	return v, nil
 }
 
 // readExactly reads path and returns its contents if and only if the
