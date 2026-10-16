@@ -193,9 +193,14 @@ with its own endorsement store.
    Veraison with a real GCP SEV-SNP report — the bench's deployment,
    the report's REPORT_DATA as the session nonce, the EAR affirming
    under Veraison's published key, the pin read from the report (run
-   `20261016T024628Z`, C30). Still to do: the Return Path kits on a chip
-   with `rats` on both sides and the Verifier on a separate host — the
-   bank's topology.
+   `20261016T024628Z`, C30); and on real SEV-SNP with the Verifier on a
+   VM of its own — the bank's topology: both daemons delegating by name
+   over mutual TLS, the operator provisioning the Verifier first, the EAR
+   on the admission, the refusals on the record, the handshake measured
+   beside the builtin one on the same chip (run `20261016T033936Z`, kit
+   `returnpath-rats`, C31). Step 2 is done; the Verifier's own hardening
+   and the firmware vendor's signed endorsements as reference values are
+   the operator's and the vendor's work, named in C31's scope.
 3. **`tpm2`** producer, verifier and sealer: a quote over the selected
    PCRs with the event log, verified through the TPM's endorsement
    certificate to the TPM vendor's root, appraised against a PCR policy —

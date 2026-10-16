@@ -1,0 +1,1 @@
+2026-10-16T03:48:10.432566+00:00 vg-verifier-20261016t033730z google_metadata_script_runner[1236]: startup-script: ===VERIFIER-READY=== 20261016T033854Z name=vg-verifier-20261016t033730z version=+ listening_after=1s
