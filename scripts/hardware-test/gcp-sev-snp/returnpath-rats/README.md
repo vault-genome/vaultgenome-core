@@ -73,6 +73,18 @@ the job views, `audit-events.jsonl`, `audit-verify.json`,
   opened, every appraisal), `store.sql.dump` (the trust anchor and the
   reference value as stored), `sha256sums.txt`.
 
+## The run on record
+
+`evidence/20261016T033936Z/` (claim C31): the Verifier host built,
+deployed and listening 10 minutes after its creation; the CoRIM
+accepted; builtin handshake 219/220 ms, delegated 145/146 ms, both
+records 7980 bytes; both jobs EXACT; the admission with the EAR; the
+thief, the other family, the policy and the unreachable Verifier
+refused on the record; the audit log verified; ten sessions on the
+Verifier. The first attempt of the run found that sagvd's metrics
+wrapper dropped the certificate table (fixed, `teemetrics`); the second
+is this record.
+
 ## What it proves, and what it does not
 
 Proves: two daemons on a chip delegating to a Verifier on another machine

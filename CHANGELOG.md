@@ -70,7 +70,28 @@ given release can still open.
   EAR `affirming` under Veraison's published key, the pin read from the
   report: run `20261016T024628Z`
   (`scripts/hardware-test/veraison-live/evidence/`, kit `veraison-live`,
-  claim C30).
+  claim C30). And on real SEV-SNP with the Verifier on another VM — the
+  bank's topology: Veraison built and deployed natively on a VM of its
+  own under the kit's root CA, its verification API on mutual TLS, the
+  operator provisioning it with AMD's root and the chip's launch before
+  the session; both daemons delegating by name; handshake 145/146 ms
+  delegated beside 219/220 ms builtin on the same chip; the job EXACT; the
+  EAR on the admission, re-verified offline; a worker of another family,
+  a policy naming another appraisal and an unreachable Verifier refused
+  on the record: run `20261016T033936Z`
+  (`scripts/hardware-test/gcp-sev-snp/returnpath-rats/evidence/`, kit
+  `returnpath-rats`, claim C31). Both daemons log `handshake_ms` on the
+  session-opened line.
+
+### Fixed
+
+- **The metrics wrapper around sagvd's producer dropped the certificate
+  table.** `teemetrics.WrapProducer` had no `QuoteWithAux`, so the vault's
+  record went on the wire as the report alone; the builtin verifier
+  never needed the table (it fetches the VCEK), a delegated Verifier
+  does — Veraison answered «evidence missing certificate chain» and the
+  worker refused the vault. Found on hardware, fixed with a test; the
+  wire now carries the table both ways (7980 bytes each, measured).
 
 ## [0.4.3] — 2026-10-16
 

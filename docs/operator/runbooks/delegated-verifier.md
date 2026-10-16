@@ -150,7 +150,8 @@ mutual TLS. The order of operations is the one a bank follows:
    `url`.
 4. **Then the daemons.** Each session's EAR is on the admission;
    `handshake_ms` on the `session opened` line says what delegation costs
-   on that network.
+   on that network — on the kit's run `20261016T033936Z`, 145 ms
+   delegated beside 219 ms builtin on the same n2d (claim C31).
 
 ## Air gap
 

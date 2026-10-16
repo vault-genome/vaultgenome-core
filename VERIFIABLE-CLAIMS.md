@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1609,9 +1609,79 @@ the test it runs: `internal/shared/tee/rats_live_test.go`; the mode:
 the session nonce was the report's own REPORT_DATA, which is what the
 handshake derives for a live peer, so the client's path is the same
 up to where the challenge is made. Veraison ran on the same machine as
-the client, over TLS with the bench's client certificate. Not yet: the
-Return Path kits on a chip with `rats` on both sides, and a Verifier on
-another host — the bank's topology (ADR 0025, plan 2b).
+the client, over TLS with the bench's client certificate. The fresh
+challenge on a chip, with the Verifier on another host, is C31.
+
+<a id="c31"></a>
+
+### C31 — On real SEV-SNP, both daemons delegate the appraisal of each other's Evidence to a Verifier on another VM, over mutual TLS by name: the session opens, the job gates EXACT, the admission carries the EAR; a worker of another family, a policy that names another appraisal, and an unreachable Verifier each refuse, on the record
+
+**Claim.** In one GCP project, an n2d SEV-SNP Confidential VM runs sagvd
+and acp-compute with `tee.peer.verifier.mode: rats` on both; a plain VM of
+its own runs Veraison, built natively from the tree the bench validated,
+its services under a root CA the operator holds, its verification API
+taking only callers with a certificate of that CA. The operator (the
+runner) provisions the Verifier before the session — AMD's Milan root as
+the trust anchor, the attester's own launch measurement as a reference
+value, a CoRIM made from the chip's report and accepted by the
+provisioning API — hands the daemons the Verifier's EAR key from its
+well-known document and client certificates under the root, and releases
+the attester. The same chip first ran the builtin flow: handshake 219 ms
+(sagvd) / 220 ms (acp-compute), the job EXACT. Delegated: the session
+opened at once, handshake 145 ms / 146 ms, each side's record the TSM
+report with the host's certificate table inside (7980 bytes both ways),
+the job EXACT, the admission on the audit log carrying the EAR —
+`affirming`, `policy:SEVSNP`, `hardware: 2`, `runtime-opaque: 2`, a
+64-byte nonce — which verifies again offline under the key the Verifier
+published. Refused, on the record: a thief with the sealed key files off
+the chip; a worker of another family, by name, before the Verifier was
+asked; a daemon whose policy named another appraisal policy while the
+Verifier affirmed («appraised under policy "policy:SEVSNP", this side
+requires "policy:bank-2026-other"»); a daemon whose Verifier was
+unreachable («the Verifier at …:8444: no session», `verifier_unavailable`),
+with no session opened. The audit log verified under the published key:
+two admissions, four refusals, one admission with an EAR. Both VMs, the
+firewall rule and the bucket were deleted at the end.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-sev-snp/returnpath-rats/evidence/20261016T033936Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-rats/evidence/20261016T033936Z/)
+— `steps.txt` (every phase: `builtin session opened … sagvd_handshake_ms=219
+worker_handshake_ms=220 worker_record_bytes=7980 vault_record_bytes=7980`,
+`rats session opened after 0s sagvd_handshake_ms=145 worker_handshake_ms=146
+…`, `gate_builtin`/`gate_rats: level=EXACT … n_exact=6`, the rogue's
+reason, the policy refusal, the unreachable Verifier,
+`trust_decisions: allow=2 deny=4 allow_with_ear=1`); `trust-decisions.jsonl`;
+`audit-events.jsonl` and `audit-verify.json` (`ok: true`);
+`sagvd-builtin.log`, `sagvd.log`, `sagvd-policy.log`, `sagvd-down.log` and
+the workers' logs (`peer_verifier: rats https://vg-verifier-…:8443`,
+`handshake_ms`, the refusals); `verifier-well-known.json` and
+`verifier-dns.txt` as the guest saw them. `runner/`: `launch-report.bin`
+(the chip's report, measurement `7dc7c12e…`), `launch-report.tsm.cbor`,
+`corim.cbor`, `corim-submit.json` (`success`), `well-known.json`,
+`verifier-ear.jwk`, `ear-on-record.jwt` (the EAR taken from the audit
+record, re-verified under that key), the public certificates,
+`firewall-rule.json`, `veraison-sources.txt`, `runner-timeline.txt`,
+`metadata.txt`. `verifier/`: the Verifier host's `steps.txt` (build,
+deploy, clients, stores, certificates: every exit 0), `config.yaml`
+(`client-ca`), `verification-cert.txt` (SAN `vg-verifier-…`),
+`verification.log` (ten sessions, callers `sagvd-…` and `worker-…`),
+`vts.log`, `store.sql.dump`, `plugins.txt`, `sha256sums.txt`. The kit:
+[`scripts/hardware-test/gcp-sev-snp/returnpath-rats/`](scripts/hardware-test/gcp-sev-snp/returnpath-rats/).
+
+**Scope.** Two VMs in one VPC: the attester reaches the Verifier over
+the network's internal rule, by the instance's name; a Verifier across
+the internet, or behind a bank's load balancer, is the same client with
+another `url` and CA. The reference value came from the chip's own
+report (trust on first use, the bench's practice); the firmware
+vendor's signed launch endorsement is the better source. One chip ran
+both daemons, so one launch measurement served both pins. The Verifier
+ran as root from a startup script for the run's duration, not hardened.
+Veraison's version string is empty in its well-known document because
+the tree was shipped without `.git`; `runner/veraison-sources.txt` names
+the commit. Found and fixed on the way (attempt 2 of the run): sagvd's
+metrics wrapper around its producer dropped the certificate table, so
+Veraison saw «evidence missing certificate chain» — the wrapper forwards
+`QuoteWithAux` now, with a test.
 
 ---
 

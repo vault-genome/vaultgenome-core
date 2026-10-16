@@ -1,0 +1,35 @@
+{
+  "allowed": [
+    {
+      "IPProtocol": "tcp",
+      "ports": [
+        "8443"
+      ]
+    },
+    {
+      "IPProtocol": "tcp",
+      "ports": [
+        "9443"
+      ]
+    }
+  ],
+  "creationTimestamp": "2026-10-15T20:37:52.912-07:00",
+  "description": "",
+  "direction": "INGRESS",
+  "disabled": false,
+  "id": "3239206810879271679",
+  "kind": "compute#firewall",
+  "logConfig": {
+    "enable": false
+  },
+  "name": "vg-rats-20261016t033730z",
+  "network": "https://www.googleapis.com/compute/v1/projects/rats-probe/global/networks/default",
+  "priority": 1000,
+  "selfLink": "https://www.googleapis.com/compute/v1/projects/rats-probe/global/firewalls/vg-rats-20261016t033730z",
+  "sourceRanges": [
+    "104.14.24.198/32"
+  ],
+  "targetTags": [
+    "vg-verifier-20261016t033730z"
+  ]
+}

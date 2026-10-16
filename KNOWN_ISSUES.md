@@ -86,9 +86,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    delegated: `tee.peer.verifier.mode: rats` sends the record to a RATS
    Verifier (Veraison's API) and judges the returned EAR; the pin and
    the family stay the daemon's; proven on the bench against the test
-   double with the simulated family and against a live Veraison with a
-   real GCP SEV-SNP report (C30, `delegated-verifier.md`); not yet on a
-   chip with a fresh challenge, nor with the Verifier on another host.
+   double with the simulated family, against a live Veraison with a real
+   GCP SEV-SNP report (C30), and on real SEV-SNP with the Verifier on a
+   VM of its own, both daemons delegating by name over mutual TLS (C31,
+   `delegated-verifier.md`).
    The Azure confidential GPU adapter (ADR 0019, `tee.provider:
    "azure-cgpu"`, NCC H100 v5) carries the SEV-SNP report from the vTPM's
    HCL report, a TPM quote by the vTPM's attestation key binding the
