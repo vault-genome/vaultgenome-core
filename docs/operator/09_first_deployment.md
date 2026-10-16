@@ -106,7 +106,7 @@ to start with it unless the config says `tee.provider: "simulated"` with
 sets neither. AWS Nitro and Intel SGX are measured by their kits
 (`scripts/hardware-test/aws-nitro`, `azure-sgx`) and refused by the
 daemons' verifier registry; an Azure SEV-SNP Confidential VM without a GPU
-is measured by `azure-sev-snp` and is not a provider yet.
+attests as `azure-sev-snp` ([runbooks/real-tee-azure-sev-snp.md](runbooks/real-tee-azure-sev-snp.md)).
 
 The worker host needs Python 3.12 and the worker package from the release
 (`genome-worker-<tag>.tar.gz`: `vg_genome`, its locks and examples), with

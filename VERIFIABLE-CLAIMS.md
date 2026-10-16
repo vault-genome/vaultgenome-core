@@ -2130,7 +2130,8 @@ sentence we cannot defend.
    has taken one key release, once, at 0.5B.
 4. **We do not claim Nitro or SGX verification.** SEV-SNP and Intel TDX only
    ([C15](#c15)). Adapter dispatch for others exists (ADR 0002); the offline
-   verifiers do not. A TDX host and an Azure confidential GPU host seal
+   verifiers do not. A TDX host and an Azure host — a confidential GPU VM
+   or an SEV-SNP Confidential VM without a GPU — seal
    the escrow key to their vTPM (ADR 0022) — a root the cloud provider
    virtualises inside the confidential VM, not the TEE's own; an operator
    who does not accept that root has no sealed escrow key on those hosts.
