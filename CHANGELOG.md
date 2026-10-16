@@ -11,6 +11,24 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-10-15
+
+The release that runs with no route. A host that will be air-gapped
+fills its verifiers' caches with `acpctl tee prefetch` while it still has
+one and reads their expiry with `acpctl tee cache-status`; the Return
+Path then verifies its peers from the cache alone, and refuses, naming
+the vendor, when the cache is gone — proven on SEV-SNP and on TDX behind
+an egress-deny rule. The release verifies itself without a route too:
+every signed file carries a Sigstore bundle in the new format, checked
+with a trusted-root file (`--offline` is not that; measured). The job
+queue is on disk: a restarted authority admits again what it had
+accepted, and a fresh host resumes the job the lost one had in flight,
+from the replica (ADR 0026). The daemons take their TEE family from the
+kernel (`tee.provider: "auto"`) and seal their key files by what the host
+has (`tee.sealer`): the first two steps of ADR 0025, any hardware. Bundle,
+audit and policy schemas unchanged; every new configuration key is
+optional, and files sealed by earlier releases open as before.
+
 ### Added
 
 - The release workflow writes a Sigstore bundle in the new bundle format
