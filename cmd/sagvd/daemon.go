@@ -330,7 +330,7 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 			d.log.Info("sagvd session opened", append([]any{
 				"remote_addr", remote,
 				"peer_measurement", hex.EncodeToString(state.PeerMeasurement[:]),
-				"peer_evidence_type", state.PeerEvidenceType,
+				"peer_evidence_type", logSafe(state.PeerEvidenceType),
 				"peer_evidence_bytes", state.PeerEvidenceBytes,
 				"ready_at", state.ReadyAt.Format(time.RFC3339Nano),
 			}, peerDetailLogFields(state.PeerDetail)...)...)
