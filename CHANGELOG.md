@@ -29,7 +29,18 @@ given release can still open.
   refused by name before any verifier runs; the builtin verifiers read
   the outblob as before. A 1.0 peer is refused at the first frame with
   both versions in the reason. Each side's family is required in the
-  handshake configuration (`auto` resolves before it).
+  handshake configuration (`auto` resolves before it). `sagvd` logs what
+  the peer's record carried (`peer_evidence_type`, `peer_evidence_bytes`).
+  Proven on hardware, outcome unchanged: SEV-SNP run `20261016T011546Z` (n2d,
+  `sev_guest`; the worker's record a TSM report of 7980 bytes — the
+  1184-byte report and the host's 4763-byte certificate table inside; session
+  opened, gate job EXACT, the rogue simulated worker refused by name
+  before any verifier ran: «evidence type
+  application/vnd.vault-genome.simulated-evidence, this peer verifier is
+  gcp-sev-snp and reads application/vnd.veraison.tsm-report+json»), TDX
+  run `20261016T011514Z` (c3, `tdx_guest`; a TSM report of 10704 bytes around the
+  8000-byte quote, no auxblob; same outcome) — `scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20261016T011546Z`,
+  `scripts/hardware-test/gcp-tdx/returnpath-e2e/evidence/20261016T011514Z`.
 
 ## [0.4.3] — 2026-10-16
 
