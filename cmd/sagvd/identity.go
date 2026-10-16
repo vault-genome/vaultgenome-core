@@ -165,22 +165,18 @@ func tdxIdentityOf(p tee.Producer) *tdxIdentity {
 	return out
 }
 
-// vtpmIdentity is what an azure-cgpu guest's vTPM measured of its boot:
-// the PCRs quoted and their digest, which a peer may pin (pcr_digests).
+// vtpmIdentity is what an Azure guest's vTPM (azure-cgpu, azure-sev-snp)
+// measured of its boot: the PCRs quoted and their digest, which a peer may
+// pin (pcr_digests).
 type vtpmIdentity struct {
 	PCRs         []string `json:"pcrs"`
 	PCRDigestHex string   `json:"pcr_digest_hex"`
 }
 
 func vtpmIdentityOf(p tee.Producer) *vtpmIdentity {
-	a, ok := p.(*tee.AzureCGPUProducer)
+	pcrs, digest, ok := tee.VTPMBootOf(p)
 	if !ok {
 		return nil
 	}
-	sel, digest := a.VTPMBoot()
-	out := &vtpmIdentity{PCRDigestHex: hex.EncodeToString(digest)}
-	for _, s := range sel {
-		out.PCRs = append(out.PCRs, s.String())
-	}
-	return out
+	return &vtpmIdentity{PCRs: pcrs, PCRDigestHex: hex.EncodeToString(digest)}
 }

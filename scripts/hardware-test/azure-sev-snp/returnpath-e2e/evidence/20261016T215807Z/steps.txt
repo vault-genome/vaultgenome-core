@@ -1,0 +1,36 @@
+== binaries from /home/vg/in
+== tpm2-tools; the HCL report from the vTPM; the chip's product from the report
+hcl nvread exit=0 bytes=2900
+product=genoa
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+sealer=auto
+== provision (acp-keygen, private modes; every key file is sealed to the chip below)
+== identities: each daemon reads its launch measurement from the chip's report in the vTPM, and what the vTPM measured of this boot
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4
+worker_measurement=11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4
+== the key files sealed to this host (ADR 0023; the sealer is tee.sealer=auto, ADR 0025 step 1b)
+sagvd seal-keys exit=0 sealer=tpm2 sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+acp-compute seal-keys exit=0 sealer=tpm2 sealed=keys.worker_signing.seed_path,vault.tls.client_key
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-0325cd93c185-g0-9aa82a5b0ffc
+== sagvd on Azure SEV-SNP
+sagvd ready after 1s
+== a thief with the sealed key files, off this vTPM: they do not open (ADR 0023; tee.sealer=auto, the vTPM)
+rogue with the sealed files exit=1 sealed to azure-sev-snp, this host is simulated
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+rogue refused after 1s
+== acp-compute on Azure SEV-SNP, the real door
+session opened after 0s
+== the gate job over the Return Path
+job_id=fdae8ec64fbdeff99888bbe7d18d806d
+job status=succeeded after 7s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-e2e
+== metrics
+== stop both; verify the audit log with the published key
+audit verify exit=0
+audit query exit=0
+elapsed_seconds=137.2

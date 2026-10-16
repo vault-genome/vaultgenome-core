@@ -113,8 +113,10 @@ What attests in this build:
 
 - `sagvd` and `acp-compute` attest with the TEE they run on:
   `tee.provider: "gcp-sev-snp"` (AMD SEV-SNP through configfs-tsm),
-  `"gcp-tdx"` (Intel TDX) or `"azure-cgpu"` (an Azure confidential GPU VM —
-  the chip, the vTPM and the H100), the measurement read from the hardware;
+  `"gcp-tdx"` (Intel TDX), `"azure-sev-snp"` (an Azure SEV-SNP Confidential
+  VM — the chip's report from the vTPM and a TPM quote) or `"azure-cgpu"`
+  (an Azure confidential GPU VM — the chip, the vTPM and the H100), the
+  measurement read from the hardware;
   or with the simulated TEE for development — Evidence signed by a key
   derived from `tee.seed_path`, measurement = SHA-256 of
   `tee.workload_descriptor` — which refuses to start unless

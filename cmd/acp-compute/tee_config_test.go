@@ -68,15 +68,15 @@ func TestConfig_Validate_HardwareProviderFields(t *testing.T) {
 		"azure without the attest command": {func(c *Config) { hardwareLocal(c, "azure-cgpu") },
 			[]string{"tee.gpu_attest_command required when tee.provider=azure-cgpu"}},
 		"attest command on simulated": {func(c *Config) { c.TEE.GPUAttestCommand = []string{"/opt/nvidia/attest"} },
-			[]string{"tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu only"}},
+			[]string{"tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu and azure-sev-snp only"}},
 		"tpm2 dir on sev-snp": {func(c *Config) {
 			hardwareLocal(c, "gcp-sev-snp")
 			c.TEE.TPM2ToolsDir = "/usr/bin"
-		}, []string{"apply to azure-cgpu only"}},
+		}, []string{"apply to azure-cgpu and azure-sev-snp only"}},
 		"ak handle on tdx": {func(c *Config) {
 			hardwareLocal(c, "gcp-tdx")
 			c.TEE.AKHandle = "0x81000001"
-		}, []string{"apply to azure-cgpu only"}},
+		}, []string{"apply to azure-cgpu and azure-sev-snp only"}},
 
 		"tdx peer clean": {func(c *Config) {
 			hardwarePeer(c, "gcp-tdx")
@@ -89,7 +89,7 @@ func TestConfig_Validate_HardwareProviderFields(t *testing.T) {
 		"tdx peer with AMD fields": {func(c *Config) {
 			hardwarePeer(c, "gcp-tdx")
 			c.TEE.Peer.AMDKDSURL = "https://kds.example"
-		}, []string{"apply to a gcp-sev-snp or azure-cgpu peer only"}},
+		}, []string{"apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"}},
 		"simulated peer with PCS fields": {func(c *Config) { c.TEE.Peer.PCSURL = "https://pccs.example" },
 			[]string{"tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"}},
 		"sev-snp peer with PCS fields": {func(c *Config) {
@@ -118,12 +118,12 @@ func TestConfig_Validate_HardwareProviderFields(t *testing.T) {
 			c.TEE.Peer.AcceptableTCBStatuses = []string{"UpToDate"}
 		}, []string{"apply to a gcp-tdx peer only"}},
 		"NRAS fields on a simulated peer": {func(c *Config) { c.TEE.Peer.NRASJWKSURL = "https://nras.example/jwks" },
-			[]string{"tee.peer.nras_jwks_url, nras_cache_dir, gpu_policy and pcr_digests apply to an azure-cgpu peer only"}},
+			[]string{"tee.peer.nras_jwks_url, nras_cache_dir, gpu_policy and pcr_digests apply to an azure-cgpu or azure-sev-snp peer only"}},
 		"PCR digests on a sev-snp peer": {func(c *Config) {
 			hardwarePeer(c, "gcp-sev-snp")
 			c.TEE.Peer.AMDCertChainPath = "/x/chain.pem"
 			c.TEE.Peer.PCRDigests = []string{testPCRDigestHex}
-		}, []string{"apply to an azure-cgpu peer only"}},
+		}, []string{"apply to an azure-cgpu or azure-sev-snp peer only"}},
 		"malformed PCR digest": {func(c *Config) {
 			hardwarePeer(c, "azure-cgpu")
 			c.TEE.Peer.AMDCertChainPath = "/x/genoa.pem"

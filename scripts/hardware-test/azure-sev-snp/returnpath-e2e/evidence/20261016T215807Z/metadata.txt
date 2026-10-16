@@ -1,0 +1,4 @@
+instance=vg-asnp-20261016t215622z
+location=westeurope
+machine=Standard_DC4as_v5
+captured=20261016T215807Z

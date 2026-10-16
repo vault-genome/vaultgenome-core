@@ -14,7 +14,8 @@
 //
 //   - Local TEE producer: AMD SEV-SNP or Intel TDX through configfs-tsm
 //     ("gcp-sev-snp", "gcp-tdx"), an Azure confidential GPU VM through the
-//     vTPM and NVIDIA's attestation ("azure-cgpu"), or the simulated
+//     vTPM and NVIDIA's attestation ("azure-cgpu"), an Azure SEV-SNP
+//     Confidential VM without a GPU ("azure-sev-snp"), or the simulated
 //     backend for development
 //   - Source-authority pubkey (pinned out-of-band from
 //     `sagvd identity`; identifies the source authority)

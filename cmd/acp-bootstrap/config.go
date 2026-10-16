@@ -173,7 +173,7 @@ func (t TEEConfig) SEVDevice() string {
 }
 
 // supportedProviders are the TEE backends this build can run.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated, tee.ProviderAuto}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderSimulated, tee.ProviderAuto}
 
 // SourceAuthorityConfig points at the source-authority signing
 // public key file. Used by the receiver to verify every handshake +
@@ -460,6 +460,16 @@ func (c Config) Validate() error {
 		if c.TEE.InsecureSimulation {
 			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
 		}
+	case provider == tee.ProviderAzureSEVSNP:
+		if c.TEE.SeedPath != "" || c.TEE.InsecureSimulation {
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only"))
+		}
+		if c.TEE.TSMReportDir != "" {
+			errs = append(errs, errors.New("tee.tsm_report_dir does not apply to azure-sev-snp (the report comes from the vTPM)"))
+		}
+		if len(c.TEE.GPUAttestCommand) > 0 {
+			errs = append(errs, errors.New("tee.gpu_attest_command applies to azure-cgpu only (azure-sev-snp has no GPU)"))
+		}
 	case provider == tee.ProviderAzureCGPU:
 		if c.TEE.SeedPath != "" || c.TEE.InsecureSimulation {
 			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only"))
@@ -471,8 +481,8 @@ func (c Config) Validate() error {
 			errs = append(errs, errors.New("tee.gpu_attest_command required when tee.provider=azure-cgpu (the command that obtains NVIDIA's attestation tokens for a nonce)"))
 		}
 	}
-	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderAzureCGPU && (len(c.TEE.GPUAttestCommand) > 0 || c.TEE.TPM2ToolsDir != "" || c.TEE.AKHandle != "") {
-		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu only"))
+	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderAzureCGPU && lp != tee.ProviderAzureSEVSNP && (len(c.TEE.GPUAttestCommand) > 0 || c.TEE.TPM2ToolsDir != "" || c.TEE.AKHandle != "") {
+		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu and azure-sev-snp only"))
 	}
 	if strings.TrimSpace(c.TEE.WorkloadDescriptor) == "" {
 		errs = append(errs, errors.New("tee.workload_descriptor required"))
@@ -512,12 +522,12 @@ func (c Config) Validate() error {
 		}
 		if c.TEE.VTPMSealPCRs != "" {
 			switch provider {
-			case tee.ProviderGCPTDX, tee.ProviderAzureCGPU:
+			case tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP:
 				if err := tee.ValidatePCRSelection(c.TEE.VTPMSealPCRs); err != nil {
 					errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
 				}
 			default:
-				errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies to gcp-tdx and azure-cgpu only"))
+				errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies to gcp-tdx, azure-cgpu and azure-sev-snp only"))
 			}
 		}
 	}

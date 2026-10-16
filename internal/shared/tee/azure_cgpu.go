@@ -26,10 +26,8 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"crypto/rsa"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -179,11 +177,8 @@ func parseGPUAttestOutput(out []byte) (token json.RawMessage, items []gpuEvidenc
 
 // AzureCGPUProducer implements Producer on the guest.
 type AzureCGPUProducer struct {
-	cfg         AzureCGPUProducerConfig
-	hcl         *hclReport
-	akHandle    string
-	measurement Measurement
-	boot        *tpmQuote // a quote taken at construction: what the vTPM measured of this boot
+	cfg  AzureCGPUProducerConfig
+	vtpm *azureVTPM // the chip and the vTPM (azure_vtpm.go)
 
 	mu     sync.Mutex
 	closed bool
@@ -194,11 +189,9 @@ type AzureCGPUVerifier struct {
 	cfg        AzureCGPUVerifierConfig
 	acceptable []Measurement
 	jwks       *nrasJWKS
-	gpuEval    *GPUEvaluator // nil unless the policy asks for the own evaluation
-	ownOnly    bool          // GPUEvaluationOwn: the verdict rests on the evaluation alone
-
-	mu        sync.Mutex
-	vcekCache map[string][]byte
+	gpuEval    *GPUEvaluator    // nil unless the policy asks for the own evaluation
+	ownOnly    bool             // GPUEvaluationOwn: the verdict rests on the evaluation alone
+	snp        *azureSNPChecker // the chip and the vTPM (azure_vtpm.go)
 }
 
 // AzureCGPUVerdict is what a verified evidence said.
@@ -229,13 +222,6 @@ var runCommand = func(timeout time.Duration, argv ...string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-func (cfg AzureCGPUProducerConfig) tool(name string) string {
-	if cfg.TPM2ToolsDir == "" {
-		return name
-	}
-	return filepath.Join(cfg.TPM2ToolsDir, name)
-}
-
 // NewAzureCGPUProducer reads the HCL report from the vTPM, finds the
 // attestation key the chip vouched for among the persistent keys, and
 // fixes the measurement.
@@ -249,108 +235,17 @@ func NewAzureCGPUProducer(cfg AzureCGPUProducerConfig) (*AzureCGPUProducer, erro
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 2 * time.Minute
 	}
-	raw, err := runCommand(cfg.Timeout, cfg.tool("tpm2_nvread"), "-C", "o", hclNVIndex)
-	if err != nil {
-		return nil, fmt.Errorf("azure-cgpu: read the HCL report from the vTPM: %w", err)
-	}
-	h, err := parseHCLReport(raw)
-	if err != nil {
-		return nil, fmt.Errorf("azure-cgpu: HCL report: %w", err)
-	}
-	ak, err := h.attestationKey()
-	if err != nil {
-		return nil, fmt.Errorf("azure-cgpu: %w", err)
-	}
-	handle := cfg.AKHandle
-	if handle == "" {
-		handle, err = findAKHandle(cfg, ak)
-		if err != nil {
-			return nil, fmt.Errorf("azure-cgpu: %w", err)
-		}
-	}
-	m, err := MeasurementFromBytes(h.SNP.Measurement[:])
+	v, err := openAzureVTPM(string(ProviderAzureCGPU), cfg.TPM2ToolsDir, cfg.AKHandle, cfg.PCRs, cfg.Timeout)
 	if err != nil {
 		return nil, err
 	}
-	p := &AzureCGPUProducer{cfg: cfg, hcl: h, akHandle: handle, measurement: m}
-	// One quote now, under a fixed challenge, records what this boot
-	// measured into the vTPM — the PCR digest an operator may pin.
-	msg, sig, err := p.tpmQuote(tpmQuoteExtraDataFor([]byte("vault-genome azure-cgpu boot identity")))
-	if err != nil {
-		return nil, fmt.Errorf("azure-cgpu: initial TPM quote: %w", err)
-	}
-	q, err := parseTPMQuote(msg)
-	if err != nil {
-		return nil, fmt.Errorf("azure-cgpu: initial TPM quote: %w", err)
-	}
-	if err := verifyTPMQuoteSignature(ak, msg, sig); err != nil {
-		return nil, fmt.Errorf("azure-cgpu: initial TPM quote: %w", err)
-	}
-	p.boot = q
-	return p, nil
-}
-
-// tpmQuote runs tpm2_quote for a challenge and returns the message and
-// the raw signature.
-func (p *AzureCGPUProducer) tpmQuote(challenge [32]byte) (msg, sig []byte, err error) {
-	dir, err := os.MkdirTemp("", "vg-quote-*")
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func() { _ = os.RemoveAll(dir) }()
-	msgPath, sigPath := filepath.Join(dir, "quote.msg"), filepath.Join(dir, "quote.sig")
-	if _, err := runCommand(p.cfg.Timeout, p.cfg.tool("tpm2_quote"), "-c", p.akHandle, "-l", p.cfg.PCRs, "-q", hex.EncodeToString(challenge[:]),
-		"-g", "sha256", "-m", msgPath, "-s", sigPath, "-f", "plain"); err != nil {
-		return nil, nil, fmt.Errorf("TPM quote: %w", err)
-	}
-	if msg, err = os.ReadFile(msgPath); err != nil {
-		return nil, nil, err
-	}
-	if sig, err = os.ReadFile(sigPath); err != nil {
-		return nil, nil, err
-	}
-	return msg, sig, nil
+	return &AzureCGPUProducer{cfg: cfg, vtpm: v}, nil
 }
 
 // VTPMBoot is what the vTPM measured of this boot: the PCRs quoted and
 // their digest, which a peer may pin (AcceptablePCRDigests).
 func (p *AzureCGPUProducer) VTPMBoot() (selections []tpmPCRSelection, digest []byte) {
-	return p.boot.PCRSelections, append([]byte(nil), p.boot.PCRDigest...)
-}
-
-// findAKHandle lists the vTPM's persistent handles and returns the one
-// whose public key is the HCL attestation key.
-func findAKHandle(cfg AzureCGPUProducerConfig, ak *rsa.PublicKey) (string, error) {
-	out, err := runCommand(cfg.Timeout, cfg.tool("tpm2_getcap"), "handles-persistent")
-	if err != nil {
-		return "", err
-	}
-	dir, err := os.MkdirTemp("", "vg-ak-*")
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = os.RemoveAll(dir) }()
-	for _, field := range strings.Fields(string(out)) {
-		if !strings.HasPrefix(field, "0x") {
-			continue
-		}
-		pem := filepath.Join(dir, field+".pem")
-		if _, err := runCommand(cfg.Timeout, cfg.tool("tpm2_readpublic"), "-c", field, "-f", "pem", "-o", pem); err != nil {
-			continue
-		}
-		raw, err := os.ReadFile(pem)
-		if err != nil {
-			continue
-		}
-		pub, err := parsePEMRSAPublicKey(raw)
-		if err != nil {
-			continue
-		}
-		if pub.Equal(ak) {
-			return field, nil
-		}
-	}
-	return "", errors.New("no persistent vTPM key is the HCL attestation key")
+	return p.vtpm.boot.PCRSelections, append([]byte(nil), p.vtpm.boot.PCRDigest...)
 }
 
 // Quote implements Producer: a TPM quote with SHA-256(nonce) in extraData,
@@ -366,7 +261,7 @@ func (p *AzureCGPUProducer) Quote(nonce Nonce) (Evidence, error) {
 	}
 	challenge := tpmQuoteExtraDataFor(nonce)
 	challengeHex := hex.EncodeToString(challenge[:])
-	quoteMsg, quoteSig, err := p.tpmQuote(challenge)
+	quoteMsg, quoteSig, err := p.vtpm.quote(challenge)
 	if err != nil {
 		return nil, fmt.Errorf("azure-cgpu: %w", err)
 	}
@@ -379,7 +274,7 @@ func (p *AzureCGPUProducer) Quote(nonce Nonce) (Evidence, error) {
 	if err != nil {
 		return nil, fmt.Errorf("azure-cgpu: GPU attestation command output: %w", err)
 	}
-	ev, err := json.Marshal(azureCGPUEvidence{Schema: AzureCGPUEvidenceSchema, HCLReport: p.hcl.Raw, QuoteMessage: quoteMsg, QuoteSignature: quoteSig, GPUToken: token, GPUEvidence: items})
+	ev, err := json.Marshal(azureCGPUEvidence{Schema: AzureCGPUEvidenceSchema, HCLReport: p.vtpm.hcl.Raw, QuoteMessage: quoteMsg, QuoteSignature: quoteSig, GPUToken: token, GPUEvidence: items})
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +283,7 @@ func (p *AzureCGPUProducer) Quote(nonce Nonce) (Evidence, error) {
 
 // Measurement implements Producer: the SNP launch measurement.
 func (p *AzureCGPUProducer) Measurement() Measurement {
-	return append(Measurement(nil), p.measurement...)
+	return append(Measurement(nil), p.vtpm.measurement...)
 }
 
 // Close implements Producer.
@@ -401,15 +296,11 @@ func (p *AzureCGPUProducer) Close() error {
 
 // NewAzureCGPUVerifier constructs the composite verifier.
 func NewAzureCGPUVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureCGPUVerifierConfig) (*AzureCGPUVerifier, error) {
-	if len(cfg.AMDRootPEM) == 0 {
-		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: AMDRootPEM (the product's ASK+ARK chain) required", nil)
+	snp, err := newAzureSNPChecker(string(ProviderAzureCGPU), cfg.AMDRootPEM, cfg.AMDKDSURL, cfg.VCEKCacheDir, cfg.MinReportedTCB, cfg.AcceptablePCRDigests)
+	if err != nil {
+		return nil, err
 	}
-	if _, err := VerifyAMDCertChain(cfg.AMDRootPEM); err != nil {
-		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: AMDRootPEM: "+err.Error(), err)
-	}
-	if cfg.AMDKDSURL == "" {
-		cfg.AMDKDSURL = "https://kdsintf.amd.com"
-	}
+	cfg.AMDKDSURL = snp.kdsURL
 	if cfg.NRASJWKSURL == "" {
 		cfg.NRASJWKSURL = DefaultNRASJWKSURL
 	}
@@ -427,7 +318,7 @@ func NewAzureCGPUVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureCGP
 		cfg:        cfg,
 		acceptable: acc,
 		jwks:       &nrasJWKS{url: cfg.NRASJWKSURL, dir: cfg.NRASCacheDir, get: nrasHTTPGet},
-		vcekCache:  map[string][]byte{},
+		snp:        snp,
 	}
 	switch cfg.GPUEvaluation {
 	case "", GPUEvaluationNRAS:
@@ -502,65 +393,13 @@ func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPU
 		return nil, integrity(shared_errors.CodeSignatureInvalid, "evidence is not a "+AzureCGPUEvidenceSchema+" envelope", err)
 	}
 
-	// The chip: the SNP report inside the HCL report, verified to AMD.
-	h, err := parseHCLReport(env.HCLReport)
+	// The chip and the vTPM (azure_vtpm.go).
+	h, product, quote, err := v.snp.check(env.HCLReport, env.QuoteMessage, env.QuoteSignature, nonce)
 	if err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "HCL report: "+err.Error(), err)
+		return nil, err
 	}
 	report := h.SNP
-	product := sevProductName(report)
-	vcek, err := v.fetchVCEK(product, report.ChipID, report.ReportedTCB)
-	if err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "fetch VCEK: "+err.Error(), err)
-	}
-	if err := verifyAMDChain(vcek, v.cfg.AMDRootPEM); err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "AMD chain ("+product+"): "+err.Error(), err)
-	}
-	if err := verifySEVReportSignature(report, vcek); err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "report signature: "+err.Error(), err)
-	}
-	if report.SignatureAlgo != 1 || report.SigningKey != 0 {
-		return nil, integrity(shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("report signed with algorithm %d by key kind %d; this verifier accepts ECDSA P-384 (1) by the VCEK (0)", report.SignatureAlgo, report.SigningKey), nil)
-	}
-	if report.Policy&sevPolicyDebug != 0 {
-		return nil, integrity(shared_errors.CodeAttestationDenied, "guest policy allows DEBUG — the hypervisor can read this guest's memory", nil)
-	}
-	if report.VMPL != 0 {
-		return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("report requested at VMPL %d, expected 0", report.VMPL), nil)
-	}
-	if report.ReportedTCB < v.cfg.MinReportedTCB {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, fmt.Sprintf("ReportedTCB %d below minimum %d", report.ReportedTCB, v.cfg.MinReportedTCB), nil)
-	}
-
-	// The vTPM: the attestation key the chip named signs the challenge.
-	ak, err := h.attestationKey()
-	if err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, err.Error(), err)
-	}
-	quote, err := parseTPMQuote(env.QuoteMessage)
-	if err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote: "+err.Error(), err)
-	}
-	if err := verifyTPMQuoteSignature(ak, env.QuoteMessage, env.QuoteSignature); err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote: "+err.Error(), err)
-	}
 	challenge := tpmQuoteExtraDataFor(nonce)
-	if !bytes.Equal(quote.ExtraData, challenge[:]) {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote does not bind challenger nonce (replay?)", nil)
-	}
-	if len(v.cfg.AcceptablePCRDigests) > 0 {
-		pinned := false
-		for _, d := range v.cfg.AcceptablePCRDigests {
-			if bytes.Equal(d, quote.PCRDigest) {
-				pinned = true
-				break
-			}
-		}
-		if !pinned {
-			return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("PCR digest %x is not in the acceptable set: the boot measured into the vTPM is not one the policy names", quote.PCRDigest), nil)
-		}
-	}
 
 	// The GPU: NVIDIA's tokens for the same challenge — unless the policy
 	// rests the verdict on this verifier's own evaluation alone.
@@ -625,55 +464,12 @@ func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPU
 	}
 
 	// The pin.
-	m, err := MeasurementFromBytes(report.Measurement[:])
-	if err != nil {
-		return nil, integrity(shared_errors.CodeSignatureInvalid, "unexpected MEASUREMENT length: "+err.Error(), err)
-	}
-	matched := false
-	for _, a := range v.acceptable {
-		if a.Equal(m) {
-			matched = true
-			break
-		}
-	}
-	if !matched {
-		return nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("MEASUREMENT %x not in acceptable set", m), nil)
-	}
-	return &AzureCGPUVerdict{Measurement: m, Product: product, ChipID: report.ChipID, ReportedTCB: report.ReportedTCB,
-		PCRSelections: quote.PCRSelections, PCRDigest: quote.PCRDigest, GPUs: gpus, Evaluations: evaluations}, nil
-}
-
-// fetchVCEK is the GCP verifier's cache, per product.
-func (v *AzureCGPUVerifier) fetchVCEK(product string, chipID [64]byte, tcb uint64) ([]byte, error) {
-	key := fmt.Sprintf("%s-%x-%d", strings.ToLower(product), chipID, tcb)
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if c, ok := v.vcekCache[key]; ok {
-		return c, nil
-	}
-	var file string
-	if v.cfg.VCEKCacheDir != "" {
-		file = filepath.Join(v.cfg.VCEKCacheDir, key+".der")
-		if c, err := os.ReadFile(file); err == nil && len(c) > 0 {
-			v.vcekCache[key] = c
-			return c, nil
-		}
-	}
-	cert, err := amdKDSGetVCEKFor(v.cfg.AMDKDSURL, product, chipID, tcb)
+	m, err := azureAcceptMeasurement(string(ProviderAzureCGPU), report, v.acceptable)
 	if err != nil {
 		return nil, err
 	}
-	v.vcekCache[key] = cert
-	if file != "" {
-		_ = writeFileAtomic(file, cert)
-	}
-	return cert, nil
-}
-
-// amdKDSGetVCEKFor fetches a VCEK from AMD KDS for a product; a var so
-// tests run without network.
-var amdKDSGetVCEKFor = func(baseURL, product string, chipID [64]byte, reportedTCB uint64) ([]byte, error) {
-	return realAMDKDSGetVCEKFor(baseURL, product, chipID, reportedTCB)
+	return &AzureCGPUVerdict{Measurement: m, Product: product, ChipID: report.ChipID, ReportedTCB: report.ReportedTCB,
+		PCRSelections: quote.PCRSelections, PCRDigest: quote.PCRDigest, GPUs: gpus, Evaluations: evaluations}, nil
 }
 
 // azureCGPUCapability: the vTPM, tpm2-tools and an NVIDIA device.

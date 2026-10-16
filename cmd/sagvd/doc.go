@@ -64,7 +64,9 @@
 //   - http_api.bearer_token     optional Bearer token for POST /v1/jobs
 //   - tee.provider              "gcp-sev-snp" (the chip signs, reports through
 //     configfs-tsm), "gcp-tdx" (a TDX quote through configfs-tsm; the
-//     measurement is SHA-384 of MRTD and RTMR0..3, ADR 0018), "azure-cgpu"
+//     measurement is SHA-384 of MRTD and RTMR0..3, ADR 0018), "azure-sev-snp"
+//     (an Azure SEV-SNP Confidential VM: the chip's report from the vTPM's
+//     HCL report, bound to the nonce by a TPM quote), "azure-cgpu"
 //     (an Azure confidential GPU VM: the SEV-SNP report from the vTPM, a
 //     TPM quote binding the challenge, NVIDIA's tokens for the H100;
 //     gpu_attest_command required, ADR 0019) or "simulated"

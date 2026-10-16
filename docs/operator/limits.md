@@ -14,6 +14,7 @@ or its evidence directory); what has not been measured is said so.
 | Handshake, builtin verifiers | 219 ms sagvd / 220 ms worker on one n2d (the first handshake fetches the VCEK from KDS; later ones read the cache) | C31 |
 | Handshake, delegated to a Verifier on another VM | 145 ms / 146 ms, mutual TLS by name | C31 |
 | Evidence on the wire | 7980 bytes each way for SEV-SNP (the 1184-byte report with the host's certificate table); 10704 bytes for TDX | C31, wire 1.1 |
+| Handshake and evidence, Azure SEV-SNP (`azure-sev-snp`) | 104 ms on a DC4as_v5 with both daemons on it; 4515 bytes each way (the vTPM's 2900-byte HCL report and the TPM quote) | C36 |
 | Authority lost, the same authority back on a fresh chip | 49–50 s from a standby with the runtime in place | C28 |
 | Air-gapped, from caches filled while connected | the same flow, no route; the VCEK cache good for seven years | C29 |
 | Sustained: one host, three workers, an hour | 40.4 jobs a minute on TDX, 26.7 on SEV-SNP (the chip's throttle, below); every job EXACT, nothing refused or failed, the hour's audit log one verified chain | C33 (the soak, below) |

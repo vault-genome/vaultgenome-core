@@ -41,6 +41,9 @@ const (
 	// (the chip's report, the vTPM quote, NVIDIA's tokens), provisional
 	// until it travels as a CMW collection.
 	MediaTypeAzureCGPUEvidence = "application/vnd.vault-genome.azure-cgpu-evidence"
+	// MediaTypeAzureSEVSNPEvidence is the Azure SEV-SNP chip-and-vTPM
+	// envelope (azure_sev_snp.go): the HCL report and the TPM quote.
+	MediaTypeAzureSEVSNPEvidence = "application/vnd.vault-genome.azure-sev-snp-evidence"
 	// MediaTypeSGXQuote is a DCAP quote (azure-sgx, intel-sgx-dcap),
 	// provisional.
 	MediaTypeSGXQuote = "application/vnd.vault-genome.sgx-quote"
@@ -59,6 +62,8 @@ func EvidenceMediaType(p Provider) (string, error) {
 		return MediaTypeSimulatedEvidence, nil
 	case ProviderAzureCGPU:
 		return MediaTypeAzureCGPUEvidence, nil
+	case ProviderAzureSEVSNP:
+		return MediaTypeAzureSEVSNPEvidence, nil
 	case ProviderAzureSGX, ProviderIntelSGXDCAP:
 		return MediaTypeSGXQuote, nil
 	case ProviderAWSNitro:

@@ -351,6 +351,8 @@ func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 		return tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})
 	case string(tee.ProviderGCPTDX):
 		return tee.NewGCPTDXProducer(tee.GCPTDXProducerConfig{TSMReportDir: cfg.TSMReportDir})
+	case string(tee.ProviderAzureSEVSNP):
+		return tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
 	case string(tee.ProviderAzureCGPU):
 		return tee.NewAzureCGPUProducer(tee.AzureCGPUProducerConfig{GPUAttestCommand: cfg.GPUAttestCommand, TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
 	case string(tee.ProviderSimulated):

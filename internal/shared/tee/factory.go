@@ -66,6 +66,13 @@ const (
 	// the chip named, and NVIDIA's signed attestation tokens for the GPU.
 	// See azure_cgpu.go.
 	ProviderAzureCGPU Provider = "azure-cgpu"
+
+	// ProviderAzureSEVSNP is the Azure Confidential VM on AMD SEV-SNP
+	// without a GPU (DCasv5, ECasv5 and their kin): the SEV-SNP report from
+	// the vTPM's HCL report bound to a caller's nonce through a TPM quote by
+	// the attestation key the chip named — azure-cgpu without the GPU half.
+	// See azure_sev_snp.go.
+	ProviderAzureSEVSNP Provider = "azure-sev-snp"
 )
 
 // AllProviders returns every Provider compiled into this binary, in
@@ -79,6 +86,7 @@ func AllProviders() []Provider {
 		ProviderIntelSGXDCAP,
 		ProviderGCPTDX,
 		ProviderAzureCGPU,
+		ProviderAzureSEVSNP,
 	}
 }
 
@@ -129,12 +137,13 @@ type ProducerSpec struct {
 
 	// AWS Nitro / Azure / GCP / Intel-specific configuration. Each backend
 	// inspects only its own fields.
-	AWSNitro  AWSNitroProducerConfig
-	AzureSGX  AzureSGXProducerConfig
-	GCPSEV    GCPSEVProducerConfig
-	IntelSGX  IntelSGXProducerConfig
-	GCPTDX    GCPTDXProducerConfig
-	AzureCGPU AzureCGPUProducerConfig
+	AWSNitro    AWSNitroProducerConfig
+	AzureSGX    AzureSGXProducerConfig
+	GCPSEV      GCPSEVProducerConfig
+	IntelSGX    IntelSGXProducerConfig
+	GCPTDX      GCPTDXProducerConfig
+	AzureCGPU   AzureCGPUProducerConfig
+	AzureSEVSNP AzureSEVSNPProducerConfig
 }
 
 // VerifierSpec is the verifier-side counterpart to ProducerSpec.
@@ -150,12 +159,13 @@ type VerifierSpec struct {
 	// Mismatches return Integrity errors.
 	ExpectedMeasurement Measurement
 
-	AWSNitro  AWSNitroVerifierConfig
-	AzureSGX  AzureSGXVerifierConfig
-	GCPSEV    GCPSEVVerifierConfig
-	IntelSGX  IntelSGXVerifierConfig
-	GCPTDX    GCPTDXVerifierConfig
-	AzureCGPU AzureCGPUVerifierConfig
+	AWSNitro    AWSNitroVerifierConfig
+	AzureSGX    AzureSGXVerifierConfig
+	GCPSEV      GCPSEVVerifierConfig
+	IntelSGX    IntelSGXVerifierConfig
+	GCPTDX      GCPTDXVerifierConfig
+	AzureCGPU   AzureCGPUVerifierConfig
+	AzureSEVSNP AzureSEVSNPVerifierConfig
 }
 
 // BuildProducer constructs a Producer for the given Provider. This is the
@@ -191,6 +201,8 @@ func BuildProducer(spec ProducerSpec) (Producer, error) {
 		return NewGCPTDXProducer(spec.GCPTDX)
 	case ProviderAzureCGPU:
 		return NewAzureCGPUProducer(spec.AzureCGPU)
+	case ProviderAzureSEVSNP:
+		return NewAzureSEVSNPProducer(spec.AzureSEVSNP)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -222,6 +234,8 @@ func BuildVerifier(spec VerifierSpec) (Verifier, error) {
 		return NewGCPTDXVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.GCPTDX)
 	case ProviderAzureCGPU:
 		return NewAzureCGPUVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.AzureCGPU)
+	case ProviderAzureSEVSNP:
+		return NewAzureSEVSNPVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.AzureSEVSNP)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -262,6 +276,8 @@ func Capability(p Provider) (available bool, reason string) {
 		return gcpTDXCapability()
 	case ProviderAzureCGPU:
 		return azureCGPUCapability()
+	case ProviderAzureSEVSNP:
+		return azureSEVSNPCapability()
 	default:
 		return false, fmt.Sprintf("unknown provider %q", p)
 	}

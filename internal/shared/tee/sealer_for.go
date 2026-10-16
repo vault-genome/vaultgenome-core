@@ -84,7 +84,7 @@ func SealerKindForProvider(p Provider, mode SealerMode) (SealerKind, error) {
 		return SealerKindSimulated, nil
 	case ProviderGCPSEVSNP:
 		return SealerKindSEVDerivedKey, nil
-	case ProviderGCPTDX, ProviderAzureCGPU:
+	case ProviderGCPTDX, ProviderAzureCGPU, ProviderAzureSEVSNP:
 		if mode == SealerModeTEE {
 			return "", shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
 				fmt.Sprintf("tee.sealer=tee: %s gives the guest no sealing key of its own; its TPM 2.0 is the sealer — set tee.sealer to tpm2 or auto (ADR 0022)", p), nil)
@@ -107,6 +107,8 @@ func providerOf(p Producer) (Provider, bool) {
 		return ProviderGCPTDX, true
 	case *AzureCGPUProducer:
 		return ProviderAzureCGPU, true
+	case *AzureSEVSNPProducer:
+		return ProviderAzureSEVSNP, true
 	default:
 		return "", false
 	}

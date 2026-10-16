@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1967,6 +1967,85 @@ drill's choice, not a recommendation. The limits of the GPU leg stand
 
 ---
 
+<a id="c36"></a>
+
+### C36 — The Return Path on a real Azure SEV-SNP Confidential VM: both daemons attest as azure-sev-snp with the chip's report from the vTPM and a TPM quote, the gate job EXACT, a thief's copy of the sealed key files no key off this vTPM, a worker of another attestation refused by evidence type, the audit log verified
+
+**Claim.** On one `Standard_DC4as_v5` in West Europe (an EPYC Genoa, the
+product read from the report's CPUID family and model), `sagvd` and
+`acp-compute` attested as `azure-sev-snp` (ADR 0025, plan item 4): the
+HCL report of 2900 bytes read from the vTPM's NV index `0x1400001` —
+there is no `/dev/sev-guest` on the guest — the launch measurement
+`11920f61…91c4` pinned by each side (Azure's paravisor and firmware
+measurement for the generation: the same value the NCC H100 v5 standby of
+[C18](#c18) carries), the Genoa chain fetched from AMD KDS and verified
+against the pinned roots, every key file sealed to the vTPM (`tpm2`: five
+of the authority's, two of the worker's). The worker's handshake took
+104 ms, its evidence 4515 bytes under
+`application/vnd.vault-genome.azure-sev-snp-evidence`; the admitting
+`TRUST_EVALUATED` record carries the product, the chip id, the reported
+TCB and the quote's PCR selection and digest (`a095d0f4…b1b3` over
+`sha256:0–14`, which `identity` had printed as this boot's). The gate job
+came back EXACT seven seconds after submission (6 fixtures,
+`max_abs_err` 0). A rogue with the worker's sealed key files and the
+simulated TEE was refused before any key was read (*sealed to
+azure-sev-snp, this host is simulated*); a rogue with the plaintext
+copies and the simulated attestation was refused at the handshake by
+evidence type (`application/vnd.vault-genome.simulated-evidence` is not
+the pinned family's), on the record. Seventeen audit events on one chain,
+verified under the published key. The guest script took 137 s end to end.
+
+**Evidence.**
+[`scripts/hardware-test/azure-sev-snp/returnpath-e2e/evidence/20261016T215807Z/`](scripts/hardware-test/azure-sev-snp/returnpath-e2e/evidence/20261016T215807Z/)
+— `steps.txt` (`hcl nvread exit=0 bytes=2900`, `product=genoa`,
+`vault_measurement=11920f61…`, `sagvd seal-keys exit=0 sealer=tpm2 …`,
+`rogue with the sealed files exit=1 sealed to azure-sev-snp, this host is
+simulated`, `rogue refused after 1s`, `session opened after 0s`, `job
+status=succeeded after 7s`, `gate_level=EXACT … fixtures=6 n_exact=6
+max_abs_err=0`, `audit verify exit=0`, `elapsed_seconds=137.2`),
+`vtpm.txt` (`/dev/tpmrm0`, the NV index, no `/dev/sev-guest`),
+`product.txt`, `metadata.txt` (`westeurope`, `Standard_DC4as_v5`),
+`sagvd-identity.json` and `acp-compute-identity.json` (`tee_provider:
+azure-sev-snp`, `tee_measurement_hex`, `sealer: tpm2`,
+`vtpm.pcr_digest_hex`), `seal-keys-sagvd.json`, `seal-keys-worker.json`,
+`sealed-files.txt`, `rogue-sealed-worker.log`, `rogue-worker.log`,
+`sagvd.log` (`sagvd session opened` with `handshake_ms`,
+`peer_evidence_type`, `peer_evidence_bytes`, `peer_product`,
+`peer_pcrs`; the `handshake failed` line for the rogue), `job.json`,
+`audit-verify.json` (`ok: true`, `event_count: 17`, tip `d9572ff1…a02d`),
+`audit-events.jsonl` (the admitting `TRUST_EVALUATED` with
+`peer_detail`), `amd-chain.txt`, `inputs.sha256`, `versions.txt`,
+`sha256sums.txt`, `runner-guest.log`. The binaries were built from this
+branch at the kit's commit (`c917d553` before the rebase onto main, the
+same tree as `89244f2` after it; the `-dirty` mark is the changelog
+being edited beside it). The kit:
+[`scripts/hardware-test/azure-sev-snp/returnpath-e2e/`](scripts/hardware-test/azure-sev-snp/returnpath-e2e/);
+the provider: `internal/shared/tee/azure_sev_snp.go` and
+`azure_vtpm.go`; the runbook:
+[`docs/operator/runbooks/real-tee-azure-sev-snp.md`](docs/operator/runbooks/real-tee-azure-sev-snp.md).
+
+**Reproduce:**
+
+```bash
+az login
+scripts/hardware-test/azure-sev-snp/returnpath-e2e/run.sh vg-asnp-weu westeurope   # ~15 min, one Standard_DC4as_v5
+```
+
+**Scope.** One VM carrying both daemons, so each pins the other's
+measurement and the two are the same value; a fleet pins each side's
+own. The report is issued at boot and its REPORT_DATA is Azure's; the
+handshake's freshness is the TPM quote's, under the attestation key the
+report names. The PCR digest was recorded, not pinned (`pcr_digests`
+empty in this run). The chain came from AMD KDS, not from Azure's THIM.
+A DC4as_v5 in West Europe was Genoa that day and East US Milan on
+2026-09-14; the kit reads the product from the report, and a verifier
+configured with the other product's chain refuses. The gate is the e2e
+kits' tiny model through the pinned-replay door, as on GCP
+([C31](#c31) scope); the 0.5B and 32B gates on Azure are the GPU host's
+([C17](#c17), [C26](#c26)).
+
+---
+
 ---
 
 ## Supply chain and build
@@ -2130,7 +2209,8 @@ sentence we cannot defend.
    has taken one key release, once, at 0.5B.
 4. **We do not claim Nitro or SGX verification.** SEV-SNP and Intel TDX only
    ([C15](#c15)). Adapter dispatch for others exists (ADR 0002); the offline
-   verifiers do not. A TDX host and an Azure confidential GPU host seal
+   verifiers do not. A TDX host and an Azure host — a confidential GPU VM
+   or an SEV-SNP Confidential VM without a GPU — seal
    the escrow key to their vTPM (ADR 0022) — a root the cloud provider
    virtualises inside the confidential VM, not the TEE's own; an operator
    who does not accept that root has no sealed escrow key on those hosts.

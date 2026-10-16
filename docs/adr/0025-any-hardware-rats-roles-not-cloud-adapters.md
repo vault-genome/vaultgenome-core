@@ -206,7 +206,10 @@ with its own endorsement store.
    certificate to the TPM vendor's root, appraised against a PCR policy —
    the floor for a server without a TEE.
 4. **`azure-sev-snp`**: the azure-cgpu adapter without the GPU half; the
-   kit of 2026-10-15 already proves the capture.
+   kit of 2026-10-15 already proves the capture. Done 2026-10-16: the
+   chip-and-vTPM half is one piece of code for both families
+   (`internal/shared/tee/azure_vtpm.go`), `azure-sev-snp` is one row of
+   every table, and the three daemons accept it.
 5. **Reference values as CoRIM** for the delegated mode; TDX and Nitro
    schemes contributed upstream so that the delegated mode covers them.
 
