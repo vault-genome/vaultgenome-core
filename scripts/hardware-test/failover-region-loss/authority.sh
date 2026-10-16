@@ -1,4 +1,5 @@
 #!/bin/bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Startup script for the AUTHORITY of the region-loss drill, a GCP AMD

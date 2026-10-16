@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # The region-loss drill: the continuity drill with the failure that gives no
@@ -94,7 +95,7 @@ wait_marker() { # wait_marker <leg> <minutes> [poll seconds]
 
 echo "build sagvd, acp-bootstrap, acpctl, keygen (linux/amd64); pack workers/genome"
 ( cd "$ROOT" && for b in sagvd acp-bootstrap acpctl; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
-( cd "$ROOT/deploy/compose/keygen" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" . )
+( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
 COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt examples
 curl -fsSL "$PKG_URL" -o "$BUILD/cgpu-onboarding-package.tar.gz"; echo "$PKG_SHA  $BUILD/cgpu-onboarding-package.tar.gz" | shasum -a 256 -c - >/dev/null
 
