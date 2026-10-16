@@ -22,7 +22,39 @@ import (
 	"strings"
 
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
+
+// produceRecord quotes the local TEE over the challenge and makes the
+// record the handshake puts on the wire: the family's message under its
+// media type — for the configfs-tsm families the TSM report, the auxblob
+// the kernel showed beside the report inside it — marked as Evidence.
+// side names the role in the failure, as the handshake always has.
+func produceRecord(p tee.Provider, producer tee.Producer, challenge tee.Nonce, side string) (CMWRecord, error) {
+	ev, aux, err := tee.QuoteWithAux(producer, challenge)
+	if err != nil {
+		return CMWRecord{}, shared_errors.Authority(
+			CodeHandshakeFailure,
+			"returnpath/transport: "+side+" TEE quote generation failed",
+			err,
+		)
+	}
+	mediaType, value, err := tee.WrapEvidence(p, ev, aux)
+	if err != nil {
+		return CMWRecord{}, err
+	}
+	return NewEvidenceRecord(mediaType, value)
+}
+
+// unwrapRecord takes a peer's record back to the Evidence the verifier
+// of family p reads, refusing a record that is not Evidence or not of p.
+func unwrapRecord(p tee.Provider, r CMWRecord) (tee.Evidence, error) {
+	if !r.IsEvidence() {
+		return nil, cmwErr(fmt.Sprintf("indicator %d does not say Evidence", r.Ind), nil)
+	}
+	ev, _, err := tee.UnwrapEvidence(p, r.Type, r.Value)
+	return ev, err
+}
 
 // CMWIndEvidence is the indicator bit for Evidence (RFC 9999 §3.1.1,
 // cm-type evidence = 2).

@@ -183,7 +183,8 @@ func (f *daemonFixture) worker(ctx context.Context, answer func(genomeID string)
 func (f *daemonFixture) workerConn(ctx context.Context, conn net.Conn, reconstruct func(genomeID string) ([]byte, error)) error {
 	f.t.Helper()
 	sess, err := client.Dial(client.SessionConfig{
-		Conn: conn, Producer: f.workerSim, Verifier: tee.NewSimulatedVerifier(f.vaultSim.PublicKey(), f.vaultSim.Measurement()), Clock: f.clock,
+		Conn: conn, Producer: f.workerSim, LocalProvider: tee.ProviderSimulated,
+		Verifier: tee.NewSimulatedVerifier(f.vaultSim.PublicKey(), f.vaultSim.Measurement()), PeerProvider: tee.ProviderSimulated, Clock: f.clock,
 		Reconstructor: reconstructorFunc(func(_ rjm.ReconstructionJobManifest, comps []worker.ComponentMaterial) ([]byte, error) {
 			desc, err := gatejob.DecodeDescriptor(comps[0].Plaintext)
 			if err != nil {

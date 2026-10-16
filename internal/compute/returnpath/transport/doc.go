@@ -56,12 +56,25 @@
 //     context.
 //  3. ATTEST_CLIENT   (client → server): client's TEE evidence
 //     covering the server's challenge.
+//
+// Since wire 1.1 (ADR 0025, step 2) each evidence field is a RATS
+// Conceptual Message Wrapper record (RFC 9999 §3.1, JSON form): the
+// media type of the family's Evidence, its bytes, and the indicator
+// saying Evidence. The configfs-tsm families (SEV-SNP, TDX) send the
+// TSM report ratsd defines — the kernel's outblob, the auxblob beside
+// it (on SEV-SNP the certificate table the host wrote) and the
+// provider's name — under application/vnd.veraison.tsm-report+json;
+// the other families send their bytes under a provisional type of
+// ours. A record whose type is not the configured peer family's is
+// refused before any verifier runs; the builtin verifier reads the
+// outblob, as it always has.
 //  4. SESSION_READY   (server → client): both TEE evidences verified;
 //     from this frame onward every frame is authenticated with the
 //     handshake-derived HMAC-SHA-256 MAC key (see session.go).
 //
-// In Phase 1 the TEE evidence comes from a simulated backend — a
-// real-hardware swap is Phase 3 and requires zero protocol changes.
+// The simulated backend and the hardware producers (internal/shared/tee)
+// speak the same wire; which family a side is, and which it expects, is
+// configuration (HandshakeConfig.LocalProvider and PeerProvider).
 // The MAC key is derived from both nonces plus the session-derivation
 // context via HKDF-SHA-256; both sides compute the same key
 // independently, so the key itself never appears on the wire.
@@ -89,10 +102,13 @@
 //
 // The wire-format shape (MAGIC, LEN layout, canonical-JSON payload,
 // the eleven body discriminators, the handshake sequence) is frozen
-// for wire-version v1.0. Any incompatible change — a new mandatory
-// field in a body, a new frame type the receiver can't ignore, a
-// change in the MAC construction — requires a wire-version bump in
-// MAGIC and an amendment to docs/internal/phase1-v2-plan.md §3.
+// for wire-version v1.1 — 1.0 carried Evidence as bare bytes whose
+// format the peer's configuration implied; 1.1 (2026-10-16) carries it
+// as a CMW record, and a 1.0 peer is refused at the first frame with
+// both versions in the reason. Any incompatible change — a new
+// mandatory field in a body, a new frame type the receiver can't
+// ignore, a change in the MAC construction — requires a wire-version
+// bump in MAGIC, a CHANGELOG entry and the ADR that decided it.
 //
 // Compatibility-preserving changes (new optional fields, new codes
 // inside ErrorEnvelope, new non-mandatory body fields that default

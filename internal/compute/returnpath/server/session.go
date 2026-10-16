@@ -61,6 +61,12 @@ type SessionConfig struct {
 	// measurement is a handshake-authority hole. Required.
 	Verifier tee.Verifier
 
+	// LocalProvider is the family of Producer's Evidence; PeerProvider the
+	// family Verifier reads (the CMW record on the wire names it). Both
+	// required.
+	LocalProvider tee.Provider
+	PeerProvider  tee.Provider
+
 	// Clock provides the timestamps baked into SessionReady and any
 	// Shutdown frames the Session emits. Optional; defaults to
 	// SystemClock.
@@ -196,6 +202,8 @@ func Accept(cfg SessionConfig) (*Session, error) {
 		Conn:              cfg.Conn,
 		Producer:          cfg.Producer,
 		Verifier:          cfg.Verifier,
+		LocalProvider:     cfg.LocalProvider,
+		PeerProvider:      cfg.PeerProvider,
 		Clock:             cfg.Clock,
 		DerivationContext: cfg.DerivationContext,
 	})

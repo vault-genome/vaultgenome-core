@@ -13,6 +13,7 @@ package returnpath_test
 import (
 	"context"
 	"errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	"net"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func loopbackPair(t *testing.T) (clientConn, serverConn net.Conn) {
 // returns the MAC-authenticated connection. It runs in a goroutine, so it
 // reports rather than fails.
 func rawPeer(peers *integrationPeers, role transport.Role, conn net.Conn) (*transport.Conn, error) {
-	cfg := transport.HandshakeConfig{Role: role, Conn: conn, Clock: peers.clock}
+	cfg := transport.HandshakeConfig{LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated, Role: role, Conn: conn, Clock: peers.clock}
 	if role == transport.RoleClient {
 		cfg.Producer, cfg.Verifier, cfg.ProposedChallenge = peers.clientProducer, peers.clientVerifier, []byte("raw-peer-challenge")
 	} else {
@@ -76,6 +77,7 @@ func rawPeer(peers *integrationPeers, role transport.Role, conn net.Conn) (*tran
 
 func clientConfig(peers *integrationPeers, conn net.Conn, recon worker.Reconstructor, opener client.Opener) client.SessionConfig {
 	return client.SessionConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Conn: conn, Producer: peers.clientProducer, Verifier: peers.clientVerifier, Clock: peers.clock,
 		Reconstructor: recon, Signer: peers.workerStore, SigningKeyID: peers.workerSigningKeyID,
 		SigningPurpose: keys.PurposeSigningAuthority, Opener: opener,
@@ -85,6 +87,7 @@ func clientConfig(peers *integrationPeers, conn net.Conn, recon worker.Reconstru
 
 func serverConfig(peers *integrationPeers, conn net.Conn) server.SessionConfig {
 	return server.SessionConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Conn: conn, Producer: peers.serverProducer, Verifier: peers.serverVerifier, Clock: peers.clock,
 		WorkerKeyResolver: peers.resolver, HandshakeTimeout: integrationTimeout,
 	}

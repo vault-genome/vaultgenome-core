@@ -96,6 +96,12 @@ type SessionConfig struct {
 	// Verifier verifies the server's TEE evidence. Required.
 	Verifier tee.Verifier
 
+	// LocalProvider is the family of Producer's Evidence; PeerProvider the
+	// family Verifier reads (the CMW record on the wire names it). Both
+	// required.
+	LocalProvider tee.Provider
+	PeerProvider  tee.Provider
+
 	// NonceReader supplies entropy for the client nonce. Optional;
 	// defaults to crypto/rand.Reader inside the handshake.
 	NonceReader io.Reader
@@ -234,6 +240,8 @@ func Dial(cfg SessionConfig) (*Session, error) {
 		Conn:              cfg.Conn,
 		Producer:          cfg.Producer,
 		Verifier:          cfg.Verifier,
+		LocalProvider:     cfg.LocalProvider,
+		PeerProvider:      cfg.PeerProvider,
 		NonceReader:       cfg.NonceReader,
 		Clock:             cfg.Clock,
 		ProposedChallenge: cfg.ProposedChallenge,

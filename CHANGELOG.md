@@ -11,6 +11,26 @@ given release can still open.
 
 ## [Unreleased]
 
+### Changed
+
+- **Return Path wire 1.1: Evidence names its format (ADR 0025, step
+  2a).** The two evidence fields of the handshake (`server_evidence`,
+  `client_evidence`) are RATS Conceptual Message Wrapper records
+  (RFC 9999 §3.1, the json-record): the media type of the family's
+  Evidence, its bytes as base64url, the indicator saying Evidence. The
+  configfs-tsm families (SEV-SNP, TDX) send the TSM report ratsd defines
+  and Veraison accepts — the kernel's outblob, the auxblob it shows
+  beside the report (on SEV-SNP the certificate table the host wrote,
+  the VCEK among them; the producers now read it) and the provider's
+  name — as `application/vnd.veraison.tsm-report+json`; the other
+  families send their bytes under a provisional
+  `application/vnd.vault-genome.*` type. A record whose type is not the
+  configured peer family's, or a TSM report of another provider, is
+  refused by name before any verifier runs; the builtin verifiers read
+  the outblob as before. A 1.0 peer is refused at the first frame with
+  both versions in the reason. Each side's family is required in the
+  handshake configuration (`auto` resolves before it).
+
 ## [0.4.3] — 2026-10-16
 
 The release that runs with no route. A host that will be air-gapped

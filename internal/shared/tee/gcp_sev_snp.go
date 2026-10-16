@@ -241,14 +241,21 @@ func NewGCPSEVSealer(device *os.File, measure Measurement, policy uint64) *GCPSE
 // Producer / Verifier / Sealer
 // ----------------------------------------------------------------------------
 
-// Quote implements Producer. Requests a report with
-// REPORT_DATA = SHA-256(nonce) || zeros(32) and returns the raw report
-// bytes (1184 bytes) as Evidence. A report whose launch measurement
-// differs from the one read at construction is refused: the workload
-// this producer speaks for cannot change underneath it.
+// Quote implements Producer: the report alone.
 func (p *GCPSEVProducer) Quote(nonce Nonce) (Evidence, error) {
+	ev, _, err := p.QuoteWithAux(nonce)
+	return ev, err
+}
+
+// QuoteWithAux implements AuxblobProducer. Requests a report with
+// REPORT_DATA = SHA-256(nonce) || zeros(32) and returns the raw report
+// bytes (1184 bytes) as Evidence, with the certificate table configfs-tsm
+// showed beside it (nil when the host wrote none). A report whose launch
+// measurement differs from the one read at construction is refused: the
+// workload this producer speaks for cannot change underneath it.
+func (p *GCPSEVProducer) QuoteWithAux(nonce Nonce) (Evidence, []byte, error) {
 	if len(nonce) < NonceMinBytes {
-		return nil, shared_errors.Structural(
+		return nil, nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"gcp-sev: nonce must be at least NonceMinBytes",
 			nil,
@@ -257,7 +264,7 @@ func (p *GCPSEVProducer) Quote(nonce Nonce) (Evidence, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.tsm == nil {
-		return nil, shared_errors.Structural(
+		return nil, nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"gcp-sev: producer closed",
 			nil,
@@ -265,16 +272,16 @@ func (p *GCPSEVProducer) Quote(nonce Nonce) (Evidence, error) {
 	}
 	report, err := sevSNPGuestReport(p.tsm, nonce, p.cfg.VMPL)
 	if err != nil {
-		return nil, fmt.Errorf("gcp-sev: request report: %w", err)
+		return nil, nil, fmt.Errorf("gcp-sev: request report: %w", err)
 	}
 	if !Measurement(report.Measurement[:]).Equal(p.measurement) {
-		return nil, shared_errors.Integrity(
+		return nil, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
 			"gcp-sev: report carries a different launch measurement than this producer was started with",
 			nil,
 		)
 	}
-	return Evidence(report.Raw), nil
+	return Evidence(report.Raw), report.AuxBlob, nil
 }
 
 // Measurement returns the cached launch MEASUREMENT.
@@ -550,6 +557,11 @@ type sevSNPReport struct {
 	ReportedTCB uint64
 	ReportData  [64]byte
 
+	// AuxBlob is what configfs-tsm showed beside the report: the
+	// certificate table the host wrote (the VCEK among them); nil when
+	// it showed none. Not part of the report and not signed by it.
+	AuxBlob []byte
+
 	Policy        uint64 // guest policy; bit 19 = DEBUG
 	VMPL          uint32 // privilege level the report was requested at
 	SignatureAlgo uint32 // 1 = ECDSA P-384 with SHA-384
@@ -571,7 +583,7 @@ var sevSNPGuestReport = func(tsm tsmReporter, nonce []byte, vmpl uint32) (*sevSN
 	var reportData [64]byte
 	prefix := computeReportDataPrefix(nonce)
 	copy(reportData[:], prefix[:])
-	raw, err := tsm.report(reportData, vmpl)
+	raw, aux, err := tsm.report(reportData, vmpl)
 	if err != nil {
 		return nil, err
 	}
@@ -582,6 +594,7 @@ var sevSNPGuestReport = func(tsm tsmReporter, nonce []byte, vmpl uint32) (*sevSN
 	if report.ReportData != reportData {
 		return nil, errors.New("report does not carry the requested REPORT_DATA")
 	}
+	report.AuxBlob = aux
 	return report, nil
 }
 

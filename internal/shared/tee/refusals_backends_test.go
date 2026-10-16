@@ -709,20 +709,21 @@ func TestGCPSEVVerifierRefusesEachDefectAfterTheSignature(t *testing.T) {
 type scriptedTSM struct {
 	reports [][]byte
 	errs    []error
+	aux     []byte // shown beside every report, as the certificate table is
 	calls   int
 }
 
-func (s *scriptedTSM) report(reportData [64]byte, _ uint32) ([]byte, error) {
+func (s *scriptedTSM) report(reportData [64]byte, _ uint32) ([]byte, []byte, error) {
 	i := s.calls
 	s.calls++
 	if i < len(s.errs) && s.errs[i] != nil {
-		return nil, s.errs[i]
+		return nil, nil, s.errs[i]
 	}
 	raw := append([]byte(nil), s.reports[i]...)
 	if len(raw) >= sevReportLen && raw[0] != 0xFF {
 		copy(raw[sevOffReportData:], reportData[:])
 	}
-	return raw, nil
+	return raw, s.aux, nil
 }
 
 func TestGCPSEVProducerRefusesReportsThatDoNotMatchItsLaunch(t *testing.T) {
@@ -1023,7 +1024,7 @@ func TestTSMConfigfsOnARealDirectoryAndWithFailingFiles(t *testing.T) {
 
 	var reportData [64]byte
 	run := func(fs tsmFS, privlevel uint32) error {
-		_, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report(reportData, privlevel)
+		_, _, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report(reportData, privlevel)
 		return err
 	}
 	base := func() *scriptedTSMFS {

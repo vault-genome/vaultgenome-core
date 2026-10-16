@@ -68,6 +68,9 @@ const (
 // tdxQuote is a parsed TDX quote.
 type tdxQuote struct {
 	Raw []byte
+	// AuxBlob is what configfs-tsm showed beside the quote. tdx_guest
+	// shows none today, so it is nil; carried for the day it does.
+	AuxBlob []byte
 
 	Version       uint16
 	AttKeyType    uint16

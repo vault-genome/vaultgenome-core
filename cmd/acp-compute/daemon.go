@@ -242,6 +242,8 @@ func (d *Daemon) runOnce(parent context.Context) (retErr error) {
 		Conn:             conn,
 		Producer:         d.mat.Producer,
 		Verifier:         d.mat.Verifier,
+		LocalProvider:    d.mat.Provider,
+		PeerProvider:     d.mat.PeerProvider,
 		Clock:            d.clock,
 		Reconstructor:    d.recon,
 		Signer:           d.mat.Store,

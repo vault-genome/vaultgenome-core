@@ -70,6 +70,14 @@ type HandshakeConfig struct {
 	// handshake-authority hole.
 	Verifier tee.Verifier
 
+	// LocalProvider is the family of Producer's Evidence — what the CMW
+	// record on the wire says it is (RFC 9999; tee.EvidenceMediaType).
+	// Required.
+	LocalProvider tee.Provider
+	// PeerProvider is the family Verifier reads: a record of any other
+	// type is refused before the verifier sees a byte. Required.
+	PeerProvider tee.Provider
+
 	// NonceReader is the entropy source for this side's nonce. Default
 	// is crypto/rand.Reader; tests may substitute a deterministic
 	// reader for reproducibility.
@@ -306,6 +314,18 @@ func validateConfig(cfg HandshakeConfig) error {
 			nil,
 		)
 	}
+	for _, f := range []struct {
+		name string
+		p    tee.Provider
+	}{{"LocalProvider", cfg.LocalProvider}, {"PeerProvider", cfg.PeerProvider}} {
+		if f.p == "" || f.p == tee.ProviderAuto {
+			return shared_errors.Structural(
+				CodeProtocolViolation,
+				"returnpath/transport: HandshakeConfig."+f.name+" must name a family (auto resolves before the handshake)",
+				nil,
+			)
+		}
+	}
 	return nil
 }
 
@@ -374,7 +394,15 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	// pre-binds the expected measurement so an attacker cannot
 	// substitute a valid quote from a different enclave.
 	serverChallenge := transcriptServerChallenge(clientNonce, cfg.ProposedChallenge)
-	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, tee.Evidence(hs.ServerEvidence), tee.Nonce(serverChallenge))
+	serverEvidence, err := unwrapRecord(cfg.PeerProvider, hs.ServerEvidence)
+	if err != nil {
+		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
+			CodeHandshakeFailure,
+			"returnpath/transport: server evidence is not what this client's verifier reads",
+			err,
+		))
+	}
+	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, serverEvidence, tee.Nonce(serverChallenge))
 	if err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
 			CodeHandshakeFailure,
@@ -389,15 +417,11 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	clientChallenge := transcriptClientChallenge(
 		clientNonce, hs.ServerNonce, hs.DerivationContext,
 	)
-	clientEv, err := cfg.Producer.Quote(tee.Nonce(clientChallenge))
+	clientRecord, err := produceRecord(cfg.LocalProvider, cfg.Producer, tee.Nonce(clientChallenge), "client")
 	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: client TEE quote generation failed",
-			err,
-		))
+		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
-	ac, err := NewAttestClient([]byte(clientEv))
+	ac, err := NewAttestClient(clientRecord)
 	if err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
@@ -463,15 +487,11 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		}
 	}
 	serverChallenge := transcriptServerChallenge(hc.ClientNonce, hc.ProposedChallenge)
-	serverEv, err := cfg.Producer.Quote(tee.Nonce(serverChallenge))
+	serverRecord, err := produceRecord(cfg.LocalProvider, cfg.Producer, tee.Nonce(serverChallenge), "server")
 	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: server TEE quote generation failed",
-			err,
-		))
+		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
-	hs, err := NewHelloServer(hc.ClientNonce, serverNonce, []byte(serverEv), derivationContext)
+	hs, err := NewHelloServer(hc.ClientNonce, serverNonce, serverRecord, derivationContext)
 	if err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
@@ -490,7 +510,15 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	clientChallenge := transcriptClientChallenge(
 		hc.ClientNonce, serverNonce, derivationContext,
 	)
-	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, tee.Evidence(ac.ClientEvidence), tee.Nonce(clientChallenge))
+	clientEvidence, err := unwrapRecord(cfg.PeerProvider, ac.ClientEvidence)
+	if err != nil {
+		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
+			CodeHandshakeFailure,
+			"returnpath/transport: client evidence is not what this server's verifier reads",
+			err,
+		))
+	}
+	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, clientEvidence, tee.Nonce(clientChallenge))
 	if err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
 			CodeHandshakeFailure,

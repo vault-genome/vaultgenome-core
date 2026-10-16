@@ -197,3 +197,27 @@ func UnwrapEvidence(p Provider, mediaType string, value []byte) (Evidence, []byt
 	}
 	return Evidence(t.OutBlob), t.AuxBlob, nil
 }
+
+// AuxblobProducer is a Producer whose report comes with auxiliary data
+// beside it: configfs-tsm's auxblob — on SEV-SNP the certificate table
+// the host wrote, the VCEK among them. The auxblob is not Evidence: no
+// verdict here depends on it, and the report does not sign it. It
+// travels with the report inside the TSM report on the wire
+// (WrapEvidence), so a Verifier that wants the certificates has them
+// without a round trip to the vendor.
+type AuxblobProducer interface {
+	Producer
+	// QuoteWithAux is Quote with the auxblob beside the Evidence; nil
+	// when the provider showed none.
+	QuoteWithAux(nonce Nonce) (Evidence, []byte, error)
+}
+
+// QuoteWithAux quotes with p and returns the auxblob when p has one; a
+// plain Producer gives none.
+func QuoteWithAux(p Producer, nonce Nonce) (Evidence, []byte, error) {
+	if ap, ok := p.(AuxblobProducer); ok {
+		return ap.QuoteWithAux(nonce)
+	}
+	ev, err := p.Quote(nonce)
+	return ev, nil, err
+}

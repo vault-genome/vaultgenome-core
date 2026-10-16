@@ -320,6 +320,8 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		Conn:              conn,
 		Producer:          d.mat.Producer,
 		Verifier:          d.mat.Verifier,
+		LocalProvider:     d.mat.Provider,
+		PeerProvider:      d.mat.PeerProvider,
 		Clock:             d.clock,
 		WorkerKeyResolver: d.mat.WorkerResolver,
 		HandshakeTimeout:  d.cfg.Runtime.HandshakeTimeout(),
