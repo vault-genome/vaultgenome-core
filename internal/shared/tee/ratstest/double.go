@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 )
 
 // SessionMediaType is the session document's media type.
@@ -52,6 +54,9 @@ type Server struct {
 	// TrustVector is the vector of an affirming result; nil gives
 	// hardware and runtime-opaque 2 (genuine, encrypted).
 	TrustVector map[string]int
+	// Clock is the Verifier's clock (sessions' expiry, the EAR's iat);
+	// nil means the system clock. A test advances it to expire sessions.
+	Clock shared_time.Clock
 
 	mu       sync.Mutex
 	sessions map[string]*session
@@ -98,6 +103,13 @@ func (s *Server) PublicJWK() []byte {
 	return b
 }
 
+func (s *Server) now() time.Time {
+	if s.Clock == nil {
+		return shared_time.NewSystemClock().Now()
+	}
+	return s.Clock.Now()
+}
+
 func (s *Server) ensureKey() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -133,11 +145,12 @@ func (s *Server) Handler() http.Handler {
 		if s.sessions == nil {
 			s.sessions = map[string]*session{}
 		}
-		s.sessions[sid] = &session{nonce: nonce, expires: time.Now().Add(5 * time.Minute)}
+		now := s.now()
+		s.sessions[sid] = &session{nonce: nonce, expires: now.Add(5 * time.Minute)}
 		s.mu.Unlock()
 		w.Header().Set("Location", "session/"+sid)
 		writeJSON(w, http.StatusCreated, map[string]any{"status": "waiting", "nonce": base64.URLEncoding.EncodeToString(nonce), "accept": s.Accept,
-			"expiry": time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339)})
+			"expiry": now.Add(5 * time.Minute).UTC().Format(time.RFC3339)})
 	})
 	mux.HandleFunc("POST /challenge-response/v1/session/{id}", func(w http.ResponseWriter, r *http.Request) {
 		s.count()
@@ -216,7 +229,7 @@ func (s *Server) lookup(id string) *session {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	se, ok := s.sessions[id]
-	if !ok || time.Now().After(se.expires) {
+	if !ok || s.now().After(se.expires) {
 		return nil
 	}
 	return se
@@ -237,7 +250,7 @@ func (s *Server) signEAR(status string, annotated map[string]any, nonce []byte) 
 		dev = "ratstest"
 	}
 	ear, err := SignEAR(s.Key, map[string]any{
-		"eat_profile": "tag:github.com,2023:veraison/ear", "iat": time.Now().Unix(),
+		"eat_profile": "tag:github.com,2023:veraison/ear", "iat": s.now().Unix(),
 		"eat_nonce":       base64.RawURLEncoding.EncodeToString(nonce),
 		"ear.verifier-id": map[string]string{"developer": dev, "build": build},
 		"submods":         map[string]any{s.Submod: sub},

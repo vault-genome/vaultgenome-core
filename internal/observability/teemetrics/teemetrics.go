@@ -5,6 +5,7 @@ package teemetrics
 
 import (
 	"fmt"
+	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
@@ -14,6 +15,7 @@ import (
 // Recorder owns the TEE-related metric families. Construct exactly one
 // per daemon process; pass it to every WrapXxx call site.
 type Recorder struct {
+	clock          shared_time.Clock
 	attestTotal    *metrics.Counter
 	attestDuration *metrics.Histogram
 	sealTotal      *metrics.Counter
@@ -26,6 +28,7 @@ type Recorder struct {
 // caller is responsible for using a fresh registry per daemon.
 func New(r *metrics.Registry) *Recorder {
 	return &Recorder{
+		clock: shared_time.NewSystemClock(),
 		attestTotal: r.NewCounter(
 			"vg_tee_attestation_total",
 			"Count of TEE attestation operations (Quote + Verify) by provider, role, and outcome.",
@@ -104,9 +107,9 @@ type instrumentedProducer struct {
 }
 
 func (p *instrumentedProducer) Quote(nonce tee.Nonce) (tee.Evidence, error) {
-	start := time.Now()
+	start := p.rec.clock.Now()
 	ev, err := p.inner.Quote(nonce)
-	p.rec.observeAttest(p.provider, "produce", time.Since(start), err)
+	p.rec.observeAttest(p.provider, "produce", p.rec.clock.Now().Sub(start), err)
 	return ev, err
 }
 
@@ -123,18 +126,18 @@ type instrumentedVerifier struct {
 }
 
 func (v *instrumentedVerifier) Verify(ev tee.Evidence, nonce tee.Nonce) (tee.Measurement, error) {
-	start := time.Now()
+	start := v.rec.clock.Now()
 	m, err := v.inner.Verify(ev, nonce)
-	v.rec.observeAttest(v.provider, "verify", time.Since(start), err)
+	v.rec.observeAttest(v.provider, "verify", v.rec.clock.Now().Sub(start), err)
 	return m, err
 }
 
 // VerifyDetailed keeps the inner verifier's detail (tee.DetailedVerifier)
 // beside the measurement; a plain inner verifier gives none.
 func (v *instrumentedVerifier) VerifyDetailed(ev tee.Evidence, nonce tee.Nonce) (tee.Measurement, *tee.AttestationDetail, error) {
-	start := time.Now()
+	start := v.rec.clock.Now()
 	m, d, err := tee.VerifyDetailed(v.inner, ev, nonce)
-	v.rec.observeAttest(v.provider, "verify", time.Since(start), err)
+	v.rec.observeAttest(v.provider, "verify", v.rec.clock.Now().Sub(start), err)
 	return m, d, err
 }
 
@@ -147,9 +150,9 @@ func (v *instrumentedVerifier) VerifyRecord(mediaType string, value []byte, nonc
 	if rv == nil {
 		return nil, nil, fmt.Errorf("teemetrics: the wrapped verifier reads bare evidence, not records")
 	}
-	start := time.Now()
+	start := v.rec.clock.Now()
 	m, d, err := rv.VerifyRecord(mediaType, value, nonce)
-	v.rec.observeAttest(v.provider, "verify", time.Since(start), err)
+	v.rec.observeAttest(v.provider, "verify", v.rec.clock.Now().Sub(start), err)
 	return m, d, err
 }
 
@@ -165,16 +168,16 @@ type instrumentedSealer struct {
 }
 
 func (s *instrumentedSealer) Seal(plaintext, aad []byte) ([]byte, error) {
-	start := time.Now()
+	start := s.rec.clock.Now()
 	out, err := s.inner.Seal(plaintext, aad)
-	s.rec.observeSeal(s.provider, "seal", time.Since(start), err)
+	s.rec.observeSeal(s.provider, "seal", s.rec.clock.Now().Sub(start), err)
 	return out, err
 }
 
 func (s *instrumentedSealer) Unseal(sealed, aad []byte) ([]byte, error) {
-	start := time.Now()
+	start := s.rec.clock.Now()
 	out, err := s.inner.Unseal(sealed, aad)
-	s.rec.observeSeal(s.provider, "unseal", time.Since(start), err)
+	s.rec.observeSeal(s.provider, "unseal", s.rec.clock.Now().Sub(start), err)
 	return out, err
 }
 
