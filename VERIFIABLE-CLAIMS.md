@@ -2236,10 +2236,36 @@ with the sealed files refused before any key is read,
 124.7 s on the guest (the runtime from the locks 75 s, the fine-tune 9 s,
 the job 5 s).
 
+The same kit on `v0.5.0`, two minutes after the release was published
+(2026-10-16, 23:19:39Z):
+[`scripts/hardware-test/release-deploy/evidence/20261016T232117Z/`](scripts/hardware-test/release-deploy/evidence/20261016T232117Z/)
+— `verify/assets.sha256` 49 assets; `verify/cosign.txt` twelve "Verified
+OK" (the pairs); `verify/cosign-bundle-nonet.txt` the same twelve files
+from their bundles with `--trusted-root trusted_root.json` under
+`sandbox-exec` with no route, twelve "Verified OK" (the trust root
+`6494e21e…bc0b66`, the same file as for `v0.4.3`); `verify/slsa.txt` six
+"PASSED"; `verify/tag.txt` the tag's signature under the pinned key;
+`verify/rebuild.txt` the five binaries and the package rebuilt from the
+tag (commit `bd8f16633b9d`, go1.27.2, GNU tar 1.35, GNU gzip 1.15) with
+the same sha256 as the released files (`sagvd` `4de7ad49…`,
+`acp-compute` `ed125fd1…`, `acpctl` `445a5187…`, `acp-bootstrap`
+`a61d844f…`, `acp-keygen` `9e4c4ae0…`, the package `2f338431…`);
+`results/versions.txt` the four released binaries reporting `v0.5.0` at
+the tag's commit; `results/amd-chain.txt` the Milan chain fetched on the
+guest by the released `acpctl` and checked against the pinned ARK-Milan;
+both daemons, `tee.provider: "auto"`, read `7dc7c12e…25acc` from the chip
+and sealed their key files to it (`results/sealed-files.txt`);
+`results/rogue-sealed-worker.log` the thief with the sealed files refused
+before any key is read, `results/rogue-worker.log` the unpinned worker
+refused at the handshake; `results/job.json` gate level EXACT, 6 of 6,
+`max_abs_err` 0, `release_authorized`; `results/audit-verify.json` `ok:
+true`, 17 events; 127.5 s on the guest (the runtime from the locks 77 s,
+the fine-tune 9 s, the job 5 s).
+
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.4.3    # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.5.0    # ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
