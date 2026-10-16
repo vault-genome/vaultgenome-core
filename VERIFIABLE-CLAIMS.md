@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1803,6 +1803,74 @@ ahead of it. The memory growth is measured, not bounded: an hour at this
 rate is a quarter of a gigabyte; the fix is named in KNOWN_ISSUES #18.
 The throttle on SEV-SNP is the host's (KNOWN_ISSUES #17), observed again
 here over an hour.
+
+---
+
+<a id="c34"></a>
+
+### C34 — After the fix of what the soak found, the authority's private memory is flat over two hours of three workers on real TDX and SEV-SNP: 9–15 MB through 4901 and 3223 jobs, every one EXACT, where the first soak's rate would have put 540 MB; what still grows is the two bbolt files on disk, 48–52 KB a job
+
+**Claim.** The same soak as C33, run for 120 minutes on the fixed code
+(the finished job leaves memory once the store has its view, the audit
+chain keeps its tip and its length, the session issuer forgets sessions
+expired for longer than they lived — KNOWN_ISSUES #18), with the
+authority's resident set read from `/proc/<pid>/status` every minute as
+anonymous pages (the heap and the stacks) and file-backed pages (the
+two bbolt files it maps). On one c3-standard-8 Trust Domain: 4901 jobs,
+4901 EXACT, nothing refused, no handshake failed, 40.8 a minute (39–42),
+p50 8.51 s and p99 8.71 s from submission to verdict, the median of the
+last ten minutes 8.54 s against 8.45 s in the first ten, 4904 handshakes
+p50 92 ms and max 545 ms; the authority's anonymous memory 6.5 MB at the
+start, 12.2 MB at the end, never above 14.6 MB, and between 9.8 and
+14.6 MB through the whole second hour; its file-backed memory 10 → 103 MB
+with the audit log at 168 MB and the views at 67 MB on disk; its open
+descriptors 13–14; the three workers 48–52 MB. On one n2d-standard-8
+SEV-SNP guest: 3223 jobs, 3223 EXACT, nothing refused or failed, 26.8 a
+minute (24–31), p50 11.50 s and p99 17.93 s, 1309 of the 3224
+handshakes held between one and twenty seconds by the host's throttle
+(KNOWN_ISSUES #17; 5095 s of waiting in two hours across three workers);
+the authority's anonymous memory 6.0 → 11.4 MB, never above 13.8 MB,
+between 9.1 and 13.8 MB through the second hour; file-backed 10 → 88 MB
+with the audit log at 117 MB and the views at 50 MB. The audit log of
+each run is one chain verified under the published key at the end
+(78,416 events in 6.3 s; 51,568 in 5.0 s). The two-hour runs between the
+first two fixes and the third are on record as well: there the anonymous
+line still rose from 9 to 16 MB over 4883 jobs on TDX — about a kilobyte
+a job — which is what pointed at the session issuer.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-tdx/returnpath-soak/evidence/20261016T174732Z/`](scripts/hardware-test/gcp-tdx/returnpath-soak/evidence/20261016T174732Z/)
+and
+[`scripts/hardware-test/gcp-sev-snp/returnpath-soak/evidence/20261016T174802Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-soak/evidence/20261016T174802Z/)
+(the fixed code, `versions.txt` naming commit `77cb5a34`) — `snapshots.csv`
+(every minute: `sagvd_rss_kb`, `sagvd_rss_anon_kb`, `sagvd_rss_file_kb`,
+`sagvd_fds`, `workers_rss_kb`, the sessions, the queue, the failures),
+`summary.json` (first, max and last of each, the percentiles and rates,
+derived by the kit's `summarize.py`), `db-sizes-end.txt` (the two bbolt
+files), `jobs.csv`, `steps.txt` (`soak: minutes=120 workers=3
+jobs_done=4901 ok=4901 exact=4901`; `jobs_done=3223 ok=3223 exact=3223`),
+`audit-verify.json`, `audit-kinds.txt`, `ps-end.txt`, the handshake and
+log files as in C33. The runs between the fixes:
+[`scripts/hardware-test/gcp-tdx/returnpath-soak/evidence/20261016T153617Z/`](scripts/hardware-test/gcp-tdx/returnpath-soak/evidence/20261016T153617Z/)
+and
+[`scripts/hardware-test/gcp-sev-snp/returnpath-soak/evidence/20261016T153649Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-soak/evidence/20261016T153649Z/)
+(commit `f9442a35`, before the session issuer's fix). The fixes:
+`cmd/sagvd/job_queue.go`, `internal/audit/chain/persistent.go`,
+`internal/audit/store/store.go`, `internal/vault/session/issuer.go`, each
+with its test (a finished job leaves the queue once the store has the
+view and stays when the store refuses it; the chain never loads the
+whole log except for the export, a tampered log is still refused; the
+issuer holds at most two lifetimes of sessions). The tables:
+[`docs/operator/limits.md`](docs/operator/limits.md).
+
+**Scope.** Two hours, one host, three workers, one genome; a longer run
+is the operator's to make with the same kit (`VG_SOAK_MINUTES`). "Flat"
+is the anonymous resident set within the Go collector's swing, read
+every minute; it is not a heap profile. The file-backed pages are the
+kernel's page cache of the two files the daemon maps and grow with the
+files, which nothing rotates yet — a retention policy for the audit log
+and the views is open. The SEV-SNP host's throttle is the host's, as in
+C32 and C33.
 
 ---
 

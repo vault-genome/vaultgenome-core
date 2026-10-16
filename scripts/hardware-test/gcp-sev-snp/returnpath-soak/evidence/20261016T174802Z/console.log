@@ -1,0 +1,12 @@
+== binaries from gs://rats-probe-vg-soak-20261016t174631z/e2e
+== the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== provision (acp-keygen, private modes; every key file is sealed to the chip below)
+== identities: each daemon reads its launch measurement from the chip
+== the key files sealed to this host (ADR 0023; the sealer is tee.sealer=auto, ADR 0025 step 1b)
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 542.25it/s]
+== soak: sagvd at max_sessions=3, 3 workers, jobs kept queued for 120 minutes
+== snapshots of the daemons' state at the end
+== verify the audit log of the whole soak with the published key; count its records by kind

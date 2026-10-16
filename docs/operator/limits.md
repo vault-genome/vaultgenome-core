@@ -17,7 +17,8 @@ or its evidence directory); what has not been measured is said so.
 | Authority lost, the same authority back on a fresh chip | 49–50 s from a standby with the runtime in place | C28 |
 | Air-gapped, from caches filled while connected | the same flow, no route; the VCEK cache good for seven years | C29 |
 | Sustained: one host, three workers, an hour | 40.4 jobs a minute on TDX, 26.7 on SEV-SNP (the chip's throttle, below); every job EXACT, nothing refused or failed, the hour's audit log one verified chain | C33 (the soak, below) |
-| Memory per job served | about 110–120 KB, growing without bound until KNOWN_ISSUES #18 is fixed: 280 MB after 2429 jobs | C33, KNOWN_ISSUES #18 |
+| Authority's private memory under load | 9–15 MB over two hours of three workers (4901 jobs on TDX, 3223 on SEV-SNP), flat within the collector's swing; the first soak found 110 KB a job retained, fixed the same day | C34, KNOWN_ISSUES #18 |
+| Disk per job served | 48–52 KB: the audit log 34–37 KB (sixteen events), the job's view 14–16 KB; 2.8 GB a day at 40 jobs a minute; the daemon's resident set carries the touched pages of both bbolt files as file-backed memory, the kernel's to reclaim; nothing rotates them yet | C34 |
 
 ## Parallel restores on one host
 
@@ -116,19 +117,49 @@ handshake failure, no warning or error in any daemon's log; the hour's
 audit log — 38,864 events on TDX, 25,712 on SEV-SNP, sixteen a job in
 ten kinds — is one chain that verifies under the published key.
 
-**What the soak found.** The authority's resident memory grew linearly,
-about 110 KB for every job served, on both chips; the workers' memory
-and the authority's descriptors stayed flat. Two things keep every job:
-the in-memory job map (`cmd/sagvd/job_queue.go`) holds each finished
-job's flow and verdict for `GET /v1/jobs/{id}` although the store on disk
-already has the view (ADR 0026), and the persistent audit chain
-(`internal/audit/chain/persistent.go`) keeps every sealed event in memory
-and loads them all when it opens. KNOWN_ISSUES #18 carries the numbers,
-the workaround (a scheduled restart: the queue and the views are on disk,
-the chain reopens and verifies) and the fix. At 40 jobs a minute the
-growth is about 260 MB an hour; a day at that rate is 6 GB. Until the
-fix lands, size the authority's memory for its restart interval, not for
-its working set.
+**What the soak found, and what the fix shows.** The authority's resident
+memory grew linearly, about 110 KB for every job served, on both chips;
+the workers' memory and the authority's descriptors stayed flat. Three
+things kept every job: the in-memory job map held each finished job's
+flow and verdict although the store on disk already had the view (ADR
+0026); the persistent audit chain kept every sealed event in memory and
+loaded them all when it opened; the session issuer kept every session it
+ever issued. KNOWN_ISSUES #18 has the three fixes. The same soak, run for
+two hours on the fixed code (claim C34; runs `20261016T174732Z` on TDX
+and `20261016T174802Z` on SEV-SNP), with the resident set split into
+anonymous pages — the heap and the stacks — and file-backed pages — the
+two bbolt files the daemon maps:
+
+| | TDX, c3-standard-8 | SEV-SNP, n2d-standard-8 |
+| - | - | - |
+| Jobs in 120 minutes, every one EXACT | 4901 | 3223 |
+| Jobs a minute (the slowest and fastest minute) | 40.8 (39–42) | 26.8 (24–31) |
+| Submission → verdict, p50 / p99 | 8.51 / 8.71 s | 11.50 / 17.93 s |
+| The first ten minutes → the last ten, p50 | 8.45 → 8.54 s | 11.58 → 11.46 s |
+| Handshake, p50 / p90 / max | 92 / 105 / 545 ms | 46 ms / 6.17 s / 20.3 s |
+| Handshakes above one second | 0 of 4904 | 1309 of 3224 (41 %) |
+| Refused (busy) / handshake failures / jobs failed | 0 / 0 / 0 | 0 / 0 / 0 |
+| Audit events, verified at the end | 78,416 in 6.3 s | 51,568 in 5.0 s |
+| Authority's anonymous memory, start → end (never above) | 6.5 → 12.2 MB (14.6) | 6.0 → 11.4 MB (13.8) |
+| … over the last hour | 9.8–14.6 MB | 9.1–13.8 MB |
+| Authority's file-backed memory, start → end | 10 → 103 MB | 10 → 88 MB |
+| The two bbolt files after two hours (audit log, views) | 168 MB, 67 MB | 117 MB, 50 MB |
+| Authority's open descriptors | 13, at most 14 | 13, at most 14 |
+
+The anonymous line is flat: it rises in the first ten minutes as the
+heap finds its size and then swings between 9 and 15 MB for the rest of
+the two hours, on both chips, where the first soak's rate would have
+put 540 MB on TDX. The file-backed line follows the two files on disk
+— the audit log at 2.1–2.3 KB an event, sixteen events a job, and the
+views at 14–16 KB a job — as the kernel keeps the pages the daemon has
+touched; it is the page cache, reclaimed under pressure, not the
+process's own. So the authority's memory to size is its private
+working set, tens of megabytes at this rate; what to size for the
+months is the disk, 48–52 KB a job, and nothing rotates it yet. The
+two-hour runs between the first two fixes and the third
+(`20261016T153617Z`, `20261016T153649Z`) are on record too: they are
+where the anonymous line still rose about a kilobyte a job and pointed
+at the session issuer.
 
 ## Models
 

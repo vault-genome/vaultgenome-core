@@ -30,7 +30,12 @@ been *accepted and not yet decided*.
    the status; the number of admissions — and every transition of the
    in-memory queue (queued, running, requeued, succeeded, failed) updates
    it. A finished job also leaves its view, as `GET /v1/jobs/{id}`
-   renders it, so the answer outlives the process.
+   renders it, so the answer outlives the process — and, since the soak
+   of 2026-10-16 found the authority growing by every job it had ever
+   served (KNOWN_ISSUES #18), the job leaves memory as soon as the store
+   has its view: `GET` reads the view from disk, and the queue holds what
+   is in flight. A view the store refuses keeps the job in memory, so
+   `GET` still answers.
 2. **At start, what was unfinished is admitted again.** Before the API
    serves and before the dispatcher runs, the daemon takes every record
    that is queued or running — oldest acceptance first — and runs the
@@ -62,6 +67,12 @@ been *accepted and not yet decided*.
 
 ## Consequences
 
+- The authority's memory no longer grows with its history: with
+  `queue.path` set, a finished job is on disk and gone from memory, and
+  the audit chain beside it keeps its tip and its length, not its events
+  (the store is walked one event at a time to open and to verify). The
+  soak that found the growth (C33) and the soak that shows the flat line
+  after the change are both on record in `docs/operator/limits.md`.
 - An authority's restart on the same host loses nothing it accepted:
   proven by the integration test
   `TestLiveDaemons_JobsSurviveAHardKillOfTheAuthority`, which kills `sagvd`
