@@ -302,3 +302,49 @@ func TestIssuer_RotatePolicy_RejectsEmpty(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
 }
+
+// The issuer forgets a session once it has been expired for as long as it
+// lived (KNOWN_ISSUES #18): a session issued for a minute is still known
+// — expired, invalidatable — ninety seconds later, and gone after two
+// minutes, so the issuer holds the sessions in flight and the recently
+// expired, however many it has issued.
+func TestIssuer_Issue_ForgetsSessionsExpiredForALifetime(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	issue := func() session_object.SessionObject {
+		t.Helper()
+		s, err := h.iss.Issue(IssueParams{RequestID: ids.RequestID("req-sweep"), GenomeID: ids.GenomeID("genome-alpha"), TTL: time.Minute})
+		require.NoError(t, err)
+		return s
+	}
+	first := issue()
+	issue()
+	issue()
+	require.Equal(t, 3, h.iss.Len())
+
+	h.clock.Step(90 * time.Second) // expired thirty seconds ago: still known
+	issue()
+	require.Equal(t, 4, h.iss.Len())
+	cur, ok := h.iss.Lookup(first.SessionID)
+	require.True(t, ok)
+	require.Equal(t, session_object.StateActive, cur.State)
+	_, err := h.iss.Invalidate(first.SessionID)
+	require.NoError(t, err, "an expired session can still be invalidated")
+
+	h.clock.Step(31 * time.Second) // the first three have been expired for a minute and a second
+	last := issue()
+	require.Equal(t, 2, h.iss.Len(), "the first three are forgotten; the fourth and the fifth remain")
+	_, ok = h.iss.Lookup(first.SessionID)
+	require.False(t, ok)
+	_, err = h.iss.Invalidate(first.SessionID)
+	require.Error(t, err)
+	require.Equal(t, shared_errors.CategoryAuthority, shared_errors.CategoryOf(err))
+	_, ok = h.iss.Lookup(last.SessionID)
+	require.True(t, ok)
+
+	for range 1000 {
+		issue()
+		h.clock.Step(time.Second)
+	}
+	require.LessOrEqual(t, h.iss.Len(), 121, "a thousand sessions issued a second apart with a minute's life: at most two minutes of them are held")
+}
