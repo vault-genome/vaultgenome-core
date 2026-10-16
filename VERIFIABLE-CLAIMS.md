@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -1682,6 +1682,59 @@ the commit. Found and fixed on the way (attempt 2 of the run): sagvd's
 metrics wrapper around its producer dropped the certificate table, so
 Veraison saw «evidence missing certificate chain» — the wrapper forwards
 `QuoteWithAux` now, with a test.
+
+<a id="c32"></a>
+
+### C32 — The authority serves sessions in parallel on real SEV-SNP and TDX: three workers, six jobs per round, every one EXACT — 28.7 s → 17.2 s on SEV-SNP, 23.7 s → 9.6 s on TDX — and the SEV-SNP chip's own limit found: a burst of attestation requests on one GCP guest waits about 10 s, which TDX does not
+
+**Claim.** On one n2d-standard-8 Confidential VM, sagvd with
+`runtime.max_sessions: 1` and then `3`, three acp-compute workers (the
+real CPU door, contending for the cores), six jobs per round on the
+same sealed genome. Round 1: 28.7 s from the first submission to the
+last verdict (4.8 s per job), `sagvd_sessions_active` never above 1, the
+queue up to 4 deep. Round 3: 17.2 s (2.9 s per job), three sessions
+active at once, the queue up to 2 deep, no connection refused. Twelve
+jobs, twelve verdicts EXACT, both rounds on one audit chain that
+verifies under the published key. The handshakes: about 25 ms each once
+warm, except those that met the host's rate limit on the chip's guest
+requests — 10.4 s in round 1, two of 10.3 s and one of 1.5 s in round 3,
+the authority's own quote histogram agreeing (one 10.2-s quote of seven;
+two slow of nine) and the three workers' identity reports at startup all
+answered 10.3 s after they asked. The kernel logged nothing: the
+sev-guest driver retries the host's «busy» answer on its own schedule.
+The TDX twin, one c3-standard-8 Trust Domain, the same rounds: 23.7 s
+(3.9 s per job) at one session at a time, 9.6 s (1.6 s per job) at
+three, twelve verdicts EXACT, handshakes 84–425 ms with three opening
+at once at 90–165 ms, the authority's nine quotes 0.52 s together — no
+throttling.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-tdx/returnpath-parallel/evidence/20261016T123114Z/`](scripts/hardware-test/gcp-tdx/returnpath-parallel/evidence/20261016T123114Z/)
+— the TDX twin's `steps.txt` (`round_max1: … wall_s=23.7 … handshake_ms=[425,87,84,85,85,85,87]`,
+`round_max3: … wall_s=9.6 peak_sessions_active=3 … handshake_ms=[90,165,122,124,255,148,90,160,151]`),
+its logs, metrics, verdicts and verified audit log, as below for SEV-SNP.
+[`scripts/hardware-test/gcp-sev-snp/returnpath-parallel/evidence/20261016T122044Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-parallel/evidence/20261016T122044Z/)
+— `steps.txt` (`round_max1: … wall_s=28.7 per_job_s=4.8
+peak_sessions_active=1 max_queue_depth=4 refused_busy=0
+handshake_ms=[10436,28,28,22,23,25,24]`, `round_max3: … wall_s=17.2
+per_job_s=2.9 peak_sessions_active=3 max_queue_depth=2 refused_busy=0
+handshake_ms=[49,10299,10299,1521,25,29,33,28,25]`, `exact=6` both,
+`nproc.txt` 8); `sagvd-max1.log`, `sagvd-max3.log` (every `session
+opened` with `handshake_ms`), `acp-compute-max{1,3}-{1,2,3}.log` (each
+worker's start, identity 10.3 s later, its handshakes),
+`sagvd-metrics-max{1,3}.txt` (`vg_tee_attestation_duration_seconds`
+produce and verify, `sagvd_sessions_limit`, `sagvd_sessions_refused_total`
+absent), `job-max{1,3}-<id>.json` (twelve verdicts), `audit-verify.json`
+(`ok: true`), `audit-events.jsonl`, `timeline.txt`, `sha256sums.txt`. The
+kit: [`scripts/hardware-test/gcp-sev-snp/returnpath-parallel/`](scripts/hardware-test/gcp-sev-snp/returnpath-parallel/);
+the numbers: [`docs/operator/limits.md`](docs/operator/limits.md).
+
+**Scope.** One host for the authority and the workers, so the workers'
+restores share its eight cores with the authority: the per-job time at
+three is the host's, not the protocol's; a fleet puts workers on their
+own machines. The host's rate limit is observed, not read from a
+document: its exact policy is GCP's, and whether TDX or Azure throttle
+the same way is a separate measurement (the kit has a TDX twin).
 
 ---
 

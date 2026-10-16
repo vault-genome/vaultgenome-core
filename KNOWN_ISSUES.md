@@ -490,6 +490,31 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    first-deployment guide, the release procedure §5, the supply-chain
    page, the disaster-recovery runbook and the release-deploy kit give the
    bundle check beside the pair. cosign stays pinned at 2.6.5.
+17. **A burst of attestation requests on one GCP SEV-SNP guest is
+   rate-limited by the host: all but the first wait about 10 s
+   (2026-10-16).** Every Return Path session makes the authority quote
+   once (its report over the session's challenge) and the worker quote
+   once; a daemon's start makes one for its identity. Measured in
+   `scripts/hardware-test/gcp-sev-snp/returnpath-parallel` (run
+   `20261016T122044Z`, C32): with three workers starting at the same
+   second, their identity reports all came 10.3 s later; with three
+   sessions opening at once, one handshake took 49 ms and two 10.3 s;
+   the authority's quote histogram shows the same (one 10.2-s quote of
+   seven, two slow of nine). Spaced out, a handshake costs about 25 ms.
+   The kernel's sev-guest driver retries the host's «busy» answer on
+   its own schedule and logs nothing; the host's exact policy is not
+   published in our library. Consequence: `runtime.max_sessions`
+   parallelises the authority's work, but a burst of N handshakes on one
+   SEV-SNP guest still serialises on the chip at about 10 s per
+   throttled request. Spread the workers' dials
+   (`dial_backoff_initial_ms`, `idle_between_jobs_ms`) and expect the
+   first handshake after a quiet period to be the fast one. Intel TDX on
+   GCP does not throttle this way: the kit's TDX twin (run
+   `20261016T123114Z`, c3-standard-8) opened three sessions at once at
+   90–165 ms each and the authority's nine quotes took 0.52 s together.
+   Not yet known: Azure's SEV-SNP hosts; whether a quote could cover
+   several sessions is a wire question for ADR 0025's successor.
+
 16. **The job queue is in memory: a job in flight when the authority's
    host is lost is lost with it (2026-10-15).**
    `sagvd` keeps accepted jobs in memory (`cmd/sagvd/job_queue.go`); the

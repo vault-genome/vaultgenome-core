@@ -26,7 +26,16 @@ given release can still open.
   `sagvd_sessions_active` and `sagvd_sessions_limit`. Proven in process
   (two sessions inside their jobs while a third waits; the busy refusal
   with the job unaffected) and live (two workers attested at once, two
-  jobs EXACT on one verified chain).
+  jobs EXACT on one verified chain). Measured on real SEV-SNP
+  (`scripts/hardware-test/gcp-sev-snp/returnpath-parallel`, run
+  `20261016T122044Z`, C32): three workers on one n2d-standard-8, six
+  jobs per round, all EXACT — 28.7 s at one session at a time, 17.2 s
+  at three (`docs/operator/limits.md`). The run found the chip's own
+  limit: a burst of attestation requests on one GCP SEV-SNP guest is
+  rate-limited by the host, all but the first answered about 10 s later
+  (KNOWN_ISSUES #17). The TDX twin (`gcp-tdx/returnpath-parallel`, run
+  `20261016T123114Z`, c3-standard-8): 23.7 s at one, 9.6 s at three,
+  no throttling — three sessions at once at 90–165 ms each.
 
 ### Changed
 
