@@ -1,0 +1,6 @@
+genome-8d051d16995a-g1-8e4139a8ab72
+adapter
+data
+fixtures.json
+genome.json
+4cdc122955b6cf010e280830486ed3001658b4685e7ce8b851cde03125b8656e  -

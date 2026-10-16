@@ -45,6 +45,8 @@ coverage.txt
 *.bolt
 *.db
 *.wal
+# ...except a drill's audit log, kept as evidence so it can be verified offline
+!scripts/hardware-test/**/evidence/**/xcc-audit.db
 
 # Editor / OS
 .vscode/

@@ -13,6 +13,22 @@ given release can still open.
 
 ### Added
 
+- `scripts/hardware-test/failover-region-loss`: the continuity drill with
+  the failure that gives no warning. The primary (GCP SEV-SNP, us-central1)
+  switches itself off while it trains — no shutdown, no report, no
+  `stopped` — and the operator deletes it; the authority (europe-west4)
+  acts on a policy whose only trigger is 15 s without a heartbeat and
+  releases the key to the attested Azure H100. The orchestrator records
+  Google's status, `lastStopTimestamp`, the deletion and Google's audit log
+  for the primary; the authority keeps the audit log file, its public key
+  and the primary's last heartbeat for an offline check; `timeline.py`
+  merges a run's evidence into one timeline; `VERIFY.md` says how to check
+  a run without us. Run `20260930T194321Z`: RTO 25.97 s, RPO 21.01 s, the
+  gate EQUIVALENT on the H100; run `20261016T210544Z` on the tree of 16
+  October: RTO 26.24 s, RPO 21.00 s, EQUIVALENT again, the model confirmed
+  back 5.4 s before Google logged the guest's termination
+  (VERIFIABLE-CLAIMS C35, CONTINUITY-DRILL Drill VII).
+
 - **Sessions in parallel: `runtime.max_sessions`.** The authority
   serves that many Return Path sessions at once (one by default, the
   behaviour until now): every accepted connection takes a session slot

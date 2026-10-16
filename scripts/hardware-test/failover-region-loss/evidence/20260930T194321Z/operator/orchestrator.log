@@ -1,0 +1,236 @@
+2026-09-30T19:43:21.154Z build sagvd, acp-bootstrap, acpctl, keygen (linux/amd64); pack workers/genome
+2026-09-30T19:43:26.390Z bucket gs://rats-probe-vg-rl-20260930t194321z
+2026-09-30T19:43:27.033Z Creating gs://rats-probe-vg-rl-20260930t194321z/...
+2026-09-30T19:43:29.791Z Copying file://<build>/sagvd to gs://rats-probe-vg-rl-20260930t194321z/in/sagvd
+2026-09-30T19:43:29.791Z Copying file://<build>/acp-bootstrap to gs://rats-probe-vg-rl-20260930t194321z/in/acp-bootstrap
+2026-09-30T19:43:29.814Z   
+2026-09-30T19:43:29.816Z Copying file://<build>/acpctl to gs://rats-probe-vg-rl-20260930t194321z/in/acpctl
+2026-09-30T19:43:29.817Z Copying file://<build>/keygen to gs://rats-probe-vg-rl-20260930t194321z/in/keygen
+2026-09-30T19:43:29.817Z Copying file://<build>/worker.tgz to gs://rats-probe-vg-rl-20260930t194321z/in/worker.tgz
+2026-09-30T19:43:37.216Z ....................................
+2026-09-30T19:43:37.356Z 
+2026-09-30T19:43:37.356Z Average throughput: 11.7MiB/s
+2026-09-30T19:43:39.075Z Copying file://<repo>/scripts/hardware-test/gcp-sev-snp/keybind-evidence/20260913T222343Z/kds-vcek-cert_chain.pem to gs://rats-probe-vg-rl-20260930t194321z/in/amd-milan-cert_chain.pem
+2026-09-30T19:43:39.100Z   
+2026-09-30T19:43:41.687Z ............
+2026-09-30T19:43:43.222Z Copying file://<repo>/scripts/hardware-test/azure-cgpu/evidence/20260916T133506Z/cert-chain.pem to gs://rats-probe-vg-rl-20260930t194321z/in/amd-genoa-cert_chain.pem
+2026-09-30T19:43:43.245Z   
+2026-09-30T19:43:45.858Z ............
+2026-09-30T19:43:45.980Z boot the AUTHORITY vg-rl-authority-20260930t194321z (europe-west4) and the PRIMARY vg-rl-primary-20260930t194321z (us-central1): SEV-SNP, the first zone with n2d capacity
+2026-09-30T19:43:56.621Z vg-rl-authority-20260930t194321z in europe-west4-a (round 1)
+2026-09-30T19:44:09.483Z vg-rl-primary-20260930t194321z in us-central1-c (round 1)
+2026-09-30T19:44:11.160Z boot the STANDBY vg-rl-gpu-20260930t194321z (Standard_NCC40ads_H100_v5, westeurope; ssh from the operator's address only)
+2026-09-30T19:44:14.719Z Selecting "uksouth" may reduce your costs. The region you've selected may cost more for the same services. You can disable this message in the future with the command "az config set core.display_region_identified=false". Learn more at https://go.microsoft.com/fwlink/?linkid=222571 
+2026-09-30T19:44:14.719Z 
+2026-09-30T19:44:16.599Z WARNING: Consider upgrading security for your workloads using Azure Trusted Launch VMs. To know more about Trusted Launch, please visit https://aka.ms/TrustedLaunch.
+2026-09-30T19:47:03.775Z standby at 104.214.225.141
+2026-09-30T19:47:03.776Z authority external IP 34.90.231.240: allow it to the standby's 8443
+2026-09-30T19:47:08.149Z standby: Microsoft's onboarding (kernel, the 595 open driver, NVIDIA's verifier), tpm2-tools
+2026-09-30T19:47:23.014Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:47:24.821Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:47:26.644Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:49:46.209Z 
+2026-09-30T19:49:46.210Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-09-30T19:49:46.210Z Kernel updates applied. System will reboot.
+2026-09-30T19:49:46.242Z Connection to 104.214.225.141 closed by remote host.
+2026-09-30T19:51:48.331Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:51:49.445Z kernel after step 0: 7.0.0-1013-azure-fde
+2026-09-30T19:51:50.107Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:51:51.354Z modules want nvidia-kernel-common-595-server <= 595.91.07-1; pinning userspace 595.91.07-0ubuntu0.24.04.1
+2026-09-30T19:51:51.955Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:53:27.268Z     Multi-GPU Mode             : None
+2026-09-30T19:53:27.268Z     CPU CC Capabilities        : AMD SEV-SNP(vTOM Mode)
+2026-09-30T19:53:27.268Z     GPU CC Capabilities        : CC Capable
+2026-09-30T19:53:27.268Z     CC GPUs Ready State        : Ready
+2026-09-30T19:53:27.268Z 
+2026-09-30T19:53:27.896Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:53:29.235Z GPU 0: NVIDIA H100 NVL (UUID: GPU-dc4ad69e-9f6e-bb62-741a-4b2cba035d4a)
+2026-09-30T19:53:29.266Z 
+2026-09-30T19:53:29.266Z ==============NVSMI CONF-COMPUTE LOG==============
+2026-09-30T19:53:29.266Z 
+2026-09-30T19:53:29.266Z     CC State                   : ON
+2026-09-30T19:53:29.869Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:53:57.553Z   }
+2026-09-30T19:53:57.553Z ]
+2026-09-30T19:53:57.553Z Copied verifier.log to /home/vg/cgpu-onboarding-package/local_gpu_verifier/verifier.log
+2026-09-30T19:54:01.448Z tpm2-tools installed
+2026-09-30T19:54:01.451Z carry the authority's TLS material, token and public key to the standby
+2026-09-30T19:54:04.634Z Copying gs://rats-probe-vg-rl-20260930t194321z/handoff/dest/ca.crt to file://<build>/dest/ca.crt
+2026-09-30T19:54:05.381Z Copying gs://rats-probe-vg-rl-20260930t194321z/handoff/dest/server.crt to file://<build>/dest/server.crt
+2026-09-30T19:54:05.407Z   
+2026-09-30T19:54:05.410Z Copying gs://rats-probe-vg-rl-20260930t194321z/handoff/dest/server.key to file://<build>/dest/server.key
+2026-09-30T19:54:05.411Z Copying gs://rats-probe-vg-rl-20260930t194321z/handoff/dest/xcc_token to file://<build>/dest/xcc_token
+2026-09-30T19:54:09.547Z ....................
+2026-09-30T19:54:09.675Z 
+2026-09-30T19:54:09.675Z Average throughput: 2.0kiB/s
+2026-09-30T19:54:10.986Z Copying gs://rats-probe-vg-rl-20260930t194321z/handoff/authority.pem to file://<build>/dest/authority.pem
+2026-09-30T19:54:11.827Z   
+2026-09-30T19:54:13.808Z .........
+2026-09-30T19:54:14.561Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:54:21.360Z standby: acp-bootstrap as azure-cgpu on the H100
+2026-09-30T19:54:21.919Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:56:19.932Z == 19:56:18 acp-bootstrap as azure-cgpu: the destination of a key release, the door on the H100
+2026-09-30T19:56:19.932Z {
+2026-09-30T19:56:19.932Z   "tee_provider": "azure-cgpu",
+2026-09-30T19:56:19.932Z   "measurement_hex": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+2026-09-30T19:56:19.932Z   "vtpm": {
+2026-09-30T19:56:19.932Z     "pcrs": [
+2026-09-30T19:56:19.932Z       "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+2026-09-30T19:56:19.932Z     ],
+2026-09-30T19:56:19.932Z     "pcr_digest_hex": "1e80d1d3003161f0330a94ba2235063b39181776dc74644b75bdaaf1903e3f7a"
+2026-09-30T19:56:19.932Z   }
+2026-09-30T19:56:19.932Z }
+2026-09-30T19:56:19.932Z DESTINATION UP
+2026-09-30T19:56:20.525Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:56:21.914Z {'endpoint': 'https://104.214.225.141:8443', 'measurement_hex': '11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4', 'tee_provider': 'azure-cgpu', 'pcr_digest_hex': '1e80d1d3003161f0330a94ba2235063b39181776dc74644b75bdaaf1903e3f7a', 'pcrs': ['sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14']}
+2026-09-30T19:56:23.472Z Copying file://<build>/destination.json to gs://rats-probe-vg-rl-20260930t194321z/handoff/destination.json
+2026-09-30T19:56:23.497Z   
+2026-09-30T19:56:26.103Z ............
+2026-09-30T19:56:26.258Z replicate the primary's sealed bundles to the standby, continuously
+2026-09-30T19:56:26.259Z waiting for the primary (up to 45 min) and the authority's failover (up to 30 min)
+2026-09-30T19:56:36.359Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T19:56:37.580Z replicated gen-000000.genome to the standby
+2026-09-30T20:02:05.690Z primary: DONE
+2026-09-30T20:02:05.690Z the primary has gone dark: see it dead, then delete it — on the record
+2026-09-30T20:02:15.895Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T20:02:17.004Z replicated gen-000001.genome to the standby
+2026-09-30T20:03:17.079Z primary=vg-rl-primary-20260930t194321z zone=us-central1-c project=rats-probe
+2026-09-30T20:03:17.079Z powered_off_at (the primary's clock, written just before sysrq o)=2026-09-30T20:02:02.460782528Z
+2026-09-30T20:03:17.079Z 2026-09-30T20:02:12.406958000Z status=RUNNING
+2026-09-30T20:03:17.079Z 2026-09-30T20:02:15.419843000Z status=RUNNING
+2026-09-30T20:03:17.079Z 2026-09-30T20:02:18.480042000Z status=RUNNING
+2026-09-30T20:03:17.079Z 2026-09-30T20:02:21.545209000Z status=RUNNING
+2026-09-30T20:03:17.079Z 2026-09-30T20:02:24.562546000Z status=RUNNING
+2026-09-30T20:03:17.079Z 2026-09-30T20:02:27.805681000Z status=RUNNING
+2026-09-30T20:03:17.079Z 2026-09-30T20:02:30.934677000Z status=RUNNING
+2026-09-30T20:03:17.080Z 2026-09-30T20:02:34.091242000Z status=RUNNING
+2026-09-30T20:03:17.080Z 2026-09-30T20:02:37.031993000Z status=RUNNING
+2026-09-30T20:03:17.080Z 2026-09-30T20:02:40.129265000Z status=RUNNING
+2026-09-30T20:03:17.080Z 2026-09-30T20:02:43.138000000Z status=RUNNING
+2026-09-30T20:03:17.080Z 2026-09-30T20:02:46.475660000Z status=RUNNING
+2026-09-30T20:03:17.080Z 2026-09-30T20:02:49.485864000Z status=RUNNING
+2026-09-30T20:03:17.080Z 2026-09-30T20:02:52.696786000Z status=RUNNING
+2026-09-30T20:03:17.080Z 2026-09-30T20:02:55.706124000Z status=RUNNING
+2026-09-30T20:03:17.080Z 2026-09-30T20:02:58.745558000Z status=STOPPING
+2026-09-30T20:03:17.080Z 2026-09-30T20:03:01.866452000Z status=STOPPING
+2026-09-30T20:03:17.080Z 2026-09-30T20:03:05.050527000Z status=STOPPING
+2026-09-30T20:03:17.080Z 2026-09-30T20:03:08.358166000Z status=TERMINATED
+2026-09-30T20:03:17.080Z Google's record of the machine before it is deleted:
+2026-09-30T20:03:17.080Z   confidentialInstanceConfig:
+2026-09-30T20:03:17.080Z     confidentialInstanceType: SEV_SNP
+2026-09-30T20:03:17.080Z   cpuPlatform: Unknown CPU Platform
+2026-09-30T20:03:17.080Z   creationTimestamp: '2026-09-30T12:43:59.163-07:00'
+2026-09-30T20:03:17.080Z   lastStartTimestamp: '2026-09-30T12:44:08.764-07:00'
+2026-09-30T20:03:17.080Z   lastStopTimestamp: '2026-09-30T13:03:05.671-07:00'
+2026-09-30T20:03:17.080Z   machineType: n2d-standard-8
+2026-09-30T20:03:17.080Z   name: vg-rl-primary-20260930t194321z
+2026-09-30T20:03:17.080Z   status: TERMINATED
+2026-09-30T20:03:17.080Z   zone: us-central1-c
+2026-09-30T20:03:17.080Z 2026-09-30T20:03:09.357033000Z delete: the machine and its boot disk
+2026-09-30T20:03:17.080Z   Deleted [https://www.googleapis.com/compute/v1/projects/rats-probe/zones/us-central1-c/instances/vg-rl-primary-20260930t194321z].
+2026-09-30T20:03:17.080Z 2026-09-30T20:03:14.856881000Z delete returned
+2026-09-30T20:03:17.080Z 2026-09-30T20:03:15.990663000Z after delete: ERROR: (gcloud.compute.instances.describe) Could not fetch resource:  - The resource 'projects/rats-probe/zones/us-central1-c/instances/vg-rl-primary-20260930t194321z' was not found  
+2026-09-30T20:03:17.080Z 2026-09-30T20:03:17.068878000Z disks named vg-rl-primary-20260930t194321z left: none
+2026-09-30T20:03:18.436Z authority: DONE
+2026-09-30T20:03:18.436Z Google's audit log for the primary: its creation, the guest's power-off, the deletion (who and from where left out)
+2026-09-30T20:03:18.439Z scripts/hardware-test/failover-region-loss/run.sh: line 235: 33046 Terminated: 15          ( while true; do
+2026-09-30T20:03:18.439Z     if gcloud storage cp "gs://$BUCKET/outbox/outbox.tgz" "$BUILD/outbox.tgz" --project "$PROJECT" > /dev/null 2>&1; then
+2026-09-30T20:03:18.439Z         rm -rf "$BUILD/ob" && mkdir -p "$BUILD/ob" && tar -C "$BUILD/ob" -xzf "$BUILD/outbox.tgz" 2> /dev/null || true; for g in "$BUILD"/ob/*.genome;
+2026-09-30T20:03:18.439Z         do
+2026-09-30T20:03:18.439Z             [ -f "$g" ] || continue; n="$(basename "$g")"; [ -f "$BUILD/sent-$n" ] || { scp -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -q "$g" "$ADMIN@$IP:bundles/.$n.part" && ssh_vm "mv bundles/.$n.part bundles/$n" && touch "$BUILD/sent-$n" && echo "replicated $n to the standby"; };
+2026-09-30T20:03:18.439Z         done;
+2026-09-30T20:03:18.439Z     fi; sleep 5;
+2026-09-30T20:03:18.439Z done )
+2026-09-30T20:04:04.854Z 2026-09-30T19:43:58.019241Z  activity       v1.compute.instances.insert
+2026-09-30T20:04:04.854Z 2026-09-30T19:44:08.903385Z  activity       v1.compute.instances.insert
+2026-09-30T20:04:04.854Z 2026-09-30T20:02:55.699060Z  system_event   compute.instances.guestTerminate
+2026-09-30T20:04:04.854Z 2026-09-30T20:03:10.138997Z  activity       v1.compute.instances.delete
+2026-09-30T20:04:04.854Z 2026-09-30T20:03:14.673416Z  activity       v1.compute.instances.delete
+2026-09-30T20:04:04.857Z collect
+2026-09-30T20:04:15.517Z Warning: Permanently added '104.214.225.141' (ED25519) to the list of known hosts.
+2026-09-30T20:04:18.886Z DESTINATION COLLECTED
+2026-09-30T20:04:21.950Z <repo>/scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/destination-handoff.json
+2026-09-30T20:04:21.950Z <repo>/scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/topology.txt
+2026-09-30T20:04:21.951Z 
+2026-09-30T20:04:21.951Z <repo>/scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/authority:
+2026-09-30T20:04:21.951Z allow.json
+2026-09-30T20:04:21.951Z audit-events.jsonl
+2026-09-30T20:04:21.951Z audit-verify.json
+2026-09-30T20:04:21.951Z audit.pem
+2026-09-30T20:04:21.951Z authority-identity.err
+2026-09-30T20:04:21.951Z authority-identity.json
+2026-09-30T20:04:21.951Z cache-75bbd2bb8dfeeb00ea0413ffa0f83557331b7aaf30a6be31efa5a43da77f79699545f7cd0d292495c74a572be5f15ac1d7157dadfb7288cc24a2ee131980559c-16004948650744610820.der
+2026-09-30T20:04:21.951Z cache-genoa-2c257e33cff931c9dc36fdf0d1e142b31c8848f0f7ed660a15cd3d94602a496a8d27f17a22fbb75b65ef833837932be42aa769a4867ca5bb299376a54723f40a-6348668099708846090.der
+2026-09-30T20:04:21.951Z cache-nras-jwks.json
+2026-09-30T20:04:21.951Z console.log
+2026-09-30T20:04:21.951Z destination-handoff.json
+2026-09-30T20:04:21.951Z escrow-provision.err
+2026-09-30T20:04:21.951Z escrow-provision.json
+2026-09-30T20:04:21.951Z failover-issue.txt
+2026-09-30T20:04:21.951Z failover-policy.json
+2026-09-30T20:04:21.951Z failover-verify.txt
+2026-09-30T20:04:21.951Z failover.log
+2026-09-30T20:04:21.951Z identity-0.err
+2026-09-30T20:04:21.951Z last-heartbeat.json
+2026-09-30T20:04:21.951Z metadata.txt
+2026-09-30T20:04:21.951Z primary-identity.json
+2026-09-30T20:04:21.951Z recovery-keygen.txt
+2026-09-30T20:04:21.951Z report.json
+2026-09-30T20:04:21.951Z seal-keys-2.err
+2026-09-30T20:04:21.951Z seal-keys-2.json
+2026-09-30T20:04:21.951Z seal-keys.err
+2026-09-30T20:04:21.951Z seal-keys.json
+2026-09-30T20:04:21.951Z steps.txt
+2026-09-30T20:04:21.951Z system.txt
+2026-09-30T20:04:21.951Z timeline.txt
+2026-09-30T20:04:21.951Z tsm.txt
+2026-09-30T20:04:21.951Z verifiers.json
+2026-09-30T20:04:21.951Z xcc-audit.db
+2026-09-30T20:04:21.951Z 
+2026-09-30T20:04:21.951Z <repo>/scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/destination:
+2026-09-30T20:04:21.951Z acp-bootstrap-metrics.txt
+2026-09-30T20:04:21.951Z acp-bootstrap.log
+2026-09-30T20:04:21.951Z bundles-ls.txt
+2026-09-30T20:04:21.951Z conf-compute.txt
+2026-09-30T20:04:21.951Z console.log
+2026-09-30T20:04:21.951Z dest-seal-keys.err
+2026-09-30T20:04:21.951Z dest-seal-keys.json
+2026-09-30T20:04:21.951Z destination-identity.err
+2026-09-30T20:04:21.951Z destination-identity.json
+2026-09-30T20:04:21.951Z genome-8d051d16995a-g1-8e4139a8ab72.receipt.json
+2026-09-30T20:04:21.951Z gpu.csv
+2026-09-30T20:04:21.951Z inputs.sha256
+2026-09-30T20:04:21.951Z pip-freeze.txt
+2026-09-30T20:04:21.951Z restored-ls.txt
+2026-09-30T20:04:21.951Z restored-tree.txt
+2026-09-30T20:04:21.951Z sha256sums.txt
+2026-09-30T20:04:21.951Z steps.txt
+2026-09-30T20:04:21.951Z system.txt
+2026-09-30T20:04:21.951Z torch.txt
+2026-09-30T20:04:21.951Z 
+2026-09-30T20:04:21.952Z <repo>/scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/operator:
+2026-09-30T20:04:21.952Z gcp-audit-primary.json
+2026-09-30T20:04:21.952Z operator-destroy.txt
+2026-09-30T20:04:21.952Z primary-destroyed-at.txt
+2026-09-30T20:04:21.952Z 
+2026-09-30T20:04:21.952Z <repo>/scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/primary:
+2026-09-30T20:04:21.952Z console.log
+2026-09-30T20:04:21.952Z finetune-0.json
+2026-09-30T20:04:21.952Z finetune-0.log
+2026-09-30T20:04:21.952Z finetune-1.json
+2026-09-30T20:04:21.952Z finetune-1.log
+2026-09-30T20:04:21.952Z finetune-2.json
+2026-09-30T20:04:21.952Z finetune-2.log
+2026-09-30T20:04:21.952Z metadata.txt
+2026-09-30T20:04:21.952Z pip-freeze.txt
+2026-09-30T20:04:21.952Z sentinel-identity-sealed.json
+2026-09-30T20:04:21.952Z sentinel-identity.json
+2026-09-30T20:04:21.952Z sentinel-keygen.txt
+2026-09-30T20:04:21.952Z sentinel-seal-key.json
+2026-09-30T20:04:21.952Z sentinel.json
+2026-09-30T20:04:21.952Z sentinel.log
+2026-09-30T20:04:21.952Z steps.txt
+2026-09-30T20:04:21.952Z system.txt
+2026-09-30T20:04:21.952Z tsm.txt
+2026-09-30T20:04:21.952Z evidence: <repo>/scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z
+2026-09-30T20:04:21.952Z cleanup: deleting vg-rl-primary-20260930t194321z, vg-rl-authority-20260930t194321z and gs://rats-probe-vg-rl-20260930t194321z

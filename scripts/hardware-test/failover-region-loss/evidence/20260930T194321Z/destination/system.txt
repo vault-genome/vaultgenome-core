@@ -1,0 +1,3 @@
+Linux vg-rl-gpu-20260930t194321z 7.0.0-1013-azure-fde #13~24.04.1-Ubuntu SMP PREEMPT Fri Aug 14 17:26:59 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+Ubuntu 24.04.5 LTS
+40

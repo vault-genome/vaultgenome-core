@@ -1,0 +1,26 @@
+== 21:09:21 inputs
+== 21:09:25 configfs-tsm (the sentinel attests with this chip)
+== 21:09:25 python runtime (CPU) and base model
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:00,  9.33it/s]Fetching 10 files:  30%|███       | 3/10 [00:00<00:00, 13.70it/s]Fetching 10 files:  70%|███████   | 7/10 [00:00<00:00, 24.17it/s]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.46s/it]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.05s/it]
+== 21:10:55 wait for the release authority's escrow key
+== 21:10:56 the sentinel's key and this chip's identity; the operator pins both
+== 21:10:59 seal the sentinel's seed to this chip (ADR 0023): the file the sentinel runs from is no seed elsewhere
+== 21:11:00 fine-tune generation 0 (120 steps)
+== 21:14:56 arm a tripwire and start the sentinel
+== 21:14:56 wait for generation 0 to be sealed
+== 21:15:04 wait for the authority to arm its failover watch (the GPU standby is onboarded first)
+== 21:20:22 keep training: fine-tune generation 1 (160 steps)
+== 21:24:42 wait for generation 1 to be sealed and replicated
+== 21:24:59 keep training: fine-tune generation 2 — the work the region takes with it
+== 21:25:14 THE REGION GOES DARK: no tripwire, no report — this machine is switched off while it trains
