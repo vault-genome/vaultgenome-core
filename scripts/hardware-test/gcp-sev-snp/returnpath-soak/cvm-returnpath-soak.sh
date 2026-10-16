@@ -252,23 +252,33 @@ def proc(pid):
         return rss, fds
     except Exception:
         return None, None
+def rss_split(pid):
+    # The resident set by kind: anonymous (the heap and the stacks) and file-backed (the bbolt files the daemon maps).
+    anon = filebacked = None
+    try:
+        for line in open("/proc/%s/status" % pid):
+            if line.startswith("RssAnon:"): anon = int(line.split()[1])
+            elif line.startswith("RssFile:"): filebacked = int(line.split()[1])
+    except Exception:
+        pass
+    return anon, filebacked
 def load1():
     return float(open("/proc/loadavg").read().split()[0])
 jobs = open(os.path.join(out, "jobs.csv"), "w", newline=""); jw = csv.writer(jobs)
 jw.writerow(["job_id", "submitted_at", "started_at", "completed_at", "status", "level", "queue_s", "run_s", "total_s"])
 snaps = open(os.path.join(out, "snapshots.csv"), "w", newline=""); sw = csv.writer(snaps)
 sw.writerow(["t_s", "jobs_done", "jobs_ok", "jobs_exact", "in_flight", "sessions_active", "queue_depth", "sessions_opened", "handshake_failures",
-             "sessions_refused", "sagvd_rss_kb", "sagvd_fds", "workers_rss_kb", "load1"])
+             "sessions_refused", "sagvd_rss_kb", "sagvd_fds", "workers_rss_kb", "load1", "sagvd_rss_anon_kb", "sagvd_rss_file_kb"])
 def ts(s):
     s = s.rstrip("Z"); head, _, frac = s.partition("."); frac = (frac + "000000")[:6]
     return time.mktime(time.strptime(head, "%Y-%m-%dT%H:%M:%S")) + int(frac) / 1e6
 t0 = time.time(); deadline = t0 + minutes * 60; cap = workers * 2
 inflight = {}; done = ok = exact = 0; last_snap = t0; first_error = None
 def snapshot():
-    r, f = proc(sagvd_pid); wr = sum((proc(p)[0] or 0) for p in worker_pids)
+    r, f = proc(sagvd_pid); wr = sum((proc(p)[0] or 0) for p in worker_pids); anon, filebacked = rss_split(sagvd_pid)
     sw.writerow([int(time.time() - t0), done, ok, exact, len(inflight), metric("sagvd_sessions_active"), metric("sagvd_queue_depth"),
                  metric("sagvd_sessions_opened_total"), metric("sagvd_handshake_failures_total"), metric("sagvd_sessions_refused_total"),
-                 r, f, wr, load1()]); snaps.flush()
+                 r, f, wr, load1(), anon, filebacked]); snaps.flush()
 snapshot()
 while True:
     now = time.time()
@@ -308,6 +318,7 @@ mark soak_end
 step "snapshots of the daemons' state at the end"
 ps -o pid,rss,vsz,pcpu,etime,cmd -p "$(echo $SAGVD $PIDS | tr " " ",")" > "$OUT/ps-end.txt" 2>&1
 curl -s http://127.0.0.1:9081/metrics | grep -E "^(sagvd|rp|vg_tee)_" > "$OUT/sagvd-metrics-end.txt"
+ls -l queue/sagvd-jobs.db audit/returnpath-audit.db > "$OUT/db-sizes-end.txt" 2>&1
 curl -s "http://127.0.0.1:9101/metrics" | grep -E "^(acp_compute|rp|vg_tee)_" > "$OUT/acp-compute-1-metrics-end.txt"
 for pid in $PIDS; do kill -TERM "$pid" 2>/dev/null; done
 for pid in $PIDS; do wait "$pid" 2>/dev/null; done

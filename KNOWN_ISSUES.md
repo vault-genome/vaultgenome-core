@@ -490,33 +490,46 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    first-deployment guide, the release procedure §5, the supply-chain
    page, the disaster-recovery runbook and the release-deploy kit give the
    bundle check beside the pair. cosign stays pinned at 2.6.5.
-18. **The authority's memory grows with every job served, about 110 KB
-   a job, without bound (2026-10-16).** The soak (C33) ran one sagvd at
+18. **The authority's memory grew with every job served, about 110 KB a
+   job, without bound — found by the soak and fixed the same day
+   (2026-10-16).** The soak (C33) ran one sagvd at
    `runtime.max_sessions: 3` with three workers for an hour: its
    resident memory went from 16 to 280 MB over 2429 jobs on TDX (108 KB
    a job) and from 17 to 205 MB over 1607 jobs on SEV-SNP (117 KB a
    job), linearly, while its open descriptors stayed at 13–14 and the
-   workers' memory at 39–51 MB. Two things keep every job: the in-memory
-   job map (`cmd/sagvd/job_queue.go`, `jobs`) holds each finished job's
-   flow, verdict and candidate so that `GET /v1/jobs/{id}` answers from
-   memory, although the store on disk already keeps the view (ADR 0026)
-   and `GetRaw` already falls back to it; and the persistent audit chain
-   (`internal/audit/chain/persistent.go`, `events`) appends every sealed
-   event to an in-memory slice and loads every stored event when it
-   opens, so a restart reloads what the previous process accumulated and
-   the time to open grows with the log (38,864 events verified in 3.2 s;
-   a month at the soak's rate is 28 million). Consequence: at 40 jobs a
-   minute the authority grows about 260 MB an hour, 6 GB a day; an
-   authority left running at that rate for a week is out of memory.
-   Workaround: restart the authority on a schedule sized to its memory
-   (the queue and the views are on disk and resume, the chain reopens
-   and verifies; the authority-loss drill is the restart's proof, C28).
-   The fix: evict a finished job from the map once its view is on the
-   store (a bounded recent set for the common `GET` right after the
-   verdict), and keep only the chain's tip and count in memory — verify
-   the stored chain at open without retaining it and serve `Events`,
-   `EventAt` from the store. Both land as one change, proven by the
-   same soak run again with a flat line.
+   workers' memory at 39–51 MB. Three things kept every job. The
+   in-memory job map (`cmd/sagvd/job_queue.go`, `jobs`) held each
+   finished job's flow, verdict and candidate so that `GET /v1/jobs/{id}`
+   could answer from memory, although the store on disk already kept the
+   view (ADR 0026) and `GetRaw` already read it; now a finished job
+   leaves the map as soon as the store has accepted its view, and `GET`
+   answers from disk (a view the store refuses keeps the job in memory;
+   without `queue.path` nothing changes, and the daemon's warning at
+   start says so). The persistent audit chain
+   (`internal/audit/chain/persistent.go`) appended every sealed event to
+   an in-memory slice and loaded every stored event when it opened; now
+   it keeps its tip and its length, the store gained `Walk` and `At`,
+   opening and `Verify` walk the store one event at a time, `EventAt`
+   and `Events` read it. The session issuer
+   (`internal/vault/session/issuer.go`) kept every session it ever
+   issued, about a kilobyte each, with nothing to drop it — found by the
+   two-hour soaks after the first two fixes, which still rose that much
+   a job; now a session is forgotten once it has been expired for as
+   long as it lived. Proven by the same soak run for two hours on the
+   finished code (C34): the authority's anonymous memory — its heap and
+   stacks — went from 6.5 to 12.2 MB over 4901 jobs on TDX and never
+   above 14.6 MB, from 6.0 to 11.4 MB over 3223 jobs on SEV-SNP and
+   never above 13.8 MB, the last hour within 10–15 MB on both: flat
+   within the garbage collector's swing, where the first soak would have
+   put 540 MB. What still grows is on disk, by design: the audit log at
+   about 34 KB a job (sixteen events of 2.1 KB) and the job views at
+   about 14 KB a job, 48–52 KB a job in all, 2.8 GB a day at 40 jobs a
+   minute; the pages of those two bbolt files that the daemon has
+   touched show in its resident set as file-backed memory (10 → 103 MB
+   over the two hours on TDX) and are the kernel's to reclaim, not the
+   process's to keep. Nothing rotates or archives the audit log or the
+   views yet: an operator sizes the disk for the retention they need,
+   and `acpctl audit query` reads the log as it is.
 
 17. **A burst of attestation requests on one GCP SEV-SNP guest is
    rate-limited by the host: all but the first wait about 10 s

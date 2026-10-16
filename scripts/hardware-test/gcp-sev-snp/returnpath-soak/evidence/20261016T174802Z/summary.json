@@ -1,0 +1,188 @@
+{
+  "audit_events": 51568,
+  "audit_verify": {
+    "audit_path": "audit/returnpath-audit.db",
+    "event_count": 51568,
+    "ok": true,
+    "tip": "8c2e2a68c562618e728539717bbd0995a503c0cd1bbaa6ba499c078451cbd160"
+  },
+  "audit_verify_exit": 0,
+  "audit_verify_seconds": 5.0,
+  "evidence": "20261016T174802Z",
+  "first_10min": {
+    "jobs": 264,
+    "total_s": {
+      "max": 20.796,
+      "mean": 13.116,
+      "min": 4.761,
+      "n": 264,
+      "p50": 11.579,
+      "p90": 17.373,
+      "p99": 18.268
+    }
+  },
+  "handshake_ms": {
+    "acp-compute-soak-1": {
+      "max": 20307.0,
+      "mean": 1619.041,
+      "min": 20.0,
+      "n": 1068,
+      "p50": 49.0,
+      "p90": 6168.0,
+      "p99": 6204.0
+    },
+    "acp-compute-soak-2": {
+      "max": 10475.0,
+      "mean": 1534.073,
+      "min": 20.0,
+      "n": 1084,
+      "p50": 45.0,
+      "p90": 6166.0,
+      "p99": 6200.0
+    },
+    "acp-compute-soak-3": {
+      "max": 6212.0,
+      "mean": 1590.657,
+      "min": 20.0,
+      "n": 1072,
+      "p50": 48.0,
+      "p90": 6164.0,
+      "p99": 6199.0
+    },
+    "sagvd-soak": {
+      "max": 20306.0,
+      "mean": 1580.479,
+      "min": 19.0,
+      "n": 3224,
+      "p50": 46.0,
+      "p90": 6165.0,
+      "p99": 6199.0
+    }
+  },
+  "jobs": {
+    "done": 3223,
+    "exact": 3223,
+    "first_error": null,
+    "in_flight_at_end": 0,
+    "succeeded": 3223
+  },
+  "jobs_per_hour": 1608.9,
+  "jobs_per_minute": 26.82,
+  "jobs_recorded": 3223,
+  "last_10min": {
+    "jobs": 269,
+    "total_s": {
+      "max": 17.955,
+      "mean": 13.05,
+      "min": 9.425,
+      "n": 269,
+      "p50": 11.456,
+      "p90": 17.27,
+      "p99": 17.924
+    }
+  },
+  "levels": {
+    "EXACT": 3223
+  },
+  "load1": {
+    "max": 5.74,
+    "mean": 3.216,
+    "min": 1.43,
+    "n": 121,
+    "p50": 2.99,
+    "p90": 3.99,
+    "p99": 5.65
+  },
+  "logs": {
+    "acp-compute-soak-1": [
+      "lines=1075",
+      "bytes=389770",
+      "warn=0",
+      "error=0"
+    ],
+    "acp-compute-soak-2": [
+      "lines=1091",
+      "bytes=395573",
+      "warn=0",
+      "error=0"
+    ],
+    "acp-compute-soak-3": [
+      "lines=1079",
+      "bytes=391212",
+      "warn=0",
+      "error=0"
+    ],
+    "sagvd-soak": [
+      "lines=12905",
+      "bytes=6263079",
+      "warn=0",
+      "error=0"
+    ]
+  },
+  "metrics_end": {
+    "handshake_failures": 0.0,
+    "sessions_opened": 3224.0,
+    "sessions_refused": 0.0
+  },
+  "queue_depth_max": 3.0,
+  "queue_s": {
+    "max": 15.975,
+    "mean": 8.144,
+    "min": 0.008,
+    "n": 3223,
+    "p50": 6.543,
+    "p90": 12.379,
+    "p99": 13.0
+  },
+  "run_s": {
+    "max": 5.845,
+    "mean": 4.947,
+    "min": 4.224,
+    "n": 3223,
+    "p50": 4.878,
+    "p90": 5.303,
+    "p99": 5.489
+  },
+  "sagvd_fds": {
+    "first": 13.0,
+    "last": 14.0,
+    "max": 14.0
+  },
+  "sagvd_rss_anon_kb": {
+    "first": 6048.0,
+    "last": 11352.0,
+    "max": 13844.0
+  },
+  "sagvd_rss_file_kb": {
+    "first": 9940.0,
+    "last": 87640.0,
+    "max": 87640.0
+  },
+  "sagvd_rss_kb": {
+    "first": 15988.0,
+    "last": 98992.0,
+    "max": 98992.0
+  },
+  "sessions_active_max": 3.0,
+  "snapshots": 121,
+  "soak_minutes": 120,
+  "statuses": {
+    "succeeded": 3223
+  },
+  "total_s": {
+    "max": 20.796,
+    "mean": 13.091,
+    "min": 4.761,
+    "n": 3223,
+    "p50": 11.499,
+    "p90": 17.316,
+    "p99": 17.933
+  },
+  "window_s": 7211.6,
+  "workers": 3,
+  "workers_rss_kb": {
+    "first": 46088.0,
+    "last": 50428.0,
+    "max": 51168.0
+  }
+}

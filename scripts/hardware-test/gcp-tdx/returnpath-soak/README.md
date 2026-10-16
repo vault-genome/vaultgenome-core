@@ -25,3 +25,10 @@ from the first minute to the last, p50 8.6 s and p99 9.3 s from
 submission to verdict, handshakes p50 94 ms and none above half a
 second; 38,864 audit events verified in 3.2 s; and the authority's
 memory 16 → 280 MB over the hour (KNOWN_ISSUES #18).
+
+Two-hour runs after the fix: `evidence/20261016T153617Z/` (the first two
+fixes; anonymous memory 6.0 → 16.0 MB over 4883 jobs — the kilobyte a
+job that pointed at the session issuer) and `evidence/20261016T174732Z/`
+(claim C34, the finished fix: 4901 jobs, every one EXACT, anonymous
+memory 6.5 → 12.2 MB and never above 14.6 MB, file-backed 10 → 103 MB
+with the audit log at 168 MB and the views at 67 MB on disk).

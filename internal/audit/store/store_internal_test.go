@@ -176,3 +176,45 @@ func TestHandleClosedUnderneath_OpsFailThenCloseIsClean(t *testing.T) {
 	require.NoError(t, s.Close())
 	require.Nil(t, s.db)
 }
+
+// At reads by position, not by key: a log whose keys are not exactly
+// 1..n (a foreign key written under the store's back) is walked to the
+// idx-th key, in the same order Load and Walk give; a corrupted record
+// is an Integrity refusal to At as it is to Load.
+func TestAt_WalksWhenKeysAreNotContiguous(t *testing.T) {
+	t.Parallel()
+	s := openStore(t)
+	require.NoError(t, s.Append(event(0)))
+	require.NoError(t, s.Append(event(1)))
+	require.NoError(t, s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(bucketName))
+		early := event(2)
+		raw, err := json.Marshal(&early)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte{0, 0, 0, 0, 0, 0, 0, 0}, raw)
+	}))
+
+	events, err := s.Load()
+	require.NoError(t, err)
+	for i := range events {
+		evt, ok, err := s.At(i)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, events[i].EventID, evt.EventID, "position %d", i)
+	}
+	_, ok, err := s.At(3)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, s.db.Update(func(tx *bbolt.Tx) error {
+		return tx.Bucket([]byte(bucketName)).Put([]byte{0, 0, 0, 0, 0, 0, 0, 9}, []byte("not json"))
+	}))
+	_, _, err = s.At(3)
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity))
+	err = s.Walk(func(int, audit_event.AuditEvent) error { return nil })
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity))
+}

@@ -91,6 +91,10 @@ def main(d):
         wrss = [x for x in col("workers_rss_kb") if x is not None]
         out["sagvd_rss_kb"] = {"first": rss[0], "max": max(rss), "last": rss[-1]} if rss else None
         out["sagvd_fds"] = {"first": fds[0], "max": max(fds), "last": fds[-1]} if fds else None
+        for name in ("sagvd_rss_anon_kb", "sagvd_rss_file_kb"):
+            if name in snaps[0]:
+                v = [x for x in col(name) if x is not None]
+                out[name] = {"first": v[0], "max": max(v), "last": v[-1]} if v else None
         out["workers_rss_kb"] = {"first": wrss[0], "max": max(wrss), "last": wrss[-1]} if wrss else None
         out["load1"] = stats(col("load1"))
         out["sessions_active_max"] = max((x for x in col("sessions_active") if x is not None), default=None)

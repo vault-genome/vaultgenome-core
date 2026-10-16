@@ -226,21 +226,26 @@ func (j *Job) toView() JobView {
 // ---- queue ---------------------------------------------------------------
 
 // JobQueue is a mutex-guarded in-memory FIFO of pending Jobs plus a
-// map of every job ever seen (for GET /v1/jobs/{id} lookups).
+// map of the jobs it holds (for GET /v1/jobs/{id} lookups).
 //
 // Scope / lifetime: process-local, unless a store is attached
 // (AttachStore, ADR 0026): then every submission and transition is
-// written to disk, a finished job's view outlives the process, and
-// Resume admits again what a previous process left queued or running.
-// Without a store a restart loses queued jobs, and the daemon says so.
+// written to disk, a finished job's view outlives the process — and
+// leaves memory, the store answering for it — and Resume admits again
+// what a previous process left queued or running. Without a store a
+// restart loses queued jobs, every finished job stays in memory, and
+// the daemon says so.
 //
 // Concurrency: safe for concurrent use. Next blocks until either a job
 // is available or the context is cancelled.
 type JobQueue struct {
 	mu sync.Mutex
-	// jobs is every job the queue has ever seen, indexed by ID.
-	// Jobs stay in the map after completion so GET /v1/jobs/{id}
-	// still works. A TTL sweep lands with persistence.
+	// jobs is every job in flight — queued or running — indexed by ID,
+	// and, without a store, every job ever seen, so GET /v1/jobs/{id}
+	// still answers. With a store a finished job leaves the map as soon
+	// as its view is on disk, where GetRaw reads it: an authority that
+	// runs for a month holds its jobs in flight, not its history
+	// (KNOWN_ISSUES #18).
 	jobs map[string]*Job
 	// pending is the FIFO order of queued job IDs. When a job
 	// transitions out of Queued, it is removed from pending but
@@ -393,19 +398,40 @@ func (q *JobQueue) transition(id, status, lastErr string) {
 	}
 }
 
-// keepView writes a finished job's view to the store, if any, so a GET
-// after a restart still answers.
-func (q *JobQueue) keepView(id string, view []byte) {
+// keepView writes a finished job's view to the store, if any, so that
+// every GET from now on — after a restart too — answers from disk; it
+// reports whether the view is there.
+func (q *JobQueue) keepView(id string, view []byte) bool {
 	if q.store == nil || view == nil {
-		return
+		return false
 	}
 	if err := q.store.PutView(id, view); err != nil {
-		q.log.Error("sagvd job store refused a view", "job_id", id, "err", err)
+		q.log.Error("sagvd job store refused a view; the job stays in memory", "job_id", id, "err", err)
+		return false
 	}
+	return true
 }
 
-// GetRaw returns the job's view as JSON: from memory, or from the store
-// for a job a previous process finished.
+// forget drops a finished job from memory once the store answers for it.
+func (q *JobQueue) forget(id string) {
+	q.mu.Lock()
+	if j, ok := q.jobs[id]; ok && (j.Status == JobStatusSucceeded || j.Status == JobStatusFailed) {
+		delete(q.jobs, id)
+	}
+	q.mu.Unlock()
+}
+
+// Held is how many jobs the queue holds in memory: those in flight and,
+// without a store, every job ever seen.
+func (q *JobQueue) Held() int {
+	q.mu.Lock()
+	n := len(q.jobs)
+	q.mu.Unlock()
+	return n
+}
+
+// GetRaw returns the job's view as JSON: from memory for a job in
+// flight, or from the store for a finished one.
 func (q *JobQueue) GetRaw(id string) ([]byte, bool) {
 	if view, ok := q.Get(id); ok {
 		raw, err := json.Marshal(view)
@@ -596,7 +622,9 @@ func (q *JobQueue) CompleteGated(id string, out returnpath.CandidateOutput, work
 	raw := q.viewJSON(j)
 	q.mu.Unlock()
 	q.transition(id, status, lastErr)
-	q.keepView(id, raw)
+	if q.keepView(id, raw) {
+		q.forget(id)
+	}
 }
 
 // viewJSON renders j's view under the caller's lock; nil when there is no
@@ -628,7 +656,9 @@ func (q *JobQueue) CompleteFailure(id string, err error) {
 	raw := q.viewJSON(j)
 	q.mu.Unlock()
 	q.transition(id, jobstore.StatusFailed, err.Error())
-	q.keepView(id, raw)
+	if q.keepView(id, raw) {
+		q.forget(id)
+	}
 }
 
 // newJobID returns a 32-char hex ID (16 random bytes). Collisions are

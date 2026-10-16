@@ -1,0 +1,4 @@
+instance=vg-rp-soak-20261016t174631z
+zone=us-central1-c
+machine=n2d-standard-8
+captured=20261016T174802Z

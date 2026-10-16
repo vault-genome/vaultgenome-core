@@ -25,4 +25,11 @@ sixty minutes, every one EXACT, nothing refused or failed; 26.7 a minute,
 p50 11.3 s and p99 17.7 s from submission to verdict, half of the
 handshakes held 1–7 s by the host's throttle (KNOWN_ISSUES #17); 25,712
 audit events verified in 2.4 s; and the authority's memory 17 → 205 MB
-over the hour (KNOWN_ISSUES #18). The TDX twin: `../../gcp-tdx/returnpath-soak/`.
+over the hour (KNOWN_ISSUES #18).
+
+Two-hour runs after the fix: `evidence/20261016T153649Z/` (the first two
+fixes; the authority's anonymous memory 6.4 → 11.8 MB over 3225 jobs)
+and `evidence/20261016T174802Z/` (claim C34, the finished fix: 3223 jobs,
+every one EXACT, anonymous memory 6.0 → 11.4 MB and never above 13.8 MB,
+file-backed 10 → 88 MB with the audit log at 117 MB and the views at
+50 MB on disk). The TDX twin: `../../gcp-tdx/returnpath-soak/`.

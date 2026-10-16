@@ -130,6 +130,24 @@ given release can still open.
 
 ### Fixed
 
+- **The authority's memory no longer grows with every job it has served
+  (KNOWN_ISSUES #18).** The soak (C33) found about 110 KB retained a
+  job. Three things kept every job and are fixed: a finished job leaves
+  the queue's memory as soon as the store has its view (`GET
+  /v1/jobs/{id}` reads it from disk; a view the store refuses keeps the
+  job in memory; without `queue.path` nothing changes and the daemon's
+  warning at start says so); the persistent audit chain keeps its tip
+  and its length instead of every event — the store gained `Walk` and
+  `At`, opening and `Verify` walk the store one event at a time,
+  `EventAt` and `Events` read it; the session issuer forgets a session
+  once it has been expired for as long as it lived. Proven by the soak
+  run for two hours on both chips (C34): the authority's anonymous
+  memory 9–15 MB through 4901 jobs on TDX and 3223 on SEV-SNP, every
+  one EXACT, where the first soak's rate would have put 540 MB; what
+  still grows is the two bbolt files on disk, 48–52 KB a job, which
+  nothing rotates yet. The soak kit now snapshots the resident set by
+  kind (anonymous, file-backed) and the files' sizes.
+
 - **The metrics wrapper around sagvd's producer dropped the certificate
   table.** `teemetrics.WrapProducer` had no `QuoteWithAux`, so the vault's
   record went on the wire as the report alone; the builtin verifier

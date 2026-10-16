@@ -247,11 +247,34 @@ func (iss *Issuer) Issue(p IssueParams) (session_object.SessionObject, error) {
 	}
 
 	iss.sessions[sid] = s
+	iss.sweep(now)
 	return s, nil
 }
 
+// sweep forgets every session that has been expired for longer than it
+// lived. Nothing looks one up by then: its flow ended at the latest when
+// its job timed out, and the job's view is on the store. So the issuer
+// holds the sessions in flight and the recently expired, not one for
+// every job it ever served (KNOWN_ISSUES #18). Called under iss.mu.
+func (iss *Issuer) sweep(now time.Time) {
+	for sid, s := range iss.sessions {
+		if now.After(s.ExpiresAt.Add(s.ExpiresAt.Sub(s.IssuedAt))) {
+			delete(iss.sessions, sid)
+		}
+	}
+}
+
+// Len is how many sessions the issuer holds: those in flight and the
+// recently expired.
+func (iss *Issuer) Len() int {
+	iss.mu.Lock()
+	defer iss.mu.Unlock()
+	return len(iss.sessions)
+}
+
 // Lookup returns a copy of the stored session by ID. The bool is false
-// if the session is unknown.
+// if the session is unknown — never issued, or expired for longer than
+// it lived and forgotten.
 func (iss *Issuer) Lookup(sid ids.SessionID) (session_object.SessionObject, bool) {
 	iss.mu.Lock()
 	defer iss.mu.Unlock()
