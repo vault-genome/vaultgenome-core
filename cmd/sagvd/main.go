@@ -222,7 +222,7 @@ func runDaemon(args []string) error {
 		records, _ := jobs.Len()
 		logger.Info("sagvd job queue on disk", "path", cfg.Queue.Path, "records", records, "max_resume_attempts", cfg.Queue.MaxResume())
 	} else if cfg.Genome.Enabled() {
-		logger.Warn("sagvd job queue is in memory: jobs queued or in flight do not survive a restart (set queue.path)")
+		logger.Warn("sagvd job queue is in memory: jobs queued or in flight do not survive a restart, and every finished job stays in memory (set queue.path)")
 	}
 
 	// The Return Path audit log: opened and verified before anything is

@@ -210,3 +210,83 @@ func TestJobQueue_WithoutStore_NothingToResume(t *testing.T) {
 		t.Fatalf("the job is not queued in memory: ok=%v %+v", ok, view)
 	}
 }
+
+// With a store, a finished job leaves memory as soon as its view is on
+// disk (KNOWN_ISSUES #18): GET answers from the store, the queue holds
+// only what is in flight. A view the store refuses keeps the job in
+// memory, so GET still answers; without a store every job stays, as it
+// always did.
+func TestJobQueue_FinishedJobsLeaveMemoryOnceTheStoreHasTheView(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 10, 16, 14, 0, 0, 0, time.UTC)}
+	store := openTestStore(t)
+	q := NewJobQueue(clock, 20*time.Millisecond)
+	q.AttachStore(store, 3, nil)
+	ta := newTestAuthority(t, nil)
+	submit := func(req string) string {
+		t.Helper()
+		id, _ := NewJobID()
+		if _, err := q.SubmitRecorded(id, ta.flow(t, req, testGenomeID), testInfo(testGenomeID), aMinute, JobRecord{Request: json.RawMessage(`{}`), RequestID: req}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := q.Next(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	ok := submit("req-ok")
+	failed := submit("req-failed")
+	if q.Held() != 2 {
+		t.Fatalf("two jobs in flight, held %d", q.Held())
+	}
+	q.CompleteGated(ok, returnpath.CandidateOutput{OutputKind: "bytes", Bytes: []byte("ok")}, "worker-1", GateView{Level: "EXACT"}, nil, nil)
+	q.CompleteFailure(failed, errors.New("the worker never answered"))
+	if q.Held() != 0 {
+		t.Fatalf("finished jobs still in memory: %d", q.Held())
+	}
+	if _, inMemory := q.Get(ok); inMemory {
+		t.Fatal("the finished job is still in memory")
+	}
+	raw, kept := q.GetRaw(ok)
+	if !kept || !strings.Contains(string(raw), `"status":"succeeded"`) || !strings.Contains(string(raw), `"level":"EXACT"`) {
+		t.Fatalf("GET of the finished job from the store: kept=%v %s", kept, raw)
+	}
+	if raw, kept := q.GetRaw(failed); !kept || !strings.Contains(string(raw), `"status":"failed"`) || !strings.Contains(string(raw), "the worker never answered") {
+		t.Fatalf("GET of the failed job from the store: kept=%v %s", kept, raw)
+	}
+	q.Requeue(ok)
+	q.MarkDispatched(ok, clock.Now())
+	if q.Held() != 0 || q.Depth() != 0 {
+		t.Fatalf("a finished job cannot come back: held %d depth %d", q.Held(), q.Depth())
+	}
+
+	// The store refuses the view (closed underneath): the job stays.
+	stuck := submit("req-stuck")
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	q.CompleteGated(stuck, returnpath.CandidateOutput{OutputKind: "bytes", Bytes: []byte("ok")}, "worker-1", GateView{Level: "EXACT"}, nil, nil)
+	if q.Held() != 1 {
+		t.Fatalf("a job whose view the store refused must stay in memory, held %d", q.Held())
+	}
+	if view, inMemory := q.Get(stuck); !inMemory || view.Status != JobStatusSucceeded {
+		t.Fatalf("GET of the job the store refused: %v %+v", inMemory, view)
+	}
+
+	// Without a store, every job stays.
+	alone := NewJobQueue(clock, 20*time.Millisecond)
+	id, _ := NewJobID()
+	if _, err := alone.Submit(id, ta.flow(t, "req-alone", testGenomeID), testInfo(testGenomeID), aMinute); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := alone.Next(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	alone.CompleteFailure(id, errors.New("refused"))
+	if alone.Held() != 1 {
+		t.Fatalf("without a store the finished job must stay, held %d", alone.Held())
+	}
+	if view, inMemory := alone.Get(id); !inMemory || view.Status != JobStatusFailed {
+		t.Fatalf("GET without a store: %v %+v", inMemory, view)
+	}
+}
