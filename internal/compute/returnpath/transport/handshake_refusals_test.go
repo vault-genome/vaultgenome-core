@@ -37,12 +37,14 @@ func TestDoHandshake_RefusesABadConfig(t *testing.T) {
 	peers := newPeerTEEs(t)
 	c, s := net.Pipe()
 	defer func() { _ = c.Close(); _ = s.Close() }()
-	good := HandshakeConfig{Role: RoleClient, Conn: c, Producer: peers.clientProducer, Verifier: peers.clientVerifier}
+	good := HandshakeConfig{Role: RoleClient, Conn: c, Producer: peers.clientProducer, Verifier: peers.clientVerifier, LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated}
 	for name, mut := range map[string]func(*HandshakeConfig){
-		"role":     func(cfg *HandshakeConfig) { cfg.Role = RoleUnspecified },
-		"conn":     func(cfg *HandshakeConfig) { cfg.Conn = nil },
-		"producer": func(cfg *HandshakeConfig) { cfg.Producer = nil },
-		"verifier": func(cfg *HandshakeConfig) { cfg.Verifier = nil },
+		"role":                   func(cfg *HandshakeConfig) { cfg.Role = RoleUnspecified },
+		"conn":                   func(cfg *HandshakeConfig) { cfg.Conn = nil },
+		"producer":               func(cfg *HandshakeConfig) { cfg.Producer = nil },
+		"verifier":               func(cfg *HandshakeConfig) { cfg.Verifier = nil },
+		"local provider missing": func(cfg *HandshakeConfig) { cfg.LocalProvider = "" },
+		"peer provider auto":     func(cfg *HandshakeConfig) { cfg.PeerProvider = tee.ProviderAuto },
 	} {
 		cfg := good
 		mut(&cfg)
@@ -122,7 +124,7 @@ func TestClientHandshake_NonceSourceFailure(t *testing.T) {
 	peers := newPeerTEEs(t)
 	got := make(chan ErrorFrame, 1)
 	conn := scriptedServer(t, func(c net.Conn) { got <- readErrorFrame(t, c) })
-	_, err := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: conn, Producer: peers.clientProducer,
+	_, err := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: conn, Producer: peers.clientProducer, LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Verifier: peers.clientVerifier, NonceReader: failingReader{}})
 	require.Error(t, err)
 	require.Equal(t, CodeHandshakeFailure, shared_errors.CodeOf(err))
@@ -140,12 +142,12 @@ func TestClientHandshake_EchoMismatch(t *testing.T) {
 		_, err := readBodyAs(c, FrameTypeHelloClient, &hc)
 		require.NoError(t, err)
 		wrongEcho := bytes.Repeat([]byte{0xEE}, NonceMinBytes)
-		hs, err := NewHelloServer(wrongEcho, nonceOf(0x33), []byte("evidence"), []byte("ctx"))
+		hs, err := NewHelloServer(wrongEcho, nonceOf(0x33), evRecord("evidence"), []byte("ctx"))
 		require.NoError(t, err)
 		require.NoError(t, writeBody(c, hs))
 		got <- readErrorFrame(t, c)
 	})
-	_, err := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: conn, Producer: peers.clientProducer, Verifier: peers.clientVerifier})
+	_, err := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: conn, Producer: peers.clientProducer, Verifier: peers.clientVerifier, LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated})
 	require.Error(t, err)
 	require.Equal(t, CodeHandshakeFailure, shared_errors.CodeOf(err))
 	require.Equal(t, shared_errors.CategoryAuthority, shared_errors.CategoryOf(err))
@@ -162,7 +164,7 @@ func TestClientHandshake_WrongPhaseFrame(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, writeBody(c, NewHeartbeat(time.Now())))
 	})
-	_, err := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: conn, Producer: peers.clientProducer, Verifier: peers.clientVerifier})
+	_, err := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: conn, Producer: peers.clientProducer, Verifier: peers.clientVerifier, LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated})
 	require.Error(t, err)
 	require.Equal(t, CodeProtocolViolation, shared_errors.CodeOf(err))
 }
@@ -185,14 +187,14 @@ func TestClientHandshake_ServerEvidenceRejected(t *testing.T) {
 		}
 		defer func() { _ = c.Close() }()
 		_ = c.SetDeadline(time.Now().Add(testHandshakeTimeout))
-		_, herr := DoHandshake(HandshakeConfig{Role: RoleServer, Conn: c, Producer: peers.serverProducer, Verifier: peers.serverVerifier})
+		_, herr := DoHandshake(HandshakeConfig{Role: RoleServer, Conn: c, Producer: peers.serverProducer, Verifier: peers.serverVerifier, LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated})
 		serverErr <- herr
 	}()
 	dialed, err := net.Dial("tcp", lis.Addr().String())
 	require.NoError(t, err)
 	defer func() { _ = dialed.Close() }()
 	_ = dialed.SetDeadline(time.Now().Add(testHandshakeTimeout))
-	_, cerr := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: dialed, Producer: peers.clientProducer,
+	_, cerr := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: dialed, Producer: peers.clientProducer, LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Verifier: tee.NewSimulatedVerifier(other.PublicKey(), other.Measurement())})
 	require.Error(t, cerr)
 	require.Equal(t, CodeHandshakeFailure, shared_errors.CodeOf(cerr))
@@ -216,14 +218,14 @@ func TestClientHandshake_OwnQuoteFails(t *testing.T) {
 		}
 		defer func() { _ = c.Close() }()
 		_ = c.SetDeadline(time.Now().Add(testHandshakeTimeout))
-		_, herr := DoHandshake(HandshakeConfig{Role: RoleServer, Conn: c, Producer: peers.serverProducer, Verifier: peers.serverVerifier})
+		_, herr := DoHandshake(HandshakeConfig{Role: RoleServer, Conn: c, Producer: peers.serverProducer, Verifier: peers.serverVerifier, LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated})
 		serverErr <- herr
 	}()
 	dialed, err := net.Dial("tcp", lis.Addr().String())
 	require.NoError(t, err)
 	defer func() { _ = dialed.Close() }()
 	_ = dialed.SetDeadline(time.Now().Add(testHandshakeTimeout))
-	_, cerr := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: dialed,
+	_, cerr := DoHandshake(HandshakeConfig{LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated, Role: RoleClient, Conn: dialed,
 		Producer: failingProducer{m: peers.clientProducer.Measurement()}, Verifier: peers.clientVerifier})
 	require.Error(t, cerr)
 	require.Equal(t, CodeHandshakeFailure, shared_errors.CodeOf(cerr))
@@ -238,7 +240,7 @@ func TestServerHandshake_OwnQuoteFails(t *testing.T) {
 	defer func() { _ = clientSide.Close(); _ = serverSide.Close() }()
 	serverErr := make(chan error, 1)
 	go func() {
-		_, herr := DoHandshake(HandshakeConfig{Role: RoleServer, Conn: serverSide,
+		_, herr := DoHandshake(HandshakeConfig{LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated, Role: RoleServer, Conn: serverSide,
 			Producer: failingProducer{m: peers.serverProducer.Measurement()}, Verifier: peers.serverVerifier})
 		serverErr <- herr
 	}()
@@ -259,7 +261,7 @@ func TestServerHandshake_NonceSourceFailure(t *testing.T) {
 	defer func() { _ = clientSide.Close(); _ = serverSide.Close() }()
 	serverErr := make(chan error, 1)
 	go func() {
-		_, herr := DoHandshake(HandshakeConfig{Role: RoleServer, Conn: serverSide, Producer: peers.serverProducer,
+		_, herr := DoHandshake(HandshakeConfig{LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated, Role: RoleServer, Conn: serverSide, Producer: peers.serverProducer,
 			Verifier: peers.serverVerifier, NonceReader: failingReader{}})
 		serverErr <- herr
 	}()
@@ -288,7 +290,7 @@ func TestServerHandshake_ClientEvidenceRejected(t *testing.T) {
 		_ = c.SetDeadline(time.Now().Add(testHandshakeTimeout))
 		// The server expects someone else's measurement: the client's
 		// genuine evidence is refused at the AttestClient phase.
-		_, herr := DoHandshake(HandshakeConfig{Role: RoleServer, Conn: c, Producer: peers.serverProducer,
+		_, herr := DoHandshake(HandshakeConfig{LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated, Role: RoleServer, Conn: c, Producer: peers.serverProducer,
 			Verifier: tee.NewSimulatedVerifier(other.PublicKey(), other.Measurement())})
 		serverErr <- herr
 	}()
@@ -296,7 +298,7 @@ func TestServerHandshake_ClientEvidenceRejected(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = dialed.Close() }()
 	_ = dialed.SetDeadline(time.Now().Add(testHandshakeTimeout))
-	_, cerr := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: dialed, Producer: peers.clientProducer, Verifier: peers.clientVerifier})
+	_, cerr := DoHandshake(HandshakeConfig{Role: RoleClient, Conn: dialed, Producer: peers.clientProducer, Verifier: peers.clientVerifier, LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated})
 	require.Error(t, cerr, "the client, waiting for SessionReady, reads the refusal")
 	require.Equal(t, CodeHandshakeFailure, shared_errors.CodeOf(cerr))
 	serr := <-serverErr
@@ -311,7 +313,7 @@ func TestServerHandshake_WrongPhaseFrameFromClient(t *testing.T) {
 	defer func() { _ = clientSide.Close(); _ = serverSide.Close() }()
 	serverErr := make(chan error, 1)
 	go func() {
-		_, herr := DoHandshake(HandshakeConfig{Role: RoleServer, Conn: serverSide, Producer: peers.serverProducer, Verifier: peers.serverVerifier})
+		_, herr := DoHandshake(HandshakeConfig{Role: RoleServer, Conn: serverSide, Producer: peers.serverProducer, Verifier: peers.serverVerifier, LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated})
 		serverErr <- herr
 	}()
 	require.NoError(t, writeBody(clientSide, NewHeartbeat(time.Now())))

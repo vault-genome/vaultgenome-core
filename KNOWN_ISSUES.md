@@ -77,7 +77,12 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    Since 2026-10-15 the sealer is the operator's choice by what the host
    has (`tee.sealer`, ADR 0025 step 1b): the TEE's own key, the host's TPM
    2.0 — virtual or discrete, on any TEE or none — or the simulated key;
-   every sealed file names its sealer.
+   every sealed file names its sealer. Since 2026-10-16 (ADR 0025 step
+   2a, wire 1.1) the Evidence on the Return Path names its format: a CMW
+   record (RFC 9999) whose type is the family's media type — ratsd's TSM
+   report for SEV-SNP and TDX, the certificate table beside the SEV-SNP
+   report — and a peer of another family is refused by name before any
+   verifier runs.
    The Azure confidential GPU adapter (ADR 0019, `tee.provider:
    "azure-cgpu"`, NCC H100 v5) carries the SEV-SNP report from the vTPM's
    HCL report, a TPM quote by the vTPM's attestation key binding the

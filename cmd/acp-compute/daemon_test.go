@@ -187,7 +187,9 @@ func (f *testFixture) stubServer(lis net.Listener, req transport.JobRequest) <-c
 		sess, err := server.Accept(server.SessionConfig{
 			Conn:              c,
 			Producer:          f.serverSim,
+			LocalProvider:     tee.ProviderSimulated,
 			Verifier:          f.serverVerifier,
+			PeerProvider:      tee.ProviderSimulated,
 			Clock:             f.clock,
 			WorkerKeyResolver: f.resolver,
 			HandshakeTimeout:  daemonTestTimeout,

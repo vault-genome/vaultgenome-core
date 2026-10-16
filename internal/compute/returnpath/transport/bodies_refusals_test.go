@@ -38,7 +38,7 @@ func TestHelloServer_Validate(t *testing.T) {
 		{"type", func(h *HelloServer) { h.Type = FrameTypeHeartbeat }, CodeProtocolViolation},
 		{"short echo", func(h *HelloServer) { h.ClientNonceEcho = h.ClientNonceEcho[:NonceMinBytes-1] }, CodeNonceTooShort},
 		{"short server nonce", func(h *HelloServer) { h.ServerNonce = nil }, CodeNonceTooShort},
-		{"no evidence", func(h *HelloServer) { h.ServerEvidence = nil }, CodeProtocolViolation},
+		{"no evidence", func(h *HelloServer) { h.ServerEvidence = CMWRecord{} }, CodeProtocolViolation},
 		{"no derivation context", func(h *HelloServer) { h.DerivationContext = []byte{} }, CodeProtocolViolation},
 	}
 	for _, tc := range cases {
@@ -52,18 +52,18 @@ func TestHelloServer_Validate(t *testing.T) {
 
 func TestNewHelloServer_RefusesShortNonces(t *testing.T) {
 	t.Parallel()
-	_, err := NewHelloServer(nonceOf(1)[:3], nonceOf(2), []byte("ev"), []byte("ctx"))
+	_, err := NewHelloServer(nonceOf(1)[:3], nonceOf(2), evRecord("ev"), []byte("ctx"))
 	requireStructural(t, err, CodeNonceTooShort)
-	_, err = NewHelloServer(nonceOf(1), nonceOf(2)[:3], []byte("ev"), []byte("ctx"))
+	_, err = NewHelloServer(nonceOf(1), nonceOf(2)[:3], evRecord("ev"), []byte("ctx"))
 	requireStructural(t, err, CodeNonceTooShort)
-	hs, err := NewHelloServer(nonceOf(1), nonceOf(2), []byte("ev"), []byte("ctx"))
+	hs, err := NewHelloServer(nonceOf(1), nonceOf(2), evRecord("ev"), []byte("ctx"))
 	require.NoError(t, err)
 	require.Equal(t, FrameTypeHelloServer, hs.Type)
 }
 
 func TestAttestClient_Validate(t *testing.T) {
 	t.Parallel()
-	_, err := NewAttestClient(nil)
+	_, err := NewAttestClient(CMWRecord{})
 	requireStructural(t, err, CodeProtocolViolation)
 	valid := mustAttestClient(t)
 	require.NoError(t, valid.Validate())
@@ -71,7 +71,7 @@ func TestAttestClient_Validate(t *testing.T) {
 	bad.Type = FrameTypeHelloClient
 	requireStructural(t, bad.Validate(), CodeProtocolViolation)
 	bad = valid
-	bad.ClientEvidence = nil
+	bad.ClientEvidence = CMWRecord{}
 	requireStructural(t, bad.Validate(), CodeProtocolViolation)
 }
 

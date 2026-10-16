@@ -97,7 +97,7 @@ var tdxGuestQuote = func(tsm tsmReporter, nonce []byte) (*tdxQuote, error) {
 	var reportData [64]byte
 	prefix := computeReportDataPrefix(nonce)
 	copy(reportData[:], prefix[:])
-	raw, err := tsm.report(reportData, 0)
+	raw, aux, err := tsm.report(reportData, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +108,7 @@ var tdxGuestQuote = func(tsm tsmReporter, nonce []byte) (*tdxQuote, error) {
 	if q.ReportData != reportData {
 		return nil, errors.New("quote does not carry the requested REPORTDATA")
 	}
+	q.AuxBlob = aux
 	return q, nil
 }
 
@@ -142,27 +143,35 @@ func newGCPTDXProducer(cfg GCPTDXProducerConfig, tsm tsmReporter) (*GCPTDXProduc
 	return p, nil
 }
 
-// Quote implements Producer. A quote whose MRTD or RTMRs differ from the
-// ones read at construction is refused: the workload this producer
-// speaks for cannot change underneath it.
+// Quote implements Producer: the quote alone.
 func (p *GCPTDXProducer) Quote(nonce Nonce) (Evidence, error) {
+	ev, _, err := p.QuoteWithAux(nonce)
+	return ev, err
+}
+
+// QuoteWithAux implements AuxblobProducer: the quote, with whatever
+// configfs-tsm showed beside it (nothing on tdx_guest today). A quote
+// whose MRTD or RTMRs differ from the ones read at construction is
+// refused: the workload this producer speaks for cannot change
+// underneath it.
+func (p *GCPTDXProducer) QuoteWithAux(nonce Nonce) (Evidence, []byte, error) {
 	if len(nonce) < NonceMinBytes {
-		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-tdx: nonce must be at least NonceMinBytes", nil)
+		return nil, nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-tdx: nonce must be at least NonceMinBytes", nil)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.tsm == nil {
-		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-tdx: producer closed", nil)
+		return nil, nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-tdx: producer closed", nil)
 	}
 	q, err := tdxGuestQuote(p.tsm, nonce)
 	if err != nil {
-		return nil, fmt.Errorf("gcp-tdx: request quote: %w", err)
+		return nil, nil, fmt.Errorf("gcp-tdx: request quote: %w", err)
 	}
 	if q.MRTD != p.mrtd || q.RTMR != p.rtmr {
-		return nil, shared_errors.Integrity(shared_errors.CodeAttestationDenied,
+		return nil, nil, shared_errors.Integrity(shared_errors.CodeAttestationDenied,
 			"gcp-tdx: quote carries a different MRTD or RTMRs than this producer was started with", nil)
 	}
-	return Evidence(q.Raw), nil
+	return Evidence(q.Raw), q.AuxBlob, nil
 }
 
 // Measurement returns the pin: SHA-384 over MRTD and RTMR0..3.

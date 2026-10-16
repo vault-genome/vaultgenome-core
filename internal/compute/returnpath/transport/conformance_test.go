@@ -99,6 +99,7 @@ func runLoopbackHandshake(t *testing.T, peers peerTEEs, opts ...func(*HandshakeC
 		serverAccepted = c
 		_ = c.SetDeadline(time.Now().Add(testHandshakeTimeout))
 		cfg := HandshakeConfig{
+			LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 			Role:     RoleServer,
 			Conn:     c,
 			Producer: peers.serverProducer,
@@ -117,6 +118,7 @@ func runLoopbackHandshake(t *testing.T, peers peerTEEs, opts ...func(*HandshakeC
 	_ = dialed.SetDeadline(time.Now().Add(testHandshakeTimeout))
 
 	cfg := HandshakeConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Role:              RoleClient,
 		Conn:              dialed,
 		Producer:          peers.clientProducer,
@@ -241,6 +243,7 @@ func TestConformance_02_NonceTooShort(t *testing.T) {
 		defer c.Close()
 		_ = c.SetDeadline(time.Now().Add(testHandshakeTimeout))
 		s, herr := DoHandshake(HandshakeConfig{
+			LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 			Role:     RoleServer,
 			Conn:     c,
 			Producer: peers.serverProducer,

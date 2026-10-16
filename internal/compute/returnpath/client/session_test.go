@@ -105,6 +105,7 @@ func rawVault(p *peers, conn net.Conn) (*transport.Conn, error) {
 		return nil, err
 	}
 	state, err := transport.DoHandshake(transport.HandshakeConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Role: transport.RoleServer, Conn: conn, Producer: p.serverProducer, Verifier: p.serverVerifier, Clock: p.clock,
 	})
 	if err != nil {
@@ -136,6 +137,7 @@ func clientConfig(t *testing.T, p *peers, conn net.Conn) SessionConfig {
 	recon, err := worker.NewDeterministicReconstructor(p.clock)
 	require.NoError(t, err)
 	return SessionConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Conn: conn, Producer: p.clientProducer, Verifier: p.clientVerifier, Clock: p.clock,
 		Reconstructor: recon, Signer: p.workerStore, SigningKeyID: p.workerKID,
 		Opener: KeyStoreOpener{Sealer: p.sealingStore}, ProposedChallenge: []byte("client-test-challenge"),

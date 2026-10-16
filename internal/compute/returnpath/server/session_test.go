@@ -98,6 +98,7 @@ func rawWorker(p *peers, conn net.Conn) (*transport.Conn, error) {
 		return nil, err
 	}
 	state, err := transport.DoHandshake(transport.HandshakeConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Role: transport.RoleClient, Conn: conn, Producer: p.clientProducer, Verifier: p.clientVerifier,
 		Clock: p.clock, ProposedChallenge: []byte("server-test-challenge"),
 	})
@@ -112,6 +113,7 @@ func rawWorker(p *peers, conn net.Conn) (*transport.Conn, error) {
 
 func serverConfig(p *peers, conn net.Conn) SessionConfig {
 	return SessionConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Conn: conn, Producer: p.serverProducer, Verifier: p.serverVerifier, Clock: p.clock,
 		WorkerKeyResolver: p.resolver, HandshakeTimeout: testTimeout,
 	}

@@ -101,8 +101,15 @@ with its own endorsement store.
    names the family; the verifier dispatches on the type, not on a
    configured expectation. A peer may still be *required* to be a family
    (the pin stays a policy), but the frame says what it carries. The old
-   frame — bare bytes whose format the config implied — is read for one
-   release and refused after.
+   frame — bare bytes whose format the config implied — is refused, with
+   both wire versions in the reason. *(Amended 2026-10-16, when the record
+   went on the wire; the decision had said «read for one release». The
+   first frame of the handshake names the wire version, so an old peer is
+   told at once; reading its evidence form would not let it finish — it
+   cannot read the new HELLO_SERVER — and a window would mean speaking 1.0
+   in full for a release and deleting that code the next. The fleet
+   deploys from one release (runbooks 05, 09); the refusal is the honest
+   answer.)*
 5. **Sealing by what the host has, in this order:** the TEE's own key
    (`sev-snp` derived key), else a TPM 2.0 — the existing vTPM sealer of
    ADR 0022 generalised to any TPM 2.0, discrete or virtual, with the PCR
@@ -154,12 +161,28 @@ with its own endorsement store.
    `20261015T194325Z`, `20261015T194418Z` of the two Return Path kits); a
    thief with the sealed files and no TEE is refused before any key is
    read, on both.
-2. **The CMW on the wire and the `rats` verifier**: CMW records for every
-   family's Evidence; the Veraison client over its challenge-response API
-   (stdlib HTTP and JSON; the EAR is a JWS our stdlib verifies); the EAR
-   appraisal policy; the audit artifact. Proven first on the bench against
-   a Veraison instance with our captured SEV-SNP reports, then on hardware
-   with the Verifier on a separate host — the bank's topology.
+2. **The CMW on the wire and the `rats` verifier**, in two parts. *2a
+   (2026-10-16, wire 1.1):* every family's Evidence travels as a CMW
+   record (RFC 9999 §3.1, the json-record inside our JSON frames) whose
+   type is the family's media type; the configfs-tsm families send the
+   TSM report ratsd defines — the kernel's outblob, the auxblob it shows
+   beside it (on SEV-SNP the certificate table the host wrote, the VCEK
+   among them; tdx_guest shows none), the provider's name — under
+   `application/vnd.veraison.tsm-report+json`, the type Veraison's sevsnp
+   scheme accepts; the other families send their bytes under a
+   provisional `application/vnd.vault-genome.*` type until each has a
+   registered one (a CMW collection for the composite azure-cgpu). A
+   record of another family, or a TSM report of another provider, is
+   refused by name before any verifier runs; the builtin verifiers read
+   the outblob as before; each side's family is required in the handshake
+   configuration (`auto` resolves before it). Proven on the loopback and
+   integration suites and on the two Return Path kits (see CHANGELOG
+   [Unreleased] for the run ids). *2b:* the `rats` verifier — the Veraison
+   client over its challenge-response API (stdlib HTTP and JSON; the EAR
+   is a JWS our stdlib verifies), the EAR appraisal policy, the audit
+   artifact. Proven first on the bench against a Veraison instance with
+   our captured SEV-SNP reports, then on hardware with the Verifier on a
+   separate host — the bank's topology.
 3. **`tpm2`** producer, verifier and sealer: a quote over the selected
    PCRs with the event log, verified through the TPM's endorsement
    certificate to the TPM vendor's root, appraised against a PCR policy —

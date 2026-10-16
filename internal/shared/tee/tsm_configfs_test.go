@@ -28,6 +28,8 @@ type fakeConfigfs struct {
 	makeReport func(inblob []byte) []byte
 	interfere  int // bump generation behind the caller's back on this many outblob reads
 	mkdirErr   error
+	auxblob    []byte // shown beside every report when set; the attribute is absent otherwise, as on tdx_guest
+	auxErr     error  // the auxblob read fails with this when set
 
 	entries   map[string]*fakeEntry
 	created   []string
@@ -92,6 +94,14 @@ func (f *fakeConfigfs) ReadFile(path string) ([]byte, error) {
 			e.generation++ // another writer touched the entry
 		}
 		return f.makeReport(e.inblob), nil
+	case "auxblob":
+		if f.auxErr != nil {
+			return nil, f.auxErr
+		}
+		if f.auxblob == nil {
+			return nil, os.ErrNotExist // the provider shows no auxblob
+		}
+		return append([]byte(nil), f.auxblob...), nil
 	}
 	return nil, os.ErrNotExist
 }
@@ -158,17 +168,45 @@ func TestConfigfsTSM_ReportAnswersTheRequest(t *testing.T) {
 	var rd [64]byte
 	copy(rd[:], "caller data")
 
-	raw, err := c.report(rd, 0)
+	raw, aux, err := c.report(rd, 0)
 	require.NoError(t, err)
 	require.Equal(t, append([]byte("report:"), rd[:]...), raw)
+	require.Nil(t, aux, "this provider shows no auxblob")
 	require.Empty(t, fs.privlevel, "privlevel 0 is the default and is not written")
 	fs.allRemoved(t)
+}
+
+// The auxblob beside the report — the certificate table on SEV-SNP —
+// comes back with it; a provider that shows none gives nil and no
+// error; an auxblob the kernel cannot read is an error, not a report
+// without one.
+func TestConfigfsTSM_AuxblobTravelsWithTheReport(t *testing.T) {
+	t.Parallel()
+	fs := newFakeConfigfs("sev_guest", func(in []byte) []byte { return append([]byte("report:"), in...) })
+	fs.auxblob = []byte("GUID table, VCEK in DER")
+	raw, aux, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{3}, 0)
+	require.NoError(t, err)
+	require.True(t, bytes.HasPrefix(raw, []byte("report:")))
+	require.Equal(t, []byte("GUID table, VCEK in DER"), aux)
+	fs.allRemoved(t)
+
+	none := newFakeConfigfs("tdx_guest", func(in []byte) []byte { return in })
+	_, aux, err = configfsTSM{dir: "/tsm", provider: "tdx_guest", fs: none}.report([64]byte{3}, 0)
+	require.NoError(t, err)
+	require.Nil(t, aux)
+	none.allRemoved(t)
+
+	broken := newFakeConfigfs("sev_guest", func(in []byte) []byte { return in })
+	broken.auxErr = errors.New("input/output error")
+	_, _, err = configfsTSM{dir: "/tsm", provider: "sev_guest", fs: broken}.report([64]byte{3}, 0)
+	require.ErrorContains(t, err, "read auxblob")
+	broken.allRemoved(t)
 }
 
 func TestConfigfsTSM_WritesPrivlevel(t *testing.T) {
 	t.Parallel()
 	fs := newFakeConfigfs("sev_guest", func(in []byte) []byte { return in })
-	_, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{1}, 2)
+	_, _, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{1}, 2)
 	require.NoError(t, err)
 	require.Equal(t, "2", fs.privlevel)
 }
@@ -178,7 +216,7 @@ func TestConfigfsTSM_WritesPrivlevel(t *testing.T) {
 func TestConfigfsTSM_RefusesAnotherProvider(t *testing.T) {
 	t.Parallel()
 	fs := newFakeConfigfs("tdx_guest", func(in []byte) []byte { return in })
-	_, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{1}, 0)
+	_, _, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{1}, 0)
 	require.ErrorContains(t, err, `provider is "tdx_guest"`)
 	fs.allRemoved(t)
 }
@@ -189,7 +227,7 @@ func TestConfigfsTSM_RetriesWhenRaced(t *testing.T) {
 	t.Parallel()
 	fs := newFakeConfigfs("sev_guest", func(in []byte) []byte { return in })
 	fs.interfere = 1
-	raw, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{7}, 0)
+	raw, _, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{7}, 0)
 	require.NoError(t, err)
 	require.Equal(t, byte(7), raw[0])
 	require.Len(t, fs.created, 2, "one discarded attempt, one good")
@@ -197,7 +235,7 @@ func TestConfigfsTSM_RetriesWhenRaced(t *testing.T) {
 
 	fs = newFakeConfigfs("sev_guest", func(in []byte) []byte { return in })
 	fs.interfere = tsmAttempts
-	_, err = configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{7}, 0)
+	_, _, err = configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{7}, 0)
 	require.ErrorContains(t, err, "gave up")
 	fs.allRemoved(t)
 }
@@ -206,11 +244,11 @@ func TestConfigfsTSM_SurfacesFilesystemErrors(t *testing.T) {
 	t.Parallel()
 	fs := newFakeConfigfs("sev_guest", func(in []byte) []byte { return in })
 	fs.mkdirErr = errors.New("no space")
-	_, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{}, 0)
+	_, _, err := configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs}.report([64]byte{}, 0)
 	require.ErrorContains(t, err, "create report entry")
 
 	empty := newFakeConfigfs("sev_guest", func([]byte) []byte { return nil })
-	_, err = configfsTSM{dir: "/tsm", provider: "sev_guest", fs: empty}.report([64]byte{}, 0)
+	_, _, err = configfsTSM{dir: "/tsm", provider: "sev_guest", fs: empty}.report([64]byte{}, 0)
 	require.ErrorContains(t, err, "empty outblob")
 }
 
@@ -220,6 +258,7 @@ func TestGCPSEVProducer_QuotesThroughConfigfsTSM(t *testing.T) {
 	withRealSEVParse(t)
 	base := genuineReport(t)
 	fs := newFakeConfigfs("sev_guest", echoReport(base))
+	fs.auxblob = []byte("the certificate table the host wrote")
 	p, err := newGCPSEVProducer(GCPSEVProducerConfig{}, configfsTSM{dir: "/tsm", provider: "sev_guest", fs: fs})
 	require.NoError(t, err)
 
@@ -230,6 +269,14 @@ func TestGCPSEVProducer_QuotesThroughConfigfsTSM(t *testing.T) {
 	ev, err := p.Quote(nonce)
 	require.NoError(t, err)
 	require.Len(t, []byte(ev), sevReportLen)
+	// The table rides beside the report for the wire (AuxblobProducer); Quote gives the report alone.
+	ev2, aux, err := p.QuoteWithAux(nonce)
+	require.NoError(t, err)
+	require.Len(t, []byte(ev2), sevReportLen)
+	require.Equal(t, []byte("the certificate table the host wrote"), aux)
+	_, generic, err := QuoteWithAux(p, nonce)
+	require.NoError(t, err)
+	require.Equal(t, aux, generic)
 	report, err := realParseSEVSNPReport(ev)
 	require.NoError(t, err)
 	require.True(t, nonceMatchesReportDataSEV(report.ReportData, nonce), "REPORT_DATA must bind the challenge")

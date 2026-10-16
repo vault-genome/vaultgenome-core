@@ -242,6 +242,8 @@ func (d *Daemon) runOnce(parent context.Context) (retErr error) {
 		Conn:             conn,
 		Producer:         d.mat.Producer,
 		Verifier:         d.mat.Verifier,
+		LocalProvider:    d.mat.Provider,
+		PeerProvider:     d.mat.PeerProvider,
 		Clock:            d.clock,
 		Reconstructor:    d.recon,
 		Signer:           d.mat.Store,
@@ -253,6 +255,8 @@ func (d *Daemon) runOnce(parent context.Context) (retErr error) {
 			d.metrics.connectedGauge.Set(1)
 			d.log.Debug("return-path session opened",
 				"peer_measurement", hex.EncodeToString(state.PeerMeasurement[:]),
+				"peer_evidence_type", logSafe(state.PeerEvidenceType),
+				"peer_evidence_bytes", state.PeerEvidenceBytes,
 				"ready_at", state.ReadyAt.Format(time.RFC3339Nano),
 			)
 		},
