@@ -20,6 +20,10 @@ given release can still open.
 
 ### Fixed
 
+- The client that calls a RATS Verifier (`tee.peer.verifier.mode: rats`)
+  speaks TLS 1.3 only, as every listener of the product does; it accepted
+  TLS 1.2 before. A Verifier that offers no more than 1.2 gets no session
+  (`verifier_unavailable`).
 - `vg_tee_attestation_total` and `vg_tee_attestation_duration_seconds`
   label the `verify` role with the peer's family, not the daemon's own —
   an authority on SEV-SNP verifying an Azure worker counted it under

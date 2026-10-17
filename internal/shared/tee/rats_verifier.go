@@ -134,7 +134,9 @@ func NewRATSVerifier(peer Provider, expected Measurement, cfg RATSVerifierConfig
 	}
 	transport := cfg.Transport
 	if transport == nil {
-		tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+		// TLS 1.3 only, as every listener of the product: the Verifier is
+		// a peer of the trust boundary, not a web page.
+		tlsCfg := &tls.Config{MinVersion: tls.VersionTLS13}
 		if len(cfg.CAPEM) > 0 {
 			pool := x509.NewCertPool()
 			if !pool.AppendCertsFromPEM(cfg.CAPEM) {

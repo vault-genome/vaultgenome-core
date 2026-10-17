@@ -5,6 +5,7 @@ package tee_test
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -287,6 +288,28 @@ func TestRATSVerifier_TLSAndTheURLRules(t *testing.T) {
 	require.NoError(t, err, "loopback may be plain http")
 	_, err = tee.NewRATSVerifier(tee.ProviderSimulated, f.sim.Measurement(), tee.RATSVerifierConfig{URL: "https://verifier.bank.example", EARPublicKey: key, CAPEM: []byte("not a certificate")})
 	require.ErrorContains(t, err, "no certificate")
+}
+
+// The client speaks TLS 1.3 only, as the product's listeners do: a
+// Verifier that offers at most TLS 1.2 gets no session, and the refusal is
+// the operational "verifier_unavailable", not an appraisal.
+func TestRATSVerifier_TLS13Only(t *testing.T) {
+	t.Parallel()
+	f := newRATSFixture(t, nil)
+	key, err := tee.ParseEARPublicKey(f.double.PublicJWK())
+	require.NoError(t, err)
+	old := httptest.NewUnstartedServer(f.double.Handler())
+	old.TLS = &tls.Config{MaxVersion: tls.VersionTLS12}
+	old.StartTLS()
+	t.Cleanup(old.Close)
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: old.Certificate().Raw})
+
+	v, err := tee.NewRATSVerifier(tee.ProviderSimulated, f.sim.Measurement(), tee.RATSVerifierConfig{URL: old.URL, EARPublicKey: key, CAPEM: caPEM})
+	require.NoError(t, err)
+	_, _, err = v.VerifyRecord(f.mediaType, f.value, f.nonce)
+	require.ErrorContains(t, err, "no session")
+	require.ErrorContains(t, err, "protocol version")
+	require.Equal(t, "verifier_unavailable", shared_errors.CodeOf(err))
 }
 
 // What cannot be built: a family without a reader for the pin, a pin of

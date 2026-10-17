@@ -66,7 +66,7 @@ Both daemons take the same block under `tee.peer`:
 | `mode` | `builtin` (default) or `rats`. |
 | `url` | The Verifier's base URL. `https` to anywhere; plain `http` reaches loopback only (a bench). |
 | `ear_public_key_path` | The key the Verifier signs its results with: a PEM `PUBLIC KEY` block or a JSON Web Key — Veraison publishes it at `GET /.well-known/veraison/verification` as `ear-verification-key`. ES256, so EC P-256. Take it from the Verifier's operator out of band and keep it with the pins; the daemon never fetches it. |
-| `ca_path` | Optional: the CA bundle (PEM) the Verifier's TLS certificate must chain to. Without it, the system roots. |
+| `ca_path` | Optional: the CA bundle (PEM) the Verifier's TLS certificate must chain to. Without it, the system roots. The client speaks TLS 1.3 only. |
 | `client_cert_path`, `client_key_path` | Optional, together: this daemon's TLS client certificate and key, for a Verifier that takes only known callers (mutual TLS). |
 | `policy_id` | Optional: `ear.appraisal-policy-id` the appraisal must name. |
 | `submod` | Optional: the appraisal (attester component) to judge by. Without it the result must carry exactly one. |
