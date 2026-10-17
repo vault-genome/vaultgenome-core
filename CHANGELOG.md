@@ -20,7 +20,7 @@ given release can still open.
   schema v7) with the archive's SHA-256 and length; a start finishes a
   rotation a crash interrupted, and verifies the live segment only.
   Nothing in the daemon deletes an archive. `sagvd_audit_segments_closed_total`,
-  `sagvd_audit_segment_events`.
+  `sagvd_audit_segment_events`. Measured under load on real SEV-SNP (C38).
 - Finished jobs expire from the job store after
   `queue.retain_finished_seconds`: record and view, in batches, at most once
   a minute, through an index by completion time (a store from before it is

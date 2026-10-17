@@ -1,0 +1,8 @@
+{
+  "signing_kid": "acp-compute-worker-demo",
+  "signing_public_key_hex": "5249be90f96294ee6a9cf6c508764afc2cd95c77619c957e7a68223f72960ac3",
+  "signing_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAUkm+kPlilO5qnPbFCHZK/CzZXHdhnJV+emgiP3KWCsM=\n-----END PUBLIC KEY-----\n",
+  "tee_provider": "gcp-sev-snp",
+  "tee_measurement_hex": "10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519",
+  "sealer": "sev-snp-derived-key"
+}

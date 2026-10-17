@@ -1,0 +1,265 @@
+{
+  "audit_archive_bytes": {
+    "first": 0.0,
+    "last": 83886080.0,
+    "max": 83886080.0
+  },
+  "audit_events": 25749,
+  "audit_live_bytes": {
+    "first": 32768.0,
+    "last": 2097152.0,
+    "max": 16777216.0
+  },
+  "audit_segments": 6,
+  "audit_verify": {
+    "archive_dir": "audit/archive",
+    "audit_path": "audit/returnpath-audit.db",
+    "event_count": 25749,
+    "ok": true,
+    "segments": [
+      {
+        "bytes": 16777216,
+        "events": 5000,
+        "first_index": 0,
+        "path": "audit/archive/returnpath-audit.0000000000-0000004999.db",
+        "sha256": "d4b731ed56d981cd90a9fa74d3a04e124fae70fb8cf0a7a989af667e484e50a0",
+        "tip": "be7fc22902d9258e85e98b2c8e9ef2b3942e8597c2690ef114f4c21b129213e7"
+      },
+      {
+        "bytes": 16777216,
+        "events": 5000,
+        "first_index": 5000,
+        "path": "audit/archive/returnpath-audit.0000005000-0000009999.db",
+        "sha256": "5c611fa332f85c3d8f0042914e97c718e018e80ed8930acd11dff42b03434767",
+        "tip": "1ea32f322ec7e3540a9d85619b7c01ab5994ae35ad210e1e7613dbe8f93800b3"
+      },
+      {
+        "bytes": 16777216,
+        "events": 5000,
+        "first_index": 10000,
+        "path": "audit/archive/returnpath-audit.0000010000-0000014999.db",
+        "sha256": "85f14cc48be165feeab7115be5fc651f95bcfa35c596f7735a683fb0008676fd",
+        "tip": "c73b682b9bf1df0af014f2dce50d7b46bcd1599df74412843ba304d3763d9cab"
+      },
+      {
+        "bytes": 16777216,
+        "events": 5000,
+        "first_index": 15000,
+        "path": "audit/archive/returnpath-audit.0000015000-0000019999.db",
+        "sha256": "f869135c742768a7495aa8d85241c4c16460d60fa8c5ac2cb232aebeaebd4043",
+        "tip": "3c38703a9f01c8779c2b13959ab00f4e3a13db31d6cb6846328fa15889c649de"
+      },
+      {
+        "bytes": 16777216,
+        "events": 5000,
+        "first_index": 20000,
+        "path": "audit/archive/returnpath-audit.0000020000-0000024999.db",
+        "sha256": "7543a20de055557fb2a202dd84b4bc8a10f34bf74f7c56e72c5f0172ad22b7c6",
+        "tip": "94fb66e0d9f1682aa28d7d229fda4b9da9d3d77554991fc19a15d7b24ea84670"
+      },
+      {
+        "events": 749,
+        "first_index": 25000,
+        "live": true,
+        "path": "audit/returnpath-audit.db",
+        "tip": "0f574a8b4c1690c99afdf3a540cfb6aa84815eb1c8c97dafba8e5b122c90d60d"
+      }
+    ],
+    "tip": "0f574a8b4c1690c99afdf3a540cfb6aa84815eb1c8c97dafba8e5b122c90d60d"
+  },
+  "audit_verify_exit": 0,
+  "audit_verify_from_tip_exit": 0,
+  "audit_verify_seconds": 2.5,
+  "audit_verify_shipped_exit": 4,
+  "audit_verify_tampered_exit": 4,
+  "disk_end": {
+    "audit_archives": 5.0,
+    "jobs_swept": 1071.0,
+    "segments_closed": 5.0
+  },
+  "evidence": "20261017T002749Z",
+  "first_10min": {
+    "jobs": 264,
+    "total_s": {
+      "max": 17.998,
+      "mean": 13.209,
+      "min": 4.77,
+      "n": 264,
+      "p50": 11.528,
+      "p90": 17.291,
+      "p99": 17.961
+    }
+  },
+  "handshake_ms": {
+    "acp-compute-soak-1": {
+      "max": 11838.0,
+      "mean": 1622.503,
+      "min": 20.0,
+      "n": 547,
+      "p50": 952.0,
+      "p90": 6171.0,
+      "p99": 6204.0
+    },
+    "acp-compute-soak-2": {
+      "max": 10509.0,
+      "mean": 1864.849,
+      "min": 20.0,
+      "n": 529,
+      "p50": 1250.0,
+      "p90": 6178.0,
+      "p99": 6206.0
+    },
+    "acp-compute-soak-3": {
+      "max": 10481.0,
+      "mean": 1775.144,
+      "min": 20.0,
+      "n": 536,
+      "p50": 1248.0,
+      "p90": 6173.0,
+      "p99": 6204.0
+    },
+    "sagvd-soak": {
+      "max": 11838.0,
+      "mean": 1752.248,
+      "min": 20.0,
+      "n": 1612,
+      "p50": 1196.0,
+      "p90": 6172.0,
+      "p99": 6203.0
+    }
+  },
+  "jobs": {
+    "done": 1609,
+    "exact": 1609,
+    "first_error": null,
+    "in_flight_at_end": 0,
+    "succeeded": 1609
+  },
+  "jobs_per_hour": 1603.0,
+  "jobs_per_minute": 26.72,
+  "jobs_recorded": 1609,
+  "last_10min": {
+    "jobs": 268,
+    "total_s": {
+      "max": 18.014,
+      "mean": 12.99,
+      "min": 9.319,
+      "n": 268,
+      "p50": 11.434,
+      "p90": 17.228,
+      "p99": 17.955
+    }
+  },
+  "levels": {
+    "EXACT": 1609
+  },
+  "load1": {
+    "max": 7.43,
+    "mean": 3.23,
+    "min": 1.89,
+    "n": 62,
+    "p50": 2.96,
+    "p90": 4.09,
+    "p99": 7.43
+  },
+  "logs": {
+    "acp-compute-soak-1": [
+      "lines=554",
+      "bytes=200342",
+      "warn=0",
+      "error=0"
+    ],
+    "acp-compute-soak-2": [
+      "lines=536",
+      "bytes=193830",
+      "warn=0",
+      "error=0"
+    ],
+    "acp-compute-soak-3": [
+      "lines=543",
+      "bytes=196334",
+      "warn=0",
+      "error=0"
+    ],
+    "sagvd-soak": [
+      "lines=6495",
+      "bytes=3137493",
+      "warn=0",
+      "error=0"
+    ]
+  },
+  "metrics_end": {
+    "handshake_failures": 0.0,
+    "sessions_opened": 1612.0,
+    "sessions_refused": 0.0
+  },
+  "queue_depth_max": 3.0,
+  "queue_s": {
+    "max": 17.284,
+    "mean": 8.318,
+    "min": 0.005,
+    "n": 1609,
+    "p50": 6.714,
+    "p90": 12.434,
+    "p99": 13.099
+  },
+  "restart_ready_seconds": 10.7,
+  "retain_seconds": 1200,
+  "run_s": {
+    "max": 5.57,
+    "mean": 4.804,
+    "min": 4.332,
+    "n": 1609,
+    "p50": 4.815,
+    "p90": 4.94,
+    "p99": 5.341
+  },
+  "sagvd_fds": {
+    "first": 13.0,
+    "last": 13.0,
+    "max": 14.0
+  },
+  "sagvd_rss_anon_kb": {
+    "first": 6168.0,
+    "last": 9856.0,
+    "max": 11272.0
+  },
+  "sagvd_rss_file_kb": {
+    "first": 10176.0,
+    "last": 20068.0,
+    "max": 23532.0
+  },
+  "sagvd_rss_kb": {
+    "first": 16344.0,
+    "last": 29924.0,
+    "max": 33096.0
+  },
+  "segment_events": 5000,
+  "sessions_active_max": 3.0,
+  "snapshots": 62,
+  "soak_minutes": 60,
+  "statuses": {
+    "succeeded": 1609
+  },
+  "total_s": {
+    "max": 22.156,
+    "mean": 13.122,
+    "min": 4.77,
+    "n": 1609,
+    "p50": 11.531,
+    "p90": 17.278,
+    "p99": 17.951
+  },
+  "views_bytes": {
+    "first": 32768.0,
+    "last": 16777216.0,
+    "max": 16777216.0
+  },
+  "window_s": 3613.5,
+  "workers": 3,
+  "workers_rss_kb": {
+    "first": 45608.0,
+    "last": 50048.0,
+    "max": 50804.0
+  }
+}

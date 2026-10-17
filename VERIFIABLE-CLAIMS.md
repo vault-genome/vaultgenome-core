@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -2267,6 +2267,95 @@ the fine-tune 9 s, the job 5 s).
 ```bash
 scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.5.0    # ~15 min, one n2d-standard-4, deletes it
 ```
+
+---
+
+<a id="c38"></a>
+
+### C38 — The audit log in closed segments under load on real SEV-SNP: an hour of 1609 jobs closed five segments and kept the live file within 16 MiB and the views at 16 MiB; the six files verified as one chain in 2.5 s, each archive against the record that closed it; a shipped archive refused without the operator's word and verified with it; one byte added to an archive named
+
+**Claim.** The soak of C33 — one authority at `runtime.max_sessions: 3`,
+three workers, six jobs in flight for sixty minutes on one n2d-standard-8
+SEV-SNP guest (AMD Milan) — run on the code of ADR 0027 with
+`audit.segment_events: 5000` and `queue.retain_finished_seconds: 1200`.
+The hour served 1609 jobs, 1609 EXACT, nothing refused, no handshake
+failed, 26.7 a minute, p50 11.53 s and p99 17.95 s from submission to
+verdict — the rate and the percentiles of C33 (26.7, 11.3 s, 17.7 s):
+closing a segment costs nothing the client sees. The authority wrote
+25,749 events, sixteen a job and five `AUDIT_SEGMENT_CLOSED`, and closed
+the live file five times, every eleven to twelve minutes (00:41, 00:53,
+01:05, 01:16, 01:28), into `returnpath-audit.0000000000-0000004999.db`
+through `returnpath-audit.0000020000-0000024999.db`, 16,777,216 bytes
+each (bbolt grows a file in powers of two; 5000 events of 2.1–2.3 KB fill
+about 11 MB of it); the live file ran between 0.25 and 16 MiB through the
+hour and held 749 events and 2 MiB at the end. The views file reached
+16 MiB in the 22nd minute and stayed there to the end: the window of
+twenty minutes was reached in the 20th, the first sweep ran in the 21st,
+and 1071 of the 1609 jobs expired, the 538 of the last twenty minutes
+kept — where the two hours of C34 left a views file of 50 MB on this
+chip. The whole log, six files, verified under the published key as one
+chain in 2.5 s: every link and signature, each archive's start at the
+previous one's end, and each archive's SHA-256 and length as the record
+that closed it says. With the oldest archive moved away the verifier
+refused (`returnpath-audit.0000005000-0000009999.db starts at event #5000
+after tip be7fc229…, and the segments before it are not in
+audit/archive: verify them where they are and pass --from-tip
+be7fc229…`, exit 4) and with `--from-tip be7fc229…` verified the
+remaining five files from there (ok, 25,749 events, exit 0); with one
+byte appended to a copy of the newest archive it named the file
+(`returnpath-audit.0000020000-0000024999.db is not the file the chain
+recorded: sha256 88150f9d…, 16777217 bytes on disk; 7543a20d…,
+16777216 bytes on the record`, exit 4). Started again over the log, the
+authority opened it at 25,749 events verifying the live segment's 749
+(`sagvd audit log open … events=25749 live_segment_events=749`), found
+538 finished jobs in the store, and was ready in 10.7 s — what the first
+start of the hour took over an empty log (11 s): the start waits for
+the chip's report (KNOWN_ISSUES #17), not for the history. The
+authority's anonymous memory ran 6.0 → 9.6 MB and never above 11.3; its
+file-backed memory 9.9 → 19.6 MB and never above 23.5, where C34's two
+hours reached 88 MB with 167 MB of files mapped — the daemon now maps a
+live file of at most 16 MiB and a views file of 16 MiB. Its log holds no
+warning and no error. At the end `sagvd_audit_segments_closed_total 5`,
+`sagvd_audit_segment_events 749`, `sagvd_jobs_swept_total 1071`.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-sev-snp/returnpath-soak/evidence/20261017T002749Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-soak/evidence/20261017T002749Z/)
+(commit `6fbe2222`, `versions.txt`): `steps.txt` (`segment_events=5000`,
+`retain_seconds=1200`, `soak: minutes=60 workers=3 jobs_done=1609 ok=1609
+exact=1609`, `audit verify exit=0`, `audit_verify_seconds=2.5`, the three
+drills' exit codes, `restart_ready_seconds=10.7`), `archives.txt` (the
+five archives with their sizes and times, `du` of both directories),
+`db-sizes-end.txt`, `snapshots.csv` (every minute: `audit_live_bytes`,
+`audit_archive_bytes`, `audit_archives`, `views_bytes`,
+`segments_closed`, `jobs_swept` beside the memory, session and queue
+columns of C33), `summary.json` (derived by the kit's `summarize.py`:
+`audit_live_bytes`, `views_bytes` first/max/last, `disk_end`, the
+percentiles and rates), `audit-verify.json` (`ok: true`, 25,749 events,
+the six `segments` with `first_index`, `events`, `tip`, `sha256`,
+`bytes`), `audit-verify-shipped.json` / `.err` (exit 4, `starts_after_tip`),
+`audit-verify-from-tip.json` (ok, five segments from event #5000),
+`audit-verify-tampered.json` / `.err`, `audit-kinds.txt`
+(`AUDIT_SEGMENT_CLOSED=5`), `restart-audit-open.json`,
+`restart-queue-open.json`, `sagvd-metrics-end.txt`, `jobs.csv`,
+`timeline.txt`, `sagvd-soak.warnings.txt` (empty), `sha256sums.txt`.
+The kit: [`scripts/hardware-test/gcp-sev-snp/returnpath-soak/`](scripts/hardware-test/gcp-sev-snp/returnpath-soak/)
+(`VG_SEGMENT_EVENTS=5000 VG_RETAIN_SECONDS=1200`). The decision:
+[ADR 0027](docs/adr/0027-the-audit-log-in-closed-segments.md); the
+tables: [`docs/operator/limits.md`](docs/operator/limits.md).
+
+**Scope.** One host, one hour, three workers, one genome; the segment
+size was chosen to close five times in the hour — the 100,000-event
+segments `acpctl provision` writes close every 2.6 hours at 40 jobs a
+minute (ADR 0027). The file sizes are bbolt's, in powers of two: the
+views plateau is the file's high-water mark for the window, not the bytes
+in use, and the file does not shrink. The restart time is the chip's
+report at start, measured once; it shows that the open did not grow with
+the hour, not how long a verification of 749 events takes (under a
+second, by C33's 2.4 s for 25,712). The shipping drill moved one archive
+aside on the same disk; nothing here moves an archive to another system,
+and nothing here runs for a month. The job views that expired were not
+re-read through the API after the window; `GET` answering 404 for them is
+the unit test's, not this run's.
 
 ---
 

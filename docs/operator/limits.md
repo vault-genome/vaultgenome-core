@@ -20,6 +20,7 @@ or its evidence directory); what has not been measured is said so.
 | Sustained: one host, three workers, an hour | 40.4 jobs a minute on TDX, 26.7 on SEV-SNP (the chip's throttle, below); every job EXACT, nothing refused or failed, the hour's audit log one verified chain | C33 (the soak, below) |
 | Authority's private memory under load | 9–15 MB over two hours of three workers (4901 jobs on TDX, 3223 on SEV-SNP), flat within the collector's swing; the first soak found 110 KB a job retained, fixed the same day | C34, KNOWN_ISSUES #18 |
 | Disk per job served | 48–52 KB: the audit log 34–37 KB (sixteen events), the job's view 14–16 KB; 2.8 GB a day at 40 jobs a minute; the daemon's resident set carries the touched pages of both bbolt files as file-backed memory, the kernel's to reclaim; the audit log closes into segments and finished jobs expire from the job store on the operator's settings (ADR 0027) | C34 |
+| Disk with segments and a window (ADR 0027) | the live audit file at most `audit.segment_events` events (a 16 MiB file at 5000), the archives until the operator ships them (16 MiB each at 5000), the views file at the window's high-water mark (16 MiB for twenty minutes at 27 jobs a minute); an hour of 1609 jobs on SEV-SNP: five archives, the live file 0.25–16 MiB, the views flat from the 22nd minute, the six files verified as one chain in 2.5 s | C38 |
 
 ## Parallel restores on one host
 
@@ -162,6 +163,30 @@ two-hour runs between the first two fixes and the third
 (`20261016T153617Z`, `20261016T153649Z`) are on record too: they are
 where the anonymous line still rose about a kilobyte a job and pointed
 at the session issuer.
+
+### With segments and a window on finished jobs (ADR 0027)
+
+The same hour as C33 on SEV-SNP, with `audit.segment_events: 5000` and
+`queue.retain_finished_seconds: 1200` (`20261017T002749Z`, claim C38):
+
+| | |
+| - | - |
+| Jobs in the hour | 1609, every one EXACT; 26.7 a minute, p50 11.53 s, p99 17.95 s (C33: 26.7, 11.3 s, 17.7 s) |
+| Audit events | 25,749: sixteen a job and five `AUDIT_SEGMENT_CLOSED` |
+| Segments closed | five, every 11–12 minutes; archives of 16,777,216 bytes each (5000 events of 2.1–2.3 KB in a bbolt file that grows in powers of two) |
+| The live audit file | 0.25–16 MiB through the hour; 2 MiB and 749 events at the end |
+| The views file | 16 MiB from the 22nd minute to the end; 1071 of 1609 jobs expired, the last twenty minutes' 538 kept (C34's two hours without a window: 50 MB) |
+| `acpctl audit verify` over the six files | ok, 2.5 s; each archive's SHA-256 and length as the record that closed it says |
+| The oldest archive moved away | exit 4 (`the segments before it are not in …; pass --from-tip be7fc229…`); with `--from-tip`: ok, five files from event #5000 |
+| One byte appended to an archive (a copy) | exit 4: `is not the file the chain recorded: … 16777217 bytes on disk; … 16777216 bytes on the record` |
+| Restart over the log | ready in 10.7 s (the first start of the hour: 11 s), the live segment's 749 events verified, 25,749 on the record |
+| Authority's memory, anonymous / file-backed | 6.0 → 9.6 MB (max 11.3) / 9.9 → 19.6 MB (max 23.5); C34 at two hours: 88 MB file-backed with 167 MB of files mapped |
+
+What the operator sizes is the live segment, the archives until they
+are shipped, and the window: at the values `acpctl provision` writes
+(100,000 events or a day; thirty days) and 40 jobs a minute, about
+220 MB live, 2 GB of archives a day until they are moved, and 600 MB of
+views a day of the window (ADR 0027).
 
 ## Models
 
