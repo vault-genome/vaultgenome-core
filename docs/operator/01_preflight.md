@@ -216,6 +216,16 @@ under me?" signal. Treat as critical.
 | sagvd ready | `curl -fsS http://127.0.0.1:9091/readyz` | `ready` (once the Return Path listener is bound) |
 | Worker connected | sagvd log and `/metrics` | `sagvd session opened` lines; `sagvd_sessions_opened_total` rising |
 
+| Host clock | `timedatectl show -p NTP -p NTPSynchronized -p TimeUSec`, then `chronyc tracking` for the source | `NTP=yes`, `NTPSynchronized=yes`; chrony's `Reference ID` is the source the deployment's record names (on a GCP guest: `metadata.google.internal`) |
+
+Every audit event carries the daemon's clock (`internal/shared/time`, one
+clock per process; no `time.Now()` in product code), and the chain is
+ordered by its index, not by time — but the timestamps are what an
+auditor reads next to other systems' logs, and the regulations a bank is
+held to ask for clocks synchronised to a documented reference (the RTS
+on ICT risk management, Article 12(2)(f); PCI DSS 10.6). Synchronising
+the host is the deployer's; this check says whether it is done.
+
 `127.0.0.1:9091` is the default `health.listen_address`; the REST API is a
 separate listener (`http_api.listen_address`, default `127.0.0.1:9080`).
 acp-compute's health listener also defaults to `127.0.0.1:9091`; on a shared
