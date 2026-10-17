@@ -7,11 +7,12 @@ this software do, where is the proof, and what remains ours?*
 | File | What it is |
 | - | - |
 | [`controls.md`](controls.md) | The control catalogue: every thing the software does by construction, with its decision record, its code home, its proof (a claim with evidence, a trial row, a test in the gate), its trust boundary and its limit. The sector maps refer to it by identifier (`VG-nnn`). |
+| [`banking.md`](banking.md) | The banking map: DORA and its RTS on ICT risk management, 23 NYCRR Part 500, PCI DSS v4.0.1 by requirement number, the FFIEC booklet, the X9 and NIST registries for the cryptography in use, and the short list of what the bank must do itself. |
 | [`openssf-best-practices.md`](openssf-best-practices.md) | The OpenSSF Best Practices badge criteria, each mapped to where it is met in the tree — the one assurance mark the project pursues directly. |
 
 Sector maps are written one at a time, each after the primary texts
 have been read in full and the catalogue has been checked against the
-released code: banking first (October 2026, in its own pull request),
+released code: banking first (October 2026),
 then government, then business, then defence. A sector that is not
 here yet has no map, not an implied one.
 
