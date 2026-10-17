@@ -1,0 +1,29 @@
+{
+  "schema": "vault-genome/failover-policy/v1",
+  "serial": 1,
+  "issued_at": "2026-10-17T13:26:13Z",
+  "not_after": "2026-11-16T13:26:13Z",
+  "sentinel_public_key": "R1fTHSlekS4hnzZ9CGp2oqtpu97YEWG3q6aR40Uj1Ac=",
+  "primary": {
+    "kind": "gcp-sev-snp",
+    "measurements": [
+      "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790"
+    ]
+  },
+  "standby": {
+    "kind": "gcp-tdx",
+    "endpoint": "https://10.128.15.204:8443",
+    "measurements": [
+      "dbf0b24ede887fed10119414d042a7bbe4ee182fb125c925600da036c251eda381b71a1f177858d9ab3ffb386d0261d7"
+    ]
+  },
+  "triggers": {
+    "compromise_report": true,
+    "heartbeat_timeout_seconds": 120,
+    "stopped_grace_seconds": 60
+  },
+  "require_gate": "EQUIVALENT",
+  "reason": "failover drill: a SEV-SNP primary on GCP fails over to an attested Intel TDX Trust Domain",
+  "signing_key_id": "operator-1",
+  "signature": "uMfvCNg9bTIJ1SldqVBc3Xkw83aBYySPg7RTKhfT5phdw6VRjKx0/ZF57cx1sMrFSrIIJwur32LRyo7dRUBGAg=="
+}
