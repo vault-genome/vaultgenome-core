@@ -32,7 +32,7 @@ compare:
 4. **Threat model** — what's protected, what's residual,
    referencing [`docs/security/threat_model.md`](../security/threat_model.md)
 5. **Operational concerns** — staffing, runbook coverage,
-   compliance crosswalk references
+   compliance map references
 6. **Pricing posture** — what the deployment looks like in cost
    terms (commercial-license tier vs AGPL vs hybrid)
 
@@ -44,7 +44,7 @@ compare:
   designs into a new file under `business/customer-designs/<id>.md`
   (private repo) and tightens the gaps the customer identified.
 - **Security review**: pair each design with the threat model and
-  compliance crosswalk to demonstrate readiness for the customer's
+  compliance maps to demonstrate readiness for the customer's
   procurement-time questions.
 
 ## Authorship

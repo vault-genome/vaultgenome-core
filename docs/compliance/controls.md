@@ -1,0 +1,86 @@
+# The control catalogue — what the software does, where, and how it is proven
+
+| Last updated | 2026-10-17, on v0.6.0 and the acceptance trial of October 2026 |
+| - | - |
+| Replaces | the catalogue of 2026-05-04 (twenty controls, three of them for files that are no longer in the tree) |
+| Pair documents | [`../adr/README.md`](../adr/README.md) · [`../../VERIFIABLE-CLAIMS.md`](../../VERIFIABLE-CLAIMS.md) · [`../TRIAL-2026-10.md`](../TRIAL-2026-10.md) · [`../security/assurance_case.md`](../security/assurance_case.md) |
+
+This is the list of controls the sector maps in this directory refer to.
+A control is a thing the software does by construction; each row names
+where it is done, and the record that shows it is done — a claim with
+its evidence, a trial row, a test that fails when the control stops
+holding. A row with no record is not here. Nothing in this file is a
+certification, and the words "compliant" and "certified" do not appear
+in it for a reason: the frameworks are addressed to the institution
+that runs the software, and the institution's own policies, people and
+processes are most of what they ask for. What the software contributes
+is what this file lists; what the institution must still do is written
+in each sector map.
+
+**How a row is read.** *Where*: the decision record (ADR) and the code
+home. *Proof*: a claim (`Cn`) in `VERIFIABLE-CLAIMS.md` with its
+evidence directory, a trial row (`Tn`) in `TRIAL-2026-10.md` — the same
+kit run again on the released code — and the test or gate that holds
+the control in CI. *Boundary*: the trust boundary of the assurance case
+(B1 operator ↔ authority; B2 authority ↔ worker; B3 worker ↔ hardware;
+B4 authority ↔ its storage; B5 source ↔ binary). *Limit*: what the
+control does not cover, from `KNOWN_ISSUES.md` and "What we do not
+claim".
+
+**Identifiers.** The identifiers of 2026-05-04 that the threat model
+cites keep their number and their meaning (VG-002, 003, 004, 005, 007,
+008, 010, 011, 013, 014, 019); VG-001, 006, 009, 012, 018 and 020 keep
+their number with the row brought up to the tree; VG-015, 016 and 017
+are retired, with the reason, and their numbers are not reused.
+
+## The catalogue
+
+| ID | Control | Where | Proof | Boundary | Limit |
+| - | - | - | - | - | - |
+| VG-001 | **The authority and the worker run inside attested confidential VMs.** Four families ship: `gcp-sev-snp` (AMD SEV-SNP), `gcp-tdx` (Intel TDX), `azure-sev-snp` (AMD SEV-SNP under Azure's paravisor), `azure-cgpu` (SEV-SNP, the vTPM and an NVIDIA H100). | ADR 0002, 0018, 0019, 0025; `internal/shared/tee/registry.go`, `factory.go` | C12, C15, C17, C36; T1, T2, T3, T4 | B3 | AWS Nitro and Intel SGX are measurement kits, not shipped verifiers; the registry refuses both (`ROADMAP.md`) |
+| VG-002 | **Hardware-rooted attestation on every session, both ways.** Each end of the Return Path presents the chip's report bound to the session's challenge; the Evidence names its family (a CMW record typed by the family's media type) and a peer of another family is refused by name before any verifier runs. | ADR 0014, 0025; `internal/compute/returnpath/transport/handshake.go`, `internal/shared/tee/record_verifier.go`, `wire_media.go` | C12, C15, C17, C36; T1–T5 (the "rogue refused" step of each) | B2, B3 | the chip's TCB is the vendor's word, verified as signed (VG-027) |
+| VG-003 | **Sealing is AES-256-GCM under a fresh key, bound to its context.** Genome v3 segments carry no key; a flipped byte is refused on open; every sealed secret file names its sealer. | ADR 0011, 0023; `internal/shared/crypto/gcm.go`, `internal/shared/tee/sealed_secret.go` | C2, C3; the tamper step of every Return Path kit; semgrep `vg-seal-without-aad` | B4 | — |
+| VG-004 | **Every decision is on an append-only, hash-chained, signed record before it takes effect, and a third party verifies it.** Twenty-five event kinds; the chain verified by `acpctl audit verify` (exit 4 on a broken chain, 1 on a file that cannot be read). | ADR 0010, 0014; `internal/audit/chain/`, `internal/audit/store/`, `cmd/acpctl/audit.go` | C12, C13; `audit verify exit=0` in every trial row; `TestInvariant_08_AuditFirstClass` | B4 | the record proves what the authority decided, not that the operator read it |
+| VG-005 | **No raw export.** No write sink outside the allow-list can receive model material; the invariant is a test over the whole tree. | `test/doctrine/invariants_test.go` (`TestInvariant_07_NoRawExport`, `TestInvariant_07_SafetarOnlyServesRestore`); semgrep `vg-no-raw-write` | the gate on every push | B2, B4 | — |
+| VG-006 | **The Producer/Verifier/Sealer interface and the wire contracts are frozen.** A change to a contract fails a test, not a customer. | ADR 0001; `internal/shared/tee/tee.go`, `internal/contracts/` | `internal/shared/tee/frozen_test.go`, `contract_test.go`; `TestInvariant_09_ContractsFrozen` | B2 | — |
+| VG-007 | **The operator recovers, queries and proves from the command line.** `acpctl recover`, `audit verify`, `audit query --request`, `lineage`, `status`; the disaster-recovery runbook names the scenarios. | `cmd/acpctl/`; `docs/operator/02_recovery_flow.md`, `runbooks/disaster_recovery.md` | `cmd/acpctl/recover_test.go` (12 tests), `audit_segments_test.go`; T17 (host loss), T11 (continuity) | B1 | the runbook's scenarios 4–5 of `03_incident_response.md` escalate to a human |
+| VG-008 | **Freshness.** The session's challenge is bound into the chip's report (REPORT_DATA, the TDX quote, the vTPM quote); a nonce shorter than the floor is refused. | `internal/shared/tee/tee.go` (`NonceMinBytes`); semgrep `vg-quote-without-nonce-length-check` | the contract suite's `NonceMinBytes_*` sub-tests; C12 (the challenge binding on the record) | B2 | — |
+| VG-009 | **Validation precedes release.** No release decision without the validation stages having run; the gate's verdict is part of the record. | `internal/validation/` (operational, semantic, behavioral, equivalence, reconstruction, service); `TestInvariant_05_ValidationPrecedesRelease` | the gate; `VALIDATION_*` and `RELEASE_DECIDED` on every trial's record | B2 | — |
+| VG-010 | **Every Return Path frame passes the receive validator before a field is used.** Operational vetoes stop a session. | `internal/recvvalidator/`; `TestInvariant_06_OperationalVetoes` | the gate; eight fuzz targets over the in-house parsers | B2 | — |
+| VG-011 | **Releases are reproducible, signed and attested, and a deployment is verified from the assets alone.** Keyless signatures, SLSA provenance, an SBOM, signed tags checked against the signers kept in git; the rebuild byte-identical. | `.github/workflows/release.yml`, `.github/allowed_signers`; `docs/security/supply_chain.md` | C9, C27; T9; `make verify-reproducible`; `TestInvariant_11_SupplyChainAttested` | B5 | — |
+| VG-012 | **A daemon refuses to start on a host that lacks what its configuration names.** `tee.provider: auto` names the family from the kernel's configfs-tsm or, under Azure's paravisor, from the vTPM's HCL report, and refuses a report of another type by its number. | ADR 0002, 0025; `internal/shared/tee/factory.go` (`Capability`), `provider_auto.go`, `provider_auto_azure.go` | C36; T3 (`resolved_from=vtpm-hcl` on both daemons); `factory_test.go`, `provider_auto_azure_test.go` | B3 | — |
+| VG-013 | **The doctrine is twelve tests that run on every push.** | ADR 0004; `test/doctrine/invariants_test.go` | the gate | B5 | — |
+| VG-014 | **The listeners speak mutual TLS 1.3 only.** The authority requires and verifies a client certificate; the operator API also takes a bearer token; no `InsecureSkipVerify` in the product. | `cmd/sagvd/daemon.go` (`MinVersion: tls.VersionTLS13`, `ClientAuth: tls.RequireAndVerifyClientCert`), `cmd/acp-compute/daemon.go`, `cmd/acp-bootstrap/main.go` | the integration suite's live daemons; every Return Path kit | B1, B2 | the client that calls a RATS Verifier accepts TLS 1.2 (`rats_verifier.go`); see finding F1 in the banking map |
+| VG-015 | *Retired.* "Network policies in Kubernetes": there is no Helm chart in the tree. The deployment surface is `deploy/compose/` for a laboratory and the operator documents for a host. | — | — | — | network segmentation is the deployer's (each sector map says so) |
+| VG-016 | *Retired.* "Seven-year retention via Terraform": there is no Terraform in the tree. Retention is a property of the audit log itself now — VG-021. | — | — | — | — |
+| VG-017 | *Retired.* "HSM wrap on SGX sealing": the SGX adapter is a measurement kit that has never attested on hardware; no HSM path is exercised anywhere. | — | — | — | — |
+| VG-018 | **The bootstrap manifest is tamper-evident** and issued on the record. | `internal/contracts/bootstrap_manifest/`; `MANIFEST_ISSUED` | unit tests; the manifest on every trial's record | B2 | — |
+| VG-019 | **Validation is staged** — operational, semantic, behavioural, equivalence, reconstruction — and each dimension is recorded (`VALIDATION_DIMENSION_EVALUATED`). | `internal/validation/*` | per-package tests; the three dimensions on T4's record | B2 | — |
+| VG-020 | **The stated CI gate is the CI gate.** One workflow with twenty-five steps: build, race detector, coverage thresholds, CodeQL, Semgrep (eight rules of our own), govulncheck, osv-scanner, gitleaks over the history, the SBOM, the doctrine; mutation testing and Scorecard as their own workflows; Dependabot for Go, actions and pip. | `.github/workflows/vault-gate.yml`, `codeql.yml`, `mutation.yml`, `scorecard.yml`; `scripts/semgrep/rules.yml` | C10 | B5 | no external penetration test has been commissioned ("What we do not claim") |
+| VG-021 | **The audit log is kept in closed segments; retention is archival.** The live file is closed at a count or an age into an archive the daemon never deletes; the first event of the next segment records the closed one's hash and size; archives are opened read-only; the chain is verified across segments; an unrecorded closing is recovered at start. | ADR 0027; `internal/audit/store/segment.go`, `internal/audit/chain/persistent.go`, `cmd/acpctl/audit_log.go` | C38; T22 (1609 jobs, five segments, the six files verified) | B4 | how long archives are kept, and where they are copied, is the deployer's |
+| VG-022 | **The job queue is on disk and a restart resumes what was accepted; the finished views expire by a window.** | ADR 0026, 0027; `internal/vault/jobstore/`, `cmd/sagvd/job_queue.go` | C28 (the authority's host deleted mid-job); T17; `sweep_test.go` | B4 | — |
+| VG-023 | **Every daemon key file is sealed to the host** — the TEE's derived key or the host's TPM 2.0 — and a copy of the files does not open elsewhere. | ADR 0023, 0025 (step 1b); `internal/shared/tee/sealer_for.go`, `vtpm_sealer.go`, `gcp_sev_snp_seal*.go` | C24, C25; the "thief with the sealed files" step of T1–T5 and T7 | B3, B4 | — |
+| VG-024 | **The escrow key is sealed to the release host's TEE, or to its vTPM under a policy of this boot's PCRs where the TEE gives no sealing key.** | ADR 0016, 0022; `internal/genome/escrow/` | C14, C23; T4 (the escrow key sealed to the vTPM and re-opened), T14 | B3, B4 | — |
+| VG-025 | **A key moves only to an attested, allow-listed destination under the operator's policy, and the decision is recorded first; a refusal says why.** Seven policies refused for seven stated reasons against one attack. | ADR 0011, 0012, 0017; `internal/vault/policy/`, `internal/genome/sentinel/`; `KEY_RELEASE_AUTHORIZED`, `KEY_RELEASE_DENIED`, `FAILOVER_DECIDED` | C8, C14, C22; T11, T12 | B2 | an operator who signs a bad policy is outside the argument (assurance case §1) |
+| VG-026 | **Peers are pinned by launch measurement, and the pins are the operator's files.** `acpctl provision pin-worker` writes them; an unpinned worker is refused at the handshake. | ADR 0028; `cmd/acpctl/provision.go`; `pins/` | T1 ("the unpinned worker refused"), T7, T8 | B2 | — |
+| VG-027 | **The vendors' trust anchors are pinned in the binary and the chain, the TCB and the revocation status are checked.** AMD's roots (Milan, Genoa), Intel's SGX Root CA with the signed TCB info and QE identity, NVIDIA's device and CoRIM roots with OCSP; the verifier evaluates the GPU's report itself. | ADR 0021, 0024; `internal/shared/tee/amd_roots.go`, `nvidia_roots.go`, `nvidia_ocsp.go`, `nvidia_rim.go`, `gcp_tdx_pcs.go` | C7, C15, C20; T4 (the own evaluation on the record: report, nonce, signature, chain, firmware id, measurements against both manifests, revocation good) | B3 | the vendor's silicon and undisclosed side channels are accepted residual risk (threat model) |
+| VG-028 | **Appraisal can be delegated to a RATS Verifier and judged by policy; a missing verdict admits nothing.** The record goes to Veraison's API over mutual TLS by name; the EAR is verified under the Verifier's key, its nonce and policy checked; the pin and the family stay the daemon's. | ADR 0025 (step 2b); `internal/shared/tee/rats_verifier.go`, `ear.go` | C30, C31; T5 (the policy mismatch and the unreachable Verifier both refused) | B2 | — |
+| VG-029 | **What was restored is what was sealed, and the verdict is signed.** The gate says EXACT / EQUIVALENT / FAIL over sealed fixtures; across devices the integer door gives the same bytes. | ADR 0008, 0020; `internal/validation/equivalence/`, `workers/genome/` | C4, C5, C16, C19; T20 (16/16 fixtures byte-identical at 0.5B, 3/3 at 7B); T19, T21 | B2 | byte-identical float across CPU and GPU is measured to be unavailable (C6) |
+| VG-030 | **Continuity is drilled, with the times on the record.** Policy-driven failover on an attack, on a silent primary, on a lost region, on a lost authority host; to a SEV-SNP, a TDX and a confidential-GPU standby; RTO and RPO in each record. | ADR 0012, 0017; `scripts/hardware-test/gcp-failover`, `failover-*`, `authority-loss` | C8, C13, C14, C18, C21, C28, C35; T11–T17 | B2 | the drills are the software's; the institution's plan, staff and communications are its own |
+| VG-031 | **A deployment is provisioned by one command, across two hosts where needed; the worker's secrets never exist on the authority's host.** The worker's bundle carries a manifest of hashes; the join checks it. | ADR 0028; `cmd/acpctl/provision.go` | C37, C39; T7, T8 | B1 | — |
+| VG-032 | **A site without a route runs the Return Path from caches filled while connected**, the release bundles verified from a file. | `docs/operator/runbooks/air_gap.md`; `scripts/hardware-test/air-gap` | C29; T10 | B3, B5 | — |
+| VG-033 | **Capacity is measured, not assumed.** Sessions in parallel on one authority; an hour of three workers on each chip; the authority's private memory flat over two hours; the throttle of the SEV-SNP host stated. | `docs/operator/limits.md`; `scripts/hardware-test/*/returnpath-parallel`, `returnpath-soak` | C32, C33, C34, C38; T6, T22 | B2 | the figures are the test hardware's |
+| VG-034 | **Each daemon exposes its state as metrics**, documented by name, with dashboards in the tree. | `docs/operator/04_observability.md`; `deploy/grafana/` | the metrics files in every trial's evidence | B1 | no alerting stack ships; the deployer's monitoring consumes `/metrics` |
+| VG-035 | **Incidents are detected and terminated on the record.** Attestation failure, validation hard-fail and audit-append failure are handled by the incident module; a tamper signal or an anomaly escalates to a human. | `internal/vault/incident/`; `INCIDENT_DETECTED`, `INCIDENT_TERMINATED`; `docs/operator/03_incident_response.md` | per-package tests; `03_incident_response.md` scenarios 1–3 | B2, B4 | scenarios 4–5 are the institution's process |
+| VG-036 | **The operator can stop a move, and every refusal is recorded** — the stop list, the policy serial, the quarantine. | ADR 0010, 0017; `internal/vault/policy/` | C22 (the eight answers on the record) | B1, B2 | — |
+| VG-037 | **Time comes from one clock in each daemon**, never from `time.Now()` in product code, and every record carries it. | semgrep `vg-direct-time-now`; `internal/shared/time/` | the gate | B4 | synchronising the host's clock to a reference source is the deployer's; see finding F3 in the banking map |
+
+## What is deliberately not in this catalogue
+
+- Anything that exists only as a kit under `scripts/hardware-test/` for a
+  family the product does not ship (AWS Nitro, Intel SGX, Azure SGX).
+- Organisational controls — policies, training, screening, vendor
+  management, incident reporting to an authority. The sector maps name
+  them where a framework asks, as the institution's.
+- Certification status. None is held; the directory's
+  [`README.md`](README.md) says what that costs and when it is pursued.

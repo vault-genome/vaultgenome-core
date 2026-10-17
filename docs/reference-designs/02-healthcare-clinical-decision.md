@@ -140,9 +140,10 @@ Adapted to the healthcare context:
 - **BAA template**: vendor's existing BAA + addendum specifying
   Vault Genome as a BAA-bound subprocessor. Vendor counsel reviews
   per customer.
-- **Compliance crosswalk**: see HIPAA Security Rule section in
-  [`docs/compliance/crosswalk.md`](../compliance/crosswalk.md);
-  Article 25 + 32 of GDPR explicitly covered.
+- **Compliance**: no sector map covers healthcare yet; the controls are
+  in [`docs/compliance/controls.md`](../compliance/controls.md). The HIPAA
+  and GDPR rows of the former crosswalk are withdrawn until the business
+  pass writes them from the texts.
 
 ## Pricing posture
 

@@ -205,7 +205,7 @@ summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
 | [`docs/security/`](docs/security/threat_model.md) | The threat model and the supply chain |
 | [`docs/doctrine/`](docs/doctrine/terminology.md) | The canonical vocabulary (enforced by CI) and the CI security policy |
 | [`docs/testing/`](docs/testing/cross-hardware-determinism.md) | Cross-hardware determinism and mutation testing |
-| [`docs/compliance/`](docs/compliance/README.md), [`docs/reference-designs/`](docs/reference-designs/README.md) | The compliance crosswalk and four reference designs |
+| [`docs/compliance/`](docs/compliance/README.md), [`docs/reference-designs/`](docs/reference-designs/README.md) | The control catalogue, the sector maps and four reference designs |
 | [`docs/spec/`](docs/spec/draft-vault-genome-tap-00.md) | The TEE-Agnostic Attestation Protocol draft |
 | [`docs/reference/cli.md`](docs/reference/cli.md) | Every command and flag of the five binaries, generated from their own usage text |
 | [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md), [`ROADMAP.md`](ROADMAP.md), [`CHANGELOG.md`](CHANGELOG.md) | Limits, what is next, what changed |
