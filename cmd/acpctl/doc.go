@@ -13,8 +13,10 @@
 //
 // # Commands
 //
-//   - status, audit query|verify, lineage: read an audit log; verify replays
-//     every hash and signature from the first event.
+//   - status, audit query|verify, lineage: read an audit log — its closed
+//     segments, then the live file (ADR 0027) — read-only; verify replays
+//     every hash and signature from the first event and checks each
+//     archive against the record that closed it.
 //   - genome seal|open|verify|inspect|chain|lineage|gate: seal a model or a
 //     directory into a bundle (its key to --key-out, or escrowed with
 //     --escrow-to), restore it all or nothing, check it.

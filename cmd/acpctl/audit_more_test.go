@@ -204,7 +204,7 @@ func TestMatchesFilters(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, matchesFilters(evt, tc.kind, tc.sess, tc.man, tc.since, tc.until))
+			require.Equal(t, tc.want, matchesFilters(evt, tc.kind, tc.sess, tc.man, "", tc.since, tc.until))
 		})
 	}
 }
