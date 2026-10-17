@@ -189,10 +189,19 @@ log (`audit.log_path`, required with gate jobs) and the cross-cloud log
    kept off the host. A log whose tail was cut off still verifies; only this
    comparison shows it.
 
-acpctl opens the file read-write and takes the same lock a running
-`crosscloud-restore` holds (it gives up after 5 seconds): run it between
-releases, or on a copy. A mistyped `--audit` path creates an empty log, which
-verifies with 0 events.
+With segments (ADR 0027) the verifier reads the closed segments in
+`audit.archive_dir` (`archive/` beside the file unless set; `--archive-dir`
+names another place) before the live file, checks that each continues the
+one before it and that each archive is the file the chain recorded when it
+closed it, and lists them. Segments shipped off the host leave it unable to
+reach genesis: verify them where they are, then pass `--from-tip <hash>` —
+the tip they ended with, which the `AUDIT_SEGMENT_CLOSED` event after them
+carries and the verifier's output names.
+
+acpctl opens every file read-only — an archive's bytes are what the chain
+records — and takes a shared lock that a running daemon's exclusive one
+refuses (it gives up after 5 seconds): run it between releases, or on a
+copy. A mistyped `--audit` path is refused, not created.
 
 A discontinuity here is the canonical "is the audit log being replaced
 under me?" signal. Treat as critical.

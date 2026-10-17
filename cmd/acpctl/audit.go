@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/audit/chain"
-	"github.com/vault-genome/vaultgenome-core/internal/audit/store"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
@@ -72,12 +71,14 @@ func auditQueryCmd(args []string, stdout, stderr io.Writer) int {
 		manFlag   = fs.String("manifest", "", "Filter by manifest ID. Empty = all manifests.")
 		sinceStr  = fs.String("since", "", "Only events at or after this RFC3339 time")
 		untilStr  = fs.String("until", "", "Only events at or before this RFC3339 time")
+		reqFlag   = fs.String("request", "", "Filter by request ID — the id POST /v1/jobs returned beside the job id. Empty = all requests.")
+		archive   = fs.String("archive-dir", "", "Directory of the log's closed segments, read before the live file (default: \"archive\" beside --audit; ADR 0027)")
 		limit     = fs.Int("limit", 100, "Maximum number of events to return; <=0 means all")
 		jsonOut   = fs.Bool("json", false, "Emit machine-readable JSON (one event per line)")
 	)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: acpctl audit query --audit PATH [--kind X] [--session Y]")
-		fmt.Fprintln(stderr, "                          [--manifest Z] [--since TIME] [--until TIME]")
+		fmt.Fprintln(stderr, "usage: acpctl audit query --audit PATH [--archive-dir DIR] [--kind X] [--session Y]")
+		fmt.Fprintln(stderr, "                          [--manifest Z] [--request R] [--since TIME] [--until TIME]")
 		fmt.Fprintln(stderr, "                          [--limit N] [--json]")
 	}
 	if err := fs.Parse(args); err != nil {
@@ -99,13 +100,12 @@ func auditQueryCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	s, err := store.Open(*auditPath)
+	log, err := openAuditLog(*auditPath, *archive)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl audit query: open audit store: %v\n", err)
 		return 1
 	}
-	defer func() { _ = s.Close() }()
-	events, err := s.Load()
+	events, err := log.load()
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl audit query: load: %v\n", err)
 		return 1
@@ -114,7 +114,7 @@ func auditQueryCmd(args []string, stdout, stderr io.Writer) int {
 	matched := 0
 	for i := range events {
 		evt := &events[i]
-		if !matchesFilters(evt, *kindFlag, *sessFlag, *manFlag, since, until) {
+		if !matchesFilters(evt, *kindFlag, *sessFlag, *manFlag, *reqFlag, since, until) {
 			continue
 		}
 		emitEvent(stdout, *jsonOut, evt)
@@ -140,7 +140,7 @@ func parseOptionalTime(s, flagName string) (time.Time, error) {
 	return t, nil
 }
 
-func matchesFilters(evt *audit_event.AuditEvent, kind, sess, man string, since, until time.Time) bool {
+func matchesFilters(evt *audit_event.AuditEvent, kind, sess, man, req string, since, until time.Time) bool {
 	if kind != "" && string(evt.Kind) != kind {
 		return false
 	}
@@ -148,6 +148,9 @@ func matchesFilters(evt *audit_event.AuditEvent, kind, sess, man string, since, 
 		return false
 	}
 	if man != "" && string(evt.ManifestID) != man {
+		return false
+	}
+	if req != "" && string(evt.RequestID) != req {
 		return false
 	}
 	if !since.IsZero() && evt.OccurredAt.Before(since) {
@@ -205,13 +208,20 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		auditPath = fs.String("audit", "", "Path to the audit bbolt file (required)")
 		pubKey    = fs.String("audit-pubkey", "", "Path to the audit Ed25519 public key: PEM (as `sagvd identity` prints it) or 32 raw bytes (required)")
 		pubKID    = fs.String("audit-kid", "", "KeyID under which the audit-signing key is registered (required)")
+		archive   = fs.String("archive-dir", "", "Directory of the log's closed segments, verified before the live file (default: \"archive\" beside --audit; ADR 0027)")
+		fromTip   = fs.String("from-tip", "", "Hash (hex) the oldest present segment continues from, when the segments before it were moved away and verified where they are")
 		jsonOut   = fs.Bool("json", false, "Emit machine-readable JSON output")
 	)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: acpctl audit verify --audit PATH --audit-pubkey PATH --audit-kid KID [--json]")
+		fmt.Fprintln(stderr, "usage: acpctl audit verify --audit PATH --audit-pubkey PATH --audit-kid KID")
+		fmt.Fprintln(stderr, "                           [--archive-dir DIR] [--from-tip HEX] [--json]")
 		fmt.Fprintln(stderr)
-		fmt.Fprintln(stderr, "Replay the audit chain and verify every hash and signature. Exits 0 on")
-		fmt.Fprintln(stderr, "ok, non-zero on the first integrity violation. The audit-pubkey + audit-kid")
+		fmt.Fprintln(stderr, "Replay the audit chain — the closed segments in the archive directory, then")
+		fmt.Fprintln(stderr, "the live file — and verify every hash and signature, that each segment")
+		fmt.Fprintln(stderr, "continues the one before it, and that each archive is the file the chain")
+		fmt.Fprintln(stderr, "recorded when it closed it. Exits 0 on ok, 4 on the first integrity")
+		fmt.Fprintln(stderr, "violation or when the chain cannot be followed back to genesis (pass")
+		fmt.Fprintln(stderr, "--from-tip for segments verified elsewhere). The audit-pubkey + audit-kid")
 		fmt.Fprintln(stderr, "should match keys.audit_signing in the daemon's config.")
 	}
 	if err := fs.Parse(args); err != nil {
@@ -228,31 +238,40 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	s, err := store.Open(*auditPath)
+	var from []byte
+	if *fromTip != "" {
+		from, err = hex.DecodeString(*fromTip)
+		if err != nil || len(from) != audit_event.HashSize {
+			fmt.Fprintln(stderr, "acpctl audit verify: --from-tip must be a 32-byte hash in hex")
+			return 2
+		}
+	}
+	log, err := openAuditLog(*auditPath, *archive)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl audit verify: open audit store: %v\n", err)
 		return 1
 	}
-	defer func() { _ = s.Close() }()
-	events, err := s.Load()
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl audit verify: load: %v\n", err)
-		return 1
-	}
 
 	resolver := newSinglePubkeyResolver(ids.KeyID(*pubKID), pub)
-
-	// Reconstruct the chain in memory and Verify. We use InMemoryChain so
-	// we can call Verify(resolver) directly against the stored events.
-	verifyErr := verifyEventsInOrder(events, resolver)
+	verified, verifyErr := verifyAuditLog(log, resolver, from)
 	res := auditVerifyResult{
 		AuditPath:  *auditPath,
-		EventCount: len(events),
+		ArchiveDir: log.archiveDir,
+		EventCount: verified.Count,
+		Segments:   verified.Segments,
 	}
-	if n := len(events); n > 0 {
-		res.Tip = hex.EncodeToString(events[n-1].Hash)
+	if verified.Count > 0 && len(verified.Tip) > 0 {
+		res.Tip = hex.EncodeToString(verified.Tip)
+	}
+	if verified.StartsAfter != nil {
+		res.StartsAfter = hex.EncodeToString(verified.StartsAfter)
 	}
 	if verifyErr != nil {
+		if !isVerdict(verifyErr) {
+			// Not a verdict on the chain: a file that could not be read.
+			fmt.Fprintf(stderr, "acpctl audit verify: load: %v\n", verifyErr)
+			return 1
+		}
 		res.OK = false
 		res.Error = verifyErr.Error()
 		emitAuditVerify(stdout, *jsonOut, res)
@@ -267,11 +286,18 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 type auditVerifyResult struct {
 	OK         bool   `json:"ok"`
 	AuditPath  string `json:"audit_path"`
+	ArchiveDir string `json:"archive_dir,omitempty"`
 	EventCount int    `json:"event_count"`
 	// Tip is the hash of the last event. A log whose tail was cut off
 	// still verifies; compare the tip with one recorded earlier.
-	Tip   string `json:"tip,omitempty"`
-	Error string `json:"error,omitempty"`
+	Tip string `json:"tip,omitempty"`
+	// Segments is every file of the log in order: the archives, with
+	// their hashes, then the live file (ADR 0027).
+	Segments []segmentReport `json:"segments,omitempty"`
+	// StartsAfter is the tip the oldest present segment continues from,
+	// when the segments before it are not here.
+	StartsAfter string `json:"starts_after_tip,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 func emitAuditVerify(w io.Writer, asJSON bool, r auditVerifyResult) {
@@ -283,6 +309,27 @@ func emitAuditVerify(w io.Writer, asJSON bool, r auditVerifyResult) {
 		fmt.Fprintf(w, "audit chain ok — %d events verified, tip %s\n", r.EventCount, r.Tip)
 	} else {
 		fmt.Fprintf(w, "audit chain BROKEN: %s\n", r.Error)
+	}
+	if len(r.Segments) <= 1 && r.StartsAfter == "" {
+		return
+	}
+	for _, seg := range r.Segments {
+		kind := "archive"
+		if seg.Live {
+			kind = "live"
+		}
+		if seg.Events == 0 {
+			fmt.Fprintf(w, "  %-7s %s: no events yet", kind, seg.Path)
+		} else {
+			fmt.Fprintf(w, "  %-7s %s: events #%d..#%d", kind, seg.Path, seg.FirstIndex, seg.FirstIndex+seg.Events-1)
+		}
+		if seg.SHA256 != "" {
+			fmt.Fprintf(w, "  sha256 %s (%d bytes)", seg.SHA256, seg.Bytes)
+		}
+		fmt.Fprintln(w)
+	}
+	if r.StartsAfter != "" {
+		fmt.Fprintf(w, "  starts after tip %s: the segments before it are not here\n", r.StartsAfter)
 	}
 }
 

@@ -45,6 +45,11 @@ BUCKET=$(md attributes/vg-bucket)
 SEALER=auto
 WORKERS=$(md attributes/vg-workers 2>/dev/null || true); case "$WORKERS" in ''|*[!0-9]*) WORKERS=3;; esac
 nproc > "$OUT/nproc.txt"; echo "workers=$WORKERS" >> "$OUT/steps.txt"
+# Retention (ADR 0027): segments of the audit log and a window on finished jobs; 0 keeps 0.5.0's behaviour.
+SEGMENT_EVENTS=$(md attributes/vg-segment-events 2>/dev/null || true); case "$SEGMENT_EVENTS" in ''|*[!0-9]*) SEGMENT_EVENTS=0;; esac
+RETAIN_SECONDS=$(md attributes/vg-retain-seconds 2>/dev/null || true); case "$RETAIN_SECONDS" in ''|*[!0-9]*) RETAIN_SECONDS=0;; esac
+export SEGMENT_EVENTS RETAIN_SECONDS
+echo "segment_events=$SEGMENT_EVENTS" >> "$OUT/steps.txt"; echo "retain_seconds=$RETAIN_SECONDS" >> "$OUT/steps.txt"
 { echo "instance=$(md name)"; echo "zone=$(md zone | awk -F/ '{print $NF}')"; echo "machine=$(md machine-type | awk -F/ '{print $NF}')"; echo "captured=$STAMP"; } > "$OUT/metadata.txt"
 uname -a > "$OUT/kernel.txt"
 T0=$(date +%s.%N)
@@ -110,7 +115,7 @@ head -c 48 /dev/zero > peer-vault.meas; head -c 48 /dev/zero > peer-worker.meas
 
 write_configs() { # $1 = vault measurement hex, $2 = worker measurement hex, $3 = max_sessions, $4 = number of worker configs
   python3 - "$1" "$2" "$SEALER" "${3:-1}" "${4:-1}" <<'PY'
-import json, sys, binascii
+import json, sys, binascii, os
 vault_meas, worker_meas, SEALER = sys.argv[1], sys.argv[2], sys.argv[3]
 MAX_SESSIONS, NWORKERS = int(sys.argv[4]), int(sys.argv[5])
 W = "/root/e2e"; S = W + "/secrets"
@@ -134,6 +139,11 @@ sagvd = {
     "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 600, "max_payload_bytes": 4194304},
   "health": {"listen_address": "127.0.0.1:9081"},
   "log": {"level": "info", "format": "json"}}
+SEG, RET = int(os.environ.get("SEGMENT_EVENTS", "0")), int(os.environ.get("RETAIN_SECONDS", "0"))
+if SEG > 0:
+    sagvd["audit"]["segment_events"] = SEG
+if RET > 0:
+    sagvd["queue"]["retain_finished_seconds"] = RET
 worker = {
   "vault": {"address": "127.0.0.1:9443",
     "tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt", "client_key": S + "/acp-compute/tls/client.key", "ca_bundle": S + "/shared/tls/ca.crt", "server_name": "localhost"}},
@@ -268,7 +278,21 @@ jobs = open(os.path.join(out, "jobs.csv"), "w", newline=""); jw = csv.writer(job
 jw.writerow(["job_id", "submitted_at", "started_at", "completed_at", "status", "level", "queue_s", "run_s", "total_s"])
 snaps = open(os.path.join(out, "snapshots.csv"), "w", newline=""); sw = csv.writer(snaps)
 sw.writerow(["t_s", "jobs_done", "jobs_ok", "jobs_exact", "in_flight", "sessions_active", "queue_depth", "sessions_opened", "handshake_failures",
-             "sessions_refused", "sagvd_rss_kb", "sagvd_fds", "workers_rss_kb", "load1", "sagvd_rss_anon_kb", "sagvd_rss_file_kb"])
+             "sessions_refused", "sagvd_rss_kb", "sagvd_fds", "workers_rss_kb", "load1", "sagvd_rss_anon_kb", "sagvd_rss_file_kb",
+             "audit_live_bytes", "audit_archive_bytes", "audit_archives", "views_bytes", "segments_closed", "jobs_swept"])
+def disk():
+    # The two bbolt files and the closed segments (ADR 0027), in bytes.
+    def size(p):
+        try: return os.path.getsize(p)
+        except OSError: return 0
+    arch = n = 0
+    try:
+        for f in os.listdir("audit/archive"):
+            if f.startswith("returnpath-audit.") and f.endswith(".db"):
+                arch += size(os.path.join("audit/archive", f)); n += 1
+    except OSError:
+        pass
+    return size("audit/returnpath-audit.db"), arch, n, size("queue/sagvd-jobs.db")
 def ts(s):
     s = s.rstrip("Z"); head, _, frac = s.partition("."); frac = (frac + "000000")[:6]
     return time.mktime(time.strptime(head, "%Y-%m-%dT%H:%M:%S")) + int(frac) / 1e6
@@ -276,9 +300,11 @@ t0 = time.time(); deadline = t0 + minutes * 60; cap = workers * 2
 inflight = {}; done = ok = exact = 0; last_snap = t0; first_error = None
 def snapshot():
     r, f = proc(sagvd_pid); wr = sum((proc(p)[0] or 0) for p in worker_pids); anon, filebacked = rss_split(sagvd_pid)
+    live, arch, narch, views = disk()
     sw.writerow([int(time.time() - t0), done, ok, exact, len(inflight), metric("sagvd_sessions_active"), metric("sagvd_queue_depth"),
                  metric("sagvd_sessions_opened_total"), metric("sagvd_handshake_failures_total"), metric("sagvd_sessions_refused_total"),
-                 r, f, wr, load1(), anon, filebacked]); snaps.flush()
+                 r, f, wr, load1(), anon, filebacked,
+                 live, arch, narch, views, metric("sagvd_audit_segments_closed_total"), metric("sagvd_jobs_swept_total")]); snaps.flush()
 snapshot()
 while True:
     now = time.time()
@@ -319,6 +345,7 @@ step "snapshots of the daemons' state at the end"
 ps -o pid,rss,vsz,pcpu,etime,cmd -p "$(echo $SAGVD $PIDS | tr " " ",")" > "$OUT/ps-end.txt" 2>&1
 curl -s http://127.0.0.1:9081/metrics | grep -E "^(sagvd|rp|vg_tee)_" > "$OUT/sagvd-metrics-end.txt"
 ls -l queue/sagvd-jobs.db audit/returnpath-audit.db > "$OUT/db-sizes-end.txt" 2>&1
+{ ls -l audit/archive 2>/dev/null; du -sb audit queue; } > "$OUT/archives.txt" 2>&1
 curl -s "http://127.0.0.1:9101/metrics" | grep -E "^(acp_compute|rp|vg_tee)_" > "$OUT/acp-compute-1-metrics-end.txt"
 for pid in $PIDS; do kill -TERM "$pid" 2>/dev/null; done
 for pid in $PIDS; do wait "$pid" 2>/dev/null; done
@@ -346,6 +373,33 @@ for line in sys.stdin:
 print("audit_events=%d" % n); [print("  %s=%d" % kv) for kv in sorted(c.items())]' > "$OUT/audit-kinds.txt"
 echo "audit query exit=$?" >> "$OUT/steps.txt"
 cat "$OUT/audit-kinds.txt" | head -3 >> "$OUT/steps.txt"
+if [ "$SEGMENT_EVENTS" -gt 0 ]; then
+  step "the shipping drill: the oldest archive moved away, verify refuses; with --from-tip it verifies from there; moved back"
+  FIRST=$(ls audit/archive/returnpath-audit.*.db 2>/dev/null | head -1)
+  if [ -n "$FIRST" ]; then
+    FIRST_TIP=$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print(r["segments"][0]["tip"])' "$OUT/audit-verify.json")
+    mkdir -p shipped && mv "$FIRST" shipped/
+    ./acpctl audit verify --audit audit/returnpath-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-e2e --json > "$OUT/audit-verify-shipped.json" 2> "$OUT/audit-verify-shipped.err"
+    echo "audit verify (oldest archive shipped) exit=$?" >> "$OUT/steps.txt"
+    ./acpctl audit verify --audit audit/returnpath-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-e2e --from-tip "$FIRST_TIP" --json > "$OUT/audit-verify-from-tip.json" 2> "$OUT/audit-verify-from-tip.err"
+    echo "audit verify (--from-tip) exit=$?" >> "$OUT/steps.txt"
+    mv "shipped/$(basename "$FIRST")" audit/archive/
+  fi
+  step "a tampered archive: one byte appended to the newest archive of a copy of the log; verify names it"
+  cp -r audit tampered && printf '\0' >> "$(ls tampered/archive/returnpath-audit.*.db | tail -1)"
+  ./acpctl audit verify --audit tampered/returnpath-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-e2e --json > "$OUT/audit-verify-tampered.json" 2> "$OUT/audit-verify-tampered.err"
+  echo "audit verify (tampered archive) exit=$?" >> "$OUT/steps.txt"
+  rm -rf tampered
+fi
+step "restart: sagvd opens the log again, the live segment verified and the history untouched"
+T2=$(date +%s.%N)
+./sagvd -config "sagvd-$WORKERS.json" > "$WORK/sagvd-restart.log" 2>&1 &
+RPID=$!
+n=0; until curl -sf http://127.0.0.1:9081/readyz >/dev/null || [ $n -ge 240 ]; do sleep 0.5; n=$((n+1)); done
+python3 -c 'import sys,time; t0=float(sys.argv[1]); print("restart_ready_seconds=%.1f" % (time.time()-t0))' "$T2" >> "$OUT/steps.txt"
+grep -m1 '"msg":"sagvd audit log open"' "$WORK/sagvd-restart.log" > "$OUT/restart-audit-open.json" || true
+grep -m1 '"msg":"sagvd job queue on disk"' "$WORK/sagvd-restart.log" > "$OUT/restart-queue-open.json" || true
+kill -TERM $RPID; wait $RPID 2>/dev/null
 cp audit.pem "$OUT/audit-public-key.pem"
 python3 -c 'import sys,time; t0=float(sys.argv[1]); print("elapsed_seconds=%.1f" % (time.time()-t0))' "$T0" >> "$OUT/steps.txt"
 

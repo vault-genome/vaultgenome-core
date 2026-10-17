@@ -54,12 +54,17 @@ const (
 	//            authority's decision, under an operator-signed failover
 	//            policy, to move a genome to the standby — or to decline.
 	//            Struct shape unchanged.
+	//   v6 → v7: ADR 0027 added KindAuditSegmentClosed: the daemon's
+	//            record, as the first event of a fresh segment of its
+	//            log, of the segment it closed — name, indices, tip,
+	//            length and SHA-256 of the archived file. Struct shape
+	//            unchanged.
 	// See docs/doctrine/bootstrap-contracts.md §5 (contract-frozen
 	// discipline), the Stage F.2 / Stage G doctrine notes in
 	// docs/internal/status-journal.md, ADR 0006 (cross-cloud KMS-mediated
 	// restore) and ADR 0010 (operator stop and recorded refusals).
-	SchemaVersionMax     uint16 = 6
-	SchemaVersionCurrent uint16 = 6
+	SchemaVersionMax     uint16 = 7
+	SchemaVersionCurrent uint16 = 7
 
 	// HashSize is the length in bytes of PrevHash and Hash (SHA-256).
 	HashSize = 32
@@ -217,6 +222,13 @@ const (
 	// authorisation and restore that follow link back to it. At most one
 	// failover is decided per policy serial.
 	KindFailoverDecided Kind = "FAILOVER_DECIDED"
+	// KindAuditSegmentClosed (v7, ADR 0027) is the first event of every
+	// segment of a daemon's log after the first: the segment it closed —
+	// the archive's file name, the indices of its first and last events,
+	// its tip, its length and the SHA-256 of the file. Appended under the
+	// chain's lock before any other writer, so that the live file alone
+	// names the file it continues and what that file must hash to.
+	KindAuditSegmentClosed Kind = "AUDIT_SEGMENT_CLOSED"
 )
 
 // AuditEvent is one record in the hash-chained audit log.

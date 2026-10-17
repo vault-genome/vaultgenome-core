@@ -19,6 +19,9 @@
 # project with the Compute and Storage APIs enabled.
 #
 # Usage: run.sh <project> [zone]   (default zone us-central1-c)
+# VG_SEGMENT_EVENTS=N closes the audit log into segments of N events and
+# VG_RETAIN_SECONDS=S expires finished jobs after S seconds (ADR 0027; both
+# 0 = off, as 0.5.0 behaved); the snapshots then carry the files' sizes.
 # VG_WORKERS=N (default 3) workers and 2N jobs in flight; VG_SOAK_MINUTES
 # (default 60) the soak's length; VG_MACHINE (default n2d-standard-8) the
 # guest's machine type: the workers are the real CPU door and contend for
@@ -58,7 +61,7 @@ gcloud compute instances create "$NAME" --project "$PROJECT" --zone "$ZONE" \
   --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
   --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
   --boot-disk-size 20GB \
-  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-workers=${VG_WORKERS:-3},vg-soak-minutes=${VG_SOAK_MINUTES:-60}" \
+  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-workers=${VG_WORKERS:-3},vg-soak-minutes=${VG_SOAK_MINUTES:-60},vg-segment-events=${VG_SEGMENT_EVENTS:-0},vg-retain-seconds=${VG_RETAIN_SECONDS:-0}" \
   --metadata-from-file "startup-script=$HERE/cvm-returnpath-soak.sh" >/dev/null
 
 echo "waiting for results on the serial console (the soak plus 30 min)"

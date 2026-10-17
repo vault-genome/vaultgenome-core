@@ -12,9 +12,17 @@
 // orders and dispatches, and writes its transitions here. A write that
 // fails does not stop the job; it is logged, and durability is what is
 // lost, not the decision (the audit log is the decision's record).
+//
+// Finished jobs expire (ADR 0027): Sweep deletes the records and views
+// of jobs that finished before a cutoff the daemon derives from
+// queue.retain_finished_seconds, oldest first, through an index by
+// completion time; a store written before the index existed is indexed
+// when it is opened. Jobs queued or running are never swept.
 package jobstore
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +38,11 @@ import (
 const (
 	bucketJobs  = "jobs"  // id -> Record (JSON)
 	bucketViews = "views" // id -> the finished job's view (JSON, opaque here)
+	// bucketFinished indexes the finished jobs by when they finished:
+	// key = 8-byte big-endian UnixNano of the record's UpdatedAt at its
+	// terminal transition, then the id; no value. Sweep walks it from
+	// the oldest (ADR 0027), so a sweep costs what it deletes.
+	bucketFinished = "finished"
 
 	// openTimeout bounds the wait for bbolt's file lock: a second process
 	// on the same file is a configuration error, reported as such.
@@ -99,7 +112,24 @@ func Open(path string) (*Store, error) {
 				return err
 			}
 		}
-		return nil
+		if tx.Bucket([]byte(bucketFinished)) != nil {
+			return nil
+		}
+		// A store from before the index: index its finished jobs once.
+		idx, err := tx.CreateBucket([]byte(bucketFinished))
+		if err != nil {
+			return err
+		}
+		return tx.Bucket([]byte(bucketJobs)).ForEach(func(_, raw []byte) error {
+			var rec Record
+			if err := json.Unmarshal(raw, &rec); err != nil {
+				return err
+			}
+			if !rec.Terminal() {
+				return nil
+			}
+			return idx.Put(finishedKey(rec.UpdatedAt, rec.ID), nil)
+		})
 	}); err != nil {
 		_ = db.Close()
 		return nil, shared_errors.Operational(shared_errors.CodeResourceExhausted, "jobstore: bucket initialisation failed", err)
@@ -128,8 +158,45 @@ func (s *Store) Put(rec Record) error {
 		return shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "jobstore: encode record", err)
 	}
 	return s.update(func(tx *bbolt.Tx) error {
-		return tx.Bucket([]byte(bucketJobs)).Put([]byte(rec.ID), raw)
+		b := tx.Bucket([]byte(bucketJobs))
+		if old := b.Get([]byte(rec.ID)); old != nil {
+			if err := unindexFinished(tx, old); err != nil {
+				return err
+			}
+		}
+		if err := b.Put([]byte(rec.ID), raw); err != nil {
+			return err
+		}
+		return indexFinished(tx, rec)
 	})
+}
+
+// finishedKey is the index key of a job that finished at t.
+func finishedKey(t time.Time, id string) []byte {
+	key := make([]byte, 8, 8+len(id))
+	binary.BigEndian.PutUint64(key, uint64(t.UTC().UnixNano()))
+	return append(key, id...)
+}
+
+// indexFinished puts rec in the finished index when it is terminal.
+func indexFinished(tx *bbolt.Tx, rec Record) error {
+	if !rec.Terminal() {
+		return nil
+	}
+	return tx.Bucket([]byte(bucketFinished)).Put(finishedKey(rec.UpdatedAt, rec.ID), nil)
+}
+
+// unindexFinished removes the index entry of the stored record raw, if
+// it was terminal.
+func unindexFinished(tx *bbolt.Tx, raw []byte) error {
+	var old Record
+	if err := json.Unmarshal(raw, &old); err != nil {
+		return err
+	}
+	if !old.Terminal() {
+		return nil
+	}
+	return tx.Bucket([]byte(bucketFinished)).Delete(finishedKey(old.UpdatedAt, old.ID))
 }
 
 // Get returns the record for id, and whether there is one.
@@ -164,6 +231,9 @@ func (s *Store) SetStatus(id, status, lastError string, now time.Time) error {
 		if err := json.Unmarshal(raw, &rec); err != nil {
 			return err
 		}
+		if err := unindexFinished(tx, raw); err != nil {
+			return err
+		}
 		rec.Status = status
 		rec.UpdatedAt = now.UTC()
 		if lastError != "" {
@@ -173,8 +243,68 @@ func (s *Store) SetStatus(id, status, lastError string, now time.Time) error {
 		if err != nil {
 			return err
 		}
-		return b.Put([]byte(id), out)
+		if err := b.Put([]byte(id), out); err != nil {
+			return err
+		}
+		return indexFinished(tx, rec)
 	})
+}
+
+// Sweep deletes the records and views of jobs that finished before
+// cutoff — at most max of them, oldest first — and returns how many it
+// deleted (ADR 0027). Jobs queued or running are not touched. The file
+// does not shrink: bbolt reuses the pages, so it plateaus at the
+// window's high-water mark.
+func (s *Store) Sweep(cutoff time.Time, max int) (int, error) {
+	if max <= 0 {
+		return 0, nil
+	}
+	limit := finishedKey(cutoff, "")
+	deleted := 0
+	err := s.update(func(tx *bbolt.Tx) error {
+		idx := tx.Bucket([]byte(bucketFinished))
+		jobs := tx.Bucket([]byte(bucketJobs))
+		views := tx.Bucket([]byte(bucketViews))
+		var keys [][]byte
+		c := idx.Cursor()
+		for k, _ := c.First(); k != nil && len(keys) < max; k, _ = c.Next() {
+			if len(k) < 8 || bytes.Compare(k[:8], limit[:8]) >= 0 {
+				break
+			}
+			keys = append(keys, append([]byte(nil), k...))
+		}
+		for _, k := range keys {
+			id := k[8:]
+			if err := jobs.Delete(id); err != nil {
+				return err
+			}
+			if err := views.Delete(id); err != nil {
+				return err
+			}
+			if err := idx.Delete(k); err != nil {
+				return err
+			}
+			deleted++
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return deleted, nil
+}
+
+// Finished is the number of finished jobs on record.
+func (s *Store) Finished() (int, error) {
+	n := 0
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		n = tx.Bucket([]byte(bucketFinished)).Stats().KeyN
+		return nil
+	})
+	if err != nil {
+		return 0, shared_errors.Operational(shared_errors.CodeResourceExhausted, "jobstore: count finished", err)
+	}
+	return n, nil
 }
 
 // Pending returns the records that are not terminal — queued or running

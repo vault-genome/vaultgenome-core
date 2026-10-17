@@ -39,6 +39,7 @@ ADRs interact with the test-enforced invariant system.
 | 0024 | [Vendor trust anchors are pinned in the binary](0024-vendor-trust-anchors-pinned-in-the-binary.md) | Accepted | tee, attestation, amd, sev-snp, azure-cgpu, trust-anchors |
 | 0025 | [Any hardware: the daemons are RATS roles, not cloud adapters](0025-any-hardware-rats-roles-not-cloud-adapters.md) | Accepted | tee, attestation, rats, cmw, ear, verifier, configfs-tsm, tpm, portability |
 | 0026 | [The job queue is on disk: a restart resumes what was accepted](0026-the-job-queue-on-disk.md) | Accepted | sagvd, queue, durability, restart, bbolt, audit |
+| 0027 | [The audit log in closed segments: retention is archival, and the views expire](0027-the-audit-log-in-closed-segments.md) | Accepted | sagvd, audit, retention, bbolt, acpctl, disk |
 
 ## Adding an ADR
 

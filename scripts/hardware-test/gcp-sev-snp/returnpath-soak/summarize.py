@@ -49,10 +49,20 @@ def main(d):
     m = re.search(r"^audit verify exit=(\d+)$", steps, re.M); out["audit_verify_exit"] = int(m.group(1)) if m else None
     m = re.search(r"^audit_verify_seconds=([\d.]+)$", steps, re.M); out["audit_verify_seconds"] = float(m.group(1)) if m else None
     m = re.search(r"^audit_events=(\d+)$", steps, re.M); out["audit_events"] = int(m.group(1)) if m else None
+    # Retention (ADR 0027): the parameters, the drills' exit codes, the restart.
+    for key in ("segment_events", "retain_seconds"):
+        m = re.search(r"^%s=(\d+)$" % key, steps, re.M); out[key] = int(m.group(1)) if m else None
+    for key, name in (("audit verify \\(oldest archive shipped\\) exit", "audit_verify_shipped_exit"),
+                      ("audit verify \\(--from-tip\\) exit", "audit_verify_from_tip_exit"),
+                      ("audit verify \\(tampered archive\\) exit", "audit_verify_tampered_exit")):
+        m = re.search(r"^%s=(\d+)$" % key, steps, re.M); out[name] = int(m.group(1)) if m else None
+    m = re.search(r"^restart_ready_seconds=([\d.]+)$", steps, re.M); out["restart_ready_seconds"] = float(m.group(1)) if m else None
     try:
         out["audit_verify"] = json.load(open(os.path.join(d, "audit-verify.json")))
     except (OSError, ValueError):
         out["audit_verify"] = None
+    if out["audit_verify"]:
+        out["audit_segments"] = len(out["audit_verify"].get("segments") or [])
     jobs = list(csv.DictReader(open(os.path.join(d, "jobs.csv"))))
     out["jobs_recorded"] = len(jobs)
     out["statuses"] = {}
@@ -101,6 +111,11 @@ def main(d):
         out["queue_depth_max"] = max((x for x in col("queue_depth") if x is not None), default=None)
         last = snaps[-1]
         out["metrics_end"] = {k: num(last[k]) for k in ("sessions_opened", "handshake_failures", "sessions_refused")}
+        if "audit_live_bytes" in last:
+            for name in ("audit_live_bytes", "audit_archive_bytes", "views_bytes"):
+                v = [x for x in col(name) if x is not None]
+                out[name] = {"first": v[0], "max": max(v), "last": v[-1]} if v else None
+            out["disk_end"] = {k: num(last[k]) for k in ("audit_archives", "segments_closed", "jobs_swept")}
     hs = {}
     for f in sorted(os.listdir(d)):
         if f.endswith(".handshake_ms.txt"):

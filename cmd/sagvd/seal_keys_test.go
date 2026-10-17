@@ -60,7 +60,7 @@ func TestSealKeys_SealsInPlaceAndTheDaemonOpensThem(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, beforePub, []byte(after.AuthoritySigningPublicKey))
 	after.Store.Zeroize()
-	audit, err := openReturnPathAudit(cfg, shared_time.NewSystemClock(), nil)
+	audit, err := openReturnPathAudit(cfg, shared_time.NewSystemClock(), nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, audit)
 	require.NoError(t, audit.Close())
