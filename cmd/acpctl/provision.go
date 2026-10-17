@@ -936,6 +936,21 @@ func readWorkerBundle(bundlePath string) (workerBundle, map[string][]byte, error
 	return m, files, nil
 }
 
+// pathInside joins a bundle entry's name under root and refuses a result
+// that is not strictly inside root: the manifest's names are checked when
+// the bundle is read, and the path is checked again where it is written.
+func pathInside(root, name string) (string, error) {
+	root = filepath.Clean(root)
+	if name == "" || path.IsAbs(name) || filepath.IsAbs(name) || name != path.Clean(name) {
+		return "", fmt.Errorf("--bundle: %q is not a path inside the deployment", name)
+	}
+	dst := filepath.Clean(filepath.Join(root, filepath.FromSlash(name)))
+	if !strings.HasPrefix(dst, root+string(os.PathSeparator)) {
+		return "", fmt.Errorf("--bundle: %q is not a path inside the deployment", name)
+	}
+	return dst, nil
+}
+
 // unspecifiedHost reports whether a listen address binds every interface.
 func unspecifiedHost(addr string) bool {
 	host, _, err := net.SplitHostPort(addr)
@@ -1230,7 +1245,10 @@ func provisionJoin(o provisionOptions, stdout io.Writer) (*provisionResult, erro
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		dst := filepath.Join(out, filepath.FromSlash(name))
+		dst, err := pathInside(out, name)
+		if err != nil {
+			return nil, err
+		}
 		if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
 			return nil, err
 		}

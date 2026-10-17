@@ -360,3 +360,16 @@ func anyStrings(v any) []string {
 	}
 	return out
 }
+
+func TestPathInside(t *testing.T) {
+	root := t.TempDir()
+	for _, ok := range []string{"a", "secrets/acp-compute/tls/client.key", "pins/vault.measurement"} {
+		dst, err := pathInside(root, ok)
+		require.NoError(t, err, ok)
+		require.True(t, strings.HasPrefix(dst, root+string(os.PathSeparator)), dst)
+	}
+	for _, bad := range []string{"", ".", "..", "../x", "a/../../x", "/etc/passwd", "a/./../../b"} {
+		_, err := pathInside(root, bad)
+		require.Error(t, err, bad)
+	}
+}
