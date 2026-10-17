@@ -1,0 +1,50 @@
+{"time":"2026-10-17T14:32:34.825635318Z","level":"INFO","msg":"failover escrow key","escrow_key":"41b544cb8f8899e5","storage":"sealed:gcp-sev-snp"}
+{"time":"2026-10-17T14:32:45.047350906Z","level":"INFO","msg":"failover armed","policy_serial":2,"sentinel":"sentinel-f604abe7af3f3d89","primary_tee":"gcp-sev-snp 10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519","stopped_grace_seconds":0,"standby":"gcp-sev-snp https://127.0.0.1:8443","outbox":"/root/rogue-outbox"}
+{"time":"2026-10-17T14:32:45.051527086Z","level":"INFO","msg":"failover watch","state":"watching"}
+{"time":"2026-10-17T14:33:15.105187863Z","level":"WARN","msg":"failover triggered","trigger":"heartbeat-timeout","at":"2026-10-17T14:32:14.291463106Z"}
+{"time":"2026-10-17T14:33:15.131591512Z","level":"WARN","msg":"failover declined","policy_serial":2,"sentinel":"sentinel-f604abe7af3f3d89","reason":"no genome in the verified chain was sealed by 2026-10-16T14:32:14.291463106Z and checks out"}
+{
+  "status": "declined",
+  "policy_serial": 2,
+  "policy_sha256": "a21312e0a33f7fd08b08c32dda0ff05f3c4888cf60e0b287a1ee6c85a897152a",
+  "sentinel": "sentinel-f604abe7af3f3d89",
+  "trigger": {
+    "kind": "heartbeat-timeout",
+    "at": "2026-10-17T14:32:14.291463106Z",
+    "observed_at": "2026-10-17T14:33:15.102841993Z",
+    "alive_observed_at": "2026-10-17T14:32:45.047371736Z",
+    "evidence_sha256": "5b2951f0fa89dc5e048f8d981d904224ff9aa2efb71ef5cd6db864026f901261",
+    "primary_measurement_hex": "10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519",
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "e3977223a9b4a9afc6a87e77f878ae6a2fd2b98bd56d7275d0b7c7d09660d3ad",
+      "sealed_at": "2026-10-17T14:32:05.282379502Z"
+    }
+  },
+  "decision": {
+    "decision": "declined",
+    "reason": "no genome in the verified chain was sealed by 2026-10-16T14:32:14.291463106Z and checks out",
+    "audit_id": "xcc-evt-0000000000000006",
+    "decided_at": "2026-10-17T14:33:15.127820362Z"
+  },
+  "set_aside": [
+    {
+      "file": "gen-000002.seal.json",
+      "reason": "after generation 1, the last the sentinel's heartbeat-timeout names"
+    },
+    {
+      "file": "gen-000001.seal.json",
+      "reason": "sealed at 2026-10-17T14:32:05.282379502Z, after the cutoff 2026-10-16T14:32:14.291463106Z"
+    },
+    {
+      "file": "gen-000000.seal.json",
+      "reason": "sealed at 2026-10-17T14:27:44.281781607Z, after the cutoff 2026-10-16T14:32:14.291463106Z"
+    }
+  ],
+  "ignored": [
+    "heartbeat.json: sentinel: the record's gcp-sev-snp attestation does not verify: integrity[signature_invalid]: gcp-sev: MEASUREMENT 7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc not in acceptable set"
+  ],
+  "audit_chain_length": 6,
+  "audit_tip": "24e90d29fafe74f888062457fef0557ffa49b0c4c935bc5768016c65fc27f098",
+  "operator_stop_serial": 1
+}

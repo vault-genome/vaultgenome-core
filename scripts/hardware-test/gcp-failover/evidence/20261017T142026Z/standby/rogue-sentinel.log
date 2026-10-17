@@ -1,0 +1,4 @@
+{"time":"2026-10-17T14:32:45.848177771Z","level":"INFO","msg":"sentinel attests every record with the primary's TEE","tee":"gcp-sev-snp","measurement_hex":"7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc"}
+{"time":"2026-10-17T14:32:45.848648691Z","level":"INFO","msg":"sentinel started","sentinel":"sentinel-f604abe7af3f3d89","outbox":"/root/rogue-outbox","wires":0}
+{"time":"2026-10-17T14:32:45.88812593Z","level":"INFO","msg":"genome sealed","sentinel":"sentinel-f604abe7af3f3d89","generation":2,"key_id":"genome-ffb67c3502f5-g2-787cbe5b3460","bundle_sha256":"ccf67823384de1c36d4d9fd8817f029ea8c74f8289af3c3f881fc4c8d58c46f6","bundle_bytes":2216839,"payload_sha256":"sha256:ffb67c3502f5cebf70659533191ae93f40e712d6fdfcfccc5d5db63719af7906"}
+{"time":"2026-10-17T14:33:15.146002931Z","level":"INFO","msg":"sentinel stopped","sentinel":"sentinel-f604abe7af3f3d89","sealed":1}
