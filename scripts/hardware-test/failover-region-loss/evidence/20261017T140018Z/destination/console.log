@@ -1,0 +1,17 @@
+== 14:11:08 the guest
+== 14:11:09 the worker runtime (CUDA wheels) and the base model the genome names
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:01,  7.08it/s]Fetching 10 files:  60%|██████    | 6/10 [00:00<00:00, 27.27it/s]Fetching 10 files: 100%|██████████| 10/10 [00:02<00:00,  4.12it/s]Fetching 10 files: 100%|██████████| 10/10 [00:02<00:00,  4.89it/s]
+== 14:13:25 acp-bootstrap as azure-cgpu: the destination of a key release, the door on the H100
+{
+  "tee_provider": "azure-cgpu",
+  "measurement_hex": "aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef",
+  "sealer": "tpm2",
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "5fdb97ac624fb88a8f28d1fd1ed6a8d74ba91b8fd6b64526abd713a5e7180cd6"
+  }
+}
+DESTINATION UP
