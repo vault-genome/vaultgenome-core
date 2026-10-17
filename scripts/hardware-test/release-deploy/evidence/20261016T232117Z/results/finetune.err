@@ -1,0 +1,6 @@
+Loading weights:   0%|          | 0/21 [00:00<?, ?it/s]Loading weights: 100%|██████████| 21/21 [00:00<00:00, 2902.63it/s]
+step 1/20 loss 3.7133
+step 11/20 loss 3.3758
+step 20/20 loss 2.3454
+recording the integer door's references
+integer door: top-1 the same on 6/6 fixtures, max abs err 0.0101
