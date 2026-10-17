@@ -168,7 +168,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    attribute (`sev_guest`, `tdx_guest`; `arm_cca_guest` is recognised and
    refused by name until a producer exists), and the family names
    `sev-snp` and `tdx` are accepted beside `gcp-sev-snp` and `gcp-tdx`
-   (ADR 0025, step 1).
+   (ADR 0025, step 1). Since 2026-10-17 a host without configfs-tsm is
+   asked a second way: an Azure confidential VM keeps its SEV-SNP report
+   in the vTPM's NV index, and `auto` reads it there (`azure-sev-snp`);
+   an HCL report of another type is refused by its number.
 2. **RESOLVED (ADR 0013, 2026-09-15).** The acp-compute worker's
    "reconstruction" was a placeholder: SHA-256 digest expansion (V1), then a
    byte-level order-3 Markov chain (V2), both self-documented as "not a

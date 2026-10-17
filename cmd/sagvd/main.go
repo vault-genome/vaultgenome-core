@@ -173,8 +173,8 @@ func runDaemon(args []string) error {
 		"kid", string(mat.SessionSealingKeyID),
 	)
 	if cfg.TEE.AutoResolvedFrom != "" {
-		logger.Info("sagvd tee.provider auto: the family is the kernel's to say",
-			"tsm_provider", cfg.TEE.AutoResolvedFrom, "tee_provider", cfg.TEE.Provider)
+		logger.Info("sagvd tee.provider auto: the family is the host's to say",
+			"resolved_from", cfg.TEE.AutoResolvedFrom, "tee_provider", cfg.TEE.Provider)
 	}
 	logger.Info("sagvd TEE identity",
 		"tee_provider", string(mat.Provider),
@@ -204,7 +204,7 @@ func runDaemon(args []string) error {
 
 	registry := metrics.NewRegistry()
 	teeRec := teemetrics.New(registry)
-	mat.InstrumentTEE(teeRec, string(mat.Provider))
+	mat.InstrumentTEE(teeRec)
 	teeRec.RecordCapability(string(mat.Provider), true)
 
 	queue := NewJobQueue(clock, cfg.Runtime.QueuePoll())

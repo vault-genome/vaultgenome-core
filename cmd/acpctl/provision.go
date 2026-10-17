@@ -140,7 +140,7 @@ type provisionOptions struct {
 func (o *provisionOptions) commonFlags(flags *flag.FlagSet) {
 	flags.StringVar(&o.out, "out", "", "the deployment directory to write (required; created 0700)")
 	flags.StringVar(&o.binDir, "bin-dir", "", "where the release's acp-keygen, sagvd and acp-compute are (default: beside acpctl, then PATH)")
-	flags.StringVar(&o.provider, "provider", "", "the TEE family the daemon(s) on this host attest with: gcp-sev-snp, gcp-tdx, azure-sev-snp, simulated, or auto (configfs-tsm says which)")
+	flags.StringVar(&o.provider, "provider", "", "the TEE family the daemon(s) on this host attest with: gcp-sev-snp, gcp-tdx, azure-sev-snp, simulated, or auto (configfs-tsm says which, or the vTPM's HCL report under Azure's paravisor)")
 	flags.StringVar(&o.sealer, "sealer", "auto", "tee.sealer for the daemon(s) on this host: auto, tee or tpm2 (ADR 0025 step 1b)")
 	flags.BoolVar(&o.insecureSimulation, "insecure-simulation", false, "allow the simulated TEE (development only; the daemons refuse it otherwise)")
 	flags.StringVar(&o.logLevel, "log-level", "info", "the daemons' log level")

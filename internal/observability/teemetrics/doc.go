@@ -17,7 +17,8 @@
 //
 //   - vg_tee_attestation_total{provider, role, result}: count of
 //     Quote (role=produce) and Verify (role=verify) calls split by
-//     success / error.
+//     success / error; provider is the family of what was attested —
+//     the daemon's own for produce, the peer's for verify.
 //   - vg_tee_attestation_duration_seconds{provider, role}: latency
 //     distribution per call. Useful for SLO setting and detecting
 //     when MAA / KMS / DCAP-collateral fetches start regressing.

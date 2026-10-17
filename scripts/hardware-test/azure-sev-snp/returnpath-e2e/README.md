@@ -37,3 +37,13 @@ submission, every key file sealed to the vTPM, the rogue with the sealed
 files refused (*sealed to azure-sev-snp, this host is simulated*), the
 rogue with another attestation refused at the handshake by evidence type,
 seventeen audit events verified; the whole guest script in 137 s.
+
+Second run on record, with `tee.provider: "auto"` on both daemons:
+`evidence/20261017T114254Z/` — the kernel has no configfs-tsm under the
+paravisor, so `auto` read the vTPM's HCL report and resolved
+`azure-sev-snp` (`sagvd.log`, `acp-compute.log`: `tee.provider auto …
+resolved_from=vtpm-hcl tee_provider=azure-sev-snp`; both identities
+`tee_provider: azure-sev-snp`, sealer `tpm2`); the same Genoa
+measurement, the handshake 109 ms with 4515 bytes of evidence, the gate job
+EXACT 6/6 in 6 s, both rogues refused, 17 audit events verified; the guest
+script in 136.6 s.

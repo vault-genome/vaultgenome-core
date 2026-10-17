@@ -105,7 +105,7 @@ sagvd = {
   "vault": {"listen_address": "127.0.0.1:9443",
     "tls": {"enabled": True, "server_cert": S + "/sagvd/tls/server.crt", "server_key": S + "/sagvd/tls/server.key", "client_cas": S + "/shared/tls/ca.crt"}},
   "http_api": {"listen_address": "127.0.0.1:9080", "bearer_token_file": S + "/sagvd/api_token"},
-  "tee": {"provider": "azure-sev-snp", "sealer": SEALER, "workload_descriptor": "sagvd-returnpath-e2e-v1",
+  "tee": {"provider": "auto", "sealer": SEALER, "workload_descriptor": "sagvd-returnpath-e2e-v1",
     "peer": {"provider": "azure-sev-snp", "measurement_path": W + "/peer-worker.meas",
              "amd_cert_chain_path": W + "/amd-cert_chain.pem", "vcek_cache_dir": W + "/vcek-cache"}},
   "keys": {"authority_signing": {"kid": "sagvd-authority-e2e", "seed_path": S + "/sagvd/authority_signing_seed"},
@@ -122,7 +122,7 @@ sagvd = {
 worker = {
   "vault": {"address": "127.0.0.1:9443",
     "tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt", "client_key": S + "/acp-compute/tls/client.key", "ca_bundle": S + "/shared/tls/ca.crt", "server_name": "localhost"}},
-  "tee": {"provider": "azure-sev-snp", "sealer": SEALER, "workload_descriptor": "acp-compute-returnpath-e2e-v1",
+  "tee": {"provider": "auto", "sealer": SEALER, "workload_descriptor": "acp-compute-returnpath-e2e-v1",
     "peer": {"provider": "azure-sev-snp", "measurement_path": W + "/peer-vault.meas",
              "amd_cert_chain_path": W + "/amd-cert_chain.pem", "vcek_cache_dir": W + "/vcek-cache"}},
   "keys": {"worker_signing": {"kid": "acp-compute-worker-demo", "seed_path": S + "/acp-compute/worker_signing_seed"},

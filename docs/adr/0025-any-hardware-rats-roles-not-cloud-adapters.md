@@ -82,7 +82,12 @@ with its own endorsement store.
    or `cca` from `sev_guest`, `tdx_guest`, `arm_cca_guest`; `sagvd
    identity` and `acp-compute identity` print what was found. Platforms
    outside configfs-tsm keep an explicit name. A customer's host needs no
-   provider decided by us: the kernel says what it is.
+   provider decided by us: the kernel says what it is. *(2026-10-17: one
+   platform outside configfs-tsm answers a second question instead — an
+   Azure confidential VM keeps its SEV-SNP report in the vTPM's NV index
+   as the HCL report, and `auto` reads the report's type there:
+   `azure-sev-snp`. The confidential GPU VM carries the same report and
+   stays an explicit name, `azure-cgpu`, for its GPU half.)*
 3. **The Verifier is a role with two implementations.** `tee.verifier.mode:
    "builtin"` (the default) is today's code: offline, pinned roots (ADR
    0024), vendor collateral from caches. `tee.verifier.mode: "rats"` sends

@@ -241,9 +241,10 @@ type TLSConfig struct {
 // TEEConfig names the TEE this vault attests with on the Return Path
 // and pins the worker's TEE it will accept.
 type TEEConfig struct {
-	// Provider is the local TEE backend: "auto" (the family the kernel's
-	// configfs-tsm serves on this host — sev_guest or tdx_guest — resolved
-	// when the file is loaded, ADR 0025), "gcp-sev-snp" (AMD SEV-SNP
+	// Provider is the local TEE backend: "auto" (the family this host
+	// attests with, resolved when the file is loaded, ADR 0025: what the
+	// kernel's configfs-tsm serves — sev_guest or tdx_guest — or, under
+	// Azure's paravisor, the vTPM's HCL report: azure-sev-snp), "gcp-sev-snp" (AMD SEV-SNP
 	// reports through configfs-tsm, on any SEV-SNP guest with Linux 6.7
 	// or later — the chip signs), "gcp-tdx", "azure-cgpu", "azure-sev-snp", or "simulated"
 	// (a key read from SeedPath signs; no hardware isolation; development
@@ -321,9 +322,11 @@ func (t TEEConfig) SealerMode() tee.SealerMode {
 	return m
 }
 
-// ResolveAuto replaces tee.provider "auto" with the family the kernel's
-// configfs-tsm serves on this host (ADR 0025), keeping the kernel's name
-// in AutoResolvedFrom; any other provider is left as it is. It runs when
+// ResolveAuto replaces tee.provider "auto" with the family this host
+// attests with (ADR 0025) — what the kernel's configfs-tsm serves, or,
+// under Azure's paravisor, what the vTPM's HCL report names — keeping
+// where the answer came from in AutoResolvedFrom; any other provider is
+// left as it is. It runs when
 // the file is loaded, before validation, so that the family's own rules
 // apply to the rest of the section.
 func (t *TEEConfig) ResolveAuto() error {
@@ -666,7 +669,7 @@ func validateTEE(t TEEConfig) []error {
 		// rules of a hardware provider apply, and the per-family settings
 		// are checked for form here and for fit by the family resolved.
 		if t.SeedPath != "" || t.InsecureSimulation {
-			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only; tee.provider=auto runs the family configfs-tsm serves"))
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only; tee.provider=auto runs the family configfs-tsm, or the vTPM's HCL report under Azure's paravisor, serves"))
 		}
 		if t.VTPMSealPCRs != "" {
 			if err := tee.ValidatePCRSelection(t.VTPMSealPCRs); err != nil {

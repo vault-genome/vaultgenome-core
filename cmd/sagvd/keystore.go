@@ -371,19 +371,23 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 // daemon startup after the metrics registry has been created and
 // before the daemon takes ownership of the materials.
 //
-// The provider label is "simulated" in Phase 1; when the daemon's
-// keystore loader supports the real-hardware backends (AWS Nitro,
-// Azure SGX, GCP SEV-SNP, Intel SGX bare metal), the value moves to
-// the configured tee.Provider name and the wrapper is identical.
-func (m *materials) InstrumentTEE(rec *teemetrics.Recorder, provider string) {
+// The provider label is the family of what was attested: this daemon's
+// (m.Provider) for the Evidence it produces, the peer's (m.PeerProvider)
+// for the Evidence it verifies — an authority on SEV-SNP verifying an
+// Azure worker counts that under azure-sev-snp.
+func (m *materials) InstrumentTEE(rec *teemetrics.Recorder) {
 	if rec == nil || m == nil {
 		return
 	}
 	if m.Producer != nil {
-		m.Producer = rec.WrapProducer(provider, m.Producer)
+		m.Producer = rec.WrapProducer(string(m.Provider), m.Producer)
 	}
 	if m.Verifier != nil {
-		m.Verifier = rec.WrapVerifier(provider, m.Verifier)
+		peer := m.PeerProvider
+		if peer == "" {
+			peer = m.Provider
+		}
+		m.Verifier = rec.WrapVerifier(string(peer), m.Verifier)
 	}
 }
 

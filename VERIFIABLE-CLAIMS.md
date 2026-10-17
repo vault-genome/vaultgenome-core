@@ -2023,6 +2023,13 @@ being edited beside it). The kit:
 the provider: `internal/shared/tee/azure_sev_snp.go` and
 `azure_vtpm.go`; the runbook:
 [`docs/operator/runbooks/real-tee-azure-sev-snp.md`](docs/operator/runbooks/real-tee-azure-sev-snp.md).
+A second run on 2026-10-17 with `tee.provider: "auto"` on both daemons,
+[`scripts/hardware-test/azure-sev-snp/returnpath-e2e/evidence/20261017T114254Z/`](scripts/hardware-test/azure-sev-snp/returnpath-e2e/evidence/20261017T114254Z/)
+(commit `55c549e7`): `auto` found no configfs-tsm under the paravisor,
+read the vTPM's HCL report and resolved `azure-sev-snp` (the daemons'
+logs: `resolved_from=vtpm-hcl`; both identities `tee_provider:
+azure-sev-snp`), and the run came out as the first — the same
+measurement `11920f61…`, EXACT 6/6, 17 audit events verified, 136.6 s.
 
 **Reproduce:**
 
@@ -2458,11 +2465,20 @@ the decision: [ADR 0028](docs/adr/0028-provisioning-across-two-hosts.md);
 the guide: [`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md) §2.
 
 **Scope.** One run that completed; the two before it stopped at step 2
-for the kit's own mistakes — `--provider auto` has no configfs-tsm to
-read under Azure's paravisor, so the worker names its family, and the
-azure-sev-snp provider reads the HCL report through `tpm2_nvread`, so
-the host needs tpm2-tools — both fixed in the kit, neither in the
-command; their partial evidence was not kept. The bundle and the
+for the kit's own mistakes — `--provider auto` then read only
+configfs-tsm, which Azure's paravisor does not expose, so the worker
+named its family, and the azure-sev-snp provider reads the HCL report
+through `tpm2_nvread`, so the host needs tpm2-tools — both fixed in the
+kit; their partial evidence was not kept. A second run on 2026-10-17,
+[`scripts/hardware-test/provision-two-hosts/evidence/20261017T114030Z/`](scripts/hardware-test/provision-two-hosts/evidence/20261017T114030Z/)
+(commit `55c549e7`), joined the worker under `--provider auto` once
+`auto` reads the vTPM's HCL report where the kernel has nothing to say
+(`worker/acp-compute.log`: `resolved_from=vtpm-hcl`,
+`tee_provider=azure-sev-snp`): the same measurement, EXACT 6/6 in 5 s,
+the audit log verified, 8 min 55 s end to end; and the authority's
+`vg_tee_attestation_total{provider="azure-sev-snp",role="verify"} 1`
+counts the verification under the worker's family, where the first run
+had counted it under its own. The bundle and the
 identity were carried by the kit (the bucket, ssh): the command writes
 and reads them, the operator's channel moves them. The worker's private
 keys were generated on the authority's host and existed there until the

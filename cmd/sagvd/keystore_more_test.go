@@ -104,15 +104,15 @@ func TestMaterials_InstrumentTEE(t *testing.T) {
 	sim, err := tee.NewSimulated([]byte("instrumented"), bytes.Repeat([]byte{4}, 32))
 	require.NoError(t, err)
 	verifier := tee.NewSimulatedVerifier(sim.PublicKey(), sim.Measurement())
-	m := &materials{Producer: sim, Verifier: verifier, Provider: tee.ProviderSimulated}
+	m := &materials{Producer: sim, Verifier: verifier, Provider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated}
 
-	m.InstrumentTEE(nil, "simulated")
+	m.InstrumentTEE(nil)
 	require.Same(t, sim, m.Producer, "no recorder: the producer is the chip's own")
 	var none *materials
-	none.InstrumentTEE(teemetrics.New(metrics.NewRegistry()), "simulated") // nothing to wrap
+	none.InstrumentTEE(teemetrics.New(metrics.NewRegistry())) // nothing to wrap
 
 	registry := metrics.NewRegistry()
-	m.InstrumentTEE(teemetrics.New(registry), "simulated")
+	m.InstrumentTEE(teemetrics.New(registry))
 	require.NotSame(t, sim, m.Producer)
 	require.True(t, m.Producer.Measurement().Equal(sim.Measurement()), "the wrapper answers for the chip")
 	ev, err := m.Producer.Quote(bytes.Repeat([]byte{5}, tee.NonceMinBytes))
@@ -127,9 +127,25 @@ func TestMaterials_InstrumentTEE(t *testing.T) {
 
 	// Only the producer, when there is no verifier to wrap.
 	solo := &materials{Producer: sim}
-	solo.InstrumentTEE(teemetrics.New(metrics.NewRegistry()), "simulated")
+	solo.InstrumentTEE(teemetrics.New(metrics.NewRegistry()))
 	require.NotSame(t, sim, solo.Producer)
 	require.Nil(t, solo.Verifier)
+
+	// The verify role is labelled with the peer's family, not this
+	// daemon's: an authority on one chip verifying a worker on another
+	// counts the verification under the worker's family.
+	cross := &materials{Producer: sim, Verifier: tee.NewSimulatedVerifier(sim.PublicKey(), sim.Measurement()),
+		Provider: tee.ProviderGCPSEVSNP, PeerProvider: tee.ProviderAzureSEVSNP}
+	crossRegistry := metrics.NewRegistry()
+	cross.InstrumentTEE(teemetrics.New(crossRegistry))
+	ev, err = cross.Producer.Quote(bytes.Repeat([]byte{6}, tee.NonceMinBytes))
+	require.NoError(t, err)
+	_, err = cross.Verifier.Verify(ev, bytes.Repeat([]byte{6}, tee.NonceMinBytes))
+	require.NoError(t, err)
+	rendered.Reset()
+	require.NoError(t, crossRegistry.WriteMetricsTo(&rendered))
+	require.Contains(t, rendered.String(), `vg_tee_attestation_total{provider="gcp-sev-snp",result="success",role="produce"} 1`)
+	require.Contains(t, rendered.String(), `vg_tee_attestation_total{provider="azure-sev-snp",result="success",role="verify"} 1`)
 }
 
 type failingCloser struct{ err error }
