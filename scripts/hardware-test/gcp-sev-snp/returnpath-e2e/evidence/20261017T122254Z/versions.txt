@@ -1,0 +1,4 @@
+sagvd 0.0.0-dev (commit b18630c3d71b)
+acp-compute 0.0.0-dev (commit b18630c3d71b)
+acpctl 0.0.0-dev (commit b18630c3d71b)
+acp-keygen 0.0.0-dev (commit b18630c3d71b)
