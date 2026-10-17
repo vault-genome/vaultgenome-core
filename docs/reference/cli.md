@@ -80,6 +80,7 @@ Usage:
 Commands:
   version       Print the build version and exit
   help          Print this message
+  provision     Stand up a deployment: key material, both daemons' configurations, identities and pins, the key files sealed to the host
   recover       Restore a sealed vault inside a fresh TEE
   status        Print a read-only summary of the audit log
   audit query   List events filtered by kind / session / time
@@ -102,6 +103,9 @@ Commands:
   sentinel watch   Keep a running model's state sealed; report when a tripwire fires
   failover issue   Sign the operator's failover policy: which standby, on which signs of failure
   failover verify  Check a failover policy against the operator public key
+  tee fetch-amd-chain  Fetch an AMD product line's ASK+ARK chain from AMD KDS, verified against the pinned roots, for amd_cert_chain_path
+  tee prefetch         Fill a daemon's peer-verifier caches (VCEK, Intel PCS documents) while the vendors are reachable — for a host that will be air-gapped
+  tee cache-status     What those caches hold and until when; exit 1 when anything is expired or missing
 
 Run `acpctl <command> --help` for per-subcommand flags.
 ```

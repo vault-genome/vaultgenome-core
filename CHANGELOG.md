@@ -33,6 +33,19 @@ given release can still open.
 - `acpctl provision` writes a bounded deployment: segments of 100 000
   events or a day, finished jobs kept thirty days.
 
+- Provisioning across two hosts (ADR 0028): `acpctl provision authority`
+  on the authority's host writes everything but the worker's pin and
+  `worker-bundle.tar` — the worker's secrets, the CA, the authority's
+  measurement and, for a SEV-SNP authority, its product's AMD chain,
+  under a manifest of SHA-256s; the worker's secrets then leave the
+  authority's host. `acpctl provision join --bundle` on the worker's host
+  refuses a bundle that does not match its manifest or a host of another
+  family, writes `acp-compute.json` for the authority the bundle names,
+  reads the worker's identity and seals its key files. `acpctl provision
+  pin-worker --identity` on the authority's host pins the worker and
+  completes the deployment; `provision.json` carries the role and the
+  phase. The one-host `acpctl provision` is unchanged.
+
 ### Changed
 
 - `acpctl` opens audit logs read-only, so verifying an archive leaves its
