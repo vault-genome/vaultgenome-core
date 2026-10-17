@@ -219,8 +219,12 @@ func runDaemon(args []string) error {
 		}
 		defer func() { _ = jobs.Close() }()
 		queue.AttachStore(jobs, cfg.Queue.MaxResume(), logger)
+		queue.SetRetention(cfg.Queue.RetainFinished(), registry.NewCounter("sagvd_jobs_swept_total",
+			"Finished jobs whose record and view expired from queue.path after queue.retain_finished_seconds (ADR 0027)."))
 		records, _ := jobs.Len()
-		logger.Info("sagvd job queue on disk", "path", cfg.Queue.Path, "records", records, "max_resume_attempts", cfg.Queue.MaxResume())
+		finished, _ := jobs.Finished()
+		logger.Info("sagvd job queue on disk", "path", cfg.Queue.Path, "records", records, "finished", finished,
+			"max_resume_attempts", cfg.Queue.MaxResume(), "retain_finished_seconds", cfg.Queue.RetainFinishedSeconds)
 	} else if cfg.Genome.Enabled() {
 		logger.Warn("sagvd job queue is in memory: jobs queued or in flight do not survive a restart, and every finished job stays in memory (set queue.path)")
 	}
@@ -228,7 +232,7 @@ func runDaemon(args []string) error {
 	// The Return Path audit log: opened and verified before anything is
 	// decided. Without it (no gate jobs configured) trust decisions are
 	// not on record, and the daemon says so.
-	audit, err := openReturnPathAudit(cfg, clock, registry)
+	audit, err := openReturnPathAudit(cfg, clock, registry, logger)
 	if err != nil {
 		return err
 	}
@@ -237,6 +241,10 @@ func runDaemon(args []string) error {
 		logger.Info("sagvd audit log open",
 			"path", cfg.Audit.LogPath,
 			"events", audit.Len(),
+			"live_segment_events", audit.Len()-audit.Base(),
+			"segment_events", cfg.Audit.SegmentEvents,
+			"segment_max_age_seconds", cfg.Audit.SegmentMaxAgeSeconds,
+			"archive_dir", cfg.Audit.ArchiveDirectory(),
 			"tip", audit.Tip(),
 			"audit_kid", cfg.Keys.AuditSigning.KeyID,
 		)

@@ -863,6 +863,20 @@ type QueueConfig struct {
 	// (a job that crashes the authority must not crash it forever);
 	// 0 takes DefaultMaxResumeAttempts.
 	MaxResumeAttempts int `json:"max_resume_attempts,omitempty"`
+
+	// RetainFinishedSeconds is how long a finished job's record and view
+	// stay in the store after it finished (ADR 0027): older ones are
+	// deleted, in batches, at most once a minute, after a completion and
+	// at start, and GET /v1/jobs/{id} answers 404 for them — the audit
+	// log holds the decision under the job's request id. 0, the
+	// default, keeps every finished job. Jobs queued or running are
+	// never deleted.
+	RetainFinishedSeconds int `json:"retain_finished_seconds,omitempty"`
+}
+
+// RetainFinished is QueueConfig.RetainFinishedSeconds as a duration.
+func (q QueueConfig) RetainFinished() time.Duration {
+	return time.Duration(q.RetainFinishedSeconds) * time.Second
 }
 
 // DefaultMaxResumeAttempts is QueueConfig.MaxResumeAttempts when unset.
@@ -1383,6 +1397,17 @@ func (c Config) Validate() error {
 		if c.CrossCloud.AuditLogPath != "" && filepath.Clean(c.CrossCloud.AuditLogPath) == filepath.Clean(c.Audit.LogPath) {
 			errs = append(errs, errors.New("audit.log_path and crosscloud.audit_log_path must be different files: the daemon holds its log open, and one process holds a log at a time"))
 		}
+		if c.Audit.SegmentEvents < 0 || c.Audit.SegmentEvents == 1 {
+			errs = append(errs, errors.New("audit.segment_events must be 0 (never close a segment by count) or at least 2"))
+		}
+		if c.Audit.SegmentMaxAgeSeconds < 0 {
+			errs = append(errs, errors.New("audit.segment_max_age_seconds must be >= 0 (0 = never close a segment by age)"))
+		}
+		if c.Audit.ArchiveDir != "" && !filepath.IsAbs(c.Audit.ArchiveDir) {
+			errs = append(errs, fmt.Errorf("audit.archive_dir %q must be an absolute path", c.Audit.ArchiveDir))
+		}
+	} else if c.Audit.Rotates() || c.Audit.ArchiveDir != "" {
+		errs = append(errs, errors.New("audit.segment_events, audit.segment_max_age_seconds and audit.archive_dir need audit.log_path"))
 	}
 
 	if c.Queue.Path != "" {
@@ -1395,6 +1420,12 @@ func (c Config) Validate() error {
 	}
 	if c.Queue.MaxResumeAttempts < 0 {
 		errs = append(errs, errors.New("queue.max_resume_attempts must be >= 0 (0 = the default of 3)"))
+	}
+	if c.Queue.RetainFinishedSeconds < 0 {
+		errs = append(errs, errors.New("queue.retain_finished_seconds must be >= 0 (0 = keep every finished job)"))
+	}
+	if c.Queue.RetainFinishedSeconds > 0 && c.Queue.Path == "" {
+		errs = append(errs, errors.New("queue.retain_finished_seconds needs queue.path: a queue in memory has nothing on disk to expire"))
 	}
 
 	// CrossCloud is opt-in; only validate fields when enabled.

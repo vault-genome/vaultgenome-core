@@ -21,12 +21,12 @@ func TestReturnPathAudit_OpenRefusalsAndUnencodablePayload(t *testing.T) {
 
 	noSeed := cfg
 	noSeed.Keys.AuditSigning.SeedPath = filepath.Join(t.TempDir(), "absent.seed")
-	_, err := openReturnPathAudit(noSeed, shared_time.NewSystemClock(), nil)
+	_, err := openReturnPathAudit(noSeed, shared_time.NewSystemClock(), nil, nil)
 	require.ErrorContains(t, err, "keys.audit_signing.seed_path")
 
 	noDir := cfg
 	noDir.Audit.LogPath = filepath.Join(t.TempDir(), "missing", "rp.db")
-	_, err = openReturnPathAudit(noDir, shared_time.NewSystemClock(), nil)
+	_, err = openReturnPathAudit(noDir, shared_time.NewSystemClock(), nil, nil)
 	require.ErrorContains(t, err, "open audit.log_path")
 
 	a, _ := newTestAudit(t)

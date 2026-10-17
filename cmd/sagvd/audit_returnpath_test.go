@@ -39,7 +39,7 @@ func newTestAuditWith(t *testing.T, registry *metrics.Registry) (*returnPathAudi
 	cfg := DefaultConfig()
 	cfg.Audit.LogPath = filepath.Join(dir, "returnpath.db")
 	cfg.Keys.AuditSigning = SigningKeyConfig{KeyID: "audit-test-1", SeedPath: seedPath}
-	a, err := openReturnPathAudit(cfg, shared_time.NewSystemClock(), registry)
+	a, err := openReturnPathAudit(cfg, shared_time.NewSystemClock(), registry, nil)
 	require.NoError(t, err)
 	require.NotNil(t, a)
 	t.Cleanup(func() { _ = a.Close() })
@@ -120,7 +120,7 @@ func TestReturnPathAudit_RefusalsAndFlowEventsShareOneVerifiedLog(t *testing.T) 
 	}
 
 	// Reopened, the log continues where it stopped.
-	again, err := openReturnPathAudit(cfg, shared_time.NewSystemClock(), nil)
+	again, err := openReturnPathAudit(cfg, shared_time.NewSystemClock(), nil, nil)
 	require.NoError(t, err)
 	defer func() { _ = again.Close() }()
 	require.Equal(t, 4, again.Len())
@@ -165,19 +165,19 @@ func TestReturnPathAudit_RefusesAnEditedLogAndNeedsItsKey(t *testing.T) {
 	require.NoError(t, os.WriteFile(other, bytes.Repeat([]byte{0x43}, crypto.Ed25519SeedSize), 0o600))
 	wrong := cfg
 	wrong.Keys.AuditSigning.SeedPath = other
-	_, err := openReturnPathAudit(wrong, shared_time.NewSystemClock(), nil)
+	_, err := openReturnPathAudit(wrong, shared_time.NewSystemClock(), nil, nil)
 	require.ErrorContains(t, err, "does not verify")
 
 	// No key configured with a log path.
 	nokey := cfg
 	nokey.Keys.AuditSigning = SigningKeyConfig{}
-	_, err = openReturnPathAudit(nokey, shared_time.NewSystemClock(), nil)
+	_, err = openReturnPathAudit(nokey, shared_time.NewSystemClock(), nil, nil)
 	require.ErrorContains(t, err, "keys.audit_signing")
 
 	// No log path: no audit, no error.
 	none := cfg
 	none.Audit.LogPath = ""
-	got, err := openReturnPathAudit(none, shared_time.NewSystemClock(), nil)
+	got, err := openReturnPathAudit(none, shared_time.NewSystemClock(), nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, got)
 }

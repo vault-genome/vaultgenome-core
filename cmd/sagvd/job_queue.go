@@ -16,6 +16,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath"
 	rjm "github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
@@ -265,6 +266,63 @@ type JobQueue struct {
 	store     *jobstore.Store
 	maxResume int
 	log       *slog.Logger
+
+	// retain, when set, is how long a finished job's record and view
+	// stay in the store (ADR 0027). A sweep runs after a completion and
+	// at start, at most once a sweepInterval, deleting at most sweepBatch
+	// jobs that finished before now-retain; swept counts them.
+	retain    time.Duration
+	swept     *metrics.Counter
+	sweepMu   sync.Mutex
+	lastSweep time.Time
+}
+
+const (
+	// sweepInterval is the least time between two sweeps of the store.
+	sweepInterval = time.Minute
+	// sweepBatch bounds one sweep's deletions, and so its transaction.
+	sweepBatch = 10_000
+)
+
+// SetRetention makes finished jobs expire from the store after retain
+// (0: never); swept, when not nil, counts the deleted jobs.
+func (q *JobQueue) SetRetention(retain time.Duration, swept *metrics.Counter) {
+	q.mu.Lock()
+	q.retain, q.swept = retain, swept
+	q.mu.Unlock()
+}
+
+// sweepIfDue deletes from the store the finished jobs older than the
+// retention — once a sweepInterval at most, sweepBatch at most, outside
+// the queue's lock. Without a store or a retention it does nothing.
+func (q *JobQueue) sweepIfDue() {
+	q.mu.Lock()
+	store, retain, swept, log := q.store, q.retain, q.swept, q.log
+	q.mu.Unlock()
+	if store == nil || retain <= 0 {
+		return
+	}
+	now := q.clock.Now()
+	q.sweepMu.Lock()
+	if !q.lastSweep.IsZero() && now.Sub(q.lastSweep) < sweepInterval {
+		q.sweepMu.Unlock()
+		return
+	}
+	q.lastSweep = now
+	q.sweepMu.Unlock()
+	cutoff := now.Add(-retain).UTC()
+	n, err := store.Sweep(cutoff, sweepBatch)
+	if err != nil {
+		log.Error("sagvd job store sweep failed", "err", err)
+		return
+	}
+	if n == 0 {
+		return
+	}
+	if swept != nil {
+		swept.Add(uint64(n))
+	}
+	log.Info("sagvd finished jobs expired from the store", "deleted", n, "finished_before", cutoff.Format(time.RFC3339))
 }
 
 // AttachStore puts the queue on disk: every submission and transition is
@@ -483,6 +541,7 @@ func (q *JobQueue) Resume(readmit func(rec jobstore.Record) error) (resumed, fai
 		failed++
 		q.failOnRecord(rec, reason)
 	}
+	q.sweepIfDue()
 	return resumed, failed, nil
 }
 
@@ -625,6 +684,7 @@ func (q *JobQueue) CompleteGated(id string, out returnpath.CandidateOutput, work
 	if q.keepView(id, raw) {
 		q.forget(id)
 	}
+	q.sweepIfDue()
 }
 
 // viewJSON renders j's view under the caller's lock; nil when there is no
@@ -659,6 +719,7 @@ func (q *JobQueue) CompleteFailure(id string, err error) {
 	if q.keepView(id, raw) {
 		q.forget(id)
 	}
+	q.sweepIfDue()
 }
 
 // newJobID returns a 32-char hex ID (16 random bytes). Collisions are
