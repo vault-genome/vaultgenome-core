@@ -11,6 +11,39 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-17
+
+The release that keeps its record for years and stands up across two
+hosts. The audit log is written in closed segments (ADR 0027): at a count
+or an age the live file moves into the archive directory under the
+indices of its events, its closing is the next segment's first event with
+the archive's SHA-256, and nothing in the daemon deletes an archive —
+retention of the record is archival, a file whose hash is on the chain;
+finished jobs expire from the job store after the window the operator
+sets; `acpctl audit verify` walks the archives and the live file as one
+chain, in constant memory, and names an archive that is not the file the
+chain recorded. Measured on real SEV-SNP: an hour of 1609 jobs at the
+rate of C33 closed five segments, kept the live file within 16 MiB and
+the views flat at 16 MiB, and verified across six files in 2.5 s; a
+shipped archive was refused without the operator's word and accepted
+with it (C38). A deployment across two hosts is three commands (ADR
+0028): `acpctl provision authority` writes everything but the worker's
+pin and a bundle of the worker's side under a manifest of hashes, and
+keeps none of the worker's secrets; `provision join` on the worker's host
+refuses a bundle that does not match and reads the worker's identity from
+its chip; `provision pin-worker` completes it. Run across two clouds and
+two chips — the authority on GCP SEV-SNP (Milan), the worker on Azure
+SEV-SNP (Genoa) — the session opened across the Internet 5 s after the
+authority was ready and the gate job came back EXACT in 6 s (C39). The
+audit schema is v7, the first change since 0.1.0: one kind added
+(`AUDIT_SEGMENT_CLOSED`), no field changed; a chain written by any
+earlier release verifies under 0.6.0, and a chain 0.6.0 wrote verifies
+under an earlier `acpctl` too — hashes and signatures do not depend on
+the kind, which it reports as a name it does not know. Bundle, policy and
+the Return Path wire (1.1) unchanged; every new configuration key is
+optional and off, so a 0.5.0 deployment behaves as before until it sets
+them — `acpctl provision` sets them for a new one.
+
 ### Added
 
 - The audit log in closed segments (ADR 0027): `audit.segment_events` and
@@ -32,7 +65,6 @@ given release can still open.
   archives too, and `query --request` filters by request id.
 - `acpctl provision` writes a bounded deployment: segments of 100 000
   events or a day, finished jobs kept thirty days.
-
 - Provisioning across two hosts (ADR 0028): `acpctl provision authority`
   on the authority's host writes everything but the worker's pin and
   `worker-bundle.tar` — the worker's secrets, the CA, the authority's
