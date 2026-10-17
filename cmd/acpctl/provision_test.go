@@ -91,6 +91,11 @@ func TestProvision_SimulatedDeploymentEndToEnd(t *testing.T) {
 	require.Equal(t, "127.0.0.1:19443", sagvd["vault"].(map[string]any)["listen_address"])
 	require.EqualValues(t, 3, sagvd["runtime"].(map[string]any)["max_sessions"])
 	require.Equal(t, filepath.Join(out, "queue", "sagvd-jobs.db"), sagvd["queue"].(map[string]any)["path"])
+	// A bounded deployment (ADR 0027): segments of 100 000 events or a
+	// day, finished jobs kept thirty days.
+	require.Equal(t, float64(100000), sagvd["audit"].(map[string]any)["segment_events"])
+	require.Equal(t, float64(86400), sagvd["audit"].(map[string]any)["segment_max_age_seconds"])
+	require.Equal(t, float64(30*86400), sagvd["queue"].(map[string]any)["retain_finished_seconds"])
 	worker := readJSON(t, filepath.Join(out, "acp-compute.json"))
 	require.Equal(t, "127.0.0.1:19443", worker["vault"].(map[string]any)["address"])
 	door := worker["genome"].(map[string]any)["door"].(map[string]any)
