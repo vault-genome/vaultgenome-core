@@ -44,7 +44,8 @@ given release can still open.
   reads the worker's identity and seals its key files. `acpctl provision
   pin-worker --identity` on the authority's host pins the worker and
   completes the deployment; `provision.json` carries the role and the
-  phase. The one-host `acpctl provision` is unchanged.
+  phase. The one-host `acpctl provision` is unchanged. Run across GCP
+  SEV-SNP (Milan) and Azure SEV-SNP (Genoa): C39.
 
 ### Changed
 

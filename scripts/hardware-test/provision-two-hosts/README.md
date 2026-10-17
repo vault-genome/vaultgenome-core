@@ -40,3 +40,15 @@ orchestrator and from each guest; `machines.txt`; `runner.log`;
 with them; the bundle exists on the authority until it is handed off, on
 the orchestrator until it is carried, and on the worker until `join` has
 sealed its files.
+
+Run on record: `evidence/20261017T024319Z/` (claim C39) — provision
+authority 10.5 s on the Milan guest, the bundle 15,360 bytes (seven
+files under a manifest), provision join 0.58 s on the Genoa guest with
+the identity from the vTPM and three key files sealed to it, pin-worker
+0.03 s; the session opened 5 s after sagvd was ready (handshake 841 ms,
+`peer_product Genoa`), the gate job EXACT 6/6 in 6.2 s, sixteen audit
+events verified; 7 min 20 s from the orchestrator's first command to its
+last. The two runs before it stopped at step 2 for the kit's own
+mistakes (the worker's family must be named: no configfs-tsm under the
+paravisor; tpm2-tools must be on the worker: the provider reads the HCL
+report through `tpm2_nvread`); both are fixed here.
