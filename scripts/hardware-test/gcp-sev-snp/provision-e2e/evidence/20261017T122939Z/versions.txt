@@ -1,0 +1,4 @@
+sagvd 0.0.0-dev (commit 7cfe97d3484a)
+acp-compute 0.0.0-dev (commit 7cfe97d3484a)
+acpctl 0.0.0-dev (commit 7cfe97d3484a)
+acp-keygen 0.0.0-dev (commit 7cfe97d3484a)
