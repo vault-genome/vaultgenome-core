@@ -1,0 +1,12 @@
+== binaries from gs://rats-probe-vg-p2-20261017t114030z/in
+== configfs-tsm
+== the worker runtime here too: the fine-tune that makes the genome needs it
+== step 1: acpctl provision authority — keygen, sagvd for an azure-sev-snp worker (genoa chain), this chip's milan chain for the worker, identity, sealed keys, the bundle
+== the genome: tiny base model built here, LoRA adapter trained by vg_genome, sealed into /root/deploy/genomes
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 550.43it/s]
+== hand-off: the bundle, the base model and provision.json to the bucket; the bundle removed from this host
+== wait for the worker's identity (the orchestrator carries it back through the bucket)
+== step 3: acpctl provision pin-worker — the worker's measurement from its own chip, pinned
+== sagvd on what provision wrote, listening on 0.0.0.0:9443 for the worker across the Internet
+== the gate job over the Return Path, to the worker on the other cloud
+== metrics; stop sagvd; verify the audit log with the key provision kept for the operator

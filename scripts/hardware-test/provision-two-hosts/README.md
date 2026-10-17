@@ -49,6 +49,18 @@ the identity from the vTPM and three key files sealed to it, pin-worker
 `peer_product Genoa`), the gate job EXACT 6/6 in 6.2 s, sixteen audit
 events verified; 7 min 20 s from the orchestrator's first command to its
 last. The two runs before it stopped at step 2 for the kit's own
-mistakes (the worker's family must be named: no configfs-tsm under the
-paravisor; tpm2-tools must be on the worker: the provider reads the HCL
-report through `tpm2_nvread`); both are fixed here.
+mistakes (the worker's family had to be named: `auto` then read only
+configfs-tsm, which the paravisor does not expose; tpm2-tools must be on
+the worker: the provider reads the HCL report through `tpm2_nvread`);
+both are fixed here.
+
+Second run on record, the worker joining under `--provider auto`:
+`evidence/20261017T114030Z/` — `join` found no configfs-tsm, read the
+vTPM's HCL report and resolved `azure-sev-snp` (`worker/acp-compute.log`:
+`resolved_from=vtpm-hcl`; `worker/steps.txt`: `provider=auto …
+worker_provider=azure-sev-snp worker_sealer=tpm2`), the same Genoa
+measurement; the session opened 3 s after sagvd was ready, the gate job
+EXACT 6/6 in 5 s, the audit log verified; 8 min 55 s end to end. The
+authority's `authority/sagvd-metrics.txt` carries
+`vg_tee_attestation_total{provider="azure-sev-snp",role="verify"} 1`: the
+verification counted under the worker's family.
