@@ -12,8 +12,8 @@
 #            worker runtime; `acpctl
 #            provision join` — the bundle's files into /root/deploy, the
 #            worker's configuration for the authority the bundle names,
-#            its identity from the vTPM's HCL report (the family named:
-#            azure-sev-snp), its key files sealed to the vTPM; the identity to
+#            its identity from the vTPM's HCL report (`--provider auto`
+#            resolves azure-sev-snp there), its key files sealed to the vTPM; the identity to
 #            <admin-home>/out for the orchestrator to carry back; the
 #            bundle deleted.
 #   start    acp-compute on what join wrote, dialing the authority across
@@ -58,9 +58,9 @@ join)
 
   step "step 2: acpctl provision join — the bundle into $DEPLOY, acp-compute.json for the authority it names, identity from the vTPM, keys sealed"
   mark provision_join_start
-  # The family is named, not resolved: Azure's paravisor exposes no configfs-tsm, so auto has nothing to read;
-  # the vTPM's HCL report is what azure-sev-snp attests with, and the authority provisioned the worker as that.
-  ./acpctl provision join --bundle "$IN/worker-bundle.tar" --out "$DEPLOY" --bin-dir "$WORK" --provider azure-sev-snp \
+  # auto: no configfs-tsm under Azure's paravisor, so the family is read from the vTPM's HCL report (azure-sev-snp,
+  # the family the authority provisioned the worker for; join refuses any other).
+  ./acpctl provision join --bundle "$IN/worker-bundle.tar" --out "$DEPLOY" --bin-dir "$WORK" --provider auto \
     --door-python "$WORK/venv/bin/python3" --base-model "$WORK/base" --worker-package "$WORK/workers/genome" \
     --worker-health 127.0.0.1:9082 > "$OUT/provision-join.out" 2> "$OUT/provision-join.err"
   RC=$?; echo "provision join exit=$RC" >> "$OUT/steps.txt"
