@@ -116,12 +116,12 @@ cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
 slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
-  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.5.0
-git verify-tag v0.5.0
+  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.6.0
+git verify-tag v0.6.0
 ```
 
 The same two commands verify `acp-compute`, `acpctl`, `acp-bootstrap`,
-`acp-keygen` and the worker package `genome-worker-v0.5.0.tar.gz`; a
+`acp-keygen` and the worker package `genome-worker-v0.6.0.tar.gz`; a
 deployment needs nothing from the source tree
 ([`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md)).
 

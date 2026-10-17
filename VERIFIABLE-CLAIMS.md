@@ -2262,10 +2262,37 @@ refused at the handshake; `results/job.json` gate level EXACT, 6 of 6,
 true`, 17 events; 127.5 s on the guest (the runtime from the locks 77 s,
 the fine-tune 9 s, the job 5 s).
 
+The same kit on `v0.6.0`, two and a half minutes after the release was
+published (2026-10-17, 04:12:43Z):
+[`scripts/hardware-test/release-deploy/evidence/20261017T041506Z/`](scripts/hardware-test/release-deploy/evidence/20261017T041506Z/)
+— `verify/assets.sha256` 49 assets; `verify/cosign.txt` twelve "Verified
+OK" (the pairs); `verify/cosign-bundle-nonet.txt` the same twelve files
+from their bundles with `--trusted-root trusted_root.json` under
+`sandbox-exec` with no route, twelve "Verified OK" (the trust root
+`6494e21e…bc0b66`, the same file as for `v0.5.0` and `v0.4.3`);
+`verify/slsa.txt` six "PASSED"; `verify/tag.txt` the tag's signature under
+the pinned key; `verify/rebuild.txt` the five binaries and the package
+rebuilt from the tag (commit `cc8b204d7ba3`, go1.27.2, GNU tar 1.35, GNU
+gzip 1.15) with the same sha256 as the released files (`sagvd`
+`0e07cc48…`, `acp-compute` `772c062f…`, `acpctl` `360c4c6e…`,
+`acp-bootstrap` `78c7d8bc…`, `acp-keygen` `8c40d22e…`, the package
+`19fed8f8…`); `results/versions.txt` the four released binaries reporting
+`v0.6.0` at the tag's commit; `results/amd-chain.txt` the Milan chain
+fetched on the guest by the released `acpctl` and checked against the
+pinned ARK-Milan; both daemons, `tee.provider: "auto"`, read
+`7dc7c12e…25acc` from the chip and sealed their key files to it
+(`results/sealed-files.txt`); `results/rogue-sealed-worker.log` the thief
+with the sealed files refused before any key is read,
+`results/rogue-worker.log` the unpinned worker refused at the handshake;
+`results/job.json` gate level EXACT, 6 of 6, `max_abs_err` 0,
+`release_authorized`; `results/audit-verify.json` `ok: true`, 17 events;
+120.7 s on the guest (the runtime from the locks 72 s, the fine-tune 8 s,
+the job 4 s).
+
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.5.0    # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.6.0    # ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
