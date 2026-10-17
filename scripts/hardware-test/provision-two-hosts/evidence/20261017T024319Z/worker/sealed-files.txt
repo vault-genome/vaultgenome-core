@@ -1,0 +1,3 @@
+acp-compute/worker_signing_seed {'schema': 'vault-genome/sealed-secret/v1', 'tee': 'azure-sev-snp', 'sealer': 'tpm2', 'name': 'keys.worker_signing.seed_path', 'sealed_bytes': 708}
+acp-compute/sealing.key {'schema': 'vault-genome/sealed-secret/v1', 'tee': 'azure-sev-snp', 'sealer': 'tpm2', 'name': 'keys.session_sealing.material_path', 'sealed_bytes': 708}
+acp-compute/tls/client.key {'schema': 'vault-genome/sealed-secret/v1', 'tee': 'azure-sev-snp', 'sealer': 'tpm2', 'name': 'vault.tls.client_key', 'sealed_bytes': 1080}

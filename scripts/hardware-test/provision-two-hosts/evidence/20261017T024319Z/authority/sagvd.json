@@ -1,0 +1,77 @@
+{
+  "audit": {
+    "log_path": "/root/deploy/audit/returnpath-audit.db",
+    "segment_events": 100000,
+    "segment_max_age_seconds": 86400
+  },
+  "genome": {
+    "bundle_dir": "/root/deploy/genomes",
+    "gate": {
+      "atol": 0.01,
+      "max_non_critical_outliers": 0,
+      "rtol": 0.001
+    }
+  },
+  "health": {
+    "listen_address": "127.0.0.1:9081"
+  },
+  "http_api": {
+    "bearer_token_file": "/root/deploy/secrets/sagvd/api_token",
+    "listen_address": "127.0.0.1:9080"
+  },
+  "keys": {
+    "audit_signing": {
+      "kid": "sagvd-audit-demo",
+      "seed_path": "/root/deploy/secrets/sagvd/audit_signing_seed"
+    },
+    "authority_signing": {
+      "kid": "sagvd-authority-demo",
+      "seed_path": "/root/deploy/secrets/sagvd/authority_signing_seed"
+    },
+    "session_sealing": {
+      "kid": "session-sealing-demo",
+      "material_path": "/root/deploy/secrets/shared/sealing.key"
+    }
+  },
+  "log": {
+    "format": "json",
+    "level": "info"
+  },
+  "queue": {
+    "path": "/root/deploy/queue/sagvd-jobs.db",
+    "retain_finished_seconds": 2592000
+  },
+  "runtime": {
+    "default_job_deadline_seconds": 600,
+    "handshake_timeout_seconds": 30,
+    "http_read_header_timeout_seconds": 5,
+    "http_write_timeout_seconds": 30,
+    "job_timeout_seconds": 600,
+    "max_payload_bytes": 4194304,
+    "max_sessions": 1,
+    "queue_poll_ms": 50
+  },
+  "tee": {
+    "peer": {
+      "amd_cert_chain_path": "/root/deploy/amd-genoa-cert_chain.pem",
+      "measurement_path": "/root/deploy/pins/worker.measurement",
+      "provider": "azure-sev-snp",
+      "vcek_cache_dir": "/root/deploy/vcek-cache"
+    },
+    "provider": "auto",
+    "sealer": "auto",
+    "workload_descriptor": "sagvd-two-hosts-v1"
+  },
+  "vault": {
+    "listen_address": "0.0.0.0:9443",
+    "tls": {
+      "client_cas": "/root/deploy/secrets/shared/tls/ca.crt",
+      "enabled": true,
+      "server_cert": "/root/deploy/secrets/sagvd/tls/server.crt",
+      "server_key": "/root/deploy/secrets/sagvd/tls/server.key"
+    }
+  },
+  "workers": {
+    "registry_path": "/root/deploy/secrets/shared/workers.json"
+  }
+}

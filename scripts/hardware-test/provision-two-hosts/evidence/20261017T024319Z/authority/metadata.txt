@@ -1,0 +1,6 @@
+instance=vg-p2-authority-20261017t024319z
+zone=us-central1-c
+machine=n2d-standard-4
+external_ip=34.41.169.228
+worker_ip=51.124.206.201
+captured=20261017T024537Z

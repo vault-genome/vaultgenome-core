@@ -39,7 +39,7 @@
 //     vendors fills its peer verifier's caches while it has one (the VCEK
 //     of its chip from AMD KDS, the TCB info and QE identity of its
 //     platform from Intel PCS) and reads what they hold and until when.
-//   - provision: one command stands up a deployment — the release's
+//   - provision, provision authority|join|pin-worker: one command stands up a deployment — the release's
 //     acp-keygen writes the key material, both daemons' configurations
 //     are written for the family named, each daemon's identity is read
 //     and pinned on the other side, the operator's token and audit key

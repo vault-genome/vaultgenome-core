@@ -144,9 +144,28 @@ In the order the reference guest script does it
    `<out>/operator/`, and each daemon's `seal-keys` seals its key files;
    `<out>/provision.json` records what was written and learned (never a
    secret), and `<out>/sagvd.json`, `<out>/acp-compute.json` are the
-   configurations to start the daemons with. Both daemons on one host is
-   what it sets up; two hosts carry the worker's subtree over and pin the
-   other side's measurement from its `identity`. By hand, the same steps
+   configurations to start the daemons with. That is both daemons on one
+   host. **Two hosts are three commands** (ADR 0028; across two clouds
+   and two chips on real hardware: C39): on the authority's host `acpctl
+   provision authority --out /etc/acp --provider <family>
+   --worker-provider <the worker's family> --vault-listen 0.0.0.0:9443
+   --vault-address <this host>:9443 --fetch-amd-chain <the worker's
+   product> --fetch-own-amd-chain <this chip's product>` writes
+   everything but the worker's pin and `/etc/acp/worker-bundle.tar` — the
+   worker's secrets, the CA, the authority's measurement and chain under
+   a manifest of hashes; the worker's secrets then leave the authority's
+   host. Carry the bundle to the worker's host once, over a channel you
+   trust, and run `acpctl provision join --bundle worker-bundle.tar --out
+   /etc/acp --door-python <python> --base-model <dir> --worker-package
+   <dir>`: it refuses a bundle that does not match its manifest or a host
+   of another family than the authority named, writes
+   `acp-compute.json` for the authority the bundle names, reads the
+   worker's identity from its chip into `/etc/acp/acp-compute-identity.json`
+   and seals its key files; delete the bundle. Carry the identity back and
+   run `acpctl provision pin-worker --out /etc/acp --identity
+   acp-compute-identity.json`; the deployment is complete, and `sagvd`
+   started after it admits the worker at the first handshake (pins are
+   read at start). By hand, the same steps
    are (the command on real SEV-SNP is C37, kit
    `scripts/hardware-test/gcp-sev-snp/provision-e2e`): provision the key
    material with the release's `acp-keygen`

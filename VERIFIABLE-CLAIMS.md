@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -2356,6 +2356,94 @@ aside on the same disk; nothing here moves an archive to another system,
 and nothing here runs for a month. The job views that expired were not
 re-read through the API after the window; `GET` answering 404 for them is
 the unit test's, not this run's.
+
+---
+
+<a id="c39"></a>
+
+### C39 — Two hosts, two clouds, two chips: `acpctl provision authority` on a GCP SEV-SNP guest (AMD Milan), `provision join` on an Azure SEV-SNP Confidential VM (AMD Genoa), `provision pin-worker` back on the authority; a 15 KB bundle carried one way and an identity the other; the worker admitted at the first handshake across the Internet, a gate job EXACT in 6 s, the audit log verified under the key the authority kept
+
+**Claim.** The three commands of ADR 0028, run where they are meant to
+run. On an n2d-standard-4 SEV-SNP guest in us-central1 (AMD Milan)
+`acpctl provision authority --provider auto --worker-provider
+azure-sev-snp --fetch-amd-chain genoa --fetch-own-amd-chain milan
+--vault-listen 0.0.0.0:9443 --vault-address 34.41.169.228:9443` took
+10.5 s: the key material, `sagvd.json` for an Azure SEV-SNP worker with
+the Genoa chain from AMD KDS, the authority's identity from its chip
+(`7dc7c12e…25acc`, sealer `sev-snp-derived-key`), five key files sealed,
+and `worker-bundle.tar` — 15,360 bytes: the worker's signing seed, its
+copy of the session sealing key, its TLS pair, the CA certificate, the
+authority's 48-byte measurement as the worker's pin and the Milan chain
+(4,602 bytes) for the worker's verifier, under a manifest of seven
+SHA-256s — after which the authority's secrets tree held `sagvd` and
+`shared` and nothing of the worker's. The bundle went through the run's
+private bucket to the operator's machine and over ssh to a DC4as_v5
+Confidential VM in West Europe (AMD Genoa). There `acpctl provision join
+--bundle --provider azure-sev-snp` took 0.58 s: the seven files checked
+against the manifest and written, `acp-compute.json` for the authority
+the bundle names, the worker's identity from the vTPM's HCL report
+(`11920f61…91c4`, sealer `tpm2`), its three key files sealed to the vTPM,
+the bundle deleted; the worker's tree held `acp-compute` and the CA and
+nothing of the authority's. The identity came back the same way and
+`acpctl provision pin-worker` pinned it in 0.03 s (phase `complete`).
+sagvd started on what the authority's directory held and was ready in
+11 s; the worker, started on its own directory, had been dialing
+`34.41.169.228:9443` through the firewall rule that admits its address
+alone, and the session opened 5.0 s after sagvd was ready: `peer_provider
+azure-sev-snp`, `peer_product Genoa`, Evidence of 4,515 bytes
+(`application/vnd.vault-genome.azure-sev-snp-evidence`), the measurement
+the pin named, handshake 841 ms. The gate job submitted at that moment
+came back `succeeded` 6.2 s later, EXACT, 6 of 6 fixtures, `max_abs_err
+0`, signed by `sagvd-authority-demo`, the attestation outcome `allow`;
+the audit log of the run — sixteen events, one chain — verified under
+the public key provision had kept for the operator. From the
+orchestrator's first command to its last, with both machines created,
+both runtimes installed and both hand-offs carried, 7 minutes 20 seconds.
+
+**Evidence.**
+[`scripts/hardware-test/provision-two-hosts/evidence/20261017T024319Z/`](scripts/hardware-test/provision-two-hosts/evidence/20261017T024319Z/)
+(commit `749ebb1a`, both sides' `versions.txt`): `authority/steps.txt`
+(`provision authority exit=0`, `phase=awaiting-worker`, `bundle removed
+from the authority host after hand-off`, `provision pin-worker exit=0`,
+`phase=complete worker_measurement=11920f61… worker_provider=azure-sev-snp
+worker_sealer=tpm2`, `session opened after 5s`, `job status=succeeded
+after 6s`, `gate_level=EXACT … n_exact=6 max_abs_err=0`, `audit verify
+exit=0`), `authority/provision-authority.json` and
+`authority/provision-complete.json` (the two phases),
+`authority/bundle-manifest.json`, `authority/bundle-listing.txt`,
+`authority/bundle.sha256` (`69572653…`), `authority/secrets-dirs-after-step1.txt`
+(`sagvd shared`), `authority/session-opened.json`, `authority/job.json`,
+`authority/audit-verify.json` (`ok: true`, 16 events), `authority/audit-events.jsonl`,
+`authority/sagvd.log`, `authority/sagvd-metrics.txt`; `worker/steps.txt`
+(`provision join exit=0`, `phase=joined vault_address=34.41.169.228:9443`,
+`pinned_authority=7dc7c12e…`, `sealed_worker=keys.worker_signing.seed_path,
+keys.session_sealing.material_path,vault.tls.client_key`, `bundle deleted
+on the worker host after join`), `worker/provision-join.json`,
+`worker/acp-compute-identity.json`, `worker/sealed-files.txt` (three files
+`sealer: tpm2`), `worker/secrets-dirs.txt` (`acp-compute shared`),
+`worker/vtpm.txt` (NV index `0x1400001`), `worker/acp-compute.log`
+(0 errors); `authority-provision-step1.json` as the orchestrator received
+it; `timeline.txt` (the orchestrator's), `authority/timeline.txt`,
+`worker/timeline.txt`; `machines.txt` (the addresses, the firewall rule
+`tcp:9443 from 51.124.206.201/32`); `runner.log`; `sha256sums.txt`. The
+kit: [`scripts/hardware-test/provision-two-hosts/`](scripts/hardware-test/provision-two-hosts/);
+the decision: [ADR 0028](docs/adr/0028-provisioning-across-two-hosts.md);
+the guide: [`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md) §2.
+
+**Scope.** One run that completed; the two before it stopped at step 2
+for the kit's own mistakes — `--provider auto` has no configfs-tsm to
+read under Azure's paravisor, so the worker names its family, and the
+azure-sev-snp provider reads the HCL report through `tpm2_nvread`, so
+the host needs tpm2-tools — both fixed in the kit, neither in the
+command; their partial evidence was not kept. The bundle and the
+identity were carried by the kit (the bucket, ssh): the command writes
+and reads them, the operator's channel moves them. The worker's private
+keys were generated on the authority's host and existed there until the
+bundle was written (ADR 0028). The authority's REST API stayed on
+loopback; only the Return Path faced the Internet, under mutual TLS 1.3
+with the private CA and the pinned measurements. The families run are
+gcp-sev-snp and azure-sev-snp; the TDX and simulated paths of the same
+three commands are the integration test's, not this run's.
 
 ---
 
