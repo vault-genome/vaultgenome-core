@@ -8,7 +8,9 @@ package tee
 // computing family through one interface and names the family in the
 // `provider` attribute of a report entry — the guest driver's module
 // name: sev_guest, tdx_guest, arm_cca_guest (drivers/virt/coco/*, v7.0).
-// ResolveAuto reads it and returns the Provider this build runs for it.
+// ResolveAuto reads it and returns the Provider this build runs for it;
+// where there is no configfs-tsm, under Azure's paravisor, it reads the
+// vTPM's HCL report instead (provider_auto_azure.go).
 
 import (
 	"errors"
@@ -20,10 +22,11 @@ import (
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
-// ProviderAuto asks a daemon to take its family from configfs-tsm. It
-// names no producer or verifier itself — ResolveAuto turns it into the
-// family served on this host — so it is valid for a daemon's own
-// tee.provider only, never for a peer, a registry entry or the wire.
+// ProviderAuto asks a daemon to take its family from the host: configfs-
+// tsm, or the vTPM's HCL report under Azure's paravisor. It names no
+// producer or verifier itself — ResolveAuto turns it into the family
+// served on this host — so it is valid for a daemon's own tee.provider
+// only, never for a peer, a registry entry or the wire.
 const ProviderAuto Provider = "auto"
 
 // The provider names the kernel's guest drivers register with configfs-tsm
@@ -102,18 +105,29 @@ func FamilyForTSMProvider(name string) (Provider, error) {
 	}
 }
 
-// ResolveAuto returns the family configfs-tsm serves on this host and
-// the kernel's name for it, for a daemon whose tee.provider is "auto".
+// ResolveAuto returns the family this host attests with and where the
+// answer came from, for a daemon whose tee.provider is "auto": the family
+// configfs-tsm serves and the kernel's name for it, or — when the kernel
+// has no configfs-tsm, as under Azure's paravisor — the family the vTPM's
+// HCL report names and AutoResolvedFromAzureHCL (provider_auto_azure.go).
+// A host with neither is refused with both answers.
 func ResolveAuto(dir string) (Provider, string, error) {
-	name, err := DetectTSMProvider(dir)
-	if err != nil {
-		return "", "", err
+	name, tsmErr := DetectTSMProvider(dir)
+	if tsmErr == nil {
+		family, err := FamilyForTSMProvider(name)
+		if err != nil {
+			return "", name, err
+		}
+		return family, name, nil
 	}
-	family, err := FamilyForTSMProvider(name)
-	if err != nil {
-		return "", name, err
+	family, hclErr := DetectAzureHCL()
+	if hclErr == nil {
+		return family, AutoResolvedFromAzureHCL, nil
 	}
-	return family, name, nil
+	if errors.Is(hclErr, errHCLOtherType) {
+		return "", AutoResolvedFromAzureHCL, hclErr
+	}
+	return "", "", fmt.Errorf("%w; %v", tsmErr, hclErr)
 }
 
 func sortStrings(s []string) {

@@ -261,6 +261,9 @@ func Capability(p Provider) (available bool, reason string) {
 		if err != nil {
 			return false, "auto: " + err.Error()
 		}
+		if name == AutoResolvedFromAzureHCL {
+			return true, fmt.Sprintf("auto: the vTPM's HCL report is SEV-SNP (no configfs-tsm under the paravisor), this build runs it as %s", family)
+		}
 		return true, fmt.Sprintf("auto: configfs-tsm serves %s, this build runs it as %s", name, family)
 	case ProviderSimulated:
 		return true, "simulated TEE always available (software-only)"

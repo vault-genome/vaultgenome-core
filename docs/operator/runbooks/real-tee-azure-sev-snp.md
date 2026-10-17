@@ -1,8 +1,9 @@
 # Runbook: an Azure SEV-SNP Confidential VM (production TEE mode)
 
 `sagvd`, `acp-compute` and `acp-bootstrap` attest as an Azure SEV-SNP
-Confidential VM when `tee.provider` is `"azure-sev-snp"` (ADR 0025, plan
-item 4): a `Standard_DC4as_v5`, an `ECasv5`, or any Azure CVM on AMD
+Confidential VM when `tee.provider` is `"azure-sev-snp"` — or `"auto"`,
+which reads the HCL report's type from the vTPM where the kernel has no
+configfs-tsm to ask (ADR 0025, plan item 4): a `Standard_DC4as_v5`, an `ECasv5`, or any Azure CVM on AMD
 SEV-SNP without a GPU — an SEV-SNP guest under Azure's paravisor. The
 Evidence carries two signatures: the chip's SEV-SNP report from the vTPM's
 HCL report, and a TPM quote by the vTPM's attestation key binding the
