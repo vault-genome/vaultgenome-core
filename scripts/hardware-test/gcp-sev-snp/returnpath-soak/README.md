@@ -20,6 +20,18 @@ After the run, `summarize.py <evidence dir>` derives the percentiles, the
 rate and the drifts from `jobs.csv` and `snapshots.csv` into
 `summary.json` beside them.
 
+With `VG_SEGMENT_EVENTS=N` the authority closes its audit log into
+segments of N events and with `VG_RETAIN_SECONDS=S` it expires finished
+jobs after S seconds (ADR 0027; both 0 unless set, as 0.5.0 behaved).
+The snapshots then carry the live file, the archives and the views in
+bytes with the two counters; at the end the whole log is verified across
+its archives (`audit-verify.json`, `archives.txt`), the oldest archive is
+moved away and the verifier refuses, then verifies with `--from-tip`
+(`audit-verify-shipped.json`, `audit-verify-from-tip.json`), a copy with
+one byte appended to an archive is refused (`audit-verify-tampered.json`),
+and sagvd is started again over the log to time its open
+(`restart_ready_seconds` in `steps.txt`, `restart-audit-open.json`).
+
 Run on record: `evidence/20261016T130128Z/` (claim C33) — 1607 jobs in
 sixty minutes, every one EXACT, nothing refused or failed; 26.7 a minute,
 p50 11.3 s and p99 17.7 s from submission to verdict, half of the
