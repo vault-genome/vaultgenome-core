@@ -1,0 +1,7 @@
+total 52
+drwxr-xr-x 4 root root  4096 Oct 17 13:14 .
+drwxr-xr-x 3 root root  4096 Oct 17 13:15 ..
+drwxr-xr-x 2 root root  4096 Oct 17 13:14 adapter
+drwxr-xr-x 2 root root  4096 Oct 17 13:14 data
+-rw-r--r-- 1 root root 25962 Oct 17 13:14 fixtures.json
+-rw-r--r-- 1 root root  6242 Oct 17 13:14 genome.json
