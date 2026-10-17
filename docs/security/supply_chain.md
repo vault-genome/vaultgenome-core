@@ -199,7 +199,7 @@ already shipped.
 A: Not yet — the codebase is audit-ready (SOC 2 controls in place,
 ISO 27001-aligned, code under doctrinal CI gates) but no formal
 audit has been engaged. See
-[`docs/compliance/crosswalk.md`](../compliance/crosswalk.md) for the
+[`docs/compliance/controls.md`](../compliance/controls.md) for the
 controls-to-frameworks map and 2027 timeline.
 
 **Q: Who owns the signing key?**
@@ -214,7 +214,7 @@ malicious binary" attack class — there is no key to compromise.
 - TEE-side cryptographic attestation: see
   [`docs/adr/0001-frozen-producer-verifier-sealer-interface.md`](../adr/0001-frozen-producer-verifier-sealer-interface.md).
 - Compliance framework mapping: see
-  [`docs/compliance/crosswalk.md`](../compliance/crosswalk.md).
+  [`docs/compliance/controls.md`](../compliance/controls.md).
 - Doctrinal architectural invariants enforced by CI: see
   [`docs/adr/0004-doctrine-invariants-as-tests.md`](../adr/0004-doctrine-invariants-as-tests.md).
 - Incident response process: covered in `business/27_security_program.md`

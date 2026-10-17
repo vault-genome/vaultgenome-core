@@ -148,7 +148,7 @@ Residual risks the bank explicitly accepts:
 - **Runbook coverage**: scenarios 1-10 in
   [`docs/operator/runbooks/disaster_recovery.md`](../operator/runbooks/disaster_recovery.md).
   Quarterly DR exercise required by the bank's risk committee.
-- **Compliance**: see [`docs/compliance/crosswalk.md`](../compliance/crosswalk.md);
+- **Compliance**: see [`docs/compliance/controls.md`](../compliance/controls.md);
   bank's controls map cleanly to ISO 27001 A.5.23 + A.8.24.
 - **Audit retention**: 7-year regulatory mode on the WORM bucket
   satisfies MiFID II Article 16 and FINRA 4511.

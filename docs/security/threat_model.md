@@ -15,7 +15,7 @@ section identifies:
 3. **Threats** per STRIDE category (Spoofing, Tampering, Repudiation,
    Information disclosure, Denial of service, Elevation of privilege).
 4. **Mitigations** mapped to specific Vault Genome controls
-   (`VG-NNN` from [`compliance/crosswalk.md`](../compliance/crosswalk.md))
+   (`VG-NNN` from [`compliance/controls.md`](../compliance/controls.md))
    or to the underlying TEE primitive.
 
 ## Table of contents

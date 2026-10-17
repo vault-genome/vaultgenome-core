@@ -49,7 +49,7 @@ The limits are listed with the claims and in
 
 The threat model is [`threat_model.md`](threat_model.md): STRIDE per
 platform and for the control plane, each threat with its mitigation
-mapped to a control in [`../compliance/crosswalk.md`](../compliance/crosswalk.md).
+mapped to a control in [`../compliance/controls.md`](../compliance/controls.md).
 The trust boundaries, named once here so the rest of the argument can
 refer to them:
 
