@@ -1,0 +1,21 @@
+{
+  "tee": "gcp-tdx",
+  "measurement_hex": "dbf0b24ede887fed10119414d042a7bbe4ee182fb125c925600da036c251eda381b71a1f177858d9ab3ffb386d0261d7",
+  "sealer": "tpm2",
+  "sealed": [
+    {
+      "name": "keys.worker_signing.seed_path",
+      "path": "/root/e2e/secrets/acp-compute/worker_signing_seed"
+    },
+    {
+      "name": "vault.tls.client_key",
+      "path": "/root/e2e/secrets/acp-compute/tls/client.key"
+    }
+  ],
+  "already_sealed": [
+    {
+      "name": "keys.session_sealing.material_path",
+      "path": "/root/e2e/secrets/shared/sealing.key"
+    }
+  ]
+}
