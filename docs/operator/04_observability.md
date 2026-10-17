@@ -143,6 +143,9 @@ another address on a shared host), next to `/healthz` (`ok`) and `/readyz`
 | `sagvd_jobs_completed_total{outcome}` | Jobs finished: `success`, `reject` (operational or structural error, including a gate that refused the model), `fail` |
 | `sagvd_gate_verdicts_total{level}` | Gate verdicts on restored models: `EXACT`, `EQUIVALENT`, `FAIL`, `ERROR` (the answer could not be judged) |
 | `sagvd_audit_events_total{kind}` | Return Path audit events written to `audit.log_path`, by kind — every writer: the flow, the disclosure sequencer, the validation and incident services, the daemon's refusals (ADR 0014, 0015) |
+| `sagvd_audit_segments_closed_total` | Segments of `audit.log_path` closed and moved into `audit.archive_dir` (ADR 0027); each closing is also an `AUDIT_SEGMENT_CLOSED` event, the first of the next segment |
+| `sagvd_audit_segment_events` | Events in the live segment: what the next start verifies, and how far the count trigger is |
+| `sagvd_jobs_swept_total` | Finished jobs whose record and view expired from `queue.path` after `queue.retain_finished_seconds` (ADR 0027) |
 | `sagvd_release_decisions_total{decision}` | Release decisions the authority signed: `release`, `refuse` (validation did not pass), `trust_denied` (ADR 0015) |
 | `sagvd_sessions_opened_total` | Return Path handshakes completed |
 | `sagvd_sessions_active` | Sessions being served now, each holding one of `runtime.max_sessions` slots |

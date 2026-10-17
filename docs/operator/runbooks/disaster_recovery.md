@@ -289,8 +289,10 @@ Does /healthz answer on the health listener?
       (ADR 0023: the plaintext is the operator's to keep, off every release
       host). On the new host, `sagvd seal-keys` and `acp-compute seal-keys`
       seal them to its chip.
-   2. The last replica of the audit log, of the genome bundles and of the
-      job store (`queue.path`, ADR 0026) — the operator's replication; the
+   2. The last replica of the audit log — the live file and the closed
+      segments in `audit.archive_dir` (ADR 0027) — of the genome bundles
+      and of the job store (`queue.path`, ADR 0026) — the operator's
+      replication; the
       authority-loss drill copies them to a private bucket the moment a
       job is accepted and again when it is done, so the replica carries
       the job in flight. Verify the
@@ -393,6 +395,10 @@ Any break in the chain is detected whenever it is verified.
 - `acpctl audit verify` prints `audit chain BROKEN: …` naming
   `event #N: prev_hash does not link to event #N-1` (or `event #N: …` for a
   bad signature) and exits 4.
+- With segments (ADR 0027) it also names a segment that does not continue
+  the one before it, an archive that `is not the file the chain recorded`,
+  or a history it cannot reach (`the segments before it are not in …`);
+  exit 4 as well.
 - Its event count or tip no longer matches the latest kept report (a cut-off
   tail still verifies; only this comparison shows it — 04 §2.2).
 - bbolt file size changes in unexplained ways; `auditd` reports
@@ -402,9 +408,11 @@ Any break in the chain is detected whenever it is verified.
 
 1. **Run no releases.** sagvd will not append to a log that does not verify,
    so they fail anyway.
-2. Copy the file off the host before anything else touches it
-   (`scp <audit log> forensics-host:/...`). Run acpctl on the copy: it opens
-   the file read-write.
+2. Copy the file off the host before anything else touches it, and the
+   closed segments in its archive directory with it
+   (`scp -r <audit log> <archive dir> forensics-host:/...`). Run acpctl on
+   the copy: it opens every file read-only (`--archive-dir` names the
+   copied segments).
 3. There is no repair command, by design — keep the corruption visible for
    investigation.
 

@@ -535,9 +535,16 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    minute; the pages of those two bbolt files that the daemon has
    touched show in its resident set as file-backed memory (10 → 103 MB
    over the two hours on TDX) and are the kernel's to reclaim, not the
-   process's to keep. Nothing rotates or archives the audit log or the
-   views yet: an operator sizes the disk for the retention they need,
-   and `acpctl audit query` reads the log as it is.
+   process's to keep. Since ADR 0027 the audit log closes into segments
+   — the live file moves into `audit.archive_dir` at
+   `audit.segment_events` events or `audit.segment_max_age_seconds`,
+   its closing on the record as the next segment's first event, and
+   nothing in the daemon deletes an archive — and finished jobs expire
+   from the job store after `queue.retain_finished_seconds` (that file
+   plateaus at the window's high-water mark; bbolt reuses its pages).
+   Both are off unless set; `acpctl provision` sets them. `acpctl audit
+   verify` walks the archives and the live file as one chain and checks
+   every archive against the record that closed it.
 
 17. **A burst of attestation requests on one GCP SEV-SNP guest is
    rate-limited by the host: all but the first wait about 10 s

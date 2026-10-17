@@ -11,6 +11,34 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- The audit log in closed segments (ADR 0027): `audit.segment_events` and
+  `audit.segment_max_age_seconds` close the live file into
+  `audit.archive_dir` under the indices of its events, the closing on the
+  record as the next segment's first event (`AUDIT_SEGMENT_CLOSED`, audit
+  schema v7) with the archive's SHA-256 and length; a start finishes a
+  rotation a crash interrupted, and verifies the live segment only.
+  Nothing in the daemon deletes an archive. `sagvd_audit_segments_closed_total`,
+  `sagvd_audit_segment_events`.
+- Finished jobs expire from the job store after
+  `queue.retain_finished_seconds`: record and view, in batches, at most once
+  a minute, through an index by completion time (a store from before it is
+  indexed when opened); `GET` answers 404 for them, and the audit log keeps
+  the decision under the request id. `sagvd_jobs_swept_total`.
+- `acpctl audit verify --archive-dir`, `--from-tip`: the archives and the
+  live file verified as one chain, each archive against the record that
+  closed it, in constant memory; `query`, `status` and `lineage` read the
+  archives too, and `query --request` filters by request id.
+- `acpctl provision` writes a bounded deployment: segments of 100 000
+  events or a day, finished jobs kept thirty days.
+
+### Changed
+
+- `acpctl` opens audit logs read-only, so verifying an archive leaves its
+  hash as the chain recorded it; a mistyped `--audit` path is refused
+  rather than created empty.
+
 ## [0.5.0] — 2026-10-16
 
 The release that is proven under load and stood up in one command. One

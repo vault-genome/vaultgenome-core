@@ -19,7 +19,7 @@ or its evidence directory); what has not been measured is said so.
 | Air-gapped, from caches filled while connected | the same flow, no route; the VCEK cache good for seven years | C29 |
 | Sustained: one host, three workers, an hour | 40.4 jobs a minute on TDX, 26.7 on SEV-SNP (the chip's throttle, below); every job EXACT, nothing refused or failed, the hour's audit log one verified chain | C33 (the soak, below) |
 | Authority's private memory under load | 9–15 MB over two hours of three workers (4901 jobs on TDX, 3223 on SEV-SNP), flat within the collector's swing; the first soak found 110 KB a job retained, fixed the same day | C34, KNOWN_ISSUES #18 |
-| Disk per job served | 48–52 KB: the audit log 34–37 KB (sixteen events), the job's view 14–16 KB; 2.8 GB a day at 40 jobs a minute; the daemon's resident set carries the touched pages of both bbolt files as file-backed memory, the kernel's to reclaim; nothing rotates them yet | C34 |
+| Disk per job served | 48–52 KB: the audit log 34–37 KB (sixteen events), the job's view 14–16 KB; 2.8 GB a day at 40 jobs a minute; the daemon's resident set carries the touched pages of both bbolt files as file-backed memory, the kernel's to reclaim; the audit log closes into segments and finished jobs expire from the job store on the operator's settings (ADR 0027) | C34 |
 
 ## Parallel restores on one host
 
@@ -156,7 +156,8 @@ views at 14–16 KB a job — as the kernel keeps the pages the daemon has
 touched; it is the page cache, reclaimed under pressure, not the
 process's own. So the authority's memory to size is its private
 working set, tens of megabytes at this rate; what to size for the
-months is the disk, 48–52 KB a job, and nothing rotates it yet. The
+months is the disk, 48–52 KB a job: the audit segments until they are
+shipped and the views of the retention window (ADR 0027). The
 two-hour runs between the first two fixes and the third
 (`20261016T153617Z`, `20261016T153649Z`) are on record too: they are
 where the anonymous line still rose about a kilobyte a job and pointed
