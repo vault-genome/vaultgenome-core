@@ -7,7 +7,9 @@
 # in three phases:
 #
 #   join     the binaries, the worker package, the base model and the
-#            bundle from <admin-home>/in; the worker runtime; `acpctl
+#            bundle from <admin-home>/in; tpm2-tools (the azure-sev-snp
+#            provider reads the HCL report through tpm2_nvread); the
+#            worker runtime; `acpctl
 #            provision join` — the bundle's files into /root/deploy, the
 #            worker's configuration for the authority the bundle names,
 #            its identity from the vTPM's HCL report (the family named:
@@ -39,11 +41,14 @@ join)
   ( cd "$IN" && sha256sum sagvd acp-compute acpctl keygen genome-worker.tgz base.tgz worker-bundle.tar ) > "$OUT/inputs.sha256"
   mkdir -p workers && tar xzf "$IN/genome-worker.tgz" -C workers
   tar xzf "$IN/base.tgz" -C "$WORK"
-  { ls -la /dev/tpm0 /dev/tpmrm0 2>&1; ls /dev/sev-guest /sys/kernel/config/tsm 2>&1; } > "$OUT/vtpm.txt" 2>&1
+  step "tpm2-tools: the azure-sev-snp provider reads the HCL report from the vTPM's NV index through tpm2_nvread"
+  export DEBIAN_FRONTEND=noninteractive
+  for i in $(seq 1 12); do apt-get -o DPkg::Lock::Timeout=300 install -y -qq tpm2-tools >/dev/null 2>&1 && break; apt-get update -qq >/dev/null 2>&1 || true; sleep 10; done
+  { ls -la /dev/tpm0 /dev/tpmrm0 2>&1; tpm2_nvreadpublic 2>&1 | grep -A3 0x1400001; ls /dev/sev-guest /sys/kernel/config/tsm 2>&1; } > "$OUT/vtpm.txt" 2>&1
+  echo "tpm2_nvread=$(command -v tpm2_nvread || echo missing)" >> "$OUT/steps.txt"
 
   step "the worker runtime: python, the pinned CPU torch (the door needs it)"
   mark runtime_install_start
-  export DEBIAN_FRONTEND=noninteractive
   for i in $(seq 1 12); do apt-get -o DPkg::Lock::Timeout=300 install -y -qq python3-venv python3-pip >/dev/null 2>&1 && break; apt-get update -qq >/dev/null 2>&1 || true; sleep 10; done
   python3 -m venv venv && . venv/bin/activate
   pip install --require-hashes --only-binary=:all: --index-url https://pypi.org/simple -r workers/genome/requirements-ci.lock > "$OUT/pip-requirements.log" 2>&1
