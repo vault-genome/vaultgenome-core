@@ -544,7 +544,11 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    plateaus at the window's high-water mark; bbolt reuses its pages).
    Both are off unless set; `acpctl provision` sets them. `acpctl audit
    verify` walks the archives and the live file as one chain and checks
-   every archive against the record that closed it.
+   every archive against the record that closed it. Measured on SEV-SNP
+   (C38): with segments of 5000 events and a window of twenty minutes,
+   an hour of 1609 jobs left five archives of 16 MiB, a live file of
+   0.25–16 MiB and a views file flat at 16 MiB from the 22nd minute; the
+   six files verified as one chain in 2.5 s.
 
 17. **A burst of attestation requests on one GCP SEV-SNP guest is
    rate-limited by the host: all but the first wait about 10 s

@@ -32,6 +32,15 @@ one byte appended to an archive is refused (`audit-verify-tampered.json`),
 and sagvd is started again over the log to time its open
 (`restart_ready_seconds` in `steps.txt`, `restart-audit-open.json`).
 
+Run on record with segments: `evidence/20261017T002749Z/` (claim C38) —
+`VG_SEGMENT_EVENTS=5000 VG_RETAIN_SECONDS=1200`, 1609 jobs in sixty
+minutes, every one EXACT at the rate of C33; five archives of 16 MiB,
+the live file 0.25–16 MiB, the views flat at 16 MiB from the 22nd
+minute (1071 jobs expired); the six files verified in 2.5 s; the shipped
+archive refused (exit 4) and verified with `--from-tip`; the tampered
+copy refused (exit 4); the restart ready in 10.7 s over 25,749 events,
+749 verified.
+
 Run on record: `evidence/20261016T130128Z/` (claim C33) — 1607 jobs in
 sixty minutes, every one EXACT, nothing refused or failed; 26.7 a minute,
 p50 11.3 s and p99 17.7 s from submission to verdict, half of the
