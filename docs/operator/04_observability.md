@@ -154,7 +154,7 @@ another address on a shared host), next to `/healthz` (`ok`) and `/readyz`
 | `sagvd_handshake_failures_total{phase}` | `tls` or `handshake` |
 | `sagvd_queue_depth` | Jobs waiting for a worker |
 | `sagvd_last_success_unix`, `sagvd_start_unix` | Timestamps |
-| `vg_tee_attestation_total{provider,result,role}`, `vg_tee_attestation_duration_seconds` | Return Path Evidence produced and verified; `provider` is always `simulated` in sagvd |
+| `vg_tee_attestation_total{provider,result,role}`, `vg_tee_attestation_duration_seconds` | Return Path Evidence produced and verified; `provider` is the family of what was attested — the daemon's own for `produce`, the peer's for `verify` (an authority on SEV-SNP verifying an Azure worker counts it under `azure-sev-snp`) |
 | `vg_tee_capability_total{provider,available}` | Recorded once at startup as `simulated` / `true`; sagvd probes no hardware |
 
 acp-compute exports `acp_compute_jobs_total`,

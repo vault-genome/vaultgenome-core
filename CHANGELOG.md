@@ -11,6 +11,20 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- `tee.provider: "auto"` on an Azure confidential VM: where the kernel has
+  no configfs-tsm — under Azure's paravisor — the family is read from the
+  vTPM's HCL report (`azure-sev-snp`; a report of another type is refused
+  by its number). `acpctl provision join --provider auto` works there too.
+
+### Fixed
+
+- `vg_tee_attestation_total` and `vg_tee_attestation_duration_seconds`
+  label the `verify` role with the peer's family, not the daemon's own —
+  an authority on SEV-SNP verifying an Azure worker counted it under
+  `gcp-sev-snp`.
+
 ## [0.6.0] — 2026-10-17
 
 The release that keeps its record for years and stands up across two
