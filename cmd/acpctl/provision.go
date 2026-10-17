@@ -4,6 +4,7 @@
 package main
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -14,9 +15,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,41 +40,38 @@ import (
 // pins it; each daemon's `seal-keys` seals its key files. The operator's
 // copy of the REST token is kept beside the tree, never printed. What the
 // command wrote and learned is in provision.json.
+//
+// Across two hosts (ADR 0028) the same work is three commands:
+// `provision authority` on the authority's host, which writes the
+// worker's bundle; `provision join --bundle` on the worker's host; and
+// `provision pin-worker --identity` on the authority's host, with the
+// identity the worker wrote.
 func provisionCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 {
+		switch args[0] {
+		case "authority":
+			return provisionAuthorityCmd(args[1:], stdout, stderr)
+		case "join":
+			return provisionJoinCmd(args[1:], stdout, stderr)
+		case "pin-worker":
+			return provisionPinWorkerCmd(args[1:], stdout, stderr)
+		case "help", "-h", "--help":
+			provisionUsage(stderr)
+			return 0
+		}
+	}
 	flags := flag.NewFlagSet("provision", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	var o provisionOptions
-	flags.StringVar(&o.out, "out", "", "the deployment directory to write (required; created 0700)")
-	flags.StringVar(&o.binDir, "bin-dir", "", "where the release's acp-keygen, sagvd and acp-compute are (default: beside acpctl, then PATH)")
-	flags.StringVar(&o.provider, "provider", "", "the TEE family both daemons attest with on this host: gcp-sev-snp, gcp-tdx, azure-sev-snp, simulated, or auto (configfs-tsm says which) (required)")
+	o.commonFlags(flags)
+	o.authorityFlags(flags)
+	o.workerFlags(flags)
 	flags.StringVar(&o.peerProvider, "peer-provider", "", "the family each daemon expects of the other (default: the provider, resolved when auto)")
-	flags.StringVar(&o.sealer, "sealer", "auto", "tee.sealer for both daemons: auto, tee or tpm2 (ADR 0025 step 1b)")
-	flags.BoolVar(&o.insecureSimulation, "insecure-simulation", false, "allow the simulated TEE (development only; both daemons refuse it otherwise)")
-	flags.StringVar(&o.vaultListen, "vault-listen", "127.0.0.1:9443", "sagvd's Return Path listen address")
-	flags.StringVar(&o.vaultAddress, "vault-address", "", "the address acp-compute dials (default: --vault-listen)")
-	flags.StringVar(&o.vaultServerName, "vault-server-name", "localhost", "the TLS name acp-compute verifies sagvd's certificate against")
-	flags.StringVar(&o.apiListen, "api-listen", "127.0.0.1:9080", "sagvd's REST API listen address")
-	flags.StringVar(&o.vaultHealth, "vault-health", "127.0.0.1:9081", "sagvd's health and metrics listen address")
-	flags.StringVar(&o.workerHealth, "worker-health", "127.0.0.1:9082", "acp-compute's health and metrics listen address")
-	flags.StringVar(&o.amdCertChain, "amd-cert-chain", "", "the AMD ASK+ARK chain (PEM) of the chip's product, for a SEV-SNP peer")
-	flags.StringVar(&o.fetchAMDChain, "fetch-amd-chain", "", "fetch the AMD chain for this product (milan, genoa, turin) from AMD KDS into the deployment directory, verified against the pinned roots (ADR 0024)")
-	flags.StringVar(&o.kdsURL, "kds-url", "", "AMD KDS base URL for --fetch-amd-chain (default https://kdsintf.amd.com)")
-	flags.StringVar(&o.pcsCacheDir, "pcs-cache-dir", "", "Intel PCS cache directory for a gcp-tdx peer (default <out>/pcs-cache)")
-	flags.StringVar(&o.doorPython, "door-python", "", "the Python of the worker's runtime; with --base-model this makes the door command")
-	flags.StringVar(&o.workerPackage, "worker-package", "", "the directory holding vg_genome (PYTHONPATH of the door)")
-	flags.StringVar(&o.baseModel, "base-model", "", "the base model directory the door restores the genome onto")
-	flags.StringVar(&o.device, "device", "cpu", "the door's device: cpu or cuda")
-	flags.Var(&o.doorCommand, "door-command", "one argument of the door command, repeated (replaces --door-python and --base-model)")
-	flags.IntVar(&o.doorTimeout, "door-timeout", 300, "the door's timeout in seconds")
-	flags.StringVar(&o.genomeDir, "genome-dir", "", "sagvd's genome.bundle_dir (default <out>/genomes)")
-	flags.StringVar(&o.auditLog, "audit-log", "", "sagvd's audit log (default <out>/audit/returnpath-audit.db)")
-	flags.StringVar(&o.queuePath, "queue-path", "", "sagvd's job queue on disk (default <out>/queue/sagvd-jobs.db)")
-	flags.StringVar(&o.vaultDescriptor, "vault-descriptor", "sagvd-v1", "sagvd's tee.workload_descriptor")
-	flags.StringVar(&o.workerDescriptor, "worker-descriptor", "acp-compute-v1", "acp-compute's tee.workload_descriptor")
-	flags.IntVar(&o.maxSessions, "max-sessions", 1, "sagvd's runtime.max_sessions")
-	flags.StringVar(&o.logLevel, "log-level", "info", "both daemons' log level")
-	flags.BoolVar(&o.force, "force", false, "overwrite an existing deployment directory's files")
-	flags.BoolVar(&o.skipSeal, "skip-seal", false, "write everything but leave the key files unsealed (seal them with sagvd seal-keys and acp-compute seal-keys)")
+	flags.Usage = func() {
+		fmt.Fprintln(stderr, "usage: acpctl provision --out DIR --provider FAMILY [flags]            (both daemons on this host)")
+		fmt.Fprintln(stderr, "       acpctl provision authority|join|pin-worker [flags]             (two hosts, ADR 0028; see acpctl provision help)")
+		flags.PrintDefaults()
+	}
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -88,6 +89,27 @@ func provisionCmd(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+func provisionUsage(w io.Writer) {
+	fmt.Fprintln(w, "acpctl provision stands up a deployment with the release's own binaries.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "One host (both daemons):")
+	fmt.Fprintln(w, "  acpctl provision --out DIR --provider FAMILY [--fetch-amd-chain PRODUCT] --door-python PY --base-model DIR ...")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Two hosts (ADR 0028), in this order:")
+	fmt.Fprintln(w, "  1. on the authority's host:")
+	fmt.Fprintln(w, "     acpctl provision authority --out DIR --provider FAMILY --worker-provider FAMILY \\")
+	fmt.Fprintln(w, "         --vault-listen 0.0.0.0:9443 --vault-address HOST:9443 [--fetch-amd-chain WORKER-PRODUCT] [--fetch-own-amd-chain OWN-PRODUCT]")
+	fmt.Fprintln(w, "     -> DIR/worker-bundle.tar: carry it to the worker's host, once, and delete it after step 2")
+	fmt.Fprintln(w, "  2. on the worker's host:")
+	fmt.Fprintln(w, "     acpctl provision join --bundle worker-bundle.tar --out DIR [--provider auto] --door-python PY --base-model DIR ...")
+	fmt.Fprintln(w, "     -> DIR/acp-compute-identity.json: carry it back to the authority's host")
+	fmt.Fprintln(w, "  3. on the authority's host:")
+	fmt.Fprintln(w, "     acpctl provision pin-worker --out DIR --identity acp-compute-identity.json")
+	fmt.Fprintln(w, "     -> the deployment is complete; start sagvd (again, if it was started before this step), then acp-compute")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Each form prints its flags with -h.")
+}
+
 // stringList is a repeatable string flag.
 type stringList []string
 
@@ -101,6 +123,7 @@ type provisionOptions struct {
 	vaultListen, vaultAddress, vaultServerName       string
 	apiListen, vaultHealth, workerHealth             string
 	amdCertChain, fetchAMDChain, kdsURL, pcsCacheDir string
+	ownAMDCertChain, fetchOwnAMDChain                string
 	doorPython, workerPackage, baseModel, device     string
 	doorCommand                                      stringList
 	doorTimeout                                      int
@@ -109,12 +132,62 @@ type provisionOptions struct {
 	maxSessions                                      int
 	logLevel                                         string
 	force, skipSeal                                  bool
+	// two hosts
+	workerProvider, bundle, identity string
+}
+
+// commonFlags are the flags every form takes.
+func (o *provisionOptions) commonFlags(flags *flag.FlagSet) {
+	flags.StringVar(&o.out, "out", "", "the deployment directory to write (required; created 0700)")
+	flags.StringVar(&o.binDir, "bin-dir", "", "where the release's acp-keygen, sagvd and acp-compute are (default: beside acpctl, then PATH)")
+	flags.StringVar(&o.provider, "provider", "", "the TEE family the daemon(s) on this host attest with: gcp-sev-snp, gcp-tdx, azure-sev-snp, simulated, or auto (configfs-tsm says which)")
+	flags.StringVar(&o.sealer, "sealer", "auto", "tee.sealer for the daemon(s) on this host: auto, tee or tpm2 (ADR 0025 step 1b)")
+	flags.BoolVar(&o.insecureSimulation, "insecure-simulation", false, "allow the simulated TEE (development only; the daemons refuse it otherwise)")
+	flags.StringVar(&o.logLevel, "log-level", "info", "the daemons' log level")
+	flags.BoolVar(&o.force, "force", false, "overwrite an existing deployment directory's files")
+	flags.BoolVar(&o.skipSeal, "skip-seal", false, "write everything but leave the key files unsealed (seal them with the daemon's seal-keys)")
+}
+
+// authorityFlags are the flags of the authority's side.
+func (o *provisionOptions) authorityFlags(flags *flag.FlagSet) {
+	flags.StringVar(&o.vaultListen, "vault-listen", "127.0.0.1:9443", "sagvd's Return Path listen address")
+	flags.StringVar(&o.vaultAddress, "vault-address", "", "the address acp-compute dials (default: --vault-listen; required when the listen address binds every interface)")
+	flags.StringVar(&o.vaultServerName, "vault-server-name", "localhost", "the TLS name acp-compute verifies sagvd's certificate against")
+	flags.StringVar(&o.apiListen, "api-listen", "127.0.0.1:9080", "sagvd's REST API listen address")
+	flags.StringVar(&o.vaultHealth, "vault-health", "127.0.0.1:9081", "sagvd's health and metrics listen address")
+	flags.StringVar(&o.amdCertChain, "amd-cert-chain", "", "the AMD ASK+ARK chain (PEM) of the worker's chip's product, for sagvd's verifier of a SEV-SNP worker")
+	flags.StringVar(&o.fetchAMDChain, "fetch-amd-chain", "", "fetch the AMD chain for the worker's product (milan, genoa, turin) from AMD KDS into the deployment directory, verified against the pinned roots (ADR 0024)")
+	flags.StringVar(&o.kdsURL, "kds-url", "", "AMD KDS base URL for the chain fetches (default https://kdsintf.amd.com)")
+	flags.StringVar(&o.pcsCacheDir, "pcs-cache-dir", "", "Intel PCS cache directory for a gcp-tdx peer (default <out>/pcs-cache)")
+	flags.StringVar(&o.genomeDir, "genome-dir", "", "sagvd's genome.bundle_dir (default <out>/genomes)")
+	flags.StringVar(&o.auditLog, "audit-log", "", "sagvd's audit log (default <out>/audit/returnpath-audit.db)")
+	flags.StringVar(&o.queuePath, "queue-path", "", "sagvd's job queue on disk (default <out>/queue/sagvd-jobs.db)")
+	flags.StringVar(&o.vaultDescriptor, "vault-descriptor", "sagvd-v1", "sagvd's tee.workload_descriptor")
+	flags.StringVar(&o.workerDescriptor, "worker-descriptor", "acp-compute-v1", "acp-compute's tee.workload_descriptor")
+	flags.IntVar(&o.maxSessions, "max-sessions", 1, "sagvd's runtime.max_sessions")
+}
+
+// workerFlags are the flags of the worker's side: its door and its health
+// listener.
+func (o *provisionOptions) workerFlags(flags *flag.FlagSet) {
+	flags.StringVar(&o.workerHealth, "worker-health", "127.0.0.1:9082", "acp-compute's health and metrics listen address")
+	flags.StringVar(&o.doorPython, "door-python", "", "the Python of the worker's runtime; with --base-model this makes the door command")
+	flags.StringVar(&o.workerPackage, "worker-package", "", "the directory holding vg_genome (PYTHONPATH of the door)")
+	flags.StringVar(&o.baseModel, "base-model", "", "the base model directory the door restores the genome onto")
+	flags.StringVar(&o.device, "device", "cpu", "the door's device: cpu or cuda")
+	flags.Var(&o.doorCommand, "door-command", "one argument of the door command, repeated (replaces --door-python and --base-model)")
+	flags.IntVar(&o.doorTimeout, "door-timeout", 300, "the door's timeout in seconds")
 }
 
 // provisionResult is provision.json: what was written and learned. It
 // carries no secret — the token's path, not the token.
 type provisionResult struct {
-	Schema        string              `json:"schema"`
+	Schema string `json:"schema"`
+	// Role is both (one host), authority or worker (ADR 0028); Phase is
+	// complete, awaiting-worker (the authority before pin-worker) or
+	// joined (the worker).
+	Role          string              `json:"role"`
+	Phase         string              `json:"phase"`
 	Out           string              `json:"out"`
 	Provider      string              `json:"provider"`
 	PeerProvider  string              `json:"peer_provider"`
@@ -127,12 +200,19 @@ type provisionResult struct {
 	AMDCertChain  string              `json:"amd_cert_chain,omitempty"`
 	Vault         provisionedSide     `json:"vault"`
 	Worker        provisionedSide     `json:"worker"`
-	APITokenFile  string              `json:"api_token_file"`
+	APITokenFile  string              `json:"api_token_file,omitempty"`
 	Sealed        map[string][]string `json:"sealed,omitempty"`
-	Next          []string            `json:"next"`
+	// WorkerBundle is the bundle the authority wrote for the worker's
+	// host; WorkerBundleSHA256 its hash; VaultAddress what the worker
+	// dials (two hosts).
+	WorkerBundle       string   `json:"worker_bundle,omitempty"`
+	WorkerBundleSHA256 string   `json:"worker_bundle_sha256,omitempty"`
+	VaultAddress       string   `json:"vault_address,omitempty"`
+	Next               []string `json:"next"`
 }
 
 type provisionedSide struct {
+	Provider              string   `json:"provider,omitempty"`
 	MeasurementHex        string   `json:"measurement_hex"`
 	Sealer                string   `json:"sealer,omitempty"`
 	VTPMPCRDigestHex      string   `json:"vtpm_pcr_digest_hex,omitempty"`
@@ -140,7 +220,7 @@ type provisionedSide struct {
 	AuditPublicKeyPEM     string   `json:"audit_public_key_pem,omitempty"`
 	AuthorityKID          string   `json:"authority_kid,omitempty"`
 	AuthorityPublicKeyPEM string   `json:"authority_public_key_pem,omitempty"`
-	IdentityFile          string   `json:"identity_file"`
+	IdentityFile          string   `json:"identity_file,omitempty"`
 	Warnings              []string `json:"warnings,omitempty"`
 }
 
@@ -184,10 +264,14 @@ var runDaemon = func(bin string, args ...string) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// provisionBinaries finds the release's binaries: in binDir, beside this
-// executable, or on PATH. acp-keygen may be installed as keygen.
-func provisionBinaries(binDir string) (map[string]string, error) {
+// provisionBinaries finds the release's binaries named in need (keygen,
+// sagvd, acp-compute): in binDir, beside this executable, or on PATH.
+// acp-keygen may be installed as keygen.
+func provisionBinaries(binDir string, need ...string) (map[string]string, error) {
 	names := map[string][]string{"keygen": {"acp-keygen", "keygen"}, "sagvd": {"sagvd"}, "acp-compute": {"acp-compute"}}
+	if len(need) == 0 {
+		need = []string{"keygen", "sagvd", "acp-compute"}
+	}
 	dirs := []string{}
 	if binDir != "" {
 		dirs = append(dirs, binDir)
@@ -196,7 +280,8 @@ func provisionBinaries(binDir string) (map[string]string, error) {
 		dirs = append(dirs, filepath.Dir(self))
 	}
 	found := map[string]string{}
-	for key, candidates := range names {
+	for _, key := range need {
+		candidates := names[key]
 		for _, dir := range dirs {
 			for _, name := range candidates {
 				p := filepath.Join(dir, name)
@@ -249,6 +334,29 @@ func provisionFamily(name string) (local, resolved tee.Provider, err error) {
 	}
 }
 
+// peerFamily parses the family the other side attests as, under the
+// flag named, and checks it against this host's.
+func peerFamily(flagName, name string, family tee.Provider, insecureSimulation bool) (tee.Provider, error) {
+	peer := family
+	if name != "" {
+		p, err := tee.ParseProvider(name)
+		if err != nil {
+			return "", fmt.Errorf("%s %q: %w", flagName, name, err)
+		}
+		if p == tee.ProviderAuto {
+			return "", fmt.Errorf("%s cannot be auto: name the family the other side attests as", flagName)
+		}
+		peer = p
+	}
+	if (family == tee.ProviderSimulated || peer == tee.ProviderSimulated) && !insecureSimulation {
+		return "", errors.New("the simulated TEE is for development: pass --insecure-simulation to set it up")
+	}
+	if family != tee.ProviderSimulated && peer == tee.ProviderSimulated || family == tee.ProviderSimulated && peer != tee.ProviderSimulated {
+		return "", errors.New("a hardware daemon and a simulated peer do not pin each other: both sides are simulated or neither")
+	}
+	return peer, nil
+}
+
 // measurementLen is the pin's length for a family: 32 bytes for the
 // simulated TEE (SHA-256 of the descriptor), 48 for the hardware ones.
 func measurementLen(p tee.Provider) int {
@@ -258,6 +366,306 @@ func measurementLen(p tee.Provider) int {
 	return 48
 }
 
+// checkSealer validates --sealer.
+func checkSealer(s string) error {
+	switch s {
+	case "auto", "tee", "tpm2":
+		return nil
+	default:
+		return fmt.Errorf("--sealer %q: one of auto, tee, tpm2", s)
+	}
+}
+
+// doorOf resolves the worker's door command from the flags.
+func doorOf(o provisionOptions) ([]string, error) {
+	switch {
+	case len(o.doorCommand) > 0:
+		return o.doorCommand, nil
+	case o.doorPython != "" && o.baseModel != "":
+		return []string{o.doorPython, "-m", "vg_genome", "door", "--stdin-genome", "--base", o.baseModel, "--device", o.device}, nil
+	default:
+		return nil, errors.New("the worker's door: pass --door-python with --base-model (the worker runtime and the base model), or --door-command for each argument")
+	}
+}
+
+// prepareOut resolves the deployment directory, refusing a non-empty one
+// without --force, and creates it with the subdirectories named.
+func prepareOut(o provisionOptions, subdirs ...string) (string, error) {
+	out, err := filepath.Abs(o.out)
+	if err != nil {
+		return "", err
+	}
+	if st, err := os.Stat(out); err == nil && st.IsDir() && !o.force {
+		entries, _ := os.ReadDir(out)
+		if len(entries) > 0 {
+			return "", fmt.Errorf("%s exists and is not empty; pass --force to write into it", out)
+		}
+	}
+	for _, d := range append([]string{out}, subdirs...) {
+		if !filepath.IsAbs(d) {
+			d = filepath.Join(out, d)
+		}
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			return "", err
+		}
+	}
+	return out, nil
+}
+
+// amdChain resolves a SEV-SNP peer's chain: the PEM given, or fetched for
+// the product named into out; the result is an absolute path.
+func amdChain(out, given, fetch, kdsURL, what string, stdout io.Writer) (string, error) {
+	chain := given
+	if fetch != "" {
+		chain = filepath.Join(out, "amd-"+strings.ToLower(fetch)+"-cert_chain.pem")
+		pem, info, err := tee.FetchAMDCertChain(kdsURL, fetch)
+		if err != nil {
+			return "", fmt.Errorf("fetch the AMD chain for %s: %w", fetch, err)
+		}
+		if err := os.WriteFile(chain, pem, 0o600); err != nil {
+			return "", err
+		}
+		fmt.Fprintf(stdout, "  AMD chain (%s): %s (%s; ARK %s, a root this build pins)\n", what, chain, info.Product, info.ARKFingerprintSHA256)
+	}
+	if chain == "" {
+		return "", nil
+	}
+	if _, err := os.Stat(chain); err != nil {
+		return "", fmt.Errorf("the AMD chain (%s): %w", what, err)
+	}
+	return filepath.Abs(chain)
+}
+
+// peerConfig is the tee.peer configuration a daemon needs to verify a
+// peer of family: the AMD chain and VCEK cache for a SEV-SNP peer, the
+// Intel PCS cache for a TDX one.
+func peerConfig(out string, family tee.Provider, chain, pcsCacheDir string) (map[string]any, error) {
+	cfg := map[string]any{"provider": string(family)}
+	switch family {
+	case tee.ProviderGCPSEVSNP, tee.ProviderAzureSEVSNP:
+		if chain == "" {
+			return nil, fmt.Errorf("a %s peer needs the AMD chain of its chip's product: --amd-cert-chain PATH or --fetch-amd-chain milan|genoa|turin", family)
+		}
+		vcek := filepath.Join(out, "vcek-cache")
+		if err := os.MkdirAll(vcek, 0o700); err != nil {
+			return nil, err
+		}
+		cfg["amd_cert_chain_path"] = chain
+		cfg["vcek_cache_dir"] = vcek
+	case tee.ProviderGCPTDX:
+		pcs := orDefault(pcsCacheDir, filepath.Join(out, "pcs-cache"))
+		if err := os.MkdirAll(pcs, 0o700); err != nil {
+			return nil, err
+		}
+		cfg["pcs_cache_dir"] = pcs
+	}
+	return cfg, nil
+}
+
+// teeSection is a daemon's tee configuration: this host's family and
+// sealer, the descriptor, and the peer it verifies and pins.
+func teeSection(local, family tee.Provider, sealer, descriptor string, peerCfg map[string]any, peerPin, seed, peerPub string) map[string]any {
+	t := map[string]any{"provider": string(local), "sealer": sealer, "workload_descriptor": descriptor}
+	pc := map[string]any{}
+	for k, v := range peerCfg {
+		pc[k] = v
+	}
+	pc["measurement_path"] = peerPin
+	if family == tee.ProviderSimulated {
+		t["seed_path"] = seed
+		t["insecure_simulation"] = true
+		pc["public_key_path"] = peerPub
+	}
+	t["peer"] = pc
+	return t
+}
+
+// sagvdConfig is sagvd.json for the deployment.
+func sagvdConfig(o provisionOptions, out, secrets string, teeCfg map[string]any, genomeDir, auditLog, queuePath string) map[string]any {
+	sec := func(p ...string) string { return filepath.Join(append([]string{secrets}, p...)...) }
+	return map[string]any{
+		"vault": map[string]any{"listen_address": o.vaultListen,
+			"tls": map[string]any{"enabled": true, "server_cert": sec("sagvd", "tls", "server.crt"), "server_key": sec("sagvd", "tls", "server.key"), "client_cas": sec("shared", "tls", "ca.crt")}},
+		"http_api": map[string]any{"listen_address": o.apiListen, "bearer_token_file": sec("sagvd", "api_token")},
+		"tee":      teeCfg,
+		"keys": map[string]any{
+			"authority_signing": map[string]any{"kid": "sagvd-authority-demo", "seed_path": sec("sagvd", "authority_signing_seed")},
+			"audit_signing":     map[string]any{"kid": "sagvd-audit-demo", "seed_path": sec("sagvd", "audit_signing_seed")},
+			"session_sealing":   map[string]any{"kid": "session-sealing-demo", "material_path": sec("shared", "sealing.key")}},
+		"workers": map[string]any{"registry_path": sec("shared", "workers.json")},
+		"genome":  map[string]any{"bundle_dir": genomeDir, "gate": map[string]any{"atol": 1e-2, "rtol": 1e-3, "max_non_critical_outliers": 0}},
+		"audit":   map[string]any{"log_path": auditLog, "segment_events": 100000, "segment_max_age_seconds": 86400},
+		"queue":   map[string]any{"path": queuePath, "retain_finished_seconds": 30 * 86400},
+		"runtime": map[string]any{"job_timeout_seconds": 600, "handshake_timeout_seconds": 30, "queue_poll_ms": 50, "max_sessions": o.maxSessions,
+			"http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 600, "max_payload_bytes": 4 << 20},
+		"health": map[string]any{"listen_address": o.vaultHealth},
+		"log":    map[string]any{"level": o.logLevel, "format": "json"},
+	}
+}
+
+// workerConfig is acp-compute.json for the deployment: the authority it
+// dials, its own keys, the door.
+func workerConfig(o provisionOptions, secrets string, teeCfg map[string]any, vaultAddress, serverName string, door []string, sealingKey string) map[string]any {
+	sec := func(p ...string) string { return filepath.Join(append([]string{secrets}, p...)...) }
+	doorCfg := map[string]any{"command": door, "timeout_seconds": o.doorTimeout}
+	env := []string{"TOKENIZERS_PARALLELISM=false"}
+	if o.workerPackage != "" {
+		env = append([]string{"PYTHONPATH=" + o.workerPackage}, env...)
+	}
+	doorCfg["env"] = env
+	return map[string]any{
+		"vault": map[string]any{"address": vaultAddress,
+			"tls": map[string]any{"enabled": true, "client_cert": sec("acp-compute", "tls", "client.crt"), "client_key": sec("acp-compute", "tls", "client.key"), "ca_bundle": sec("shared", "tls", "ca.crt"), "server_name": serverName}},
+		"tee": teeCfg,
+		"keys": map[string]any{
+			"worker_signing":  map[string]any{"kid": "acp-compute-worker-demo", "seed_path": sec("acp-compute", "worker_signing_seed")},
+			"session_sealing": map[string]any{"kid": "session-sealing-demo", "material_path": sealingKey}},
+		"genome":  map[string]any{"door": doorCfg},
+		"runtime": map[string]any{"job_timeout_seconds": 600, "handshake_timeout_seconds": 30, "dial_backoff_initial_ms": 500, "dial_backoff_max_ms": 5000, "idle_between_jobs_ms": 200},
+		"health":  map[string]any{"listen_address": o.workerHealth},
+		"log":     map[string]any{"level": o.logLevel, "format": "json"},
+	}
+}
+
+// writeConfigs writes each configuration 0600 and records its digest.
+func writeConfigs(res *provisionResult, configs map[string]struct {
+	path string
+	cfg  map[string]any
+}) error {
+	keys := make([]string, 0, len(configs))
+	for k := range configs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		c := configs[key]
+		raw, err := json.MarshalIndent(c.cfg, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(c.path, append(raw, '\n'), 0o600); err != nil {
+			return err
+		}
+		res.Configs[key] = c.path
+		if res.ConfigsSHA256[key], err = provisionDigest(c.path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// identify runs a daemon's identity, pins its measurement at pinPath,
+// keeps the identity file and fills side.
+func identify(out, key, bin, cfg, pinPath, name string, family, local tee.Provider, side *provisionedSide, stdout io.Writer) error {
+	raw, err := runDaemon(bin, "identity", "-config", cfg)
+	if err != nil {
+		return fmt.Errorf("%s identity: %w", name, err)
+	}
+	var id daemonIdentity
+	if err := json.Unmarshal(raw, &id); err != nil {
+		return fmt.Errorf("%s identity: not JSON: %w", name, err)
+	}
+	m, err := hex.DecodeString(id.TEEMeasurementHex)
+	if err != nil || len(m) != measurementLen(family) {
+		return fmt.Errorf("%s identity: tee_measurement_hex %q is not a %d-byte measurement", name, id.TEEMeasurementHex, measurementLen(family))
+	}
+	if pinPath != "" {
+		if err := os.WriteFile(pinPath, m, 0o600); err != nil {
+			return err
+		}
+	}
+	idFile := filepath.Join(out, key+"-identity.json")
+	if err := os.WriteFile(idFile, raw, 0o600); err != nil {
+		return err
+	}
+	side.Provider = id.TEEProvider
+	side.MeasurementHex, side.Sealer, side.IdentityFile = id.TEEMeasurementHex, id.Sealer, idFile
+	side.AuditKID, side.AuditPublicKeyPEM = id.AuditKID, id.AuditPublicKeyPEM
+	side.AuthorityKID, side.AuthorityPublicKeyPEM = id.AuthorityKID, id.AuthorityPublicKeyPEM
+	if id.VTPM != nil {
+		side.VTPMPCRDigestHex = id.VTPM.PCRDigestHex
+	}
+	if id.TEEProvider != "" && tee.Provider(id.TEEProvider) != family && tee.Provider(id.TEEProvider) != local {
+		side.Warnings = append(side.Warnings, fmt.Sprintf("%s attests as %s, not the %s this deployment names", name, id.TEEProvider, family))
+	}
+	fmt.Fprintf(stdout, "  %s identity: %s (%s)\n", name, id.TEEMeasurementHex, id.TEEProvider)
+	return nil
+}
+
+// sealKeys runs a daemon's seal-keys and records what it sealed.
+func sealKeys(res *provisionResult, key, bin, cfg string, stdout io.Writer) error {
+	raw, err := runDaemon(bin, "seal-keys", "-config", cfg)
+	if err != nil {
+		return fmt.Errorf("%s seal-keys: %w", key, err)
+	}
+	var sealed daemonSealed
+	if err := json.Unmarshal(raw, &sealed); err != nil {
+		return fmt.Errorf("%s seal-keys: not JSON: %w", key, err)
+	}
+	names := []string{}
+	for _, e := range sealed.Sealed {
+		names = append(names, e.Name)
+	}
+	for _, e := range sealed.AlreadySealed {
+		names = append(names, e.Name+" (already)")
+	}
+	res.Sealed[key] = names
+	fmt.Fprintf(stdout, "  %s key files sealed (%s): %s\n", key, sealed.Sealer, strings.Join(names, ", "))
+	return nil
+}
+
+// writeAuditPublicKey keeps the audit public key for the operator.
+func writeAuditPublicKey(out string, res *provisionResult, stdout io.Writer) error {
+	if res.Vault.AuditPublicKeyPEM == "" {
+		return nil
+	}
+	auditPub := filepath.Join(out, "operator", "audit_public_key.pem")
+	if err := os.WriteFile(auditPub, []byte(res.Vault.AuditPublicKeyPEM), 0o600); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "  audit public key: %s (keep it off the host: it verifies the log)\n", auditPub)
+	return nil
+}
+
+// writeResult writes provision.json.
+func writeResult(out string, res *provisionResult, stdout io.Writer) error {
+	raw, err := json.MarshalIndent(res, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(out, "provision.json"), append(raw, '\n'), 0o600); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "provision.json: %s\n", filepath.Join(out, "provision.json"))
+	return nil
+}
+
+// keygen runs acp-keygen into secrets, keeps the operator's copy of the
+// REST token and gives the worker its own copy of the session sealing
+// key: each daemon seals its own copy to the host it runs on (seal-keys
+// seals a file to the sealer of the daemon that ran it) — what a worker
+// on another host carries anyway.
+func keygen(bins map[string]string, out, secrets string, force bool, stdout io.Writer) (tokenCopy, workerSealingKey string, err error) {
+	keygenArgs := []string{"-out", secrets, "-private", "-quiet"}
+	if force {
+		keygenArgs = append(keygenArgs, "-force")
+	}
+	if _, err := runDaemon(bins["keygen"], keygenArgs...); err != nil {
+		return "", "", fmt.Errorf("key material: %w", err)
+	}
+	fmt.Fprintf(stdout, "  key material: %s (acp-keygen, private modes)\n", secrets)
+	tokenCopy = filepath.Join(out, "operator", "api_token")
+	if err := copyFile(filepath.Join(secrets, "sagvd", "api_token"), tokenCopy, 0o600); err != nil {
+		return "", "", fmt.Errorf("the operator's copy of the REST token: %w", err)
+	}
+	workerSealingKey = filepath.Join(secrets, "acp-compute", "sealing.key")
+	if err := copyFile(filepath.Join(secrets, "shared", "sealing.key"), workerSealingKey, 0o600); err != nil {
+		return "", "", fmt.Errorf("the worker's copy of the session sealing key: %w", err)
+	}
+	return tokenCopy, workerSealingKey, nil
+}
+
+// provision is the one-host form: both daemons on this host.
 func provision(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
 	if o.vaultAddress == "" {
 		o.vaultAddress = o.vaultListen
@@ -266,128 +674,54 @@ func provision(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	peer := family
-	if o.peerProvider != "" {
-		if peer, err = tee.ParseProvider(o.peerProvider); err != nil {
-			return nil, fmt.Errorf("--peer-provider %q: %w", o.peerProvider, err)
-		}
-		if peer == tee.ProviderAuto {
-			return nil, errors.New("--peer-provider cannot be auto: name the family the other side attests as")
-		}
+	peer, err := peerFamily("--peer-provider", o.peerProvider, family, o.insecureSimulation)
+	if err != nil {
+		return nil, err
 	}
-	if (family == tee.ProviderSimulated || peer == tee.ProviderSimulated) && !o.insecureSimulation {
-		return nil, errors.New("the simulated TEE is for development: pass --insecure-simulation to set it up")
+	if err := checkSealer(o.sealer); err != nil {
+		return nil, err
 	}
-	if family != tee.ProviderSimulated && peer == tee.ProviderSimulated || family == tee.ProviderSimulated && peer != tee.ProviderSimulated {
-		return nil, errors.New("a hardware daemon and a simulated peer do not pin each other: both sides are simulated or neither")
-	}
-	switch o.sealer {
-	case "auto", "tee", "tpm2":
-	default:
-		return nil, fmt.Errorf("--sealer %q: one of auto, tee, tpm2", o.sealer)
-	}
-	var door []string
-	switch {
-	case len(o.doorCommand) > 0:
-		door = o.doorCommand
-	case o.doorPython != "" && o.baseModel != "":
-		door = []string{o.doorPython, "-m", "vg_genome", "door", "--stdin-genome", "--base", o.baseModel, "--device", o.device}
-	default:
-		return nil, errors.New("the worker's door: pass --door-python with --base-model (the worker runtime and the base model), or --door-command for each argument")
+	door, err := doorOf(o)
+	if err != nil {
+		return nil, err
 	}
 	bins, err := provisionBinaries(o.binDir)
 	if err != nil {
 		return nil, err
 	}
-	out, err := filepath.Abs(o.out)
+	genomeDir, auditLog, queuePath := o.genomeDir, o.auditLog, o.queuePath
+	out, err := prepareOut(o, "pins", "operator")
 	if err != nil {
 		return nil, err
 	}
-	if st, err := os.Stat(out); err == nil && st.IsDir() && !o.force {
-		entries, _ := os.ReadDir(out)
-		if len(entries) > 0 {
-			return nil, fmt.Errorf("%s exists and is not empty; pass --force to write into it", out)
-		}
-	}
-	for _, d := range []string{out, filepath.Join(out, "pins"), filepath.Join(out, "operator")} {
-		if err := os.MkdirAll(d, 0o700); err != nil {
-			return nil, err
-		}
-	}
-	secrets := filepath.Join(out, "secrets")
-	genomeDir := orDefault(o.genomeDir, filepath.Join(out, "genomes"))
-	auditLog := orDefault(o.auditLog, filepath.Join(out, "audit", "returnpath-audit.db"))
-	queuePath := orDefault(o.queuePath, filepath.Join(out, "queue", "sagvd-jobs.db"))
+	genomeDir = orDefault(genomeDir, filepath.Join(out, "genomes"))
+	auditLog = orDefault(auditLog, filepath.Join(out, "audit", "returnpath-audit.db"))
+	queuePath = orDefault(queuePath, filepath.Join(out, "queue", "sagvd-jobs.db"))
 	for _, d := range []string{genomeDir, filepath.Dir(auditLog), filepath.Dir(queuePath)} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return nil, err
 		}
 	}
+	secrets := filepath.Join(out, "secrets")
 	fmt.Fprintf(stdout, "provision: %s (family %s, peer %s, sealer %s)\n", out, family, peer, o.sealer)
 
 	// 1. The key material.
-	keygenArgs := []string{"-out", secrets, "-private", "-quiet"}
-	if o.force {
-		keygenArgs = append(keygenArgs, "-force")
-	}
-	if _, err := runDaemon(bins["keygen"], keygenArgs...); err != nil {
-		return nil, fmt.Errorf("key material: %w", err)
-	}
-	fmt.Fprintf(stdout, "  key material: %s (acp-keygen, private modes)\n", secrets)
-	tokenSrc := filepath.Join(secrets, "sagvd", "api_token")
-	tokenCopy := filepath.Join(out, "operator", "api_token")
-	if err := copyFile(tokenSrc, tokenCopy, 0o600); err != nil {
-		return nil, fmt.Errorf("the operator's copy of the REST token: %w", err)
-	}
-	// The session sealing key is shared by value, not by file: each daemon
-	// seals its own copy to the host it runs on (seal-keys seals a file to
-	// the sealer of the daemon that ran it), so the worker gets a copy of
-	// its own — what a worker on another host would carry anyway.
-	workerSealingKey := filepath.Join(secrets, "acp-compute", "sealing.key")
-	if err := copyFile(filepath.Join(secrets, "shared", "sealing.key"), workerSealingKey, 0o600); err != nil {
-		return nil, fmt.Errorf("the worker's copy of the session sealing key: %w", err)
+	tokenCopy, workerSealingKey, err := keygen(bins, out, secrets, o.force, stdout)
+	if err != nil {
+		return nil, err
 	}
 
-	// 2. What the peer's verifier needs.
-	res := &provisionResult{Schema: "vault-genome/acpctl-provision/v1", Out: out, Provider: string(local), PeerProvider: string(peer), Sealer: o.sealer,
+	// 2. What the peer's verifier needs: one chip, one chain, both ways.
+	res := &provisionResult{Schema: "vault-genome/acpctl-provision/v1", Role: "both", Phase: "complete", Out: out, Provider: string(local), PeerProvider: string(peer), Sealer: o.sealer,
 		Binaries: bins, Secrets: secrets, Configs: map[string]string{}, ConfigsSHA256: map[string]string{}, Pins: map[string]string{}, APITokenFile: tokenCopy, Sealed: map[string][]string{}}
-	peerCfg := map[string]any{"provider": string(peer)}
-	switch peer {
-	case tee.ProviderGCPSEVSNP, tee.ProviderAzureSEVSNP:
-		chain := o.amdCertChain
-		if o.fetchAMDChain != "" {
-			chain = filepath.Join(out, "amd-"+strings.ToLower(o.fetchAMDChain)+"-cert_chain.pem")
-			pem, info, err := tee.FetchAMDCertChain(o.kdsURL, o.fetchAMDChain)
-			if err != nil {
-				return nil, fmt.Errorf("--fetch-amd-chain %s: %w", o.fetchAMDChain, err)
-			}
-			if err := os.WriteFile(chain, pem, 0o600); err != nil {
-				return nil, err
-			}
-			fmt.Fprintf(stdout, "  AMD chain: %s (%s; ARK %s, a root this build pins)\n", chain, info.Product, info.ARKFingerprintSHA256)
-		}
-		if chain == "" {
-			return nil, fmt.Errorf("a %s peer needs the AMD chain of the chip's product: --amd-cert-chain PATH or --fetch-amd-chain milan|genoa|turin", peer)
-		}
-		if _, err := os.Stat(chain); err != nil {
-			return nil, fmt.Errorf("--amd-cert-chain: %w", err)
-		}
-		if chain, err = filepath.Abs(chain); err != nil {
-			return nil, err
-		}
-		res.AMDCertChain = chain
-		vcek := filepath.Join(out, "vcek-cache")
-		if err := os.MkdirAll(vcek, 0o700); err != nil {
-			return nil, err
-		}
-		peerCfg["amd_cert_chain_path"] = chain
-		peerCfg["vcek_cache_dir"] = vcek
-	case tee.ProviderGCPTDX:
-		pcs := orDefault(o.pcsCacheDir, filepath.Join(out, "pcs-cache"))
-		if err := os.MkdirAll(pcs, 0o700); err != nil {
-			return nil, err
-		}
-		peerCfg["pcs_cache_dir"] = pcs
+	chain, err := amdChain(out, o.amdCertChain, o.fetchAMDChain, o.kdsURL, "the chip's product", stdout)
+	if err != nil {
+		return nil, err
+	}
+	res.AMDCertChain = chain
+	peerCfg, err := peerConfig(out, peer, chain, o.pcsCacheDir)
+	if err != nil {
+		return nil, err
 	}
 
 	// 3. The pins: placeholders of the family's length until identity fills them.
@@ -402,124 +736,30 @@ func provision(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
 
 	// 4. The configurations.
 	sec := func(p ...string) string { return filepath.Join(append([]string{secrets}, p...)...) }
-	teeOf := func(descriptor, seed string, peerPin, peerPub string) map[string]any {
-		t := map[string]any{"provider": string(local), "sealer": o.sealer, "workload_descriptor": descriptor}
-		pc := map[string]any{}
-		for k, v := range peerCfg {
-			pc[k] = v
-		}
-		pc["measurement_path"] = peerPin
-		if family == tee.ProviderSimulated {
-			t["seed_path"] = seed
-			t["insecure_simulation"] = true
-			pc["public_key_path"] = peerPub
-		}
-		t["peer"] = pc
-		return t
-	}
-	sagvdCfg := map[string]any{
-		"vault": map[string]any{"listen_address": o.vaultListen,
-			"tls": map[string]any{"enabled": true, "server_cert": sec("sagvd", "tls", "server.crt"), "server_key": sec("sagvd", "tls", "server.key"), "client_cas": sec("shared", "tls", "ca.crt")}},
-		"http_api": map[string]any{"listen_address": o.apiListen, "bearer_token_file": sec("sagvd", "api_token")},
-		"tee":      teeOf(o.vaultDescriptor, sec("sagvd", "tee_seed"), workerPin, sec("sagvd", "peer_worker_pubkey")),
-		"keys": map[string]any{
-			"authority_signing": map[string]any{"kid": "sagvd-authority-demo", "seed_path": sec("sagvd", "authority_signing_seed")},
-			"audit_signing":     map[string]any{"kid": "sagvd-audit-demo", "seed_path": sec("sagvd", "audit_signing_seed")},
-			"session_sealing":   map[string]any{"kid": "session-sealing-demo", "material_path": sec("shared", "sealing.key")}},
-		"workers": map[string]any{"registry_path": sec("shared", "workers.json")},
-		"genome":  map[string]any{"bundle_dir": genomeDir, "gate": map[string]any{"atol": 1e-2, "rtol": 1e-3, "max_non_critical_outliers": 0}},
-		"audit":   map[string]any{"log_path": auditLog, "segment_events": 100000, "segment_max_age_seconds": 86400},
-		"queue":   map[string]any{"path": queuePath, "retain_finished_seconds": 30 * 86400},
-		"runtime": map[string]any{"job_timeout_seconds": 600, "handshake_timeout_seconds": 30, "queue_poll_ms": 50, "max_sessions": o.maxSessions,
-			"http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 600, "max_payload_bytes": 4 << 20},
-		"health": map[string]any{"listen_address": o.vaultHealth},
-		"log":    map[string]any{"level": o.logLevel, "format": "json"},
-	}
-	doorCfg := map[string]any{"command": door, "timeout_seconds": o.doorTimeout}
-	env := []string{"TOKENIZERS_PARALLELISM=false"}
-	if o.workerPackage != "" {
-		env = append([]string{"PYTHONPATH=" + o.workerPackage}, env...)
-	}
-	doorCfg["env"] = env
-	workerCfg := map[string]any{
-		"vault": map[string]any{"address": o.vaultAddress,
-			"tls": map[string]any{"enabled": true, "client_cert": sec("acp-compute", "tls", "client.crt"), "client_key": sec("acp-compute", "tls", "client.key"), "ca_bundle": sec("shared", "tls", "ca.crt"), "server_name": o.vaultServerName}},
-		"tee": teeOf(o.workerDescriptor, sec("acp-compute", "tee_seed"), vaultPin, sec("acp-compute", "peer_vault_pubkey")),
-		"keys": map[string]any{
-			"worker_signing":  map[string]any{"kid": "acp-compute-worker-demo", "seed_path": sec("acp-compute", "worker_signing_seed")},
-			"session_sealing": map[string]any{"kid": "session-sealing-demo", "material_path": workerSealingKey}},
-		"genome":  map[string]any{"door": doorCfg},
-		"runtime": map[string]any{"job_timeout_seconds": 600, "handshake_timeout_seconds": 30, "dial_backoff_initial_ms": 500, "dial_backoff_max_ms": 5000, "idle_between_jobs_ms": 200},
-		"health":  map[string]any{"listen_address": o.workerHealth},
-		"log":     map[string]any{"level": o.logLevel, "format": "json"},
-	}
 	sagvdPath, workerPath := filepath.Join(out, "sagvd.json"), filepath.Join(out, "acp-compute.json")
-	for _, c := range []struct {
+	if err := writeConfigs(res, map[string]struct {
 		path string
 		cfg  map[string]any
-	}{{sagvdPath, sagvdCfg}, {workerPath, workerCfg}} {
-		raw, err := json.MarshalIndent(c.cfg, "", "  ")
-		if err != nil {
-			return nil, err
-		}
-		if err := os.WriteFile(c.path, append(raw, '\n'), 0o600); err != nil {
-			return nil, err
-		}
-	}
-	res.Configs["sagvd"], res.Configs["acp-compute"] = sagvdPath, workerPath
-	for key, path := range res.Configs {
-		if res.ConfigsSHA256[key], err = provisionDigest(path); err != nil {
-			return nil, err
-		}
+	}{
+		"sagvd": {sagvdPath, sagvdConfig(o, out, secrets,
+			teeSection(local, family, o.sealer, o.vaultDescriptor, peerCfg, workerPin, sec("sagvd", "tee_seed"), sec("sagvd", "peer_worker_pubkey")), genomeDir, auditLog, queuePath)},
+		"acp-compute": {workerPath, workerConfig(o, secrets,
+			teeSection(local, family, o.sealer, o.workerDescriptor, peerCfg, vaultPin, sec("acp-compute", "tee_seed"), sec("acp-compute", "peer_vault_pubkey")),
+			o.vaultAddress, o.vaultServerName, door, workerSealingKey)},
+	}); err != nil {
+		return nil, err
 	}
 	fmt.Fprintf(stdout, "  configurations: %s, %s\n", sagvdPath, workerPath)
 
 	// 5. The identities, and the pins from them: each side pins the other.
-	identify := func(key, bin, cfg, pinPath, name string, side *provisionedSide) error {
-		raw, err := runDaemon(bin, "identity", "-config", cfg)
-		if err != nil {
-			return fmt.Errorf("%s identity: %w", name, err)
-		}
-		var id daemonIdentity
-		if err := json.Unmarshal(raw, &id); err != nil {
-			return fmt.Errorf("%s identity: not JSON: %w", name, err)
-		}
-		m, err := hex.DecodeString(id.TEEMeasurementHex)
-		if err != nil || len(m) != measurementLen(peer) {
-			return fmt.Errorf("%s identity: tee_measurement_hex %q is not a %d-byte measurement", name, id.TEEMeasurementHex, measurementLen(peer))
-		}
-		if err := os.WriteFile(pinPath, m, 0o600); err != nil {
-			return err
-		}
-		idFile := filepath.Join(out, key+"-identity.json")
-		if err := os.WriteFile(idFile, raw, 0o600); err != nil {
-			return err
-		}
-		side.MeasurementHex, side.Sealer, side.IdentityFile = id.TEEMeasurementHex, id.Sealer, idFile
-		side.AuditKID, side.AuditPublicKeyPEM = id.AuditKID, id.AuditPublicKeyPEM
-		side.AuthorityKID, side.AuthorityPublicKeyPEM = id.AuthorityKID, id.AuthorityPublicKeyPEM
-		if id.VTPM != nil {
-			side.VTPMPCRDigestHex = id.VTPM.PCRDigestHex
-		}
-		if id.TEEProvider != "" && tee.Provider(id.TEEProvider) != family && tee.Provider(id.TEEProvider) != local {
-			side.Warnings = append(side.Warnings, fmt.Sprintf("%s attests as %s, not the %s this deployment names", name, id.TEEProvider, family))
-		}
-		fmt.Fprintf(stdout, "  %s identity: %s (%s)\n", name, id.TEEMeasurementHex, id.TEEProvider)
-		return nil
-	}
-	// sagvd's measurement is the worker's pin, and the worker's is sagvd's.
-	if err := identify("sagvd", bins["sagvd"], sagvdPath, vaultPin, "sagvd", &res.Vault); err != nil {
+	if err := identify(out, "sagvd", bins["sagvd"], sagvdPath, vaultPin, "sagvd", family, local, &res.Vault, stdout); err != nil {
 		return nil, err
 	}
-	if err := identify("acp-compute", bins["acp-compute"], workerPath, workerPin, "acp-compute", &res.Worker); err != nil {
+	if err := identify(out, "acp-compute", bins["acp-compute"], workerPath, workerPin, "acp-compute", family, local, &res.Worker, stdout); err != nil {
 		return nil, err
 	}
-	if res.Vault.AuditPublicKeyPEM != "" {
-		auditPub := filepath.Join(out, "operator", "audit_public_key.pem")
-		if err := os.WriteFile(auditPub, []byte(res.Vault.AuditPublicKeyPEM), 0o600); err != nil {
-			return nil, err
-		}
-		fmt.Fprintf(stdout, "  audit public key: %s (keep it off the host: it verifies the log)\n", auditPub)
+	if err := writeAuditPublicKey(out, res, stdout); err != nil {
+		return nil, err
 	}
 
 	// 6. The key files sealed to this host.
@@ -527,38 +767,639 @@ func provision(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
 		res.Next = append(res.Next, bins["sagvd"]+" seal-keys -config "+sagvdPath, bins["acp-compute"]+" seal-keys -config "+workerPath)
 	} else {
 		for _, s := range []struct{ key, bin, cfg string }{{"sagvd", bins["sagvd"], sagvdPath}, {"acp-compute", bins["acp-compute"], workerPath}} {
-			raw, err := runDaemon(s.bin, "seal-keys", "-config", s.cfg)
-			if err != nil {
-				return nil, fmt.Errorf("%s seal-keys: %w", s.key, err)
+			if err := sealKeys(res, s.key, s.bin, s.cfg, stdout); err != nil {
+				return nil, err
 			}
-			var sealed daemonSealed
-			if err := json.Unmarshal(raw, &sealed); err != nil {
-				return nil, fmt.Errorf("%s seal-keys: not JSON: %w", s.key, err)
-			}
-			names := []string{}
-			for _, e := range sealed.Sealed {
-				names = append(names, e.Name)
-			}
-			for _, e := range sealed.AlreadySealed {
-				names = append(names, e.Name+" (already)")
-			}
-			res.Sealed[s.key] = names
-			fmt.Fprintf(stdout, "  %s key files sealed (%s): %s\n", s.key, sealed.Sealer, strings.Join(names, ", "))
 		}
 	}
 	res.Next = append(res.Next, bins["sagvd"]+" -config "+sagvdPath, bins["acp-compute"]+" -config "+workerPath,
 		"acpctl genome seal --content-dir <genome> --output "+filepath.Join(genomeDir, "gen-0.genome")+" --key-out "+filepath.Join(genomeDir, "gen-0.key"))
-	raw, err := json.MarshalIndent(res, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(filepath.Join(out, "provision.json"), append(raw, '\n'), 0o600); err != nil {
+	if err := writeResult(out, res, stdout); err != nil {
 		return nil, err
 	}
 	fmt.Fprintf(stdout, "  REST token (the operator's copy): %s (not printed)\n", tokenCopy)
-	fmt.Fprintf(stdout, "provision.json: %s\n", filepath.Join(out, "provision.json"))
 	return res, nil
 }
+
+// ---------------------------------------------------------------------
+// Two hosts (ADR 0028)
+// ---------------------------------------------------------------------
+
+// workerBundleSchema names the bundle's manifest.
+const workerBundleSchema = "vault-genome/acpctl-worker-bundle/v1"
+
+// workerBundle is the manifest of worker-bundle.tar: who the authority is
+// and where, what the worker is, and every file with its SHA-256. The
+// files are the worker's secrets, the CA certificate, the authority's
+// measurement as the worker's pin, and the authority's AMD chain when
+// the worker verifies a SEV-SNP authority.
+type workerBundle struct {
+	Schema    string            `json:"schema"`
+	Authority bundleAuthority   `json:"authority"`
+	Worker    bundleWorker      `json:"worker"`
+	Files     map[string]string `json:"files"`
+}
+
+type bundleAuthority struct {
+	Provider        string `json:"provider"`
+	MeasurementHex  string `json:"measurement_hex"`
+	VaultAddress    string `json:"vault_address"`
+	VaultServerName string `json:"vault_server_name"`
+	// AMDCertChain is the bundle path of the authority's product's chain,
+	// for the worker's verifier of a SEV-SNP authority.
+	AMDCertChain string `json:"amd_cert_chain,omitempty"`
+}
+
+type bundleWorker struct {
+	Provider   string `json:"provider"`
+	Descriptor string `json:"descriptor"`
+	Simulated  bool   `json:"simulated"`
+}
+
+// bundleName is the file the authority writes.
+const bundleName = "worker-bundle.tar"
+
+// writeWorkerBundle writes the bundle at path: the manifest first, then
+// every file under root named in files, each hashed into the manifest.
+func writeWorkerBundle(bundlePath, root string, files []string, m workerBundle) (string, error) {
+	m.Files = map[string]string{}
+	type entry struct {
+		name string
+		data []byte
+	}
+	var entries []entry
+	for _, name := range files {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(name)))
+		if err != nil {
+			return "", fmt.Errorf("the worker's bundle: %w", err)
+		}
+		sum := sha256.Sum256(data)
+		m.Files[name] = hex.EncodeToString(sum[:])
+		entries = append(entries, entry{name, data})
+	}
+	manifest, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	write := func(name string, data []byte) error {
+		if err := tw.WriteHeader(&tar.Header{Typeflag: tar.TypeReg, Name: name, Mode: 0o600, Size: int64(len(data)), ModTime: time.Unix(0, 0), Format: tar.FormatPAX}); err != nil {
+			return err
+		}
+		_, err := tw.Write(data)
+		return err
+	}
+	if err := write("bundle.json", append(manifest, '\n')); err != nil {
+		return "", err
+	}
+	for _, e := range entries {
+		if err := write(e.name, e.data); err != nil {
+			return "", err
+		}
+	}
+	if err := tw.Close(); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(bundlePath, buf.Bytes(), 0o600); err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(buf.Bytes())
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// readWorkerBundle reads a bundle: its manifest, and every file checked
+// against the manifest's hash. A file the manifest does not list, a hash
+// that does not match, or a name that leaves the deployment directory is
+// refused.
+func readWorkerBundle(bundlePath string) (workerBundle, map[string][]byte, error) {
+	raw, err := os.ReadFile(bundlePath)
+	if err != nil {
+		return workerBundle{}, nil, fmt.Errorf("--bundle: %w", err)
+	}
+	tr := tar.NewReader(bytes.NewReader(raw))
+	var m workerBundle
+	files := map[string][]byte{}
+	haveManifest := false
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return workerBundle{}, nil, fmt.Errorf("--bundle: not a bundle: %w", err)
+		}
+		if h.Typeflag != tar.TypeReg {
+			return workerBundle{}, nil, fmt.Errorf("--bundle: %q is not a regular file", h.Name)
+		}
+		name := h.Name
+		if name != path.Clean(name) || path.IsAbs(name) || name == "." || strings.HasPrefix(name, "../") || strings.Contains(name, "/../") {
+			return workerBundle{}, nil, fmt.Errorf("--bundle: %q is not a path inside the deployment", h.Name)
+		}
+		data, err := io.ReadAll(io.LimitReader(tr, 64<<20))
+		if err != nil {
+			return workerBundle{}, nil, fmt.Errorf("--bundle: read %q: %w", name, err)
+		}
+		if name == "bundle.json" {
+			if err := json.Unmarshal(data, &m); err != nil {
+				return workerBundle{}, nil, fmt.Errorf("--bundle: its manifest does not decode: %w", err)
+			}
+			haveManifest = true
+			continue
+		}
+		files[name] = data
+	}
+	if !haveManifest {
+		return workerBundle{}, nil, errors.New("--bundle: no bundle.json manifest")
+	}
+	if m.Schema != workerBundleSchema {
+		return workerBundle{}, nil, fmt.Errorf("--bundle: schema %q, want %s", m.Schema, workerBundleSchema)
+	}
+	for name, data := range files {
+		want, listed := m.Files[name]
+		if !listed {
+			return workerBundle{}, nil, fmt.Errorf("--bundle: %q is in the bundle but not in its manifest", name)
+		}
+		sum := sha256.Sum256(data)
+		if hex.EncodeToString(sum[:]) != want {
+			return workerBundle{}, nil, fmt.Errorf("--bundle: %q does not hash to what the manifest says", name)
+		}
+	}
+	for name := range m.Files {
+		if _, ok := files[name]; !ok {
+			return workerBundle{}, nil, fmt.Errorf("--bundle: %q is in the manifest but not in the bundle", name)
+		}
+	}
+	if m.Authority.VaultAddress == "" || m.Authority.MeasurementHex == "" || m.Worker.Provider == "" {
+		return workerBundle{}, nil, errors.New("--bundle: the manifest does not name the authority's address and measurement and the worker's family")
+	}
+	return m, files, nil
+}
+
+// unspecifiedHost reports whether a listen address binds every interface.
+func unspecifiedHost(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsUnspecified()
+}
+
+// provisionAuthorityCmd is `acpctl provision authority`.
+func provisionAuthorityCmd(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("provision authority", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	var o provisionOptions
+	o.commonFlags(flags)
+	o.authorityFlags(flags)
+	flags.StringVar(&o.workerProvider, "worker-provider", "", "the TEE family the worker attests with on its host (default: this host's family)")
+	flags.StringVar(&o.ownAMDCertChain, "own-amd-chain", "", "the AMD chain (PEM) of this host's chip's product, carried in the bundle for the worker's verifier of a SEV-SNP authority")
+	flags.StringVar(&o.fetchOwnAMDChain, "fetch-own-amd-chain", "", "fetch the AMD chain for this host's product (milan, genoa, turin) from AMD KDS for the bundle")
+	flags.Usage = func() {
+		fmt.Fprintln(stderr, "usage: acpctl provision authority --out DIR --provider FAMILY [--worker-provider FAMILY] --vault-listen ADDR --vault-address HOST:PORT [flags]")
+		fmt.Fprintln(stderr)
+		fmt.Fprintln(stderr, "Step 1 of 3 on the authority's host (ADR 0028): the key material, sagvd's configuration for the")
+		fmt.Fprintln(stderr, "worker's family, sagvd's identity and sealed key files, and DIR/worker-bundle.tar for the worker's host.")
+		flags.PrintDefaults()
+	}
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if o.out == "" || o.provider == "" {
+		fmt.Fprintln(stderr, "acpctl provision authority: --out and --provider are required")
+		flags.Usage()
+		return 2
+	}
+	result, err := provisionAuthority(o, stdout)
+	if err != nil {
+		fmt.Fprintln(stderr, "acpctl provision authority:", err)
+		return 1
+	}
+	printJSON(stdout, result)
+	return 0
+}
+
+// provisionAuthority is step 1 of 3: everything the one-host form does
+// except what needs the worker's chip, and the bundle for the worker.
+func provisionAuthority(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
+	if o.vaultAddress == "" {
+		if unspecifiedHost(o.vaultListen) {
+			return nil, fmt.Errorf("--vault-listen %s binds every interface: pass --vault-address HOST:PORT, the address the worker dials", o.vaultListen)
+		}
+		o.vaultAddress = o.vaultListen
+	}
+	if _, _, err := net.SplitHostPort(o.vaultAddress); err != nil {
+		return nil, fmt.Errorf("--vault-address %q: %w", o.vaultAddress, err)
+	}
+	local, family, err := provisionFamily(o.provider)
+	if err != nil {
+		return nil, err
+	}
+	worker, err := peerFamily("--worker-provider", o.workerProvider, family, o.insecureSimulation)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkSealer(o.sealer); err != nil {
+		return nil, err
+	}
+	bins, err := provisionBinaries(o.binDir, "keygen", "sagvd")
+	if err != nil {
+		return nil, err
+	}
+	out, err := prepareOut(o, "pins", "operator")
+	if err != nil {
+		return nil, err
+	}
+	genomeDir := orDefault(o.genomeDir, filepath.Join(out, "genomes"))
+	auditLog := orDefault(o.auditLog, filepath.Join(out, "audit", "returnpath-audit.db"))
+	queuePath := orDefault(o.queuePath, filepath.Join(out, "queue", "sagvd-jobs.db"))
+	for _, d := range []string{genomeDir, filepath.Dir(auditLog), filepath.Dir(queuePath)} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			return nil, err
+		}
+	}
+	secrets := filepath.Join(out, "secrets")
+	fmt.Fprintf(stdout, "provision authority: %s (family %s, worker %s, sealer %s, the worker dials %s)\n", out, family, worker, o.sealer, o.vaultAddress)
+
+	// 1. The key material: both sides', the worker's to leave in the bundle.
+	tokenCopy, workerSealingKey, err := keygen(bins, out, secrets, o.force, stdout)
+	if err != nil {
+		return nil, err
+	}
+	res := &provisionResult{Schema: "vault-genome/acpctl-provision/v1", Role: "authority", Phase: "awaiting-worker", Out: out, Provider: string(local), PeerProvider: string(worker), Sealer: o.sealer,
+		Binaries: bins, Secrets: secrets, Configs: map[string]string{}, ConfigsSHA256: map[string]string{}, Pins: map[string]string{}, APITokenFile: tokenCopy, Sealed: map[string][]string{},
+		VaultAddress: o.vaultAddress}
+
+	// 2. What sagvd's verifier needs of the worker's family, and what the
+	// worker's verifier needs of this host's: two chains when both are
+	// SEV-SNP chips.
+	chain, err := amdChain(out, o.amdCertChain, o.fetchAMDChain, o.kdsURL, "the worker's product, for sagvd", stdout)
+	if err != nil {
+		return nil, err
+	}
+	res.AMDCertChain = chain
+	peerCfg, err := peerConfig(out, worker, chain, o.pcsCacheDir)
+	if err != nil {
+		return nil, err
+	}
+	var ownChain string
+	if family == tee.ProviderGCPSEVSNP || family == tee.ProviderAzureSEVSNP {
+		ownChain, err = amdChain(out, o.ownAMDCertChain, o.fetchOwnAMDChain, o.kdsURL, "this host's product, for the worker", stdout)
+		if err != nil {
+			return nil, err
+		}
+		if ownChain == "" {
+			return nil, fmt.Errorf("the worker verifies this host's %s report: pass --own-amd-chain PATH or --fetch-own-amd-chain milan|genoa|turin, the chain of this chip's product", family)
+		}
+	}
+
+	// 3. The pins: sagvd's placeholder until its identity fills it; the
+	// worker's placeholder until pin-worker.
+	vaultPin := filepath.Join(out, "pins", "vault.measurement")
+	workerPin := filepath.Join(out, "pins", "worker.measurement")
+	for _, p := range []string{vaultPin, workerPin} {
+		if err := os.WriteFile(p, make([]byte, measurementLen(worker)), 0o600); err != nil {
+			return nil, err
+		}
+	}
+	res.Pins["vault"], res.Pins["worker"] = vaultPin, workerPin
+
+	// 4. sagvd's configuration.
+	sec := func(p ...string) string { return filepath.Join(append([]string{secrets}, p...)...) }
+	sagvdPath := filepath.Join(out, "sagvd.json")
+	if err := writeConfigs(res, map[string]struct {
+		path string
+		cfg  map[string]any
+	}{
+		"sagvd": {sagvdPath, sagvdConfig(o, out, secrets,
+			teeSection(local, family, o.sealer, o.vaultDescriptor, peerCfg, workerPin, sec("sagvd", "tee_seed"), sec("sagvd", "peer_worker_pubkey")), genomeDir, auditLog, queuePath)},
+	}); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(stdout, "  configuration: %s\n", sagvdPath)
+
+	// 5. sagvd's identity: the worker's pin, into the bundle.
+	if err := identify(out, "sagvd", bins["sagvd"], sagvdPath, vaultPin, "sagvd", family, local, &res.Vault, stdout); err != nil {
+		return nil, err
+	}
+	if err := writeAuditPublicKey(out, res, stdout); err != nil {
+		return nil, err
+	}
+
+	// 6. The worker's bundle: its secrets, the CA, the authority's
+	// measurement and chain, under a manifest of hashes. Then the
+	// worker's secrets leave this host.
+	files := []string{
+		"secrets/acp-compute/worker_signing_seed", "secrets/acp-compute/sealing.key",
+		"secrets/acp-compute/tls/client.crt", "secrets/acp-compute/tls/client.key",
+		"secrets/shared/tls/ca.crt", "pins/vault.measurement",
+	}
+	if family == tee.ProviderSimulated {
+		files = append(files, "secrets/acp-compute/tee_seed", "secrets/acp-compute/peer_vault_pubkey")
+	}
+	_ = workerSealingKey
+	manifest := workerBundle{Schema: workerBundleSchema,
+		Authority: bundleAuthority{Provider: string(family), MeasurementHex: res.Vault.MeasurementHex, VaultAddress: o.vaultAddress, VaultServerName: o.vaultServerName},
+		Worker:    bundleWorker{Provider: string(worker), Descriptor: o.workerDescriptor, Simulated: worker == tee.ProviderSimulated}}
+	if ownChain != "" {
+		rel, err := filepath.Rel(out, ownChain)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			// A chain given from outside the deployment: copy it in.
+			rel = filepath.Join("chains", "authority-amd-cert_chain.pem")
+			if err := copyFile(ownChain, filepath.Join(out, rel), 0o600); err != nil {
+				return nil, err
+			}
+		}
+		manifest.Authority.AMDCertChain = filepath.ToSlash(rel)
+		files = append(files, filepath.ToSlash(rel))
+	}
+	bundlePath := filepath.Join(out, bundleName)
+	sum, err := writeWorkerBundle(bundlePath, out, files, manifest)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.RemoveAll(filepath.Join(secrets, "acp-compute")); err != nil {
+		return nil, fmt.Errorf("remove the worker's secrets from this host: %w", err)
+	}
+	res.WorkerBundle, res.WorkerBundleSHA256 = bundlePath, sum
+	res.Worker = provisionedSide{Provider: string(worker)}
+	fmt.Fprintf(stdout, "  worker bundle: %s (sha256 %s; %d files; the worker's secrets are no longer on this host)\n", bundlePath, sum, len(files))
+
+	// 7. sagvd's key files sealed to this host.
+	if o.skipSeal {
+		res.Next = append(res.Next, bins["sagvd"]+" seal-keys -config "+sagvdPath)
+	} else if err := sealKeys(res, "sagvd", bins["sagvd"], sagvdPath, stdout); err != nil {
+		return nil, err
+	}
+	res.Next = append(res.Next,
+		"carry "+bundlePath+" to the worker's host over a channel you trust (it holds the worker's private keys); delete it there after the next step",
+		"on the worker's host: acpctl provision join --bundle "+bundleName+" --out <dir> --door-python <python> --base-model <dir> --worker-package <dir>",
+		"carry the worker's <dir>/acp-compute-identity.json back here",
+		"acpctl provision pin-worker --out "+out+" --identity acp-compute-identity.json",
+		bins["sagvd"]+" -config "+sagvdPath+" (after pin-worker; pins are read at start)",
+		"acpctl genome seal --content-dir <genome> --output "+filepath.Join(genomeDir, "gen-0.genome")+" --key-out "+filepath.Join(genomeDir, "gen-0.key"))
+	if err := writeResult(out, res, stdout); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(stdout, "  REST token (the operator's copy): %s (not printed)\n", tokenCopy)
+	return res, nil
+}
+
+// provisionJoinCmd is `acpctl provision join`.
+func provisionJoinCmd(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("provision join", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	var o provisionOptions
+	o.commonFlags(flags)
+	o.workerFlags(flags)
+	flags.StringVar(&o.bundle, "bundle", "", "the worker-bundle.tar the authority's host wrote (required)")
+	flags.StringVar(&o.workerDescriptor, "worker-descriptor", "", "acp-compute's tee.workload_descriptor (default: what the bundle names)")
+	flags.Usage = func() {
+		fmt.Fprintln(stderr, "usage: acpctl provision join --bundle worker-bundle.tar --out DIR [--provider auto] --door-python PY --base-model DIR [flags]")
+		fmt.Fprintln(stderr)
+		fmt.Fprintln(stderr, "Step 2 of 3 on the worker's host (ADR 0028): the bundle unpacked into DIR, acp-compute's configuration")
+		fmt.Fprintln(stderr, "for the authority it names, acp-compute's identity (DIR/acp-compute-identity.json, for pin-worker) and")
+		fmt.Fprintln(stderr, "its key files sealed to this host.")
+		flags.PrintDefaults()
+	}
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if o.out == "" || o.bundle == "" {
+		fmt.Fprintln(stderr, "acpctl provision join: --out and --bundle are required")
+		flags.Usage()
+		return 2
+	}
+	if o.provider == "" {
+		o.provider = "auto"
+	}
+	result, err := provisionJoin(o, stdout)
+	if err != nil {
+		fmt.Fprintln(stderr, "acpctl provision join:", err)
+		return 1
+	}
+	printJSON(stdout, result)
+	return 0
+}
+
+// provisionJoin is step 2 of 3: the worker's host joins the deployment
+// the bundle describes.
+func provisionJoin(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
+	m, files, err := readWorkerBundle(o.bundle)
+	if err != nil {
+		return nil, err
+	}
+	workerFamily := tee.Provider(m.Worker.Provider)
+	authorityFamily := tee.Provider(m.Authority.Provider)
+	local, family, err := provisionFamily(o.provider)
+	if err != nil {
+		return nil, err
+	}
+	if family != workerFamily {
+		return nil, fmt.Errorf("this host attests as %s, but the authority provisioned the worker as %s (its --worker-provider): the authority would refuse it; provision the authority again for this family, or run this on a %s host", family, workerFamily, workerFamily)
+	}
+	if family == tee.ProviderSimulated && !o.insecureSimulation {
+		return nil, errors.New("the simulated TEE is for development: pass --insecure-simulation to set it up")
+	}
+	if err := checkSealer(o.sealer); err != nil {
+		return nil, err
+	}
+	door, err := doorOf(o)
+	if err != nil {
+		return nil, err
+	}
+	bins, err := provisionBinaries(o.binDir, "acp-compute")
+	if err != nil {
+		return nil, err
+	}
+	out, err := prepareOut(o, "pins")
+	if err != nil {
+		return nil, err
+	}
+	secrets := filepath.Join(out, "secrets")
+	fmt.Fprintf(stdout, "provision join: %s (family %s, the authority %s at %s, sealer %s)\n", out, family, authorityFamily, m.Authority.VaultAddress, o.sealer)
+
+	// 1. The bundle's files, into the deployment.
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		dst := filepath.Join(out, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(dst, files[name], 0o600); err != nil {
+			return nil, err
+		}
+	}
+	fmt.Fprintf(stdout, "  from the bundle: %d files (%s)\n", len(names), strings.Join(names, ", "))
+	res := &provisionResult{Schema: "vault-genome/acpctl-provision/v1", Role: "worker", Phase: "joined", Out: out, Provider: string(local), PeerProvider: string(authorityFamily), Sealer: o.sealer,
+		Binaries: bins, Secrets: secrets, Configs: map[string]string{}, ConfigsSHA256: map[string]string{}, Pins: map[string]string{}, Sealed: map[string][]string{},
+		VaultAddress: m.Authority.VaultAddress,
+		Vault:        provisionedSide{Provider: m.Authority.Provider, MeasurementHex: m.Authority.MeasurementHex}}
+	vaultPin := filepath.Join(out, "pins", "vault.measurement")
+	res.Pins["vault"] = vaultPin
+	if pin, err := os.ReadFile(vaultPin); err != nil || hex.EncodeToString(pin) != m.Authority.MeasurementHex || len(pin) != measurementLen(authorityFamily) {
+		return nil, errors.New("--bundle: pins/vault.measurement is not the authority's measurement the manifest names")
+	}
+
+	// 2. What acp-compute's verifier needs of the authority's family.
+	chain := ""
+	if m.Authority.AMDCertChain != "" {
+		chain = filepath.Join(out, filepath.FromSlash(m.Authority.AMDCertChain))
+		res.AMDCertChain = chain
+	}
+	peerCfg, err := peerConfig(out, authorityFamily, chain, o.pcsCacheDir)
+	if err != nil {
+		return nil, fmt.Errorf("the authority is %s and the bundle carries no chain for it: %w", authorityFamily, err)
+	}
+
+	// 3. acp-compute's configuration.
+	sec := func(p ...string) string { return filepath.Join(append([]string{secrets}, p...)...) }
+	descriptor := orDefault(o.workerDescriptor, m.Worker.Descriptor)
+	workerPath := filepath.Join(out, "acp-compute.json")
+	if err := writeConfigs(res, map[string]struct {
+		path string
+		cfg  map[string]any
+	}{
+		"acp-compute": {workerPath, workerConfig(o, secrets,
+			teeSection(local, family, o.sealer, descriptor, peerCfg, vaultPin, sec("acp-compute", "tee_seed"), sec("acp-compute", "peer_vault_pubkey")),
+			m.Authority.VaultAddress, m.Authority.VaultServerName, door, sec("acp-compute", "sealing.key"))},
+	}); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(stdout, "  configuration: %s\n", workerPath)
+
+	// 4. The worker's identity, for the authority to pin.
+	if err := identify(out, "acp-compute", bins["acp-compute"], workerPath, "", "acp-compute", family, local, &res.Worker, stdout); err != nil {
+		return nil, err
+	}
+
+	// 5. The key files sealed to this host.
+	if o.skipSeal {
+		res.Next = append(res.Next, bins["acp-compute"]+" seal-keys -config "+workerPath)
+	} else if err := sealKeys(res, "acp-compute", bins["acp-compute"], workerPath, stdout); err != nil {
+		return nil, err
+	}
+	res.Next = append(res.Next,
+		"delete "+o.bundle+": its files are in "+out+" now, sealed to this host",
+		"carry "+res.Worker.IdentityFile+" to the authority's host and run: acpctl provision pin-worker --out <authority dir> --identity acp-compute-identity.json",
+		bins["acp-compute"]+" -config "+workerPath+" (once the authority has pinned this worker and is running)")
+	if err := writeResult(out, res, stdout); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(stdout, "  identity for the authority: %s\n", res.Worker.IdentityFile)
+	return res, nil
+}
+
+// provisionPinWorkerCmd is `acpctl provision pin-worker`.
+func provisionPinWorkerCmd(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("provision pin-worker", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	var o provisionOptions
+	flags.StringVar(&o.out, "out", "", "the authority's deployment directory, as provision authority wrote it (required)")
+	flags.StringVar(&o.identity, "identity", "", "the worker's acp-compute-identity.json, as provision join wrote it (required)")
+	flags.BoolVar(&o.force, "force", false, "pin an identity of another family than the authority was provisioned for, or pin again")
+	flags.Usage = func() {
+		fmt.Fprintln(stderr, "usage: acpctl provision pin-worker --out DIR --identity acp-compute-identity.json")
+		fmt.Fprintln(stderr)
+		fmt.Fprintln(stderr, "Step 3 of 3 on the authority's host (ADR 0028): the worker's measurement pinned; the deployment is complete.")
+		flags.PrintDefaults()
+	}
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if o.out == "" || o.identity == "" {
+		fmt.Fprintln(stderr, "acpctl provision pin-worker: --out and --identity are required")
+		flags.Usage()
+		return 2
+	}
+	result, err := provisionPinWorker(o, stdout)
+	if err != nil {
+		fmt.Fprintln(stderr, "acpctl provision pin-worker:", err)
+		return 1
+	}
+	printJSON(stdout, result)
+	return 0
+}
+
+// provisionPinWorker is step 3 of 3: the worker's measurement, from the
+// identity its host wrote, pinned on the authority.
+func provisionPinWorker(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
+	out, err := filepath.Abs(o.out)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := os.ReadFile(filepath.Join(out, "provision.json"))
+	if err != nil {
+		return nil, fmt.Errorf("--out: not a deployment provision authority wrote: %w", err)
+	}
+	var res provisionResult
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return nil, fmt.Errorf("--out: provision.json does not decode: %w", err)
+	}
+	if res.Role != "authority" {
+		return nil, fmt.Errorf("--out: provision.json has role %q; pin-worker completes a deployment provision authority began", res.Role)
+	}
+	if res.Phase == "complete" && !o.force {
+		return nil, errors.New("--out: the worker is pinned already (phase complete); pass --force to pin another")
+	}
+	idRaw, err := os.ReadFile(o.identity)
+	if err != nil {
+		return nil, fmt.Errorf("--identity: %w", err)
+	}
+	var id daemonIdentity
+	if err := json.Unmarshal(idRaw, &id); err != nil {
+		return nil, fmt.Errorf("--identity: not JSON: %w", err)
+	}
+	worker := tee.Provider(res.PeerProvider)
+	m, err := hex.DecodeString(id.TEEMeasurementHex)
+	if err != nil || len(m) != measurementLen(worker) {
+		return nil, fmt.Errorf("--identity: tee_measurement_hex %q is not a %d-byte measurement of a %s worker", id.TEEMeasurementHex, measurementLen(worker), worker)
+	}
+	var warnings []string
+	if id.TEEProvider != "" && tee.Provider(id.TEEProvider) != worker {
+		msg := fmt.Sprintf("the identity attests as %s, but the authority was provisioned for a %s worker (--worker-provider): sagvd would refuse it at every handshake", id.TEEProvider, worker)
+		if !o.force {
+			return nil, errors.New(msg + "; provision the authority again for that family, or pass --force to pin it anyway")
+		}
+		warnings = append(warnings, msg)
+	}
+	pinPath := res.Pins["worker"]
+	if pinPath == "" {
+		pinPath = filepath.Join(out, "pins", "worker.measurement")
+	}
+	if err := os.WriteFile(pinPath, m, 0o600); err != nil {
+		return nil, err
+	}
+	idFile := filepath.Join(out, "acp-compute-identity.json")
+	if err := os.WriteFile(idFile, idRaw, 0o600); err != nil {
+		return nil, err
+	}
+	res.Worker = provisionedSide{Provider: id.TEEProvider, MeasurementHex: id.TEEMeasurementHex, Sealer: id.Sealer, IdentityFile: idFile, Warnings: warnings}
+	if id.VTPM != nil {
+		res.Worker.VTPMPCRDigestHex = id.VTPM.PCRDigestHex
+	}
+	res.Pins["worker"] = pinPath
+	res.Phase = "complete"
+	res.Next = []string{
+		res.Binaries["sagvd"] + " -config " + res.Configs["sagvd"] + " (start it again if it is running: pins are read at start)",
+		"on the worker's host: acp-compute -config <dir>/acp-compute.json",
+	}
+	fmt.Fprintf(stdout, "provision pin-worker: %s pins the worker %s (%s)\n", out, id.TEEMeasurementHex, id.TEEProvider)
+	if err := writeResult(out, &res, stdout); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+// ---------------------------------------------------------------------
 
 func orDefault(v, d string) string {
 	if v != "" {
@@ -578,6 +1419,9 @@ func copyFile(src, dst string, mode fs.FileMode) error {
 	}
 	data, err := os.ReadFile(src)
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
 		return err
 	}
 	return os.WriteFile(dst, data, mode)
