@@ -1,0 +1,13 @@
+{
+  "authority_kid": "sagvd-authority-demo",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEANkTsh1WpYXsD6bImskJ2/Acv6OkVTi9lbb5XGUi2xbI=\n-----END PUBLIC KEY-----\n",
+  "tee_provider": "gcp-sev-snp",
+  "tee_measurement_hex": "7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc",
+  "sealer": "sev-snp-derived-key",
+  "audit_kid": "sagvd-audit-demo",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAKAnWQvC1hdAhsqRRe7d0cxfAm+QF2qpPthJMYltezGk=\n-----END PUBLIC KEY-----\n",
+  "policy_version": "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0",
+  "policy_profiles": [
+    "gate"
+  ]
+}

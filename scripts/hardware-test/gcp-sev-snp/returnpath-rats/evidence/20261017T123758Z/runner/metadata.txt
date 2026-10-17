@@ -1,0 +1,7 @@
+run=20261017T123540Z
+tree=e0d7b31f933199f6ee6f31918f5fa05a72e5cdd9
+project=rats-probe zone=us-central1-c
+attester=vg-rp-rats-20261017t123540z verifier=vg-verifier-20261017t123540z
+runner_ip=104.14.24.198
+verifier_external_ip=34.68.232.67 verifier_internal_ip=10.128.15.195
+launch_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc

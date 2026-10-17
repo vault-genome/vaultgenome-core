@@ -1,0 +1,12 @@
+== 12:44:44 inputs
+== 12:44:44 provision (keygen); the pins start as placeholders
+== 12:44:44 the key files sealed to the vTPM (ADR 0023): sagvd's and acp-compute's seeds and the session sealing key, in place
+== 12:44:45 identities: each daemon reads the launch measurement from the vTPM's HCL report
+== 12:44:45 the escrow key sealed to the guest's vTPM (ADR 0022): made in sagvd's process, sealed under this boot's PCR policy, opened once to prove it, re-sealed through the recovery ceremony
+== 12:44:46 the genome trained here, sealed for sagvd
+== 12:44:46 sagvd on the confidential GPU VM
+== 12:44:47 a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+== 12:44:50 acp-compute on the confidential GPU VM, the door on the H100
+== 12:44:52 the gate job over the Return Path: the genome restored on the H100
+== 12:45:50 the manifests the verifiers fetched (rim-cache: the RIM service's responses, public)
+== 12:45:50 metrics; stop both; verify the audit log with the published key

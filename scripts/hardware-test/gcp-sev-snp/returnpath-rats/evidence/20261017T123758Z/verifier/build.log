@@ -1,0 +1,404 @@
+make: Entering directory '/root/vg/src/veraison-services/src'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/builtin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/builtin'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/config'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/config'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/coserv'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/coserv/api'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/coserv/api'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/coserv/cmd/coserv-service'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build -o coserv-service -ldflags \
+"-X 'github.com/veraison/services/config.Version=+' \
+ -X 'github.com/veraison/services/config.SchemeLoader=plugins'"
+go: downloading google.golang.org/protobuf v1.36.11
+go: downloading github.com/fxamacker/cbor/v2 v2.8.0
+go: downloading github.com/gin-gonic/gin v1.9.1
+go: downloading github.com/lestrrat-go/jwx/v2 v2.1.3
+go: downloading github.com/veraison/corim v1.1.3-0.20260430132037-b8653a7359da
+go: downloading github.com/veraison/go-cose v1.3.0
+go: downloading go.uber.org/zap v1.27.0
+go: downloading github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d
+go: downloading github.com/mitchellh/mapstructure v1.5.0
+go: downloading github.com/spf13/pflag v1.0.10
+go: downloading github.com/spf13/viper v1.21.0
+go: downloading golang.org/x/text v0.41.0
+go: downloading google.golang.org/grpc v1.83.2
+go: downloading github.com/fatih/color v1.18.0
+go: downloading github.com/hashicorp/go-hclog v1.5.0
+go: downloading github.com/moogar0880/problems v0.1.1
+go: downloading github.com/petar-dambovaliev/aho-corasick v0.0.0-20211021192214-5ab2d9280aa9
+go: downloading github.com/spf13/jwalterweatherman v1.1.0
+go: downloading github.com/x448/float16 v0.8.4
+go: downloading github.com/gin-contrib/sse v0.1.0
+go: downloading github.com/mattn/go-isatty v0.0.20
+go: downloading golang.org/x/net v0.58.0
+go: downloading github.com/lestrrat-go/blackmagic v1.0.4
+go: downloading github.com/lestrrat-go/httprc v1.0.6
+go: downloading github.com/lestrrat-go/iter v1.0.2
+go: downloading github.com/lestrrat-go/option v1.0.1
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading github.com/fsnotify/fsnotify v1.9.0
+go: downloading github.com/go-viper/mapstructure/v2 v2.4.0
+go: downloading github.com/sagikazarmark/locafero v0.11.0
+go: downloading github.com/spf13/afero v1.15.0
+go: downloading github.com/spf13/cast v1.10.0
+go: downloading github.com/veraison/corim-store v0.2.1
+go: downloading github.com/veraison/ear v1.1.4-0.20260213122616-3034258cda59
+go: downloading github.com/stretchr/testify v1.11.1
+go: downloading github.com/veraison/cmw v0.2.0
+go: downloading github.com/veraison/eat v0.0.0-20220117140849-ddaf59d69f53
+go: downloading github.com/veraison/swid v1.1.1-0.20251003121634-fd1f7f1e1897
+go: downloading github.com/mattn/go-colorable v0.1.14
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa
+go: downloading github.com/go-playground/validator/v10 v10.19.0
+go: downloading github.com/pelletier/go-toml/v2 v2.2.4
+go: downloading github.com/ugorji/go/codec v1.2.11
+go: downloading gopkg.in/yaml.v3 v3.0.1
+go: downloading golang.org/x/sys v0.47.0
+go: downloading github.com/lestrrat-go/httpcc v1.0.1
+go: downloading golang.org/x/crypto v0.56.0
+go: downloading github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8
+go: downloading github.com/subosito/gotenv v1.6.0
+go: downloading go.yaml.in/yaml/v3 v3.0.4
+go: downloading fortio.org/safecast v1.0.0
+go: downloading github.com/google/uuid v1.6.0
+go: downloading github.com/hashicorp/go-plugin v1.4.4
+go: downloading github.com/aws/aws-sdk-go-v2 v1.36.3
+go: downloading github.com/aws/aws-sdk-go-v2/config v1.29.9
+go: downloading github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.1
+go: downloading github.com/lestrrat-go/jwx/v3 v3.0.8
+go: downloading github.com/huandu/xstrings v1.3.3
+go: downloading github.com/uptrace/bun v1.2.16
+go: downloading github.com/gabriel-vasile/mimetype v1.4.3
+go: downloading github.com/go-playground/universal-translator v0.18.1
+go: downloading github.com/leodido/go-urn v1.4.0
+go: downloading github.com/golang/protobuf v1.5.4
+go: downloading github.com/hashicorp/yamux v0.0.0-20180604194846-3520598351bb
+go: downloading github.com/mitchellh/go-testing-interface v1.0.0
+go: downloading github.com/oklog/run v1.0.0
+go: downloading github.com/aws/smithy-go v1.22.2
+go: downloading github.com/aws/aws-sdk-go-v2/credentials v1.17.62
+go: downloading github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.30
+go: downloading github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3
+go: downloading github.com/aws/aws-sdk-go-v2/service/sso v1.25.1
+go: downloading github.com/aws/aws-sdk-go-v2/service/ssooidc v1.29.1
+go: downloading github.com/aws/aws-sdk-go-v2/service/sts v1.33.17
+go: downloading github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.34
+go: downloading github.com/open-policy-agent/opa v0.68.0
+go: downloading github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
+go: downloading github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
+go: downloading github.com/lestrrat-go/option/v2 v2.0.0
+go: downloading github.com/lestrrat-go/httprc/v3 v3.0.0
+go: downloading github.com/go-sql-driver/mysql v1.9.3
+go: downloading github.com/jackc/pgx/v5 v5.10.0
+go: downloading github.com/uptrace/bun/dialect/mysqldialect v1.2.16
+go: downloading github.com/uptrace/bun/dialect/pgdialect v1.2.16
+go: downloading github.com/uptrace/bun/dialect/sqlitedialect v1.2.16
+go: downloading github.com/uptrace/bun/driver/sqliteshim v1.2.15
+go: downloading github.com/uptrace/bun/extra/bundebug v1.2.15
+go: downloading github.com/jinzhu/inflection v1.0.0
+go: downloading github.com/puzpuzpuz/xsync/v3 v3.5.1
+go: downloading github.com/vmihailenco/msgpack/v5 v5.4.1
+go: downloading github.com/go-playground/locales v0.14.1
+go: downloading github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.34
+go: downloading github.com/Masterminds/squirrel v1.5.4
+go: downloading github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3
+go: downloading github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15
+go: downloading github.com/valyala/fastjson v1.6.4
+go: downloading filippo.io/edwards25519 v1.1.1
+go: downloading golang.org/x/mod v0.40.0
+go: downloading modernc.org/sqlite v1.38.0
+go: downloading github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc
+go: downloading github.com/vmihailenco/tagparser/v2 v2.0.0
+go: downloading github.com/lann/builder v0.0.0-20180802200727-47ae307949d0
+go: downloading github.com/jackc/pgpassfile v1.0.0
+go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761
+go: downloading github.com/jackc/puddle/v2 v2.2.2
+go: downloading github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0
+go: downloading golang.org/x/sync v0.22.0
+go: downloading github.com/gobwas/glob v0.2.3
+go: downloading github.com/OneOfOne/xxhash v1.2.8
+go: downloading gopkg.in/yaml.v2 v2.4.0
+go: downloading github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
+go: downloading sigs.k8s.io/yaml v1.4.0
+go: downloading github.com/gorilla/mux v1.8.1
+go: downloading github.com/prometheus/client_golang v1.20.2
+go: downloading go.opentelemetry.io/otel/sdk v1.45.0
+go: downloading github.com/tchap/go-patricia/v2 v2.3.1
+go: downloading go.opentelemetry.io/otel v1.45.0
+go: downloading github.com/yashtewari/glob-intersection v0.2.0
+go: downloading github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415
+go: downloading github.com/sirupsen/logrus v1.9.3
+go: downloading github.com/go-ini/ini v1.67.0
+go: downloading github.com/agnivade/levenshtein v1.1.1
+go: downloading github.com/beorn7/perks v1.0.1
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/prometheus/client_model v0.6.1
+go: downloading github.com/prometheus/common v0.55.0
+go: downloading github.com/prometheus/procfs v0.15.1
+go: downloading github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb
+go: downloading github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
+go: downloading go.opentelemetry.io/otel/trace v1.45.0
+go: downloading github.com/go-logr/stdr v1.2.2
+go: downloading github.com/go-logr/logr v1.4.4
+go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+go: downloading go.opentelemetry.io/otel/metric v1.45.0
+go: downloading modernc.org/libc v1.66.3
+go: downloading modernc.org/mathutil v1.7.1
+go: downloading github.com/dustin/go-humanize v1.0.1
+go: downloading golang.org/x/exp v0.0.0-20250711185948-6ae5c78190dc
+go: downloading modernc.org/memory v1.11.0
+go: downloading github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/coserv/cmd/coserv-service'
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/coserv'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/handler'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/handler'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/kvstore'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/kvstore'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/log'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/log'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/management'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/management/api'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/management/api'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/management/cmd/management-service'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build -o management-service -ldflags \
+"-X 'github.com/veraison/services/config.Version=+' \
+ -X 'github.com/veraison/services/config.SchemeLoader=plugins'"
+go: downloading github.com/mattn/go-sqlite3 v1.14.28
+go: downloading github.com/tbaehler/gin-keycloak v1.6.1
+go: downloading gopkg.in/go-jose/go-jose.v2 v2.6.3
+go: downloading github.com/veraison/ccatoken v1.3.2-0.20250512122414-b26aba0635c4
+go: downloading github.com/veraison/psatoken v1.2.1-0.20240912124429-aec3ece7886e
+go: downloading github.com/veraison/parsec v0.2.1-0.20240912163334-0368b9c16228
+go: downloading github.com/veraison/dice v0.0.1
+go: downloading github.com/google/go-sev-guest v0.15.0
+go: downloading github.com/veraison/ratsd v0.0.0-20260122210857-1ac35b2e2184
+go: downloading github.com/google/go-tpm v0.3.3
+go: downloading github.com/golang/glog v1.2.5
+go: downloading github.com/patrickmn/go-cache v2.1.0+incompatible
+go: downloading golang.org/x/oauth2 v0.36.0
+go: downloading github.com/google/logger v1.1.1
+go: downloading github.com/spf13/cobra v1.10.1
+go: downloading github.com/virtee/sev-snp-measure-go v0.0.0-20241128091219-920346c42ecb
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/management/cmd/management-service'
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/management'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Entering directory '/root/vg/src/veraison-services/src/plugin/test'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make -C redshirt
+make[3]: Entering directory '/root/vg/src/veraison-services/src/plugin/test/redshirt'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../bin/redshirt.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/plugin/test/redshirt'
+make -C trooper
+make[3]: Entering directory '/root/vg/src/veraison-services/src/plugin/test/trooper'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../bin/trooper.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/plugin/test/trooper'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/plugin/test'
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/plugin'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/policy'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/policy'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/proto'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/proto'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/provisioning'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/provisioning/api'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/provisioning/api'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/provisioning/provisioner'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/provisioning/provisioner'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/provisioning/cmd/provisioning-service'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make -C ../../../proto protogen
+make[3]: Entering directory '/root/vg/src/veraison-services/src/proto'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: 'protogen' is up to date.
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/proto'
+CGO_ENABLED=1 go build -o provisioning-service -ldflags \
+"-X 'github.com/veraison/services/config.Version=+' \
+ -X 'github.com/veraison/services/config.SchemeLoader=plugins'"
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/provisioning/cmd/provisioning-service'
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/provisioning'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/scheme'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/common'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/common'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/arm-cca'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: Entering directory '/root/vg/src/veraison-services/src/scheme/arm-cca/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../../bin/scheme-arm-cca.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/scheme/arm-cca/plugin'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/arm-cca'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/parsec-cca'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: Entering directory '/root/vg/src/veraison-services/src/scheme/parsec-cca/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../../bin/scheme-parsec-cca.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/scheme/parsec-cca/plugin'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/parsec-cca'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/parsec-tpm'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: Entering directory '/root/vg/src/veraison-services/src/scheme/parsec-tpm/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../../bin/scheme-parsec-tpm.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/scheme/parsec-tpm/plugin'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/parsec-tpm'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/psa-iot'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: Entering directory '/root/vg/src/veraison-services/src/scheme/psa-iot/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../../bin/scheme-psa-iot.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/scheme/psa-iot/plugin'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/psa-iot'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/riot'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: Entering directory '/root/vg/src/veraison-services/src/scheme/riot/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../../bin/scheme-riot.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/scheme/riot/plugin'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/riot'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/sevsnp'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: Entering directory '/root/vg/src/veraison-services/src/scheme/sevsnp/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../../bin/scheme-sevsnp.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/scheme/sevsnp/plugin'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/sevsnp'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/tpm-enacttrust'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: Entering directory '/root/vg/src/veraison-services/src/scheme/tpm-enacttrust/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../../bin/scheme-tpm-enacttrust.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/scheme/tpm-enacttrust/plugin'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/tpm-enacttrust'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/amd-kds-coserv'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: Entering directory '/root/vg/src/veraison-services/src/scheme/amd-kds-coserv/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../../bin/coserv-amd-kds.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/scheme/amd-kds-coserv/plugin'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/amd-kds-coserv'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/scheme/nvidia-coserv'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[3]: Entering directory '/root/vg/src/veraison-services/src/scheme/nvidia-coserv/plugin'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build  -o ../../bin/coserv-nvidia.plugin
+make[3]: Leaving directory '/root/vg/src/veraison-services/src/scheme/nvidia-coserv/plugin'
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/scheme/nvidia-coserv'
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/scheme'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/verification'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/verification/api'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/verification/api'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/verification/verifier'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/verification/verifier'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/verification/sessionmanager'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/verification/sessionmanager'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/verification/cmd/verification-service'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build -o verification-service -ldflags \
+"-X 'github.com/veraison/services/config.Version=+' \
+ -X 'github.com/veraison/services/config.SchemeLoader=plugins'"
+go: downloading github.com/denisbrodbeck/machineid v1.0.1
+go: downloading github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874
+go: downloading github.com/jellydator/ttlcache/v3 v3.0.0
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/verification/cmd/verification-service'
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/verification'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/vts'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/vts/trustedservices'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/vts/trustedservices'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/vts/policymanager'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/vts/policymanager'
+make[2]: Entering directory '/root/vg/src/veraison-services/src/vts/cmd/vts-service'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+CGO_ENABLED=1 go build -o vts-service -ldflags \
+"-X 'github.com/veraison/services/config.Version=+' \
+ -X 'github.com/veraison/services/config.SchemeLoader=plugins'"
+make[2]: Leaving directory '/root/vg/src/veraison-services/src/vts/cmd/vts-service'
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/vts'
+make[1]: Entering directory '/root/vg/src/veraison-services/src/vtsclient'
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/root/vg/src/veraison-services/src/vtsclient'
+make: Leaving directory '/root/vg/src/veraison-services/src'
