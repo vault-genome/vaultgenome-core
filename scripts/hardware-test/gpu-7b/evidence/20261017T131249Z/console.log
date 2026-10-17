@@ -1,0 +1,24 @@
+== 13:13:36 inputs
+== 13:13:36 GPU driver
+== 13:13:36 python runtime (CUDA 12.6 wheels)
+W: http://packages.cloud.google.com/apt/dists/apt-transport-artifact-registry-stable/InRelease: Key is stored in legacy trusted.gpg keyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+W: https://us-apt.pkg.dev/projects/gce-ai-infra/dists/gpudirect-gib-apt/InRelease: Key is stored in legacy trusted.gpg keyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+== 13:18:15 base model Qwen/Qwen2.5-7B-Instruct@a09a35458c702b33eeacc393d103063234e8bc28
+Fetching 14 files:   0%|          | 0/14 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 14 files:  14%|█▍        | 2/14 [00:00<00:01,  9.72it/s]Fetching 14 files:  29%|██▊       | 4/14 [00:00<00:00, 13.89it/s]Fetching 14 files:  43%|████▎     | 6/14 [00:00<00:00, 16.01it/s]Fetching 14 files:  71%|███████▏  | 10/14 [00:00<00:00, 23.28it/s]Fetching 14 files:  71%|███████▏  | 10/14 [00:19<00:00, 23.28it/s]Fetching 14 files:  79%|███████▊  | 11/14 [01:13<00:37, 12.37s/it]Fetching 14 files:  86%|████████▌ | 12/14 [01:15<00:20, 10.25s/it]Fetching 14 files:  93%|█████████▎| 13/14 [01:30<00:10, 10.25s/it]Fetching 14 files: 100%|██████████| 14/14 [01:32<00:00,  9.64s/it]Fetching 14 files: 100%|██████████| 14/14 [01:32<00:00,  6.60s/it]
+== 13:19:48 fine-tune on the L4 in bfloat16 (the recipe records device and dtype)
+== 13:22:41 seal
+== 13:22:41 restore from the bundle
+== 13:22:42 gate and measure on the L4 (the pinned runtime)
+== 13:24:54 replay the recipe on the L4
+== 13:26:11 gate and measure on this VM's CPU (bfloat16, 8 threads)
