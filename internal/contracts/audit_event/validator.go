@@ -39,6 +39,8 @@ var validKinds = map[Kind]struct{}{
 	KindKeyReleaseDenied: {},
 	// Policy-driven failover (SchemaVersion 6). See ADR 0012.
 	KindFailoverDecided: {},
+	// The closing of a log segment (SchemaVersion 7). See ADR 0027.
+	KindAuditSegmentClosed: {},
 }
 
 // Validate runs static consistency checks. Chain continuity (PrevHash

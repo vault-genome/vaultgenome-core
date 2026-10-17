@@ -127,6 +127,8 @@ func TestAuditEvent_AllKindsAreValidated(t *testing.T) {
 		KindKeyReleaseDenied,
 		// Policy-driven failover (SchemaVersion 6). See ADR 0012.
 		KindFailoverDecided,
+		// The closing of a log segment (SchemaVersion 7). See ADR 0027.
+		KindAuditSegmentClosed,
 	}
 	for _, k := range all {
 		t.Run(string(k), func(t *testing.T) {
@@ -188,14 +190,14 @@ func TestAuditEvent_SchemaVersion_V5BackwardCompatible(t *testing.T) {
 	require.NoError(t, e.Validate())
 }
 
-// TestAuditEvent_SchemaVersion_V6CurrentAccepted asserts the current
-// write-side schema version is accepted. ADR 0012 bumps
-// SchemaVersionCurrent from 5 → 6 with KindFailoverDecided.
-func TestAuditEvent_SchemaVersion_V6CurrentAccepted(t *testing.T) {
+// TestAuditEvent_SchemaVersion_V7CurrentAccepted asserts the current
+// write-side schema version is accepted. ADR 0027 bumps
+// SchemaVersionCurrent from 6 → 7 with KindAuditSegmentClosed.
+func TestAuditEvent_SchemaVersion_V7CurrentAccepted(t *testing.T) {
 	t.Parallel()
 	e := validFixture()
 	e.SchemaVersion = SchemaVersionCurrent
-	require.Equal(t, uint16(6), SchemaVersionCurrent,
-		"ADR 0012 sets SchemaVersionCurrent to 6; a change here MUST be reflected in an ADR")
+	require.Equal(t, uint16(7), SchemaVersionCurrent,
+		"ADR 0027 sets SchemaVersionCurrent to 7; a change here MUST be reflected in an ADR")
 	require.NoError(t, e.Validate())
 }
