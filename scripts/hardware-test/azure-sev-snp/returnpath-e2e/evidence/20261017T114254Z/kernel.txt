@@ -1,0 +1,1 @@
+Linux vg-asnp-20261017t114010z 6.17.0-1018-azure-fde #18~24.04.1-Ubuntu SMP Mon Jul  6 22:24:09 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux

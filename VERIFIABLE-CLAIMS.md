@@ -2023,6 +2023,13 @@ being edited beside it). The kit:
 the provider: `internal/shared/tee/azure_sev_snp.go` and
 `azure_vtpm.go`; the runbook:
 [`docs/operator/runbooks/real-tee-azure-sev-snp.md`](docs/operator/runbooks/real-tee-azure-sev-snp.md).
+A second run on 2026-10-17 with `tee.provider: "auto"` on both daemons,
+[`scripts/hardware-test/azure-sev-snp/returnpath-e2e/evidence/20261017T114254Z/`](scripts/hardware-test/azure-sev-snp/returnpath-e2e/evidence/20261017T114254Z/)
+(commit `55c549e7`): `auto` found no configfs-tsm under the paravisor,
+read the vTPM's HCL report and resolved `azure-sev-snp` (the daemons'
+logs: `resolved_from=vtpm-hcl`; both identities `tee_provider:
+azure-sev-snp`), and the run came out as the first — the same
+measurement `11920f61…`, EXACT 6/6, 17 audit events verified, 136.6 s.
 
 **Reproduce:**
 
