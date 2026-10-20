@@ -1,0 +1,57 @@
+logging:
+  level: info  # valid levels: error, warning, info, debug
+  output-paths:
+    - stdout
+    - /opt/veraison/logs/{{ .service }}-stdout.log
+provisioning:
+  listen-addr: 0.0.0.0:9443
+  protocol: https
+  cert: /opt/veraison/certs/provisioning.crt
+  cert-key: /opt/veraison/certs/provisioning.key
+verification:
+  listen-addr: 0.0.0.0:8443
+  protocol: https
+  cert: /opt/veraison/certs/verification.crt
+  cert-key: /opt/veraison/certs/verification.key
+  client-ca: /opt/veraison/certs/rootCA.crt
+management:
+  listen-addr: 0.0.0.0:10443
+  protocol: https
+  cert: /opt/veraison/certs/management.crt
+  cert-key: /opt/veraison/certs/management.key
+coserv:
+  listen-addr: 0.0.0.0:11443
+  protocol: https
+  cert: /opt/veraison/certs/coserv.crt
+  cert-key: /opt/veraison/certs/coserv.key
+  max-expiry: 5 mins
+  signer:
+    alg: ES256
+    key: /opt/veraison/signing/coserv-signer.jwk
+vts:
+  server-addr: localhost:50051
+  tls: true
+  cert: /opt/veraison/certs/vts.crt
+  cert-key: /opt/veraison/certs/vts.key
+  ca-certs: /opt/veraison/certs/rootCA.crt
+ear-signer:
+  alg: ES256
+  key: /opt/veraison/signing/skey.jwk
+plugin:
+  backend: go-plugin
+  go-plugin:
+    dir: /opt/veraison/plugins/
+store:
+  trace-sql: false
+  dbms: sqlite3
+  dsn: /opt/veraison/stores/store.sql
+po-store:
+  backend: sql
+  sql:
+    max_connections: 10
+    driver: sqlite3
+    datasource: /opt/veraison/stores/po-store.sql
+po-agent:
+    backend: opa
+auth:
+  backend: none

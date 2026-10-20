@@ -1,0 +1,9 @@
+start=2026-10-20T22:40:59Z
+verifier_create=2026-10-20T22:42:01Z
+attester_create=2026-10-20T22:42:26Z
+attester_report=2026-10-20T22:44:07Z
+verifier_ready=2026-10-20T22:48:59Z
+corim_provisioned=2026-10-20T22:49:02Z
+attester_released=2026-10-20T22:49:09Z
+attester_done=2026-10-20T22:50:40Z
+verifier_done=2026-10-20T22:50:58Z
