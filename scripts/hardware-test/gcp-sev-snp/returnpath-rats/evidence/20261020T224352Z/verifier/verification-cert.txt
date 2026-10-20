@@ -1,0 +1,5 @@
+subject=CN = verification-service
+X509v3 Subject Alternative Name: 
+    DNS:verification-service, DNS:localhost, DNS:vg-verifier-20261020t224059z
+notBefore=Oct 20 22:48:46 2026 GMT
+notAfter=Oct 17 22:48:46 2036 GMT

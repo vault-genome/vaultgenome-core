@@ -1,0 +1,10 @@
+== packages
+== Go 1.27.2 (pinned, from go.dev, checksum verified)
+== sources and the kit's root CA from gs://rats-probe-vg-rats-20261020t224059z/verifier
+== build Veraison (combined plugins) and deploy natively under /opt/veraison
+== service certificates under the kit's root CA, SAN = vg-verifier-20261020t224059z; the EAR signing key
+== configuration: the verification API takes only callers with a certificate of the root CA
+== start: vts, provisioning, verification, management
+===VERIFIER-READY=== 20261020T224257Z name=vg-verifier-20261020t224059z version=+ listening_after=1s
+== waiting for vg-done
+== collect: the services' logs, the stores' contents, the certificates (public)
