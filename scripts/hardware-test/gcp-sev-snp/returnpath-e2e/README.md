@@ -35,6 +35,42 @@ the Return Path handshake carries genuine hardware Evidence on both sides,
 that the pinned identity is the one admitted, and that every decision of
 the authority is on a verifiable record before it took effect.
 
+## Results — runs `20261021T212451Z` (cnsa) and `20261021T213945Z` (fips): `VG_FIPS=1` — the certified module with enforcement on (ADR 0030, part two)
+
+The same kit with every binary built on the certified Go Cryptographic
+Module v1.0.0 (`GOFIPS140=v1.0.0`) and every Go process on the guest
+under `GODEBUG=fips140=only`, in which a non-approved service fails
+instead of succeeding; the profile `cnsa` — the kit's third argument,
+new — in `sagvd`'s configuration. us-central1-c, `n2d-standard-4`, the
+image of every run since September (measurement `7dc7c12e…25acc`), the
+tree `a6b33a2`. The whole script took **131.3 s** (runtime from the locks
+81.8 s). The kit's verdict is new too: it requires both rogues refused,
+the session opened, the job `succeeded` with the gate EXACT and the audit
+log verified — and, under the flag, the record of the module on every
+process.
+
+| Step | Outcome |
+|---|---|
+| The record of the module | `versions.txt`: `sagvd`, `acp-compute` and `acpctl` each `fips140=only module=v1.0.0 enforced=true`; `steps.txt`: `fips=1 GODEBUG=fips140=only`, `sagvd fips140 enabled=true enforced=true version=v1.0.0` and the same for `acp-compute`; `build.txt` (the runner's, outside the guest's sums): every binary `GOFIPS140=v1.0.0-c2097c7c` at `a6b33a2` |
+| The profile | `steps.txt`: `profile=cnsa`, `sagvd crypto_profile=cnsa kem_suites=hpke-mlkem1024-p384-v2` |
+| `seal-keys` | both daemons, `sealer=sev-snp-derived-key`: 5 files and 2 files |
+| A thief with the sealed files, off the chip | **refused**: `exit=1 sealed to gcp-sev-snp, this host is simulated` |
+| A worker that is not the pinned identity | **refused** at the handshake after 1 s, on the record |
+| The gate job | the session opened after 8 s; `succeeded` after 5 s, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e` |
+| `acpctl audit verify` | **ok** — 17 events |
+
+The `fips` run, `evidence/20261021T213945Z`, is the same under
+`hpke-p384-v2` (`sagvd crypto_profile=fips kem_suites=hpke-p384-v2,
+hpke-mlkem768-v2,hpke-mlkem1024-p384-v2`): **128.9 s** (runtime from
+the locks 79.0 s), both rogues refused, the session opened after 8 s,
+the job `succeeded` after 5 s with the gate EXACT 6 of 6, 17 events
+verified, the three version lines and both identities on the module.
+The two guests ran minutes apart on the same image. (A third run, under
+`fips` in the same second as the `cnsa` one, named its record by its
+own clock and the decode of the later guest overwrote the earlier
+record; since then the guest names the record by the runner's stamp,
+`vg-stamp`, unique per run.)
+
 ## Result — run `20261015T194325Z`: `tee.sealer: "tpm2"` — the guest's vTPM seals the key files, beside the chip
 
 The same kit with both daemons' key files sealed by the guest's vTPM
@@ -228,7 +264,7 @@ and the bucket are deleted at the end of every run, also on failure.
 ## Reproduce
 
 ```bash
-scripts/hardware-test/gcp-sev-snp/returnpath-e2e/run.sh <gcp-project> [zone]
+scripts/hardware-test/gcp-sev-snp/returnpath-e2e/run.sh <gcp-project> [zone] [profile]
 ```
 
 `gcloud` logged in to a project with the Compute Engine and Cloud Storage
@@ -237,3 +273,10 @@ The AMD Milan chain comes from `../keybind-evidence/20260913T222343Z/`.
 The raw serial capture is kept under `~/.cache/vaultgenome/returnpath-e2e/`
 (override with `VG_E2E_RAW_DIR`); `decode-results.sh` verifies the tarball's
 size and SHA-256 against the header the guest printed before unpacking it.
+The third argument, `general`, `fips` or `cnsa`, is the cryptographic
+profile of ADR 0029, written into `sagvd`'s configuration (unset, the
+daemon's default applies). `VG_FIPS=1` builds every binary on the
+certified Go Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`) and runs
+every Go process on the guest under `GODEBUG=fips140=only` (ADR 0030,
+part two); the profile defaults to `fips` and `general` is refused, its
+first suite being X25519.

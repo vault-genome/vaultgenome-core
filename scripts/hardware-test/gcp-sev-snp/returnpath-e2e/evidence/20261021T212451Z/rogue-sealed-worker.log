@@ -1,0 +1,2 @@
+{"time":"2026-10-21T21:26:47.447866351Z","level":"INFO","msg":"acp-compute starting","version":"0.0.0-dev","commit":"a6b33a28b026-dirty","config_path":"rogue-sealed.json","vault_address":"127.0.0.1:9443","workload_descriptor":"rogue-worker-v1"}
+{"time":"2026-10-21T21:26:47.45142062Z","level":"ERROR","msg":"acp-compute: terminated with error","err":"acp-compute: keys.worker_signing.seed_path (\"/root/e2e/secrets/acp-compute/worker_signing_seed\"): structural[field_value_invalid]: sealed secret \"keys.worker_signing.seed_path\": sealed to gcp-sev-snp, this host is simulated"}

@@ -44,6 +44,11 @@ MY_IP=$(md network-interfaces/0/ip)
 { echo "instance=$(md name)"; echo "zone=$(md zone | awk -F/ '{print $NF}')"; echo "machine=$(md machine-type | awk -F/ '{print $NF}')"; echo "internal_ip=$MY_IP"; echo "captured=$STAMP"; } > "$OUT/metadata.txt"
 uname -a > "$OUT/kernel.txt"
 echo "profile=$PROFILE" >> "$OUT/steps.txt"
+FIPS=$(md attributes/vg-fips 2>/dev/null || true); [ "$FIPS" = 1 ] || FIPS=0
+# VG_FIPS=1 on the runner (ADR 0030, part two): every Go process on this
+# guest runs under enforcement; a non-approved service fails instead of
+# succeeding. The binaries came built on the certified module.
+if [ "$FIPS" = 1 ]; then export GODEBUG=fips140=only; echo "fips=1 GODEBUG=fips140=only" >> "$OUT/steps.txt"; fi
 T0=$(date +%s.%N)
 mark() { echo "$1=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" >> "$OUT/timeline.txt"; }
 step() { echo "== $*"; echo "== $*" >> "$OUT/steps.txt"; }
@@ -165,6 +170,8 @@ write_configs "$ZEROS" "$ZEROS"
 step "identities: each daemon reads its launch measurement from the chip"
 ./sagvd identity -config sagvd.json > "$OUT/sagvd-identity.json" 2> "$OUT/sagvd-identity.err"; echo "sagvd identity exit=$?" >> "$OUT/steps.txt"
 ./acp-compute identity -config worker.json > "$OUT/acp-compute-identity.json" 2> "$OUT/acp-compute-identity.err"; echo "acp-compute identity exit=$?" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("sagvd fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>/dev/null
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("acp-compute fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/acp-compute-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 VMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/sagvd-identity.json" 2>/dev/null)
 WMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/acp-compute-identity.json" 2>/dev/null)
 [ -n "$VMEAS" ] && [ -n "$WMEAS" ] || fail "no measurement from the chip: $(cat "$OUT/sagvd-identity.err" "$OUT/acp-compute-identity.err")"

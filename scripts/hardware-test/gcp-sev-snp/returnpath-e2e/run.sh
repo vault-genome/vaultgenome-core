@@ -18,14 +18,30 @@
 # pinned CPU torch). Requires gcloud logged in to a project with the Compute
 # and Storage APIs enabled.
 #
-# Usage: run.sh <project> [zone]   (default zone us-central1-c)
+# Usage: run.sh <project> [zone] [profile]   (default zone us-central1-c;
+# profile general, fips or cnsa — ADR 0029 — written into sagvd's
+# configuration when given; unset, the daemon's default applies)
 # VG_SEALER=tpm2 seals both daemons' key files with the guest's vTPM
 # instead of the chip's derived key (tee.sealer, ADR 0025 step 1b); the
 # guest then installs tpm2-tools.
 set -euo pipefail
 
-PROJECT="${1:?usage: run.sh <project> [zone]}"
+PROJECT="${1:?usage: run.sh <project> [zone] [profile]}"
 ZONE="${2:-us-central1-c}"
+PROFILE="${3:-}"
+case "$PROFILE" in ""|general|fips|cnsa) ;; *) echo "profile must be general, fips or cnsa; got $PROFILE"; exit 2;; esac
+# VG_FIPS=1 (ADR 0030, part two): the binaries are built on the certified
+# Go Cryptographic Module (GOFIPS140=v1.0.0) and the guest's daemons run
+# under GODEBUG=fips140=only — the assessment mode, in which a call to a
+# non-approved service fails instead of succeeding — so a run that passes
+# shows the product invoked approved services only. general is refused up
+# front: its first suite is X25519, unavailable under enforcement.
+VG_FIPS="${VG_FIPS:-}"
+if [ "$VG_FIPS" = 1 ]; then
+  [ -n "$PROFILE" ] || PROFILE=fips
+  [ "$PROFILE" != general ] || { echo "VG_FIPS=1 needs the fips or cnsa profile: general's first suite is X25519, unavailable under enforcement"; exit 2; }
+  export GOFIPS140=v1.0.0
+fi
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -57,14 +73,14 @@ gcloud compute instances create "$NAME" --project "$PROJECT" --zone "$ZONE" \
   --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
   --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
   --boot-disk-size 20GB \
-  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-sealer=${VG_SEALER:-auto}" \
+  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-sealer=${VG_SEALER:-auto},vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0},vg-stamp=$STAMP" \
   --metadata-from-file "startup-script=$HERE/cvm-returnpath.sh" >/dev/null
 
 echo "waiting for results on the serial console (up to 25 min)"
 RAW_DIR="${VG_E2E_RAW_DIR:-$HOME/.cache/vaultgenome/returnpath-e2e}"
 mkdir -p "$RAW_DIR"
 SERIAL="$RAW_DIR/serial-$STAMP.txt"
-for i in $(seq 1 150); do
+for _ in $(seq 1 150); do
   sleep 10
   gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" > "$SERIAL" 2>/dev/null || true
   grep -q "===E2E-END===" "$SERIAL" && break
@@ -72,4 +88,27 @@ done
 grep -q "===E2E-END===" "$SERIAL" || { echo "no results after 25 minutes"; tail -40 "$SERIAL"; exit 1; }
 echo "serial capture: $SERIAL ($(shasum -a 256 "$SERIAL" | cut -d' ' -f1))"
 
-"$HERE/decode-results.sh" "$SERIAL" "$HERE/evidence"
+DECODED="$("$HERE/decode-results.sh" "$SERIAL" "$HERE/evidence")"; echo "$DECODED"
+
+# The run's verdict: both rogues refused, the session opened, the job
+# succeeded with the gate EXACT, the audit log verified. The guest's record
+# is the one decode-results named (runs may overlap).
+GUEST="$HERE/evidence/$(printf '%s\n' "$DECODED" | sed -n 's/^decoded \([^:]*\):.*/\1/p' | tail -1)"
+STEPS="$GUEST/steps.txt"
+[ -s "$STEPS" ] || { echo "FAIL: no steps.txt under $GUEST"; exit 1; }
+grep -E 'profile=|fips=|sealer=|exit=|refused|session opened|job status=|gate_level=' "$STEPS" | sed 's|^|  |'
+FIPS_OK=1
+if [ "$VG_FIPS" = 1 ]; then
+  # The record must say it: the daemons and acpctl on the certified module
+  # with enforcement on (their version lines and the daemons' identities),
+  # and the runner's note of what it built (build.txt, the runner's,
+  # outside the guest's sums).
+  for b in sagvd acp-compute acpctl keygen; do echo "$b: $(go version -m "$BUILD/$b" | awk '$1=="build" && ($2 ~ /^GOFIPS140=/ || $2 ~ /^vcs.revision=/) {printf "%s ", $2}')"; done > "$GUEST/build.txt"
+  grep -E 'fips=|fips140' "$STEPS" "$GUEST/versions.txt" | sed 's|^|  |'
+  [ "$(grep -c 'fips140=only module=v1.0.0 enforced=true' "$GUEST/versions.txt")" -ge 3 ] || FIPS_OK=0
+  grep -q 'sagvd fips140 enabled=true enforced=true version=v1.0.0' "$STEPS" && grep -q 'acp-compute fips140 enabled=true enforced=true version=v1.0.0' "$STEPS" || FIPS_OK=0
+fi
+grep -q 'rogue with the sealed files exit=1' "$STEPS" && grep -q 'rogue refused after' "$STEPS" && grep -q 'session opened after' "$STEPS" \
+  && grep -q 'job status=succeeded' "$STEPS" && grep -q 'gate_level=EXACT' "$STEPS" && grep -q 'audit verify exit=0' "$STEPS" && [ "$FIPS_OK" = 1 ] \
+  && echo "PASS: the Return Path on SEV-SNP${PROFILE:+ under $PROFILE}${VG_FIPS:+ on the certified module v1.0.0 with enforcement on} — both rogues refused, the job succeeded with the gate EXACT, the audit log verified ($(basename "$GUEST"))" \
+  || { echo "FAIL: see $STEPS${VG_FIPS:+ (VG_FIPS=1: the record must show the certified module with enforcement on)}"; exit 1; }

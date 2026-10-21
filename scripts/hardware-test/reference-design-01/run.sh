@@ -48,6 +48,17 @@ ZONE_B_LIST="${3:-us-east4-b,us-west1-b,europe-west4-b}"
 ZONE_B="${ZONE_B_LIST%%,*}"   # the one used is settled when B is created
 PROFILE="${4:-general}"
 case "$PROFILE" in general|fips|cnsa) ;; *) echo "profile must be general, fips or cnsa; got $PROFILE"; exit 2;; esac
+# VG_FIPS=1 (ADR 0030, part two): the binaries are built on the certified
+# Go Cryptographic Module (GOFIPS140=v1.0.0) and the guest's daemons run
+# under GODEBUG=fips140=only — the assessment mode, in which a call to a
+# non-approved service fails instead of succeeding — so a run that passes
+# shows the product invoked approved services only. general is refused up
+# front: its first suite is X25519, unavailable under enforcement.
+VG_FIPS="${VG_FIPS:-}"
+if [ "$VG_FIPS" = 1 ]; then
+  [ "$PROFILE" != general ] || { echo "VG_FIPS=1 needs the fips or cnsa profile: general's first suite is X25519, unavailable under enforcement"; exit 2; }
+  export GOFIPS140=v1.0.0
+fi
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -107,7 +118,9 @@ echo "build sagvd, acp-compute, acp-bootstrap, acpctl, acp-keygen (linux/amd64),
   && CGO_ENABLED=0 go build -trimpath -o "$BUILD/acpctl-host" ./cmd/acpctl )
 ( cd "$ROOT/workers" && COPYFILE_DISABLE=1 tar czf "$BUILD/genome-worker.tgz" --no-xattrs --exclude '__pycache__' --exclude '.pytest_cache' genome )
 ( cd "$BUILD" && shasum -a 256 sagvd acp-compute acp-bootstrap acpctl keygen genome-worker.tgz acpctl-host ) | tee "$EVIDENCE/inputs.sha256"
-{ echo "tree $(git -C "$ROOT" rev-parse HEAD)"; echo "stamp $STAMP"; echo "profile $PROFILE"; echo "zone_a $ZONE_A"; echo "go $(go version | cut -d' ' -f3)"; echo "host $(uname -sm)"; } > "$EVIDENCE/run.txt"
+{ echo "tree $(git -C "$ROOT" rev-parse HEAD)"; echo "stamp $STAMP"; echo "profile $PROFILE"; echo "zone_a $ZONE_A"; echo "go $(go version | cut -d' ' -f3)"; echo "host $(uname -sm)"; echo "fips ${VG_FIPS:-0}"; echo "gofips140 ${GOFIPS140:-off}"; } > "$EVIDENCE/run.txt"
+# What was built, from the binaries themselves (the module setting and the commit).
+for b in sagvd acp-compute acp-bootstrap acpctl keygen acpctl-host; do echo "$b: $(go version -m "$BUILD/$b" | awk '$1=="build" && ($2 ~ /^GOFIPS140=/ || $2 ~ /^vcs.revision=/) {printf "%s ", $2}')"; done > "$EVIDENCE/build.txt"
 
 echo "bucket gs://$BUCKET (private; the hand-off and the records; deleted with the run)"
 gcloud storage buckets create "gs://$BUCKET" --project "$PROJECT" --location us --uniform-bucket-level-access >/dev/null
@@ -119,7 +132,7 @@ gcloud compute instances create "$A" --project "$PROJECT" --zone "$ZONE_A" \
   --machine-type n2d-standard-4 --min-cpu-platform "AMD Milan" \
   --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
   --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud --boot-disk-size 20GB \
-  --scopes storage-rw --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE" \
+  --scopes storage-rw --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0}" \
   --metadata-from-file "startup-script=$HERE/bank.sh" >/dev/null
 CREATED_A=1
 A_IP="$(gcloud compute instances describe "$A" --project "$PROJECT" --zone "$ZONE_A" --format='value(networkInterfaces[0].networkIP)')"
@@ -139,7 +152,7 @@ for z in ${ZONE_B_LIST//,/ }; do
       --machine-type n2d-standard-2 --min-cpu-platform "AMD Milan" \
       --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
       --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud --boot-disk-size 20GB \
-      --tags "$TAG_B" --scopes storage-rw --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE" \
+      --tags "$TAG_B" --scopes storage-rw --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0}" \
       --metadata-from-file "startup-script=$HERE/standby.sh" > "$BUILD/b-create.log" 2>&1; then
     ZONE_B="$z"; CREATED_B=1; break
   fi
@@ -164,13 +177,15 @@ echo "the third party: this machine, the audit logs, the published audit key and
 TP="$EVIDENCE/third-party"; mkdir -p "$TP"
 if gcloud storage cp -r "gs://$BUCKET/handoff/third-party/*" "$BUILD/" --project "$PROJECT" >/dev/null 2>&1; then
   ACP="$BUILD/acpctl-host"
-  { echo "acpctl: $(shasum -a 256 "$ACP" | cut -d' ' -f1) (built from the same tree for this machine, $(uname -sm))"; "$ACP" version 2>/dev/null; } > "$TP/tools.txt"
-  "$ACP" audit verify --audit "$BUILD/returnpath-audit.db" --audit-pubkey "$BUILD/audit-public-key.pem" --audit-kid sagvd-audit-e2e --json > "$TP/audit-verify-returnpath.json" 2> "$TP/audit-verify-returnpath.err"; echo "third-party audit verify (return path) exit=$?" | tee -a "$TP/steps.txt"
-  "$ACP" audit verify --audit "$BUILD/xcc-audit.db" --audit-pubkey "$BUILD/audit-public-key.pem" --audit-kid sagvd-audit-e2e --json > "$TP/audit-verify-crosscloud.json" 2> "$TP/audit-verify-crosscloud.err"; echo "third-party audit verify (cross-cloud) exit=$?" | tee -a "$TP/steps.txt"
+  # Under VG_FIPS=1 the third party's tool runs under enforcement too.
+  ACPRUN=("$ACP"); [ "$VG_FIPS" = 1 ] && ACPRUN=(env GODEBUG=fips140=only "$ACP")
+  { echo "acpctl: $(shasum -a 256 "$ACP" | cut -d' ' -f1) (built from the same tree for this machine, $(uname -sm))"; "${ACPRUN[@]}" version 2>/dev/null; } > "$TP/tools.txt"
+  "${ACPRUN[@]}" audit verify --audit "$BUILD/returnpath-audit.db" --audit-pubkey "$BUILD/audit-public-key.pem" --audit-kid sagvd-audit-e2e --json > "$TP/audit-verify-returnpath.json" 2> "$TP/audit-verify-returnpath.err"; echo "third-party audit verify (return path) exit=$?" | tee -a "$TP/steps.txt"
+  "${ACPRUN[@]}" audit verify --audit "$BUILD/xcc-audit.db" --audit-pubkey "$BUILD/audit-public-key.pem" --audit-kid sagvd-audit-e2e --json > "$TP/audit-verify-crosscloud.json" 2> "$TP/audit-verify-crosscloud.err"; echo "third-party audit verify (cross-cloud) exit=$?" | tee -a "$TP/steps.txt"
   REQ="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("request_id",""))' "$BUILD/job.json" 2>/dev/null || true)"
   SID="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("session_id",""))' "$BUILD/job.json" 2>/dev/null || true)"
-  "$ACP" audit query --audit "$BUILD/returnpath-audit.db" --request "$REQ" --limit 0 --json > "$TP/audit-query-request.jsonl" 2> "$TP/audit-query-request.err"; echo "third-party audit query --request $REQ exit=$? events=$(wc -l < "$TP/audit-query-request.jsonl" | tr -d ' ')" | tee -a "$TP/steps.txt"
-  "$ACP" lineage --audit "$BUILD/returnpath-audit.db" --session-id "$SID" --json > "$TP/lineage.json" 2> "$TP/lineage.err"; echo "third-party lineage --session-id $SID exit=$?" | tee -a "$TP/steps.txt"
+  "${ACPRUN[@]}" audit query --audit "$BUILD/returnpath-audit.db" --request "$REQ" --limit 0 --json > "$TP/audit-query-request.jsonl" 2> "$TP/audit-query-request.err"; echo "third-party audit query --request $REQ exit=$? events=$(wc -l < "$TP/audit-query-request.jsonl" | tr -d ' ')" | tee -a "$TP/steps.txt"
+  "${ACPRUN[@]}" lineage --audit "$BUILD/returnpath-audit.db" --session-id "$SID" --json > "$TP/lineage.json" 2> "$TP/lineage.err"; echo "third-party lineage --session-id $SID exit=$?" | tee -a "$TP/steps.txt"
   cp "$BUILD/audit-public-key.pem" "$TP/"
   ( cd "$BUILD" && shasum -a 256 returnpath-audit.db xcc-audit.db audit-public-key.pem job.json ) > "$TP/inputs.sha256"
 else
@@ -186,7 +201,18 @@ echo "== the bank's steps"; cat "$EVIDENCE/a/steps.txt" 2>/dev/null || true
 echo "== the standby's steps"; cat "$EVIDENCE/b/steps.txt" 2>/dev/null || true
 echo "== the third party's steps"; cat "$TP/steps.txt" 2>/dev/null || true
 case "$PROFILE" in general) WANT=hpke-x25519-v2;; fips) WANT=hpke-p384-v2;; cnsa) WANT=hpke-mlkem1024-p384-v2;; esac
-if [ "$A_OK" = 1 ] && [ "$B_OK" = 1 ] \
+FIPS_OK=1
+if [ "$VG_FIPS" = 1 ]; then
+  # The record must say it on every party: the bank's two daemons, the
+  # standby's, and the third party's tool, each on the certified module
+  # with enforcement on.
+  grep -h 'fips' "$EVIDENCE/a/steps.txt" "$EVIDENCE/b/steps.txt" "$TP/tools.txt" "$EVIDENCE/a/versions.txt" "$EVIDENCE/b/versions.txt" 2>/dev/null | sed 's|^|  |'
+  grep -q 'fips=1 GODEBUG=fips140=only' "$EVIDENCE/a/steps.txt" && grep -q 'fips=1 GODEBUG=fips140=only' "$EVIDENCE/b/steps.txt" \
+    && grep -q 'sagvd fips140 enabled=true enforced=true version=v1.0.0' "$EVIDENCE/a/steps.txt" && grep -q 'acp-compute fips140 enabled=true enforced=true version=v1.0.0' "$EVIDENCE/a/steps.txt" \
+    && grep -q 'standby fips140 enabled=true enforced=true version=v1.0.0' "$EVIDENCE/b/steps.txt" \
+    && grep -q 'fips140=only module=v1.0.0 enforced=true' "$TP/tools.txt" || FIPS_OK=0
+fi
+if [ "$A_OK" = 1 ] && [ "$B_OK" = 1 ] && [ "$FIPS_OK" = 1 ] \
    && grep -q 'gate_level=EXACT' "$EVIDENCE/a/steps.txt" && grep -q 'rogue refused after' "$EVIDENCE/a/steps.txt" && grep -q 'rogue with the sealed files exit=1' "$EVIDENCE/a/steps.txt" \
    && grep -q 'release exit=0' "$EVIDENCE/a/steps.txt" && grep -q "release suite=$WANT" "$EVIDENCE/a/steps.txt" && grep -q 'confirm exit=0' "$EVIDENCE/a/steps.txt" \
    && grep -q 'unlisted exit=1 policy denied key release: destination measurement not in allow-list' "$EVIDENCE/a/steps.txt" && grep -q 'stopped exit=1 policy denied key release: operator stop in force' "$EVIDENCE/a/steps.txt" \
@@ -200,4 +226,4 @@ mark run_end
 ( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt ! -name runner.log -print0 | sort -z | xargs -0 shasum -a 256 > sha256sums.txt )
 echo "evidence: $EVIDENCE"
 [ "$OK" = 1 ] || { echo "FAIL: the run did not reach every mark; see the steps above"; exit 1; }
-echo "PASS: reference design 01 end to end on SEV-SNP under $PROFILE ($WANT) — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party ($STAMP)"
+echo "PASS: reference design 01 end to end on SEV-SNP under $PROFILE ($WANT)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on, every party} — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party ($STAMP)"

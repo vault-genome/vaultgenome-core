@@ -22,6 +22,30 @@ The shipping binaries, run end to end on a Google Confidential VM
 Both processes run inside the same guest here; what the run proves is that the
 destination's Evidence is genuine hardware and that the whole chain accepts it.
 
+## Results — `VG_FIPS=1`: the certified module with enforcement on, under `cnsa` and `fips` (ADR 0030, part two)
+
+The same kit with every binary built on the certified Go Cryptographic
+Module v1.0.0 (`GOFIPS140=v1.0.0`) and every Go process on the guest
+under `GODEBUG=fips140=only`, in which a non-approved service fails
+instead of succeeding. Guests `n2d-standard-2` SEV-SNP in us-central1-c
+on the image of the runs below, the tree `a6b33a2`. The verdict requires
+the record of the module: both daemons' version lines
+(`fips140=only module=v1.0.0 enforced=true`) and identities
+(`fips140 enabled=true enforced=true version=v1.0.0`), the guest's
+`fips=1 GODEBUG=fips140=only`, and `build.txt` — the runner's note of
+what it built, every binary `GOFIPS140=v1.0.0-c2097c7c`, outside the
+guest's sums. The `fips` run's record is named by the runner's stamp —
+the kit's `vg-stamp`, new: an earlier `fips` guest booted in the same
+second as the `cnsa` one, both named their record by their own clock,
+and the later decode overwrote the earlier record, so the guests now
+take the runner's stamp, unique per run; the `cnsa` run's record keeps
+the guest's clock, as before.
+
+| Profile | Run | The suite both sides met on | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
+|---|---|---|---|---|---|---|---|---|
+| `cnsa` | `evidence/20261021T213940Z` | `hpke-mlkem1024-p384-v2` | **ok**, recipient key `a84b1616…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips` | `evidence/20261021T214501Z` | `hpke-p384-v2` | **ok**, recipient key `d834fdc8…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+
 ## Results — runs `20261021T202413Z`, `20261021T202422Z`, `20261021T202423Z`: the three profiles under the v2 suites (ADR 0030)
 
 The same kit on the tree of ADR 0030 part one, three guests
@@ -142,7 +166,7 @@ above used both.
 ## Reproduce
 
 ```bash
-scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <gcp-project> [zone]
+scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <gcp-project> [zone] [profile]
 ```
 
 `run.sh` builds the four binaries from this tree for linux/amd64, uploads them
@@ -150,6 +174,14 @@ with the AMD Milan chain to a fresh private bucket, boots the VM with
 `cvm-keyrelease.sh` as its startup script, reads the results back from the serial
 console (`decode-results.sh` checks their size and SHA-256), and deletes the VM
 and the bucket — also on failure. About ten minutes of one `n2d-standard-2`.
+The third argument is the cryptographic profile of ADR 0029 (`general`,
+`fips` or `cnsa`) both daemons run under. `VG_FIPS=1` builds every binary
+on the certified Go Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`) and
+runs every Go process on the guest under `GODEBUG=fips140=only`, in which
+a non-approved service fails instead of succeeding (ADR 0030, part two);
+`general` is refused, its first suite being X25519; the verdict then
+requires the record of the module on both daemons, and `build.txt` (the
+runner's, outside the guest's sums) notes what was built.
 
 The results carry reports and logs only; keys, seeds, tokens and configs stay on
 the VM and die with it. The raw serial captures (whole boot logs) are kept
