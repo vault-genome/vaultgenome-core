@@ -5,8 +5,10 @@ The shipping binaries, run end to end on a Google Confidential VM
 
 - `acpctl genome seal` seals a genome (v3: its key in a separate file).
 - `acp-bootstrap` attests with the chip — `tee.provider: "gcp-sev-snp"`,
-  reports requested through the kernel's configfs-tsm — and generates an X25519
-  key per handshake, quoting over the ADR 0009 key-binding challenge.
+  reports requested through the kernel's configfs-tsm — and generates a key
+  per handshake under the KEM suite the two sides' profiles settle on (ADR
+  0029), quoting over the key-binding challenge that commits to the suite,
+  the key and the nonce.
 - `sagvd crosscloud-restore` verifies that Evidence (VCEK fetched from AMD KDS,
   ECDSA-P384 signature, VCEK → ASK → ARK-Milan chain, TCB, guest policy with no
   DEBUG, VMPL 0, REPORT_DATA binding the challenge), applies its allow-list and
@@ -19,6 +21,29 @@ The shipping binaries, run end to end on a Google Confidential VM
 
 Both processes run inside the same guest here; what the run proves is that the
 destination's Evidence is genuine hardware and that the whole chain accepts it.
+
+## Results — runs `20261021T144756Z`, `20261021T144804Z`, `20261021T144806Z`: the three cryptographic profiles
+
+The kit's third argument is the profile of ADR 0029, written into both
+daemons' configurations on the guest (`crypto.profile`). Three guests,
+`n2d-standard-2` SEV-SNP in us-central1-c, the same launch measurement
+`ccdc5cf0…`, the binaries of commit `b98a34264140`, each run about three
+minutes end to end; each guest and bucket deleted by its run.
+
+| Profile | Run | The suite both sides met on | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
+|---|---|---|---|---|---|---|---|---|
+| `general` | `evidence/20261021T144756Z` | `hpke-x25519-v1` — X25519, the first of five the general profile offers | **ok**, recipient key `ea46db11…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips` | `evidence/20261021T144804Z` | `hpke-p384-v1` — P-384, the first of the three fips offers | **ok**, recipient key `5931880a…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `cnsa` | `evidence/20261021T144806Z` | `hpke-mlkem1024-p384-v1` — the ML-KEM-1024 + P-384 hybrid, the one cnsa offers | **ok**, recipient key `cf191bd8…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+
+What each record holds beyond the earlier runs': `steps.txt` names the
+profile, both daemons' `crypto_profile` and `kem_suites` as `identity`
+printed them, and the release's `recipient_key_suite` and `crypto_profile`
+as `sagvd crosscloud-restore` reported them; `release.json` carries the
+same; the audit log's `KEY_RELEASE_AUTHORIZED` event records the suite as
+`delivery_mode` and the profile as `crypto_profile`. The kit's verdict
+requires the release's suite to be the profile's first — a run that met on
+another suite, or on none, fails.
 
 ## Result — run `20260914T223735Z` (evidence/20260914T223735Z): seal → release → self-restore → confirm
 

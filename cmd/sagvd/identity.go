@@ -54,6 +54,11 @@ type authorityIdentity struct {
 	// enabled.
 	PolicyVersion  string   `json:"policy_version,omitempty"`
 	PolicyProfiles []string `json:"policy_profiles,omitempty"`
+	// CryptoProfile and KEMSuites are the cryptographic profile (ADR
+	// 0029): the suite this authority encapsulates under first, and
+	// every suite it accepts a destination's answer under.
+	CryptoProfile string   `json:"crypto_profile"`
+	KEMSuites     []string `json:"kem_suites"`
 }
 
 // runIdentityCmd implements `sagvd identity -config <path>`: it loads the
@@ -90,10 +95,16 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	suites, err := cfg.Crypto.Policy()
+	if err != nil {
+		return fmt.Errorf("crypto: %w", err)
+	}
 	id := authorityIdentity{
 		AuthorityKID:          string(mat.AuthoritySigningKeyID),
 		AuthorityPublicKeyPEM: string(authPEM),
 		TEEProvider:           string(mat.Provider),
+		CryptoProfile:         string(suites.Profile()),
+		KEMSuites:             suites.SuiteIDs(),
 		TEEMeasurementHex:     hex.EncodeToString(mat.Producer.Measurement()),
 	}
 	if kind, err := mat.SealerKind(); err == nil {

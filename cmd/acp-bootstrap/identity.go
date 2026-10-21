@@ -33,6 +33,11 @@ type destinationIdentity struct {
 	TDX *tdxIdentity `json:"tdx,omitempty"`
 	// VTPM is what an azure-cgpu guest's vTPM measured of its boot.
 	VTPM *vtpmIdentity `json:"vtpm,omitempty"`
+	// CryptoProfile and KEMSuites are the cryptographic profile (ADR
+	// 0029): the suites this destination generates a handshake key under,
+	// in its order of preference.
+	CryptoProfile string   `json:"crypto_profile"`
+	KEMSuites     []string `json:"kem_suites"`
 }
 
 // runIdentity implements `acp-bootstrap identity -config <path>`: it
@@ -59,9 +64,15 @@ func runIdentity(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	suites, err := cfg.Crypto.Policy()
+	if err != nil {
+		return fmt.Errorf("acp-bootstrap identity: crypto: %w", err)
+	}
 	id := destinationIdentity{
 		TEEProvider:    cfg.TEE.Provider,
 		MeasurementHex: hex.EncodeToString(producer.Measurement()),
+		CryptoProfile:  string(suites.Profile()),
+		KEMSuites:      suites.SuiteIDs(),
 	}
 	if kind, err := tee.SealerKindFor(producer, cfg.TEE.SealerMode()); err == nil {
 		id.Sealer = string(kind)

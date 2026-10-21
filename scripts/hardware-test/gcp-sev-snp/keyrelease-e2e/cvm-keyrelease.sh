@@ -16,7 +16,9 @@
 # allow-list does not name, and under an operator stop, must be refused.
 #
 # Inputs (instance metadata): vg-bucket — GCS bucket holding e2e/{sagvd,
-# acp-bootstrap,keygen,amd-milan-cert_chain.pem}. Output: a base64 tarball
+# acp-bootstrap,keygen,amd-milan-cert_chain.pem}; vg-profile — the
+# cryptographic profile (ADR 0029: general, fips or cnsa) both daemons run
+# under, written into their configs below. Output: a base64 tarball
 # of the results on the serial console between ===E2E-BEGIN=== and
 # ===E2E-END=== (three copies), decoded by decode-results.sh. The tarball
 # holds reports and logs only; keys, seeds, tokens and configs stay on the
@@ -27,6 +29,8 @@ md() { curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/com
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 WORK=/root/e2e; OUT=$WORK/out/$STAMP; mkdir -p "$OUT"; cd "$WORK"
 BUCKET=$(md attributes/vg-bucket)
+PROFILE=$(md attributes/vg-profile); [ -n "$PROFILE" ] || PROFILE=general
+echo "profile=$PROFILE" >> "$OUT/steps.txt"
 { echo "instance=$(md name)"; echo "zone=$(md zone | awk -F/ '{print $NF}')"; echo "machine=$(md machine-type | awk -F/ '{print $NF}')"; echo "captured=$STAMP"; } > "$OUT/metadata.txt"
 uname -a > "$OUT/kernel.txt"
 
@@ -75,10 +79,12 @@ cat > sagvd.json <<EOF
   "runtime": {"job_timeout_seconds": 60, "handshake_timeout_seconds": 10, "queue_poll_ms": 50,
     "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 60, "max_payload_bytes": 4194304},
   "health": {"listen_address": "127.0.0.1:9081"},
-  "log": {"level": "info", "format": "json"}
+  "log": {"level": "info", "format": "json"},
+  "crypto": {"profile": "$PROFILE"}
 }
 EOF
 ./sagvd identity -config sagvd.json > "$OUT/sagvd-identity.json"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt"
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["authority_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > authority.pem
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
 
@@ -109,11 +115,13 @@ cat > dest.json <<EOF
   "source_authority": {"kid": "sagvd-authority-demo", "public_key_path": "$WORK/authority.pem"},
   "genome": {"bundle_dir": "$WORK/bundles", "restore_dir": "$WORK/restored", "rescan_seconds": 1},
   "health": {"listen_address": "127.0.0.1:8444"},
-  "log": {"level": "info", "format": "json"}
+  "log": {"level": "info", "format": "json"},
+  "crypto": {"profile": "$PROFILE"}
 }
 EOF
 ./acp-bootstrap identity -config dest.json > "$OUT/destination-identity.json" 2> "$OUT/destination-identity.err"
 echo "identity exit=$?" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("destination crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/destination-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 ./acp-bootstrap -config dest.json > "$OUT/acp-bootstrap.log" 2>&1 &
 DEST=$!
 n=0; until curl -sf http://127.0.0.1:8444/readyz >/dev/null || [ $n -ge 30 ]; do sleep 1; n=$((n+1)); done
@@ -146,6 +154,7 @@ source_config "$MEAS" sagvd-xcc.json
 ./sagvd crosscloud-restore -config sagvd-xcc.json -decision-id e2e-decision-1 -destination-kind gcp-sev-snp \
   -destination-endpoint https://127.0.0.1:8443 -key-file "$KID:$WORK/gen-1.key" > "$OUT/release.json" 2> "$OUT/release.err"
 echo "release exit=$?" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("release suite=%s" % d.get("recipient_key_suite")); print("release profile=%s" % d.get("crypto_profile")); print("release recipient_key_sha256=%s" % d.get("recipient_key_sha256"))' "$OUT/release.json" >> "$OUT/steps.txt" 2>/dev/null
 
 step "the destination restores by itself; confirm from its chip-signed receipt"
 ./sagvd crosscloud-confirm -config sagvd-xcc.json -decision-id e2e-decision-1 \

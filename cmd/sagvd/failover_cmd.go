@@ -146,6 +146,10 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 		return failoverExitFailed, err
 	}
 	defer func() { _ = xcc.Close() }()
+	suites, err := cfg.Crypto.Policy()
+	if err != nil {
+		return failoverExitFailed, fmt.Errorf("crypto: %w", err)
+	}
 	coord, err := kms.NewCoordinator(kms.Config{
 		AuditChain:   xcc.AuditEmitter,
 		Signer:       mat.Store,
@@ -156,6 +160,7 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 		NonceSource:  xcc.NonceSource,
 		Clock:        clock,
 		SigningKeyID: mat.AuthoritySigningKeyID,
+		Suites:       suites,
 		Receipts:     xcc.Transport,
 	})
 	if err != nil {

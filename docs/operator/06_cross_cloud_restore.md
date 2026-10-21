@@ -45,22 +45,49 @@ What the shipping binaries do today, stated exactly:
 
 ```
  source: sagvd crosscloud-restore                    destination: acp-bootstrap
- ────────────────────────────────                    ──────────────────────────
- signed handshake, fresh nonce N   ── TLS 1.3 ──▶    verify authority signature
-                                                     new X25519 key pair (sk, pk)
-                                   ◀── Evidence ──   quote over C = H(label ‖ pk ‖ N)
- verify Evidence under C                             (sk stays in memory, 5 min,
- (genuine TEE + measurement +                         one token)
-  freshness + pk is the TEE's own)
+ ────────────────────────────────                    ───────────
+ signed handshake, fresh nonce N,  ── TLS 1.3 ──▶    verify authority signature
+ the KEM suites it accepts                           pick the first suite it accepts,
+                                                     new key pair (sk, pk) under it
+                                   ◀── Evidence ──   quote over C = H(label ‖ suite ‖ pk ‖ N)
+ the suite is on its list?                           (sk stays in memory, 5 min,
+ verify Evidence under C                              one token)
+ (genuine TEE + measurement +
+  freshness + suite and pk are the TEE's own)
  allow-list policy on measurement
- encapsulate DEKs to pk
- signed key-release token          ── TLS 1.3 ──▶    take sk (single use), open DEKs,
+ encapsulate DEKs to pk under the suite
+ signed key-release token          ── TLS 1.3 ──▶    take sk (single use), open DEKs
+ (each key names its suite)                          under the handshake's suite,
                                                      register, zeroize sk
 ```
 
-A destination that presents no attested key, an Evidence that does not verify
-for the presented key, or a measurement that is not on the allow-list gets no
-token. There is no fallback path.
+A destination that presents no attested key, one that answers under a suite
+the source does not accept, an Evidence that does not verify for the
+presented suite and key, or a measurement that is not on the allow-list gets
+no token. There is no fallback path, and no negotiation below either side's
+list.
+
+### The cryptographic profile
+
+Which KEM suites the two sides use is the `crypto` section of each daemon's
+configuration (ADR 0029). `crypto.profile` is one of:
+
+| Profile | The daemon writes | It accepts |
+| - | - | - |
+| `general` (default) | `hpke-x25519-v1` | every suite of the build: X25519, P-384, ML-KEM-768, the MLKEM1024-P384 hybrid, X-Wing |
+| `fips` | `hpke-p384-v1` | `hpke-p384-v1`, `hpke-mlkem768-v1`, `hpke-mlkem1024-p384-v1` — the primitives the Go Cryptographic Module (CMVP #5247) lists as approved |
+| `cnsa` | `hpke-mlkem1024-p384-v1` | that hybrid only |
+
+`crypto.kem_suites` narrows a profile's list to the suites named, in that
+order of preference (the first is written); it never widens one. The source
+offers its list in the handshake, the destination takes the first entry its
+own list accepts, and both record the result: `recipient_key_suite` in the
+destination's log and in the source's report, `delivery_mode` and
+`crypto_profile` in the audit chain. A `fips` source and a `general`
+destination meet on P-384; a `cnsa` source and a `fips` destination on the
+hybrid; a source that offers nothing the destination accepts is refused at
+the handshake, on the source's record. Both daemons must run a release that
+knows suites: a request or an answer that names none is refused.
 
 ---
 
@@ -91,6 +118,7 @@ Compare the SHA-256 of each file over a second channel before pinning it.
 
 ```json
 {
+  "crypto": { "profile": "general" },
   "http": {
     "listen_address": "0.0.0.0:8443",
     "bearer_token_file": "/etc/acp/secrets/acp-bootstrap/api_token",
@@ -173,6 +201,7 @@ config:
   "audit_signing": { "kid": "sagvd-audit", "seed_path": "/etc/acp/secrets/sagvd/audit_signing_seed" },
   "…": "authority_signing, session_sealing as before"
 },
+"crypto": { "profile": "general" },
 "crosscloud": {
   "enabled": true,
   "audit_log_path": "/var/lib/acp/xcc-audit.db",
@@ -321,6 +350,8 @@ one JSON report and exits 0 on success, 1 on any refusal:
   "key_release_audit_id": "…",
   "destination_measurement_hex": "…",
   "recipient_key_sha256": "…",
+  "recipient_key_suite": "hpke-x25519-v1",
+  "crypto_profile": "general",
   "policy_version": "xcc-2026-09-14",
   "token_id": "…",
   "dispatched_at": "2026-09-14T12:00:00.000Z",
@@ -337,9 +368,10 @@ the vTPM quote's PCR selection and digest, each GPU with who vouched for it,
 and the verifier's own evaluations of the GPUs' reports (ADR 0021, amended).
 
 **Confirm it landed.** The destination logs `crosscloud handshake answered` with
-a `recipient_key_sha256`, then `crosscloud token accepted` with the same
-`request_id` and `registered_keys`. The digest must equal the report's
-`recipient_key_sha256`: it identifies the one key the DEKs were sealed to.
+a `recipient_key_sha256` and a `recipient_key_suite`, then `crosscloud token
+accepted` with the same `request_id` and `registered_keys`. The digest and the
+suite must equal the report's `recipient_key_sha256` and `recipient_key_suite`:
+they identify the one key the DEKs were sealed to, and under what.
 
 **Audit it.** Anyone holding the audit public key can verify the log offline:
 
@@ -464,6 +496,9 @@ fleet may do.
 
 - Holding a token — with or without the measurement it names — reveals no DEK.
 - A destination key opens exactly one token and dies after five minutes.
+- The KEM suite is what the profiles of both sides accept, never less: a
+  suite outside the source's list, or one swapped in transit, is refused
+  before anything is verified or wrapped, and the record names the suite.
 - A replayed handshake cannot replace an outstanding key; a forged token is
   rejected before it can use one up.
 - Every release is preceded by the three audit events, in order, persisted to
@@ -490,3 +525,4 @@ fleet may do.
 | 2026-05-09 | Initial Phase 4 runbook |
 | 2026-09-14 | Rewritten against the shipping binaries: X25519 KEM delivery (ADR 0009), `identity` subcommands, TLS 1.3 and fail-closed exposure; removed commands that do not exist |
 | 2026-09-14 | Genome v3 sealing, `-key-file` releases, destination restore and `crosscloud-confirm` (ADR 0011) |
+| 2026-10-21 | KEM suites and the cryptographic profile (ADR 0029): `crypto.profile`, the suite in the handshake, the token, the report, the log and the audit chain |

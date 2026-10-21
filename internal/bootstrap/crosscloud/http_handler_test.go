@@ -112,6 +112,7 @@ func signedHandshakeForHTTP(t *testing.T, f *httpFixture, nonce []byte) cchr.Cro
 		DestinationTEEKind:  tee.ProviderSimulated,
 		DestinationEndpoint: f.server.URL,
 		HandshakeNonce:      nonce,
+		KEMSuites:           kms.DefaultSuitePolicy().SuiteIDs(),
 		InitiatedAt:         stdtime.Date(2026, 5, 9, 12, 0, 0, 0, stdtime.UTC),
 		SigningKeyID:        f.sourceKID,
 		Signature:           []byte{0x00},
@@ -140,11 +141,12 @@ func signedTokenForHTTP(t *testing.T, f *httpFixture, recipientPub []byte, keyMa
 	wrapped := make([]krt.WrappedKey, 0, len(keyMaterials))
 	for kid, plain := range keyMaterials {
 		aad := canonicalAADForTest(tokenID, f.destMeasureBytes, kid)
-		ct, err := kms.X25519KeyWrapper{}.Wrap(plain, recipientPub, aad)
+		ct, err := kms.SuiteHPKEX25519.Wrap(kms.PurposeCrossCloudDEK, plain, recipientPub, aad)
 		require.NoError(t, err)
 		wrapped = append(wrapped, krt.WrappedKey{
 			KeyID:      kid,
 			Purpose:    krt.PurposeSealing,
+			Suite:      string(kms.SuiteHPKEX25519),
 			Ciphertext: ct,
 			AAD:        aad,
 		})
@@ -193,12 +195,13 @@ func TestHTTPHandshake_RealNetwork_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Evidence)
 	require.Equal(t, f.destMeasureBytes, resp.MeasurementHint)
-	require.NoError(t, kms.ValidateRecipientPublicKey(resp.RecipientPublicKey), "the key must survive the wire")
+	require.Equal(t, "hpke-x25519-v1", resp.RecipientKeySuite, "the suite must survive the wire")
+	require.NoError(t, kms.SuiteHPKEX25519.ValidateRecipientPublicKey(resp.RecipientPublicKey), "the key must survive the wire")
 
-	// The Evidence that crossed the wire binds the key that crossed
-	// the wire, under this nonce.
+	// The Evidence that crossed the wire binds the key and the suite that
+	// crossed the wire, under this nonce.
 	verifier := tee.NewSimulatedVerifier(f.destProducer.PublicKey(), f.destMeasure)
-	measured, err := verifier.Verify(resp.Evidence, kms.RecipientChallenge(resp.RecipientPublicKey, nonce))
+	measured, err := verifier.Verify(resp.Evidence, kms.RecipientChallengeV2(kms.SuiteHPKEX25519, resp.RecipientPublicKey, nonce))
 	require.NoError(t, err)
 	require.Equal(t, f.destMeasure, measured)
 }

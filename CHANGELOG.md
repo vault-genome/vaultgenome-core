@@ -11,6 +11,35 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- KEM suites and the cryptographic profile (ADR 0029). Every key
+  encapsulation across clouds is RFC 9180 HPKE through `crypto/hpke` of
+  the standard library, under a named suite: `hpke-x25519-v1`,
+  `hpke-p384-v1`, `hpke-mlkem768-v1`, `hpke-mlkem1024-p384-v1` (the
+  PQ/T hybrid) or `hpke-xwing-v1`. A new configuration section on both
+  daemons, `crypto`, names the profile — `general` (the default: X25519
+  written, every suite accepted), `fips` (P-384 written; P-384,
+  ML-KEM-768 and the hybrid accepted — the primitives the Go
+  Cryptographic Module lists as approved) or `cnsa` (the hybrid only) —
+  and may narrow it with `kem_suites`. The source offers its list in
+  the handshake request, the destination generates its key under the
+  first it accepts and names it in its answer, the source refuses an
+  answer outside its list, and the suite is in the key-binding
+  challenge, in the token beside each wrapped key, in the audit chain
+  (`delivery_mode`, `crypto_profile`), in both daemons' `identity`
+  output and in `sagvd crosscloud-restore`'s report.
+
+### Changed
+
+- The cross-cloud wire moves to schema 2: `CrossCloudHandshakeRequest`
+  carries `kem_suites`, `KeyReleaseToken` carries `suite` beside each
+  wrapped key, the handshake answer carries `recipient_key_suite`. Both
+  daemons move together: a request or an answer that names no suite is
+  refused, on the record, and the ECIES of ADR 0009 (`x25519-kem-v1`)
+  is no longer written across clouds. The hardware kit
+  `gcp-sev-snp/keyrelease-e2e` takes the profile as its third argument.
+
 ## [0.6.1] — 2026-10-21
 
 The release built with Go 1.27.3 and shipped as container images too. A

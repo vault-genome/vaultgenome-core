@@ -50,12 +50,14 @@ import (
 )
 
 const (
-	// SchemaVersionMin / Max / Current are all 1 — this contract is
-	// introduced fresh in Phase 4. Future extensions follow the
-	// docs/doctrine/bootstrap-contracts.md §5 freezing discipline.
+	// SchemaVersionMin stays 1; Max and Current are 2 since ADR 0029: a
+	// schema-2 token names the KEM suite of every wrapped key
+	// (WrappedKey.Suite), a schema-1 token names none and its keys are
+	// under the ECIES of ADR 0009. Safe additions bump Max (not Min);
+	// reordering or reinterpretation bumps Min and Current together.
 	SchemaVersionMin     uint16 = 1
-	SchemaVersionMax     uint16 = 1
-	SchemaVersionCurrent uint16 = 1
+	SchemaVersionMax     uint16 = 2
+	SchemaVersionCurrent uint16 = 2
 
 	// PurposeSealing is the keys.Purpose value (3) reserved for
 	// AES-256-GCM sealing keys. A WrappedKey delivered via Phase 4
@@ -137,9 +139,17 @@ type WrappedKey struct {
 	// extend.
 	Purpose uint8 `json:"purpose"`
 
-	// Ciphertext is the wrapped DEK material. Under the production KEM
-	// (ADR 0009) it is ephPub(32) ‖ nonce(12) ‖ AES-256-GCM ciphertext,
-	// decapsulable only with the destination TEE's X25519 private key.
+	// Suite names the KEM suite of ADR 0029 the DEK is encapsulated
+	// under (schema 2; required there, absent in schema 1). It is the
+	// suite the destination named in its handshake answer; the
+	// destination refuses a wrapped key under any other.
+	Suite string `json:"suite,omitempty"`
+
+	// Ciphertext is the wrapped DEK material: under Suite, the HPKE
+	// encapsulated key followed by the AEAD ciphertext with its tag,
+	// decapsulable only with the private key the destination TEE
+	// generated for this handshake (ADR 0029); in schema 1, the ECIES of
+	// ADR 0009 — ephPub(32) ‖ nonce(12) ‖ AES-256-GCM ciphertext.
 	Ciphertext []byte `json:"ciphertext"`
 
 	// AAD is the additional-authenticated-data binding the wrap to

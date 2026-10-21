@@ -122,6 +122,10 @@ func runCrossCloudConfirmCmd(args []string) error {
 	if err != nil {
 		return printConfirm(out, xcc, err)
 	}
+	suites, err := cfg.Crypto.Policy()
+	if err != nil {
+		return fmt.Errorf("crypto: %w", err)
+	}
 	coord, err := kms.NewCoordinator(kms.Config{
 		AuditChain:   xcc.AuditEmitter,
 		Signer:       mat.Store,
@@ -132,6 +136,7 @@ func runCrossCloudConfirmCmd(args []string) error {
 		NonceSource:  xcc.NonceSource,
 		Clock:        clock,
 		SigningKeyID: mat.AuthoritySigningKeyID,
+		Suites:       suites,
 		Receipts:     xcc.Transport,
 	})
 	if err != nil {

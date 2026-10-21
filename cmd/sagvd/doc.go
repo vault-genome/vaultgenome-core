@@ -108,6 +108,12 @@
 //     bounds the model side of one job; evidence_max_age_seconds is how
 //     old a worker's Evidence may be when it is handed a job (default: the
 //     attestation TTL, 5 min)
+//   - crypto.profile            the cryptographic profile (ADR 0029): general
+//     (default; X25519 written, every suite accepted), fips (P-384 written;
+//     P-384, ML-KEM-768 and the MLKEM1024-P384 hybrid accepted) or cnsa (the
+//     hybrid only) — the KEM suite the authority encapsulates keys under
+//     across clouds and the suites it accepts a destination's answer under;
+//     crypto.kem_suites narrows the profile's list, in order of preference
 //   - health.listen_address     HTTP listener for /healthz /readyz /metrics
 //   - log.level, log.format     debug|info|warn|error, json|text
 //

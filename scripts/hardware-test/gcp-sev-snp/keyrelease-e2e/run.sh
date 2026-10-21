@@ -14,11 +14,15 @@
 # Cost: one n2d-standard-2 for about ten minutes. Requires gcloud logged in
 # to a project with the Compute and Storage APIs enabled.
 #
-# Usage: run.sh <project> [zone]   (default zone us-central1-b)
+# Usage: run.sh <project> [zone] [profile]   (default zone us-central1-b;
+# profile general, fips or cnsa — the cryptographic profile of ADR 0029
+# both daemons run under, written into their configs on the guest)
 set -euo pipefail
 
-PROJECT="${1:?usage: run.sh <project> [zone]}"
+PROJECT="${1:?usage: run.sh <project> [zone] [profile]}"
 ZONE="${2:-us-central1-b}"
+PROFILE="${3:-general}"
+case "$PROFILE" in general|fips|cnsa) ;; *) echo "profile must be general, fips or cnsa; got $PROFILE"; exit 2;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -50,7 +54,7 @@ gcloud compute instances create "$NAME" --project "$PROJECT" --zone "$ZONE" \
   --machine-type n2d-standard-2 --min-cpu-platform "AMD Milan" \
   --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
   --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
-  --scopes storage-ro --metadata "vg-bucket=$BUCKET" \
+  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE" \
   --metadata-from-file "startup-script=$HERE/cvm-keyrelease.sh" >/dev/null
 
 echo "waiting for results on the serial console (up to 15 min)"
@@ -68,4 +72,18 @@ done
 grep -q "===E2E-END===" "$SERIAL" || { echo "no results after 15 minutes"; tail -40 "$SERIAL"; exit 1; }
 echo "serial capture: $SERIAL ($(shasum -a 256 "$SERIAL" | cut -d' ' -f1))"
 
-"$HERE/decode-results.sh" "$SERIAL" "$HERE/evidence"
+DECODED="$("$HERE/decode-results.sh" "$SERIAL" "$HERE/evidence")"; echo "$DECODED"
+
+# The run's verdict: the release under the profile's suite, the restore
+# confirmed, the two refusals, the audit log verified. The guest's record
+# is the one decode-results named (runs may overlap).
+GUEST="$HERE/evidence/$(printf '%s\n' "$DECODED" | sed -n 's/^decoded \([^:]*\):.*/\1/p' | tail -1)"
+STEPS="$GUEST/steps.txt"
+[ -s "$STEPS" ] || { echo "FAIL: no steps.txt under $GUEST"; exit 1; }
+grep -E 'profile=|suite=|exit=' "$STEPS" | sed 's|^|  |'
+case "$PROFILE" in general) WANT=hpke-x25519-v1;; fips) WANT=hpke-p384-v1;; cnsa) WANT=hpke-mlkem1024-p384-v1;; esac
+grep -q "release exit=0" "$STEPS" && grep -q "release suite=$WANT" "$STEPS" && grep -q "release profile=$PROFILE" "$STEPS" \
+  && grep -q "confirm exit=0" "$STEPS" && grep -q "verify exit=0" "$STEPS" \
+  && grep -q "unlisted exit=1" "$STEPS" && grep -q "stopped exit=1" "$STEPS" && grep -q "audit verify exit=0" "$STEPS" \
+  && echo "PASS: key release under $PROFILE ($WANT), restore confirmed, refusals refused, audit verified ($(basename "$GUEST"))" \
+  || { echo "FAIL: see $STEPS"; exit 1; }

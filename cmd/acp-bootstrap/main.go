@@ -30,7 +30,6 @@ import (
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
-	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // version / commit are populated at link time by the Makefile.
@@ -200,12 +199,17 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 			return nil, fmt.Errorf("acp-bootstrap: genome: %w", err)
 		}
 	}
+	suites, err := cfg.Crypto.Policy()
+	if err != nil {
+		return nil, fmt.Errorf("acp-bootstrap: crypto: %w", err)
+	}
 	rcfg := crosscloud.Config{
 		SourceAuthorityKeys: sourceResolver,
 		LocalTEE:            producer,
 		Kind:                kind,
 		Registrar:           keystore,
 		Clock:               clock,
+		Suites:              suites,
 	}
 	if rest != nil {
 		rcfg.OnDelivery = rest.Delivered
@@ -261,7 +265,8 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 		"tee_provider", string(kind),
 		"measurement_hex", fmt.Sprintf("%x", producer.Measurement()),
 		"source_authority_kid", cfg.SourceAuthority.KeyID,
-		"key_delivery", kms.DeliveryModeX25519KEM,
+		"crypto_profile", string(receiver.Suites().Profile()),
+		"kem_suites", receiver.Suites().SuiteIDs(),
 		"genome_restore", rest != nil,
 		"genome_gate", cfg.Genome.Gate != nil,
 		"genome_bundle_dir", cfg.Genome.BundleDir,

@@ -24,8 +24,9 @@ import (
 // Live cross-cloud key release: `sagvd crosscloud-restore` (the source
 // authority) and `acp-bootstrap` (the destination) run as real processes
 // and talk over TLS 1.3 with client certificates and a bearer token. The
-// DEK crosses the wire only encapsulated to an X25519 key the destination
-// TEE generated for that handshake and bound into its Evidence (ADR 0009).
+// DEK crosses the wire only encapsulated — under the KEM suite the two
+// sides' profiles settle on (ADR 0029) — to a key the destination TEE
+// generated for that handshake and bound into its Evidence (ADR 0009).
 
 const destinationDescriptor = "acp-bootstrap-destination-v1"
 
@@ -206,6 +207,12 @@ func (x *xcc) startDestination(t *testing.T, cfg string) {
 // the given measurements.
 func (x *xcc) sourceConfig(t *testing.T, dest map[string]string, allowedHex ...string) string {
 	t.Helper()
+	return x.sourceConfigWith(t, dest, nil, allowedHex...)
+}
+
+// sourceConfigWith is sourceConfig with extra top-level sections.
+func (x *xcc) sourceConfigWith(t *testing.T, dest map[string]string, extra map[string]any, allowedHex ...string) string {
+	t.Helper()
 	attPath := filepath.Join(t.TempDir(), "destination_attestor.pem")
 	writeSecret(t, attPath, []byte(dest["attestor_public_key_pem"]))
 	registry := writeJSON(t, "verifiers.json", map[string]any{
@@ -244,6 +251,9 @@ func (x *xcc) sourceConfig(t *testing.T, dest map[string]string, allowedHex ...s
 			"ca_bundle":   sec("shared", "tls", "ca.crt"),
 		},
 	}
+	for k, v := range extra {
+		cfg[k] = v
+	}
 	return writeJSON(t, "sagvd-xcc.json", cfg)
 }
 
@@ -256,6 +266,8 @@ type restoreResult struct {
 	} `json:"error"`
 	DestinationMeasurementHex string `json:"destination_measurement_hex"`
 	RecipientKeySHA256        string `json:"recipient_key_sha256"`
+	RecipientKeySuite         string `json:"recipient_key_suite"`
+	CryptoProfile             string `json:"crypto_profile"`
 	TokenID                   string `json:"token_id"`
 	AuditChainLength          int    `json:"audit_chain_length"`
 	AuditTip                  string `json:"audit_tip"`
@@ -380,8 +392,69 @@ func TestLiveCrossCloud_KeyReleaseToAttestedDestination(t *testing.T) {
 	if got := answered[0]["recipient_key_sha256"]; got != res.RecipientKeySHA256 || res.RecipientKeySHA256 == "" {
 		t.Fatalf("recipient key: source released to %q, destination attested %q", res.RecipientKeySHA256, got)
 	}
+	// Both sides name the suite, and two general profiles meet on X25519.
+	if got := answered[0]["recipient_key_suite"]; got != res.RecipientKeySuite || res.RecipientKeySuite != "hpke-x25519-v1" {
+		t.Fatalf("recipient key suite: source released under %q, destination generated under %q, want hpke-x25519-v1", res.RecipientKeySuite, got)
+	}
+	if res.CryptoProfile != "general" || id["crypto_profile"] != "general" {
+		t.Fatalf("profiles: source %q, destination %q, want general on both", res.CryptoProfile, id["crypto_profile"])
+	}
 	if got := x.destLog("crosscloud token accepted")[0]["registered_keys"]; got != float64(1) {
 		t.Fatalf("destination registered %v keys, want 1", got)
+	}
+}
+
+// The cryptographic profile (ADR 0029), live: a fips source and a fips
+// destination meet on P-384 and the record says so on both sides; a cnsa
+// source meets a fips destination on the MLKEM1024-P384 hybrid, the one
+// suite both accept; and a source whose only suite the destination does
+// not accept is refused at the handshake, on the source's record.
+func TestLiveCrossCloud_ProfilesMeetOnTheirSuites(t *testing.T) {
+	x := newXCC(t)
+	dest := x.destinationConfig(t, "destination", map[string]any{"crypto": map[string]any{"profile": "fips"}})
+	id := identityOf(t, bins.bootstrap, dest)
+	if id["crypto_profile"] != "fips" {
+		t.Fatalf("destination identity: crypto_profile %q, want fips", id["crypto_profile"])
+	}
+	x.startDestination(t, dest)
+
+	fips := x.sourceConfigWith(t, id, map[string]any{"crypto": map[string]any{"profile": "fips"}}, id["measurement_hex"])
+	res, out, err := x.restore(t, fips, x.endpoint, randomBytes(t, 32))
+	if err != nil || res.Status != "ok" {
+		t.Fatalf("fips → fips crosscloud-restore: %v\n%s", err, out)
+	}
+	if res.RecipientKeySuite != "hpke-p384-v1" || res.CryptoProfile != "fips" {
+		t.Fatalf("fips → fips: released under %q as %q, want hpke-p384-v1 as fips", res.RecipientKeySuite, res.CryptoProfile)
+	}
+
+	cnsa := x.sourceConfigWith(t, id, map[string]any{"crypto": map[string]any{"profile": "cnsa"}}, id["measurement_hex"])
+	res2, out, err := x.restore(t, cnsa, x.endpoint, randomBytes(t, 32))
+	if err != nil || res2.Status != "ok" {
+		t.Fatalf("cnsa → fips crosscloud-restore: %v\n%s", err, out)
+	}
+	if res2.RecipientKeySuite != "hpke-mlkem1024-p384-v1" {
+		t.Fatalf("cnsa → fips: released under %q, want the hybrid both accept", res2.RecipientKeySuite)
+	}
+
+	waitFor(t, 5*time.Second, "destination to log the accepted tokens", func() bool {
+		return len(x.destLog("crosscloud token accepted")) == 2
+	})
+	answered := x.destLog("crosscloud handshake answered")
+	if len(answered) != 2 || answered[0]["recipient_key_suite"] != "hpke-p384-v1" || answered[1]["recipient_key_suite"] != "hpke-mlkem1024-p384-v1" {
+		t.Fatalf("destination's record of the suites: %v", answered)
+	}
+
+	// A general source narrowed to X25519 offers nothing fips accepts.
+	narrow := x.sourceConfigWith(t, id, map[string]any{"crypto": map[string]any{"profile": "general", "kem_suites": []string{"hpke-x25519-v1"}}}, id["measurement_hex"])
+	res3, out, err := x.restore(t, narrow, x.endpoint, randomBytes(t, 32))
+	if err == nil || res3.Status == "ok" {
+		t.Fatalf("a source offering only X25519 to a fips destination must be refused:\n%s", out)
+	}
+	if res3.Error == nil || !strings.Contains(res3.Error.Message, "none of the KEM suites") {
+		t.Fatalf("refusal must name the suites: %v\n%s", res3.Error, out)
+	}
+	if len(x.destLog("crosscloud handshake answered")) != 2 {
+		t.Fatalf("the refused handshake must not have been answered")
 	}
 }
 

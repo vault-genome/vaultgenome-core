@@ -1,0 +1,20 @@
+{
+  "status": "ok",
+  "decision_id": "e2e-decision-1",
+  "key_id": "genome-13dc5cfdf12c-g0-611267b868cc",
+  "destination_kind": "gcp-sev-snp",
+  "destination_measurement_hex": "ccdc5cf01ba25526bd65503d95931b787b4385a3277cfe4448addf9c3e894948ae8cf7b099620e3e22717de2fb5d26fa",
+  "bundle_sha256": "ed8da37ab6f671d2bf265984f5d4fdd778d428f2e40ce56145a0cddee39086f7",
+  "payload_sha256": "sha256:13dc5cfdf12c7dc40fb2cb6c344d16a2be83ca4c12673d7a725b3edfd2a6e466",
+  "tree_sha256": "4f8ad578b14547fa27e666c88f0e34fbf9628f881a88859835da2409b03dbf9f",
+  "files": 3,
+  "bytes": 16777312,
+  "restore_seconds": 0.092694943,
+  "key_to_restored_seconds": 0.093326764,
+  "authorized_to_confirmed_seconds": 2.092196658,
+  "matched_operator_bundle": true,
+  "receipt_sha256": "2e624c34b7f9cc82212d50e2c16a027ae5bbf9c1733b5e351ca8c9777c0f51c5",
+  "audit_id": "xcc-evt-0000000000000004",
+  "audit_chain_length": 4,
+  "audit_tip": "0d81d266ad70e4fc63c0dec02da52a97a35c0b4bde195e92199efd3483027cd2"
+}

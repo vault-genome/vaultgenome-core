@@ -232,6 +232,7 @@ type httpHandshakeResponse struct {
 	Evidence           []byte `json:"evidence"`
 	MeasurementHint    []byte `json:"measurement_hint,omitempty"`
 	RecipientPublicKey []byte `json:"recipient_public_key,omitempty"`
+	RecipientKeySuite  string `json:"recipient_key_suite,omitempty"`
 }
 
 // classifyHTTPError maps a non-2xx HTTP response into the project's
