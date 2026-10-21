@@ -2331,11 +2331,56 @@ re-computed, each loaded image's `RootFS.Layers` equal to the signed
 config's `diff_ids`; both daemons from their images, the key files sealed,
 the rogue refused, gate level EXACT, the audit log verified; 178.3 s.
 
+The same kit on `v0.7.0`, ten minutes after the release was published
+(2026-10-21, 16:37:55Z):
+[`scripts/hardware-test/release-deploy/evidence/20261021T164732Z/`](scripts/hardware-test/release-deploy/evidence/20261021T164732Z/)
+— `verify/assets.sha256` 55 assets; `verify/cosign.txt` twelve "Verified
+OK" (the pairs); `verify/cosign-bundle-nonet.txt` the same twelve from
+their bundles with `--trusted-root trusted_root.json` under
+`sandbox-exec` with no route, twelve "Verified OK" (the trust root
+`6494e21e…bc0b66`, the same file as for `v0.6.1`); `verify/slsa.txt` six
+"PASSED"; `verify/tag.txt` the tag's signature under the pinned key;
+`verify/rebuild.txt` the five binaries and the package rebuilt from the
+tag (commit `28fa01506f43`, go1.27.3, GNU tar 1.35, GNU gzip 1.15) with
+the same sha256 as the released files (`sagvd` `fc11d465…`,
+`acp-compute` `367d4b15…`, `acpctl` `e8d1543d…`, `acp-bootstrap`
+`2cd7480f…`, `acp-keygen` `fb6f94b9…`, the package `f4c314b1…`);
+`results/versions.txt` the four released binaries reporting `v0.7.0` at
+the tag's commit; `results/amd-chain.txt` the Milan chain fetched on the
+guest by the released `acpctl` and checked against the pinned ARK-Milan;
+both daemons read `7dc7c12e…25acc` from the chip and sealed their key
+files to it (`results/sealed-files.txt`);
+`results/rogue-sealed-worker.log` the thief with the sealed files
+refused before any key is read, `results/rogue-worker.log` the unpinned
+worker refused at the handshake; `results/job.json` gate level EXACT, 6
+of 6, `max_abs_err` 0, `release_authorized`; `results/audit-verify.json`
+`ok: true`, 18 events (the 18th a handshake that failed as sagvd
+stopped, on the record as a refusal; the record's README names it);
+133.2 s on the guest (the runtime from the locks 83 s, the fine-tune
+10 s, the job 5 s). The same release's two container
+images, deployed by `scripts/hardware-test/release-deploy-images` in the
+same minutes:
+[`scripts/hardware-test/release-deploy-images/evidence/20261021T164959Z/`](scripts/hardware-test/release-deploy-images/evidence/20261021T164959Z/)
+— each image verified by digest on the runner (signature, SBOM
+attestation, SLSA provenance, the binary inside equal to the release
+asset), both publicly readable, loaded on the guest from tarballs whose
+hashes the guest re-computed, each loaded image's `RootFS.Layers` equal
+to the signed config's `diff_ids` (13 layers for `sagvd`, 9 for
+`acp-compute`); both daemons from their images, the key files sealed,
+the rogue refused, gate level EXACT, the audit log verified (17 events);
+211.0 s. And the binaries of the tag's commit under the `fips` profile,
+by the key-release kit in the same minutes:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T164918Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T164918Z/)
+— a key released across clouds under `hpke-p384-v1`, the restore
+confirmed by the chip receipt, the unlisted guest and the operator stop
+refused, the audit log verified (10 events) — C40 on the released
+commit.
+
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.6.1           # ~15 min, one n2d-standard-4, deletes it
-scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.6.1    # the images; ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.7.0           # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.7.0    # the images; ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
@@ -2563,7 +2608,14 @@ measurement `ccdc5cf0…` on all three. Escrow:
 (fips, RTO cold 235.9 s, warm 48.5 s), commit `1637bf7`: `a/steps.txt`
 (`profile=`, `escrow-provision exit=0 … suite=`), `b/steps.txt` (`escrow
 re-provision exit=0 escrow_key=… suite=`, `resumed job is A's lost job:
-same_job_id=true`). Unit and live tests: `internal/vault/kms/suite_test.go`
+same_job_id=true`). The same key-release kit under `fips` on the tag
+`v0.7.0` (commit `28fa01506f43`), ten minutes after the release was
+published:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T164918Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T164918Z/)
+— both daemons `crypto_profile=fips`, the release under `hpke-p384-v1`
+(recipient key `f5eb716d…`), the restore confirmed, the unlisted guest
+and the operator stop refused, `audit-verify.json` `ok: true`, 10 events,
+the measurement `ccdc5cf0…`. Unit and live tests: `internal/vault/kms/suite_test.go`
 (the suite table against RFC 9180 §7.1 and draft-ietf-hpke-pq-05 §8),
 `profile_test.go`, `coordinator_test.go`, `internal/bootstrap/crosscloud/
 receiver_test.go`, `internal/genome/escrow/*_test.go`,
