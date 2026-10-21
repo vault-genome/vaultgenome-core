@@ -1,6 +1,6 @@
 module github.com/vault-genome/vaultgenome-core
 
-go 1.27.2
+go 1.27.3
 
 // Dependency additions require:
 //   1. A justification file at docs/dependencies/<name>.md.
