@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Check docs/reference/api.md against a real run's job-submit.json and job.json.
 
 Usage: check_api_doc.py <api.md> <evidence-dir>
