@@ -1,0 +1,29 @@
+profile=fips
+== binaries from gs://rats-probe-vg-e2e-20261021t144634z/e2e
+== configfs-tsm
+== provision (keygen)
+== sagvd identity
+sagvd crypto_profile=fips kem_suites=hpke-p384-v1,hpke-mlkem768-v1,hpke-mlkem1024-p384-v1
+== seal a genome (a fine-tune output: LoRA weights, config, tokenizer)
+seal exit=0
+key_id=genome-2ac997214d3c-g0-68557290510a
+== operator stop key and first list (nothing stopped)
+== acp-bootstrap on SEV-SNP
+identity exit=0
+destination crypto_profile=fips kem_suites=hpke-p384-v1,hpke-mlkem768-v1,hpke-mlkem1024-p384-v1
+measurement=ccdc5cf01ba25526bd65503d95931b787b4385a3277cfe4448addf9c3e894948ae8cf7b099620e3e22717de2fb5d26fa
+== release the genome key to this attested guest
+release exit=0
+release suite=hpke-p384-v1
+release profile=fips
+release recipient_key_sha256=5931880a1ffeec41d81a19af0ea5137a712b6d030c79e6a386f9b27e3fc241f9
+== the destination restores by itself; confirm from its chip-signed receipt
+confirm exit=0
+verify exit=0
+== release refused: guest not on the allow-list
+unlisted exit=1
+== release refused: operator stop in force
+stopped exit=1
+== audit log verified with the published audit key
+audit verify exit=0
+== emit

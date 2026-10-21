@@ -1,0 +1,16 @@
+{
+  "authority_kid": "sagvd-authority-demo",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAruVvB5oebZJbtgdg/HOwRWENARLIrOBXeJkns0u6BvE=\n-----END PUBLIC KEY-----\n",
+  "tee_provider": "simulated",
+  "tee_measurement_hex": "d59a461d1130614a2a5e57ea9a8135a034d8a05c4c6ad6d077debaf276ebb068",
+  "tee_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAD0zNCreHA3KALX0o0lzmOMUtBuSNUCsRoXYq3uomaZo=\n-----END PUBLIC KEY-----\n",
+  "sealer": "simulated",
+  "audit_kid": "sagvd-audit-demo",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAa402N2CbBGaf6jQ4ufkRI3BrW8TAA9I8N5cEvfyU1Ww=\n-----END PUBLIC KEY-----\n",
+  "crypto_profile": "fips",
+  "kem_suites": [
+    "hpke-p384-v1",
+    "hpke-mlkem768-v1",
+    "hpke-mlkem1024-p384-v1"
+  ]
+}
