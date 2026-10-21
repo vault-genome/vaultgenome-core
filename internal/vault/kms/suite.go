@@ -27,6 +27,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"slices"
 
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
@@ -366,10 +367,8 @@ func (s Suite) Wrap(purpose string, plaintext, recipientPub, aad []byte) ([]byte
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
 			fmt.Sprintf("kms.Wrap: %s seal failed", s), err)
 	}
-	out := make([]byte, 0, len(enc)+len(nonce)+len(ct))
-	out = append(out, enc...)
-	out = append(out, nonce...)
-	return append(out, ct...), nil
+	// enc ‖ nonce ‖ ciphertext ‖ tag; slices.Concat sizes the join itself.
+	return slices.Concat(enc, nonce, ct), nil
 }
 
 // Unwrap recovers the plaintext of a Wrap under s for purpose with the
