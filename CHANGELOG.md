@@ -27,6 +27,16 @@ given release can still open.
   vTPM's HCL report (`azure-sev-snp`; a report of another type is refused
   by its number). `acpctl provision join --provider auto` works there too.
 
+- The release carries its two container images: `ghcr.io/vault-genome/sagvd`
+  (distroless static) and `ghcr.io/vault-genome/acp-compute` (python-slim
+  with the worker's hash-locked runtime), built from the release's own
+  signed binaries — nothing compiled in the image build — pushed by
+  digest, signed keyless by digest, each with an SBOM attestation and a
+  SLSA provenance of its own; `images-<tag>.txt` among the release assets
+  names both by digest, with its Sigstore bundle. `deploy/image/` holds
+  the two Dockerfiles; `deploy/compose/` keeps the lab images that
+  compile from source.
+
 ### Fixed
 
 - The client that calls a RATS Verifier (`tee.peer.verifier.mode: rats`)

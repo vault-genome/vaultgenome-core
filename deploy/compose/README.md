@@ -45,6 +45,38 @@ downloads nothing. To restore a real model, seal
 its genome with `acpctl genome seal --content-dir` into `genomes/` and mount
 its base directory into the worker with `ACP_BASE_MODEL=/path/to/base`.
 
+## Run the released images instead of building
+
+From the next release the images are on `ghcr.io`, signed by digest
+(`docs/security/supply_chain.md`). Take both digests from the release's
+`images-<tag>.txt` (verify it like any asset first), verify each image,
+then point the services at them with an override file instead of
+`build:`:
+
+```
+cosign verify ghcr.io/vault-genome/sagvd@sha256:… \
+  --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+```yaml
+# deploy/compose/docker-compose.release.yml
+services:
+  sagvd:
+    image: ghcr.io/vault-genome/sagvd@sha256:…
+    build: !reset null
+  acp-compute:
+    image: ghcr.io/vault-genome/acp-compute@sha256:…
+    build: !reset null
+```
+
+`docker compose -f docker-compose.yml -f docker-compose.release.yml up`.
+The rest — keys, certificates, the genome, the mounts — is the same. The
+images carry the daemons; the TEE they attest with is the host's: on a
+confidential VM the worker needs the kernel's `configfs-tsm` and the
+vTPM passed into the container, which the hardware kit for the images
+measures (`scripts/hardware-test/release-deploy-images/`, once it exists).
+
 ## What acp-keygen provisions
 
 `cmd/acp-keygen` (a release binary since 0.4.2, signed and attested like

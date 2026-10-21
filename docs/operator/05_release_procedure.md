@@ -77,7 +77,7 @@ The tag push runs `.github/workflows/release.yml`:
 
 1. Check out the tag and run `git verify-tag` on it against the keys pinned on
    the default branch.
-2. Set up Go 1.27.2 (the toolchain `go.mod` names).
+2. Set up Go 1.27.3 (the toolchain `go.mod` names).
 3. `make build` and `make verify-reproducible`, with `VERSION` = the tag name,
    `COMMIT` = the full commit SHA and `SOURCE_DATE_EPOCH` = the tagged commit's
    timestamp.
@@ -98,6 +98,22 @@ The tag push runs `.github/workflows/release.yml`:
    (`slsa-framework/slsa-github-generator`, `generator_generic_slsa3.yml`
    v2.1.0) over the five binaries' and the worker package's SHA-256 and uploads the provenance to the
    release.
+8. The `images` job takes `bin/sagvd` and `bin/acp-compute` with their
+   Sigstore bundles from the build job, verifies each binary under this
+   workflow's identity on this tag before packing it, builds the two
+   release images (`deploy/image/sagvd/Dockerfile` on distroless static,
+   `deploy/image/acp-compute/Dockerfile` on python-slim with the worker's
+   hash-locked runtime — nothing is compiled in either), pushes them to
+   `ghcr.io/vault-genome/sagvd:<tag>` and `ghcr.io/vault-genome/acp-compute:<tag>`,
+   signs each by digest (`cosign sign`, keyless), attests an SPDX SBOM of
+   each image to it (`cosign attest --type spdxjson`), and uploads
+   `images-<tag>.txt` — both images named by digest — with its signature,
+   certificate and bundle, and the two image SBOMs: 6 more assets, 54 in
+   all.
+9. `slsa-images` runs the SLSA container generator
+   (`generator_container_slsa3.yml` v2.1.0) once per image, over the
+   image's digest, and pushes the provenance to the registry beside the
+   image.
 
 `TestInvariant_11_SupplyChainAttested` does not run in `release.yml`; it runs
 with the doctrine tests in vault-gate. It reads `release.yml` and fails if the
@@ -110,6 +126,8 @@ a change that drops a pillar cannot merge. It does not run the workflow.
 ### 4.1 Rehearsal after a change to release.yml
 
 `release.yml` runs only on a tag, so a pull request cannot exercise it.
+The image jobs (§4, items 8–9) and the Go 1.27.3 toolchain are to be
+rehearsed as `v0.6.1-rc1` before the next release.
 After any change to the workflow or to the actions it pins (a Dependabot
 bump included), run the pipeline on a signed rehearsal tag before the
 real one: `vX.Y.Z-rcN` on the merge commit, verified like a release (§5),
@@ -161,7 +179,7 @@ Once the release workflow completes:
 3. Check that the SLSA provenance attached to the release names each
    binary's and the worker package's SHA-256 (for example with
    `slsa-verifier`).
-4. Rebuild from the tag with Go 1.27.2, from any host — the binaries are
+4. Rebuild from the tag with Go 1.27.3, from any host — the binaries are
    static (`CGO_ENABLED=0`) and carry the tag's VCS stamp, so the rebuild
    must come from a git checkout of the tag, not from an archive:
    ```
@@ -184,8 +202,23 @@ Once the release workflow completes:
    time); compare them first when hashes differ. (v0.1.0 and v0.2.0 were
    built with cgo on the runner: their rebuild needs linux/amd64 with a
    C toolchain; from v0.2.1 the binaries are static.)
-5. Verify the tag signature — `git verify-tag v0.1.0`.
-6. Record the release hashes externally (the external pin is itself a
+5. Verify the two images by digest, from `images-<tag>.txt` (itself
+   verified like the other assets): the signature under this workflow's
+   identity, the SBOM attestation, and the provenance —
+   ```
+   cosign verify ghcr.io/vault-genome/sagvd@sha256:… \
+     --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
+     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+   cosign verify-attestation --type spdxjson ghcr.io/vault-genome/sagvd@sha256:… \
+     --certificate-identity-regexp '…/release\.yml@refs/tags/v' --certificate-oidc-issuer https://token.actions.githubusercontent.com
+   slsa-verifier verify-image ghcr.io/vault-genome/sagvd@sha256:… \
+     --source-uri github.com/vault-genome/vaultgenome-core --source-tag vX.Y.Z
+   ```
+   and the same for `acp-compute`. The binary inside is the released one:
+   `docker create` the image, `docker cp` `/usr/local/bin/sagvd` out, and
+   its SHA-256 equals the release asset's.
+6. Verify the tag signature — `git verify-tag v0.1.0`.
+7. Record the release hashes externally (the external pin is itself a
    defence against a later tag rewrite — see
    `04_observability.md` §2.2 for the parallel idea on audit chains).
 
