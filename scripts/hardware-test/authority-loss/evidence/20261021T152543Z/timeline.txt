@@ -1,0 +1,17 @@
+job in flight when the deletion was issued (runner's view): 5
+job lost with A (submitted, never completed, by A's markers): 6
+RTO cold (A's deletion issued -> B's first verdict):      235.9 s
+  of which B's VM creation (create issued -> created):    13.8 s
+  of which B's boot until its script started:            69.1 s
+RTO from B's first line (script start -> first verdict):  125.3 s
+RTO warm (runtime ready -> first verdict):                48.5 s
+  state restored at +1.0 s, ceremony 10.5 s, daemons ready at +43.9 s (from runtime ready)
+jobs A completed before the loss: 5
+the replica carried the job in flight (job store synced on acceptance): yes
+B resumed A's job by itself from the replicated job store: yes
+authority signing key A vs B: same
+audit signing key A vs B:     same
+launch measurement A vs B:    same (7dc7c12e55999ef4… / 7dc7c12e55999ef4…)
+escrow key A -> ceremony -> B: same (8c9d9b1258dac31d)
+replica: after job 6 (tip …) ok=True events=89
+final chain on B (A's events + B's): ok=True events=122 tip=77849b9e60a60e8b…
