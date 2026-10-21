@@ -11,6 +11,21 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-10-21
+
+The release built with Go 1.27.3 and shipped as container images too. A
+security release first: `crypto/x509` refuses the known compromised
+intermediate certificates (GO-2026-6809), on a path the product reaches
+when it verifies NVIDIA's RIM chains. The same release is the first to
+carry its two container images, built from its own signed binaries and
+signed by digest — and the first whose pipeline was rehearsed on two tags
+and proven by two hardware kits on SEV-SNP before the real tag, which
+found what no green job shows: the packages a first push creates are
+private, and `cosign verify` prints a different line than `verify-blob`.
+On record with it: the acceptance trial of October 2026 (22 of 22), the
+control catalogue and the banking map, the first reference design, and
+the operator REST API reference checked against a run.
+
 ### Security
 
 - Go 1.27.3. GO-2026-6809 (CVE-2026-111943): `crypto/x509` now refuses
@@ -37,6 +52,52 @@ given release can still open.
   the two Dockerfiles; `deploy/compose/` keeps the lab images that
   compile from source.
 
+- `docs/TRIAL-2026-10.md`: the acceptance trial of the whole stand on the
+  released code — twenty-two results on real hardware (GCP SEV-SNP and
+  TDX, the confidential GPU, Azure SEV-SNP), each with its evidence
+  directory under `scripts/hardware-test/`.
+
+- `docs/compliance/`: the control catalogue (`controls.md`, VG-001 to
+  VG-037) and the banking map (`banking.md`: DORA and its RTS 2024/1774,
+  NYDFS Part 500, PCI DSS 4.0.1 by requirement number, FFIEC, X9 SD-34
+  against FIPS 186-5 and CMVP #5247, BCBS d516), each requirement mapped
+  to what the software contributes and to its evidence; and
+  `docs/reference-designs/01-tier1-bank-model-continuity.md`, the first
+  reference design, re-based on what is measured.
+
+- `docs/reference/api.md`: the operator REST API for an integrator — the
+  two endpoints, the bearer token, the error envelope, the health
+  listener — checked against the code by `scripts/check-api-reference.py`
+  and against a run on SEV-SNP.
+
+- `scripts/hardware-test/release-deploy-images`: the kit that deploys the
+  Return Path on SEV-SNP from the release's container images, after
+  verifying them by digest on the runner (signature, SBOM attestation,
+  SLSA provenance, the binary inside equal to the release asset) and
+  tying the guest's loaded images to the signed manifests.
+
+### Changed
+
+- `release.yml`: the images job builds each image from a staged context
+  under `dist/image-context/` (the repository's `.dockerignore` excludes
+  `bin/`); a release is 55 assets — 48 from the build job, the SLSA
+  provenance, 6 from the images job. The release procedure (§4.1)
+  records the two rehearsals, `v0.6.1-rc1` and `v0.6.1-rc2`, and the
+  one-time step that makes the packages public.
+
+- Actions: `codeql-action` 4.39.0, `osv-scanner-action` 2.7.0; the six
+  workflows and the two compose builder images on Go 1.27.3.
+
+- `TestDaemon_ServesSessionsInParallelUpToTheLimit` waits for the
+  sessions gauge instead of reading it once (a flake under the race
+  detector).
+
+- `docs/operator/01_preflight.md`: the host clock row names the commands
+  and what they must show; `docs/security/assurance_case.md` §4 says
+  what keeps secrets out of the logs as the code has it — the counter
+  to log injection is `logSafe`, identifiers reach the log through
+  `fmt.Stringer`.
+
 ### Fixed
 
 - The client that calls a RATS Verifier (`tee.peer.verifier.mode: rats`)
@@ -47,6 +108,13 @@ given release can still open.
   label the `verify` role with the peer's family, not the daemon's own —
   an authority on SEV-SNP verifying an Azure worker counted it under
   `gcp-sev-snp`.
+
+Doctrine and invariants are unchanged since 0.6.0: nothing under `docs/doctrine/` or `test/doctrine/` changed. Dependencies: the Go toolchain
+1.27.2 → 1.27.3 in `go.mod`; no module dependency changed (`go.sum` is
+the same); in CI, `codeql-action` 4.38.3 → 4.39.0 and
+`osv-scanner-action` 2.6.0 → 2.7.0; the release images are built on
+`gcr.io/distroless/static-debian12:nonroot` and
+`python:3.12-slim-bookworm`, pinned by digest.
 
 ## [0.6.0] — 2026-10-17
 
