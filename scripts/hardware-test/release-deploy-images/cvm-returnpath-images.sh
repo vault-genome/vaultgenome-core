@@ -48,6 +48,11 @@ loaded() { docker load -i "$1" 2>&1 | tee -a "$OUT/docker-load.txt" | grep -o -E
 SAGVD_IMG=$(loaded sagvd-image.tar); WORKER_IMG=$(loaded acp-compute-image.tar)
 echo "sagvd_image=$SAGVD_IMG" >> "$OUT/steps.txt"; echo "worker_image=$WORKER_IMG" >> "$OUT/steps.txt"
 docker image inspect "$SAGVD_IMG" "$WORKER_IMG" --format '{{.Id}} {{.RepoTags}} {{.RepoDigests}} {{.Config.User}} {{.Config.Entrypoint}}' > "$OUT/docker-images.txt" 2>&1
+# The loaded images' layers: RootFS.Layers are the config's rootfs.diff_ids
+# and survive docker load (the image id does not — it is a digest of a
+# manifest rebuilt here); the runner compares them with the signed configs.
+docker image inspect "$SAGVD_IMG" --format '{{json .RootFS.Layers}}' > "$OUT/docker-rootfs-sagvd.json" 2>&1
+docker image inspect "$WORKER_IMG" --format '{{json .RootFS.Layers}}' > "$OUT/docker-rootfs-acp-compute.json" 2>&1
 # The container runs on the host's network (the daemons bind loopback as
 # the configs say), as root, with the chip reachable; /root/e2e is the
 # shared working tree, bound at the same path so the configs hold.

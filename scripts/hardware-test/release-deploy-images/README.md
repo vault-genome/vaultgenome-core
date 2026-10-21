@@ -33,7 +33,8 @@ seal to a vTPM call `tpm2-tools`, which the images do not carry.
    `cosign verify-attestation --type spdxjson`, `slsa-verifier
    verify-image` — and exports each to check that the binary inside is
    byte-identical to the release asset; then pulls each image into a
-   tarball (`crane`, by digest).
+   tarball (`crane`, by digest) and records the signed manifest's config
+   digest and the config's `rootfs.diff_ids`.
 2. Uploads the two tarballs, the released `acpctl`, `acp-keygen` and
    worker package to a new private bucket.
 3. Boots an n2d SEV-SNP VM whose startup script is
@@ -43,8 +44,13 @@ seal to a vTPM call `tpm2-tools`, which the images do not carry.
    run` of the image; the fine-tune runs on the host, the door inside the
    worker image.
 4. Decodes the results from the serial console, keeps the runner's
-   verification records beside them under `evidence/<stamp>/verify/`, and
-   deletes the VM and the bucket — always, also on failure.
+   verification records beside them under `evidence/<stamp>/verify/`,
+   and ties the guest's record to the runner's: the six inputs the guest
+   hashed are the six the runner uploaded, and each loaded image's
+   `RootFS.Layers` are the signed config's `diff_ids` — docker's image
+   id after `docker load` is a digest of a manifest rebuilt on the guest,
+   not the registry's, so it is the layers that carry the tie. Deletes
+   the VM and the bucket — always, also on failure.
 
 ```bash
 scripts/hardware-test/release-deploy-images/run.sh <project> <tag> [zone]
@@ -59,9 +65,10 @@ run`) and `gcloud`. Cost: one n2d-standard-4 for about fifteen minutes.
 keeps it — `steps.txt`, `timeline.txt`, the daemons' logs from `docker
 logs`, `docker-images.txt` (the loaded images' ids and digests),
 `images.txt`, `sealed-files.txt`, `job.json`, `audit-verify.json`,
-`audit-events.jsonl`, `sha256sums.txt` — and `verify/` from the runner:
-`images-<tag>.txt`, `public-read.txt` (the anonymous manifest pulls),
-the cosign, attestation and SLSA outputs per image,
+`audit-events.jsonl`, `sha256sums.txt`, `docker-rootfs-<name>.json` — and
+`verify/` from the runner: `images-<tag>.txt`, `public-read.txt` (the
+anonymous manifest pulls), the cosign, attestation and SLSA outputs per
+image, `config-digests.txt`, `diff-ids-<name>.json`,
 `binaries-inside.txt`, `guest-inputs.sha256`, `tag.txt`, `tools.txt`.
 
 `20261021T034404Z` is the first run, against the rehearsal `v0.6.1-rc2`:
@@ -72,4 +79,9 @@ release procedure (§4, item 8) come from it. `20261021T113822Z` is the
 second, once the packages were public: the images verified
 (`verify/image-sagvd-cosign.txt`), but the kit counted verify-blob's
 "Verified OK" where `cosign verify` prints "Verification for", and
-stopped itself; the counts now read the right line.
+stopped itself; the counts now read the right line. `20261021T114247Z`
+is the third, the PASS: both daemons from their images on SEV-SNP,
+identities from the chip, keys sealed, the rogue refused,
+`gate_level=EXACT` 6/6, the audit log verified (1158 s on the guest);
+the six input hashes are identical on both sides. The layer comparison
+and the config records came after that run, so it has neither file.

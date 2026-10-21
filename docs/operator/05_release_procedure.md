@@ -141,8 +141,15 @@ rehearsed as `v0.6.1-rc1` on 2026-10-21: the build, the 49 assets and
 the provenance as before; the `images` job failed at its first `COPY` —
 the repository's `.dockerignore` excludes `bin/`, so a root build
 context carries no binary. Each image now builds from a staged context
-of its own (`dist/image-context/<name>`); the rehearsal of that is
-`v0.6.1-rc2`. The rc1 release was deleted, its tag kept.
+of its own (`dist/image-context/<name>`); the rehearsal of that,
+`v0.6.1-rc2` on the same day, was green: 55 assets, both images signed
+and attested with a provenance each, verified like a release (§5) — the
+kits `release-deploy` and `release-deploy-images` both PASS on SEV-SNP
+against it — and its release deleted, the tag kept, like rc1's. The
+rehearsals found three things no job had: the packages are created
+private and the organization has to allow public ones (§4, item 8);
+`cosign verify` prints "Verification for", not verify-blob's "Verified
+OK"; and the asset count is 55, not 54.
 After any change to the workflow or to the actions it pins (a Dependabot
 bump included), run the pipeline on a signed rehearsal tag before the
 real one: `vX.Y.Z-rcN` on the merge commit, verified like a release (§5),

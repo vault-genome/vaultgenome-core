@@ -106,6 +106,14 @@ while read -r ref; do
   cosign verify "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-cosign.txt" | { grep -c '^Verification for ' || true; } | sed 's|^|    signature verifications: |'
   cosign verify-attestation --type spdxjson "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-attestation.txt" | { grep -c '^Verification for ' || true; } | sed 's|^|    SBOM attestation verifications: |'
   slsa-verifier verify-image "$ref" --source-uri "github.com/$REPO" --source-tag "$TAG" 2>&1 | rec "image-$name-slsa.txt" | tail -1 | sed 's|^|    |'
+  # The signed manifest's config digest and its rootfs diff_ids, recorded
+  # for the tie to the guest: docker's image id after `docker load` is a
+  # digest of a manifest rebuilt on the guest (not the registry's), but
+  # the loaded image's RootFS.Layers are the config's diff_ids, and the
+  # decode step compares them.
+  ( cd "$ROOT" && go run "$CRANE" manifest "$ref" ) | python3 -c 'import sys,json; m=json.load(sys.stdin); print(m["config"]["digest"])' | sed "s|^|$ref config.digest=|" | rec config-digests.txt | sed 's|^|    |'
+  ( cd "$ROOT" && go run "$CRANE" config "$ref" ) | python3 -c 'import sys,json; print(json.dumps(json.load(sys.stdin)["rootfs"]["diff_ids"]))' > "$EVIDENCE/verify/diff-ids-$name.json"
+  echo "    rootfs diff_ids recorded: $(python3 -c 'import sys,json; print(len(json.load(open(sys.argv[1]))))' "$EVIDENCE/verify/diff-ids-$name.json") layers"
   ( cd "$ROOT" && go run "$CRANE" export "$ref" - ) | tar -xO "usr/local/bin/$name" > "$WORK/inside-$name"
   a="$(sha256sum "$WORK/inside-$name" | awk '{print $1}')"; b="$(sha256sum "$DL/$name" | awk '{print $1}')"
   if [ "$a" = "$b" ]; then echo "    binary inside = release asset ($a)" | rec binaries-inside.txt; else echo "    MISMATCH $name: image $a asset $b" | rec binaries-inside.txt; exit 1; fi
@@ -158,6 +166,15 @@ for d in "$HERE"/evidence/*/; do d="${d%/}"; [ "$(basename "$d")" = "$STAMP" ] &
 GUEST_STAMP="$(basename "$GUEST")"
 mv "$EVIDENCE/verify" "$GUEST/verify" && rmdir "$EVIDENCE"
 echo "evidence: $GUEST"
+echo "== 7. the guest's record against the runner's: the six inputs, and each loaded image's layers against its signed config"
+diff <(grep -E ' (sagvd-image\.tar|acp-compute-image\.tar|acpctl|keygen|genome-worker\.tgz|images\.txt)$' "$GUEST/verify/guest-inputs.sha256" | sort) \
+     <(grep -E ' (sagvd-image\.tar|acp-compute-image\.tar|acpctl|keygen|genome-worker\.tgz|images\.txt)$' "$GUEST/inputs.sha256" | sort) \
+  && echo "  the six inputs the guest hashed are the six the runner uploaded" || { echo "FAIL: the guest's inputs differ from the runner's"; exit 1; }
+for name in sagvd acp-compute; do
+  python3 -c 'import sys,json; a=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2])); sys.exit(0 if a==b and len(a)>0 else 1)' "$GUEST/verify/diff-ids-$name.json" "$GUEST/docker-rootfs-$name.json" \
+    && echo "  $name: the loaded image's RootFS.Layers are the signed config's diff_ids" \
+    || { echo "FAIL: $name: the loaded image's layers are not the signed config's diff_ids"; exit 1; }
+done
 grep -E 'image|exit=|refused|session opened|gate_level|audit verify|elapsed' "$GUEST/steps.txt" | sed 's|^|  |'
 grep -q 'gate_level=EXACT' "$GUEST/steps.txt" && grep -q 'audit verify exit=0' "$GUEST/steps.txt" && grep -q 'rogue refused' "$GUEST/steps.txt" \
   && echo "PASS: the Return Path from the release images on SEV-SNP ($GUEST_STAMP)" || { echo "FAIL: see $GUEST/steps.txt"; exit 1; }
