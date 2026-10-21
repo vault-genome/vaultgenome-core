@@ -2524,6 +2524,59 @@ with the private CA and the pinned measurements. The families run are
 gcp-sev-snp and azure-sev-snp; the TDX and simulated paths of the same
 three commands are the integration test's, not this run's.
 
+
+<a id="c40"></a>
+
+### C40 — The three cryptographic profiles of ADR 0029 on real SEV-SNP: a key released across clouds and an escrow key carried through the recovery ceremony under X25519, P-384 and the ML-KEM-1024 + P-384 hybrid
+
+**Claim.** Every key encapsulation across clouds and in escrow is RFC
+9180 HPKE under a named KEM suite, chosen by a profile on both daemons
+(`crypto.profile`: `general`, `fips`, `cnsa`) with no negotiation below
+either side's list, and the suite is in every record. On SEV-SNP guests
+(n2d, AMD Milan, us-central1-c), `sagvd crosscloud-restore` released a
+genome's key to an attested `acp-bootstrap` under each profile — the
+two sides meeting on `hpke-x25519-v1`, `hpke-p384-v1` and
+`hpke-mlkem1024-p384-v1` respectively, the first suite each profile
+offers — the destination restored the genome and the chip signed the
+receipt, an unlisted guest and an operator stop were refused, and the
+audit log verified (10 events each). On two further pairs of guests the
+escrow key was made under the profile's suite (X25519, then P-384),
+sealed to the first chip and wrapped to the operator's recovery key
+under the same suite; the recovery ceremony resealed the same key (same
+tag, same suite) to the second chip through a PEM in a pipe, and the
+job lost with the first host resumed from the replicated store and
+succeeded. The kits refuse a run that meets on another suite than the
+profile's, or on none.
+
+**Evidence.** Key release:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T144756Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T144756Z/)
+(general), [`…144804Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T144804Z/)
+(fips), [`…144806Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T144806Z/)
+(cnsa), commit `b98a34264140`: `steps.txt` names the profile, both daemons'
+`crypto_profile` and `kem_suites` as `identity` printed them, and the
+release's `recipient_key_suite` and `crypto_profile`; `release.json`
+carries the same; `audit-verify.json` `ok: true`, 10 events; the
+measurement `ccdc5cf0…` on all three. Escrow:
+[`scripts/hardware-test/authority-loss/evidence/20261021T152535Z/`](scripts/hardware-test/authority-loss/evidence/20261021T152535Z/)
+(general, RTO cold 514.3 s, warm 49.6 s) and
+[`…152543Z/`](scripts/hardware-test/authority-loss/evidence/20261021T152543Z/)
+(fips, RTO cold 235.9 s, warm 48.5 s), commit `1637bf7`: `a/steps.txt`
+(`profile=`, `escrow-provision exit=0 … suite=`), `b/steps.txt` (`escrow
+re-provision exit=0 escrow_key=… suite=`, `resumed job is A's lost job:
+same_job_id=true`). Unit and live tests: `internal/vault/kms/suite_test.go`
+(the suite table against RFC 9180 §7.1 and draft-ietf-hpke-pq-05 §8),
+`profile_test.go`, `coordinator_test.go`, `internal/bootstrap/crosscloud/
+receiver_test.go`, `internal/genome/escrow/*_test.go`,
+`test/integration/crosscloud_test.go` (`TestLiveCrossCloud_ProfilesMeetOnTheirSuites`)
+and `genome_drill_test.go` (`TestLiveGenomeDrill_EscrowedKeyUnderFIPS`).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <gcp-project> us-central1-c fips    # ~10 min, one n2d-standard-2; general, fips or cnsa
+scripts/hardware-test/authority-loss/run.sh <gcp-project> us-central1-c fips                # ~30 min, two n2d-standard-4
+```
+
 ---
 
 ## What we do not claim
