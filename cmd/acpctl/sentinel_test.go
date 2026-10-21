@@ -8,6 +8,7 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,7 @@ func sentinelKeys(t *testing.T, dir string) (seed, pub, escrowPEM string) {
 	require.NotEqual(t, 0, code, "a sentinel key is never overwritten")
 	require.Contains(t, stderr, "exists")
 
-	esc, err := escrow.GenerateKey()
+	esc, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	pemBytes, err := escrow.PublicPEM(esc.PublicKey())
 	require.NoError(t, err)

@@ -5,7 +5,6 @@ package sentinel
 
 import (
 	"context"
-	"crypto/ecdh"
 	"crypto/ed25519"
 	"errors"
 	"fmt"
@@ -36,9 +35,10 @@ type Config struct {
 	Source Source
 	// Outbox is the directory everything is written to.
 	Outbox string
-	// Escrow is the release authority's escrow public key: every genome's
-	// key is encapsulated to it and nothing else keeps it.
-	Escrow *ecdh.PublicKey
+	// Escrow is the release authority's escrow public key, under its KEM
+	// suite (ADR 0029): every genome's key is encapsulated to it and
+	// nothing else keeps it.
+	Escrow escrow.PublicKey
 	// Key signs every record.
 	Key ed25519.PrivateKey
 	// Attestor, when set, is the primary's TEE: every record also carries
@@ -97,7 +97,7 @@ type Sentinel struct {
 // closed or whose newest genome does not check out.
 func New(cfg Config) (*Sentinel, error) {
 	switch {
-	case cfg.Source == nil || cfg.Outbox == "" || cfg.Escrow == nil || len(cfg.Key) != ed25519.PrivateKeySize:
+	case cfg.Source == nil || cfg.Outbox == "" || cfg.Escrow.IsZero() || len(cfg.Key) != ed25519.PrivateKeySize:
 		return nil, errors.New("sentinel: source, outbox, escrow key and sentinel key required")
 	case cfg.Interval <= 0:
 		return nil, errors.New("sentinel: interval must be positive")

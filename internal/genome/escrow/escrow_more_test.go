@@ -5,7 +5,7 @@ package escrow
 
 import (
 	"crypto/ecdh"
-	"crypto/rand"
+	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"os"
@@ -18,21 +18,24 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
-// lowOrderPublicKey is a 32-byte X25519 point of low order: the curve
-// accepts it as a key, the KEM refuses it as a recipient.
-func lowOrderPublicKey(t *testing.T) *ecdh.PublicKey {
+// lowOrderPublicKeyPEM is a 32-byte X25519 point of low order in PKIX
+// form: the curve accepts it as a key, the KEM refuses it as a recipient.
+func lowOrderPublicKeyPEM(t *testing.T) []byte {
 	t.Helper()
 	pub, err := ecdh.X25519().NewPublicKey(make([]byte, 32))
 	require.NoError(t, err)
-	return pub
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	require.NoError(t, err)
+	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})
 }
 
-// TestSeal_RefusesAnUnusableEscrowKey proves a genome key is never
-// encapsulated to a public key the KEM cannot use.
+// A genome key is never encapsulated to a public key the KEM cannot use:
+// NewPublicKey refuses the low-order point, so no PublicKey of it exists.
 func TestSeal_RefusesAnUnusableEscrowKey(t *testing.T) {
-	kid, dek := sealed(t)
-	_, err := Seal(dek, kid, lowOrderPublicKey(t))
-	require.ErrorContains(t, err, "escrow: seal:")
+	_, err := ParsePublicPEM(lowOrderPublicKeyPEM(t))
+	require.ErrorContains(t, err, "kms:")
+	_, err = NewPublicKey(LegacySuite, make([]byte, 32))
+	require.ErrorContains(t, err, "kms:")
 }
 
 // TestReadPrivate_RefusesWhatItCannotRead proves the failure modes of a
@@ -48,20 +51,18 @@ func TestReadPrivate_RefusesWhatItCannotRead(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root opens files regardless of their mode")
 	}
-	priv, err := GenerateKey()
-	require.NoError(t, err)
+	priv := mustKey(t, LegacySuite)
 	unreadable := filepath.Join(dir, "unreadable.key")
-	require.NoError(t, os.WriteFile(unreadable, priv.Bytes(), 0o000))
+	require.NoError(t, os.WriteFile(unreadable, PrivatePEM(priv), 0o000))
 	_, err = ReadPrivate(unreadable)
 	require.ErrorIs(t, err, os.ErrPermission)
 }
 
 // TestParsePublicPEM_Refusals pins each way a PEM can fail to be a
 // usable escrow key: the wrong block type, a block that is not a
-// public key at all, and a well-formed X25519 point the KEM refuses.
+// public key at all, a well-formed X25519 point the KEM refuses, and
+// the product's own block without a suite or with a key of the wrong size.
 func TestParsePublicPEM_Refusals(t *testing.T) {
-	lowOrder, err := PublicPEM(lowOrderPublicKey(t))
-	require.NoError(t, err)
 	cases := []struct {
 		name string
 		pem  []byte
@@ -69,12 +70,14 @@ func TestParsePublicPEM_Refusals(t *testing.T) {
 	}{
 		{"wrong block type", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte{0x30, 0x00}}), "not a PEM public key"},
 		{"not a public key", pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("garbage")}), "escrow: "},
-		{"low-order point", lowOrder, "kms:"},
+		{"low-order point", lowOrderPublicKeyPEM(t), "kms:"},
+		{"hpke block without a suite", pem.EncodeToMemory(&pem.Block{Type: pemHPKEPublic, Bytes: make([]byte, 1184)}), "unknown KEM suite"},
+		{"hpke block of the wrong size", pem.EncodeToMemory(&pem.Block{Type: pemHPKEPublic, Headers: map[string]string{pemSuiteHeader: string(kms.SuiteHPKEMLKEM768)}, Bytes: make([]byte, 10)}), "1184 bytes"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			pub, err := ParsePublicPEM(tc.pem)
-			require.Nil(t, pub)
+			require.True(t, pub.IsZero())
 			require.ErrorContains(t, err, tc.want)
 		})
 	}
@@ -82,16 +85,12 @@ func TestParsePublicPEM_Refusals(t *testing.T) {
 
 // TestRecovery_Refusals pins the recovery envelope's refusals beyond the
 // happy path: an unusable recovery key at wrap time, and at open time
-// the wrong schema, a public key that does not parse, and contents
-// that are not the private half of the key the envelope names.
+// the wrong schema, a public key that does not parse, a suite the
+// envelope misnames, and contents that are not the private half of the
+// key the envelope names.
 func TestRecovery_Refusals(t *testing.T) {
-	priv, err := GenerateKey()
-	require.NoError(t, err)
-	recovery, err := GenerateKey()
-	require.NoError(t, err)
-
-	_, err = WrapRecovery(priv, lowOrderPublicKey(t))
-	require.ErrorContains(t, err, "kms:")
+	priv := mustKey(t, kms.SuiteHPKEP384)
+	recovery := mustKey(t, kms.SuiteHPKEP384)
 
 	env, err := WrapRecovery(priv, recovery.PublicKey())
 	require.NoError(t, err)
@@ -99,14 +98,13 @@ func TestRecovery_Refusals(t *testing.T) {
 	// wrapTo re-encapsulates raw under the tags env carries, the way a
 	// forged or corrupted envelope would.
 	wrapTo := func(raw []byte) Recovery {
-		ct, err := kms.X25519KeyWrapper{}.Wrap(raw, recovery.PublicKey().Bytes(), recoveryAAD(env.EscrowKey, env.RecoveryKey))
+		ct, err := recovery.Suite().Wrap(kms.PurposeEscrowRecovery, raw, recovery.PublicKey().Bytes(), recoveryAADV2(env.EscrowKey, env.RecoveryKey))
 		require.NoError(t, err)
 		forged := env
 		forged.Ciphertext = ct
 		return forged
 	}
-	other, err := GenerateKey()
-	require.NoError(t, err)
+	other := mustKey(t, kms.SuiteHPKEP384)
 
 	cases := []struct {
 		name string
@@ -115,7 +113,9 @@ func TestRecovery_Refusals(t *testing.T) {
 	}{
 		{"wrong schema", func() Recovery { e := env; e.Schema = "v0"; return e }, "recovery schema"},
 		{"public key does not parse", func() Recovery { e := env; e.PublicKeyPEM = "nope"; return e }, "not a PEM public key"},
-		{"contents are not a key", func() Recovery { return wrapTo([]byte("short")) }, "not an X25519 key"},
+		{"recovery suite misnamed", func() Recovery { e := env; e.RecoverySuite = string(kms.SuiteHPKEMLKEM768); return e }, "wrapped under KEM suite"},
+		{"escrow suite misnamed", func() Recovery { e := env; e.Suite = string(kms.SuiteHPKEMLKEM768); return e }, "its public key is under"},
+		{"contents are not a key", func() Recovery { return wrapTo([]byte("short")) }, "not a hpke-p384-v1 key"},
 		{"contents are another key", func() Recovery { return wrapTo(other.Bytes()) }, "not the private half"},
 	}
 	for _, tc := range cases {
@@ -132,6 +132,8 @@ func TestRecovery_Refusals(t *testing.T) {
 	require.NoError(t, err)
 	_, err = ParseRecovery(append(raw[:len(raw)-3], []byte(`,"extra":1}`)...))
 	require.ErrorContains(t, err, "unknown field")
+	_, err = ParseRecovery([]byte(`{"schema":"` + RecoverySchemaV2 + `","escrow_key":"a","recovery_key":"b","public_key_pem":"c","ciphertext":"AA=="}`))
+	require.ErrorContains(t, err, "names its suites")
 }
 
 // failingSealer is a TEE whose sealing primitive is down.
@@ -143,20 +145,14 @@ func (failingSealer) Seal([]byte, []byte) ([]byte, error)   { return nil, errSea
 func (failingSealer) Unseal([]byte, []byte) ([]byte, error) { return nil, errSealDown }
 
 // TestSealedKey_Refusals pins the sealed escrow key's refusals beyond
-// the happy path: a key of another curve, a sealer that fails, a file
-// of the wrong schema, a public key that does not parse, and unsealed
-// contents that are not the private half of the key the file names.
+// the happy path: a sealer that fails, a file of the wrong schema, a
+// public key that does not parse, and unsealed contents that are not
+// the private half of the key the file names.
 func TestSealedKey_Refusals(t *testing.T) {
 	host := simulatedTEE(t, "release-host-v1")
-	priv, err := GenerateKey()
-	require.NoError(t, err)
+	priv := mustKey(t, kms.SuiteHPKEMLKEM768)
 
-	p256, err := ecdh.P256().GenerateKey(rand.Reader)
-	require.NoError(t, err)
-	_, err = SealKey(p256, host, tee.ProviderSimulated, host.Measurement())
-	require.ErrorContains(t, err, "not an X25519 key")
-
-	_, err = SealKey(priv, failingSealer{}, tee.ProviderSimulated, host.Measurement())
+	_, err := SealKey(priv, failingSealer{}, tee.ProviderSimulated, host.Measurement())
 	require.ErrorContains(t, err, "escrow: seal to simulated")
 	require.ErrorIs(t, err, errSealDown)
 
@@ -178,16 +174,15 @@ func TestSealedKey_Refusals(t *testing.T) {
 	// sealTo seals raw under the file's own AAD, the way a forged or
 	// corrupted file would.
 	sealTo := func(raw []byte) SealedKey {
-		blob, err := host.Seal(raw, sealedAAD(tee.ProviderSimulated, host.Measurement(), s.EscrowKey))
+		blob, err := host.Seal(raw, sealedAADV2(tee.ProviderSimulated, host.Measurement(), s.EscrowKey, priv.Suite()))
 		require.NoError(t, err)
 		forged := s
 		forged.Sealed = blob
 		return forged
 	}
 	_, err = sealTo([]byte("short")).Open(host, tee.ProviderSimulated, host.Measurement())
-	require.ErrorContains(t, err, "not an X25519 key")
-	other, err := GenerateKey()
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "not a hpke-mlkem768-v1 key")
+	other := mustKey(t, kms.SuiteHPKEMLKEM768)
 	_, err = sealTo(other.Bytes()).Open(host, tee.ProviderSimulated, host.Measurement())
 	require.ErrorContains(t, err, "not the private half")
 
@@ -209,11 +204,10 @@ func TestShort(t *testing.T) {
 func TestOpen_RefusesAKeyThatIsNotTheOneNamed(t *testing.T) {
 	kid, _ := sealed(t)
 	_, otherDEK := sealed(t)
-	authority, err := GenerateKey()
+	authority := mustKey(t, kms.SuiteHPKEP384)
+	ct, err := authority.Suite().Wrap(kms.PurposeEscrowDEK, otherDEK, authority.PublicKey().Bytes(), aadV2(kid))
 	require.NoError(t, err)
-	ct, err := kms.X25519KeyWrapper{}.Wrap(otherDEK, authority.PublicKey().Bytes(), aad(kid))
-	require.NoError(t, err)
-	forged := Envelope{Schema: Schema, KeyID: kid, EscrowKey: KeyTag(authority.PublicKey()), Ciphertext: ct}
+	forged := Envelope{Schema: SchemaV2, KeyID: kid, EscrowKey: KeyTag(authority.PublicKey()), Suite: string(authority.Suite()), Ciphertext: ct}
 	dek, err := Open(forged, authority)
 	require.Nil(t, dek)
 	require.Error(t, err)

@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdh"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -265,7 +264,7 @@ func readKeyFiles(in []string) ([]kms.KeyMaterial, error) {
 
 // openEscrows opens each escrow envelope with the authority's escrow key,
 // as the materials hold it in memory.
-func openEscrows(priv *ecdh.PrivateKey, paths []string) ([]kms.KeyMaterial, error) {
+func openEscrows(priv *escrow.PrivateKey, paths []string) ([]kms.KeyMaterial, error) {
 	if priv == nil {
 		return nil, errors.New("crosscloud-restore: -key-escrow needs crosscloud.key_escrow_path")
 	}

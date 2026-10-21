@@ -93,6 +93,27 @@ running are gone — resubmit them").
 daemons read it from the chip and pin each other's, as A's did (on the
 same image it is the same value).
 
+## Results — runs `20261021T152535Z` (general) and `20261021T152543Z` (fips): the escrow key under a KEM suite, across the loss
+
+The kit's third argument is the cryptographic profile of ADR 0029, written
+into both authorities' configurations (`crypto.profile`); the operator's
+recovery key and the escrow key are made under the suite the profile
+writes. Two runs on the binaries of commit `1637bf7`, each two
+`n2d-standard-4` SEV-SNP guests in us-central1-c, one after the other.
+
+| Profile | Run | The escrow key | On A | On B (the recovery ceremony) | The lost job | RTO cold / from B's first line / warm |
+|---|---|---|---|---|---|---|
+| `general` | `evidence/20261021T152535Z` | `hpke-x25519-v1` | `sagvd escrow-provision` made it under the suite, sealed it to A's chip and wrapped it to the operator's recovery key | `acpctl escrow recover` (a PEM naming the suite) piped into `sagvd escrow-provision -stdin`: the same key, tag `e2be37ed…`, under the same suite, sealed to B's chip | resumed by B's `sagvd` from the replicated job store and **succeeded** (same job and request ids) | 514.3 s / 410.5 s / 49.6 s |
+| `fips` | `evidence/20261021T152543Z` | `hpke-p384-v1` | the same, under P-384 | the same, tag `8c9d9b12…`, under P-384 | **succeeded** (same job and request ids) | 235.9 s / 125.3 s / 48.5 s |
+
+Both records (`a/steps.txt`, `b/steps.txt`) name the profile and the suite,
+`escrow-provision.json` and `escrow-reprovision.json` carry the suite, and
+`escrow.pem` on both hosts is the same public key — PKIX, since X25519 and
+P-384 have a PKIX form. The cold RTO of the general run is the longer of
+the two for the usual reason (B's runtime install from the locks, which the
+warm figure excludes); the ceremony and the resumed job took the same
+seconds under both suites.
+
 ## Result — run `20261015T204339Z`: the job store in the replica — the lost job resumed by the new host itself
 
 The same drill with one more file in the replica: `queue.path`, the job

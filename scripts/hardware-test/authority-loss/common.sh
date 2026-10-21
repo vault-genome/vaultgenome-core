@@ -8,6 +8,11 @@
 # the pair of configs, the identities, the daemons and the gate job.
 
 md() { curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/$1"; }
+# The cryptographic profile of ADR 0029 both authorities run under, and the
+# KEM suite that profile writes (the escrow and recovery keys are made under it).
+PROFILE=$(md attributes/vg-profile 2>/dev/null); [ -n "$PROFILE" ] || PROFILE=general
+case "$PROFILE" in fips) SUITE=hpke-p384-v1;; cnsa) SUITE=hpke-mlkem1024-p384-v1;; *) SUITE=hpke-x25519-v1;; esac
+export PROFILE SUITE
 token() { md service-accounts/default/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])'; }
 enc() { python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"; }
 
@@ -59,9 +64,9 @@ tsm() {
 # the same pair of configs the Return Path kit uses, both daemons on this
 # guest, each pinning the other's launch measurement.
 write_configs() {
-  python3 - "$1" "$2" "$3" <<'PY'
+  python3 - "$1" "$2" "$3" "${PROFILE:-general}" <<'PY'
 import json, sys, binascii
-W, vault_meas, worker_meas = sys.argv[1], sys.argv[2], sys.argv[3]
+W, vault_meas, worker_meas, profile = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 S = W + "/secrets"
 open(W + "/peer-vault.meas", "wb").write(binascii.unhexlify(vault_meas))
 open(W + "/peer-worker.meas", "wb").write(binascii.unhexlify(worker_meas))
@@ -81,7 +86,8 @@ sagvd = {
   "runtime": {"job_timeout_seconds": 600, "handshake_timeout_seconds": 30, "queue_poll_ms": 50,
     "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 600, "max_payload_bytes": 4194304},
   "health": {"listen_address": "127.0.0.1:9081"},
-  "log": {"level": "info", "format": "json"}}
+  "log": {"level": "info", "format": "json"},
+  "crypto": {"profile": profile}}
 worker = {
   "vault": {"address": "127.0.0.1:9443",
     "tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt", "client_key": S + "/acp-compute/tls/client.key", "ca_bundle": S + "/shared/tls/ca.crt", "server_name": "localhost"}},

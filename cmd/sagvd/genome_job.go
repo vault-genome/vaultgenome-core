@@ -6,7 +6,6 @@ package main
 import (
 	"archive/tar"
 	"bytes"
-	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -165,7 +164,7 @@ type genomeJobs struct {
 	cfg GenomeConfig
 	// escrow is the authority's escrow private key, held in memory (it
 	// was unsealed from the TEE at start, ADR 0016); nil when none.
-	escrow     *ecdh.PrivateKey
+	escrow     *escrow.PrivateKey
 	maxPayload uint64
 	clock      shared_time.Clock
 }
@@ -173,7 +172,7 @@ type genomeJobs struct {
 // newGenomeJobs wires an opener; nil when gate jobs are not configured.
 // escrowKey opens <bundle>.escrow envelopes; nil when the authority has
 // no escrow key.
-func newGenomeJobs(cfg Config, clock shared_time.Clock, escrowKey *ecdh.PrivateKey) *genomeJobs {
+func newGenomeJobs(cfg Config, clock shared_time.Clock, escrowKey *escrow.PrivateKey) *genomeJobs {
 	if !cfg.Genome.Enabled() {
 		return nil
 	}

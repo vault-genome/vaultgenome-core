@@ -292,18 +292,26 @@ is kept (`key_escrow_storage: sealed:gcp-sev-snp`):
 
 ```bash
 # On the operator's machine, once: the recovery key. Its private half never goes to the release host.
-acpctl escrow recovery-keygen --out recovery.seed --pub recovery.pem
-# On the release host: the escrow key, sealed to this host, wrapped to the recovery key.
+# --suite names its KEM suite (ADR 0029): the one your profile writes, here P-384 for a fips deployment.
+acpctl escrow recovery-keygen --suite hpke-p384-v1 --out recovery.seed --pub recovery.pem
+# On the release host: the escrow key, made under the suite crypto.profile writes (or -suite),
+# sealed to this host, wrapped to the recovery key.
 sagvd escrow-provision -config /etc/acp/sagvd.json -out /etc/acp/secrets/sagvd/escrow.sealed -pub escrow.pem \
   -recovery-to recovery.pem -recovery-out /etc/acp/secrets/sagvd/escrow.recovery
 # On the sealing machine:
 acpctl genome seal --content-dir=./adapter --output=gen-1.genome --escrow-to=escrow.pem --json > seal.json
 ```
 
-The sealer encapsulates the fresh key to the escrow key (the X25519 KEM of ADR
-0009) in `gen-1.genome.escrow` and writes no key file. The envelope travels with
-the bundle and opens only on the release host, which releases the key with
-`-key-escrow gen-1.genome.escrow` instead of `-key-file`.
+The sealer encapsulates the fresh key to the escrow key — RFC 9180 HPKE under
+the key's suite, which `escrow.pem` names: PKIX for an X25519 or P-384 key,
+the product's own `VAULT GENOME HPKE PUBLIC KEY` block for an ML-KEM or
+hybrid key — in `gen-1.genome.escrow` and writes no key file. The envelope
+names the suite and travels with the bundle; it opens only on the release
+host, which releases the key with `-key-escrow gen-1.genome.escrow` instead of
+`-key-file`. `sagvd identity` prints the escrow key's tag, its PEM and its
+suite (`key_escrow_suite`). Envelopes, sealed keys and recovery envelopes of
+releases before 0.7 (the X25519 KEM of ADR 0009) still open with the same
+X25519 key.
 
 The sealed key opens only for the same code on the same chip at the same
 measurement. A restart that lands on another host, a new VM image, a dead
@@ -317,7 +325,9 @@ acpctl escrow recover --in escrow.recovery --key recovery.seed \
   | ssh release-host sagvd escrow-provision -config /etc/acp/sagvd.json -out /etc/acp/secrets/sagvd/escrow.sealed -pub escrow.pem -stdin
 ```
 
-The same key, the same tag; sealers pinned to `escrow.pem` need no change.
+The same key, the same tag, the same suite; sealers pinned to `escrow.pem`
+need no change. What crosses the pipe is a PEM naming the key's suite; the
+new host's profile must accept that suite.
 Under `tee.insecure_simulation` a plaintext key from `acpctl escrow keygen`
 is still accepted, for development and tests, and the daemon logs
 `PLAINTEXT ESCROW KEY`; on a hardware TEE it is refused.

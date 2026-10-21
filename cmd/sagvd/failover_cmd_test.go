@@ -8,6 +8,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,7 +46,7 @@ func newFailoverFixture(t *testing.T) *failoverFixture {
 	f.cfg.CrossCloud = xc.CrossCloud
 	f.cfg.Keys.AuditSigning = xc.Keys.AuditSigning
 	f.operator = withAuditLog(t, dir, &f.cfg) // a fresh operator key the test holds
-	esc, err := escrow.GenerateKey()
+	esc, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	f.cfg.CrossCloud.KeyEscrowPath = writeFile(t, dir, "escrow.key", esc.Bytes())
 	require.NoError(t, os.Chmod(f.cfg.CrossCloud.KeyEscrowPath, 0o600))

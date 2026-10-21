@@ -23,7 +23,7 @@ func TestNewRefusesIncompleteWiring(t *testing.T) {
 	_, op := operatorKey(t)
 	signed, err := Sign(testPolicy(sPub), op)
 	must(t, err)
-	key, err := escrow.GenerateKey()
+	key, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	must(t, err)
 	base := func() Config {
 		return Config{

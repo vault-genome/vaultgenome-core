@@ -47,8 +47,9 @@ type authorityIdentity struct {
 	KeyEscrowPublicKeyPEM string `json:"key_escrow_public_key_pem,omitempty"`
 	// KeyEscrowStorage says how the private half is kept on this host:
 	// "sealed:<tee>" (sagvd escrow-provision, ADR 0016) or "plaintext"
-	// (simulation only).
+	// (simulation only). KeyEscrowSuite is the key's KEM suite (ADR 0029).
 	KeyEscrowStorage string `json:"key_escrow_storage,omitempty"`
+	KeyEscrowSuite   string `json:"key_escrow_suite,omitempty"`
 	// The policy every gate-job session is pinned to, and the policy
 	// profiles Trust Admission serves (ADR 0015), when gate jobs are
 	// enabled.
@@ -146,6 +147,7 @@ func runIdentityCmd(args []string, w io.Writer) error {
 			return err
 		}
 		id.KeyEscrowTag, id.KeyEscrowPublicKeyPEM, id.KeyEscrowStorage = escrow.KeyTag(pub), string(pemBytes), storage
+		id.KeyEscrowSuite = string(pub.Suite())
 	}
 	if cfg.Genome.Enabled() {
 		id.PolicyVersion, id.PolicyProfiles = cfg.PolicyVersion(), []string{PolicyProfileGate}

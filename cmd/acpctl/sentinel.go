@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
@@ -291,7 +290,7 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	raw, err := os.ReadFile(*escrowTo)
-	var escrowPub *ecdh.PublicKey
+	var escrowPub escrow.PublicKey
 	if err == nil {
 		escrowPub, err = escrow.ParsePublicPEM(raw)
 	}

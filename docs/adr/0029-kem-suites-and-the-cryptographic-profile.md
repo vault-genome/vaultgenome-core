@@ -218,6 +218,17 @@ Invariant 09: a contract keeps `SchemaVersion` first and its
   record, and the ledger's rule that both daemons move together covers
   the upgrade. `x25519-kem-v1` stays a reader for the escrow documents
   only.
+- **Escrow (2026-10-21).** The escrow and recovery keys are
+  `escrow.PrivateKey`/`PublicKey` values that carry their suite; the v2
+  envelope, sealed key and recovery documents name it (`suite`, and
+  `recovery_suite` for the recovery key's), and each opens only under
+  it; the v1 documents open as before, through the ECIES, with an
+  X25519 key. Key files: PKIX "PUBLIC KEY" for X25519 and P-384, the
+  block `VAULT GENOME HPKE PUBLIC KEY` with a `Suite` header for the
+  keys PKIX has no form for; a private key is `VAULT GENOME HPKE
+  PRIVATE KEY` with the same header, and the raw 32-byte X25519 file of
+  an earlier release still reads. The key tag of an X25519 key is the
+  tag earlier releases gave it (SHA-256 of the same 32 bytes).
 
 ## References
 

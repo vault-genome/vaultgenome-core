@@ -8,6 +8,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"io"
 	"log/slog"
 	"net"
@@ -72,7 +73,7 @@ func daemonConfig(t *testing.T) (*materialFixture, Config) {
 	cfg.OperatorStop = OperatorStopConfig{KeyID: "operator-test", PublicKeyPath: writeFile(t, f.dir, "operator.pub", opPub), ListPath: filepath.Join(f.dir, "stop.json")}
 	writeStopList(t, cfg.OperatorStop.ListPath, opPriv, revocation.List{Serial: 1})
 	// A plaintext escrow key, accepted under the simulated TEE only.
-	escrowPriv, err := escrow.GenerateKey()
+	escrowPriv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	cfg.Genome.KeyEscrowPath = writeFile(t, f.dir, "escrow.key", escrowPriv.Bytes())
 	require.NoError(t, os.Chmod(cfg.Genome.KeyEscrowPath, 0o600))

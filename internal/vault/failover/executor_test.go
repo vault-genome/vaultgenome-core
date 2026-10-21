@@ -6,7 +6,6 @@ package failover
 import (
 	"bytes"
 	"context"
-	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -168,7 +167,7 @@ type drill struct {
 	canary   string
 
 	sentinelKey ed25519.PrivateKey
-	escrow      *ecdh.PrivateKey
+	escrow      *escrow.PrivateKey
 	operator    ed25519.PrivateKey
 	standby     *tee.Simulated
 	srv         *httptest.Server
@@ -187,7 +186,7 @@ func newDrill(t *testing.T, gateVals ...float32) *drill {
 	var err error
 	_, d.sentinelKey, err = ed25519.GenerateKey(rand.Reader)
 	must(t, err)
-	d.escrow, err = escrow.GenerateKey()
+	d.escrow, err = escrow.GenerateKey(kms.SuiteHPKEX25519)
 	must(t, err)
 	_, d.operator, err = ed25519.GenerateKey(rand.Reader)
 	must(t, err)
