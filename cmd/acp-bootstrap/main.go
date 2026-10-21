@@ -43,7 +43,8 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
-			fmt.Printf("acp-bootstrap %s (commit %s)\n", version, commit)
+			fips := crypto.FIPSStatus()
+			fmt.Printf("acp-bootstrap %s (commit %s) fips140=%s module=%s enforced=%t\n", version, commit, fipsMode(fips), fips.Version, fips.Enforced)
 			return
 		case "help", "--help", "-h":
 			printUsage()
@@ -543,4 +544,16 @@ func readExactly(path string, want int, label string) ([]byte, error) {
 		return nil, fmt.Errorf("acp-bootstrap: %s %q: %d bytes, want %d", label, path, len(data), want)
 	}
 	return data, nil
+}
+
+// fipsMode is the word the version line prints for the cryptographic
+// module's state (ADR 0030).
+func fipsMode(st crypto.FIPS140) string {
+	if st.Enforced {
+		return "only"
+	}
+	if st.Enabled {
+		return "on"
+	}
+	return "off"
 }

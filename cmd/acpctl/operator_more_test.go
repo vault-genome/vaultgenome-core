@@ -179,7 +179,7 @@ func TestEscrowRecover_StdoutFailure(t *testing.T) {
 	require.NoError(t, err)
 	rpub, err := escrow.ParsePublicPEM(pemBytes)
 	require.NoError(t, err)
-	escrowKey, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	escrowKey, err := escrow.GenerateKey(kms.PolicyForThisProcess().Writes())
 	require.NoError(t, err)
 	env, err := escrow.WrapRecovery(escrowKey, rpub)
 	require.NoError(t, err)

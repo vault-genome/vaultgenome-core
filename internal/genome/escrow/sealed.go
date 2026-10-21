@@ -111,7 +111,7 @@ func (s SealedKey) PublicKey() (PublicKey, error) {
 	}
 	switch s.Schema {
 	case SealedSchemaV2:
-		if s.Suite != string(pub.Suite()) {
+		if !kms.Suite(s.Suite).SameFamily(pub.Suite()) {
 			return PublicKey{}, fmt.Errorf("escrow: the sealed file says suite %q, its public key is under %q", s.Suite, pub.Suite())
 		}
 	case SealedSchema:
@@ -142,7 +142,9 @@ func (s SealedKey) Open(sealer tee.Sealer, provider tee.Provider, measurement te
 	}
 	aad := sealedAAD(provider, measurement, s.EscrowKey)
 	if s.Schema == SealedSchemaV2 {
-		aad = sealedAADV2(provider, measurement, s.EscrowKey, pub.Suite())
+		// the suite as the file records it (a 0.7.0 file says v1): the
+		// AAD must be the one the key was sealed with
+		aad = sealedAADV2(provider, measurement, s.EscrowKey, kms.Suite(s.Suite))
 	}
 	raw, err := sealer.Unseal(s.Sealed, aad)
 	if err != nil {

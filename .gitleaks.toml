@@ -23,6 +23,14 @@ scanned for real credentials.
 """
 paths = [
   '''scripts/hardware-test/.*/evidence/.*''',
+  # internal/genome/escrow/testdata/escrow-v1-documents.json: escrow
+  # documents written by 0.7.0's v1 suites, kept so the read-only path of
+  # ADR 0030 §3f is tested against real v1 bytes (the v1 suites write
+  # nothing since 0.8, so `go test` cannot make them), with the throwaway
+  # recovery keys that open them, generated for the fixture at b0ee2a5 and
+  # never used for anything else. gitleaks' private-key rule matches the
+  # PEM blocks by shape; they protect nothing outside this file.
+  '''internal/genome/escrow/testdata/escrow-v1-documents\.json''',
 ]
 regexes = [
   # `type PrivateKey = ed25519.PrivateKey` in internal/shared/crypto: a Go

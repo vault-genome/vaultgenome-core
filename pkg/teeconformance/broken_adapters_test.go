@@ -10,8 +10,6 @@ package teeconformance_test
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"errors"
 	"flag"
 	"os"
@@ -88,6 +86,7 @@ type brokenSealer struct {
 	mu    sync.Mutex
 	seals int
 	last  []byte
+	memo  map[string][]byte // the deterministic defect: the first sealing of each input
 }
 
 func (b *brokenSealer) Seal(pt, aad []byte) ([]byte, error) {
@@ -100,23 +99,27 @@ func (b *brokenSealer) Seal(pt, aad []byte) ([]byte, error) {
 		return nil, errAdapterDown
 	}
 	if b.deterministic {
-		return fixedNonceAEAD().Seal(nil, make([]byte, 12), pt, aad), nil
+		// The defect of a sealer that reuses its nonce: identical inputs
+		// seal to identical bytes. Played here by remembering the first
+		// sealing of each input, so the sound cipher underneath is never
+		// fed a chosen nonce (which the module refuses under fips140=only).
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		k := string(pt) + "\x00" + string(aad)
+		if sealed, ok := b.memo[k]; ok {
+			return append([]byte(nil), sealed...), nil
+		}
+		sealed, err := b.Sealer.Seal(pt, aad)
+		if err != nil {
+			return nil, err
+		}
+		if b.memo == nil {
+			b.memo = map[string][]byte{}
+		}
+		b.memo[k] = append([]byte(nil), sealed...)
+		return sealed, nil
 	}
 	return b.Sealer.Seal(pt, aad)
-}
-
-// fixedNonceAEAD is AES-GCM under a constant key: a sound cipher, used
-// here with a constant nonce, which is the defect the suite must catch.
-func fixedNonceAEAD() cipher.AEAD {
-	block, err := aes.NewCipher([]byte("0123456789abcdef0123456789abcdef"))
-	if err != nil {
-		panic(err)
-	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		panic(err)
-	}
-	return aead
 }
 
 func (b *brokenSealer) Unseal(sealed, aad []byte) ([]byte, error) {
@@ -129,7 +132,7 @@ func (b *brokenSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 		return append([]byte(nil), b.last...), nil
 	}
 	if b.deterministic {
-		return fixedNonceAEAD().Open(nil, make([]byte, 12), sealed, aad)
+		return b.Sealer.Unseal(sealed, aad)
 	}
 	pt, err := b.Sealer.Unseal(sealed, aad)
 	if err != nil {

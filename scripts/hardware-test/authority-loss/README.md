@@ -93,18 +93,22 @@ running are gone — resubmit them").
 daemons read it from the chip and pin each other's, as A's did (on the
 same image it is the same value).
 
-## Results — runs `20261021T152535Z` (general) and `20261021T152543Z` (fips): the escrow key under a KEM suite, across the loss
+## Results — runs `20261021T152535Z` (general), `20261021T152543Z` (fips) and `20261021T203018Z` (fips, the v2 suites): the escrow key under a KEM suite, across the loss
 
 The kit's third argument is the cryptographic profile of ADR 0029, written
 into both authorities' configurations (`crypto.profile`); the operator's
 recovery key and the escrow key are made under the suite the profile
 writes. Two runs on the binaries of commit `1637bf7`, each two
-`n2d-standard-4` SEV-SNP guests in us-central1-c, one after the other.
+`n2d-standard-4` SEV-SNP guests in us-central1-c, one after the other;
+a third on the part-one tree of ADR 0030 (`b0ee2a5` with the part-one
+changes), under `fips` on the v2 suites — HPKE export-only, the AEAD
+step the module's AES-256-GCM.
 
 | Profile | Run | The escrow key | On A | On B (the recovery ceremony) | The lost job | RTO cold / from B's first line / warm |
 |---|---|---|---|---|---|---|
 | `general` | `evidence/20261021T152535Z` | `hpke-x25519-v1` | `sagvd escrow-provision` made it under the suite, sealed it to A's chip and wrapped it to the operator's recovery key | `acpctl escrow recover` (a PEM naming the suite) piped into `sagvd escrow-provision -stdin`: the same key, tag `e2be37ed…`, under the same suite, sealed to B's chip | resumed by B's `sagvd` from the replicated job store and **succeeded** (same job and request ids) | 514.3 s / 410.5 s / 49.6 s |
 | `fips` | `evidence/20261021T152543Z` | `hpke-p384-v1` | the same, under P-384 | the same, tag `8c9d9b12…`, under P-384 | **succeeded** (same job and request ids) | 235.9 s / 125.3 s / 48.5 s |
+| `fips`, the v2 suites of ADR 0030 | `evidence/20261021T203018Z` | `hpke-p384-v2` | the same, under P-384 with the module's AES-256-GCM | the same, tag `bf7dc257…`, under `hpke-p384-v2` | **succeeded** (same job and request ids) | 234.7 s / 127.9 s / 51.1 s |
 
 Both records (`a/steps.txt`, `b/steps.txt`) name the profile and the suite,
 `escrow-provision.json` and `escrow-reprovision.json` carry the suite, and
@@ -112,7 +116,8 @@ Both records (`a/steps.txt`, `b/steps.txt`) name the profile and the suite,
 P-384 have a PKIX form. The cold RTO of the general run is the longer of
 the two for the usual reason (B's runtime install from the locks, which the
 warm figure excludes); the ceremony and the resumed job took the same
-seconds under both suites.
+seconds under both suites, and under the v2 suite the three figures are
+the v1 figures within three seconds.
 
 ## Result — run `20261015T204339Z`: the job store in the replica — the lost job resumed by the new host itself
 

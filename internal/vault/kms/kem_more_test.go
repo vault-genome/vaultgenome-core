@@ -15,6 +15,9 @@ import (
 // shared secret would be all zeros).
 func TestX25519KEM_WrapRefusals(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	_, pub := newX25519(t)
 	cases := []struct {
 		name      string
@@ -49,6 +52,9 @@ func TestX25519KEM_WrapRefusals(t *testing.T) {
 // a body too short to carry a nonce, and a private key of the wrong size.
 func TestX25519KEM_UnwrapRefusals(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	priv, pub := newX25519(t)
 	_, ephPub := newX25519(t)
 	cases := []struct {
@@ -83,6 +89,9 @@ func TestX25519KEM_UnwrapRefusals(t *testing.T) {
 // key length is a programming error it refuses rather than hides.
 func TestAEAD_RefusesKeysAESCannotUse(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	for _, n := range []int{0, 5, 31, 33} {
 		key := make([]byte, n)
 		sealed, err := aeadSeal(key, []byte("dek"), []byte("aad"))

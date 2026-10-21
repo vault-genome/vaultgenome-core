@@ -1,0 +1,5 @@
+instance=vg-rd01-bank-20261021t202252z
+zone=us-central1-c
+machine=n2d-standard-4
+internal_ip=10.128.15.232
+captured=20261021T202427Z

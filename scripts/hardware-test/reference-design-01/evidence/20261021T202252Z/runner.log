@@ -1,0 +1,184 @@
+run_start=2026-10-21T20:22:52Z
+build sagvd, acp-compute, acp-bootstrap, acpctl, acp-keygen (linux/amd64), acpctl for this machine; pack workers/genome
+ea399157101d0d05dcf698dc5221af356d4b9cd2c966427d2b70e13bfa4d5aef  sagvd
+b5a57cc30245cdc3264a5f924afed4433bc155999ba3bd5413499c67aabb5785  acp-compute
+861adf57e7eb18b5f99c94abde82aa58c3ab388de67b7aa6e18ea179a2d654f6  acp-bootstrap
+806841c998f8c4af97896e4c7067fca893fa07ec4526d826f33f6aa11b6f55a6  acpctl
+bbccead2cc4078f546256ff86cc9133c439df294f3f290186d9d37a24d4b4964  keygen
+ac4cb4ea7891378f48fbb452747e236c1bb189a106f1e47000c10e3ebb103295  genome-worker.tgz
+efb005d6f636fe120f8eeb55560976c3fc62c232172b7e4b19289e3322beb881  acpctl-host
+bucket gs://rats-probe-vg-rd01-20261021t202252z (private; the hand-off and the records; deleted with the run)
+Creating gs://rats-probe-vg-rd01-20261021t202252z/...
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.tFqOcbeKaC/sagvd to gs://rats-probe-vg-rd01-20261021t202252z/in/sagvd
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.tFqOcbeKaC/acp-compute to gs://rats-probe-vg-rd01-20261021t202252z/in/acp-compute
+  
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.tFqOcbeKaC/acp-bootstrap to gs://rats-probe-vg-rd01-20261021t202252z/in/acp-bootstrap
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.tFqOcbeKaC/acpctl to gs://rats-probe-vg-rd01-20261021t202252z/in/acpctl
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.tFqOcbeKaC/keygen to gs://rats-probe-vg-rd01-20261021t202252z/in/keygen
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.tFqOcbeKaC/genome-worker.tgz to gs://rats-probe-vg-rd01-20261021t202252z/in/genome-worker.tgz
+..............................................
+
+Average throughput: 10.1MiB/s
+boot A, the bank: vg-rd01-bank-20261021t202252z (n2d-standard-4 SEV-SNP, us-central1-c)
+a_create_issued=2026-10-21T20:23:09Z
+WARNING: You have selected a disk size of under [200GB]. This may result in poor I/O performance. For more information, see: https://developers.google.com/compute/docs/disks#performance.
+Created [https://www.googleapis.com/compute/v1/projects/rats-probe/zones/us-central1-c/instances/vg-rd01-bank-20261021t202252z].
+WARNING: Some requests generated warnings:
+ - Disk size: '20 GB' is larger than image size: '10 GB'. You might need to resize the root repartition manually if the operating system does not support automatic resizing. See https://cloud.google.com/compute/docs/disks/add-persistent-disk#resize_pd for details.
+
+a_created=2026-10-21T20:23:23Z
+A at 10.128.15.232 (internal)
+the standby's port 8443: open to 10.128.15.232 only (rule vg-rd01-xcc-20261021t202252z, tag vg-rd01-standby-20261021t202252z)
+Creating firewall...
+..Created [https://www.googleapis.com/compute/v1/projects/rats-probe/global/firewalls/vg-rd01-xcc-20261021t202252z].
+done.
+b_create_issued=2026-10-21T20:23:30Z
+boot B, the standby: vg-rd01-standby-20261021t202252z (n2d-standard-2 SEV-SNP, europe-west4-b)
+b_created=2026-10-21T20:23:42Z
+B at 10.164.0.2 (internal, europe-west4-b)
+waiting for the bank and the standby (up to 30 min)
+a_finished=2026-10-21T20:27:25Z
+b_finished=2026-10-21T20:28:00Z
+the third party: this machine, the audit logs, the published audit key and acpctl alone (design 01, step 6)
+third-party audit verify (return path) exit=0
+third-party audit verify (cross-cloud) exit=0
+third-party audit query --request req-cf7094ae1471f8db exit=0 events=6
+third-party lineage --session-id ses-c0a8d8fb-0000000000000001 exit=0
+third_party_done=2026-10-21T20:28:08Z
+the report
+# Reference design 01 on real SEV-SNP — the run of 20261021T202252Z
+
+Profile `fips` (ADR 0029), the key encapsulated under `hpke-p384-v2`. The bank: `vg-rd01-bank-20261021t202252z zone=us-central1-c ip=10.128.15.232`; the standby: `vg-rd01-standby-20261021t202252z zone=europe-west4-b ip=10.164.0.2`. Tree `b0ee2a5c8a4a`.
+The bank's chip: measurement `7dc7c12e55999ef4…`; the standby's: `0e017d2fba7c4964…`.
+
+## A job, end to end (the design's six steps)
+
+| Step | Result | Where |
+| - | - | - |
+| 1. The quant seals the fine-tune (`acpctl genome seal`) | **ok** | `a/seal.json`, key id `genome-c8a81cc3c0a1-g0-dd432924171e` |
+| 2. The operator submits the job; `REQUEST_RECEIVED` first | **ok** | `a/job-submit.json`, request `req-cf7094ae1471f8db` |
+| 3. The worker's session: the handshake with both chips' reports, `TRUST_EVALUATED` | **ok** | `a/session-opened.json`, handshake 8205 ms |
+| 4. The material released for the session; the model restored in memory, the fixtures run | **ok** | `a/job.json`: gate EXACT, 6 of 6 fixtures, `max_abs_err` 0 |
+| 5. The signed verdict; `RELEASE_DECIDED` closes the job | **ok** | signer `sagvd-authority-e2e`; `a/audit-events.jsonl` |
+| 6. The third party verifies the chain and queries the request (`acpctl audit verify`, `audit query --request`, `lineage`) | **ok** | `third-party/steps.txt`: 4 lines at exit 0 |
+
+## The continuity, and what was refused
+
+| What | Result | Where |
+| - | - | - |
+| The standby attests with its chip; its measurement on the bank's allow-list | **ok** | `b/destination-identity.json`; `a/standby.json` |
+| The genome's key released to the standby in region B after its report verified (`sagvd crosscloud-restore`) | **ok** | `a/release.json`: suite `hpke-p384-v2`, profile `fips` |
+| The standby restores by itself; the restore confirmed from its chip-signed receipt (`crosscloud-confirm`) | **ok** | `a/confirm.json`, `b/receipt.json` |
+| The restored model gated on the standby's chip against the sealed fixtures (`acpctl genome gate`) | **ok** | `b/standby-gate.json`: EXACT, 6 fixtures, backend 3.962869227 s |
+| A release to a guest not on the allow-list refused | **ok** | `a/steps.txt`: 1 policy denied key release: destination measurement not in allow-list for |
+| A release under the operator's stop refused | **ok** | `a/steps.txt`: 1 policy denied key release: operator stop in force |
+| A thief with the sealed key files, off the chip: they do not open | **ok** | `a/rogue-sealed-worker.log` |
+| A worker that is not the pinned identity refused at the handshake | **ok** | `a/rogue-worker.log`, `a/sagvd.log` |
+| Both audit logs verified under the published key | **ok** | `a/audit-verify.json` 17 events, `a/xcc-audit-verify.json` 10 events |
+
+## The figures, from this run
+
+| Quantity | This run | The design's reference | Where |
+| - | - | - | - |
+| Handshake, SEV-SNP, the first report of a boot | 8205 ms | about 10 s (C32; T6) | `a/sagvd.handshake_ms.txt` |
+| Handshake, subsequent sessions | 26 ms | 21–50 ms (T6) | `a/sagvd.handshake_ms.txt` |
+| A gate job on a CPU worker (small model, 6 fixtures) | 5.2 s | 4–5 s (T1, T2, T7) | `a/timeline.txt` |
+| The key released to the attested standby and its restore confirmed | 15.6 s | — (new in this kit) | `a/timeline.txt` |
+|   of which the release itself (handshake, report verified, key wrapped) | 4.9 s |  | `a/timeline.txt` |
+|   the standby: key received to genome restored | 0.006 s |  | `a/confirm.json` |
+| The restored model gated on the standby's chip | 4.0 s | — (new in this kit) | `b/timeline.txt`, `b/standby-gate.json` |
+| The worker runtime from the hash-pinned locks (the bank; pip alone) | 45.8 s | 72–83 s (release records) | `a/timeline.txt` |
+|   and the guest's apt before it (the image's own updates hold the lock) | 30.6 s |  | `a/timeline.txt` |
+| The standby's runtime from the locks (pip alone) | 41.4 s |  | `b/timeline.txt` |
+| The fine-tune (tiny model, 20 steps) | 10.2 s | 8–10 s (release records) | `a/timeline.txt` |
+| The bank's guest, start to record | 168.0 s |  | `a/steps.txt` |
+| The standby's guest, start to record | 186.5 s |  | `b/steps.txt` |
+| The whole run to the third party's verdict, this machine's clock (the guests' creation included) | 316.0 s |  | `runner-timeline.txt` |
+
+The design's reference figures are the test hardware's (docs/reference-designs/01-tier1-bank-model-continuity.md); the ones above are this run's, on the machines named. Neither is a service level.
+== the bank's steps
+profile=fips
+== binaries from gs://rats-probe-vg-rd01-20261021t202252z/in
+== the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== provision (acp-keygen, private modes; every key file is sealed to the chip below)
+== identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+worker_measurement=7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc
+sagvd crypto_profile=fips kem_suites=hpke-p384-v2,hpke-mlkem768-v2,hpke-mlkem1024-p384-v2
+== the cross-cloud transport's own client pair and the operator's stop key, before sealing; the policy files start as placeholders
+== the standby's bundle, taken before sealing: its TLS material, the CA, a client pair for the bank's transport, the token
+== the key files sealed to this host (ADR 0023)
+sagvd seal-keys exit=0 sealer=sev-snp-derived-key
+acp-compute seal-keys exit=0 sealer=sev-snp-derived-key
+== the quant's fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl (design step 1)
+finetune exit=0
+seal exit=0
+key_id=genome-c8a81cc3c0a1-g0-dd432924171e
+== hand-off to the standby through the bucket: its bundle, the base model, the sealed genome (opaque without its key), the authority's public key
+standby bundle removed from the bank host after hand-off
+== sagvd on SEV-SNP
+sagvd ready after 11s
+== a thief with the sealed key files, off the chip: they do not open (ADR 0023)
+rogue with the sealed files exit=1 sealed to gcp-sev-snp, this host is simulated
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+rogue refused after 1s
+== acp-compute on SEV-SNP, the real door: the handshake with the chip's report (design step 3)
+session opened after 8s
+== the operator's gate job over the Return Path (design steps 2, 4, 5)
+job_id=e8bf9d591ee4659894a74321e43a4a3b
+job status=succeeded after 5s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-e2e request_id=req-cf7094ae1471f8db session_id=ses-c0a8d8fb-0000000000000001
+== the continuity: wait for the standby's identity (its chip's measurement, for the allow-list)
+standby_endpoint=https://10.164.0.2:8443
+standby_measurement=0e017d2fba7c4964575fdd8c770061abf07f0753148d030f94e969a2d1fa5a5747ba0ced9174f2d44b5f6663fa2de00f
+standby crypto_profile=fips kem_suites=hpke-p384-v2,hpke-mlkem768-v2,hpke-mlkem1024-p384-v2
+== the genome's key released to the standby in region B, only after its chip attested (the allow-list, the report against the AMD chain)
+release exit=0
+release suite=hpke-p384-v2
+release profile=fips
+release recipient_key_sha256=9d57e06584691899ab74cc6598fbe1e2af4548f86797bc0afecac27d945da37c
+== the standby restores by itself; the restore confirmed from its chip-signed receipt
+confirm exit=0
+== release refused: a guest not on the allow-list
+unlisted exit=1 policy denied key release: destination measurement not in allow-list for 
+== release refused: the operator's stop in force
+stopped exit=1 policy denied key release: operator stop in force 
+== metrics; stop both; both audit logs verified with the published key (design step 6, here first)
+audit verify exit=0
+audit query exit=0
+xcc audit verify exit=0
+xcc audit query exit=0
+== hand the record to the third party: both audit logs, the published audit key, the job's view
+elapsed_seconds=168.0
+== the standby's steps
+profile=fips
+== binaries from gs://rats-probe-vg-rd01-20261021t202252z/in
+== configfs-tsm
+== the bank's hand-off: the standby's TLS material and token, the base model, the sealed genome (opaque without its key), the authority's public key
+key_id=genome-c8a81cc3c0a1-g0-dd432924171e
+== acp-bootstrap on SEV-SNP: identity from this chip, published for the bank's allow-list
+identity exit=0
+standby crypto_profile=fips kem_suites=hpke-p384-v2,hpke-mlkem768-v2,hpke-mlkem1024-p384-v2
+measurement=0e017d2fba7c4964575fdd8c770061abf07f0753148d030f94e969a2d1fa5a5747ba0ced9174f2d44b5f6663fa2de00f
+acp-bootstrap ready after 1s
+== the worker runtime, for the gate on this chip (the door needs it)
+== the key arrives only after this chip attested to the bank: wait for the restore (the receipt signed with the chip)
+restore seen
+== the restored model gated on this chip against the sealed fixtures, through the real door (acpctl genome gate)
+standby gate exit=0
+standby gate_level=EXACT fixtures=6 base=tiny-llama backend_seconds=3.962869227
+== wait for the bank to finish (its refusals go through this guest too), then stop
+elapsed_seconds=186.5
+== the third party's steps
+third-party audit verify (return path) exit=0
+third-party audit verify (cross-cloud) exit=0
+third-party audit query --request req-cf7094ae1471f8db exit=0 events=6
+third-party lineage --session-id ses-c0a8d8fb-0000000000000001 exit=0
+run_end=2026-10-21T20:28:08Z
+evidence: /Users/serhiinikolaichuk/dev/vaultgenome-core-compliance/scripts/hardware-test/reference-design-01/evidence/20261021T202252Z
+PASS: reference design 01 end to end on SEV-SNP under fips (hpke-p384-v2) — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party (20261021T202252Z)
+cleanup: deleting vg-rd01-bank-20261021t202252z, vg-rd01-standby-20261021t202252z, the rule vg-rd01-xcc-20261021t202252z and gs://rats-probe-vg-rd01-20261021t202252z

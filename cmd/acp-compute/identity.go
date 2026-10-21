@@ -31,6 +31,8 @@ type workerIdentity struct {
 	TEEPublicKeyPEM   string `json:"tee_public_key_pem,omitempty"`
 	// Sealer is how this host seals its key files (tee.sealer, ADR 0025).
 	Sealer string `json:"sealer,omitempty"`
+	// FIPS140 is the cryptographic module this process runs on (ADR 0030).
+	FIPS140 crypto.FIPS140 `json:"fips140"`
 	// TDX is what a gcp-tdx measurement is made of.
 	TDX *tdxIdentity `json:"tdx,omitempty"`
 	// VTPM is what an azure-cgpu guest's vTPM measured of its boot.
@@ -74,6 +76,7 @@ func runIdentityCmd(args []string, w io.Writer) error {
 		TEEProvider:         string(mat.Provider),
 		TEEMeasurementHex:   hex.EncodeToString(mat.Producer.Measurement()),
 	}
+	id.FIPS140 = crypto.FIPSStatus()
 	if kind, err := tee.SealerKindFor(mat.Producer, cfg.TEE.SealerMode()); err == nil {
 		id.Sealer = string(kind)
 	}

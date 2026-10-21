@@ -22,7 +22,23 @@ The shipping binaries, run end to end on a Google Confidential VM
 Both processes run inside the same guest here; what the run proves is that the
 destination's Evidence is genuine hardware and that the whole chain accepts it.
 
-## Results — runs `20261021T144756Z`, `20261021T144804Z`, `20261021T144806Z`: the three cryptographic profiles
+## Results — runs `20261021T202413Z`, `20261021T202422Z`, `20261021T202423Z`: the three profiles under the v2 suites (ADR 0030)
+
+The same kit on the tree of ADR 0030 part one, three guests
+`n2d-standard-2` SEV-SNP in us-central1-c, the same launch measurement
+`ccdc5cf0…` as the runs below, minutes apart. The suites are v2: HPKE
+opened export-only derives the key and the cryptographic module's
+AES-256-GCM seals under it with the nonce it generates — the AEAD inside
+Go's HPKE, which the module refuses under `fips140=only`, is no longer
+on the path.
+
+| Profile | Run | The suite both sides met on | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
+|---|---|---|---|---|---|---|---|---|
+| `general` | `evidence/20261021T202413Z` | `hpke-x25519-v2` | **ok**, recipient key `7d51664c…` | **ok**, key to restored 0.097 s | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips` | `evidence/20261021T202422Z` | `hpke-p384-v2` | **ok**, recipient key `534ea09f…` | **ok**, 0.085 s | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `cnsa` | `evidence/20261021T202423Z` | `hpke-mlkem1024-p384-v2` | **ok**, recipient key `82ae329c…` | **ok**, 0.086 s | **ok** | **refused** | **refused** | **ok**, 10 events |
+
+## Results — runs `20261021T144756Z`, `20261021T144804Z`, `20261021T144806Z`: the three cryptographic profiles (the v1 suites of 0.7.0)
 
 The kit's third argument is the profile of ADR 0029, written into both
 daemons' configurations on the guest (`crypto.profile`). Three guests,

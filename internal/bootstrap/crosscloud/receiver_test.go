@@ -103,7 +103,7 @@ func signedHandshake(
 		DestinationTEEKind:  destinationKind,
 		DestinationEndpoint: "https://acp-bootstrap.test:8443",
 		HandshakeNonce:      nonce,
-		KEMSuites:           kms.DefaultSuitePolicy().SuiteIDs(),
+		KEMSuites:           kms.PolicyForThisProcess().SuiteIDs(),
 		InitiatedAt:         stdtime.Date(2026, 5, 9, 12, 0, 0, 0, stdtime.UTC),
 		SigningKeyID:        sourceKID,
 		Signature:           []byte{0x00},
@@ -159,7 +159,7 @@ func (f *receiverFixture) signedToken(t *testing.T, s tokenSpec) krt.KeyReleaseT
 		s.measurement = f.destMeasure[:]
 	}
 	if s.suite == "" {
-		s.suite = kms.SuiteHPKEX25519
+		s.suite = kms.DefaultSuitePolicy().Writes()
 	}
 	if s.label == "" {
 		s.label = string(s.suite)
@@ -256,7 +256,7 @@ func TestHandleHandshakeRequest_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Evidence)
 	require.Equal(t, []byte(f.destMeasure[:]), []byte(resp.MeasurementHint))
-	require.Equal(t, "hpke-x25519-v1", resp.RecipientKeySuite, "a general destination meets a general source on X25519")
+	require.Equal(t, string(kms.DefaultSuitePolicy().Writes()), resp.RecipientKeySuite, "a destination and a source of the default profile meet on its first suite")
 	require.NoError(t, kms.Suite(resp.RecipientKeySuite).ValidateRecipientPublicKey(resp.RecipientPublicKey))
 	require.Equal(t, 1, f.receiver.Outstanding())
 }
@@ -281,7 +281,11 @@ func TestHandleHandshakeRequest_EvidenceBindsThePresentedKey(t *testing.T) {
 	require.NoError(t, err)
 	_, err = verifier.Verify(resp.Evidence, kms.RecipientChallengeV2(suite, other, nonce))
 	require.Error(t, err, "Evidence must not vouch for a substituted key")
-	_, err = verifier.Verify(resp.Evidence, kms.RecipientChallengeV2(kms.SuiteHPKEP384, resp.RecipientPublicKey, nonce))
+	otherLabel := kms.SuiteHPKEP384
+	if suite == otherLabel {
+		otherLabel = kms.SuiteHPKEMLKEM768
+	}
+	_, err = verifier.Verify(resp.Evidence, kms.RecipientChallengeV2(otherLabel, resp.RecipientPublicKey, nonce))
 	require.Error(t, err, "Evidence must not vouch for the key under another suite's label")
 	_, err = verifier.Verify(resp.Evidence, kms.RecipientChallenge(resp.RecipientPublicKey, nonce))
 	require.Error(t, err, "Evidence must not be over the v1 challenge")
@@ -314,16 +318,16 @@ func TestHandleHandshakeRequest_ChoosesUnderTheDestinationProfile(t *testing.T) 
 	require.NoError(t, err)
 	f := makeReceiverFixture(t, func(c *Config) { c.Suites = fips })
 
-	resp, err := f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-a", kms.DefaultSuitePolicy().SuiteIDs()))
+	resp, err := f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-a", kms.PolicyForThisProcess().SuiteIDs()))
 	require.NoError(t, err)
-	require.Equal(t, "hpke-p384-v1", resp.RecipientKeySuite, "the general source's first suite fips accepts")
+	require.Equal(t, "hpke-p384-v2", resp.RecipientKeySuite, "the general source's first suite fips accepts")
 	require.Len(t, resp.RecipientPublicKey, kms.SuiteHPKEP384.PublicKeySize())
 
-	resp, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-b", []string{"hpke-mlkem768-v1", "hpke-p384-v1"}))
+	resp, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-b", []string{"hpke-mlkem768-v2", "hpke-p384-v2"}))
 	require.NoError(t, err)
-	require.Equal(t, "hpke-mlkem768-v1", resp.RecipientKeySuite, "the source's order decides")
+	require.Equal(t, "hpke-mlkem768-v2", resp.RecipientKeySuite, "the source's order decides")
 
-	_, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-c", []string{"hpke-x25519-v1", "hpke-xwing-v1"}))
+	_, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-c", []string{"hpke-x25519-v2", "hpke-xwing-v2"}))
 	require.Error(t, err)
 	require.True(t, shared_errors.Is(err, shared_errors.CategoryAuthority), "got %v", err)
 	require.ErrorContains(t, err, "none of the KEM suites")
@@ -339,25 +343,25 @@ func TestHandleKeyReleaseToken_SuiteMustBeTheHandshakes(t *testing.T) {
 	require.NoError(t, err)
 	f := makeReceiverFixture(t, func(c *Config) { c.Suites = fips })
 
-	resp, err := f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-test-1", []string{"hpke-p384-v1"}))
+	resp, err := f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-test-1", []string{"hpke-p384-v2"}))
 	require.NoError(t, err)
 	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: resp.RecipientPublicKey, suite: kms.SuiteHPKEP384, keys: oneKey(t)}))
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 
 	// The right name on another suite's ciphertext: the key is P-384, the ciphertext is not.
-	resp, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-test-1", []string{"hpke-p384-v1"}))
+	resp, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-test-1", []string{"hpke-p384-v2"}))
 	require.NoError(t, err)
 	_, otherPub, err := kms.SuiteHPKEMLKEM768.GenerateRecipientKey()
 	require.NoError(t, err)
-	n, err = f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: otherPub, suite: kms.SuiteHPKEMLKEM768, label: "hpke-p384-v1", keys: oneKey(t)}))
+	n, err = f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: otherPub, suite: kms.SuiteHPKEMLKEM768, label: "hpke-p384-v2", keys: oneKey(t)}))
 	requireIntegrity(t, err)
 	require.Zero(t, n)
 
 	// Another suite's name on the token than the handshake's.
-	resp, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-test-1", []string{"hpke-p384-v1"}))
+	resp, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-test-1", []string{"hpke-p384-v2"}))
 	require.NoError(t, err)
-	n, err = f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: resp.RecipientPublicKey, suite: kms.SuiteHPKEP384, label: "hpke-mlkem768-v1", keys: oneKey(t)}))
+	n, err = f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: resp.RecipientPublicKey, suite: kms.SuiteHPKEP384, label: "hpke-mlkem768-v2", keys: oneKey(t)}))
 	requireIntegrity(t, err)
 	require.ErrorContains(t, err, "is under KEM suite")
 	require.Zero(t, n)
@@ -505,7 +509,7 @@ func TestHandleKeyReleaseToken_ExpiredHandshakeKeyIsGone(t *testing.T) {
 func TestHandleKeyReleaseToken_RejectsTokenWithoutHandshake(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	_, other, err := kms.SuiteHPKEX25519.GenerateRecipientKey()
+	_, other, err := kms.DefaultSuitePolicy().Writes().GenerateRecipientKey()
 	require.NoError(t, err)
 	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: other, keys: oneKey(t)}))
 	requireIntegrity(t, err)
@@ -527,7 +531,7 @@ func TestHandleKeyReleaseToken_RejectsKeysWrappedToAnotherRecipient(t *testing.T
 	t.Parallel()
 	f := makeReceiverFixture(t)
 	f.handshake(t, "xcc-req-test-1")
-	_, other, err := kms.SuiteHPKEX25519.GenerateRecipientKey()
+	_, other, err := kms.DefaultSuitePolicy().Writes().GenerateRecipientKey()
 	require.NoError(t, err)
 	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: other, keys: oneKey(t)}))
 	requireIntegrity(t, err)

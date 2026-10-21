@@ -42,7 +42,7 @@ ADRs interact with the test-enforced invariant system.
 | 0027 | [The audit log in closed segments: retention is archival, and the views expire](0027-the-audit-log-in-closed-segments.md) | Accepted | sagvd, audit, retention, bbolt, acpctl, disk |
 | 0028 | [Provisioning across two hosts: the authority writes the worker's bundle, the worker joins, the authority pins](0028-provisioning-across-two-hosts.md) | Accepted | acpctl, provision, deployment, keys, pins, two-hosts |
 | 0029 | [KEM suites and the cryptographic profile](0029-kem-suites-and-the-cryptographic-profile.md) | Accepted | crypto, kms, escrow, crosscloud, fips, post-quantum, profile |
-| 0030 | [The FIPS 140-3 build](0030-the-fips-140-3-build.md) | Proposed | crypto, fips, build, release, aead, bundle, hkdf, assessment |
+| 0030 | [The FIPS 140-3 build](0030-the-fips-140-3-build.md) | Accepted | crypto, fips, build, release, aead, bundle, hkdf, assessment |
 
 ## Adding an ADR
 

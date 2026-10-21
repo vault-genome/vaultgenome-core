@@ -1,0 +1,172 @@
+[
+ {
+  "suite": "hpke-x25519-v1",
+  "key_id": "genome-0123456789ab-g0-18777a43a270",
+  "dek_hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "escrow_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-x25519-v1\n\nODfsHJWpxqEQFEIxngNZkURJmJHNsqYgIKo0pi0DfUg=\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "recovery_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-x25519-v1\n\nIHADs2G9jxdZwLhYg/VWhEuHtYQ4Vyez6j/XpbtXs1s=\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "envelope": {
+   "schema": "vault-genome/key-escrow/v2",
+   "key_id": "genome-0123456789ab-g0-18777a43a270",
+   "escrow_key": "34791e2abfacfab8",
+   "suite": "hpke-x25519-v1",
+   "ciphertext": "dfyMsuQecZD0nmzKHn0KGsiGwayKjdNzy81pqDCwjC59x6V1SI1krJ+OontzEMDuZDQisqsZEGuWzobz7wqvZeySurblnYvO/zU+lhY0e3s="
+  },
+  "sealed_key": {
+   "schema": "vault-genome/sealed-escrow-key/v2",
+   "tee": "simulated",
+   "measurement_hex": "3132712775d169df5b1b91073cb2d7e63f89011048a8ba15e9f79bbdae401af0",
+   "escrow_key": "34791e2abfacfab8",
+   "suite": "hpke-x25519-v1",
+   "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAjilcL3UxikAuJn8f4WAkw4pRPRcNLD5vUwOXOqFkN2Y=\n-----END PUBLIC KEY-----\n",
+   "sealed": "iwaGKxFNyaQcDpWWpvgBOKWUHJ8uLFV6cbld6FD5iSDCCSQ5SKJZkPmXppRr+TKqokbAzTuvoUNjKt/L"
+  },
+  "recovery": {
+   "schema": "vault-genome/escrow-recovery/v2",
+   "escrow_key": "34791e2abfacfab8",
+   "recovery_key": "02df73ffc00bcfe7",
+   "suite": "hpke-x25519-v1",
+   "recovery_suite": "hpke-x25519-v1",
+   "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAjilcL3UxikAuJn8f4WAkw4pRPRcNLD5vUwOXOqFkN2Y=\n-----END PUBLIC KEY-----\n",
+   "ciphertext": "J23zQNwoWAWF00L4nZ8XNltCz/KAtptzQXE0755EXRZBFBmUL76SrC2wCfQUd9D0P4AIRw5hIpbww9l5QOsMrTt4XAcxaYs3oScQ2aW61f4="
+  },
+  "tee_descriptor": "release-host-v1",
+  "tee_seed_hex": "0303030303030303030303030303030303030303030303030303030303030303"
+ },
+ {
+  "suite": "hpke-p384-v1",
+  "key_id": "genome-0123456789ab-g0-18777a43a270",
+  "dek_hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "escrow_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-p384-v1\n\nAiVrw+szpUp/sYCU0k517FXgRn1BIqvNjJzHuyznUE6Kwr9PH3c+xT3WBunX+vx6\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "recovery_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-p384-v1\n\nWFJM6fkumvAVIDZm4LyTePnBG7Gkf7uoC4/185nfQFOUPyoo64C42G1R3JAcgZfl\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "envelope": {
+   "schema": "vault-genome/key-escrow/v2",
+   "key_id": "genome-0123456789ab-g0-18777a43a270",
+   "escrow_key": "da2058548cdb1002",
+   "suite": "hpke-p384-v1",
+   "ciphertext": "BBfcXtx4cE1mHdEDI0GeCwctjDQKoajpi3OyNsXkZXRs7GqV1Rn7spzeYhhFs4SvCe1pw0wpoG9E2iHy3lomGTeKBLeGhuly0Xg0VXfl6btwT7SOPQPk9LSKq4EeVyJFAqVZCd/iJ2wIABDLb1TgiutQmHo3ylOxXRF6JaslPx95tHZItwJfcasWDxcuLlCBmw=="
+  },
+  "sealed_key": {
+   "schema": "vault-genome/sealed-escrow-key/v2",
+   "tee": "simulated",
+   "measurement_hex": "3132712775d169df5b1b91073cb2d7e63f89011048a8ba15e9f79bbdae401af0",
+   "escrow_key": "da2058548cdb1002",
+   "suite": "hpke-p384-v1",
+   "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEq96y/gCtKCDQMfOwezd2K/WyleiZRIcm\nCENB6ttXhmPqj0b3dip1hJz+2eFjRYN1JJEWkKw4qBul9/yo+oTL1Tm2crZAtXMB\n551+Zasq8hL53bO6oBxtQmzmi7Uvm/cM\n-----END PUBLIC KEY-----\n",
+   "sealed": "PGHRN12QuDkSORgDfma4JGhRxODdRHQbBNjuF+uGZESbfVoFQwoAPYkkgx23iq5Z/aCRDgU3ffFtc8n7yPPWJSzdyvCgJmmZaZVmow=="
+  },
+  "recovery": {
+   "schema": "vault-genome/escrow-recovery/v2",
+   "escrow_key": "da2058548cdb1002",
+   "recovery_key": "7b4d26e00b36b25b",
+   "suite": "hpke-p384-v1",
+   "recovery_suite": "hpke-p384-v1",
+   "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEq96y/gCtKCDQMfOwezd2K/WyleiZRIcm\nCENB6ttXhmPqj0b3dip1hJz+2eFjRYN1JJEWkKw4qBul9/yo+oTL1Tm2crZAtXMB\n551+Zasq8hL53bO6oBxtQmzmi7Uvm/cM\n-----END PUBLIC KEY-----\n",
+   "ciphertext": "BAx/ZszZ0WhaXuoFqS85DxhJM/Uzy/VzicBE3tmKD9rwCe0zQ7IK1lwEesk4PANaJZIVWTtNu3rWdGrQzHiomagf9SoQWQprvw3Z+v+4lPbwHO2cdtOkl61rNqy5cNGTq6I56Z+RE8Kp+LFqywRV4aekGDvXdIk9NJyfLNHRlcGceICjn4FEGQKUkybKHVTajrtAZDrF0Yq5+KSk0QMjJIc="
+  },
+  "tee_descriptor": "release-host-v1",
+  "tee_seed_hex": "0303030303030303030303030303030303030303030303030303030303030303"
+ },
+ {
+  "suite": "hpke-mlkem768-v1",
+  "key_id": "genome-0123456789ab-g0-18777a43a270",
+  "dek_hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "escrow_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-mlkem768-v1\n\nTkKfjKqRAwzR23qbwib4a0j62nK2foJ9vi95JP1q5TfZ20mODrCD0NhyvAATzKJF\nK1xMt1+856YZOER6ZMFAzg==\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "recovery_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-mlkem768-v1\n\nqferBHQn5g0VKzyFc3THFTmflAo4KWDf47l3tm49rX9Bl9ymf/L6c77MsxCVGxmy\nPpW1sUeUQbjLHYIPqHbR9Q==\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "envelope": {
+   "schema": "vault-genome/key-escrow/v2",
+   "key_id": "genome-0123456789ab-g0-18777a43a270",
+   "escrow_key": "41ce3694beb585e7",
+   "suite": "hpke-mlkem768-v1",
+   "ciphertext": "zYY6BEncooZBXusumKBBrtaUfOcJsZs/T9I+UYSXVf3Yq78hKI85bqDSpnAQy5qRhlaYYY7bRtCFoz2W+7j6EGrWRW731OaMwiiPpRSZxYIL2uXtfmXV7UnrLNY5UGnDKZkf+rX482KNjyU0E2U6OdmTO8MFI5+rzBGP3FnKt8McVGJpw/3XhTo/pm/iUey7rf/iWCMkmHZEj+nV50EeNf1UK783xLnTjCdvb5vl0xJdALRL/aQ0YDwQ1eTYU/GSvGcxlW9mzW1DOq4z28a8e++w8EFW2PufZPRXFpHIJ8TN/Rs7AiGtYYM4TNFcC6pCrN8kpTp2lfOjKaM7FBFpXiD3AtI5ztMlK+4B6zPtt6eMnB5YMmP+6f8zkIMDqw0TYBhf8nIIeTppPeIA+XAvBcASKi4rhZ/hT5PnmN69Jh6GDxUn4vIAZh0jD6tlsiorpy9CAaozeNv6bEsq2HZBt3WobSJWEd1S1hlNT/dSPWXBlf+aXi3HCQWxJj2rQ+gMUap9ZKE0GaBbbZ61L6aBerhvyWI19766BW4LoTtpJ+DykdhaAl4isW+0Az7BugYiQIHi39iaY5AyYNP6YwEpUxO//a2qvtmLA3jwhljfinmfG82QCXlmQJcepqWncs/EsrKIgASr4vcpHGz3f/BJbwd39q1BIQGP0mU/EHyZ7xDiQdSN+um2rOsAC0x0hFhKXmj/ZpkqAF9/Pb4kiRizOVgDFLdNXySnWGFsvfaxo0N4Tz+Iym4rnj2BrY+OXODEW9Pj+ZxzD/tQFUMpX/0G/xlHuF5cNwlOaZY9uT4ymH/tD4uRqRR7u6kCp+V2yRRJ856TpdASXnEtaxIPM56o2mitHMqngK6EZi0K4jIwzQpyphMR/Ju3xMrmFj9bM5U4kW2uUxxy6EqgU5qFExW9NM8H+y86+rsv57R8EMJLu6i9EGACfUY3LuGGXV+BNxNyaWCdqMjv/lREP//vIEHVS+sPuiIe80IiekYiq3U2Ys79O3w63kGEQk9ReCsvUVUTH95qE84jT9TUEej40v4lwnNMTYfyeguWGrumNih07f4l+6rdb2mMS1qVnmPFjShRoTOU+V6iaYrQwKv9ck07xRmxz+Zf0WKVJRFNWXJ+H73q1FkQfGSNi6cOyk8I0sRLsEvrrn+kp4prf3OUTgpL36BCQnPo6Ed5xctS3CE3rSMONopFAZ9RTOkAhe0p9lUwDsa8AmqzfI1XPh/zj8/eSIZbSPjZGcZux8B/LB8MDIyR+Xh3whONAca3eH5Du8r49fMut8Sts9kmd6PT3lNfjY7yyowEx+9rxeI9mVXDYAETy6TxQnQ5kgQ2+lrzX4yzADHqRmAtoWfRiuD/YEgNWSaMEn5DUgkbGktOOH3+m0w0jJSgdF2nhH1du4AG+nBjoVPGATZ23KiY/lApcAes7NT2eQmGHZmOi1uh3lfAFpfp6NwyvNeyBvGTCYbc3LXWwgSsUHZlDWmuucvVpDikrBKJoifEyXPdAnrjwBxUMWk="
+  },
+  "sealed_key": {
+   "schema": "vault-genome/sealed-escrow-key/v2",
+   "tee": "simulated",
+   "measurement_hex": "3132712775d169df5b1b91073cb2d7e63f89011048a8ba15e9f79bbdae401af0",
+   "escrow_key": "41ce3694beb585e7",
+   "suite": "hpke-mlkem768-v1",
+   "public_key_pem": "-----BEGIN VAULT GENOME HPKE PUBLIC KEY-----\nSuite: hpke-mlkem768-v1\n\nS/IDItJw0wJmSja7p1Jf+FEDOuinLeZuW+EayGKUrwSuUSdgmCEmcyI+HAoSqteb\nIYCLPmiv+VpRuzq+wKSFc8QOoDiVbJNzNZNLZsMt5EGnu3S/AuC/odIczCNDxKde\nn+BktBPMhqEJL+SUj7eCdScflxtuF2AIrHisoMvFyWucLbxkUAw1nKoQNfuCvhxs\nRoF6UDWn1TR31IOWc0IDe2d9+utXDRNSt2BSPGhNT7HFCNglaLNMekC5NPK9VxDK\nRhRIMqlBmOQzNHih7TwACAgYqZCHTmQjx9I7c7QjaHhQxtg038W/nnew5IqnW2kR\n94wyfkhIAFkVkvc2/qa/64alENAlFRx7uLwFukJMmRlkHiYFETBAzrddGtPMIzUu\nbxqh0oI75GDKuiVuh5tQIRs3+dbB6oAq0re2xfs4H7tQc0BNWtW05llYgTmW7UGr\nC8pZb9e9PgQlMwkRT3gTT1fAgApjk0F4suljK0yvNblJOWUsn/EwAAfIuKbHkLzL\nWNh6qcgU2HlcIEpJOXkxIkmHMAgbsTYC+UitMNxSEdqkE0cG6OrKCOOFHkG7H6pa\n9XomCQM1KGs3zuukehg8DxSFO0M5Vdi/2IFzBwS/oQtcN7tneRqAwKmuleDGMZad\nMAisHOk2FYB/2bi5ElZIFexpsvwqq7wIX4W2N5SYvEaCzgxzL7W5KBK9jlMHMjRd\nXIYk/nmT5GTHW8iYbGSNbqFHRRsX9OcSZbsaRUMFFVVmSkQcoIMINwuetSB53ddc\nPdW1Y3cjq4uygNBh9/PFWssUjbNhqFbEWBFyV6sAQqQaxtAb7gx/R/p+wRF+C7pr\nTqdW8iYQRTu5xdPEkISZojWM8HFxC8wYVskJFsFVHDGkzZko1buXNjducdUXIpMI\n8TVObcR0LDnKVjNVAEV2eiNdWhYQc6JUHvU/orfF9/kG+loWXGMpiGYiwqIOWRzN\n62iJDyC7mUdYqKBhfrMjTQYVZvUlRTwtQ2ILaBgb3amV7psqRtRTgVEgK7OJU5DN\nzpQCahQHYWqyBREgWBPHE9g0lXlAicec4Uaq5UYPrFCx2oqENDNSIZOiaaVgUwyW\nVduAr8I+Jfe0GmeTRmoHfJIi/PldfGkyETIl0IKHTkIgIqiXBsQlQPthBtZwJSkI\nl1cdNEOL/9NWrXlxbYgOYhta/yop7xGvqsJn9YpbgZWQFFYa1+qhKSm1wOhWRdRV\nSVw2WdlQk5s5INZCxjt/0wa46Bd/rpuCOgI9mKQwuSCrEaqxNdMgwQINQIlU1wGa\nmHebqEgbkCt3v8Op7OMWDox76Ylk7kdyM9uOmIAQo1BlalqGLCki4ZcTSDRg+rBX\nYjKq8tQXbMl7ifMY6PJugaNw2HiyoMKIaGxSh0XA1wk+xjItUhfK3xIB1eTGdCPJ\nLdc9AYcj6ypvjhGo9yK6DmUi8wZ/aycYgqKLiAdIgSMTaZcPx7g9jnl8n0ussCjN\nhFWl7HUTZnm7/7oDs7ikA2HNWNVUaPQi7mtnqnx1RPx0SEm6JmEw3VVY7jOB0lOp\nRAmEWh2PXnp/NKULXTUmdffKR+sw19azGN7hPh+CNHY=\n-----END VAULT GENOME HPKE PUBLIC KEY-----\n",
+   "sealed": "hEg8/pE7nTU23VSNapfYlCE1TkRtPXKPKMXYb6uQHclAfVNuYoR5c3Mmr9zGRZHSYgo2iaxprxnkHThRs3Pbs9LWnKd3wnJlsS+WxUNUDlVkoshqz6kuOL4nBr4="
+  },
+  "recovery": {
+   "schema": "vault-genome/escrow-recovery/v2",
+   "escrow_key": "41ce3694beb585e7",
+   "recovery_key": "1e4ce2348b9f4374",
+   "suite": "hpke-mlkem768-v1",
+   "recovery_suite": "hpke-mlkem768-v1",
+   "public_key_pem": "-----BEGIN VAULT GENOME HPKE PUBLIC KEY-----\nSuite: hpke-mlkem768-v1\n\nS/IDItJw0wJmSja7p1Jf+FEDOuinLeZuW+EayGKUrwSuUSdgmCEmcyI+HAoSqteb\nIYCLPmiv+VpRuzq+wKSFc8QOoDiVbJNzNZNLZsMt5EGnu3S/AuC/odIczCNDxKde\nn+BktBPMhqEJL+SUj7eCdScflxtuF2AIrHisoMvFyWucLbxkUAw1nKoQNfuCvhxs\nRoF6UDWn1TR31IOWc0IDe2d9+utXDRNSt2BSPGhNT7HFCNglaLNMekC5NPK9VxDK\nRhRIMqlBmOQzNHih7TwACAgYqZCHTmQjx9I7c7QjaHhQxtg038W/nnew5IqnW2kR\n94wyfkhIAFkVkvc2/qa/64alENAlFRx7uLwFukJMmRlkHiYFETBAzrddGtPMIzUu\nbxqh0oI75GDKuiVuh5tQIRs3+dbB6oAq0re2xfs4H7tQc0BNWtW05llYgTmW7UGr\nC8pZb9e9PgQlMwkRT3gTT1fAgApjk0F4suljK0yvNblJOWUsn/EwAAfIuKbHkLzL\nWNh6qcgU2HlcIEpJOXkxIkmHMAgbsTYC+UitMNxSEdqkE0cG6OrKCOOFHkG7H6pa\n9XomCQM1KGs3zuukehg8DxSFO0M5Vdi/2IFzBwS/oQtcN7tneRqAwKmuleDGMZad\nMAisHOk2FYB/2bi5ElZIFexpsvwqq7wIX4W2N5SYvEaCzgxzL7W5KBK9jlMHMjRd\nXIYk/nmT5GTHW8iYbGSNbqFHRRsX9OcSZbsaRUMFFVVmSkQcoIMINwuetSB53ddc\nPdW1Y3cjq4uygNBh9/PFWssUjbNhqFbEWBFyV6sAQqQaxtAb7gx/R/p+wRF+C7pr\nTqdW8iYQRTu5xdPEkISZojWM8HFxC8wYVskJFsFVHDGkzZko1buXNjducdUXIpMI\n8TVObcR0LDnKVjNVAEV2eiNdWhYQc6JUHvU/orfF9/kG+loWXGMpiGYiwqIOWRzN\n62iJDyC7mUdYqKBhfrMjTQYVZvUlRTwtQ2ILaBgb3amV7psqRtRTgVEgK7OJU5DN\nzpQCahQHYWqyBREgWBPHE9g0lXlAicec4Uaq5UYPrFCx2oqENDNSIZOiaaVgUwyW\nVduAr8I+Jfe0GmeTRmoHfJIi/PldfGkyETIl0IKHTkIgIqiXBsQlQPthBtZwJSkI\nl1cdNEOL/9NWrXlxbYgOYhta/yop7xGvqsJn9YpbgZWQFFYa1+qhKSm1wOhWRdRV\nSVw2WdlQk5s5INZCxjt/0wa46Bd/rpuCOgI9mKQwuSCrEaqxNdMgwQINQIlU1wGa\nmHebqEgbkCt3v8Op7OMWDox76Ylk7kdyM9uOmIAQo1BlalqGLCki4ZcTSDRg+rBX\nYjKq8tQXbMl7ifMY6PJugaNw2HiyoMKIaGxSh0XA1wk+xjItUhfK3xIB1eTGdCPJ\nLdc9AYcj6ypvjhGo9yK6DmUi8wZ/aycYgqKLiAdIgSMTaZcPx7g9jnl8n0ussCjN\nhFWl7HUTZnm7/7oDs7ikA2HNWNVUaPQi7mtnqnx1RPx0SEm6JmEw3VVY7jOB0lOp\nRAmEWh2PXnp/NKULXTUmdffKR+sw19azGN7hPh+CNHY=\n-----END VAULT GENOME HPKE PUBLIC KEY-----\n",
+   "ciphertext": "LudOQ7JScfjnzJlsRz8AFmBAFaYDqZo02axvjxMhgwMJ0Zd/MC7zmmiKnuZDJSkUlUMhXG3R1AKgnvVz5IT5q6be6rSdqq/SiNOvmEFpD954ZbjXylCVaEe6bYgWrw0+SsHgV0RmW7BV2zqOgWt9xUOflA31uSq4gPTEqP8ZvDrEs8TZIz0gVU84vx+0A94TST40tM+IAdMtPaTnCvOmWJQsHxEnZ/xIG+6kYHDA+b/+EB3VrV0l/xsWXp1zQ/BGqS9M+7Mr+UMK5uDjy2rYO92zAMTvDsP2owZaBv60qD+arYqPVDMFzOGUV4l9NU96vGco5wXBC6h5lsJyZyFUJRKmwcf6dJObt1rvTabNXwjMHNpX7iQC7kblE17i4LzHYsjkZz3kcDHVz6vFLv4dTAQVyXz+a2r7RM0wAQTJhIihOiGw4TWEZ7A0Bkm3j7RsQ1g3W2XklspodbDdx0oDAfC2G2O5eyXvrltxSeSGYS16zEjbhYBS8qi565lGUWemrBJtz0J1yUTanh9RBTzakX3eSXog7aRBtZTZf9p31DHEczFZbZRwg9fIj7kjv7skAwTtHFoEltWT6xdPb8DHk0OF6e0xEP0CtGtDNvLfQyAtFhcWktoosMENWB0v9dn1lgE2EoagShh6NVhYTN/XTJinwRNRdG6gLuCHDYXXCzpoUOX8yE12xKR4o89SijU5glivfidePC4Xi2i7BRpTkPrvThlVoseVJcqZ/FsBVKudknYjxpwZ7cYreggQxLVNoHoNG0+tUPXffDvxrmGPYN6XUoQICpm0rdd/WerZXaZv7yUyYboylvjw66FA7nwcBm/Qc7IHOYJmZpiygNIDwZUS/84HVo24lQJZyGyOfAKCKOPapRqbO646b/6LZyXHDWmc6a1ClR9pTnEi9E4c3cvspH088n/1s88vZELkBVn8kd7Rr/uG14G8nJcbaV8IhoyaxNZQy/B3in9vV5K2pTwaaIUF9ZP0uLELsjdX3lETIWd7W2CjV6YXAprxf+JqrGqXHUv/pjvOQeVNRojTgxsHHOyE5UD/8mCTuNjNSIpH13noZf9DqKvUih85Iq6Vvrjn/SsWJLMdRySc+NgDObvSQegLXWLH4UdpyLKuBlKWlgPozodMh9+flgpk9ffCMx5yPPm6l+CHoMppRBLDOjBKb6D9IIepiR+mI7kuT3Gf4xWbMwOtqkcjXxcep35OesBr/roOT1jJIe7E9+5/+sVoUZj1Q5uuKhG7jl5/M+djlodT9dFNKPiDFVWSIXcGFA6bh1DZMjJgx61++R3dzyoQs/U/0OxFHETJCUvsL+SmYsImeLKHWnX5+owk76rHK6LOCDu+eiB/LM+RdiwrkXzXwhFxagTEP7eJTuG1kJGnm3/6WGSSOAR4L/A9WWyX/5e23rXokaOl9OorzLd+ly0P63L6BoMAcJ/HPL2XVRH0gb1ojFchzO/4f+0YHBy3AVqwg+yMHNtIQ5bEBqMN8ETrBVG/t3tjmbyJIMejt4xDk38bthEU6CxN1RjiA6Ac4nPI5Ozw2CukuGqQKHRbDA=="
+  },
+  "tee_descriptor": "release-host-v1",
+  "tee_seed_hex": "0303030303030303030303030303030303030303030303030303030303030303"
+ },
+ {
+  "suite": "hpke-mlkem1024-p384-v1",
+  "key_id": "genome-0123456789ab-g0-18777a43a270",
+  "dek_hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "escrow_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-mlkem1024-p384-v1\n\n9YHCWRTmqFzPGOOptZlhAV60tJFRrBm42/4RZMzPasM=\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "recovery_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-mlkem1024-p384-v1\n\n/ttdb/Db4NXO1XhcNzNuQUJ/C1c2zNKUebMhrVp/eFg=\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "envelope": {
+   "schema": "vault-genome/key-escrow/v2",
+   "key_id": "genome-0123456789ab-g0-18777a43a270",
+   "escrow_key": "8c1e9410fab97ed7",
+   "suite": "hpke-mlkem1024-p384-v1",
+   "ciphertext": "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"
+  },
+  "sealed_key": {
+   "schema": "vault-genome/sealed-escrow-key/v2",
+   "tee": "simulated",
+   "measurement_hex": "3132712775d169df5b1b91073cb2d7e63f89011048a8ba15e9f79bbdae401af0",
+   "escrow_key": "8c1e9410fab97ed7",
+   "suite": "hpke-mlkem1024-p384-v1",
+   "public_key_pem": "-----BEGIN VAULT GENOME HPKE PUBLIC KEY-----\nSuite: hpke-mlkem1024-p384-v1\n\n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\n-----END VAULT GENOME HPKE PUBLIC KEY-----\n",
+   "sealed": "2uD39o9hhtjJFbcn7rIyXGvRMm7vpgVqV1nW7ocaH3KEAHSvzinrc7ZDKPi15HEQCsY55W5gsXmb4INT"
+  },
+  "recovery": {
+   "schema": "vault-genome/escrow-recovery/v2",
+   "escrow_key": "8c1e9410fab97ed7",
+   "recovery_key": "fc26d2faf081dc8c",
+   "suite": "hpke-mlkem1024-p384-v1",
+   "recovery_suite": "hpke-mlkem1024-p384-v1",
+   "public_key_pem": "-----BEGIN VAULT GENOME HPKE PUBLIC KEY-----\nSuite: hpke-mlkem1024-p384-v1\n\n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\n-----END VAULT GENOME HPKE PUBLIC KEY-----\n",
+   "ciphertext": "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"
+  },
+  "tee_descriptor": "release-host-v1",
+  "tee_seed_hex": "0303030303030303030303030303030303030303030303030303030303030303"
+ },
+ {
+  "suite": "hpke-xwing-v1",
+  "key_id": "genome-0123456789ab-g0-18777a43a270",
+  "dek_hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "escrow_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-xwing-v1\n\ndoA35vr3K67saqft5G2cfADyyscrkrs4+QlDuOsofMg=\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "recovery_private_pem": "-----BEGIN VAULT GENOME HPKE PRIVATE KEY-----\nSuite: hpke-xwing-v1\n\nzbHVqyVJC/jPBqAROr0PgInfqerrIbWBwqd2afGREIs=\n-----END VAULT GENOME HPKE PRIVATE KEY-----\n",
+  "envelope": {
+   "schema": "vault-genome/key-escrow/v2",
+   "key_id": "genome-0123456789ab-g0-18777a43a270",
+   "escrow_key": "3ba3c13c0628c4f8",
+   "suite": "hpke-xwing-v1",
+   "ciphertext": "79ht/NTtilzbrfd3EkdNp31RuMyNY6kiipsIbaj7pu5a3sVE+mo6JeBAGGsniVH00MGea4BBWGkAYdTNZdjkfeCLFw0Mg1/VIOQhG4iV6GXlrn3nrzF2FqMEXbjJTxo3denbDM039gCBwrFO/DKyGqHY1pWfsXef/d80Uex4qcoj2LSg5jFzWd5Sp+8ZM/bIgItQrcWRkwYOqxKjf3ewkb4+VJyLnMFKISaOMVim5FDl/uT7nGH3kPOYOUd1Y2GvIPih26GYjqNMI3Jifh3X4EOreH7cK0v6GyFUCHyNd+bML0OYs+nNEOZjIPeJMYYWg8NBjhbWaZaIjSbSFcL8iyuGDDGyyE/57Dmxj1IsPKU4kyqptOOrGLGNEodK7E/kX2J0APRJITKu9hpgVIP2Zs9Iei/KEDPs57/84vfMooroD35+EgNoiOAm8evpvPk4kp17K3QYprvpVVb0MaaPDBoMCbAZsSxMVb1BK+/5UojJP6ByRUnMjUkoLGoyl4p/F+8OH2JJF5kGojuOAtgvPWgO6jbUZsHvKOXW8JhmPyLcTGR6bpmt3gBmGhrav84bIhuiPpblv1jWMTEOnZkiA16ZAIY4HMBizZVFTgtLrOR2ps+8xNuW5cGM3C2GxRqo7Q32mtVBWqcClD67NYeddK1ZgJJyaWfZEptNiUdfYhIWDZxjHQSuJ+DALAQznp9LQyIZQ+So0A4i7+6YeJ92c1YdiVFIIfEsdr0XuewqdW8lTqax3Lt670vsm7lurgA/6V/p9KghI51XXbFGxYWbGv30JCvPpYjDeyTyHVEJNVoidfh4IhgVGb2KSJX5MRdawMh15VXNg8y+8C3W6k8ksntzd7vb+mAa+6kxgfO52C2o2YdRwx7EIlfTnhucyuSMexjfNVcZZCvaFeKEF+fs8cX5sgqX1jO8bwaaMaih0wk0g7bhjirmCZSXwELske5ywvgjWikOWR9y62uPyL99Ucs/ZWryM6l9bebgdbwmSGaKFQufbU+TMbcKu3rPT8Zi5BGU/HmyhlhmSp/vJJi8VCtrCs/7evn0CD7hy+hK2bk/hUTGEZgx/tOeIiJWY637vokXkWrJgVtMNb5BYEr22rewds33R9wh9J7wTK7zFmg7u2KpyMuCtBVA1NWg9MMzTUVaya7qDf31R1WW4CLZhnN9bPvxm+oj6kd3h6TY5h/MMWPrUfhHanUPZd9OnLPQXagcmceMenL/jRp9m8CRnvPeP8gdJJGTgRgZdwLPdulv/zWd1H1VAU0uCKvIU8Skvs58Cj193YgTIf78rwi23yhAC+gMp5CKgMfQ1BSjWzd3qvyRPw0lAP/ti4jCbIZSphLyQRvqy+tjZAxkN7zbABQCS5ZyDK64iBpVQMcJQk3SFEKqT0s1fmvX99ojZzt4XyQsojYMnw91fey6c/wObPk6v7oPs5YexWL0LNI4sGpv0m6CtuX+E7vRQH7lerjpkHCqiK9YR1AjQrvU376/Hfc/Vps4jEmzSGdPFieAeQssrWa4WL1s2Pkt5ZtQtIorGjTZ7vYt6gtFL3cY04frvw=="
+  },
+  "sealed_key": {
+   "schema": "vault-genome/sealed-escrow-key/v2",
+   "tee": "simulated",
+   "measurement_hex": "3132712775d169df5b1b91073cb2d7e63f89011048a8ba15e9f79bbdae401af0",
+   "escrow_key": "3ba3c13c0628c4f8",
+   "suite": "hpke-xwing-v1",
+   "public_key_pem": "-----BEGIN VAULT GENOME HPKE PUBLIC KEY-----\nSuite: hpke-xwing-v1\n\nW7UxxcxwjGCj6fDGmZKd4dEvSlFzr3UGSouvA7prPSQt9eA0bEyQl9o6ddqdv/yG\nLsSO5GoxJAY/xXyuFNnBNbwYtrEYMqcr7Vc+1AC1WfR3aCW6S5Mr0HnFZrK7pBsz\ntAcpIcB8bCpN8MFsrZKcUCLFL4IDToWU0Fp3MAYht9K8bxjEcGl6sWs1DpwAgslG\nk1slmVDG6LS3EWAdmjN7XAqodEWbUBtKE7lRqSmKLAgp61Ja4HAgQBCLMUenLzAb\n/qVdKdWqckseXXJ+WdDDJVRBIHUd/VSQXmWqDNccWFtFr4g5t8HE7fuukPl8rnV2\nh3QcT6a2zYC9V7iYz5A0hxCwpGFvLAu/nSRP4ZdHjBacmHCiErCGbjkyyXK2hcB/\nVhlq9zxUzyFsH8CLz7utBOh4dBeSxQvPcmPH4YFh4zJv5RZwfRWXYkh9G+O0fHs6\nrmbGX7AIC9B9mDxd6it3n6cDugpFCAqY+LbPA/xDqTiFeNx/hrQdxJKyIRkRCsxh\nxRlVQ4U23vqwLceKpCmYbIJBtmsyqCxf6RJSJDBI5YWYzBCorVK7e4LI7PxoU6uA\nCrO/H+gf4NYLM2yqIDxkJXdiAyuvndkNnQJZ22i3Qdwr7iFdRJZdXwaN+FSK7TSh\npPmJsOrP0zCAVwGxXQRHH1TISmQc9UbACvRuISVNDWkYhqR7/2F9c/ViI3onjBhV\ntQlY8Iq/rmIGVGkhbFulzELNDbISmhW54wBUaZo7VZuZx2NR2EsAdcbDbcu0nQWL\ndhUdvWUPFJXME6VVXodWbbV17OGsakCF93vD2FAgBXGNYRSIZJvGKNSySEJTGIWZ\ng9azsZJ3W+y7gca8RTQrKVNT49MR2Fc9RAiUUztFrvYUY7KBnuZ3z2qHUlRyATFB\n7tVfrkEfSRBWuYcF3fQhfDcZT4doyXo/5fg9h5mSySIrjESWh9oHtJe4quKEu5u3\nu7C/RYfEJtq0NfZxVfINWwvDdiIoVCVr7OlJGJhO4uiTzaerDRLKRKQgqfNLaocS\nG3UB5Tpmf9zOEoUgopx4DWjEtNJo7mtM+3QPD5s1mOiBt6tol7LGJbNHCLqgj6rA\nBTh0j3CrermSlORwCzofJXbL+vfAh7WnYmQ+Sfw729vBBlE1N6fCyBw4NqUtT1eT\nlqsbQYA4/ic5v5Y8KcV991EmtWDPJnCaUVTEKrSv8xsmarJtKJA/aCWTW3AAGTeJ\nVyRyL2grbDYpqVI7MPeBs1GLayx4XTVAV9NS2LhT6aKE+MsuM6iHMBM74/l4j9xm\n1wqVBTUm3SPFaqk3lwewkHl5EqUoc/GK9Iu4JhhjeTd3I+AYW+IRW5spz5iB7pSX\nMfaUmJpCiGSVoOugexs0CBNqX0ouGxuVHDplP2HPCcNZjtSiXgNERlRi97pOwSdP\nMasYxthGzUIVZdVXe4WwL8OANrw56NcOmUkjTzAWshEtEqgLm2wZGAx8dovLBTHO\n8eq6CcuYSJlQG9h3ibWcUDere1e1T3W5V4F47JV1emjMh1vMKttfDidpEmJlg+gw\nvogksrJlw5WCU3kTf4zmlv8jofcwO/1F9a6Rq6xBP245cK6DkloXCt0dX8U8pLlZ\nDv4CZ7fxe7kPY6HxkNJtFw==\n-----END VAULT GENOME HPKE PUBLIC KEY-----\n",
+   "sealed": "sBQJAMH3CkVKapLT64AByko2P3YIOZBpV3PJj2sFHqCbJBHcID26IpPT5cF4+eZCgqulCO8LFqFCuEax"
+  },
+  "recovery": {
+   "schema": "vault-genome/escrow-recovery/v2",
+   "escrow_key": "3ba3c13c0628c4f8",
+   "recovery_key": "30ebc73c9faaa672",
+   "suite": "hpke-xwing-v1",
+   "recovery_suite": "hpke-xwing-v1",
+   "public_key_pem": "-----BEGIN VAULT GENOME HPKE PUBLIC KEY-----\nSuite: hpke-xwing-v1\n\nW7UxxcxwjGCj6fDGmZKd4dEvSlFzr3UGSouvA7prPSQt9eA0bEyQl9o6ddqdv/yG\nLsSO5GoxJAY/xXyuFNnBNbwYtrEYMqcr7Vc+1AC1WfR3aCW6S5Mr0HnFZrK7pBsz\ntAcpIcB8bCpN8MFsrZKcUCLFL4IDToWU0Fp3MAYht9K8bxjEcGl6sWs1DpwAgslG\nk1slmVDG6LS3EWAdmjN7XAqodEWbUBtKE7lRqSmKLAgp61Ja4HAgQBCLMUenLzAb\n/qVdKdWqckseXXJ+WdDDJVRBIHUd/VSQXmWqDNccWFtFr4g5t8HE7fuukPl8rnV2\nh3QcT6a2zYC9V7iYz5A0hxCwpGFvLAu/nSRP4ZdHjBacmHCiErCGbjkyyXK2hcB/\nVhlq9zxUzyFsH8CLz7utBOh4dBeSxQvPcmPH4YFh4zJv5RZwfRWXYkh9G+O0fHs6\nrmbGX7AIC9B9mDxd6it3n6cDugpFCAqY+LbPA/xDqTiFeNx/hrQdxJKyIRkRCsxh\nxRlVQ4U23vqwLceKpCmYbIJBtmsyqCxf6RJSJDBI5YWYzBCorVK7e4LI7PxoU6uA\nCrO/H+gf4NYLM2yqIDxkJXdiAyuvndkNnQJZ22i3Qdwr7iFdRJZdXwaN+FSK7TSh\npPmJsOrP0zCAVwGxXQRHH1TISmQc9UbACvRuISVNDWkYhqR7/2F9c/ViI3onjBhV\ntQlY8Iq/rmIGVGkhbFulzELNDbISmhW54wBUaZo7VZuZx2NR2EsAdcbDbcu0nQWL\ndhUdvWUPFJXME6VVXodWbbV17OGsakCF93vD2FAgBXGNYRSIZJvGKNSySEJTGIWZ\ng9azsZJ3W+y7gca8RTQrKVNT49MR2Fc9RAiUUztFrvYUY7KBnuZ3z2qHUlRyATFB\n7tVfrkEfSRBWuYcF3fQhfDcZT4doyXo/5fg9h5mSySIrjESWh9oHtJe4quKEu5u3\nu7C/RYfEJtq0NfZxVfINWwvDdiIoVCVr7OlJGJhO4uiTzaerDRLKRKQgqfNLaocS\nG3UB5Tpmf9zOEoUgopx4DWjEtNJo7mtM+3QPD5s1mOiBt6tol7LGJbNHCLqgj6rA\nBTh0j3CrermSlORwCzofJXbL+vfAh7WnYmQ+Sfw729vBBlE1N6fCyBw4NqUtT1eT\nlqsbQYA4/ic5v5Y8KcV991EmtWDPJnCaUVTEKrSv8xsmarJtKJA/aCWTW3AAGTeJ\nVyRyL2grbDYpqVI7MPeBs1GLayx4XTVAV9NS2LhT6aKE+MsuM6iHMBM74/l4j9xm\n1wqVBTUm3SPFaqk3lwewkHl5EqUoc/GK9Iu4JhhjeTd3I+AYW+IRW5spz5iB7pSX\nMfaUmJpCiGSVoOugexs0CBNqX0ouGxuVHDplP2HPCcNZjtSiXgNERlRi97pOwSdP\nMasYxthGzUIVZdVXe4WwL8OANrw56NcOmUkjTzAWshEtEqgLm2wZGAx8dovLBTHO\n8eq6CcuYSJlQG9h3ibWcUDere1e1T3W5V4F47JV1emjMh1vMKttfDidpEmJlg+gw\nvogksrJlw5WCU3kTf4zmlv8jofcwO/1F9a6Rq6xBP245cK6DkloXCt0dX8U8pLlZ\nDv4CZ7fxe7kPY6HxkNJtFw==\n-----END VAULT GENOME HPKE PUBLIC KEY-----\n",
+   "ciphertext": "RPa4KAvyrSG2F4dk3N9FzZRPL0AXd5y1BxtsO3v8OSkkCURkzJr1k5m9Qo2SI4l6PiLycY/KvAdLBR5qj7UkmcTzlG4pyQQLTGPCOvdSMeofFLWs5eR84u/nIeaS4bhJ7uasmbwaeBQmCNLM396UB3u2jHjV+rkqWKYkZyDajQ0gGgeqjhGUIxQKznRTS+s4JDEnhEPXeNuvybywjTRJP+x6MBIdpl6bjsNifXcsJDh8Lgn4WWX8NP8hqCIWZHILAGQnO/2piALYAAr4qIC9wSpC4SQgkHJ+4Nx4y4osO6Sm33p2wU0WL73jWZkENmgPBK2oA3kUtegFfrh7NY38BvTTARnwiBAhaO/sr4n/TVGwbj3R3hdKmGncYUBGgkGOsW113Zt04VTmTrPUcmyzrZZkQIpd8aR8Zmn1dzOvfs6KtjT2N0Wh2qjZztcRif4oQej2epkc5BiTx1U2iYyGgbKfh81eAQg/d6Ntlz4BzWPCGFiVJYGEEX+wMKU0Umn8V1FwwHwX/0yuh3STWtsLYc+QAt0cYKrL/kw81tkFiuNLLDupxLDWK2b5j8ezcZTGppY42ETfTzkQDu1VztxacS4lBTEN4s6ajgsfUVXSwODSoGg858t0Afdlo8bqleQJ8P5NM+OCnLT9xoYXPU0DOIWlPIgREbv1r4I1bfR2d9m7yLdsZP+0s5LM9MgBog+UU0e0dQhAHr3gSUCGWKv7uLv449RPhidqxymJOB4yUej6+3C8tkYQalFGbUS3du2+dMLLzE7vdqoEGSvTjfsH2yGmLsSSX1Y2lPOKSUJNsbG2V5fAqfQBFgXg6N+al4I7MppDiPFlGPMKktAOdKOCDhk68eXWuhbrvset4ttVeK+cfVw/KF5K38boWi09PJt/l3UXpA0i4W0gvqBf2A/xircTenkaD7IUPjishqiG86WGNhR1SxLHof5SSGpxRwNnn82df/Q2WWGFjtVOMFotIfo4LuW6NAdt+VFsizgg3N/stQDS9yQ8pLUanVyh9bLz3Ke/1HI2ZkN+t7qE838APcGokMt9m2wpcoZerDnJff/OZ1DqMA9H9nnYqX2s448QGUKkWGGXPTvZmw5ptvm8AduF2o1SXBxp6YSE4ojvuOotFfYUZgZ7TXlcejYp1TlqVm2Fo/y+koYAQtPK9W8rR5ZGZJLFkFPWW7PRXO/RixFa95ViFXj3AmaXAZqhH/lBVwsqgNW088LtSpG7+Xd8D+B79qyHEWT+sY70rN2Z/nViG2wJTIEUTYWlF5jp7JOL4UQuuV9qm1F6Js5UxPrQVCheiXbhLps8GwjefAfigFX5Ie9JTVEOf0chmnrl75sl0I0uFmHklVZluP7r1+ict88xzC7y4M5gKErnrxyGs4lwlzS/lE/eI3iciDjLg+OxvIhZ7EwTqMXkYzeZTp7l3GgkaMDG+b5iYHcJd4ZAwUpBNH2y/2M0NBZ8FGt4577oB5gaHihjpF2jyxp3vYvmMVAPG24aorhCGoXjvjg4BW8+cNRShsARjJJi3yXkyImLoDNIW9CCLUT1YGhX/7DT8g=="
+  },
+  "tee_descriptor": "release-host-v1",
+  "tee_seed_hex": "0303030303030303030303030303030303030303030303030303030303030303"
+ }
+]

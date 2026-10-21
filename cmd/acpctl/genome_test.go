@@ -108,7 +108,7 @@ func TestGenome_OpensOnlyWithItsKey(t *testing.T) {
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "the key file is private")
 	blob, err := os.ReadFile(b)
 	require.NoError(t, err)
-	require.True(t, bundle.IsV3(blob))
+	require.True(t, bundle.IsV4(blob))
 	require.False(t, bytes.Contains(blob, key), "the key is not in the bundle")
 	require.False(t, bytes.Contains(blob, []byte("lora-delta-a-lora-delta-a")), "the weights are not in the clear")
 
@@ -428,7 +428,7 @@ func TestGenome_V2IsReadOnly(t *testing.T) {
 	code, stdout, stderr = runGenome("chain", "--dir", gens)
 	require.Equal(t, 0, code, stderr)
 	require.Contains(t, stdout, "(vault-genome-v2)")
-	require.Contains(t, stdout, "(vault-genome-v3)")
+	require.Contains(t, stdout, "(vault-genome-v4)")
 
 	blob, err := os.ReadFile(v2)
 	require.NoError(t, err)

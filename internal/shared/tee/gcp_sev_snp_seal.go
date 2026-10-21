@@ -115,7 +115,7 @@ func sevDerivedKeyFromResponse(data []byte) ([]byte, error) {
 // realSEVAEADSeal is AES-256-GCM: a fresh 12-byte nonce, then the
 // ciphertext and tag.
 func realSEVAEADSeal(key, plaintext, aad []byte) ([]byte, error) {
-	nonce, ct, err := crypto.Seal(key, plaintext, aad, nil)
+	nonce, ct, err := crypto.Seal(key, plaintext, aad)
 	if err != nil {
 		return nil, err
 	}

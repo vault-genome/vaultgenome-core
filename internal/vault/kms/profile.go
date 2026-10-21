@@ -5,6 +5,7 @@ package kms
 
 import (
 	"fmt"
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
@@ -41,6 +42,13 @@ func AllProfiles() []Profile { return []Profile{ProfileGeneral, ProfileFIPS, Pro
 // string is the general profile.
 func ParseProfile(name string) (Profile, error) {
 	if name == "" {
+		// The default is general; under fips140=only general cannot keep
+		// its promise (its first suite is X25519), so the default there is
+		// fips — a configuration that names general is refused below, so
+		// an operator who wrote it hears why (ADR 0030).
+		if shared_crypto.FIPSOnly() {
+			return ProfileFIPS, nil
+		}
 		return ProfileGeneral, nil
 	}
 	p := Profile(name)
@@ -105,9 +113,13 @@ func NewSuitePolicy(profile Profile, narrow []Suite) (SuitePolicy, error) {
 }
 
 // DefaultSuitePolicy is the general profile, unnarrowed.
+// DefaultSuitePolicy is the policy of the default profile — general, or
+// fips under fips140=only (ParseProfile of the empty name; ADR 0030) —
+// what a zero configuration gets.
 func DefaultSuitePolicy() SuitePolicy {
-	p, _ := NewSuitePolicy(ProfileGeneral, nil)
-	return p
+	p, _ := ParseProfile("")
+	pol, _ := NewSuitePolicy(p, nil)
+	return pol
 }
 
 // IsZero reports whether p was never set; a zero policy allows nothing.
@@ -166,10 +178,24 @@ func contains(list []Suite, s Suite) bool {
 
 // NewSuitePolicyFromNames makes a policy from a configuration's strings:
 // the profile name (empty is general) and the optional narrowing list.
+// PolicyForThisProcess is the general profile's policy, or the fips
+// profile's where this process runs under fips140=only (ADR 0030): what a
+// caller uses when it needs a policy this process can honour and has no
+// configuration to say which — tools, demonstrations, tests. A deployment
+// names its profile in its configuration instead.
+func PolicyForThisProcess() SuitePolicy { return DefaultSuitePolicy() }
+
 func NewSuitePolicyFromNames(profile string, suites []string) (SuitePolicy, error) {
 	p, err := ParseProfile(profile)
 	if err != nil {
 		return SuitePolicy{}, err
+	}
+	// Under fips140=only the module refuses X25519, so the general profile
+	// — which writes hpke-x25519-v1 first — cannot keep its own promise;
+	// the operator names fips or cnsa instead (ADR 0030).
+	if p == ProfileGeneral && shared_crypto.FIPSOnly() {
+		return SuitePolicy{}, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("kms: crypto.profile general offers %s, which this process cannot make under fips140=only; name fips or cnsa", ProfileGeneral.Writes()), nil)
 	}
 	narrow := make([]Suite, 0, len(suites))
 	for _, s := range suites {

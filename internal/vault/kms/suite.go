@@ -26,6 +26,8 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"fmt"
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"slices"
 
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
@@ -37,23 +39,35 @@ const (
 	// SuiteHPKEX25519 is DHKEM(X25519, HKDF-SHA256) 0x0020 with
 	// HKDF-SHA256 0x0001 and AES-256-GCM 0x0002 (RFC 9180 §7): what the
 	// general profile writes.
-	SuiteHPKEX25519 Suite = "hpke-x25519-v1"
+	SuiteHPKEX25519 Suite = "hpke-x25519-v2"
 	// SuiteHPKEP384 is DHKEM(P-384, HKDF-SHA384) 0x0011 with HKDF-SHA384
 	// 0x0002 and AES-256-GCM — approved key establishment (SP 800-56A
 	// Rev. 3; CMVP #5247 lists KAS-ECC on P-384 and the HKDF of SP
 	// 800-56C Rev. 2): what the fips profile writes.
-	SuiteHPKEP384 Suite = "hpke-p384-v1"
+	SuiteHPKEP384 Suite = "hpke-p384-v2"
 	// SuiteHPKEMLKEM768 is ML-KEM-768 0x0041 (FIPS 203, through
 	// draft-ietf-hpke-pq) with HKDF-SHA256 and AES-256-GCM.
-	SuiteHPKEMLKEM768 Suite = "hpke-mlkem768-v1"
+	SuiteHPKEMLKEM768 Suite = "hpke-mlkem768-v2"
 	// SuiteHPKEMLKEM1024P384 is MLKEM1024-P384 0x0051, the PQ/T hybrid of
 	// draft-ietf-hpke-pq (a composite KEM in the sense of SP 800-227
 	// §4.6), with HKDF-SHA384 and AES-256-GCM: what the cnsa profile
 	// writes.
-	SuiteHPKEMLKEM1024P384 Suite = "hpke-mlkem1024-p384-v1"
+	SuiteHPKEMLKEM1024P384 Suite = "hpke-mlkem1024-p384-v2"
 	// SuiteHPKEXWing is MLKEM768-X25519 0x647a (X-Wing) with HKDF-SHA256
 	// and AES-256-GCM.
-	SuiteHPKEXWing Suite = "hpke-xwing-v1"
+	SuiteHPKEXWing Suite = "hpke-xwing-v2"
+
+	// The v1 suites of 0.7.0 (ADR 0029): the same KEMs and KDFs, with
+	// the AEAD inside HPKE — AES-256-GCM under a nonce HPKE derives
+	// outside the cryptographic module, which the module's approved mode
+	// does not allow and fips140=only refuses (ADR 0030). Read-only since
+	// 0.8: what 0.7.0 wrapped still opens on a build without
+	// enforcement; nothing writes them.
+	SuiteHPKEX25519V1        Suite = "hpke-x25519-v1"
+	SuiteHPKEP384V1          Suite = "hpke-p384-v1"
+	SuiteHPKEMLKEM768V1      Suite = "hpke-mlkem768-v1"
+	SuiteHPKEMLKEM1024P384V1 Suite = "hpke-mlkem1024-p384-v1"
+	SuiteHPKEXWingV1         Suite = "hpke-xwing-v1"
 
 	// SuiteLegacyX25519 names the ECIES of ADR 0009 where a record of an
 	// earlier release has to be read (the escrow documents of 0.1.0 to
@@ -79,6 +93,15 @@ const (
 // the purpose behind it, each length-prefixed.
 const hpkeInfoLabel = "vault-genome hpke v1"
 
+// hpkeExportContext is the exporter context of a v2 suite: the HPKE
+// context, opened export-only (RFC 9180 §5.3, AEAD id 0xFFFF), derives the
+// 32-byte key the cryptographic module's AES-256-GCM seals under, with
+// the nonce the module generates (ADR 0030).
+const hpkeExportContext = "vault-genome hpke v2 wrap key"
+
+// aeadIDExportOnly is RFC 9180's AEAD id for export-only contexts.
+const aeadIDExportOnly = 0xFFFF
+
 // kemBindLabelV2 is the key-binding challenge's label of ADR 0029: the
 // challenge commits to the suite as well as to the key and the nonce.
 const kemBindLabelV2 = "vault-genome xcc-kem-bind v2"
@@ -102,36 +125,116 @@ type suiteSpec struct {
 	// must not be a low-order one (every encapsulation to it would share
 	// an all-zero secret).
 	x25519 bool
+	// export marks a v2 suite: HPKE export-only, the AEAD the module's.
+	export bool
+	// family names the KEM and KDF shared by a v1 and its v2.
+	family string
+	// readOnly marks a v1 suite: opened, never written.
+	readOnly bool
 }
 
 var suiteSpecs = map[Suite]suiteSpec{
 	SuiteHPKEX25519: {
-		kem: func() hpke.KEM { return hpke.DHKEM(ecdh.X25519()) }, kdf: hpke.HKDFSHA256, aead: hpke.AES256GCM,
-		kemID: 0x0020, kdfID: 0x0001, aeadID: 0x0002, pkLen: 32, encLen: 32, x25519: true,
+		kem: func() hpke.KEM { return hpke.DHKEM(ecdh.X25519()) }, kdf: hpke.HKDFSHA256,
+		kemID: 0x0020, kdfID: 0x0001, aeadID: aeadIDExportOnly, pkLen: 32, encLen: 32, x25519: true, export: true, family: "hpke-x25519",
 	},
 	SuiteHPKEP384: {
-		kem: func() hpke.KEM { return hpke.DHKEM(ecdh.P384()) }, kdf: hpke.HKDFSHA384, aead: hpke.AES256GCM,
-		kemID: 0x0011, kdfID: 0x0002, aeadID: 0x0002, pkLen: 97, encLen: 97,
+		kem: func() hpke.KEM { return hpke.DHKEM(ecdh.P384()) }, kdf: hpke.HKDFSHA384,
+		kemID: 0x0011, kdfID: 0x0002, aeadID: aeadIDExportOnly, pkLen: 97, encLen: 97, export: true, family: "hpke-p384",
 	},
 	SuiteHPKEMLKEM768: {
-		kem: hpke.MLKEM768, kdf: hpke.HKDFSHA256, aead: hpke.AES256GCM,
-		kemID: 0x0041, kdfID: 0x0001, aeadID: 0x0002, pkLen: 1184, encLen: 1088,
+		kem: hpke.MLKEM768, kdf: hpke.HKDFSHA256,
+		kemID: 0x0041, kdfID: 0x0001, aeadID: aeadIDExportOnly, pkLen: 1184, encLen: 1088, export: true, family: "hpke-mlkem768",
 	},
 	SuiteHPKEMLKEM1024P384: {
-		kem: hpke.MLKEM1024P384, kdf: hpke.HKDFSHA384, aead: hpke.AES256GCM,
-		kemID: 0x0051, kdfID: 0x0002, aeadID: 0x0002, pkLen: 1665, encLen: 1665,
+		kem: hpke.MLKEM1024P384, kdf: hpke.HKDFSHA384,
+		kemID: 0x0051, kdfID: 0x0002, aeadID: aeadIDExportOnly, pkLen: 1665, encLen: 1665, export: true, family: "hpke-mlkem1024-p384",
 	},
 	SuiteHPKEXWing: {
+		kem: hpke.MLKEM768X25519, kdf: hpke.HKDFSHA256,
+		kemID: 0x647a, kdfID: 0x0001, aeadID: aeadIDExportOnly, pkLen: 1216, encLen: 1120, export: true, family: "hpke-xwing",
+	},
+	// v1: the AEAD inside HPKE (read-only)
+	SuiteHPKEX25519V1: {
+		kem: func() hpke.KEM { return hpke.DHKEM(ecdh.X25519()) }, kdf: hpke.HKDFSHA256, aead: hpke.AES256GCM,
+		kemID: 0x0020, kdfID: 0x0001, aeadID: 0x0002, pkLen: 32, encLen: 32, x25519: true, family: "hpke-x25519", readOnly: true,
+	},
+	SuiteHPKEP384V1: {
+		kem: func() hpke.KEM { return hpke.DHKEM(ecdh.P384()) }, kdf: hpke.HKDFSHA384, aead: hpke.AES256GCM,
+		kemID: 0x0011, kdfID: 0x0002, aeadID: 0x0002, pkLen: 97, encLen: 97, family: "hpke-p384", readOnly: true,
+	},
+	SuiteHPKEMLKEM768V1: {
+		kem: hpke.MLKEM768, kdf: hpke.HKDFSHA256, aead: hpke.AES256GCM,
+		kemID: 0x0041, kdfID: 0x0001, aeadID: 0x0002, pkLen: 1184, encLen: 1088, family: "hpke-mlkem768", readOnly: true,
+	},
+	SuiteHPKEMLKEM1024P384V1: {
+		kem: hpke.MLKEM1024P384, kdf: hpke.HKDFSHA384, aead: hpke.AES256GCM,
+		kemID: 0x0051, kdfID: 0x0002, aeadID: 0x0002, pkLen: 1665, encLen: 1665, family: "hpke-mlkem1024-p384", readOnly: true,
+	},
+	SuiteHPKEXWingV1: {
 		kem: hpke.MLKEM768X25519, kdf: hpke.HKDFSHA256, aead: hpke.AES256GCM,
-		kemID: 0x647a, kdfID: 0x0001, aeadID: 0x0002, pkLen: 1216, encLen: 1120,
+		kemID: 0x647a, kdfID: 0x0001, aeadID: 0x0002, pkLen: 1216, encLen: 1120, family: "hpke-xwing", readOnly: true,
 	},
 }
 
-// allSuites lists the HPKE suites in the order ADR 0029's table has them.
-var allSuites = []Suite{SuiteHPKEX25519, SuiteHPKEP384, SuiteHPKEMLKEM768, SuiteHPKEMLKEM1024P384, SuiteHPKEXWing}
+// allSuites is every suite this build opens, the current ones first.
+var allSuites = []Suite{SuiteHPKEX25519, SuiteHPKEP384, SuiteHPKEMLKEM768, SuiteHPKEMLKEM1024P384, SuiteHPKEXWing,
+	SuiteHPKEX25519V1, SuiteHPKEP384V1, SuiteHPKEMLKEM768V1, SuiteHPKEMLKEM1024P384V1, SuiteHPKEXWingV1}
+
+// currentSuites is every suite this build writes.
+var currentSuites = []Suite{SuiteHPKEX25519, SuiteHPKEP384, SuiteHPKEMLKEM768, SuiteHPKEMLKEM1024P384, SuiteHPKEXWing}
 
 // AllSuites returns every HPKE suite of this build, in a fixed order.
 func AllSuites() []Suite { return append([]Suite(nil), allSuites...) }
+
+// CurrentSuites returns the suites this build writes (the v2 suites of
+// ADR 0030), in the general profile's order.
+func CurrentSuites() []Suite { return append([]Suite(nil), currentSuites...) }
+
+// Family names the KEM and KDF a suite is built on, shared by a v1 and
+// its v2 ("hpke-p384"); a recipient key belongs to a family, not to a
+// version.
+func (s Suite) Family() string { return suiteSpecs[s].family }
+
+// Available reports whether this process can make keys and wrap under s:
+// false for the X25519 and X-Wing families under fips140=only, where the
+// module refuses X25519 (ADR 0030); a read-only v1 suite is never
+// available for writing.
+func (s Suite) Available() bool {
+	sp, ok := suiteSpecs[s]
+	if !ok || sp.readOnly {
+		return false
+	}
+	if sp.x25519 || s == SuiteHPKEXWing {
+		return !shared_crypto.FIPSOnly()
+	}
+	return true
+}
+
+// ReadOnly reports whether s is a v1 suite: opened, never written.
+func (s Suite) ReadOnly() bool { return suiteSpecs[s].readOnly }
+
+// Latest returns the suite this build writes for s's family — s itself
+// for a v2 suite, its v2 for a v1 one; an unknown suite is returned as
+// it is.
+func (s Suite) Latest() Suite {
+	sp, ok := suiteSpecs[s]
+	if !ok || !sp.readOnly {
+		return s
+	}
+	for _, c := range currentSuites {
+		if suiteSpecs[c].family == sp.family {
+			return c
+		}
+	}
+	return s
+}
+
+// SameFamily reports whether two suites share their KEM and KDF — the
+// test a document's suite passes against a key's.
+func (s Suite) SameFamily(o Suite) bool {
+	return s.Known() && o.Known() && suiteSpecs[s].family == suiteSpecs[o].family
+}
 
 // Known reports whether s is an HPKE suite this build encapsulates under.
 func (s Suite) Known() bool { _, ok := suiteSpecs[s]; return ok }
@@ -238,7 +341,14 @@ func (s Suite) Wrap(purpose string, plaintext, recipientPub, aad []byte) ([]byte
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
 			fmt.Sprintf("kms.Wrap: invalid %s recipient public key", s), err)
 	}
-	enc, sender, err := hpke.NewSender(pk, sp.kdf(), sp.aead(), suiteInfo(s, purpose))
+	if sp.readOnly {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("kms.Wrap: %s is read-only since 0.8 (ADR 0030): its AEAD takes a nonce from outside the cryptographic module; write %s", s, s.Latest()), nil)
+	}
+	// Export-only HPKE: the KEM and the KDF of the suite derive the key;
+	// the cryptographic module's AES-256-GCM seals under it with the nonce
+	// it generates, stored in front of the ciphertext (ADR 0030).
+	enc, sender, err := hpke.NewSender(pk, sp.kdf(), hpke.ExportOnly(), suiteInfo(s, purpose))
 	if err != nil {
 		return nil, shared_errors.Integrity(shared_errors.CodeFieldValueInvalid,
 			fmt.Sprintf("kms.Wrap: %s encapsulation failed", s), err)
@@ -247,14 +357,18 @@ func (s Suite) Wrap(purpose string, plaintext, recipientPub, aad []byte) ([]byte
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
 			fmt.Sprintf("kms.Wrap: %s encapsulated %d bytes, not the %d the suite table says", s, len(enc), sp.encLen), nil)
 	}
-	ct, err := sender.Seal(aad, plaintext)
+	key, err := sender.Export(hpkeExportContext+":"+purpose, shared_crypto.AES256KeySize)
+	if err != nil {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("kms.Wrap: %s key export failed", s), err)
+	}
+	nonce, ct, err := shared_crypto.Seal(key, plaintext, aad)
 	if err != nil {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
 			fmt.Sprintf("kms.Wrap: %s seal failed", s), err)
 	}
-	out := make([]byte, 0, len(enc)+len(ct))
-	out = append(out, enc...)
-	return append(out, ct...), nil
+	// enc ‖ nonce ‖ ciphertext ‖ tag; slices.Concat sizes the join itself.
+	return slices.Concat(enc, nonce, ct), nil
 }
 
 // Unwrap recovers the plaintext of a Wrap under s for purpose with the
@@ -267,21 +381,49 @@ func (s Suite) Unwrap(purpose string, wrapped, recipientPriv, aad []byte) ([]byt
 	if err != nil {
 		return nil, err
 	}
-	if len(wrapped) < sp.encLen+aeadTagSize {
+	minLen := sp.encLen + aeadTagSize
+	if sp.export {
+		minLen += shared_crypto.GCMNonceSize
+	}
+	if len(wrapped) < minLen {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("kms.Unwrap: wrapped material too short for %s (%d bytes; the encapsulation alone is %d)", s, len(wrapped), sp.encLen), nil)
+	}
+	if sp.readOnly && shared_crypto.FIPSOnly() {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("kms.Unwrap: %s cannot open under fips140=only (its AEAD takes a nonce from outside the cryptographic module); open it on a build without enforcement and re-wrap under %s", s, s.Latest()), nil)
 	}
 	k, err := sp.kem().NewPrivateKey(recipientPriv)
 	if err != nil {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
 			fmt.Sprintf("kms.Unwrap: invalid %s recipient private key", s), err)
 	}
-	rcpt, err := hpke.NewRecipient(wrapped[:sp.encLen], k, sp.kdf(), sp.aead(), suiteInfo(s, purpose))
+	if !sp.export {
+		// v1: the AEAD inside HPKE, as 0.7.0 wrote it
+		rcpt, err := hpke.NewRecipient(wrapped[:sp.encLen], k, sp.kdf(), sp.aead(), suiteInfo(s, purpose))
+		if err != nil {
+			return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid,
+				fmt.Sprintf("kms.Unwrap: %s decapsulation failed", s), err)
+		}
+		plain, err := rcpt.Open(aad, wrapped[sp.encLen:])
+		if err != nil {
+			return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid,
+				"kms.Unwrap: tag verification failed (wrong key, suite, purpose or AAD, or tampering)", err)
+		}
+		return plain, nil
+	}
+	rcpt, err := hpke.NewRecipient(wrapped[:sp.encLen], k, sp.kdf(), hpke.ExportOnly(), suiteInfo(s, purpose))
 	if err != nil {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("kms.Unwrap: %s decapsulation failed", s), err)
 	}
-	plain, err := rcpt.Open(aad, wrapped[sp.encLen:])
+	key, err := rcpt.Export(hpkeExportContext+":"+purpose, shared_crypto.AES256KeySize)
+	if err != nil {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("kms.Unwrap: %s key export failed", s), err)
+	}
+	nonce := wrapped[sp.encLen : sp.encLen+shared_crypto.GCMNonceSize]
+	plain, err := shared_crypto.Open(key, nonce, wrapped[sp.encLen+shared_crypto.GCMNonceSize:], aad)
 	if err != nil {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid,
 			"kms.Unwrap: tag verification failed (wrong key, suite, purpose or AAD, or tampering)", err)

@@ -64,7 +64,7 @@ echo "waiting for results on the serial console (up to 15 min)"
 RAW_DIR="${VG_E2E_RAW_DIR:-$HOME/.cache/vaultgenome/keyrelease-e2e}"
 mkdir -p "$RAW_DIR"
 SERIAL="$RAW_DIR/serial-$STAMP.txt"
-for i in $(seq 1 90); do
+for _ in $(seq 1 90); do
   sleep 10
   gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" > "$SERIAL" 2>/dev/null || true
   grep -q "===E2E-END===" "$SERIAL" && break
@@ -81,7 +81,7 @@ GUEST="$HERE/evidence/$(printf '%s\n' "$DECODED" | sed -n 's/^decoded \([^:]*\):
 STEPS="$GUEST/steps.txt"
 [ -s "$STEPS" ] || { echo "FAIL: no steps.txt under $GUEST"; exit 1; }
 grep -E 'profile=|suite=|exit=' "$STEPS" | sed 's|^|  |'
-case "$PROFILE" in general) WANT=hpke-x25519-v1;; fips) WANT=hpke-p384-v1;; cnsa) WANT=hpke-mlkem1024-p384-v1;; esac
+case "$PROFILE" in general) WANT=hpke-x25519-v2;; fips) WANT=hpke-p384-v2;; cnsa) WANT=hpke-mlkem1024-p384-v2;; esac
 grep -q "release exit=0" "$STEPS" && grep -q "release suite=$WANT" "$STEPS" && grep -q "release profile=$PROFILE" "$STEPS" \
   && grep -q "confirm exit=0" "$STEPS" && grep -q "verify exit=0" "$STEPS" \
   && grep -q "unlisted exit=1" "$STEPS" && grep -q "stopped exit=1" "$STEPS" && grep -q "audit verify exit=0" "$STEPS" \

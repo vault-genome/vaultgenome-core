@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"os"
 )
 
@@ -19,7 +20,8 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
-			fmt.Printf("acpctl %s (commit %s)\n", version, commit)
+			fips := shared_crypto.FIPSStatus()
+			fmt.Printf("acpctl %s (commit %s) fips140=%s module=%s enforced=%t\n", version, commit, fipsMode(fips), fips.Version, fips.Enforced)
 			return
 		case "help", "--help", "-h":
 			printUsage()
@@ -90,4 +92,16 @@ func printUsage() {
 	fmt.Println("  tee cache-status     What those caches hold and until when; exit 1 when anything is expired or missing")
 	fmt.Println()
 	fmt.Println("Run `acpctl <command> --help` for per-subcommand flags.")
+}
+
+// fipsMode is the word the version line prints for the cryptographic
+// module's state (ADR 0030).
+func fipsMode(st shared_crypto.FIPS140) string {
+	if st.Enforced {
+		return "only"
+	}
+	if st.Enabled {
+		return "on"
+	}
+	return "off"
 }

@@ -29,7 +29,7 @@ func TestLoadEscrowKey_SealedShapes(t *testing.T) {
 	sim, err := tee.NewSimulated([]byte("escrow-host"), bytes.Repeat([]byte{1}, 32))
 	require.NoError(t, err)
 	host := &materials{Provider: tee.ProviderSimulated, Producer: sim, tee: TEEConfig{}}
-	priv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	priv, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
 	require.NoError(t, err)
 	sealed, err := escrow.SealKey(priv, sim, tee.ProviderSimulated, sim.Measurement())
 	require.NoError(t, err)
@@ -57,10 +57,10 @@ func TestLoadEscrowKey_SealedShapes(t *testing.T) {
 // a sealed file whose public key is not the one its tag names, is refused.
 func TestEscrowPublicFromFile_Shapes(t *testing.T) {
 	dir := t.TempDir()
-	priv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	priv, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
 	require.NoError(t, err)
 	plain := filepath.Join(dir, "escrow.key")
-	require.NoError(t, os.WriteFile(plain, priv.Bytes(), 0o600))
+	require.NoError(t, os.WriteFile(plain, escrow.PrivatePEM(priv), 0o600))
 	pub, source, err := escrowPublicFromFile(plain)
 	require.NoError(t, err)
 	require.Equal(t, escrowSourcePlaintext, source)
@@ -107,7 +107,7 @@ func TestEscrowProvision_Refusals(t *testing.T) {
 	invalid.TEE.Provider = "vmware"
 	noPeer := f.cfg
 	noPeer.TEE.Peer.MeasurementPath = filepath.Join(f.dir, "absent")
-	recovery, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	recovery, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
 	require.NoError(t, err)
 	recoveryPEM, err := escrow.PublicPEM(recovery.PublicKey())
 	require.NoError(t, err)

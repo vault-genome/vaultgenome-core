@@ -26,8 +26,11 @@ func simulatedTEE(t *testing.T, descriptor string) *tee.Simulated {
 // a fresh sealer of the same identity — and nowhere else. Its public half
 // is readable without unsealing. Under every suite.
 func TestSealedKeyOpensOnlyWhereItWasSealed(t *testing.T) {
-	for _, suite := range kms.AllSuites() {
+	for _, suite := range kms.CurrentSuites() {
 		t.Run(string(suite), func(t *testing.T) {
+			if !suite.Available() {
+				t.Skip("unavailable under fips140=only")
+			}
 			priv := mustKey(t, suite)
 			host := simulatedTEE(t, "release-host-v1")
 			sealed, err := SealKey(priv, host, tee.ProviderSimulated, host.Measurement())
@@ -72,6 +75,9 @@ func TestSealedKeyOpensOnlyWhereItWasSealed(t *testing.T) {
 // A v1 sealed file — an X25519 key sealed before ADR 0029 under the v1
 // AAD — still opens on its host.
 func TestSealedKey_LegacyFileOpens(t *testing.T) {
+	if !kms.SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	priv := mustKey(t, LegacySuite)
 	host := simulatedTEE(t, "release-host-v1")
 	pemBytes, err := PublicPEM(priv.PublicKey())
@@ -132,8 +138,8 @@ func TestSealedKeyFieldsAreBound(t *testing.T) {
 	require.ErrorContains(t, err, "incomplete")
 	fresh, err := sealed.Marshal()
 	require.NoError(t, err)
-	require.Contains(t, string(fresh), `"suite": "hpke-p384-v1",`)
-	_, err = ParseSealed(bytes.Replace(fresh, []byte(`"suite": "hpke-p384-v1",`), []byte(``), 1))
+	require.Contains(t, string(fresh), `"suite": "hpke-p384-v2",`)
+	_, err = ParseSealed(bytes.Replace(fresh, []byte(`"suite": "hpke-p384-v2",`), []byte(``), 1))
 	require.ErrorContains(t, err, "names its suite")
 	_, err = SealKey(nil, host, tee.ProviderSimulated, host.Measurement())
 	require.Error(t, err)
@@ -150,6 +156,9 @@ func TestRecoveryEnvelope(t *testing.T) {
 		{kms.SuiteHPKEX25519, kms.SuiteHPKEXWing},
 	} {
 		t.Run(string(pair[0])+"/"+string(pair[1]), func(t *testing.T) {
+			if !pair[0].Available() || !pair[1].Available() {
+				t.Skip("a suite of the pair is unavailable under fips140=only")
+			}
 			priv := mustKey(t, pair[0])
 			recovery := mustKey(t, pair[1])
 			env, err := WrapRecovery(priv, recovery.PublicKey())
@@ -201,6 +210,9 @@ func TestRecoveryEnvelope(t *testing.T) {
 // A v1 recovery envelope — X25519 to X25519, the ECIES of ADR 0009 — opens
 // with the X25519 recovery key of an earlier release.
 func TestRecovery_LegacyEnvelopeOpens(t *testing.T) {
+	if !kms.SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	priv := mustKey(t, LegacySuite)
 	recovery := mustKey(t, LegacySuite)
 	pemBytes, err := PublicPEM(priv.PublicKey())

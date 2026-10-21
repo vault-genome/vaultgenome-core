@@ -265,7 +265,7 @@ func installAWSNitroFake(t testing.TB, fh *fakeHardware) {
 			return nil, fmt.Errorf("fake-kms: empty keyARN")
 		}
 		aad := canonicalEC(ec)
-		nonce, ct, err := shared_crypto.Seal(fakeKMSKey, pt, aad, nil)
+		nonce, ct, err := shared_crypto.Seal(fakeKMSKey, pt, aad)
 		if err != nil {
 			return nil, err
 		}
@@ -414,7 +414,7 @@ func installSGXFake(t testing.TB, fh *fakeHardware, mode string) {
 		return []byte("fake-pccs-collateral"), nil
 	}
 	sgxECallSealData = func(_ uint64, plaintext, aad []byte, _ SGXSealPolicy) ([]byte, error) {
-		nonce, ct, err := shared_crypto.Seal(sealKey, plaintext, aad, nil)
+		nonce, ct, err := shared_crypto.Seal(sealKey, plaintext, aad)
 		if err != nil {
 			return nil, err
 		}
@@ -455,7 +455,7 @@ func installSGXFake(t testing.TB, fh *fakeHardware, mode string) {
 	// HSM wrap layer (Intel bare-metal optional defense in depth).
 	hsmKey := shared_crypto.SHA256Slice([]byte("fake-hsm-wrapping-key"))
 	hsmWrap = func(_ string, sealed []byte) ([]byte, error) {
-		nonce, ct, err := shared_crypto.Seal(hsmKey, sealed, []byte("hsm-aad"), nil)
+		nonce, ct, err := shared_crypto.Seal(hsmKey, sealed, []byte("hsm-aad"))
 		if err != nil {
 			return nil, err
 		}
@@ -566,7 +566,7 @@ func installSEVSNPFake(t testing.TB, fh *fakeHardware) {
 		return out, nil
 	}
 	sevAEADSeal = func(key, plaintext, aad []byte) ([]byte, error) {
-		nonce, ct, err := shared_crypto.Seal(key, plaintext, aad, nil)
+		nonce, ct, err := shared_crypto.Seal(key, plaintext, aad)
 		if err != nil {
 			return nil, err
 		}

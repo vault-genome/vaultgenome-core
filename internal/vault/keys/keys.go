@@ -378,7 +378,7 @@ func (s *InMemoryStore) Seal(kid ids.KeyID, plaintext, aad []byte) ([]byte, []by
 			nil,
 		)
 	}
-	return crypto.Seal(k.Material, plaintext, aad, nil)
+	return crypto.Seal(k.Material, plaintext, aad)
 }
 
 // Open implements Sealer.

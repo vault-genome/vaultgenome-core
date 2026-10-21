@@ -38,6 +38,8 @@ type destinationIdentity struct {
 	// in its order of preference.
 	CryptoProfile string   `json:"crypto_profile"`
 	KEMSuites     []string `json:"kem_suites"`
+	// FIPS140 is the cryptographic module this process runs on (ADR 0030).
+	FIPS140 crypto.FIPS140 `json:"fips140"`
 }
 
 // runIdentity implements `acp-bootstrap identity -config <path>`: it
@@ -72,6 +74,7 @@ func runIdentity(args []string, w io.Writer) error {
 		TEEProvider:    cfg.TEE.Provider,
 		MeasurementHex: hex.EncodeToString(producer.Measurement()),
 		CryptoProfile:  string(suites.Profile()),
+		FIPS140:        crypto.FIPSStatus(),
 		KEMSuites:      suites.SuiteIDs(),
 	}
 	if kind, err := tee.SealerKindFor(producer, cfg.TEE.SealerMode()); err == nil {

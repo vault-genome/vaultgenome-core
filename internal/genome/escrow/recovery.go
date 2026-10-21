@@ -96,14 +96,18 @@ func (r Recovery) Open(recoveryPriv *PrivateKey) (*PrivateKey, error) {
 	var suite kms.Suite
 	switch r.Schema {
 	case RecoverySchemaV2:
-		if r.RecoverySuite != string(recoveryPriv.Suite()) {
+		// The envelope names the suites it was written under (v1 of 0.7.0
+		// or v2, ADR 0030); the keys must be of those families, and the
+		// envelope opens under the suite it names.
+		recoverySuite := kms.Suite(r.RecoverySuite)
+		if !recoverySuite.SameFamily(recoveryPriv.Suite()) {
 			return nil, fmt.Errorf("escrow: the envelope is wrapped under KEM suite %q; this recovery key is under %q", r.RecoverySuite, recoveryPriv.Suite())
 		}
-		if r.Suite != string(pub.Suite()) {
+		if !kms.Suite(r.Suite).SameFamily(pub.Suite()) {
 			return nil, fmt.Errorf("escrow: the envelope says its escrow key is under %q, its public key is under %q", r.Suite, pub.Suite())
 		}
 		suite = pub.Suite()
-		raw, err = recoveryPriv.Suite().Unwrap(kms.PurposeEscrowRecovery, r.Ciphertext, recoveryPriv.Bytes(), recoveryAADV2(r.EscrowKey, r.RecoveryKey))
+		raw, err = recoverySuite.Unwrap(kms.PurposeEscrowRecovery, r.Ciphertext, recoveryPriv.Bytes(), recoveryAADV2(r.EscrowKey, r.RecoveryKey))
 	case RecoverySchema:
 		if recoveryPriv.Suite() != LegacySuite || pub.Suite() != LegacySuite {
 			return nil, errors.New("escrow: a v1 recovery envelope holds an X25519 escrow key wrapped to an X25519 recovery key")

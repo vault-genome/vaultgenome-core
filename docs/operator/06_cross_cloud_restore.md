@@ -74,10 +74,15 @@ configuration (ADR 0029). `crypto.profile` is one of:
 
 | Profile | The daemon writes | It accepts |
 | - | - | - |
-| `general` (default) | `hpke-x25519-v1` | every suite of the build: X25519, P-384, ML-KEM-768, the MLKEM1024-P384 hybrid, X-Wing |
-| `fips` | `hpke-p384-v1` | `hpke-p384-v1`, `hpke-mlkem768-v1`, `hpke-mlkem1024-p384-v1` — the primitives the Go Cryptographic Module (CMVP #5247) lists as approved |
-| `cnsa` | `hpke-mlkem1024-p384-v1` | that hybrid only |
+| `general` (default) | `hpke-x25519-v2` | every suite of the build: X25519, P-384, ML-KEM-768, the MLKEM1024-P384 hybrid, X-Wing |
+| `fips` | `hpke-p384-v2` | `hpke-p384-v2`, `hpke-mlkem768-v2`, `hpke-mlkem1024-p384-v2` — the primitives the Go Cryptographic Module (CMVP #5247) lists as approved |
+| `cnsa` | `hpke-mlkem1024-p384-v2` | that hybrid only |
 
+The suites are the v2 ones of ADR 0030: HPKE opened export-only derives
+the key, and the cryptographic module's AES-256-GCM seals under it with
+the nonce it generates. The v1 suites of 0.7.0 (the AEAD inside HPKE)
+still open on a build without enforcement; nothing writes them, and a
+0.7.0 peer and a 0.8 peer release nothing to each other.
 `crypto.kem_suites` narrows a profile's list to the suites named, in that
 order of preference (the first is written); it never widens one. The source
 offers its list in the handshake, the destination takes the first entry its
@@ -88,6 +93,16 @@ destination meet on P-384; a `cnsa` source and a `fips` destination on the
 hybrid; a source that offers nothing the destination accepts is refused at
 the handshake, on the source's record. Both daemons must run a release that
 knows suites: a request or an answer that names none is refused.
+
+Both daemons' `identity` and every command's `version` also report
+`fips140` — whether the build runs the certified Go Cryptographic Module
+(`enabled`), whether enforcement is on (`enforced`, the `fips140=only`
+assessment mode, never a production setting), the module version and
+the build setting (ADR 0030). Under enforcement a configuration that
+names `general` is refused at startup, because its first suite is
+X25519, which the module cannot make, and a configuration that names no
+profile runs as `fips`; a deployment assessed that way names `fips` or
+`cnsa`.
 
 ---
 
@@ -293,7 +308,7 @@ is kept (`key_escrow_storage: sealed:gcp-sev-snp`):
 ```bash
 # On the operator's machine, once: the recovery key. Its private half never goes to the release host.
 # --suite names its KEM suite (ADR 0029): the one your profile writes, here P-384 for a fips deployment.
-acpctl escrow recovery-keygen --suite hpke-p384-v1 --out recovery.seed --pub recovery.pem
+acpctl escrow recovery-keygen --suite hpke-p384-v2 --out recovery.seed --pub recovery.pem
 # On the release host: the escrow key, made under the suite crypto.profile writes (or -suite),
 # sealed to this host, wrapped to the recovery key.
 sagvd escrow-provision -config /etc/acp/sagvd.json -out /etc/acp/secrets/sagvd/escrow.sealed -pub escrow.pem \
@@ -360,7 +375,7 @@ one JSON report and exits 0 on success, 1 on any refusal:
   "key_release_audit_id": "…",
   "destination_measurement_hex": "…",
   "recipient_key_sha256": "…",
-  "recipient_key_suite": "hpke-x25519-v1",
+  "recipient_key_suite": "hpke-x25519-v2",
   "crypto_profile": "general",
   "policy_version": "xcc-2026-09-14",
   "token_id": "…",

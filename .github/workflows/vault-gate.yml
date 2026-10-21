@@ -74,6 +74,11 @@ jobs:
       - name: race detector
         run: make test-race
 
+      # 05b the FIPS 140-3 assessment (ADR 0030): the certified module,
+      # enforcement on — a non-approved algorithm fails instead of running
+      - name: fips140=only assessment
+        run: make test-fips140-only
+
       # 06 integration
       - name: integration tests
         # Builds the real sagvd / acp-compute / keygen binaries and runs

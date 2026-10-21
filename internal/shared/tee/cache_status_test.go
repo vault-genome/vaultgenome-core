@@ -4,6 +4,7 @@
 package tee
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -75,8 +76,11 @@ func TestCacheStatus_ReportsEveryKindWithItsValidity(t *testing.T) {
 	write(dirs.NRAS, "nras-jwks.json", []byte(`{"keys":[{"kty":"RSA","kid":"a"},{"kty":"RSA","kid":"b"}]}`))
 	write(dirs.RIM, "NV_GPU_DRIVER_GH100_595.71.05.json", []byte(`{"rim":"x"}`))
 	_, issuer, issuerKey := selfSignedDER(t, "NVIDIA test issuer", now.Add(-time.Hour), now.Add(24*time.Hour))
+	// SHA-256 for the issuer hashes: the library's default is SHA-1, which
+	// the cryptographic module refuses under fips140=only (ADR 0030).
 	ocspDER, err := ocsp.CreateResponse(issuer, issuer, ocsp.Response{
 		Status: ocsp.Good, SerialNumber: big.NewInt(0x1234), ThisUpdate: now.Add(-time.Minute), NextUpdate: now.Add(24 * time.Hour),
+		IssuerHash: crypto.SHA256,
 	}, issuerKey)
 	if err != nil {
 		t.Fatal(err)

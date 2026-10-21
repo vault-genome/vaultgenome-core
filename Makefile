@@ -108,6 +108,15 @@ test:
 test-race:
 	$(GO) test -count=1 -race $(PKG)
 
+# The assessment of ADR 0030: the unit tests on the certified Go
+# Cryptographic Module (GOFIPS140=v1.0.0, CMVP #5247) with enforcement on
+# (fips140=only) — every non-approved algorithm fails instead of running.
+# Not a production mode; the record that the fips and cnsa profiles reach
+# only approved services.
+.PHONY: test-fips140-only
+test-fips140-only:
+	GOFIPS140=v1.0.0 GODEBUG=fips140=only $(GO) test -count=1 $(PKG)
+
 .PHONY: test-integration
 test-integration:
 	$(GO) test -count=1 -tags=integration ./test/integration/...
@@ -359,7 +368,7 @@ demo-logs:
 # --- aggregate gates ----------------------------------------------------------
 
 .PHONY: vault-gate
-vault-gate: fmt-check vet build test test-race test-doctrine lint terminology license-headers dco vuln secrets coverage-thresholds dep-allowlist dep-depth
+vault-gate: fmt-check vet build test test-race test-fips140-only test-doctrine lint terminology license-headers dco vuln secrets coverage-thresholds dep-allowlist dep-depth
 	@echo "vault-gate: PASS"
 
 # --- housekeeping -------------------------------------------------------------
