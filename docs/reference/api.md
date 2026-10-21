@@ -7,7 +7,7 @@
 | Routes | `POST /v1/jobs`, `GET /v1/jobs/{id}` — nothing else |
 | Health and metrics | `health.listen_address` (default `127.0.0.1:9091`): `GET /healthz`, `GET /readyz`, `GET /metrics` |
 | Source | `cmd/sagvd/http_api.go`, `job_queue.go`, `genome_job.go`; the shapes below are the Go types' JSON |
-| Last checked against the code | 2026-10-20 (v0.6.0 + #127–#132); the examples are from a run on real SEV-SNP, named where they appear |
+| Last checked against the code | 2026-10-21 (v0.6.0 + #127–#135): `scripts/check-api-reference.py` compares this page's shapes with a run's `job-submit.json` and `job.json`; last run `scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20261021T002717Z` on real SEV-SNP, every shape the run's |
 
 This is the whole surface a business integrates with: one call to ask
 the authority to bring a sealed model back on an attested worker, and
