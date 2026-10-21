@@ -11,6 +11,22 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-21
+
+The release that lets a deployment choose its cryptography and says so in
+every record. Every key encapsulation across clouds and in escrow is RFC
+9180 HPKE under a named KEM suite — X25519, P-384, ML-KEM-768, the
+ML-KEM-1024 + P-384 hybrid, X-Wing — and a profile on both daemons,
+`general`, `fips` or `cnsa`, pins what each writes and accepts, with no
+negotiation below either side's list. The suite is in the handshake
+answer and in the key-binding challenge, beside each wrapped key in the
+token, in the escrow documents, in the audit chain and in `identity`.
+The three profiles are on record on real SEV-SNP: a key released across
+clouds and restored under each, an escrow key carried through the
+recovery ceremony under X25519 and P-384 (C40). Both daemons move
+together: the cross-cloud wire is schema 2 and the escrow documents are
+v2, and what earlier releases wrote still opens.
+
 ### Added
 
 - KEM suites and the cryptographic profile (ADR 0029). Every key
@@ -52,8 +68,16 @@ given release can still open.
   wrapped key, the handshake answer carries `recipient_key_suite`. Both
   daemons move together: a request or an answer that names no suite is
   refused, on the record, and the ECIES of ADR 0009 (`x25519-kem-v1`)
-  is no longer written across clouds. The hardware kit
-  `gcp-sev-snp/keyrelease-e2e` takes the profile as its third argument.
+  is no longer written across clouds. The hardware kits
+  `gcp-sev-snp/keyrelease-e2e` and `authority-loss` take the profile as
+  their third argument.
+
+Doctrine and invariants are unchanged since 0.6.1: nothing under
+`docs/doctrine/` or `test/doctrine/` changed. No dependency changed:
+`go.mod` and `go.sum` are those of 0.6.1 (the suites come from the
+standard library's `crypto/hpke`), the workflows and their actions too.
+The compliance map's cryptography rows and finding F2 record where the
+suites stand (`docs/compliance/banking.md` §6, §9).
 
 ## [0.6.1] — 2026-10-21
 
