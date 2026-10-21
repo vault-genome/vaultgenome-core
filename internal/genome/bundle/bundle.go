@@ -1,31 +1,40 @@
 // Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Package bundle is the Vault Genome v3 on-disk format: a model, or any
+// Package bundle is the Vault Genome v4 on-disk format: a model, or any
 // directory, sealed under a data-encryption key (DEK) that is not in the
-// file.
+// file. It also reads v3, the format of releases before 0.8.
 //
-// A v3 bundle can be kept anywhere — object storage, another cloud, a
+// A bundle can be kept anywhere — object storage, another cloud, a
 // removable disk — because it is useless without its DEK, and the
 // platform hands that DEK only to a destination the operator's policy
 // admits (cross-cloud key release, ADR 0009 and 0010) or to an operator
 // holding the key file. The v2 format stored the key that sealed it
 // inside the bundle (KNOWN_ISSUES #7); v3 replaces it.
 //
-// Layout:
+// Layout (v4):
 //
-//	magic(16) ‖ u32 BE header length ‖ header JSON ‖ nonce prefix(7) ‖ segment 0 ‖ … ‖ segment n-1
+//	magic(16) ‖ u32 BE header length ‖ header JSON ‖ segment 0 ‖ … ‖ segment n-1
 //
 // The payload is cut into segments of the header's segment_bytes (the last
-// may be shorter, and an empty payload is one empty segment). Segment i is
-// AES-256-GCM under the DEK with nonce prefix ‖ u32 BE i ‖ last-flag and
-// additional data SHA-256(label ‖ header). So every segment is bound to
-// this header, to its position, and to whether it ends the payload: a
-// reader authenticates each segment before releasing a byte of it, and an
-// edited, reordered, truncated or extended bundle fails — the online
-// authenticated-encryption construction of Hoang, Reyhanitabar, Rogaway
-// and Vizár (CRYPTO 2015) that streaming AEADs such as Tink's use. Sealing
-// and opening run in bounded memory whatever the payload's size.
+// may be shorter, and an empty payload is one empty segment). Segment i
+// on disk is nonce(12) ‖ AES-256-GCM ciphertext ‖ tag(16): the nonce is
+// the one the cryptographic module generated inside its approved AES-GCM
+// construction (ADR 0030) and the additional data is
+// SHA-256(SHA-256(label ‖ header) ‖ u64 BE i ‖ last-flag). So every
+// segment is bound to this header, to its position, and to whether it
+// ends the payload: a reader authenticates each segment before releasing
+// a byte of it, and an edited, reordered, truncated or extended bundle
+// fails — the online authenticated-encryption construction of Hoang,
+// Reyhanitabar, Rogaway and Vizár (CRYPTO 2015) that streaming AEADs such
+// as Tink's use. Sealing and opening run in bounded memory whatever the
+// payload's size.
+//
+// v3 (releases before 0.8) carried a 7-byte nonce prefix after the header
+// and made segment i's nonce prefix ‖ u32 BE i ‖ last-flag, with the
+// additional data SHA-256(label ‖ header) alone — the same primitive with
+// a caller-supplied nonce, which the module's approved mode does not
+// allow for sealing. Every reader still opens v3; every writer writes v4.
 package bundle
 
 import (
@@ -49,12 +58,19 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
-// Magic starts every v3 bundle. It differs from the v2 magic, so no v2
-// reader mistakes a v3 bundle for its own and vice versa.
-const Magic = "VG-GENOME-03\x00\x00\x00\x00"
+// Magic starts every v4 bundle; MagicV3 every v3 one. Each differs from
+// the others and from the v2 magic, so no reader mistakes another
+// version's bundle for its own.
+const Magic = "VG-GENOME-04\x00\x00\x00\x00"
+
+// MagicV3 starts the v3 bundles this package still reads.
+const MagicV3 = "VG-GENOME-03\x00\x00\x00\x00"
 
 // Format is the header's format string.
-const Format = "vault-genome-v3"
+const Format = "vault-genome-v4"
+
+// FormatV3 is the header's format of a v3 bundle (read, never written).
+const FormatV3 = "vault-genome-v3"
 
 // MaxHeaderBytes bounds the header a reader will accept.
 const MaxHeaderBytes = 4 << 20
@@ -71,7 +87,14 @@ const (
 // and the last-segment flag.
 const noncePrefixSize = 7
 
-const segmentAADLabel = "vault-genome bundle segment v3\x00"
+const segmentAADLabel = "vault-genome bundle segment v4\x00"
+
+// segmentAADLabelV3 is the v3 label, for reading v3 bundles.
+const segmentAADLabelV3 = "vault-genome bundle segment v3\x00"
+
+// sealedSegmentOverhead is what a v4 segment adds to its plaintext: the
+// module's 12-byte nonce and the 16-byte tag.
+const sealedSegmentOverhead = crypto.GCMNonceSize + crypto.GCMTagSize
 
 // Content kinds a v3 bundle can carry.
 const (
@@ -161,9 +184,12 @@ func segmentCount(payloadBytes, segmentBytes int64) int64 {
 	return (payloadBytes + segmentBytes - 1) / segmentBytes
 }
 
-func (h Header) validate() error {
-	if h.Format != Format {
-		return fmt.Errorf("bundle: format %q, want %q", h.Format, Format)
+func (h Header) validate() error { return h.validateFormat(Format) }
+
+// validateFormat checks the header for the format its magic announced.
+func (h Header) validateFormat(format string) error {
+	if h.Format != format {
+		return fmt.Errorf("bundle: format %q, want %q", h.Format, format)
 	}
 	if h.ContentKind != ContentOllama && h.ContentKind != ContentDir {
 		return fmt.Errorf("bundle: content kind %q", h.ContentKind)
@@ -193,13 +219,37 @@ func (h Header) validate() error {
 	return nil
 }
 
-func segmentAAD(headerBytes []byte) []byte {
+// segmentAADBase binds every v4 segment to this header: the additional
+// data of segment i is SHA-256(base ‖ u64 BE i ‖ last-flag).
+func segmentAADBase(headerBytes []byte) []byte {
 	h := sha256.New()
 	h.Write([]byte(segmentAADLabel))
 	h.Write(headerBytes)
 	return h.Sum(nil)
 }
 
+// segmentAADV4 is the additional data of v4 segment i.
+func segmentAADV4(base []byte, i int64, last bool) []byte {
+	var n [9]byte
+	binary.BigEndian.PutUint64(n[:8], uint64(i))
+	if last {
+		n[8] = 1
+	}
+	h := sha256.New()
+	h.Write(base)
+	h.Write(n[:])
+	return h.Sum(nil)
+}
+
+// segmentAADV3 is the additional data every v3 segment shares.
+func segmentAADV3(headerBytes []byte) []byte {
+	h := sha256.New()
+	h.Write([]byte(segmentAADLabelV3))
+	h.Write(headerBytes)
+	return h.Sum(nil)
+}
+
+// segmentNonce is the v3 nonce of segment i, rebuilt to read a v3 bundle.
 func segmentNonce(prefix []byte, i int64, last bool) []byte {
 	nonce := make([]byte, crypto.GCMNonceSize)
 	copy(nonce, prefix)
@@ -246,10 +296,6 @@ func Seal(w io.Writer, h Header, payload io.Reader) (Header, []byte, error) {
 	if len(headerBytes) > MaxHeaderBytes {
 		return Header{}, nil, fmt.Errorf("bundle: header is %d bytes, over %d", len(headerBytes), MaxHeaderBytes)
 	}
-	prefix := make([]byte, noncePrefixSize)
-	if _, err := io.ReadFull(rand.Reader, prefix); err != nil {
-		return Header{}, nil, fmt.Errorf("bundle: generate nonce prefix: %w", err)
-	}
 	aead, err := crypto.NewGCM(dek)
 	if err != nil {
 		return Header{}, nil, err
@@ -258,13 +304,13 @@ func Seal(w io.Writer, h Header, payload io.Reader) (Header, []byte, error) {
 	bw := bufio.NewWriterSize(w, 1<<16)
 	var n [4]byte
 	binary.BigEndian.PutUint32(n[:], uint32(len(headerBytes)))
-	for _, part := range [][]byte{[]byte(Magic), n[:], headerBytes, prefix} {
+	for _, part := range [][]byte{[]byte(Magic), n[:], headerBytes} {
 		if _, err := bw.Write(part); err != nil {
 			return Header{}, nil, fmt.Errorf("bundle: write: %w", err)
 		}
 	}
 
-	aad := segmentAAD(headerBytes)
+	aadBase := segmentAADBase(headerBytes)
 	digest := sha256.New()
 	plain := make([]byte, h.SegmentBytes)
 	sealed := make([]byte, 0, h.SegmentBytes+int64(aead.Overhead()))
@@ -275,7 +321,9 @@ func Seal(w io.Writer, h Header, payload io.Reader) (Header, []byte, error) {
 			return Header{}, nil, fmt.Errorf("bundle: payload ended before the %d bytes its header describes: %w", h.PayloadBytes, err)
 		}
 		digest.Write(plain[:size])
-		sealed = aead.Seal(sealed[:0], segmentNonce(prefix, i, i == count-1), plain[:size], aad)
+		// The module generates the nonce and writes it in front of the
+		// ciphertext; nothing of ours goes into the IV (ADR 0030).
+		sealed = aead.Seal(sealed[:0], nil, plain[:size], segmentAADV4(aadBase, i, i == count-1))
 		if _, err := bw.Write(sealed); err != nil {
 			return Header{}, nil, fmt.Errorf("bundle: write: %w", err)
 		}
@@ -304,9 +352,19 @@ func SealBytes(h Header, payload []byte) (blob, dek []byte, err error) {
 }
 
 // IsV3 reports whether blob starts like a v3 bundle.
+// IsV3 reports whether blob starts with the v3 magic.
 func IsV3(blob []byte) bool {
+	return len(blob) >= len(MagicV3) && string(blob[:len(MagicV3)]) == MagicV3
+}
+
+// IsV4 reports whether blob starts with the v4 magic.
+func IsV4(blob []byte) bool {
 	return len(blob) >= len(Magic) && string(blob[:len(Magic)]) == Magic
 }
+
+// Is reports whether blob starts with the magic of a version this
+// package reads (v3 or v4).
+func Is(blob []byte) bool { return IsV4(blob) || IsV3(blob) }
 
 // Reader is a bundle whose header has been read and validated; the
 // payload is still sealed, positioned after the header.
@@ -314,9 +372,10 @@ type Reader struct {
 	Header      Header
 	HeaderBytes []byte // the header exactly as sealed
 
-	r      io.Reader
-	prefix []byte
-	opened bool
+	r       io.Reader
+	version int    // 3 or 4, from the magic
+	prefix  []byte // the v3 nonce prefix; nil for v4
+	opened  bool
 }
 
 // NewReader reads and validates a bundle's header from r. It needs no key
@@ -325,13 +384,18 @@ type Reader struct {
 func NewReader(r io.Reader) (*Reader, error) {
 	prefix := make([]byte, len(Magic)+4)
 	if _, err := io.ReadFull(r, prefix); err != nil {
-		if IsV3(prefix) {
+		if Is(prefix) {
 			return nil, errors.New("bundle: truncated before the header")
 		}
-		return nil, errors.New("bundle: not a v3 Vault Genome bundle")
+		return nil, errors.New("bundle: not a v3 or v4 Vault Genome bundle")
 	}
-	if !IsV3(prefix) {
-		return nil, errors.New("bundle: not a v3 Vault Genome bundle")
+	version, format := 4, Format
+	switch {
+	case IsV4(prefix):
+	case IsV3(prefix):
+		version, format = 3, FormatV3
+	default:
+		return nil, errors.New("bundle: not a v3 or v4 Vault Genome bundle")
 	}
 	n := binary.BigEndian.Uint32(prefix[len(Magic):])
 	if n > MaxHeaderBytes {
@@ -350,14 +414,17 @@ func NewReader(r io.Reader) (*Reader, error) {
 	if dec.More() {
 		return nil, errors.New("bundle: header: trailing data")
 	}
-	if err := h.validate(); err != nil {
+	if err := h.validateFormat(format); err != nil {
 		return nil, err
 	}
-	noncePrefix := make([]byte, noncePrefixSize)
-	if _, err := io.ReadFull(r, noncePrefix); err != nil {
-		return nil, errors.New("bundle: truncated payload")
+	rd := &Reader{Header: h, HeaderBytes: headerBytes, r: r, version: version}
+	if version == 3 {
+		rd.prefix = make([]byte, noncePrefixSize)
+		if _, err := io.ReadFull(r, rd.prefix); err != nil {
+			return nil, errors.New("bundle: truncated payload")
+		}
 	}
-	return &Reader{Header: h, HeaderBytes: headerBytes, r: r, prefix: noncePrefix}, nil
+	return rd, nil
 }
 
 // Opener opens AES-256-GCM ciphertext under a key it holds by ID.
@@ -391,12 +458,11 @@ func (b *Reader) PayloadWithKey(dek []byte) (io.Reader, error) {
 	if err := CheckKey(b.Header.KeyID, dek); err != nil {
 		return nil, err
 	}
-	aead, err := crypto.NewGCM(dek)
-	if err != nil {
+	if _, err := crypto.NewGCM(dek); err != nil {
 		return nil, err
 	}
 	return b.payload(func(nonce, ct, aad []byte) ([]byte, error) {
-		return aead.Open(nil, nonce, ct, aad)
+		return crypto.Open(dek, nonce, ct, aad)
 	}), nil
 }
 
@@ -405,14 +471,19 @@ func (b *Reader) payload(open func(nonce, ct, aad []byte) ([]byte, error)) io.Re
 		return &payloadReader{err: errors.New("bundle: payload already read")}
 	}
 	b.opened = true
-	return &payloadReader{
+	p := &payloadReader{
 		b:      b,
 		open:   open,
-		aad:    segmentAAD(b.HeaderBytes),
 		count:  segmentCount(b.Header.PayloadBytes, b.Header.SegmentBytes),
-		sealed: make([]byte, b.Header.SegmentBytes+16),
+		sealed: make([]byte, b.Header.SegmentBytes+sealedSegmentOverhead),
 		digest: sha256.New(),
 	}
+	if b.version == 3 {
+		p.aad = segmentAADV3(b.HeaderBytes)
+	} else {
+		p.aad = segmentAADBase(b.HeaderBytes)
+	}
+	return p
 }
 
 type payloadReader struct {
@@ -455,11 +526,22 @@ func (p *payloadReader) advance() error {
 		return io.EOF
 	}
 	size := min(h.SegmentBytes, h.PayloadBytes-p.next*h.SegmentBytes)
-	ct := p.sealed[:size+16]
-	if _, err := io.ReadFull(p.b.r, ct); err != nil {
-		return fmt.Errorf("bundle: truncated in segment %d of %d", p.next+1, p.count)
+	last := p.next == p.count-1
+	var nonce, ct, aad []byte
+	if p.b.version == 3 {
+		ct = p.sealed[:size+crypto.GCMTagSize]
+		if _, err := io.ReadFull(p.b.r, ct); err != nil {
+			return fmt.Errorf("bundle: truncated in segment %d of %d", p.next+1, p.count)
+		}
+		nonce, aad = segmentNonce(p.b.prefix, p.next, last), p.aad
+	} else {
+		buf := p.sealed[:size+sealedSegmentOverhead]
+		if _, err := io.ReadFull(p.b.r, buf); err != nil {
+			return fmt.Errorf("bundle: truncated in segment %d of %d", p.next+1, p.count)
+		}
+		nonce, ct, aad = buf[:crypto.GCMNonceSize], buf[crypto.GCMNonceSize:], segmentAADV4(p.aad, p.next, last)
 	}
-	pt, err := p.open(segmentNonce(p.b.prefix, p.next, p.next == p.count-1), ct, p.aad)
+	pt, err := p.open(nonce, ct, aad)
 	if err != nil {
 		return fmt.Errorf("bundle: segment %d of %d does not open under key %s: %w", p.next+1, p.count, h.KeyID, err)
 	}

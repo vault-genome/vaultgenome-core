@@ -195,14 +195,14 @@ func (x *crossCloudFixture) events(t *testing.T) []audit_event.Kind {
 func TestCrossCloudRestoreCmd_RefusesAfterReadingTheConfig(t *testing.T) {
 	x := newCrossCloudFixture(t)
 	kid, keyPath, dek := sealedGenomeKey(t, x.dir)
-	escrowPriv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	escrowPriv, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
 	require.NoError(t, err)
 	env, err := escrow.Seal(dek, kid, escrowPriv.PublicKey())
 	require.NoError(t, err)
 	envRaw, err := env.Marshal()
 	require.NoError(t, err)
 	envPath := writeFile(t, x.dir, kid+".escrow", envRaw)
-	escrowKey := writeFile(t, x.dir, "escrow.key", escrowPriv.Bytes())
+	escrowKey := writeFile(t, x.dir, "escrow.key", escrow.PrivatePEM(escrowPriv))
 	require.NoError(t, os.Chmod(escrowKey, 0o600))
 
 	invalid := x.cfg
@@ -275,9 +275,9 @@ func TestCrossCloudRestoreCmd_ReleasesToAnAttestedDestination(t *testing.T) {
 	// An escrowed genome key is opened with the authority's escrow key and
 	// released the same way; the binary's crosscloud-restore subcommand is
 	// this function.
-	escrowPriv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	escrowPriv, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
 	require.NoError(t, err)
-	escrowKey := writeFile(t, x.dir, "escrow.key", escrowPriv.Bytes())
+	escrowKey := writeFile(t, x.dir, "escrow.key", escrow.PrivatePEM(escrowPriv))
 	require.NoError(t, os.Chmod(escrowKey, 0o600))
 	withEscrow := x.cfg
 	withEscrow.CrossCloud.KeyEscrowPath = escrowKey

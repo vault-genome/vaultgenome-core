@@ -40,7 +40,7 @@ func writeV2Bundle(t *testing.T, path string, env GenomeEnvelope, sealed []byte)
 // escrowPublicPEM writes a fresh escrow public key to dir and returns its path.
 func escrowPublicPEM(t *testing.T, dir string) string {
 	t.Helper()
-	priv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	priv, err := escrow.GenerateKey(kms.PolicyForThisProcess().Writes())
 	require.NoError(t, err)
 	pemBytes, err := escrow.PublicPEM(priv.PublicKey())
 	require.NoError(t, err)
@@ -164,7 +164,7 @@ func TestOpenV3_Errors(t *testing.T) {
 	notV3 := filepath.Join(dir, "v2.genome")
 	require.NoError(t, os.WriteFile(notV3, []byte(genomeMagic+"....more"), 0o644))
 	_, _, err = openV3(notV3)
-	require.ErrorContains(t, err, "not a v3 Vault Genome bundle")
+	require.ErrorContains(t, err, "not a v3 or v4 Vault Genome bundle")
 
 	content, work := adapterDir(t, "v3"), t.TempDir()
 	b := filepath.Join(work, "g.genome")

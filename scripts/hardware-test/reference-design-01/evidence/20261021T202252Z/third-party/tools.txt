@@ -1,0 +1,2 @@
+acpctl: efb005d6f636fe120f8eeb55560976c3fc62c232172b7e4b19289e3322beb881 (built from the same tree for this machine, Darwin arm64)
+acpctl 0.0.0-dev (commit b0ee2a5c8a4a-dirty) fips140=off module=latest enforced=false

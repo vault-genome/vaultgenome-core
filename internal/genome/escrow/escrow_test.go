@@ -42,8 +42,11 @@ func mustKey(t *testing.T, suite kms.Suite) *PrivateKey {
 
 // The authority, and only it, gets the genome key back — under every suite.
 func TestSealOpen(t *testing.T) {
-	for _, suite := range kms.AllSuites() {
+	for _, suite := range kms.CurrentSuites() {
 		t.Run(string(suite), func(t *testing.T) {
+			if !suite.Available() {
+				t.Skip("unavailable under fips140=only")
+			}
 			kid, dek := sealed(t)
 			authority := mustKey(t, suite)
 			env, err := Seal(dek, kid, authority.PublicKey())
@@ -71,6 +74,9 @@ func TestSealOpen(t *testing.T) {
 // An envelope of a release before ADR 0029 — the ECIES of ADR 0009 to an
 // X25519 key — opens with the same X25519 key, and with nothing else.
 func TestOpen_LegacyEnvelope(t *testing.T) {
+	if !kms.SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	kid, dek := sealed(t)
 	authority := mustKey(t, LegacySuite)
 	ct, err := kms.X25519KeyWrapper{}.Wrap(dek, authority.PublicKey().Bytes(), aad(kid))
@@ -102,6 +108,9 @@ func TestOpen_LegacyEnvelope(t *testing.T) {
 // A v2 envelope opens only under its suite with a key of that suite; a
 // v1 envelope only with an X25519 key.
 func TestOpen_SuiteMustMatch(t *testing.T) {
+	if !kms.SuiteHPKEX25519.Available() {
+		t.Skip("the legacy X25519 key cannot be made under fips140=only (ADR 0030)")
+	}
 	kid, dek := sealed(t)
 	p384 := mustKey(t, kms.SuiteHPKEP384)
 	env, err := Seal(dek, kid, p384.PublicKey())
@@ -125,6 +134,9 @@ func TestOpen_SuiteMustMatch(t *testing.T) {
 }
 
 func TestRefusals(t *testing.T) {
+	if !kms.SuiteHPKEX25519.Available() {
+		t.Skip("the legacy X25519 key cannot be made under fips140=only (ADR 0030)")
+	}
 	kid, dek := sealed(t)
 	authority := mustKey(t, LegacySuite)
 
@@ -160,8 +172,11 @@ func TestRefusals(t *testing.T) {
 // an earlier release still reads, a file open to others is refused.
 func TestKeyFiles(t *testing.T) {
 	dir := t.TempDir()
-	for _, suite := range kms.AllSuites() {
+	for _, suite := range kms.CurrentSuites() {
 		t.Run(string(suite), func(t *testing.T) {
+			if !suite.Available() {
+				t.Skip("unavailable under fips140=only")
+			}
 			priv := mustKey(t, suite)
 			p := filepath.Join(dir, string(suite)+".key")
 			require.NoError(t, os.WriteFile(p, PrivatePEM(priv), 0o600))
@@ -186,6 +201,9 @@ func TestKeyFiles(t *testing.T) {
 	}
 
 	// The raw 32-byte file of an earlier release.
+	if !kms.SuiteHPKEX25519.Available() {
+		return // the raw 32-byte legacy key cannot be made under fips140=only (ADR 0030)
+	}
 	legacy := mustKey(t, LegacySuite)
 	p := filepath.Join(dir, "legacy.key")
 	require.NoError(t, os.WriteFile(p, legacy.Bytes(), 0o600))
@@ -224,7 +242,7 @@ func TestKeyFiles(t *testing.T) {
 	require.NoError(t, err)
 	_, err = ParsePublicPEM(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
 	require.ErrorContains(t, err, "want X25519 or P-384")
-	_, err = ParsePublicPEM(pem.EncodeToMemory(&pem.Block{Type: pemHPKEPublic, Headers: map[string]string{pemSuiteHeader: "hpke-p256-v1"}, Bytes: []byte{1}}))
+	_, err = ParsePublicPEM(pem.EncodeToMemory(&pem.Block{Type: pemHPKEPublic, Headers: map[string]string{pemSuiteHeader: "hpke-p256-v2"}, Bytes: []byte{1}}))
 	require.ErrorContains(t, err, "unknown KEM suite")
 	_, err = ParsePrivate(pem.EncodeToMemory(&pem.Block{Type: pemHPKEPrivate, Headers: map[string]string{pemSuiteHeader: string(kms.SuiteHPKEP384)}, Bytes: []byte{1, 2, 3}}))
 	require.Error(t, err, "a P-384 private key of three bytes")
@@ -236,6 +254,9 @@ func TestKeyFiles(t *testing.T) {
 
 // The tag of an X25519 key is the tag earlier releases gave it.
 func TestKeyTag_IsStableForX25519(t *testing.T) {
+	if !kms.SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	legacy := mustKey(t, LegacySuite)
 	x, err := ecdh.X25519().NewPrivateKey(legacy.Bytes())
 	require.NoError(t, err)

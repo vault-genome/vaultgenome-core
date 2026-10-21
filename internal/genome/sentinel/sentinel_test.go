@@ -80,7 +80,7 @@ func newRig(t *testing.T) *rig {
 	t.Helper()
 	pub, key, err := ed25519.GenerateKey(rand.Reader)
 	must(t, err)
-	esc, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	esc, err := escrow.GenerateKey(kms.PolicyForThisProcess().Writes())
 	must(t, err)
 	r := &rig{t: t, state: t.TempDir(), outbox: filepath.Join(t.TempDir(), "outbox"), key: key, pub: pub, escrow: esc, clock: newClock()}
 	write(t, filepath.Join(r.state, "adapter.safetensors"), "weights v1")

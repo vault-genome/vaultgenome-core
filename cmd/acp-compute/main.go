@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -35,7 +36,8 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
-			fmt.Printf("acp-compute %s (commit %s)\n", version, commit)
+			fips := shared_crypto.FIPSStatus()
+			fmt.Printf("acp-compute %s (commit %s) fips140=%s module=%s enforced=%t\n", version, commit, fipsMode(fips), fips.Version, fips.Enforced)
 			return
 		case "help", "--help", "-h":
 			printUsage()
@@ -218,4 +220,16 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Flags:")
 	fmt.Println("  -config PATH   JSON config file; see cmd/acp-compute/doc.go for schema.")
+}
+
+// fipsMode is the word the version line prints for the cryptographic
+// module's state (ADR 0030).
+func fipsMode(st shared_crypto.FIPS140) string {
+	if st.Enforced {
+		return "only"
+	}
+	if st.Enabled {
+		return "on"
+	}
+	return "off"
 }

@@ -185,7 +185,7 @@ sed -n '1,60p' "$EVIDENCE/REPORT.md" 2>/dev/null || true
 echo "== the bank's steps"; cat "$EVIDENCE/a/steps.txt" 2>/dev/null || true
 echo "== the standby's steps"; cat "$EVIDENCE/b/steps.txt" 2>/dev/null || true
 echo "== the third party's steps"; cat "$TP/steps.txt" 2>/dev/null || true
-case "$PROFILE" in general) WANT=hpke-x25519-v1;; fips) WANT=hpke-p384-v1;; cnsa) WANT=hpke-mlkem1024-p384-v1;; esac
+case "$PROFILE" in general) WANT=hpke-x25519-v2;; fips) WANT=hpke-p384-v2;; cnsa) WANT=hpke-mlkem1024-p384-v2;; esac
 if [ "$A_OK" = 1 ] && [ "$B_OK" = 1 ] \
    && grep -q 'gate_level=EXACT' "$EVIDENCE/a/steps.txt" && grep -q 'rogue refused after' "$EVIDENCE/a/steps.txt" && grep -q 'rogue with the sealed files exit=1' "$EVIDENCE/a/steps.txt" \
    && grep -q 'release exit=0' "$EVIDENCE/a/steps.txt" && grep -q "release suite=$WANT" "$EVIDENCE/a/steps.txt" && grep -q 'confirm exit=0' "$EVIDENCE/a/steps.txt" \
@@ -195,7 +195,9 @@ if [ "$A_OK" = 1 ] && [ "$B_OK" = 1 ] \
    && grep -q 'third-party audit verify (return path) exit=0' "$TP/steps.txt" && grep -q 'third-party audit verify (cross-cloud) exit=0' "$TP/steps.txt" \
    && grep -q 'third-party lineage .* exit=0' "$TP/steps.txt"; then OK=1; fi
 mark run_end
-( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt -print0 | sort -z | xargs -0 shasum -a 256 > sha256sums.txt )
+# runner.log is the runner's own transcript, written by tee until the runner
+# exits — after this line — so it stays outside the sums.
+( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt ! -name runner.log -print0 | sort -z | xargs -0 shasum -a 256 > sha256sums.txt )
 echo "evidence: $EVIDENCE"
 [ "$OK" = 1 ] || { echo "FAIL: the run did not reach every mark; see the steps above"; exit 1; }
 echo "PASS: reference design 01 end to end on SEV-SNP under $PROFILE ($WANT) — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party ($STAMP)"

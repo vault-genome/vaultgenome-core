@@ -32,6 +32,9 @@ func lowOrderPublicKeyPEM(t *testing.T) []byte {
 // A genome key is never encapsulated to a public key the KEM cannot use:
 // NewPublicKey refuses the low-order point, so no PublicKey of it exists.
 func TestSeal_RefusesAnUnusableEscrowKey(t *testing.T) {
+	if !kms.SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	_, err := ParsePublicPEM(lowOrderPublicKeyPEM(t))
 	require.ErrorContains(t, err, "kms:")
 	_, err = NewPublicKey(LegacySuite, make([]byte, 32))
@@ -42,6 +45,9 @@ func TestSeal_RefusesAnUnusableEscrowKey(t *testing.T) {
 // key file beyond its mode: a directory where a file should be, and a
 // file the process may not open.
 func TestReadPrivate_RefusesWhatItCannotRead(t *testing.T) {
+	if !kms.SuiteHPKEX25519.Available() {
+		t.Skip("the legacy X25519 key cannot be made under fips140=only (ADR 0030)")
+	}
 	dir := t.TempDir()
 	asDir := filepath.Join(dir, "escrow.key")
 	require.NoError(t, os.Mkdir(asDir, 0o700))
@@ -63,6 +69,9 @@ func TestReadPrivate_RefusesWhatItCannotRead(t *testing.T) {
 // public key at all, a well-formed X25519 point the KEM refuses, and
 // the product's own block without a suite or with a key of the wrong size.
 func TestParsePublicPEM_Refusals(t *testing.T) {
+	if !kms.SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	cases := []struct {
 		name string
 		pem  []byte
@@ -115,7 +124,7 @@ func TestRecovery_Refusals(t *testing.T) {
 		{"public key does not parse", func() Recovery { e := env; e.PublicKeyPEM = "nope"; return e }, "not a PEM public key"},
 		{"recovery suite misnamed", func() Recovery { e := env; e.RecoverySuite = string(kms.SuiteHPKEMLKEM768); return e }, "wrapped under KEM suite"},
 		{"escrow suite misnamed", func() Recovery { e := env; e.Suite = string(kms.SuiteHPKEMLKEM768); return e }, "its public key is under"},
-		{"contents are not a key", func() Recovery { return wrapTo([]byte("short")) }, "not a hpke-p384-v1 key"},
+		{"contents are not a key", func() Recovery { return wrapTo([]byte("short")) }, "not a hpke-p384-v2 key"},
 		{"contents are another key", func() Recovery { return wrapTo(other.Bytes()) }, "not the private half"},
 	}
 	for _, tc := range cases {
@@ -181,7 +190,7 @@ func TestSealedKey_Refusals(t *testing.T) {
 		return forged
 	}
 	_, err = sealTo([]byte("short")).Open(host, tee.ProviderSimulated, host.Measurement())
-	require.ErrorContains(t, err, "not a hpke-mlkem768-v1 key")
+	require.ErrorContains(t, err, "not a hpke-mlkem768-v2 key")
 	other := mustKey(t, kms.SuiteHPKEMLKEM768)
 	_, err = sealTo(other.Bytes()).Open(host, tee.ProviderSimulated, host.Measurement())
 	require.ErrorContains(t, err, "not the private half")

@@ -55,16 +55,16 @@ func open(t *testing.T, blob, dek []byte) ([]byte, error) {
 	return p, err
 }
 
-// segments splits a sealed bundle into its prefix (through the nonce
-// prefix) and its sealed segments.
+// segments splits a sealed v4 bundle into its prefix (through the header)
+// and its sealed segments, each nonce ‖ ciphertext ‖ tag.
 func segments(t *testing.T, blob []byte) ([]byte, [][]byte) {
 	t.Helper()
 	r, err := NewReader(bytes.NewReader(blob))
 	require.NoError(t, err)
-	start := len(Magic) + 4 + len(r.HeaderBytes) + noncePrefixSize
+	start := len(Magic) + 4 + len(r.HeaderBytes)
 	var segs [][]byte
 	rest := blob[start:]
-	step := int(r.Header.SegmentBytes) + 16
+	step := int(r.Header.SegmentBytes) + sealedSegmentOverhead
 	for len(rest) > step {
 		segs = append(segs, rest[:step])
 		rest = rest[step:]
@@ -84,7 +84,9 @@ func join(prefix []byte, segs ...[]byte) []byte {
 func TestSealOpen_RoundTrip(t *testing.T) {
 	t.Parallel()
 	b, dek := seal(t, header(), payload)
-	require.True(t, IsV3(b))
+	require.True(t, IsV4(b))
+	require.True(t, Is(b))
+	require.False(t, IsV3(b))
 	require.Len(t, dek, 32)
 	require.False(t, bytes.Contains(b, dek), "the key is not in the bundle")
 	require.False(t, bytes.Contains(b, payload[:64]), "the payload is not in the clear")
@@ -258,7 +260,6 @@ func TestNewReader_RefusesMalformedBundles(t *testing.T) {
 		"no header length": []byte(Magic),
 		"header overruns":  append([]byte(Magic), 0x00, 0x00, 0xff, 0xff),
 		"header too large": append([]byte(Magic), 0xff, 0xff, 0xff, 0xff),
-		"no nonce prefix":  b[:len(Magic)+4+len(r.HeaderBytes)+3],
 		"trailing json":    withHeaderBytes(r.HeaderBytes, append(append([]byte(nil), r.HeaderBytes...), []byte(" {}")...), body),
 		"unknown field":    withHeader(func(h map[string]any) { h["unwrapped_key"] = "x" }),
 		"other format":     withHeader(func(h map[string]any) { h["format"] = "vault-genome-v2" }),
@@ -280,6 +281,56 @@ func TestNewReader_RefusesMalformedBundles(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+// A bundle cut inside its first segment: the header reads, the payload
+// does not open (v4 keeps nothing between the header and the segments).
+func TestOpen_RefusesABundleCutInsideItsFirstSegment(t *testing.T) {
+	t.Parallel()
+	b, dek := seal(t, header(), payload)
+	r, err := NewReader(bytes.NewReader(b))
+	require.NoError(t, err)
+	cut := b[:len(Magic)+4+len(r.HeaderBytes)+3]
+	_, _, err = OpenBytes(cut, dek)
+	require.ErrorContains(t, err, "truncated in segment 1")
+}
+
+// The v3 fixture — sealed by the writer of releases before 0.8 (a 7-byte
+// nonce prefix, segment nonces of prefix ‖ index ‖ last-flag) — opens
+// under its key, byte for byte; a flipped byte in any segment is refused;
+// and it is still a v3 bundle to every caller that asks.
+func TestOpen_ReadsAV3Bundle(t *testing.T) {
+	t.Parallel()
+	blob, err := os.ReadFile("testdata/v3-fixture.bundle")
+	require.NoError(t, err)
+	dekHex, err := os.ReadFile("testdata/v3-fixture.dek.hex")
+	require.NoError(t, err)
+	dek, err := hex.DecodeString(strings.TrimSpace(string(dekHex)))
+	require.NoError(t, err)
+	want, err := os.ReadFile("testdata/v3-fixture.payload")
+	require.NoError(t, err)
+	require.True(t, IsV3(blob))
+	require.True(t, Is(blob))
+	require.False(t, IsV4(blob))
+	got, h, err := OpenBytes(blob, dek)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	require.Equal(t, FormatV3, h.Format)
+	require.EqualValues(t, MinSegmentBytes, h.SegmentBytes)
+	// every segment is authenticated: a flipped byte anywhere past the
+	// header fails the open
+	r, err := NewReader(bytes.NewReader(blob))
+	require.NoError(t, err)
+	for _, off := range []int{len(MagicV3) + 4 + len(r.HeaderBytes) + noncePrefixSize + 1, len(blob) - 1} {
+		bad := append([]byte(nil), blob...)
+		bad[off] ^= 0x01
+		_, _, err := OpenBytes(bad, dek)
+		require.Error(t, err, "offset %d", off)
+	}
+	// a v3 header cannot pass as v4 and vice versa: the magic names the format
+	swapped := append([]byte(Magic), blob[len(MagicV3):]...)
+	_, err = NewReader(bytes.NewReader(swapped))
+	require.ErrorContains(t, err, `format "vault-genome-v3", want "vault-genome-v4"`)
 }
 
 func withHeaderBytes(_ []byte, hb, body []byte) []byte {

@@ -45,7 +45,7 @@ func sentinelKeys(t *testing.T, dir string) (seed, pub, escrowPEM string) {
 	require.NotEqual(t, 0, code, "a sentinel key is never overwritten")
 	require.Contains(t, stderr, "exists")
 
-	esc, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	esc, err := escrow.GenerateKey(kms.PolicyForThisProcess().Writes())
 	require.NoError(t, err)
 	pemBytes, err := escrow.PublicPEM(esc.PublicKey())
 	require.NoError(t, err)

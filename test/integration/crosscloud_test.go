@@ -393,8 +393,8 @@ func TestLiveCrossCloud_KeyReleaseToAttestedDestination(t *testing.T) {
 		t.Fatalf("recipient key: source released to %q, destination attested %q", res.RecipientKeySHA256, got)
 	}
 	// Both sides name the suite, and two general profiles meet on X25519.
-	if got := answered[0]["recipient_key_suite"]; got != res.RecipientKeySuite || res.RecipientKeySuite != "hpke-x25519-v1" {
-		t.Fatalf("recipient key suite: source released under %q, destination generated under %q, want hpke-x25519-v1", res.RecipientKeySuite, got)
+	if got := answered[0]["recipient_key_suite"]; got != res.RecipientKeySuite || res.RecipientKeySuite != "hpke-x25519-v2" {
+		t.Fatalf("recipient key suite: source released under %q, destination generated under %q, want hpke-x25519-v2", res.RecipientKeySuite, got)
 	}
 	if res.CryptoProfile != "general" || id["crypto_profile"] != "general" {
 		t.Fatalf("profiles: source %q, destination %q, want general on both", res.CryptoProfile, id["crypto_profile"])
@@ -423,8 +423,8 @@ func TestLiveCrossCloud_ProfilesMeetOnTheirSuites(t *testing.T) {
 	if err != nil || res.Status != "ok" {
 		t.Fatalf("fips → fips crosscloud-restore: %v\n%s", err, out)
 	}
-	if res.RecipientKeySuite != "hpke-p384-v1" || res.CryptoProfile != "fips" {
-		t.Fatalf("fips → fips: released under %q as %q, want hpke-p384-v1 as fips", res.RecipientKeySuite, res.CryptoProfile)
+	if res.RecipientKeySuite != "hpke-p384-v2" || res.CryptoProfile != "fips" {
+		t.Fatalf("fips → fips: released under %q as %q, want hpke-p384-v2 as fips", res.RecipientKeySuite, res.CryptoProfile)
 	}
 
 	cnsa := x.sourceConfigWith(t, id, map[string]any{"crypto": map[string]any{"profile": "cnsa"}}, id["measurement_hex"])
@@ -432,7 +432,7 @@ func TestLiveCrossCloud_ProfilesMeetOnTheirSuites(t *testing.T) {
 	if err != nil || res2.Status != "ok" {
 		t.Fatalf("cnsa → fips crosscloud-restore: %v\n%s", err, out)
 	}
-	if res2.RecipientKeySuite != "hpke-mlkem1024-p384-v1" {
+	if res2.RecipientKeySuite != "hpke-mlkem1024-p384-v2" {
 		t.Fatalf("cnsa → fips: released under %q, want the hybrid both accept", res2.RecipientKeySuite)
 	}
 
@@ -440,12 +440,12 @@ func TestLiveCrossCloud_ProfilesMeetOnTheirSuites(t *testing.T) {
 		return len(x.destLog("crosscloud token accepted")) == 2
 	})
 	answered := x.destLog("crosscloud handshake answered")
-	if len(answered) != 2 || answered[0]["recipient_key_suite"] != "hpke-p384-v1" || answered[1]["recipient_key_suite"] != "hpke-mlkem1024-p384-v1" {
+	if len(answered) != 2 || answered[0]["recipient_key_suite"] != "hpke-p384-v2" || answered[1]["recipient_key_suite"] != "hpke-mlkem1024-p384-v2" {
 		t.Fatalf("destination's record of the suites: %v", answered)
 	}
 
 	// A general source narrowed to X25519 offers nothing fips accepts.
-	narrow := x.sourceConfigWith(t, id, map[string]any{"crypto": map[string]any{"profile": "general", "kem_suites": []string{"hpke-x25519-v1"}}}, id["measurement_hex"])
+	narrow := x.sourceConfigWith(t, id, map[string]any{"crypto": map[string]any{"profile": "general", "kem_suites": []string{"hpke-x25519-v2"}}}, id["measurement_hex"])
 	res3, out, err := x.restore(t, narrow, x.endpoint, randomBytes(t, 32))
 	if err == nil || res3.Status == "ok" {
 		t.Fatalf("a source offering only X25519 to a fips destination must be refused:\n%s", out)

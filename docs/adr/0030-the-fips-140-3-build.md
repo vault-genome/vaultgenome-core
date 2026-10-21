@@ -1,6 +1,6 @@
 # ADR 0030 — The FIPS 140-3 build: the certified Go Cryptographic Module, approved-mode discipline in every build, and the only-mode assessment on the record
 
-- **Status:** Proposed (2026-10-21) — measured on the tree at `8c14ee3`; no code changed yet
+- **Status:** Accepted (2026-10-21) — part one (the code: the v2 suites, the module's AES-GCM and HKDF, bundle v4, the only-mode assessment in the gate) in the tree; parts two (the kits under `VG_FIPS=1`, C42) and three (the `-fips` release matrix) to follow
 - **Tags:** crypto, fips, build, release, aead, bundle, hkdf, assessment
 - **Extends:** ADR 0029 (the profiles and the suites: what each build may *use*); ADR 0023 (sealed key files); `docs/operator/05_release_procedure.md`
 - **Closes:** the rest of finding F2 of the banking map (`docs/compliance/banking.md` §9), once parts one to three are in the tree
@@ -117,16 +117,42 @@ algorithm.
       segments (the module's limit per key).
    c. HKDF is the module's `crypto/hkdf` (RFC 5869: the same output);
       `crypto.HKDFSHA256` keeps its signature and callers.
-   d. Under `fips140=only`, `crypto.profile: general` is refused at
-      startup with the reason (it offers `hpke-x25519-v1`, which this
-      process cannot make); a wrapped key under `x25519-kem-v1` or a v1
-      escrow document is refused with the reason, not a panic. `identity`
-      prints `fips140_enforced`.
+   d. Under `fips140=only`, a configuration that names
+      `crypto.profile: general` is refused at startup with the reason (it
+      offers `hpke-x25519-v2`, which this process cannot make), and a
+      configuration that names no profile gets `fips` instead of
+      `general` — the default the module can keep; the X25519 and X-Wing
+      suites report themselves unavailable; a wrapped key under
+      `x25519-kem-v1`, a v1 suite or a v1 escrow document is refused with
+      the reason, not a panic. `identity` prints the module's state.
    e. The SHA-1 in the test goes (SHA-256 issuer hash). The two
       production uses — NVIDIA's OCSP issuer hash as the responder chose
       it, the vTPM `sha1` bank name — are named as non-approved uses on
       the `azure-cgpu` path, which stays outside the FIPS claim until it
       is measured on that hardware (its own item).
+3f. **The AEAD step of the suites is the module's.** The assessment of
+   part one found that Go's `crypto/hpke` cannot seal under `fips140=only`
+   ("use of GCM with arbitrary IVs"): HPKE derives each nonce as
+   base_nonce ⊕ sequence outside the module, which is Table 8's "AES GCM —
+   using arbitrary nonces for encryption" whatever the build. The KEM and
+   the KDF are approved; the AEAD step was not. Every suite of ADR 0029
+   therefore moves to a v2: HPKE opened export-only (RFC 9180 §5.3, AEAD id
+   0xFFFF) exports a 32-byte key for the suite, the purpose and the
+   context `vault-genome hpke v2 wrap key`, and the module's AES-256-GCM
+   seals under it with the nonce it generates — on the wire `enc ‖ nonce
+   ‖ ciphertext ‖ tag`. The recipient keys are the same (a key belongs to
+   its KEM, not to a version): a key made by 0.7.0 under `hpke-p384-v1`
+   writes and opens `hpke-p384-v2` unchanged, and the escrow documents and
+   sealed key files of 0.7.0 open as they are, by the suite they record.
+   The v1 suites stay known and read-only: what 0.7.0 wrapped opens on a
+   build without enforcement, nothing writes them, and under
+   `fips140=only` they name their refusal. The profiles list v2 suites
+   only — `general` writes `hpke-x25519-v2`, `fips` `hpke-p384-v2`, `cnsa`
+   `hpke-mlkem1024-p384-v2` — so a 0.7.0 authority and a 0.8 destination,
+   or the reverse, meet on no suite and release nothing: both daemons move
+   together, as ADR 0029 ruled. (Decided 2026-10-21 after the
+   measurement; probed: export-only HPKE with P-384, ML-KEM-768 and the
+   hybrid runs under `fips140=only`.)
 4. **Not decided here:** signatures beyond Ed25519 and SHA-256 (F2b);
    the move to v1.26.0 (a ledger entry when it is certified); a FIPS claim
    for the confidential-GPU path.
@@ -173,7 +199,7 @@ algorithm.
 
 ## Implementation notes
 
-- **Part one (code, all builds):** `crypto.NewGCM` → `NewGCMWithRandomNonce`
+- **Part one (code, all builds):** the v2 suites (3f); `crypto.NewGCM` → `NewGCMWithRandomNonce`
   with the split/join helpers; `kms/kem.go`; bundle v4 with v3 reading and
   the AAD change; `crypto/hkdf`; only-mode awareness
   (`fips140.Enforced()`), the refusals of 3d, `identity`/`version`

@@ -5,6 +5,10 @@ package kms
 
 import (
 	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,16 +24,29 @@ func TestSuites_TableMatchesTheStandards(t *testing.T) {
 		kem, kdf, aead uint16
 		pk, enc        int
 	}{
-		SuiteHPKEX25519:        {0x0020, 0x0001, 0x0002, 32, 32},
-		SuiteHPKEP384:          {0x0011, 0x0002, 0x0002, 97, 97},
-		SuiteHPKEMLKEM768:      {0x0041, 0x0001, 0x0002, 1184, 1088},
-		SuiteHPKEMLKEM1024P384: {0x0051, 0x0002, 0x0002, 1665, 1665},
-		SuiteHPKEXWing:         {0x647a, 0x0001, 0x0002, 1216, 1120},
+		// v2: export-only HPKE (AEAD id 0xFFFF), the module's AES-256-GCM
+		SuiteHPKEX25519:        {0x0020, 0x0001, 0xFFFF, 32, 32},
+		SuiteHPKEP384:          {0x0011, 0x0002, 0xFFFF, 97, 97},
+		SuiteHPKEMLKEM768:      {0x0041, 0x0001, 0xFFFF, 1184, 1088},
+		SuiteHPKEMLKEM1024P384: {0x0051, 0x0002, 0xFFFF, 1665, 1665},
+		SuiteHPKEXWing:         {0x647a, 0x0001, 0xFFFF, 1216, 1120},
 	}
-	require.ElementsMatch(t, AllSuites(), []Suite{SuiteHPKEX25519, SuiteHPKEP384, SuiteHPKEMLKEM768, SuiteHPKEMLKEM1024P384, SuiteHPKEXWing})
+	require.ElementsMatch(t, CurrentSuites(), []Suite{SuiteHPKEX25519, SuiteHPKEP384, SuiteHPKEMLKEM768, SuiteHPKEMLKEM1024P384, SuiteHPKEXWing})
+	require.ElementsMatch(t, AllSuites(), append(CurrentSuites(), SuiteHPKEX25519V1, SuiteHPKEP384V1, SuiteHPKEMLKEM768V1, SuiteHPKEMLKEM1024P384V1, SuiteHPKEXWingV1))
+	for _, v1 := range []Suite{SuiteHPKEX25519V1, SuiteHPKEP384V1, SuiteHPKEMLKEM768V1, SuiteHPKEMLKEM1024P384V1, SuiteHPKEXWingV1} {
+		require.True(t, v1.ReadOnly(), v1)
+		_, _, aead := v1.IDs()
+		require.Equal(t, uint16(0x0002), aead, "v1 kept the AEAD inside HPKE")
+		require.Equal(t, v1.Latest().Family(), v1.Family())
+		require.False(t, v1.Latest().ReadOnly())
+		require.True(t, v1.SameFamily(v1.Latest()))
+	}
 	for s, w := range want {
 		t.Run(string(s), func(t *testing.T) {
 			t.Parallel()
+			if !s.Available() {
+				t.Skip("unavailable under fips140=only")
+			}
 			require.True(t, s.Known())
 			kem, kdf, aead := s.IDs()
 			require.Equal(t, w.kem, kem, "KEM id")
@@ -43,16 +60,74 @@ func TestSuites_TableMatchesTheStandards(t *testing.T) {
 			require.NotEmpty(t, priv)
 			wrapped, err := s.Wrap(PurposeCrossCloudDEK, []byte("dek"), pub, []byte("aad"))
 			require.NoError(t, err)
-			require.Len(t, wrapped, w.enc+len("dek")+aeadTagSize, "enc ‖ ciphertext ‖ tag")
+			require.Len(t, wrapped, w.enc+shared_crypto.GCMNonceSize+len("dek")+aeadTagSize, "enc ‖ nonce ‖ ciphertext ‖ tag")
 		})
 	}
 	require.False(t, SuiteLegacyX25519.Known(), "the ECIES of ADR 0009 is not an HPKE suite")
 	require.False(t, Suite("hpke-p256-v1").Known())
 	_, err := ParseSuite("x25519-kem-v1")
 	require.Error(t, err)
-	s, err := ParseSuite("hpke-p384-v1")
+	s, err := ParseSuite("hpke-p384-v2")
 	require.NoError(t, err)
 	require.Equal(t, SuiteHPKEP384, s)
+	v1, err := ParseSuite("hpke-p384-v1")
+	require.NoError(t, err, "a v1 suite is still known: what 0.7.0 wrapped opens")
+	require.Equal(t, SuiteHPKEP384V1, v1)
+	require.Equal(t, SuiteHPKEP384, v1.Latest())
+}
+
+// A v1 suite is read-only: Wrap refuses it by name, Unwrap opens what
+// 0.7.0 wrapped (the fixtures were written by the 0.7.0 tree at b0ee2a5).
+func TestSuite_V1IsReadOnly(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile("testdata/kms-v1-wraps.json")
+	require.NoError(t, err)
+	var fx []struct {
+		Suite      string `json:"suite"`
+		Purpose    string `json:"purpose"`
+		AADHex     string `json:"aad_hex"`
+		PrivHex    string `json:"recipient_private_hex"`
+		PubHex     string `json:"recipient_public_hex"`
+		PlainHex   string `json:"plaintext_hex"`
+		WrappedHex string `json:"wrapped_hex"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &fx))
+	require.Len(t, fx, 5)
+	for _, f := range fx {
+		t.Run(f.Suite, func(t *testing.T) {
+			t.Parallel()
+			s := Suite(f.Suite)
+			require.True(t, s.Known())
+			require.True(t, s.ReadOnly())
+			if !s.Latest().Available() {
+				t.Skip("the family is unavailable under fips140=only")
+			}
+			priv, _ := hex.DecodeString(f.PrivHex)
+			pub, _ := hex.DecodeString(f.PubHex)
+			aad, _ := hex.DecodeString(f.AADHex)
+			plain, _ := hex.DecodeString(f.PlainHex)
+			wrapped, _ := hex.DecodeString(f.WrappedHex)
+			_, err := s.Wrap(f.Purpose, plain, pub, aad)
+			require.ErrorContains(t, err, "read-only since 0.8")
+			if shared_crypto.FIPSOnly() {
+				_, err := s.Unwrap(f.Purpose, wrapped, priv, aad)
+				require.ErrorContains(t, err, "cannot open under fips140=only")
+				return
+			}
+			got, err := s.Unwrap(f.Purpose, wrapped, priv, aad)
+			require.NoError(t, err)
+			require.Equal(t, plain, got)
+			// the same key writes and opens the v2 of its family
+			v2 := s.Latest()
+			w2, err := v2.Wrap(f.Purpose, plain, pub, aad)
+			require.NoError(t, err)
+			got2, err := v2.Unwrap(f.Purpose, w2, priv, aad)
+			require.NoError(t, err)
+			require.Equal(t, plain, got2)
+			_, err = s.Unwrap(f.Purpose, w2, priv, aad)
+			require.Error(t, err, "a v2 wrap does not open under the v1 suite")
+		})
+	}
 }
 
 // Round trip and the refusals, suite by suite: a wrong key, a tampered
@@ -60,9 +135,12 @@ func TestSuites_TableMatchesTheStandards(t *testing.T) {
 // an encapsulation all end in an Integrity refusal.
 func TestSuite_RoundTripAndRefusals(t *testing.T) {
 	t.Parallel()
-	for _, s := range AllSuites() {
+	for _, s := range CurrentSuites() {
 		t.Run(string(s), func(t *testing.T) {
 			t.Parallel()
+			if !s.Available() {
+				t.Skip("unavailable under fips140=only")
+			}
 			priv, pub, err := s.GenerateRecipientKey()
 			require.NoError(t, err)
 			dek := []byte("a-32-byte-data-encryption-key!!!")
@@ -121,7 +199,12 @@ func TestSuite_RoundTripAndRefusals(t *testing.T) {
 // key: the suite is in the HPKE info and the sizes differ.
 func TestSuite_CrossSuiteConfusionRefused(t *testing.T) {
 	t.Parallel()
-	all := AllSuites()
+	var all []Suite
+	for _, s := range CurrentSuites() {
+		if s.Available() {
+			all = append(all, s)
+		}
+	}
 	for _, from := range all {
 		_, pub, err := from.GenerateRecipientKey()
 		require.NoError(t, err)
@@ -143,6 +226,9 @@ func TestSuite_CrossSuiteConfusionRefused(t *testing.T) {
 // are not a key of the KEM, and — for X25519 — a low-order point.
 func TestSuite_ValidateRecipientPublicKey(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	for _, s := range AllSuites() {
 		t.Run(string(s), func(t *testing.T) {
 			t.Parallel()
@@ -178,6 +264,9 @@ func TestSuite_ValidateRecipientPublicKey(t *testing.T) {
 // behind its length, and differs from the v1 challenge of ADR 0009.
 func TestRecipientChallengeV2_BindsSuiteKeyAndNonce(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	_, pub, err := SuiteHPKEX25519.GenerateRecipientKey()
 	require.NoError(t, err)
 	_, other, err := SuiteHPKEX25519.GenerateRecipientKey()
@@ -210,6 +299,9 @@ func TestSuiteInfo_LengthPrefixed(t *testing.T) {
 // key of another suite or another length is refused.
 func TestSuite_PublicKeyOf(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	for _, s := range AllSuites() {
 		t.Run(string(s), func(t *testing.T) {
 			t.Parallel()

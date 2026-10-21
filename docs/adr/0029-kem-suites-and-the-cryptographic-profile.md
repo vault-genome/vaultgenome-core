@@ -4,6 +4,7 @@
 - **Tags:** crypto, kms, escrow, crosscloud, fips, post-quantum, profile
 - **Extends:** ADR 0009 (X25519 KEM for cross-cloud DEK delivery) — its rule stands, its construction is replaced
 - **Closes:** finding F2 of the banking map (`docs/compliance/banking.md` §9)
+- **Amended by:** ADR 0030 — the AEAD step of every suite is the cryptographic module's AES-256-GCM over a key HPKE exports (the v2 suites); the v1 suites of this record are read-only since 0.8
 
 ## Context
 

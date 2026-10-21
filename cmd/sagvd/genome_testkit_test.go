@@ -188,10 +188,10 @@ func sealTestGenome(t *testing.T, dir string, opts genomeOptions) testGenome {
 // public PEM into dir and returns both paths.
 func escrowKeyPair(t *testing.T, dir string) (privPath, pubPath string) {
 	t.Helper()
-	priv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	priv, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
 	require.NoError(t, err)
 	privPath = filepath.Join(dir, "escrow.key")
-	require.NoError(t, os.WriteFile(privPath, priv.Bytes(), 0o600))
+	require.NoError(t, os.WriteFile(privPath, escrow.PrivatePEM(priv), 0o600))
 	pem, err := escrow.PublicPEM(priv.PublicKey())
 	require.NoError(t, err)
 	pubPath = filepath.Join(dir, "escrow.pem")

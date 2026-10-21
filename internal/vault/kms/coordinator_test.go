@@ -116,7 +116,7 @@ func (t *producerBackedTransport) SendHandshakeRequest(
 	}
 	policy := t.suites
 	if policy.IsZero() {
-		policy = DefaultSuitePolicy()
+		policy = PolicyForThisProcess()
 	}
 	suite, ok := policy.Choose(req.KEMSuites)
 	if !ok {
@@ -430,7 +430,7 @@ func TestCoordinateRestore_TokenUnwrapsAtDestination(t *testing.T) {
 
 	require.Len(t, f.transport.sentTokens, 1)
 	tok := f.transport.sentTokens[0]
-	require.Equal(t, SuiteHPKEX25519, res.RecipientKeySuite, "a general source and a general destination meet on X25519")
+	require.Equal(t, DefaultSuitePolicy().Writes(), res.RecipientKeySuite, "a source and a destination of the default profile meet on its first suite")
 	require.Equal(t, uint16(2), tok.SchemaVersion)
 	otherPriv, _, err := f.transport.recipientSuite.GenerateRecipientKey()
 	require.NoError(t, err)
@@ -461,14 +461,14 @@ func TestCoordinateRestore_FIPSProfileMeetsOnP384(t *testing.T) {
 	require.Equal(t, fips.SuiteIDs(), f.transport.sentHandshakes[0].KEMSuites)
 	require.Len(t, f.transport.recipientPub, SuiteHPKEP384.PublicKeySize())
 	for _, w := range f.transport.sentTokens[0].Wrapped {
-		require.Equal(t, "hpke-p384-v1", w.Suite)
+		require.Equal(t, "hpke-p384-v2", w.Suite)
 		plain, err := SuiteHPKEP384.Unwrap(PurposeCrossCloudDEK, w.Ciphertext, f.transport.recipientPriv, w.AAD)
 		require.NoError(t, err)
 		require.NotEmpty(t, plain)
 	}
 	var released keyReleaseAuthorizedPayload
 	require.NoError(t, json.Unmarshal(f.auditChain.events[2].Payload, &released))
-	require.Equal(t, "hpke-p384-v1", released.DeliveryMode)
+	require.Equal(t, "hpke-p384-v2", released.DeliveryMode)
 	require.Equal(t, "fips", released.CryptoProfile)
 }
 
@@ -479,7 +479,7 @@ func TestCoordinateRestore_RefusesSuiteOutsideProfile(t *testing.T) {
 	fips, err := NewSuitePolicy(ProfileFIPS, nil)
 	require.NoError(t, err)
 	f := makeFixtureUnder(t, fips)
-	f.transport.answerSuite = "hpke-x25519-v1"
+	f.transport.answerSuite = "hpke-x25519-v2"
 	_, err = f.coord.CoordinateRestore(context.Background(), validRequest(f))
 	requireRefusedBeforeRelease(t, f, err)
 	require.ErrorContains(t, err, "does not accept")
@@ -502,7 +502,13 @@ func TestCoordinateRestore_RefusesAnswerWithoutSuite(t *testing.T) {
 func TestCoordinateRestore_RefusesSwappedSuiteLabel(t *testing.T) {
 	t.Parallel()
 	f := makeFixture(t)
-	f.transport.answerSuite = "hpke-p384-v1" // the key was generated, and quoted, under X25519
+	// the key was generated, and quoted, under the profile's first suite;
+	// the answer labels it with another suite the policy accepts
+	swapped := SuiteHPKEP384
+	if DefaultSuitePolicy().Writes() == swapped {
+		swapped = SuiteHPKEMLKEM768
+	}
+	f.transport.answerSuite = string(swapped)
 	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
 	requireRefusedBeforeRelease(t, f, err)
 }
@@ -545,8 +551,8 @@ func TestCoordinateRestore_DefectB_TokenPlusMeasurementRevealsNothing(t *testing
 		require.Error(t, err, "wrapped key #%d opened under the old key past the ephemeral share", i)
 		_, err = X25519KeyUnwrapper{}.Unwrap(w.Ciphertext, measurement, w.AAD)
 		require.Error(t, err, "wrapped key #%d opened with the measurement as an X25519 key (legacy ECIES)", i)
-		_, err = SuiteHPKEX25519.Unwrap(PurposeCrossCloudDEK, w.Ciphertext, measurement, w.AAD)
-		require.Error(t, err, "wrapped key #%d opened with the measurement as an X25519 key (HPKE)", i)
+		_, err = DefaultSuitePolicy().Writes().Unwrap(PurposeCrossCloudDEK, w.Ciphertext, measurement, w.AAD)
+		require.Error(t, err, "wrapped key #%d opened with the measurement as a recipient key (HPKE)", i)
 		require.NotContains(t, string(w.Ciphertext), string(req.KeysToRelease[i].Plaintext))
 	}
 }
@@ -590,7 +596,7 @@ func TestCoordinateRestore_RefusesDestinationWithoutRecipientKey(t *testing.T) {
 func TestCoordinateRestore_RefusesSubstitutedRecipientKey(t *testing.T) {
 	t.Parallel()
 	f := makeFixture(t)
-	_, attackerPub := newX25519(t)
+	_, attackerPub := newDefaultRecipient(t)
 	f.transport.substituteKey = attackerPub
 	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
 	requireRefusedBeforeRelease(t, f, err)
@@ -632,9 +638,9 @@ func TestCoordinateRestore_AuditRecordsRecipientKey(t *testing.T) {
 	var released keyReleaseAuthorizedPayload
 	require.NoError(t, json.Unmarshal(f.auditChain.events[2].Payload, &released))
 	require.Equal(t, want[:], released.RecipientKeySHA256)
-	require.Equal(t, "hpke-x25519-v1", released.DeliveryMode)
-	require.Equal(t, "general", released.CryptoProfile)
-	require.Equal(t, "hpke-x25519-v1", verified.RecipientKeySuite)
+	require.Equal(t, string(DefaultSuitePolicy().Writes()), released.DeliveryMode)
+	require.Equal(t, string(DefaultSuitePolicy().Profile()), released.CryptoProfile)
+	require.Equal(t, string(DefaultSuitePolicy().Writes()), verified.RecipientKeySuite)
 }
 
 // --- CoordinateRestore error paths ---------------------------------

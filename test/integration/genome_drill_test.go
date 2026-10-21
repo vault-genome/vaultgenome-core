@@ -430,14 +430,14 @@ func TestLiveGenomeDrill_GatedModel(t *testing.T) {
 // `sagvd identity`); only the authority opens the envelope, and only to
 // release the key to an attested destination.
 func TestLiveGenomeDrill_EscrowedKey(t *testing.T) {
-	escrowedKeyDrill(t, "general", "hpke-x25519-v1")
+	escrowedKeyDrill(t, "general", "hpke-x25519-v2")
 }
 
 // The same drill under the fips profile (ADR 0029): the escrow key is
 // P-384, the envelope names the suite, the authority publishes it, and the
 // release to the destination meets on P-384 too.
 func TestLiveGenomeDrill_EscrowedKeyUnderFIPS(t *testing.T) {
-	escrowedKeyDrill(t, "fips", "hpke-p384-v1")
+	escrowedKeyDrill(t, "fips", "hpke-p384-v2")
 }
 
 func escrowedKeyDrill(t *testing.T, profile, suite string) {

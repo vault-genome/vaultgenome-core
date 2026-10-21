@@ -6,8 +6,6 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
-	"io"
 
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
@@ -22,6 +20,16 @@ const (
 )
 
 // NewGCM constructs an AES-256-GCM AEAD from a 32-byte key.
+// NewGCM returns AES-256-GCM over key with the nonce generated inside the
+// cryptographic module (cipher.NewGCMWithRandomNonce): Seal takes no nonce
+// and prepends the 96-bit random nonce it drew to the ciphertext; Open
+// expects that nonce in front. The module's own IV generation is the
+// approved construction (ADR 0030; the Security Policy of CMVP #5247 §2.7,
+// IG C.H scenario 2) — an AEAD fed an arbitrary nonce is not, and
+// cipher.NewGCM cannot be constructed at all under fips140=only. The
+// helpers below keep the nonce beside the ciphertext, so every format
+// that stores them apart is unchanged on disk and on the wire. No more
+// than 2^32 seals may be made under one key (the module's limit).
 func NewGCM(key []byte) (cipher.AEAD, error) {
 	if len(key) != AES256KeySize {
 		return nil, shared_errors.Structural(
@@ -38,7 +46,7 @@ func NewGCM(key []byte) (cipher.AEAD, error) {
 			err,
 		)
 	}
-	aead, err := cipher.NewGCM(block)
+	aead, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
 		return nil, shared_errors.Integrity(
 			shared_errors.CodeFieldValueInvalid,
@@ -49,35 +57,27 @@ func NewGCM(key []byte) (cipher.AEAD, error) {
 	return aead, nil
 }
 
-// Seal encrypts plaintext under key with a fresh random nonce, returning
-// (nonce, ciphertext||tag). The nonce is generated via crypto/rand; if
-// rng is nil, crypto/rand.Reader is used.
-//
-// Additional data (aad) is authenticated but not encrypted. Callers pass
-// the canonical bytes of the binding metadata — for DisclosureMessage,
-// that is ManifestID || SessionID || ComponentID.
-func Seal(key []byte, plaintext, aad []byte, rng io.Reader) (nonce, ciphertext []byte, err error) {
+// Seal encrypts plaintext under key with the module-generated nonce and
+// returns the nonce and the ciphertext (tag included) separately, as every
+// caller stores them.
+func Seal(key []byte, plaintext, aad []byte) (nonce, ciphertext []byte, err error) {
 	aead, err := NewGCM(key)
 	if err != nil {
 		return nil, nil, err
 	}
-	if rng == nil {
-		rng = rand.Reader
-	}
-	nonce = make([]byte, GCMNonceSize)
-	if _, err := io.ReadFull(rng, nonce); err != nil {
+	out := aead.Seal(nil, nil, plaintext, aad)
+	if len(out) < GCMNonceSize+GCMTagSize {
 		return nil, nil, shared_errors.Integrity(
 			shared_errors.CodeFieldValueInvalid,
-			"crypto: nonce read failed",
-			err,
+			"crypto: GCM seal produced a short output",
+			nil,
 		)
 	}
-	ciphertext = aead.Seal(nil, nonce, plaintext, aad)
+	nonce = append([]byte(nil), out[:GCMNonceSize]...)
+	ciphertext = out[GCMNonceSize:]
 	return nonce, ciphertext, nil
 }
 
-// Open decrypts ciphertext under key using nonce and aad. Returns the
-// plaintext or an Integrity-classified error on authentication failure.
 func Open(key, nonce, ciphertext, aad []byte) ([]byte, error) {
 	aead, err := NewGCM(key)
 	if err != nil {
@@ -90,7 +90,10 @@ func Open(key, nonce, ciphertext, aad []byte) ([]byte, error) {
 			nil,
 		)
 	}
-	plaintext, err := aead.Open(nil, nonce, ciphertext, aad)
+	joined := make([]byte, 0, len(nonce)+len(ciphertext))
+	joined = append(joined, nonce...)
+	joined = append(joined, ciphertext...)
+	plaintext, err := aead.Open(nil, nil, joined, aad)
 	if err != nil {
 		// Authentication failure is an integrity event.
 		return nil, shared_errors.Integrity(

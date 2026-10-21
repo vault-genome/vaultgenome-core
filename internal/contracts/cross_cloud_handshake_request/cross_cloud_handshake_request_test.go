@@ -30,7 +30,7 @@ func validFixture() CrossCloudHandshakeRequest {
 		DestinationTEEKind:  tee.ProviderAWSNitro,
 		DestinationEndpoint: "https://acp-bootstrap.example.com:8443",
 		HandshakeNonce:      nonce,
-		KEMSuites:           []string{"hpke-x25519-v1", "hpke-p384-v1"},
+		KEMSuites:           []string{"hpke-x25519-v2", "hpke-p384-v2"},
 		SourceMeasurement:   measurement,
 		InitiatedAt:         time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC),
 		SigningKeyID:        ids.KeyID("vault-key-1"),

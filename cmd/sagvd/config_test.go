@@ -4,6 +4,7 @@
 package main
 
 import (
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,7 @@ func minimalValidConfig() Config {
 	c.Keys.AuthoritySigning = SigningKeyConfig{KeyID: "auth-1", SeedPath: "/tmp/auth.seed"}
 	c.Keys.SessionSealing = SealingKeyConfig{KeyID: "seal-1", MaterialPath: "/tmp/seal.key"}
 	c.Workers.RegistryPath = "/tmp/workers.json"
+	c.Crypto.Profile = string(kms.PolicyForThisProcess().Profile())
 	return c
 }
 

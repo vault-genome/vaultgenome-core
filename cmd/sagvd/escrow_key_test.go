@@ -128,10 +128,10 @@ func TestSealedEscrowKeyDoesNotOpenElsewhere(t *testing.T) {
 // on a hardware one: on the chip the key is not on the disk.
 func TestPlaintextEscrowKeyOnlyUnderSimulation(t *testing.T) {
 	f := newMaterialFixture(t)
-	priv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	priv, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
 	require.NoError(t, err)
 	keyPath := filepath.Join(f.dir, "escrow.key")
-	require.NoError(t, os.WriteFile(keyPath, priv.Bytes(), 0o600))
+	require.NoError(t, os.WriteFile(keyPath, escrow.PrivatePEM(priv), 0o600))
 	f.cfg.Genome.KeyEscrowPath = keyPath
 	mat, err := LoadMaterials(f.cfg, shared_time.NewSystemClock())
 	require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestPlaintextEscrowKeyOnlyUnderSimulation(t *testing.T) {
 // through stdin, as the same escrow key.
 func TestEscrowProvisionRecoveryRoundTrip(t *testing.T) {
 	f := newMaterialFixture(t)
-	recovery, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	recovery, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
 	require.NoError(t, err)
 	recoveryPEM, err := escrow.PublicPEM(recovery.PublicKey())
 	require.NoError(t, err)
@@ -193,7 +193,7 @@ func TestEscrowProvisionRecoveryRoundTrip(t *testing.T) {
 	sealed2 := filepath.Join(host2.dir, "escrow.sealed")
 	var out, errOut strings.Builder
 	require.NoError(t, runEscrowProvisionCmd([]string{"-config", cfgPath, "-out", sealed2, "-pub", filepath.Join(host2.dir, "escrow.pem"), "-stdin"},
-		bytes.NewReader(priv.Bytes()), &out, &errOut))
+		bytes.NewReader(escrow.PrivatePEM(priv)), &out, &errOut)) // what `acpctl escrow recover` writes to the pipe
 	var res2 escrowProvisionOutput
 	require.NoError(t, json.Unmarshal([]byte(out.String()), &res2))
 	require.Equal(t, "stdin", res2.Source)

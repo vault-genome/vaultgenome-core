@@ -146,10 +146,10 @@ func KeyTag(pub PublicKey) string {
 // reads; the product's own block, with the suite as a header, for the
 // keys PKIX has no form for.
 func PublicPEM(pub PublicKey) ([]byte, error) {
-	switch pub.suite {
-	case kms.SuiteHPKEX25519, kms.SuiteHPKEP384:
+	switch pub.suite.Family() {
+	case kms.SuiteHPKEX25519.Family(), kms.SuiteHPKEP384.Family():
 		curve := ecdh.X25519()
-		if pub.suite == kms.SuiteHPKEP384 {
+		if pub.suite.Family() == kms.SuiteHPKEP384.Family() {
 			curve = ecdh.P384()
 		}
 		key, err := curve.NewPublicKey(pub.raw)
@@ -203,7 +203,9 @@ func ParsePublicPEM(b []byte) (PublicKey, error) {
 		if err != nil {
 			return PublicKey{}, fmt.Errorf("escrow: %s: %w", pemHPKEPublic, err)
 		}
-		return NewPublicKey(suite, block.Bytes)
+		// a key belongs to a family, not a version: a 0.7.0 key labelled
+		// v1 is the same key, and this build writes v2 with it (ADR 0030)
+		return NewPublicKey(suite.Latest(), block.Bytes)
 	default:
 		return PublicKey{}, errors.New("escrow: not a PEM public key")
 	}
@@ -229,7 +231,7 @@ func ParsePrivate(raw []byte) (*PrivateKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("escrow: %s: %w", pemHPKEPrivate, err)
 	}
-	return NewPrivateKey(suite, block.Bytes)
+	return NewPrivateKey(suite.Latest(), block.Bytes)
 }
 
 // ReadPrivate reads a private key file, refusing one other users can read.

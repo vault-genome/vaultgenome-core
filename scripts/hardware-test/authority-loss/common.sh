@@ -11,7 +11,7 @@ md() { curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/com
 # The cryptographic profile of ADR 0029 both authorities run under, and the
 # KEM suite that profile writes (the escrow and recovery keys are made under it).
 PROFILE=$(md attributes/vg-profile 2>/dev/null); [ -n "$PROFILE" ] || PROFILE=general
-case "$PROFILE" in fips) SUITE=hpke-p384-v1;; cnsa) SUITE=hpke-mlkem1024-p384-v1;; *) SUITE=hpke-x25519-v1;; esac
+case "$PROFILE" in fips) SUITE=hpke-p384-v2;; cnsa) SUITE=hpke-mlkem1024-p384-v2;; *) SUITE=hpke-x25519-v2;; esac
 export PROFILE SUITE
 token() { md service-accounts/default/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])'; }
 enc() { python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"; }

@@ -87,7 +87,9 @@ console), `b/` (the standby's steps, identity, receipt, the gate's
 verdict, the console), `third-party/` (the verifications and queries
 done on the runner, and the tools it used), `REPORT.md` (the design's
 six steps, the continuity and the refusals, the figures), `machines.txt`,
-`inputs.sha256`, `runner-timeline.txt`, `sha256sums.txt`. Keys, seeds,
+`inputs.sha256`, `runner-timeline.txt`, `sha256sums.txt` (every file of
+the run but `runner.log`, the runner's own transcript, which tee writes
+until the runner exits). Keys, seeds,
 tokens and configs stay on the guests and die with them; the standby's
 TLS material and token leave the bank once, through the private bucket,
 before the bank seals its own copies.
@@ -118,12 +120,16 @@ before the bank seals its own copies.
 | `general` | [`evidence/20261021T183244Z/`](evidence/20261021T183244Z/) | `hpke-x25519-v1` | EXACT 6/6 in 5.2 s | 15.5 s (the release 4.9 s; key to restored 0.003 s) | EXACT 6/6, backend 4.05 s | the sealed files off the chip; the unpinned worker (1 s); the unlisted guest; the operator's stop — each with its reason | 17 + 10 events; four verifications at exit 0 | 8187 ms / 27 ms | 317 s, the guests' creation included |
 | `fips` | [`evidence/20261021T184052Z/`](evidence/20261021T184052Z/) | `hpke-p384-v1` | EXACT 6/6 in 5.2 s | 15.5 s (the release 4.9 s; key to restored 0.004 s) | EXACT 6/6, backend 4.39 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0 | 8185 ms / 23 ms | 308 s |
 | `cnsa` | [`evidence/20261021T184112Z/`](evidence/20261021T184112Z/) | `hpke-mlkem1024-p384-v1` | EXACT 6/6 in 5.2 s | 15.7 s (the release 4.9 s; key to restored 0.008 s) | EXACT 6/6, backend 3.99 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0 | 8187 ms / 23 ms | 308 s |
+| `fips`, the v2 suites of ADR 0030 | [`evidence/20261021T202252Z/`](evidence/20261021T202252Z/) | `hpke-p384-v2` — HPKE export-only, the AEAD step the module's AES-256-GCM | EXACT 6/6 in 5.2 s | 15.6 s (the release 4.9 s; key to restored 0.006 s) | EXACT 6/6, backend 3.96 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0 | 8205 ms / 26 ms | 316 s |
 
-The three runs are the same two zones and the same two guest images —
+The four runs are the same two zones and the same two guest images —
 the bank `us-central1-c` (measurement `7dc7c12e…`), the standby
-`europe-west4-b` (`0e017d2f…`) — minutes apart, the profile the only
-thing that changed; the suite the key went under changed with it, and
-nothing else in the figures did. Of the zones tried, `us-east1-b`,
+`europe-west4-b` (`0e017d2f…`) — minutes apart. In the first three the
+profile is the only thing that changed; the suite the key went under
+changed with it, and nothing else in the figures did. The fourth is
+`fips` again on the v2 suites of ADR 0030 — HPKE export-only, the AEAD
+step the module's AES-256-GCM, the suite id `hpke-p384-v2` — and nothing
+in the figures moved with it. Of the zones tried, `us-east1-b`,
 `us-east4-b` and `us-west1-b` refuse an n2d guest with SEV-SNP;
 `us-central1-b`, `us-central1-c` and `europe-west4-b` create it. The
 runtime from the hash-pinned locks took 49 s on the bank and 42 s on the

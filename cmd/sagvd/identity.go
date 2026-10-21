@@ -60,6 +60,9 @@ type authorityIdentity struct {
 	// every suite it accepts a destination's answer under.
 	CryptoProfile string   `json:"crypto_profile"`
 	KEMSuites     []string `json:"kem_suites"`
+	// FIPS140 is the cryptographic module this process runs on (ADR 0030):
+	// enabled, enforced (fips140=only), the module version, the build setting.
+	FIPS140 crypto.FIPS140 `json:"fips140"`
 }
 
 // runIdentityCmd implements `sagvd identity -config <path>`: it loads the
@@ -105,6 +108,7 @@ func runIdentityCmd(args []string, w io.Writer) error {
 		AuthorityPublicKeyPEM: string(authPEM),
 		TEEProvider:           string(mat.Provider),
 		CryptoProfile:         string(suites.Profile()),
+		FIPS140:               crypto.FIPSStatus(),
 		KEMSuites:             suites.SuiteIDs(),
 		TEEMeasurementHex:     hex.EncodeToString(mat.Producer.Measurement()),
 	}

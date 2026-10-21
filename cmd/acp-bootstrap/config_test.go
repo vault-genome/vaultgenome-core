@@ -5,6 +5,7 @@ package main
 
 import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,7 @@ func minimalValidConfig() Config {
 	c.TEE.InsecureSimulation = true
 	c.TEE.SeedPath = "/etc/acp/secrets/acp-bootstrap/tee_seed"
 	c.SourceAuthority = SourceAuthorityConfig{KeyID: "authority-1", PublicKeyPath: "/etc/acp/secrets/authority.pub"}
+	c.Crypto.Profile = string(kms.PolicyForThisProcess().Profile())
 	return c
 }
 

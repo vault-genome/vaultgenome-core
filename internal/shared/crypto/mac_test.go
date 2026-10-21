@@ -93,16 +93,16 @@ func TestHKDFSHA256_DifferentIKMYieldsDifferentKey(t *testing.T) {
 	t.Parallel()
 	salt := []byte("salt")
 	info := []byte("info-fixed")
-	a, err := HKDFSHA256(salt, []byte("ikm-A"), info, 32)
+	a, err := HKDFSHA256(salt, []byte("ikm-A-of-at-least-fourteen-bytes"), info, 32)
 	require.NoError(t, err)
-	b, err := HKDFSHA256(salt, []byte("ikm-B"), info, 32)
+	b, err := HKDFSHA256(salt, []byte("ikm-B-of-at-least-fourteen-bytes"), info, 32)
 	require.NoError(t, err)
 	require.NotEqual(t, a, b)
 }
 
 func TestHKDFSHA256_NilSaltEqualsZeroSalt(t *testing.T) {
 	t.Parallel()
-	ikm := []byte("ikm")
+	ikm := []byte("ikm-of-at-least-fourteen-bytes")
 	info := []byte("info")
 	a, err := HKDFSHA256(nil, ikm, info, 32)
 	require.NoError(t, err)

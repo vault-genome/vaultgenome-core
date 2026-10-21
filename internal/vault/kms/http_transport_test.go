@@ -128,7 +128,7 @@ func TestHTTPTransport_BearerHeaderAttached(t *testing.T) {
 		DestinationTEEKind:  tee.ProviderSimulated,
 		DestinationEndpoint: srv.URL,
 		HandshakeNonce:      nonce,
-		KEMSuites:           DefaultSuitePolicy().SuiteIDs(),
+		KEMSuites:           PolicyForThisProcess().SuiteIDs(),
 		InitiatedAt:         stdtime.Now(),
 		SigningKeyID:        ids.KeyID("k"),
 		Signature:           []byte{0xAA},

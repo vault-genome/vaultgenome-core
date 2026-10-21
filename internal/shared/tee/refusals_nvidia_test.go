@@ -6,6 +6,7 @@ package tee
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -595,6 +596,7 @@ func TestOCSPCheckerRefusalsAndCache(t *testing.T) {
 	respond := func(responder *x509.Certificate, key *ecdsa.PrivateKey, tmpl ocsp.Response) []byte {
 		tmpl.Certificate = responder
 		tmpl.SerialNumber = leaf.SerialNumber
+		tmpl.IssuerHash = crypto.SHA256 // the library defaults to SHA-1, which the module refuses under fips140=only
 		raw, err := ocsp.CreateResponse(caCert, responder, tmpl, key)
 		require.NoError(t, err)
 		return raw

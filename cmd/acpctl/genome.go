@@ -1009,12 +1009,12 @@ func loadGenome(path string) (*genomeFile, error) {
 	var magic [len(bundle.Magic)]byte
 	_, err = io.ReadFull(f, magic[:])
 	_ = f.Close()
-	if err == nil && bundle.IsV3(magic[:]) {
+	if err == nil && bundle.Is(magic[:]) {
 		id, err := bundle.Identify(path)
 		if err != nil {
 			return nil, err
 		}
-		return &genomeFile{Path: path, Size: id.Size, SHA256: id.SHA256, Format: bundle.Format, Header: id.Header, V3: true}, nil
+		return &genomeFile{Path: path, Size: id.Size, SHA256: id.SHA256, Format: id.Header.Format, Header: id.Header, V3: true}, nil
 	}
 	blob, err := os.ReadFile(path)
 	if err != nil {

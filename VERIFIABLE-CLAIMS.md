@@ -2608,14 +2608,28 @@ measurement `ccdc5cf0…` on all three. Escrow:
 (fips, RTO cold 235.9 s, warm 48.5 s), commit `1637bf7`: `a/steps.txt`
 (`profile=`, `escrow-provision exit=0 … suite=`), `b/steps.txt` (`escrow
 re-provision exit=0 escrow_key=… suite=`, `resumed job is A's lost job:
-same_job_id=true`). The same key-release kit under `fips` on the tag
+same_job_id=true`). Under the v2 suites of ADR 0030 (HPKE export-only,
+the module's AES-256-GCM):
+[`…203018Z/`](scripts/hardware-test/authority-loss/evidence/20261021T203018Z/)
+(fips, `hpke-p384-v2`, escrow key `bf7dc257…`, RTO cold 234.7 s, warm
+51.1 s, `same_job_id=true same_request_id=true`). The same key-release kit under `fips` on the tag
 `v0.7.0` (commit `28fa01506f43`), ten minutes after the release was
 published:
 [`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T164918Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T164918Z/)
 — both daemons `crypto_profile=fips`, the release under `hpke-p384-v1`
 (recipient key `f5eb716d…`), the restore confirmed, the unlisted guest
 and the operator stop refused, `audit-verify.json` `ok: true`, 10 events,
-the measurement `ccdc5cf0…`. Unit and live tests: `internal/vault/kms/suite_test.go`
+the measurement `ccdc5cf0…`. Under the v2 suites of ADR 0030 (HPKE
+export-only, the module's AES-256-GCM), the same kit on the same guest
+image:
+[`…/evidence/20261021T202413Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T202413Z/)
+(general, `hpke-x25519-v2`),
+[`…/202422Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T202422Z/)
+(fips, `hpke-p384-v2`) and
+[`…/202423Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T202423Z/)
+(cnsa, `hpke-mlkem1024-p384-v2`) — `release suite=` the profile's first,
+the restore confirmed, the unlisted guest and the operator stop refused,
+10 events each. Unit and live tests: `internal/vault/kms/suite_test.go`
 (the suite table against RFC 9180 §7.1 and draft-ietf-hpke-pq-05 §8),
 `profile_test.go`, `coordinator_test.go`, `internal/bootstrap/crosscloud/
 receiver_test.go`, `internal/genome/escrow/*_test.go`,
@@ -2694,7 +2708,15 @@ EXACT in 5.2 s, the release 4.9 s, the restore confirmed at 15.7 s, the
 standby's gate EXACT with the backend at 3.99 s, the same refusals, 17 +
 10 events, four verifications at exit 0, 308 s). The profile is the only
 thing that changed between the three runs; the suite changed with it,
-and nothing else in the figures did.
+and nothing else in the figures did. Under the v2 suites of ADR 0030 — HPKE export-only,
+the AEAD step the module's AES-256-GCM — the same two zones under
+`fips`:
+[`…/evidence/20261021T202252Z/`](scripts/hardware-test/reference-design-01/evidence/20261021T202252Z/)
+(`hpke-p384-v2`, recipient key `9d57e065…`: the job EXACT in 5.2 s, the
+release 4.9 s, the restore confirmed at 15.6 s, the standby's gate EXACT
+with the backend at 3.96 s, the same four refusals, 17 + 10 events, four
+verifications at exit 0, 316 s). The AEAD step moved into the module and
+nothing in the figures moved with it.
 
 **Reproduce:**
 

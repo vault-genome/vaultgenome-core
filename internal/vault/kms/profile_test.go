@@ -4,6 +4,7 @@
 package kms
 
 import (
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ import (
 func TestProfiles_WriteAndAccept(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, SuiteHPKEX25519, ProfileGeneral.Writes())
-	require.Equal(t, AllSuites(), ProfileGeneral.Accepts())
+	require.Equal(t, CurrentSuites(), ProfileGeneral.Accepts(), "general accepts every suite this build writes; the v1 suites are read-only and never offered")
 	require.Equal(t, SuiteHPKEP384, ProfileFIPS.Writes())
 	require.Equal(t, []Suite{SuiteHPKEP384, SuiteHPKEMLKEM768, SuiteHPKEMLKEM1024P384}, ProfileFIPS.Accepts())
 	require.Equal(t, SuiteHPKEMLKEM1024P384, ProfileCNSA.Writes())
@@ -38,7 +39,11 @@ func TestParseProfile(t *testing.T) {
 	t.Parallel()
 	p, err := ParseProfile("")
 	require.NoError(t, err)
-	require.Equal(t, ProfileGeneral, p)
+	wantDefault := ProfileGeneral
+	if shared_crypto.FIPSOnly() {
+		wantDefault = ProfileFIPS // the default the module can keep (ADR 0030)
+	}
+	require.Equal(t, wantDefault, p)
 	for _, name := range []string{"general", "fips", "cnsa"} {
 		p, err := ParseProfile(name)
 		require.NoError(t, err)
@@ -59,10 +64,16 @@ func TestSuitePolicy(t *testing.T) {
 
 	def := DefaultSuitePolicy()
 	require.False(t, def.IsZero())
-	require.Equal(t, ProfileGeneral, def.Profile())
-	require.Equal(t, AllSuites(), def.Suites())
-	require.Equal(t, SuiteHPKEX25519, def.Writes())
-	require.Equal(t, []string{"hpke-x25519-v1", "hpke-p384-v1", "hpke-mlkem768-v1", "hpke-mlkem1024-p384-v1", "hpke-xwing-v1"}, def.SuiteIDs())
+	wantDefault := ProfileGeneral
+	if shared_crypto.FIPSOnly() {
+		wantDefault = ProfileFIPS
+	}
+	require.Equal(t, wantDefault, def.Profile())
+	require.Equal(t, wantDefault.Accepts(), def.Suites())
+	require.Equal(t, wantDefault.Writes(), def.Writes())
+	if !shared_crypto.FIPSOnly() {
+		require.Equal(t, []string{"hpke-x25519-v2", "hpke-p384-v2", "hpke-mlkem768-v2", "hpke-mlkem1024-p384-v2", "hpke-xwing-v2"}, def.SuiteIDs())
+	}
 
 	// Narrowing: a subset in the operator's order; the first is written.
 	p, err := NewSuitePolicy(ProfileGeneral, []Suite{SuiteHPKEMLKEM768, SuiteHPKEX25519})

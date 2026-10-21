@@ -92,10 +92,14 @@ func Open(env Envelope, key *PrivateKey) ([]byte, error) {
 	var err error
 	switch env.Schema {
 	case SchemaV2:
-		if env.Suite != string(key.Suite()) {
+		// The envelope names the suite it was wrapped under — a v1 suite
+		// of 0.7.0 or a v2 one (ADR 0030); the key must be of that
+		// suite's family, and the envelope opens under its own suite.
+		envSuite := kms.Suite(env.Suite)
+		if !envSuite.SameFamily(key.Suite()) {
 			return nil, fmt.Errorf("escrow: %s is under KEM suite %q, this authority's escrow key is under %q", env.KeyID, env.Suite, key.Suite())
 		}
-		dek, err = key.Suite().Unwrap(kms.PurposeEscrowDEK, env.Ciphertext, key.Bytes(), aadV2(env.KeyID))
+		dek, err = envSuite.Unwrap(kms.PurposeEscrowDEK, env.Ciphertext, key.Bytes(), aadV2(env.KeyID))
 	case Schema:
 		if key.Suite() != LegacySuite {
 			return nil, fmt.Errorf("escrow: %s is a v1 envelope (X25519), this authority's escrow key is under %q", env.KeyID, key.Suite())

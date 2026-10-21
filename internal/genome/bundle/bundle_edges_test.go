@@ -84,7 +84,7 @@ func TestOpenBytes_RefusesWhatItCannotOpen(t *testing.T) {
 		dek  []byte
 		want string
 	}{
-		"not a bundle":          {[]byte("plain text"), dek, "not a v3 Vault Genome bundle"},
+		"not a bundle":          {[]byte("plain text"), dek, "not a v3 or v4 Vault Genome bundle"},
 		"last segment edited":   {edited, dek, "does not open under key"},
 		"key of another bundle": {b, bytes.Repeat([]byte{7}, crypto.AES256KeySize), "this key is not"},
 	}
@@ -113,25 +113,20 @@ func craft(t *testing.T, h Header, dek, p []byte) []byte {
 	require.NoError(t, h.validate())
 	hb, err := json.Marshal(h)
 	require.NoError(t, err)
-	prefix := make([]byte, noncePrefixSize)
-	_, err = io.ReadFull(rand.Reader, prefix)
-	require.NoError(t, err)
 	aead, err := crypto.NewGCM(dek)
 	require.NoError(t, err)
-
 	var out bytes.Buffer
 	out.WriteString(Magic)
 	var n [4]byte
 	binary.BigEndian.PutUint32(n[:], uint32(len(hb)))
 	out.Write(n[:])
 	out.Write(hb)
-	out.Write(prefix)
-	aad := segmentAAD(hb)
+	base := segmentAADBase(hb)
 	count := segmentCount(h.PayloadBytes, h.SegmentBytes)
 	for i := range count {
 		size := min(h.SegmentBytes, h.PayloadBytes-i*h.SegmentBytes)
 		seg := p[i*h.SegmentBytes : i*h.SegmentBytes+size]
-		out.Write(aead.Seal(nil, segmentNonce(prefix, i, i == count-1), seg, aad))
+		out.Write(aead.Seal(nil, nil, seg, segmentAADV4(base, i, i == count-1)))
 	}
 	return out.Bytes()
 }

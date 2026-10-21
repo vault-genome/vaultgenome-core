@@ -46,9 +46,9 @@ func newFailoverFixture(t *testing.T) *failoverFixture {
 	f.cfg.CrossCloud = xc.CrossCloud
 	f.cfg.Keys.AuditSigning = xc.Keys.AuditSigning
 	f.operator = withAuditLog(t, dir, &f.cfg) // a fresh operator key the test holds
-	esc, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	esc, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
 	require.NoError(t, err)
-	f.cfg.CrossCloud.KeyEscrowPath = writeFile(t, dir, "escrow.key", esc.Bytes())
+	f.cfg.CrossCloud.KeyEscrowPath = writeFile(t, dir, "escrow.key", escrow.PrivatePEM(esc))
 	require.NoError(t, os.Chmod(f.cfg.CrossCloud.KeyEscrowPath, 0o600))
 	f.write(t, "sagvd.json")
 	return f

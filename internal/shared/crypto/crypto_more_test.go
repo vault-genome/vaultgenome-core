@@ -5,6 +5,7 @@ package crypto
 
 import (
 	"bytes"
+	"crypto/fips140"
 	"encoding/json"
 	"errors"
 	"math"
@@ -121,6 +122,9 @@ func TestEd25519_Refusals(t *testing.T) {
 
 	t.Run("entropy failure", func(t *testing.T) {
 		t.Parallel()
+		if fips140.Enabled() {
+			t.Skip("in FIPS 140-3 mode the module draws key material from its own DRBG, not the caller's reader")
+		}
 		gp, gk, err := GenerateEd25519(iotest.ErrReader(errEntropyDown))
 		require.Nil(t, gp)
 		require.Nil(t, gk)
@@ -151,18 +155,21 @@ func TestGCM_Refusals(t *testing.T) {
 	t.Parallel()
 	key := bytes.Repeat([]byte{0x42}, AES256KeySize)
 
-	t.Run("nonce source failure", func(t *testing.T) {
+	t.Run("the module's nonce: 12 bytes, fresh per seal", func(t *testing.T) {
 		t.Parallel()
-		nonce, ct, err := Seal(key, []byte("pt"), nil, iotest.ErrReader(errEntropyDown))
-		require.Nil(t, nonce)
-		require.Nil(t, ct)
-		require.ErrorIs(t, err, errEntropyDown)
-		require.Equal(t, shared_errors.CategoryIntegrity, shared_errors.CategoryOf(err))
-		require.Contains(t, err.Error(), "nonce read failed")
+		n1, c1, err := Seal(key, []byte("pt"), nil)
+		require.NoError(t, err)
+		n2, c2, err := Seal(key, []byte("pt"), nil)
+		require.NoError(t, err)
+		require.Len(t, n1, GCMNonceSize)
+		require.NotEqual(t, n1, n2, "the module draws a fresh random nonce for every seal")
+		require.NotEqual(t, c1, c2)
+		_, err = Open(key, n2, c1, nil)
+		require.Error(t, err, "a ciphertext under another nonce does not open")
 	})
 	t.Run("open with a short key", func(t *testing.T) {
 		t.Parallel()
-		nonce, ct, err := Seal(key, []byte("pt"), nil, nil)
+		nonce, ct, err := Seal(key, []byte("pt"), nil)
 		require.NoError(t, err)
 		pt, err := Open(key[:16], nonce, ct, nil)
 		require.Nil(t, pt)
@@ -171,7 +178,7 @@ func TestGCM_Refusals(t *testing.T) {
 	})
 	t.Run("open with a nonce of the wrong size", func(t *testing.T) {
 		t.Parallel()
-		nonce, ct, err := Seal(key, []byte("pt"), nil, nil)
+		nonce, ct, err := Seal(key, []byte("pt"), nil)
 		require.NoError(t, err)
 		pt, err := Open(key, nonce[:GCMNonceSize-1], ct, nil)
 		require.Nil(t, pt)

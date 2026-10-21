@@ -186,7 +186,7 @@ func newDrill(t *testing.T, gateVals ...float32) *drill {
 	var err error
 	_, d.sentinelKey, err = ed25519.GenerateKey(rand.Reader)
 	must(t, err)
-	d.escrow, err = escrow.GenerateKey(kms.SuiteHPKEX25519)
+	d.escrow, err = escrow.GenerateKey(kms.PolicyForThisProcess().Writes())
 	must(t, err)
 	_, d.operator, err = ed25519.GenerateKey(rand.Reader)
 	must(t, err)

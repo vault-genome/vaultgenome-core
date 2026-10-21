@@ -67,7 +67,7 @@ func escrowKeygenCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	out := fs.String("out", "", "Where to write the private key (PEM, mode 0600; never overwritten)")
 	pub := fs.String("pub", "", "Where to write the public key (PEM) that sealers use")
-	suiteFlag := fs.String("suite", string(kms.SuiteHPKEX25519), "The key's KEM suite (ADR 0029)")
+	suiteFlag := fs.String("suite", string(kms.DefaultSuitePolicy().Writes()), "The key's KEM suite (ADR 0029, 0030): the default profile's by default")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -100,7 +100,7 @@ func escrowRecoveryKeygenCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	out := fs.String("out", "", "Where to write the recovery private key (PEM, mode 0600; never overwritten); keep it off the release host")
 	pub := fs.String("pub", "", "Where to write the recovery public key (PEM) for sagvd escrow-provision -recovery-to")
-	suiteFlag := fs.String("suite", string(kms.SuiteHPKEX25519), "The key's KEM suite (ADR 0029)")
+	suiteFlag := fs.String("suite", string(kms.DefaultSuitePolicy().Writes()), "The key's KEM suite (ADR 0029, 0030): the default profile's by default")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
