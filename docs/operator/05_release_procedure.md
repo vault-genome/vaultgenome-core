@@ -108,8 +108,18 @@ The tag push runs `.github/workflows/release.yml`:
    signs each by digest (`cosign sign`, keyless), attests an SPDX SBOM of
    each image to it (`cosign attest --type spdxjson`), and uploads
    `images-<tag>.txt` — both images named by digest — with its signature,
-   certificate and bundle, and the two image SBOMs: 6 more assets, 54 in
-   all.
+   certificate and bundle, and the two image SBOMs: 6 more assets, 55 in
+   all (the build job's 48, the provenance, these 6). The first push of
+   an image creates its package *private* — the rehearsal `v0.6.1-rc2`
+   found it on 2026-10-21 (an anonymous pull answers 403) — so an org
+   owner makes `ghcr.io/vault-genome/sagvd` and
+   `ghcr.io/vault-genome/acp-compute` public once, in each package's
+   settings (Change visibility → Public, confirmed by typing the
+   package's name). "Public" is greyed out there — "Setting is disabled
+   by organization administrators" — until the organization allows
+   public containers: Organization settings → Packages → Package
+   creation → Public, which the same owner enables first. §5, item 5
+   checks the result.
 9. `slsa-images` runs the SLSA container generator
    (`generator_container_slsa3.yml` v2.1.0) once per image, over the
    image's digest, and pushes the provenance to the registry beside the
@@ -131,8 +141,15 @@ rehearsed as `v0.6.1-rc1` on 2026-10-21: the build, the 49 assets and
 the provenance as before; the `images` job failed at its first `COPY` —
 the repository's `.dockerignore` excludes `bin/`, so a root build
 context carries no binary. Each image now builds from a staged context
-of its own (`dist/image-context/<name>`); the rehearsal of that is
-`v0.6.1-rc2`. The rc1 release was deleted, its tag kept.
+of its own (`dist/image-context/<name>`); the rehearsal of that,
+`v0.6.1-rc2` on the same day, was green: 55 assets, both images signed
+and attested with a provenance each, verified like a release (§5) — the
+kits `release-deploy` and `release-deploy-images` both PASS on SEV-SNP
+against it — and its release deleted, the tag kept, like rc1's. The
+rehearsals found three things no job had: the packages are created
+private and the organization has to allow public ones (§4, item 8);
+`cosign verify` prints "Verification for", not verify-blob's "Verified
+OK"; and the asset count is 55, not 54.
 After any change to the workflow or to the actions it pins (a Dependabot
 bump included), run the pipeline on a signed rehearsal tag before the
 real one: `vX.Y.Z-rcN` on the merge commit, verified like a release (§5),
@@ -219,9 +236,13 @@ Once the release workflow completes:
    slsa-verifier verify-image ghcr.io/vault-genome/sagvd@sha256:… \
      --source-uri github.com/vault-genome/vaultgenome-core --source-tag vX.Y.Z
    ```
-   and the same for `acp-compute`. The binary inside is the released one:
-   `docker create` the image, `docker cp` `/usr/local/bin/sagvd` out, and
-   its SHA-256 equals the release asset's.
+   and the same for `acp-compute`. Both must work from a machine with no
+   registry login: a private package (§4, item 8) answers 403, and an
+   integrator could neither pull nor verify —
+   `scripts/hardware-test/release-deploy-images/run.sh` checks exactly
+   that, anonymously, before anything else. The binary inside is the
+   released one: `docker create` the image, `docker cp`
+   `/usr/local/bin/sagvd` out, and its SHA-256 equals the release asset's.
 6. Verify the tag signature — `git verify-tag v0.1.0`.
 7. Record the release hashes externally (the external pin is itself a
    defence against a later tag rewrite — see

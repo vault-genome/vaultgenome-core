@@ -1,0 +1,6 @@
+release: v0.6.1-rc2
+verified at: 2026-10-21T11:41:40Z
+cosign: v3.1.3
+slsa-verifier: 2.7.1
+  trusted_root.json: sha256 6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66
+  every uploaded file is a release asset of v0.6.1-rc2; the guest fetches the AMD Milan chain from KDS with the released acpctl (tee fetch-amd-chain)
