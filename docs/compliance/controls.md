@@ -1,6 +1,6 @@
 # The control catalogue — what the software does, where, and how it is proven
 
-| Last updated | 2026-10-17, on v0.6.0 and the acceptance trial of October 2026 |
+| Last updated | 2026-10-21, on the tree of ADR 0030 (VG-038) and the acceptance trial of October 2026 |
 | - | - |
 | Replaces | the catalogue of 2026-05-04 (twenty controls, three of them for files that are no longer in the tree) |
 | Pair documents | [`../adr/README.md`](../adr/README.md) · [`../../VERIFIABLE-CLAIMS.md`](../../VERIFIABLE-CLAIMS.md) · [`../TRIAL-2026-10.md`](../TRIAL-2026-10.md) · [`../security/assurance_case.md`](../security/assurance_case.md) |
@@ -74,6 +74,7 @@ are retired, with the reason, and their numbers are not reused.
 | VG-035 | **Incidents are detected and terminated on the record.** Attestation failure, validation hard-fail and audit-append failure are handled by the incident module; a tamper signal or an anomaly escalates to a human. | `internal/vault/incident/`; `INCIDENT_DETECTED`, `INCIDENT_TERMINATED`; `docs/operator/03_incident_response.md` | per-package tests; `03_incident_response.md` scenarios 1–3 | B2, B4 | scenarios 4–5 are the institution's process |
 | VG-036 | **The operator can stop a move, and every refusal is recorded** — the stop list, the policy serial, the quarantine. | ADR 0010, 0017; `internal/vault/policy/` | C22 (the eight answers on the record) | B1, B2 | — |
 | VG-037 | **Time comes from one clock in each daemon**, never from `time.Now()` in product code, and every record carries it. | semgrep `vg-direct-time-now`; `internal/shared/time/` | the gate | B4 | synchronising the host's clock to a reference source is the deployer's; see finding F3 in the banking map |
+| VG-038 | **The cryptographic module is named, and the release carries a variant on the certified one.** Every build is approved-mode clean in its AEAD and KDF use (the module's own AES-GCM nonces, its HKDF); the `-fips` variant of each binary and image is built on the Go Cryptographic Module v1.0.0 (CMVP #5247) and runs it in FIPS mode; `version` and `identity` say which module; the kits under `fips140=only` show the services invoked are approved ones. | ADR 0030; `Makefile` (`build-fips`), `.github/workflows/release.yml`; `internal/shared/crypto/fips.go`, `gcm.go`, `mac.go` | C42; `make test-fips140-only` in the gate; `make verify-reproducible` over both builds | B5 | the module's certificate, not a validation of the product; the confidential-GPU path is not measured under the module yet (ADR 0030) |
 
 ## What is deliberately not in this catalogue
 

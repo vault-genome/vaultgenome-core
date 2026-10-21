@@ -23,8 +23,9 @@ seal to a vTPM call `tpm2-tools`, which the images do not carry.
 ## What a run does
 
 1. On the runner: downloads `images-<tag>.txt` and the released
-   `sagvd`, `acp-compute`, `acpctl`, `acp-keygen` and worker package
-   with their Sigstore bundles and verifies all six under the release
+   `sagvd`, `acp-compute`, `acpctl`, `acp-keygen` and worker package —
+   from 0.8.0 `sagvd-fips` and `acp-compute-fips` too (ADR 0030) — with
+   their Sigstore bundles and verifies all of them under the release
    workflow's identity; confirms each image is publicly readable — an
    anonymous pull of its manifest, no registry login consulted, because
    a package pushed for the first time is private and an integrator
@@ -32,7 +33,9 @@ seal to a vTPM call `tpm2-tools`, which the images do not carry.
    then each image by digest — `cosign verify`,
    `cosign verify-attestation --type spdxjson`, `slsa-verifier
    verify-image` — and exports each to check that the binary inside is
-   byte-identical to the release asset; then pulls each image into a
+   byte-identical to the release asset (for a `-fips` image, the `-fips`
+   asset: the binary sits at the same path inside, so the image is a
+   drop-in); the two default images then go to the guest; then pulls each image into a
    tarball (`crane`, by digest) and records the signed manifest's config
    digest and the config's `rootfs.diff_ids`.
 2. Uploads the two tarballs, the released `acpctl`, `acp-keygen` and
@@ -103,3 +106,19 @@ loaded image's `RootFS.Layers` equal to the signed config's `diff_ids`
 publicly readable; the binary inside each equals the release asset
 (`fc11d465…`, `367d4b15…`); on the guest, `gate_level=EXACT` 6/6, the
 rogue refused, the audit log verified (17 events), 211 s.
+
+`20261021T224031Z` is the run on the rehearsal `v0.8.0-rc1` of the
+`-fips` release variant (ADR 0030, part three; release procedure §4.1),
+ten minutes after the tag's pipeline finished: PASS — the first record
+with four images. `sagvd@sha256:2fa0a32b…`, `acp-compute@sha256:db2019ae…`,
+`sagvd-fips@sha256:19ed8ecf…` and `acp-compute-fips@sha256:c97ad11c…`,
+all four publicly readable at their first push; each signature, SBOM
+attestation and container provenance verified; the binary inside each
+equal to its release asset — `sagvd-fips`'s to the `sagvd-fips` asset
+(`5ed67cf2…`), `acp-compute-fips`'s to `acp-compute-fips` (`1dc2bab2…`),
+the binary at the same path inside as in the default image; each loaded
+image's `RootFS.Layers` equal to the signed config's `diff_ids` (13
+layers for `sagvd` and `sagvd-fips`, 9 for the two workers). The two
+default images ran on the guest: `gate_level=EXACT` 6/6, both rogues
+refused, the audit log verified (17 events), 186.9 s. The rehearsal's
+release was deleted afterwards and the tag kept (§4.1).

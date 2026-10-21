@@ -13,6 +13,20 @@ given release can still open.
 
 ### Added
 
+- **The `-fips` release variant** (ADR 0030, part three): `make build-fips`
+  builds the five binaries on the certified Go Cryptographic Module v1.0.0
+  (`GOFIPS140=v1.0.0`, CMVP #5247; the version named, never an alias) as
+  `bin/<name>-fips`; `verify-reproducible` covers both builds; the gate
+  builds both. `release.yml` ships them beside the default ones — each with
+  its SBOM, signature, certificate and Sigstore bundle, in the SLSA
+  provenance (88 build assets), and as the images `sagvd-fips` and
+  `acp-compute-fips` (signed by digest, SBOM-attested, a provenance each;
+  `images-<tag>.txt` names four) — and refuses a `-fips` binary whose
+  build settings do not name the module. The `-fips` binaries run the
+  module in its approved mode: `version` ends `fips140=on module=v1.0.0`.
+  The §5 kits verify the `-fips` assets and images too. `banking.md`
+  closes finding F2 and names what remains (F2b); `controls.md` gains
+  VG-038.
 - `VG_FIPS=1` in the hardware kits `keyrelease-e2e`, `returnpath-e2e` and
   `reference-design-01` (ADR 0030, part two): the binaries built on the
   certified Go Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`), every Go

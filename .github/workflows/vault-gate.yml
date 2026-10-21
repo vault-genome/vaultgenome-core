@@ -62,9 +62,10 @@ jobs:
       - name: vet
         run: make vet
 
-      # 03 build
+      # 03 build — the default build and the FIPS build (ADR 0030): a
+      # binary that does not build on the certified module fails here.
       - name: build
-        run: make build
+        run: make build build-fips
 
       # 04 unit
       - name: unit tests

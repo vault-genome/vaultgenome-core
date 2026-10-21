@@ -15,13 +15,14 @@ created and deleted by the run.
 
 ## What the run does
 
-1. **Downloads the release's assets** — the five binaries and the worker
-   package, their keyless cosign signatures and certificates, the SBOMs
-   with theirs, and the SLSA provenance — and **verifies every one** before
-   anything runs: `cosign verify-blob` against the release workflow's
-   identity and the GitHub OIDC issuer (twelve signatures), `slsa-verifier
-   verify-artifact` against the source repository and the tag (six
-   artifacts), and the tag's own signature against the keys pinned on
+1. **Downloads the release's assets** — the five binaries, from 0.8.0
+   their `-fips` variants on the certified module (ADR 0030), and the
+   worker package, their keyless cosign signatures and certificates, the
+   SBOMs with theirs, and the SLSA provenance — and **verifies every one**
+   before anything runs: `cosign verify-blob` against the release
+   workflow's identity and the GitHub OIDC issuer (twelve signatures;
+   twenty-two from 0.8.0), `slsa-verifier verify-artifact` against the
+   source repository and the tag (six artifacts; eleven from 0.8.0), and the tag's own signature against the keys pinned on
    `main` (`.github/allowed_signers`). A signature that does not verify
    stops the run. From 0.4.3 the release carries a Sigstore bundle beside
    each pair, and the kit verifies the same twelve files from their
@@ -31,7 +32,7 @@ created and deleted by the run.
    0.4.2 has four binaries and no
    package: eight signatures, four provenances, and the pieces below from
    the tag's source — the record of `v0.4.1` says so.)
-2. **Rebuilds the five binaries and the worker package from the tag** with
+2. **Rebuilds the five binaries (and the `-fips` five, from 0.8.0) and the worker package from the tag** with
    the inputs `release.yml` uses (the tag as VERSION, the commit as COMMIT,
    its time as SOURCE_DATE_EPOCH, CGO off, linux/amd64; GNU tar with sorted
    names, numeric owner 0 and that time as every mtime, GNU gzip without a
@@ -90,3 +91,4 @@ holds reports, decisions and logs only.
 | `v0.6.0` | [`evidence/20261017T041506Z/`](evidence/20261017T041506Z/) | 49 assets; the twelve pairs and the twelve bundles verified (the bundles with `--trusted-root` and the network denied), six provenances and the tag; the five binaries and the package rebuilt from the tag byte for byte; the guest from release assets alone — `tee.provider: "auto"`, the key files sealed to the chip, the thief with the sealed files and the unpinned worker both refused, the gate job EXACT, the audit log verified (17 events); 120.7 s on the guest. The kit ran two and a half minutes after the release was published. |
 | `v0.6.1` | [`evidence/20261021T132732Z/`](evidence/20261021T132732Z/) | 55 assets — the six of the images job among them; the twelve pairs and the twelve bundles verified (the bundles with `--trusted-root` and the network denied), six provenances and the tag; the five binaries and the package rebuilt from the tag byte for byte (go1.27.3); the guest from release assets alone — the key files sealed to the chip, the thief with the sealed files and the unpinned worker both refused, the gate job EXACT, the audit log verified (17 events); 128.4 s on the guest. The kit ran six minutes after the release was published; the images kit deployed the same release's images in the same minutes (`../release-deploy-images/evidence/20261021T132958Z/`). |
 | `v0.7.0` | [`evidence/20261021T164732Z/`](evidence/20261021T164732Z/) | 55 assets; the twelve pairs and the twelve bundles verified (the bundles with `--trusted-root` and the network denied), six provenances and the tag; the five binaries and the package rebuilt from the tag byte for byte (go1.27.3); the guest from release assets alone — the key files sealed to the chip, the thief with the sealed files and the unpinned worker both refused, the gate job EXACT, the audit log verified (18 events — the 18th a handshake that failed as sagvd stopped, on the record as a refusal); 133.2 s on the guest. The kit ran ten minutes after the release was published; the images kit deployed the same release's images in the same minutes (`../release-deploy-images/evidence/20261021T164959Z/`), and the key-release kit ran the binaries of the tag's commit under the `fips` profile (`../gcp-sev-snp/keyrelease-e2e/evidence/20261021T164918Z/`). |
+| `v0.8.0-rc1` (rehearsal, ADR 0030 part three) | [`evidence/20261021T223719Z/`](evidence/20261021T223719Z/) | 97 assets; the twenty-two pairs and the twenty-two bundles verified (the bundles with `--trusted-root` and the network denied), eleven provenances and the tag; the five binaries, their five `-fips` variants and the package rebuilt from the tag byte for byte (go1.27.3, on a Darwin arm64 host for linux/amd64 — the `-fips` builds on the certified module reproduce across hosts like the others); the guest from release assets alone — the key files sealed to the chip, both rogues refused, the gate job EXACT, the audit log verified (17 events); 128.1 s on the guest. The kit's first run against this tag stopped on its own count of signature pairs (still twelve while it verified twenty-two); the count follows the artifact count since. |

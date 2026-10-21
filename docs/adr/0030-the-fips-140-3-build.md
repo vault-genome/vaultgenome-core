@@ -1,6 +1,6 @@
 # ADR 0030 — The FIPS 140-3 build: the certified Go Cryptographic Module, approved-mode discipline in every build, and the only-mode assessment on the record
 
-- **Status:** Accepted (2026-10-21) — part one (the code: the v2 suites, the module's AES-GCM and HKDF, bundle v4, the only-mode assessment in the gate) and part two (the kits under `VG_FIPS=1`, C42) in the tree; part three (the `-fips` release matrix) to follow
+- **Status:** Accepted (2026-10-21) — part one (the code: the v2 suites, the module's AES-GCM and HKDF, bundle v4, the only-mode assessment in the gate), part two (the kits under `VG_FIPS=1`, C42) and part three (the `-fips` release variant in `release.yml`, the documents) in the tree
 - **Tags:** crypto, fips, build, release, aead, bundle, hkdf, assessment
 - **Extends:** ADR 0029 (the profiles and the suites: what each build may *use*); ADR 0023 (sealed key files); `docs/operator/05_release_procedure.md`
 - **Closes:** the rest of finding F2 of the banking map (`docs/compliance/banking.md` §9), once parts one to three are in the tree
@@ -214,11 +214,20 @@ algorithm.
   `steps.txt`, the runner's `build.txt`), the verdict requiring it; runs
   on SEV-SNP under `fips` and `cnsa` (2026-10-21); claim C42; the cGPU
   measurement listed as open.
-- **Part three (release):** the `-fips` matrix in `release.yml` (binaries,
-  images, SBOMs, provenance, the images list), an rc rehearsal (§4.1),
-  `05_release_procedure.md`, the ledger in `08_upgrading.md` (bundle v4,
-  the module version), `banking.md` §6 and §9 (F2 closed), `controls.md`,
-  `CHANGELOG.md`, `README.md`.
+- **Part three (release):** `make build-fips` (`bin/<name>-fips`,
+  `GOFIPS140=$(FIPS_MODULE)`, `FIPS_MODULE := v1.0.0`), `verify-reproducible`
+  over both builds, the gate building both; in `release.yml` the five
+  `-fips` binaries beside the default ones (SBOM, signature, certificate,
+  bundle, provenance; 88 build assets), the images `sagvd-fips` and
+  `acp-compute-fips` (the same Dockerfiles over the `-fips` binaries, the
+  binary at the same path inside; signed, SBOM-attested, a provenance
+  each; `images-<tag>.txt` names four; 97 assets), the build refusing a
+  `-fips` binary whose build settings do not name the module; the §5 kits
+  verifying the `-fips` assets and images; `05_release_procedure.md`, the
+  ledger in `08_upgrading.md`, `banking.md` §6 and §9 (F2 closed, F2b
+  named), `controls.md` VG-038, `supply_chain.md`, the compose README,
+  `CHANGELOG.md`, `README.md`. The rehearsal of the workflow (§4.1) is on
+  the record in `05_release_procedure.md`.
 
 ## References
 
