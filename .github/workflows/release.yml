@@ -174,6 +174,20 @@ jobs:
             --output-certificate "dist/genome-worker-${VERSION}.sbom.cert" \
             --bundle "dist/genome-worker-${VERSION}.sbom.sigstore.json"
 
+      # The image job builds on another runner: it takes these exact bytes,
+      # with their Sigstore bundles, and verifies them before packing.
+      - name: Keep the signed binaries for the image job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-binaries
+          path: |
+            bin/sagvd
+            bin/acp-compute
+            dist/sagvd.sigstore.json
+            dist/acp-compute.sigstore.json
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Emit hashes for SLSA provenance
         id: hash
         env:
@@ -234,3 +248,172 @@ jobs:
     with:
       base64-subjects: ${{ needs.build-and-sign.outputs.hashes }}
       upload-assets: true
+
+  # The two container images of the release: sagvd on distroless static,
+  # acp-compute on python-slim with the worker's hash-locked runtime
+  # (deploy/image/*/Dockerfile). Nothing is compiled here: the binaries are
+  # the ones build-and-sign produced, verified against their Sigstore
+  # bundles before they are packed, so the image carries the bytes the
+  # release assets carry. Each image is pushed by digest, signed keyless
+  # by digest, given an SBOM attestation, and named with its digest in
+  # images-<tag>.txt among the release assets; slsa-images attests how
+  # each was built.
+  images:
+    needs: [build-and-sign]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write       # images-<tag>.txt as a release asset
+      packages: write       # ghcr.io
+      id-token: write       # keyless cosign
+    outputs:
+      sagvd_digest: ${{ steps.sagvd.outputs.digest }}
+      worker_digest: ${{ steps.worker.outputs.digest }}
+    env:
+      REGISTRY: ghcr.io
+      OWNER: ${{ github.repository_owner }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The signed binaries from the build job
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-binaries
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v2.6.5'
+
+      # The artifact is this workflow's own, but the check costs nothing
+      # and makes the image job stand on the signatures, not on the
+      # artifact store: each binary must verify under this workflow's
+      # identity on this tag before it is packed.
+      - name: The binaries are the signed ones
+        run: |
+          set -euo pipefail
+          for b in sagvd acp-compute; do
+            cosign verify-blob --new-bundle-format --bundle "dist/${b}.sigstore.json" \
+              --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${TAG}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              "bin/${b}"
+          done
+          chmod 0755 bin/sagvd bin/acp-compute
+          sha256sum bin/sagvd bin/acp-compute
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # provenance and sbom off: buildx would otherwise push an attestation
+      # manifest list and the digest would name that list, not the image;
+      # the provenance comes from slsa-images and the SBOM from cosign attest.
+      - name: Build and push sagvd
+        id: sagvd
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/image/sagvd/Dockerfile
+          push: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ github.repository_owner }}/sagvd:${{ github.ref_name }}
+
+      - name: Build and push acp-compute
+        id: worker
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/image/acp-compute/Dockerfile
+          push: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ github.repository_owner }}/acp-compute:${{ github.ref_name }}
+
+      - name: Sign the images (keyless, by digest)
+        env:
+          SAGVD_DIGEST: ${{ steps.sagvd.outputs.digest }}
+          WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${REGISTRY}/${OWNER}/sagvd@${SAGVD_DIGEST}"
+          cosign sign --yes "${REGISTRY}/${OWNER}/acp-compute@${WORKER_DIGEST}"
+
+      - name: Install syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          syft-version: v1.54.1
+
+      - name: SBOM per image, attested to the image
+        env:
+          SAGVD_DIGEST: ${{ steps.sagvd.outputs.digest }}
+          WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
+        run: |
+          set -euo pipefail
+          SYFT="${{ steps.syft.outputs.cmd }}"
+          mkdir -p dist
+          "$SYFT" "registry:${REGISTRY}/${OWNER}/sagvd@${SAGVD_DIGEST}" -o spdx-json="dist/sagvd.image.sbom.spdx.json"
+          "$SYFT" "registry:${REGISTRY}/${OWNER}/acp-compute@${WORKER_DIGEST}" -o spdx-json="dist/acp-compute.image.sbom.spdx.json"
+          cosign attest --yes --type spdxjson --predicate dist/sagvd.image.sbom.spdx.json "${REGISTRY}/${OWNER}/sagvd@${SAGVD_DIGEST}"
+          cosign attest --yes --type spdxjson --predicate dist/acp-compute.image.sbom.spdx.json "${REGISTRY}/${OWNER}/acp-compute@${WORKER_DIGEST}"
+
+      # One small asset names the images by digest, so a deployment that
+      # starts from the release page pulls exactly what was signed; its
+      # Sigstore bundle verifies offline like the others'.
+      - name: Record the digests as a release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SAGVD_DIGEST: ${{ steps.sagvd.outputs.digest }}
+          WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          {
+            echo "${REGISTRY}/${OWNER}/sagvd@${SAGVD_DIGEST}"
+            echo "${REGISTRY}/${OWNER}/acp-compute@${WORKER_DIGEST}"
+          } > "dist/images-${TAG}.txt"
+          cosign sign-blob --yes --new-bundle-format "dist/images-${TAG}.txt" \
+            --output-signature "dist/images-${TAG}.txt.sig" \
+            --output-certificate "dist/images-${TAG}.txt.cert" \
+            --bundle "dist/images-${TAG}.txt.sigstore.json"
+          for f in "dist/images-${TAG}.txt" "dist/images-${TAG}.txt.sig" "dist/images-${TAG}.txt.cert" "dist/images-${TAG}.txt.sigstore.json" \
+                   dist/sagvd.image.sbom.spdx.json dist/acp-compute.image.sbom.spdx.json; do
+            for attempt in 1 2 3; do
+              if gh release upload "$TAG" "$f" --clobber; then break; fi
+              [ "$attempt" = 3 ] && { echo "failed to upload $f after 3 attempts"; exit 1; }
+              sleep $((attempt * 5))
+            done
+          done
+          cat "dist/images-${TAG}.txt"
+
+  slsa-images:
+    needs: [images]
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: sagvd
+            digest: ${{ needs.images.outputs.sagvd_digest }}
+          - image: acp-compute
+            digest: ${{ needs.images.outputs.worker_digest }}
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0   # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag -- the SLSA generator must be referenced by tag: slsa-verifier checks the builder id against the tag, and a hash-pinned reference does not verify
+    with:
+      image: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+      digest: ${{ matrix.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}

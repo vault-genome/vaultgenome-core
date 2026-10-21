@@ -45,6 +45,60 @@ downloads nothing. To restore a real model, seal
 its genome with `acpctl genome seal --content-dir` into `genomes/` and mount
 its base directory into the worker with `ACP_BASE_MODEL=/path/to/base`.
 
+## Run the released images instead of building
+
+From the next release the images are on `ghcr.io`, signed by digest
+(`docs/security/supply_chain.md`). Take both digests from the release's
+`images-<tag>.txt` (verify it like any asset first), verify each image,
+then point the services at them with an override file instead of
+`build:`:
+
+```
+cosign verify ghcr.io/vault-genome/sagvd@sha256:… \
+  --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+```yaml
+# deploy/compose/docker-compose.release.yml
+services:
+  sagvd:
+    image: ghcr.io/vault-genome/sagvd@sha256:…
+    build: !reset null
+  acp-compute:
+    image: ghcr.io/vault-genome/acp-compute@sha256:…
+    build: !reset null
+```
+
+`docker compose -f docker-compose.yml -f docker-compose.release.yml up`.
+The rest — keys, certificates, the genome, the mounts — is the same.
+
+The images carry the daemons; the TEE they attest with is the host's.
+On a GCP SEV-SNP guest (Ubuntu 24.04, Docker 29, measured 2026-10-21 on
+a throwaway guest) a daemon's container reaches the chip only like this:
+
+- the whole `configfs` bound read-write — `-v /sys/kernel/config:/sys/kernel/config:rw`
+  (a bind of `/sys/kernel/config/tsm` alone does not mount);
+- Docker's default AppArmor profile set aside — `--security-opt apparmor=unconfined` —
+  because `docker-default` denies every write under `/sys` and the report
+  request is a `mkdir` there;
+- the devices — `--device /dev/sev-guest --device /dev/tpmrm0`;
+- **as root** (`--user 0:0`), although the images run as `nonroot` by
+  default: `configfs` creates the request's attribute files owned by
+  root, so a non-root process can make the request directory but cannot
+  write `inblob` — a limit of `configfs`, not of Docker; a `chown` of the
+  report directory on the host does not change it.
+
+With those four, a container requested and received a 1184-byte SEV-SNP
+report through `configfs-tsm` as root; without the AppArmor change the
+`mkdir` is refused even for root. The hardware kit for the images
+(`scripts/hardware-test/release-deploy-images/`, the next pull request)
+runs the Return Path this way from the released images and keeps the
+record. The families that seal to a vTPM (`gcp-tdx`, `azure-sev-snp`,
+`azure-cgpu`) call `tpm2-tools`, which these images do not carry: the
+release images serve `gcp-sev-snp` today, and the other families run
+from the released binaries on the host as the operator pages describe.
+
 ## What acp-keygen provisions
 
 `cmd/acp-keygen` (a release binary since 0.4.2, signed and attested like
