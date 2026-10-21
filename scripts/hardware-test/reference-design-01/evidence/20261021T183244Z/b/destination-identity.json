@@ -1,0 +1,13 @@
+{
+  "tee_provider": "gcp-sev-snp",
+  "measurement_hex": "0e017d2fba7c4964575fdd8c770061abf07f0753148d030f94e969a2d1fa5a5747ba0ced9174f2d44b5f6663fa2de00f",
+  "sealer": "sev-snp-derived-key",
+  "crypto_profile": "general",
+  "kem_suites": [
+    "hpke-x25519-v1",
+    "hpke-p384-v1",
+    "hpke-mlkem768-v1",
+    "hpke-mlkem1024-p384-v1",
+    "hpke-xwing-v1"
+  ]
+}
