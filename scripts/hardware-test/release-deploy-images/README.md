@@ -94,3 +94,12 @@ names the configs). The images are `sagvd@sha256:b7ff8436…` and
 `acp-compute@sha256:6f843dc1…`, both publicly readable; the binary inside
 each equals the release asset (`6291f59e…`, `a418fdfe…`); on the guest,
 `gate_level=EXACT` 6/6, the rogue refused, the audit log verified, 178 s.
+
+`20261021T164959Z` is the run on `v0.7.0`, ten minutes after it was
+published: PASS — the six input hashes identical on both sides, each
+loaded image's `RootFS.Layers` equal to the signed config's `diff_ids`
+(13 layers for `sagvd`, 9 for `acp-compute`). The images are
+`sagvd@sha256:dbd7fac6…` and `acp-compute@sha256:7216a013…`, both
+publicly readable; the binary inside each equals the release asset
+(`fc11d465…`, `367d4b15…`); on the guest, `gate_level=EXACT` 6/6, the
+rogue refused, the audit log verified (17 events), 211 s.

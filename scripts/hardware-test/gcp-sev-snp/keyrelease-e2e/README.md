@@ -36,6 +36,15 @@ minutes end to end; each guest and bucket deleted by its run.
 | `fips` | `evidence/20261021T144804Z` | `hpke-p384-v1` — P-384, the first of the three fips offers | **ok**, recipient key `5931880a…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
 | `cnsa` | `evidence/20261021T144806Z` | `hpke-mlkem1024-p384-v1` — the ML-KEM-1024 + P-384 hybrid, the one cnsa offers | **ok**, recipient key `cf191bd8…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
 
+`20261021T164918Z` is the `fips` run on the binaries of the tag `v0.7.0`
+(commit `28fa01506f43`, built by the kit from the tree at the tag;
+release procedure §5), ten minutes after the release was published: both
+daemons `crypto_profile=fips`, the release under `hpke-p384-v1` to
+recipient key `f5eb716d…`, the restore confirmed, `genome verify` ok,
+the unlisted guest and the operator stop refused, the audit log verified
+(10 events); the measurement `ccdc5cf0…`, the same guest image as the
+three runs above.
+
 What each record holds beyond the earlier runs': `steps.txt` names the
 profile, both daemons' `crypto_profile` and `kem_suites` as `identity`
 printed them, and the release's `recipient_key_suite` and `crypto_profile`

@@ -12,8 +12,8 @@ downloads a release's assets, verifies every signature, the SLSA provenance
 and the tag, rebuilds the binaries from the tag and requires the hashes to
 equal the released files, then runs the Return Path on a fresh SEV-SNP
 Confidential VM with the released daemons and records what the guest did.
-Its record of `v0.6.1` is
-[`evidence/20261021T132732Z/`](../../scripts/hardware-test/release-deploy/evidence/20261021T132732Z/README.md)
+Its record of `v0.7.0` is
+[`evidence/20261021T164732Z/`](../../scripts/hardware-test/release-deploy/evidence/20261021T164732Z/README.md)
 — the first in which nothing came from the source tree: the key helper,
 the worker package and the AMD chain are the release's too; the numbers
 below are that record's. A first deployment that reproduces them is on the
@@ -36,7 +36,7 @@ cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
 slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
-  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.6.1
+  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.7.0
 ```
 
 and the same `cosign verify-blob` for each `*.sbom.spdx.json` with its
@@ -52,10 +52,10 @@ cosign 2.6.5 still reaches for the TUF mirror. Then the tag, against the
 keys pinned on `main`, never against keys in the tagged tree:
 
 ```bash
-git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.6.1
+git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.7.0
 ```
 
-| Check | What the reference saw for `v0.6.1` | Where |
+| Check | What the reference saw for `v0.7.0` | Where |
 | - | - | - |
 | cosign, artifacts and SBOMs | twelve `Verified OK` from the pairs, and the same twelve from their Sigstore bundles with `--trusted-root` and the network denied (eight for `v0.4.1`, which had four artifacts) | `verify/cosign.txt`, `verify/cosign-bundle-nonet.txt` |
 | slsa-verifier, the artifacts | six `PASSED: SLSA verification passed` (four for `v0.4.1`) | `verify/slsa.txt` |
@@ -73,7 +73,7 @@ If you have a GCP project, run the kit itself and compare its record with
 the one in the tree:
 
 ```bash
-./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.6.1
+./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.7.0
 ```
 
 About fifteen minutes and one `n2d-standard-4`, created and deleted by the
@@ -247,8 +247,10 @@ In the order the reference guest script does it
    acpctl audit query --audit <audit.log_path> --limit 0 --json
    ```
 
-   The reference: `ok: true`, 17 events from the first start to the sealed
-   verdict, every decision in order (`results/audit-verify.json`,
+   The reference: `ok: true`, 18 events from the first start to the sealed
+   verdict and the one refusal after it (a handshake that failed as
+   `sagvd` stopped — the record's README names it; `v0.6.1` saw 17), every
+   decision in order (`results/audit-verify.json`,
    `results/audit-events.jsonl`). A log that does not verify stops every
    release ([03](03_incident_response.md), [04](04_observability.md) §2).
 
