@@ -5,8 +5,6 @@ package crosscloud
 
 import (
 	"bytes"
-	"crypto/ecdh"
-	"crypto/rand"
 	"crypto/subtle"
 	"fmt"
 	"sync"
@@ -30,10 +28,15 @@ import (
 type HandshakeResponse struct {
 	Evidence        []byte
 	MeasurementHint []byte
-	// RecipientPublicKey is the X25519 key generated for this handshake.
-	// Evidence was quoted over kms.RecipientChallenge(RecipientPublicKey,
-	// nonce), which is what lets the source trust it.
+	// RecipientPublicKey is the key generated for this handshake under
+	// RecipientKeySuite. Evidence was quoted over
+	// kms.RecipientChallengeV2(suite, RecipientPublicKey, nonce), which
+	// is what lets the source trust both.
 	RecipientPublicKey []byte
+	// RecipientKeySuite is the KEM suite (ADR 0029) this destination chose
+	// from the source's list: the first of the source's preferences its
+	// own policy accepts.
+	RecipientKeySuite string
 }
 
 // KeyRegistrar is the destination-side keystore abstraction used to
@@ -91,6 +94,12 @@ type Config struct {
 	// block: it runs on the request's goroutine. acp-bootstrap hands it
 	// to the genome restorer.
 	OnDelivery func(Delivery)
+
+	// Suites is this destination's cryptographic profile as a policy
+	// (ADR 0029): the KEM suites it generates a handshake key under,
+	// chosen in the source's order of preference from what the source
+	// offers. Zero selects the general profile.
+	Suites kms.SuitePolicy
 }
 
 // Delivery describes a key-release token the Receiver accepted.
@@ -106,11 +115,11 @@ type Delivery struct {
 // tokens on the destination side. Construct via NewReceiver; the
 // returned Receiver is safe for concurrent use.
 //
-// Every handshake gets its own X25519 key pair, generated here and kept
-// only in memory until the matching token consumes it, or until it
-// expires. The DEKs of one restore therefore stay confidential even if
-// a later handshake's key, or the host after the restore, is
-// compromised.
+// Every handshake gets its own key pair, under the suite the two sides
+// settle on, generated here and kept only in memory until the matching
+// token consumes it, or until it expires. The DEKs of one restore
+// therefore stay confidential even if a later handshake's key, or the
+// host after the restore, is compromised.
 type Receiver struct {
 	sourceKeys keys.Resolver
 	localTEE   tee.Producer
@@ -120,6 +129,7 @@ type Receiver struct {
 	ttl        time.Duration
 	maxPending int
 	onDelivery func(Delivery)
+	suites     kms.SuitePolicy
 
 	// localMeasurement is cached at construction; the local TEE's
 	// measurement does not change for the life of the daemon
@@ -140,6 +150,7 @@ type Receiver struct {
 // pendingKey is one handshake's recipient key, waiting for its token.
 type pendingKey struct {
 	priv       []byte
+	suite      kms.Suite
 	decisionID ids.DecisionID
 	expires    time.Time
 }
@@ -165,6 +176,10 @@ func NewReceiver(cfg Config) (*Receiver, error) {
 	if cfg.PendingTTL < 0 || cfg.MaxPending < 0 {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crosscloud.NewReceiver: PendingTTL and MaxPending must not be negative", nil)
 	}
+	suites := cfg.Suites
+	if suites.IsZero() {
+		suites = kms.DefaultSuitePolicy()
+	}
 	r := &Receiver{
 		sourceKeys:       cfg.SourceAuthorityKeys,
 		localTEE:         cfg.LocalTEE,
@@ -174,6 +189,7 @@ func NewReceiver(cfg Config) (*Receiver, error) {
 		ttl:              cfg.PendingTTL,
 		maxPending:       cfg.MaxPending,
 		onDelivery:       cfg.OnDelivery,
+		suites:           suites,
 		localMeasurement: cfg.LocalTEE.Measurement(),
 		pending:          make(map[ids.RequestID]*pendingKey),
 		delivered:        make(map[ids.KeyID][32]byte),
@@ -202,14 +218,18 @@ func NewReceiver(cfg Config) (*Receiver, error) {
 //  3. Source signature verified against the source authority's
 //     pre-loaded public key. Nothing below runs for an unsigned or
 //     forged request.
-//  4. A new X25519 key pair is generated and recorded against the
-//     request ID; a request ID already outstanding is a replay and is
-//     refused rather than allowed to replace the key.
-//  5. Local Evidence is quoted over kms.RecipientChallenge(pub, nonce).
+//  4. The KEM suite is chosen: the first of the source's KEMSuites this
+//     destination's policy accepts (ADR 0029). A request naming none,
+//     or none this policy accepts, is refused.
+//  5. A new key pair under that suite is generated and recorded against
+//     the request ID; a request ID already outstanding is a replay and
+//     is refused rather than allowed to replace the key.
+//  6. Local Evidence is quoted over kms.RecipientChallengeV2(suite, pub,
+//     nonce).
 //
-// The returned HandshakeResponse carries the Evidence, the public key
-// and a MeasurementHint (informational; the source re-derives the
-// measurement from the Evidence).
+// The returned HandshakeResponse carries the Evidence, the public key,
+// its suite and a MeasurementHint (informational; the source re-derives
+// the measurement from the Evidence).
 func (r *Receiver) HandleHandshakeRequest(
 	req cchr.CrossCloudHandshakeRequest,
 ) (HandshakeResponse, error) {
@@ -231,20 +251,30 @@ func (r *Receiver) HandleHandshakeRequest(
 		)
 	}
 
-	key, err := ecdh.X25519().GenerateKey(rand.Reader)
-	if err != nil {
-		return HandshakeResponse{}, shared_errors.Operational(
-			shared_errors.CodeResourceExhausted,
-			"crosscloud.HandleHandshakeRequest: recipient key generation failed",
-			err,
+	if len(req.KEMSuites) == 0 {
+		return HandshakeResponse{}, shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"crosscloud.HandleHandshakeRequest: the source names no KEM suite (ADR 0029: both daemons move together)",
+			nil,
 		)
 	}
-	pub := key.PublicKey().Bytes()
-	if err := r.remember(req.RequestID, req.DecisionID, key.Bytes()); err != nil {
+	suite, ok := r.suites.Choose(req.KEMSuites)
+	if !ok {
+		return HandshakeResponse{}, shared_errors.Authority(
+			shared_errors.CodeAttestationDenied,
+			fmt.Sprintf("crosscloud.HandleHandshakeRequest: none of the KEM suites the source offers (%v) is accepted under this destination's %s profile (%v)", req.KEMSuites, r.suites.Profile(), r.suites.SuiteIDs()),
+			nil,
+		)
+	}
+	priv, pub, err := suite.GenerateRecipientKey()
+	if err != nil {
+		return HandshakeResponse{}, err
+	}
+	if err := r.remember(req.RequestID, req.DecisionID, suite, priv); err != nil {
 		return HandshakeResponse{}, err
 	}
 
-	evidence, err := r.localTEE.Quote(kms.RecipientChallenge(pub, req.HandshakeNonce))
+	evidence, err := r.localTEE.Quote(kms.RecipientChallengeV2(suite, pub, req.HandshakeNonce))
 	if err != nil {
 		r.forget(req.RequestID)
 		return HandshakeResponse{}, shared_errors.Operational(
@@ -259,8 +289,12 @@ func (r *Receiver) HandleHandshakeRequest(
 		Evidence:           evidence,
 		MeasurementHint:    measurementCopy,
 		RecipientPublicKey: pub,
+		RecipientKeySuite:  string(suite),
 	}, nil
 }
+
+// Suites returns the policy this destination chooses suites under.
+func (r *Receiver) Suites() kms.SuitePolicy { return r.suites }
 
 // HandleKeyReleaseToken validates a KeyReleaseToken and, on success,
 // unwraps each WrappedKey and registers the result in the local
@@ -280,7 +314,8 @@ func (r *Receiver) HandleHandshakeRequest(
 //     a. Purpose must equal krt.PurposeSealing.
 //     b. AAD must equal the canonical SHA-256(TokenID ||
 //     DestinationMeasurement || KeyID) derived locally.
-//     c. The X25519 KEM opens the ciphertext with the handshake key.
+//     c. Suite must be the suite the handshake's key was generated
+//     under; the suite opens the ciphertext with that key.
 //     d. Plaintext registered via Registrar.RegisterSealing(KeyID).
 //
 // Keys registered before a later WrappedKey fails are NOT rolled back
@@ -337,7 +372,14 @@ func (r *Receiver) HandleKeyReleaseToken(token krt.KeyReleaseToken) (int, error)
 				nil,
 			)
 		}
-		plaintext, err := kms.X25519KeyUnwrapper{}.Unwrap(w.Ciphertext, pk.priv, w.AAD)
+		if kms.Suite(w.Suite) != pk.suite {
+			return registered, shared_errors.Integrity(
+				shared_errors.CodeAttestationDenied,
+				fmt.Sprintf("crosscloud.HandleKeyReleaseToken: wrapped[%d] is under KEM suite %q; the handshake's key is under %q", i, w.Suite, pk.suite),
+				nil,
+			)
+		}
+		plaintext, err := pk.suite.Unwrap(kms.PurposeCrossCloudDEK, w.Ciphertext, pk.priv, w.AAD)
 		if err != nil {
 			return registered, err
 		}
@@ -400,7 +442,7 @@ func (r *Receiver) Outstanding() int {
 // remember records a handshake's key. A request ID that is already
 // outstanding is refused, not replaced: replacing it would let a
 // replayed handshake invalidate the key the source is about to wrap to.
-func (r *Receiver) remember(id ids.RequestID, decision ids.DecisionID, priv []byte) error {
+func (r *Receiver) remember(id ids.RequestID, decision ids.DecisionID, suite kms.Suite, priv []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.purgeExpiredLocked()
@@ -422,6 +464,7 @@ func (r *Receiver) remember(id ids.RequestID, decision ids.DecisionID, priv []by
 	}
 	r.pending[id] = &pendingKey{
 		priv:       priv,
+		suite:      suite,
 		decisionID: decision,
 		expires:    r.clock.Now().Add(r.ttl),
 	}

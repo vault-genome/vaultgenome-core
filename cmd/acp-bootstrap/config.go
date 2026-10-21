@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"io"
 	"net"
 	"os"
@@ -50,6 +51,33 @@ type Config struct {
 
 	// Log controls structured-logging format and verbosity.
 	Log LogConfig `json:"log"`
+
+	// Crypto is the cryptographic profile (ADR 0029): the KEM suites this
+	// destination generates a handshake key under, chosen in the source's
+	// order of preference from what the source offers. Omitted, the
+	// general profile.
+	Crypto CryptoConfig `json:"crypto,omitempty"`
+}
+
+// CryptoConfig is the deployment's cryptographic profile (ADR 0029): the
+// KEM suite this daemon encapsulates under and the suites it accepts.
+type CryptoConfig struct {
+	// Profile is "general" (the default: X25519 written, every suite of
+	// the build accepted), "fips" (P-384 written; P-384, ML-KEM-768 and
+	// the MLKEM1024-P384 hybrid accepted — the primitives the Go
+	// Cryptographic Module lists as approved) or "cnsa" (the
+	// MLKEM1024-P384 hybrid only).
+	Profile string `json:"profile,omitempty"`
+
+	// KEMSuites narrows the profile's list to these suites, in this
+	// order of preference (the first is written). Every name must be
+	// one the profile accepts; a profile is never widened here.
+	KEMSuites []string `json:"kem_suites,omitempty"`
+}
+
+// Policy returns the configuration as the policy the kms package applies.
+func (c CryptoConfig) Policy() (kms.SuitePolicy, error) {
+	return kms.NewSuitePolicyFromNames(c.Profile, c.KEMSuites)
 }
 
 // HTTPConfig controls the destination's HTTP listener.
@@ -382,6 +410,10 @@ func (c *Config) ResolveSecrets() error {
 // least exposure.MinBearerTokenLen characters.
 func (c Config) Validate() error {
 	var errs []error
+
+	if _, err := c.Crypto.Policy(); err != nil {
+		errs = append(errs, fmt.Errorf("crypto: %w", err))
+	}
 
 	listenOK := false
 	if strings.TrimSpace(c.HTTP.ListenAddress) == "" {

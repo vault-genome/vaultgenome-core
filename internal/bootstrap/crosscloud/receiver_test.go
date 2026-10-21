@@ -6,7 +6,6 @@ package crosscloud
 import (
 	"bytes"
 	"context"
-	"crypto/ecdh"
 	"crypto/rand"
 	"fmt"
 	"sync"
@@ -104,12 +103,24 @@ func signedHandshake(
 		DestinationTEEKind:  destinationKind,
 		DestinationEndpoint: "https://acp-bootstrap.test:8443",
 		HandshakeNonce:      nonce,
+		KEMSuites:           kms.DefaultSuitePolicy().SuiteIDs(),
 		InitiatedAt:         stdtime.Date(2026, 5, 9, 12, 0, 0, 0, stdtime.UTC),
 		SigningKeyID:        sourceKID,
 		Signature:           []byte{0x00},
 		AuditEventID:        ids.AuditEventID("evt-handshake-1"),
 	}
 	require.NoError(t, req.SignWith(signer))
+	return req
+}
+
+// signedHandshakeOffering is signedHandshake with the source offering the
+// given suites instead of the general profile's.
+func signedHandshakeOffering(t *testing.T, f *receiverFixture, requestID ids.RequestID, suites []string) cchr.CrossCloudHandshakeRequest {
+	t.Helper()
+	req := signedHandshake(t, f.source, f.sourceKID, requestID, tee.ProviderSimulated, mustRandomBytes(t, tee.NonceMinBytes))
+	req.KEMSuites = suites
+	req.Signature = []byte{0x00}
+	require.NoError(t, req.SignWith(f.source))
 	return req
 }
 
@@ -124,12 +135,15 @@ func (f *receiverFixture) handshake(t *testing.T, requestID ids.RequestID) []byt
 }
 
 // tokenSpec describes a source-signed token; zero fields take the values
-// an honest source would use for handshake "xcc-req-test-1".
+// an honest source would use for handshake "xcc-req-test-1" under the
+// general profile (X25519).
 type tokenSpec struct {
 	requestID    ids.RequestID
 	decisionID   ids.DecisionID
 	measurement  []byte
 	recipientPub []byte
+	suite        kms.Suite // the suite the keys are wrapped under; zero = X25519
+	label        string    // the suite the token names, when it must differ from suite
 	keys         map[ids.KeyID][]byte
 }
 
@@ -144,13 +158,19 @@ func (f *receiverFixture) signedToken(t *testing.T, s tokenSpec) krt.KeyReleaseT
 	if s.measurement == nil {
 		s.measurement = f.destMeasure[:]
 	}
+	if s.suite == "" {
+		s.suite = kms.SuiteHPKEX25519
+	}
+	if s.label == "" {
+		s.label = string(s.suite)
+	}
 	tokenID := ids.DecisionID("xcc-tok-test-1")
 	wrapped := make([]krt.WrappedKey, 0, len(s.keys))
 	for kid, plaintext := range s.keys {
 		aad := canonicalWrapAAD(tokenID, s.measurement, kid)
-		ct, err := kms.X25519KeyWrapper{}.Wrap(plaintext, s.recipientPub, aad)
+		ct, err := s.suite.Wrap(kms.PurposeCrossCloudDEK, plaintext, s.recipientPub, aad)
 		require.NoError(t, err)
-		wrapped = append(wrapped, krt.WrappedKey{KeyID: kid, Purpose: krt.PurposeSealing, Ciphertext: ct, AAD: aad})
+		wrapped = append(wrapped, krt.WrappedKey{KeyID: kid, Purpose: krt.PurposeSealing, Suite: s.label, Ciphertext: ct, AAD: aad})
 	}
 	tok := krt.KeyReleaseToken{
 		SchemaVersion:          krt.SchemaVersionCurrent,
@@ -236,12 +256,13 @@ func TestHandleHandshakeRequest_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Evidence)
 	require.Equal(t, []byte(f.destMeasure[:]), []byte(resp.MeasurementHint))
-	require.NoError(t, kms.ValidateRecipientPublicKey(resp.RecipientPublicKey))
+	require.Equal(t, "hpke-x25519-v1", resp.RecipientKeySuite, "a general destination meets a general source on X25519")
+	require.NoError(t, kms.Suite(resp.RecipientKeySuite).ValidateRecipientPublicKey(resp.RecipientPublicKey))
 	require.Equal(t, 1, f.receiver.Outstanding())
 }
 
 // The Evidence is what makes the presented key trustworthy: it verifies
-// under RecipientChallenge(key, nonce) and under nothing else.
+// under RecipientChallengeV2(suite, key, nonce) and under nothing else.
 func TestHandleHandshakeRequest_EvidenceBindsThePresentedKey(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
@@ -251,16 +272,96 @@ func TestHandleHandshakeRequest_EvidenceBindsThePresentedKey(t *testing.T) {
 	require.NoError(t, err)
 
 	verifier := tee.NewSimulatedVerifier(f.destProducer.PublicKey(), f.destMeasure)
-	measured, err := verifier.Verify(resp.Evidence, kms.RecipientChallenge(resp.RecipientPublicKey, nonce))
+	suite := kms.Suite(resp.RecipientKeySuite)
+	measured, err := verifier.Verify(resp.Evidence, kms.RecipientChallengeV2(suite, resp.RecipientPublicKey, nonce))
 	require.NoError(t, err)
 	require.Equal(t, f.destMeasure, measured)
 
-	other, err := ecdh.X25519().GenerateKey(rand.Reader)
+	_, other, err := suite.GenerateRecipientKey()
 	require.NoError(t, err)
-	_, err = verifier.Verify(resp.Evidence, kms.RecipientChallenge(other.PublicKey().Bytes(), nonce))
+	_, err = verifier.Verify(resp.Evidence, kms.RecipientChallengeV2(suite, other, nonce))
 	require.Error(t, err, "Evidence must not vouch for a substituted key")
+	_, err = verifier.Verify(resp.Evidence, kms.RecipientChallengeV2(kms.SuiteHPKEP384, resp.RecipientPublicKey, nonce))
+	require.Error(t, err, "Evidence must not vouch for the key under another suite's label")
+	_, err = verifier.Verify(resp.Evidence, kms.RecipientChallenge(resp.RecipientPublicKey, nonce))
+	require.Error(t, err, "Evidence must not be over the v1 challenge")
 	_, err = verifier.Verify(resp.Evidence, nonce)
 	require.Error(t, err, "Evidence must not be over the bare nonce")
+}
+
+// A source that names no suite — one of an earlier release — gets no key:
+// both daemons move together (ADR 0029).
+func TestHandleHandshakeRequest_RefusesRequestWithoutSuites(t *testing.T) {
+	t.Parallel()
+	f := makeReceiverFixture(t)
+	req := signedHandshake(t, f.source, f.sourceKID, "xcc-req-test-1", tee.ProviderSimulated, mustRandomBytes(t, tee.NonceMinBytes))
+	req.SchemaVersion = 1
+	req.KEMSuites = nil
+	req.Signature = []byte{0x00}
+	require.NoError(t, req.SignWith(f.source))
+	_, err := f.receiver.HandleHandshakeRequest(req)
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryStructural), "got %v", err)
+	require.ErrorContains(t, err, "names no KEM suite")
+	require.Zero(t, f.receiver.Outstanding())
+}
+
+// A fips destination takes the first suite the source offers that fips
+// accepts, and refuses a source that offers nothing fips accepts.
+func TestHandleHandshakeRequest_ChoosesUnderTheDestinationProfile(t *testing.T) {
+	t.Parallel()
+	fips, err := kms.NewSuitePolicy(kms.ProfileFIPS, nil)
+	require.NoError(t, err)
+	f := makeReceiverFixture(t, func(c *Config) { c.Suites = fips })
+
+	resp, err := f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-a", kms.DefaultSuitePolicy().SuiteIDs()))
+	require.NoError(t, err)
+	require.Equal(t, "hpke-p384-v1", resp.RecipientKeySuite, "the general source's first suite fips accepts")
+	require.Len(t, resp.RecipientPublicKey, kms.SuiteHPKEP384.PublicKeySize())
+
+	resp, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-b", []string{"hpke-mlkem768-v1", "hpke-p384-v1"}))
+	require.NoError(t, err)
+	require.Equal(t, "hpke-mlkem768-v1", resp.RecipientKeySuite, "the source's order decides")
+
+	_, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-c", []string{"hpke-x25519-v1", "hpke-xwing-v1"}))
+	require.Error(t, err)
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryAuthority), "got %v", err)
+	require.ErrorContains(t, err, "none of the KEM suites")
+	require.Equal(t, 2, f.receiver.Outstanding(), "a refused handshake makes no key")
+}
+
+// A token under the suite the handshake's key was generated under opens;
+// one that names another suite, or carries another suite's ciphertext
+// under the right name, does not — and burns the handshake key either way.
+func TestHandleKeyReleaseToken_SuiteMustBeTheHandshakes(t *testing.T) {
+	t.Parallel()
+	fips, err := kms.NewSuitePolicy(kms.ProfileFIPS, nil)
+	require.NoError(t, err)
+	f := makeReceiverFixture(t, func(c *Config) { c.Suites = fips })
+
+	resp, err := f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-test-1", []string{"hpke-p384-v1"}))
+	require.NoError(t, err)
+	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: resp.RecipientPublicKey, suite: kms.SuiteHPKEP384, keys: oneKey(t)}))
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	// The right name on another suite's ciphertext: the key is P-384, the ciphertext is not.
+	resp, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-test-1", []string{"hpke-p384-v1"}))
+	require.NoError(t, err)
+	_, otherPub, err := kms.SuiteHPKEMLKEM768.GenerateRecipientKey()
+	require.NoError(t, err)
+	n, err = f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: otherPub, suite: kms.SuiteHPKEMLKEM768, label: "hpke-p384-v1", keys: oneKey(t)}))
+	requireIntegrity(t, err)
+	require.Zero(t, n)
+
+	// Another suite's name on the token than the handshake's.
+	resp, err = f.receiver.HandleHandshakeRequest(signedHandshakeOffering(t, f, "xcc-req-test-1", []string{"hpke-p384-v1"}))
+	require.NoError(t, err)
+	n, err = f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: resp.RecipientPublicKey, suite: kms.SuiteHPKEP384, label: "hpke-mlkem768-v1", keys: oneKey(t)}))
+	requireIntegrity(t, err)
+	require.ErrorContains(t, err, "is under KEM suite")
+	require.Zero(t, n)
+	require.Zero(t, f.receiver.Outstanding(), "every token burned its handshake key")
 }
 
 func TestHandleHandshakeRequest_FreshKeyPerHandshake(t *testing.T) {
@@ -404,9 +505,9 @@ func TestHandleKeyReleaseToken_ExpiredHandshakeKeyIsGone(t *testing.T) {
 func TestHandleKeyReleaseToken_RejectsTokenWithoutHandshake(t *testing.T) {
 	t.Parallel()
 	f := makeReceiverFixture(t)
-	other, err := ecdh.X25519().GenerateKey(rand.Reader)
+	_, other, err := kms.SuiteHPKEX25519.GenerateRecipientKey()
 	require.NoError(t, err)
-	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: other.PublicKey().Bytes(), keys: oneKey(t)}))
+	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: other, keys: oneKey(t)}))
 	requireIntegrity(t, err)
 	require.Zero(t, n)
 }
@@ -426,9 +527,9 @@ func TestHandleKeyReleaseToken_RejectsKeysWrappedToAnotherRecipient(t *testing.T
 	t.Parallel()
 	f := makeReceiverFixture(t)
 	f.handshake(t, "xcc-req-test-1")
-	other, err := ecdh.X25519().GenerateKey(rand.Reader)
+	_, other, err := kms.SuiteHPKEX25519.GenerateRecipientKey()
 	require.NoError(t, err)
-	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: other.PublicKey().Bytes(), keys: oneKey(t)}))
+	n, err := f.receiver.HandleKeyReleaseToken(f.signedToken(t, tokenSpec{recipientPub: other, keys: oneKey(t)}))
 	requireIntegrity(t, err)
 	require.Zero(t, n)
 }
@@ -647,7 +748,7 @@ func (t *receiverBackedTransport) SendHandshakeRequest(
 	if err != nil {
 		return kms.HandshakeResponse{}, err
 	}
-	return kms.HandshakeResponse{Evidence: resp.Evidence, MeasurementHint: resp.MeasurementHint, RecipientPublicKey: resp.RecipientPublicKey}, nil
+	return kms.HandshakeResponse{Evidence: resp.Evidence, MeasurementHint: resp.MeasurementHint, RecipientPublicKey: resp.RecipientPublicKey, RecipientKeySuite: resp.RecipientKeySuite}, nil
 }
 
 func (t *receiverBackedTransport) SendKeyReleaseToken(

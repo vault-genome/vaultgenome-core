@@ -204,6 +204,21 @@ Invariant 09: a contract keeps `SchemaVersion` first and its
   the tree no longer has (`bootstrap-contracts.md`) — corrected with the
   implementation.
 
+## Implementation notes
+
+- **Cross-cloud (2026-10-21).** The contracts' signatures cover the
+  canonical JSON of the whole structure, re-serialized by the verifier
+  (`crypto.CanonicalJSON`): a field added to the handshake request or
+  the token is not verifiable by a daemon of an earlier release, so a
+  mixed pair cannot work whatever the destination answers. The
+  implementation therefore does not carry the "accepted only where the
+  list has it" path of Decision 3 for an answer without a suite: a
+  request that names no suite (schema 1) is refused by the destination,
+  an answer that names none is refused by the source, both on the
+  record, and the ledger's rule that both daemons move together covers
+  the upgrade. `x25519-kem-v1` stays a reader for the escrow documents
+  only.
+
 ## References
 
 RFC 9180 (HPKE) §7.1–7.3; draft-ietf-hpke-pq-05 §3, §4, §8; the IANA HPKE

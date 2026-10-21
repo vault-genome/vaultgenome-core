@@ -127,15 +127,18 @@ func (h *HTTPHandler) HandleHandshake(w http.ResponseWriter, r *http.Request) {
 		slog.String("request_id", logSafe(string(req.RequestID))),
 		slog.String("decision_id", logSafe(string(req.DecisionID))),
 		slog.String("recipient_key_sha256", hex.EncodeToString(keyHash[:])),
+		slog.String("recipient_key_suite", resp.RecipientKeySuite),
 	)
 	wire := struct {
 		Evidence           []byte `json:"evidence"`
 		MeasurementHint    []byte `json:"measurement_hint,omitempty"`
 		RecipientPublicKey []byte `json:"recipient_public_key"`
+		RecipientKeySuite  string `json:"recipient_key_suite"`
 	}{
 		Evidence:           resp.Evidence,
 		MeasurementHint:    resp.MeasurementHint,
 		RecipientPublicKey: resp.RecipientPublicKey,
+		RecipientKeySuite:  resp.RecipientKeySuite,
 	}
 	writeJSON(w, http.StatusOK, wire)
 }

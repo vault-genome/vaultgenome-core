@@ -119,6 +119,11 @@ func TestKeyReleaseToken_Validate_RefusalClosesCanonicalBytesAndVerify(t *testin
 			tok.Wrapped = append([]WrappedKey(nil), tok.Wrapped...)
 			tok.Wrapped[0].Purpose = PurposeSealing + 1
 		}, shared_errors.CodeFieldValueInvalid},
+		{"schema 2 wrapped key without suite", func(tok *KeyReleaseToken) {
+			tok.Wrapped = append([]WrappedKey(nil), tok.Wrapped...)
+			tok.Wrapped[0].Suite = ""
+		}, shared_errors.CodeRequiredFieldMissing},
+		{"schema 1 wrapped key with suite", func(tok *KeyReleaseToken) { tok.SchemaVersion = 1 }, shared_errors.CodeCrossFieldInconsistent},
 		{"policy version missing", func(tok *KeyReleaseToken) { tok.PolicyVersion = "" }, shared_errors.CodeRequiredFieldMissing},
 		{"authorized at missing", func(tok *KeyReleaseToken) { tok.AuthorizedAt = time.Time{} }, shared_errors.CodeRequiredFieldMissing},
 		{"signature missing", func(tok *KeyReleaseToken) { tok.Signature = nil }, shared_errors.CodeRequiredFieldMissing},

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/attestation_result"
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"io"
 	"net"
 	"net/url"
@@ -88,6 +89,11 @@ type Config struct {
 	// says so at start when gate jobs are enabled.
 	Queue QueueConfig `json:"queue,omitempty"`
 
+	// Crypto is the cryptographic profile (ADR 0029): the KEM suite the
+	// authority encapsulates keys under across clouds and the suites it
+	// accepts a destination's answer under. Omitted, the general profile.
+	Crypto CryptoConfig `json:"crypto,omitempty"`
+
 	// OperatorStop is the operator's signed stop list (ADR 0010) as Trust
 	// Admission consults it for gate jobs (ADR 0015): a stop-all list
 	// denies every job, a list revoking the worker's measurement denies
@@ -96,6 +102,27 @@ type Config struct {
 	// daemon's releases by writing a new list. Optional; when set, all
 	// three fields are required.
 	OperatorStop OperatorStopConfig `json:"operator_stop,omitempty"`
+}
+
+// CryptoConfig is the deployment's cryptographic profile (ADR 0029): the
+// KEM suite this daemon encapsulates under and the suites it accepts.
+type CryptoConfig struct {
+	// Profile is "general" (the default: X25519 written, every suite of
+	// the build accepted), "fips" (P-384 written; P-384, ML-KEM-768 and
+	// the MLKEM1024-P384 hybrid accepted — the primitives the Go
+	// Cryptographic Module lists as approved) or "cnsa" (the
+	// MLKEM1024-P384 hybrid only).
+	Profile string `json:"profile,omitempty"`
+
+	// KEMSuites narrows the profile's list to these suites, in this
+	// order of preference (the first is written). Every name must be
+	// one the profile accepts; a profile is never widened here.
+	KEMSuites []string `json:"kem_suites,omitempty"`
+}
+
+// Policy returns the configuration as the policy the kms package applies.
+func (c CryptoConfig) Policy() (kms.SuitePolicy, error) {
+	return kms.NewSuitePolicyFromNames(c.Profile, c.KEMSuites)
 }
 
 // PolicyProfileGate is the one policy profile the daemon serves: restore
@@ -1262,6 +1289,10 @@ func (c *Config) ResolveSecrets() error {
 // see the full punch-list in one run.
 func (c Config) Validate() error {
 	var errs []error
+
+	if _, err := c.Crypto.Policy(); err != nil {
+		errs = append(errs, fmt.Errorf("crypto: %w", err))
+	}
 
 	if strings.TrimSpace(c.Vault.ListenAddress) == "" {
 		errs = append(errs, errors.New("vault.listen_address required"))

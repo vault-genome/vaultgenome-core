@@ -21,6 +21,8 @@ import (
 //     (factory.go AllProviders set).
 //   - DestinationEndpoint is non-empty.
 //   - HandshakeNonce is at least HandshakeNonceMinBytes.
+//   - KEMSuites: schema 2 names at least one suite, none empty, none
+//     twice; schema 1 names none (ADR 0029).
 //   - SourceMeasurement, when present, is 32, 48 or 64 bytes.
 //     SourceEvidence may be empty (mutual attestation is optional).
 //   - InitiatedAt is non-zero.
@@ -80,6 +82,39 @@ func (r CrossCloudHandshakeRequest) Validate() error {
 		return shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			fmt.Sprintf("cross_cloud_handshake_request: handshake_nonce must be at least %d bytes", HandshakeNonceMinBytes),
+			nil,
+		)
+	}
+	if r.SchemaVersion >= 2 {
+		if len(r.KEMSuites) == 0 {
+			return shared_errors.Structural(
+				shared_errors.CodeRequiredFieldMissing,
+				"cross_cloud_handshake_request: kem_suites required from schema 2 (ADR 0029)",
+				nil,
+			)
+		}
+		seen := make(map[string]struct{}, len(r.KEMSuites))
+		for i, s := range r.KEMSuites {
+			if s == "" {
+				return shared_errors.Structural(
+					shared_errors.CodeFieldValueInvalid,
+					fmt.Sprintf("cross_cloud_handshake_request: kem_suites[%d] is empty", i),
+					nil,
+				)
+			}
+			if _, dup := seen[s]; dup {
+				return shared_errors.Structural(
+					shared_errors.CodeFieldValueInvalid,
+					fmt.Sprintf("cross_cloud_handshake_request: kem_suites names %q twice", s),
+					nil,
+				)
+			}
+			seen[s] = struct{}{}
+		}
+	} else if len(r.KEMSuites) != 0 {
+		return shared_errors.Structural(
+			shared_errors.CodeCrossFieldInconsistent,
+			"cross_cloud_handshake_request: kem_suites is a schema-2 field; a schema-1 request names no suite",
 			nil,
 		)
 	}
