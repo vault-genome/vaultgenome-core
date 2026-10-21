@@ -46,7 +46,9 @@ func TestDaemon_ServesSessionsInParallelUpToTheLimit(t *testing.T) {
 		}()
 	}
 	require.Eventually(t, func() bool { return inside.Load() == 2 }, 10*time.Second, 10*time.Millisecond, "two sessions inside their jobs")
-	require.Equal(t, `sagvd_sessions_active 2`, f.metric("sagvd_sessions_active"))
+	// The gauge moves after the session is handed its job; the two workers
+	// are inside before it reads 2 for a moment, so wait for it.
+	require.Eventually(t, func() bool { return f.metric("sagvd_sessions_active") == `sagvd_sessions_active 2` }, 5*time.Second, 10*time.Millisecond, "the gauge reads two active sessions")
 	require.Equal(t, `sagvd_sessions_limit 2`, f.metric("sagvd_sessions_limit"))
 	time.Sleep(300 * time.Millisecond)
 	require.Equal(t, int32(2), inside.Load(), "a third session ran while the limit is two")
