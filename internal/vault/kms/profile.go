@@ -142,12 +142,14 @@ func (p SuitePolicy) Allows(s Suite) bool { return contains(p.suites, s) }
 // Choose picks, from the suites a source offers in its order of
 // preference, the first this policy accepts. The source's order wins so
 // that the two sides agree on the same suite without a second round; no
-// suite below either side's list is ever chosen.
+// suite below either side's list is ever chosen. What is returned is the
+// policy's own entry, not the offered string.
 func (p SuitePolicy) Choose(offered []string) (Suite, bool) {
 	for _, id := range offered {
-		s := Suite(id)
-		if p.Allows(s) {
-			return s, true
+		for _, s := range p.suites {
+			if string(s) == id {
+				return s, true
+			}
 		}
 	}
 	return "", false
