@@ -71,11 +71,33 @@ services:
 ```
 
 `docker compose -f docker-compose.yml -f docker-compose.release.yml up`.
-The rest — keys, certificates, the genome, the mounts — is the same. The
-images carry the daemons; the TEE they attest with is the host's: on a
-confidential VM the worker needs the kernel's `configfs-tsm` and the
-vTPM passed into the container, which the hardware kit for the images
-measures (`scripts/hardware-test/release-deploy-images/`, once it exists).
+The rest — keys, certificates, the genome, the mounts — is the same.
+
+The images carry the daemons; the TEE they attest with is the host's.
+On a GCP SEV-SNP guest (Ubuntu 24.04, Docker 29, measured 2026-10-21 on
+a throwaway guest) a daemon's container reaches the chip only like this:
+
+- the whole `configfs` bound read-write — `-v /sys/kernel/config:/sys/kernel/config:rw`
+  (a bind of `/sys/kernel/config/tsm` alone does not mount);
+- Docker's default AppArmor profile set aside — `--security-opt apparmor=unconfined` —
+  because `docker-default` denies every write under `/sys` and the report
+  request is a `mkdir` there;
+- the devices — `--device /dev/sev-guest --device /dev/tpmrm0`;
+- **as root** (`--user 0:0`), although the images run as `nonroot` by
+  default: `configfs` creates the request's attribute files owned by
+  root, so a non-root process can make the request directory but cannot
+  write `inblob` — a limit of `configfs`, not of Docker; a `chown` of the
+  report directory on the host does not change it.
+
+With those four, a container requested and received a 1184-byte SEV-SNP
+report through `configfs-tsm` as root; without the AppArmor change the
+`mkdir` is refused even for root. The hardware kit for the images
+(`scripts/hardware-test/release-deploy-images/`, the next pull request)
+runs the Return Path this way from the released images and keeps the
+record. The families that seal to a vTPM (`gcp-tdx`, `azure-sev-snp`,
+`azure-cgpu`) call `tpm2-tools`, which these images do not carry: the
+release images serve `gcp-sev-snp` today, and the other families run
+from the released binaries on the host as the operator pages describe.
 
 ## What acp-keygen provisions
 
