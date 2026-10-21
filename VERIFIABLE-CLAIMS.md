@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -2725,6 +2725,78 @@ scripts/hardware-test/reference-design-01/run.sh <gcp-project> us-central1-c eur
 ```
 
 ---
+
+<a id="c42"></a>
+
+### C42 — Under the `fips` and `cnsa` profiles the product invokes only the certified module's approved services: the three kits on real SEV-SNP with every binary built on the Go Cryptographic Module v1.0.0 and every Go process under `fips140=only`, in which a non-approved call fails instead of succeeding
+
+**Claim.** With `VG_FIPS=1` the kits `keyrelease-e2e`, `returnpath-e2e`
+and `reference-design-01` build every binary on the certified Go
+Cryptographic Module v1.0.0 (CMVP #5247; `GOFIPS140=v1.0.0`) and run
+every Go process on the guests — and, in design 01, the third party's
+`acpctl` on the runner — under `GODEBUG=fips140=only`, the module's
+enforcement mode, in which a call to a non-approved service (AES-GCM
+with a caller's nonce, X25519, SHA-1, a short HKDF or HMAC key) returns
+an error or panics instead of succeeding ([ADR 0030](docs/adr/0030-the-fips-140-3-build.md),
+§2 and part two). Under the `fips` and `cnsa` profiles the runs pass
+with the verdicts, refusals and audit verifications of the runs without
+the flag, and the record says so on every party: each daemon's `version`
+line (`fips140=only module=v1.0.0 enforced=true`), its `identity`
+(`fips140.enabled`, `enforced`, `version`), the guest's `steps.txt`
+(`fips=1 GODEBUG=fips140=only`) and `build.txt`, the runner's note of
+what it built from the binaries' own build settings; the kits' verdicts
+require all of it. The claim is narrow: the services these runs invoked
+are approved ones. It is not a validation of the product, and the
+`general` profile, whose first suite is X25519, is refused up front.
+
+**Evidence.** All six runs on 2026-10-21 on the tree of this change (`a6b33a2`
+with the kits' changes), `VG_FIPS=1`: every binary
+`GOFIPS140=v1.0.0-c2097c7c` (`build.txt`), every `version` line
+`fips140=only module=v1.0.0 enforced=true` (`versions.txt`,
+`third-party/tools.txt`), every `identity` `fips140 enabled=true
+enforced=true version=v1.0.0` and every guest `fips=1
+GODEBUG=fips140=only` (`steps.txt`). Key release:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T214501Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T214501Z/)
+(fips, `hpke-p384-v2`) and
+[`…/20261021T213940Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T213940Z/)
+(cnsa, `hpke-mlkem1024-p384-v2`): `release exit=0`, `confirm exit=0`,
+`verify exit=0`, the unlisted guest and the operator stop refused,
+`audit verify exit=0`, 10 events each. The Return Path:
+[`…/returnpath-e2e/evidence/20261021T213945Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20261021T213945Z/)
+(fips) and
+[`…/20261021T212451Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20261021T212451Z/)
+(cnsa): both rogues refused, the session opened after 8 s, the job
+`succeeded` after 5 s with the gate EXACT 6 of 6, `audit verify exit=0`,
+17 events; 128.9 s and 131.3 s. Design 01:
+[`…/reference-design-01/evidence/20261021T212303Z/`](scripts/hardware-test/reference-design-01/evidence/20261021T212303Z/)
+(fips) and
+[`…/20261021T213017Z/`](scripts/hardware-test/reference-design-01/evidence/20261021T213017Z/)
+(cnsa): the job EXACT in 5.2 s, the key to the attested standby and the
+restore confirmed in 15.5 s and 15.7 s, the standby's gate EXACT (the
+backend 4.34 s and 4.47 s), the four refusals with their reasons, 17 +
+10 events, the third party's four verifications at exit 0 with its
+`acpctl` under `fips140=only` (`third-party/tools.txt`); 312 s and
+300 s; `run.txt` `fips 1`, `gofips140 v1.0.0`; `REPORT.md` names the
+module. The figures are those of the runs without the flag (C40, C41).
+The kits' verdicts (`run.sh`) refuse a run whose record lacks any of the
+module's lines.
+
+**Reproduce:**
+
+```bash
+VG_FIPS=1 scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <gcp-project> us-central1-b fips          # or cnsa; ~10 min, one n2d-standard-2
+VG_FIPS=1 scripts/hardware-test/gcp-sev-snp/returnpath-e2e/run.sh <gcp-project> us-central1-c fips          # ~15 min, one n2d-standard-4
+VG_FIPS=1 scripts/hardware-test/reference-design-01/run.sh <gcp-project> us-central1-c europe-west4-b fips  # ~6 min, one n2d-standard-4 and one n2d-standard-2
+```
+
+**Scope.** `only` is the assessment, never the product (ADR 0030, §2):
+no release binary carries it, and part three's `-fips` variant runs the
+module in its approved mode without the enforcement switch. The
+confidential-GPU path (Azure NCC H100 v5, C17 and C18) is not under this
+claim: its measurement is open (the vTPM quote's SHA-1 PCR bank and
+NVIDIA's token path are to be assessed on the chip). What the module
+enforces is the set of services invoked; the module's boundary and the
+operating environments are the certificate's.
 
 ## What we do not claim
 

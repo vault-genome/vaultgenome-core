@@ -115,6 +115,8 @@ print("# Reference design 01 on real SEV-SNP — the run of %s" % run.get("stamp
 print()
 print("Profile `%s` (ADR 0029), the key encapsulated under `%s`. The bank: `%s`; the standby: `%s`. Tree `%s`." % (profile, suite, mach.get("a", "—"), mach.get("b", "—"), run.get("tree", "—")[:12]))
 print("The bank's chip: measurement `%s…`; the standby's: `%s…`." % (a_steps.get("vault_measurement", "—")[:16], a_steps.get("standby_measurement", b_steps.get("measurement", "—"))[:16]))
+if run.get("fips") == "1":
+    print("Under the certified Go Cryptographic Module (`GOFIPS140=%s`, CMVP #5247; ADR 0030, part two): the bank's two daemons, the standby's daemon and the third party's `acpctl` ran with enforcement on (`fips140=only`), in which a non-approved service fails instead of succeeding — `a/steps.txt`, `b/steps.txt`, `third-party/tools.txt`, `build.txt`." % run.get("gofips140", "v1.0.0"))
 print()
 print("## A job, end to end (the design's six steps)")
 print()

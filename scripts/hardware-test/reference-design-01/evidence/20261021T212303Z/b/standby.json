@@ -1,0 +1,21 @@
+{
+  "endpoint": "https://10.164.0.3:8443",
+  "internal_ip": "10.164.0.3",
+  "identity": {
+    "tee_provider": "gcp-sev-snp",
+    "measurement_hex": "0e017d2fba7c4964575fdd8c770061abf07f0753148d030f94e969a2d1fa5a5747ba0ced9174f2d44b5f6663fa2de00f",
+    "sealer": "sev-snp-derived-key",
+    "crypto_profile": "fips",
+    "kem_suites": [
+      "hpke-p384-v2",
+      "hpke-mlkem768-v2",
+      "hpke-mlkem1024-p384-v2"
+    ],
+    "fips140": {
+      "enabled": true,
+      "enforced": true,
+      "version": "v1.0.0",
+      "build": "v1.0.0-c2097c7c"
+    }
+  }
+}

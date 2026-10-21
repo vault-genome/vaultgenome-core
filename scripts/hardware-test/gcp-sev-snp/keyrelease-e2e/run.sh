@@ -23,6 +23,17 @@ PROJECT="${1:?usage: run.sh <project> [zone] [profile]}"
 ZONE="${2:-us-central1-b}"
 PROFILE="${3:-general}"
 case "$PROFILE" in general|fips|cnsa) ;; *) echo "profile must be general, fips or cnsa; got $PROFILE"; exit 2;; esac
+# VG_FIPS=1 (ADR 0030, part two): the binaries are built on the certified
+# Go Cryptographic Module (GOFIPS140=v1.0.0) and the guest's daemons run
+# under GODEBUG=fips140=only — the assessment mode, in which a call to a
+# non-approved service fails instead of succeeding — so a run that passes
+# shows the product invoked approved services only. general is refused up
+# front: its first suite is X25519, unavailable under enforcement.
+VG_FIPS="${VG_FIPS:-}"
+if [ "$VG_FIPS" = 1 ]; then
+  [ "$PROFILE" != general ] || { echo "VG_FIPS=1 needs the fips or cnsa profile: general's first suite is X25519, unavailable under enforcement"; exit 2; }
+  export GOFIPS140=v1.0.0
+fi
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -54,7 +65,7 @@ gcloud compute instances create "$NAME" --project "$PROJECT" --zone "$ZONE" \
   --machine-type n2d-standard-2 --min-cpu-platform "AMD Milan" \
   --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
   --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
-  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE" \
+  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0},vg-stamp=$STAMP" \
   --metadata-from-file "startup-script=$HERE/cvm-keyrelease.sh" >/dev/null
 
 echo "waiting for results on the serial console (up to 15 min)"
@@ -82,8 +93,19 @@ STEPS="$GUEST/steps.txt"
 [ -s "$STEPS" ] || { echo "FAIL: no steps.txt under $GUEST"; exit 1; }
 grep -E 'profile=|suite=|exit=' "$STEPS" | sed 's|^|  |'
 case "$PROFILE" in general) WANT=hpke-x25519-v2;; fips) WANT=hpke-p384-v2;; cnsa) WANT=hpke-mlkem1024-p384-v2;; esac
+FIPS_OK=1
+if [ "$VG_FIPS" = 1 ]; then
+  # The record must say it: both daemons on the certified module with
+  # enforcement on (their version lines and their identities), and the
+  # runner's note of what it built. build.txt is the runner's, outside the
+  # guest's sums.
+  for b in sagvd acp-bootstrap acpctl keygen; do echo "$b: $(go version -m "$BUILD/$b" | awk '$1=="build" && ($2 ~ /^GOFIPS140=/ || $2 ~ /^vcs.revision=/) {printf "%s ", $2}')"; done > "$GUEST/build.txt"
+  grep -E 'fips=|fips140' "$STEPS" "$GUEST/versions.txt" | sed 's|^|  |'
+  [ "$(grep -c 'fips140=only module=v1.0.0 enforced=true' "$GUEST/versions.txt")" = 2 ] || FIPS_OK=0
+  grep -q 'sagvd fips140 enabled=true enforced=true version=v1.0.0' "$STEPS" && grep -q 'destination fips140 enabled=true enforced=true version=v1.0.0' "$STEPS" || FIPS_OK=0
+fi
 grep -q "release exit=0" "$STEPS" && grep -q "release suite=$WANT" "$STEPS" && grep -q "release profile=$PROFILE" "$STEPS" \
   && grep -q "confirm exit=0" "$STEPS" && grep -q "verify exit=0" "$STEPS" \
-  && grep -q "unlisted exit=1" "$STEPS" && grep -q "stopped exit=1" "$STEPS" && grep -q "audit verify exit=0" "$STEPS" \
-  && echo "PASS: key release under $PROFILE ($WANT), restore confirmed, refusals refused, audit verified ($(basename "$GUEST"))" \
-  || { echo "FAIL: see $STEPS"; exit 1; }
+  && grep -q "unlisted exit=1" "$STEPS" && grep -q "stopped exit=1" "$STEPS" && grep -q "audit verify exit=0" "$STEPS" && [ "$FIPS_OK" = 1 ] \
+  && echo "PASS: key release under $PROFILE ($WANT)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on}, restore confirmed, refusals refused, audit verified ($(basename "$GUEST"))" \
+  || { echo "FAIL: see $STEPS${VG_FIPS:+ (VG_FIPS=1: the record must show the certified module with enforcement on)}"; exit 1; }

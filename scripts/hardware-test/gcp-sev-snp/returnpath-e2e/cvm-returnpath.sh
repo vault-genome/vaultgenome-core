@@ -24,10 +24,20 @@
 set -u
 exec > >(tee -a /root/e2e.log) 2>&1
 md() { curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/$1"; }
-STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+# The record is named by the runner's stamp (vg-stamp), unique per run —
+# two guests booted in the same second would otherwise share a name and
+# the later decode would overwrite the earlier record. Absent, the guest's
+# own clock names it, as before.
+STAMP=$(md attributes/vg-stamp 2>/dev/null || true); case "$STAMP" in 20[0-9][0-9][01][0-9][0-3][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;; *) STAMP=$(date -u +%Y%m%dT%H%M%SZ);; esac
 WORK=/root/e2e; OUT=$WORK/out/$STAMP; mkdir -p "$OUT"; cd "$WORK"
 BUCKET=$(md attributes/vg-bucket)
 SEALER=$(md attributes/vg-sealer 2>/dev/null || true); case "$SEALER" in auto|tee|tpm2) ;; *) SEALER=auto;; esac
+PROFILE=$(md attributes/vg-profile 2>/dev/null || true); case "$PROFILE" in general|fips|cnsa) echo "profile=$PROFILE" >> "$OUT/steps.txt";; *) PROFILE="";; esac
+FIPS=$(md attributes/vg-fips 2>/dev/null || true); [ "$FIPS" = 1 ] || FIPS=0
+# VG_FIPS=1 on the runner (ADR 0030, part two): every Go process on this
+# guest runs under enforcement; a non-approved service fails instead of
+# succeeding. The binaries came built on the certified module.
+if [ "$FIPS" = 1 ]; then export GODEBUG=fips140=only; echo "fips=1 GODEBUG=fips140=only" >> "$OUT/steps.txt"; fi
 { echo "instance=$(md name)"; echo "zone=$(md zone | awk -F/ '{print $NF}')"; echo "machine=$(md machine-type | awk -F/ '{print $NF}')"; echo "captured=$STAMP"; } > "$OUT/metadata.txt"
 uname -a > "$OUT/kernel.txt"
 T0=$(date +%s.%N)
@@ -92,9 +102,9 @@ mkdir -p genomes audit queue vcek-cache
 head -c 48 /dev/zero > peer-vault.meas; head -c 48 /dev/zero > peer-worker.meas
 
 write_configs() { # $1 = vault measurement hex, $2 = worker measurement hex
-  python3 - "$1" "$2" "$SEALER" <<'PY'
+  python3 - "$1" "$2" "$SEALER" "$PROFILE" <<'PY'
 import json, sys, binascii
-vault_meas, worker_meas, SEALER = sys.argv[1], sys.argv[2], sys.argv[3]
+vault_meas, worker_meas, SEALER, PROFILE = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 W = "/root/e2e"; S = W + "/secrets"
 open(W + "/peer-vault.meas", "wb").write(binascii.unhexlify(vault_meas))
 open(W + "/peer-worker.meas", "wb").write(binascii.unhexlify(worker_meas))
@@ -129,6 +139,8 @@ worker = {
   "runtime": {"job_timeout_seconds": 600, "handshake_timeout_seconds": 30, "dial_backoff_initial_ms": 500, "dial_backoff_max_ms": 5000, "idle_between_jobs_ms": 200},
   "health": {"listen_address": "127.0.0.1:9082"},
   "log": {"level": "info", "format": "json"}}
+if PROFILE:  # the profile of ADR 0029 is the authority's setting; the worker carries none
+    sagvd["crypto"] = {"profile": PROFILE}
 json.dump(sagvd, open(W + "/sagvd.json", "w"), indent=2)
 json.dump(worker, open(W + "/worker.json", "w"), indent=2)
 PY
@@ -139,6 +151,9 @@ write_configs "$ZEROS" "$ZEROS"
 step "identities: each daemon reads its launch measurement from the chip"
 ./sagvd identity -config sagvd.json > "$OUT/sagvd-identity.json" 2> "$OUT/sagvd-identity.err"; echo "sagvd identity exit=$?" >> "$OUT/steps.txt"
 ./acp-compute identity -config worker.json > "$OUT/acp-compute-identity.json" 2> "$OUT/acp-compute-identity.err"; echo "acp-compute identity exit=$?" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>/dev/null
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("sagvd fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>/dev/null
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("acp-compute fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/acp-compute-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 VMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/sagvd-identity.json" 2>/dev/null)
 WMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/acp-compute-identity.json" 2>/dev/null)
 echo "vault_measurement=$VMEAS" >> "$OUT/steps.txt"; echo "worker_measurement=$WMEAS" >> "$OUT/steps.txt"

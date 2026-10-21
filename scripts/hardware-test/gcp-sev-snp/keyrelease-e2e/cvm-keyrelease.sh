@@ -26,11 +26,20 @@
 set -u
 exec > >(tee -a /root/e2e.log) 2>&1
 md() { curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/$1"; }
-STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+# The record is named by the runner's stamp (vg-stamp), unique per run —
+# two guests booted in the same second would otherwise share a name and
+# the later decode would overwrite the earlier record. Absent, the guest's
+# own clock names it, as before.
+STAMP=$(md attributes/vg-stamp 2>/dev/null || true); case "$STAMP" in 20[0-9][0-9][01][0-9][0-3][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;; *) STAMP=$(date -u +%Y%m%dT%H%M%SZ);; esac
 WORK=/root/e2e; OUT=$WORK/out/$STAMP; mkdir -p "$OUT"; cd "$WORK"
 BUCKET=$(md attributes/vg-bucket)
 PROFILE=$(md attributes/vg-profile); [ -n "$PROFILE" ] || PROFILE=general
 echo "profile=$PROFILE" >> "$OUT/steps.txt"
+FIPS=$(md attributes/vg-fips 2>/dev/null || true); [ "$FIPS" = 1 ] || FIPS=0
+# VG_FIPS=1 on the runner (ADR 0030, part two): every Go process on this
+# guest runs under enforcement; a non-approved service fails instead of
+# succeeding. The binaries came built on the certified module.
+if [ "$FIPS" = 1 ]; then export GODEBUG=fips140=only; echo "fips=1 GODEBUG=fips140=only" >> "$OUT/steps.txt"; fi
 { echo "instance=$(md name)"; echo "zone=$(md zone | awk -F/ '{print $NF}')"; echo "machine=$(md machine-type | awk -F/ '{print $NF}')"; echo "captured=$STAMP"; } > "$OUT/metadata.txt"
 uname -a > "$OUT/kernel.txt"
 
@@ -85,6 +94,7 @@ cat > sagvd.json <<EOF
 EOF
 ./sagvd identity -config sagvd.json > "$OUT/sagvd-identity.json"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("sagvd fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["authority_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > authority.pem
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
 
@@ -122,6 +132,7 @@ EOF
 ./acp-bootstrap identity -config dest.json > "$OUT/destination-identity.json" 2> "$OUT/destination-identity.err"
 echo "identity exit=$?" >> "$OUT/steps.txt"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("destination crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/destination-identity.json" >> "$OUT/steps.txt" 2>/dev/null
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("destination fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/destination-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 ./acp-bootstrap -config dest.json > "$OUT/acp-bootstrap.log" 2>&1 &
 DEST=$!
 n=0; until curl -sf http://127.0.0.1:8444/readyz >/dev/null || [ $n -ge 30 ]; do sleep 1; n=$((n+1)); done

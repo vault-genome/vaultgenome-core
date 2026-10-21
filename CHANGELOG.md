@@ -13,6 +13,17 @@ given release can still open.
 
 ### Added
 
+- `VG_FIPS=1` in the hardware kits `keyrelease-e2e`, `returnpath-e2e` and
+  `reference-design-01` (ADR 0030, part two): the binaries built on the
+  certified Go Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`), every Go
+  process on the guests — and design 01's third party — under
+  `GODEBUG=fips140=only`, in which a non-approved service fails instead of
+  succeeding; the record says so on every party and the verdict requires
+  it; `returnpath-e2e` takes the profile as its third argument and has a
+  verdict. Runs under `fips` and `cnsa` on SEV-SNP (C42). The guests of
+  `keyrelease-e2e` and `returnpath-e2e` name their record by the runner's
+  stamp (`vg-stamp`), unique per run: two guests booted in the same
+  second shared a name and the later decode overwrote the earlier record.
 - `scripts/hardware-test/reference-design-01`: reference design 01 played
   end to end on real SEV-SNP in two regions by one command — the bank's
   job EXACT, the genome's key released to the attested standby under the

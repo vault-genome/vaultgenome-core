@@ -69,7 +69,7 @@ queried there.
 
 ```bash
 ./scripts/hardware-test/reference-design-01/run.sh <gcp-project> [zone-a] [zone-b] [profile]
-# defaults: us-central1-c, us-east1-b, general; profile general, fips or cnsa (ADR 0029)
+# defaults: us-central1-c; us-east4-b, us-west1-b or europe-west4-b (the first that creates an n2d SEV-SNP guest); general — profile general, fips or cnsa (ADR 0029)
 ```
 
 About fifteen minutes; one n2d-standard-4 and one n2d-standard-2, both
@@ -78,7 +78,14 @@ for a look; the guests' consoles are saved under the evidence directory
 when a run fails). Needs gcloud logged in to a project with the Compute
 and Storage APIs, and Go for the binaries — the kit builds them from the
 tree it runs from (a release's binaries are proven equal to the tree's
-by `release-deploy`).
+by `release-deploy`). `VG_FIPS=1` builds every binary on the certified
+Go Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`) and runs every Go
+process — the bank's two daemons, the standby's daemon and the third
+party's `acpctl` on this machine — under `GODEBUG=fips140=only`, in
+which a non-approved service fails instead of succeeding (ADR 0030, part
+two); `general` is refused, its first suite being X25519; the verdict
+then requires the record of the module on every party, and `run.txt`,
+`build.txt` and `REPORT.md` say which module the run was on.
 
 The record of a run is `evidence/<stamp>/`: `a/` (the bank's steps,
 timeline, identities, the job's view, both audit logs' verification,
@@ -87,7 +94,9 @@ console), `b/` (the standby's steps, identity, receipt, the gate's
 verdict, the console), `third-party/` (the verifications and queries
 done on the runner, and the tools it used), `REPORT.md` (the design's
 six steps, the continuity and the refusals, the figures), `machines.txt`,
-`inputs.sha256`, `runner-timeline.txt`, `sha256sums.txt` (every file of
+`inputs.sha256`, `build.txt` (what the runner built: each binary's
+module setting and commit, from its own build settings),
+`runner-timeline.txt`, `sha256sums.txt` (every file of
 the run but `runner.log`, the runner's own transcript, which tee writes
 until the runner exits). Keys, seeds,
 tokens and configs stay on the guests and die with them; the standby's
@@ -121,15 +130,24 @@ before the bank seals its own copies.
 | `fips` | [`evidence/20261021T184052Z/`](evidence/20261021T184052Z/) | `hpke-p384-v1` | EXACT 6/6 in 5.2 s | 15.5 s (the release 4.9 s; key to restored 0.004 s) | EXACT 6/6, backend 4.39 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0 | 8185 ms / 23 ms | 308 s |
 | `cnsa` | [`evidence/20261021T184112Z/`](evidence/20261021T184112Z/) | `hpke-mlkem1024-p384-v1` | EXACT 6/6 in 5.2 s | 15.7 s (the release 4.9 s; key to restored 0.008 s) | EXACT 6/6, backend 3.99 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0 | 8187 ms / 23 ms | 308 s |
 | `fips`, the v2 suites of ADR 0030 | [`evidence/20261021T202252Z/`](evidence/20261021T202252Z/) | `hpke-p384-v2` — HPKE export-only, the AEAD step the module's AES-256-GCM | EXACT 6/6 in 5.2 s | 15.6 s (the release 4.9 s; key to restored 0.006 s) | EXACT 6/6, backend 3.96 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0 | 8205 ms / 26 ms | 316 s |
+| `fips`, `VG_FIPS=1` | [`evidence/20261021T212303Z/`](evidence/20261021T212303Z/) | `hpke-p384-v2`; every binary on the certified module v1.0.0, every Go process under `fips140=only` | EXACT 6/6 in 5.2 s | 15.5 s | EXACT 6/6, backend 4.34 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0, the third party's `acpctl` under `fips140=only` | 8187 ms / 24 ms | 312 s |
+| `cnsa`, `VG_FIPS=1` | [`evidence/20261021T213017Z/`](evidence/20261021T213017Z/) | `hpke-mlkem1024-p384-v2`; the same | EXACT 6/6 in 5.2 s | 15.7 s | EXACT 6/6, backend 4.47 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0, the third party's `acpctl` under `fips140=only` | 8233 ms / 26 ms | 300 s |
 
-The four runs are the same two zones and the same two guest images —
+The six runs are the same two zones and the same two guest images —
 the bank `us-central1-c` (measurement `7dc7c12e…`), the standby
 `europe-west4-b` (`0e017d2f…`) — minutes apart. In the first three the
 profile is the only thing that changed; the suite the key went under
 changed with it, and nothing else in the figures did. The fourth is
 `fips` again on the v2 suites of ADR 0030 — HPKE export-only, the AEAD
 step the module's AES-256-GCM, the suite id `hpke-p384-v2` — and nothing
-in the figures moved with it. Of the zones tried, `us-east1-b`,
+in the figures moved with it. The fifth and sixth are `fips` and `cnsa`
+under `VG_FIPS=1` (ADR 0030, part two): every binary built on the
+certified Go Cryptographic Module v1.0.0 and every Go process — the
+bank's two daemons, the standby's daemon and the third party's `acpctl`
+on the runner — under `fips140=only`, in which a non-approved service
+fails instead of succeeding; `a/steps.txt`, `b/steps.txt`,
+`third-party/tools.txt` and `build.txt` say so, the verdict requires it,
+and the figures are the figures above. Of the zones tried, `us-east1-b`,
 `us-east4-b` and `us-west1-b` refuse an n2d guest with SEV-SNP;
 `us-central1-b`, `us-central1-c` and `europe-west4-b` create it. The
 runtime from the hash-pinned locks took 49 s on the bank and 42 s on the

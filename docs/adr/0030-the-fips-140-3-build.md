@@ -1,6 +1,6 @@
 # ADR 0030 — The FIPS 140-3 build: the certified Go Cryptographic Module, approved-mode discipline in every build, and the only-mode assessment on the record
 
-- **Status:** Accepted (2026-10-21) — part one (the code: the v2 suites, the module's AES-GCM and HKDF, bundle v4, the only-mode assessment in the gate) in the tree; parts two (the kits under `VG_FIPS=1`, C42) and three (the `-fips` release matrix) to follow
+- **Status:** Accepted (2026-10-21) — part one (the code: the v2 suites, the module's AES-GCM and HKDF, bundle v4, the only-mode assessment in the gate) and part two (the kits under `VG_FIPS=1`, C42) in the tree; part three (the `-fips` release matrix) to follow
 - **Tags:** crypto, fips, build, release, aead, bundle, hkdf, assessment
 - **Extends:** ADR 0029 (the profiles and the suites: what each build may *use*); ADR 0023 (sealed key files); `docs/operator/05_release_procedure.md`
 - **Closes:** the rest of finding F2 of the banking map (`docs/compliance/banking.md` §9), once parts one to three are in the tree
@@ -207,8 +207,13 @@ algorithm.
   `fips140-only`. The gate: `go test ./...` green under
   `GOFIPS140=v1.0.0 GODEBUG=fips140=only`.
 - **Part two (proof):** `VG_FIPS=1` in `keyrelease-e2e`, `returnpath-e2e`
-  and `reference-design-01`; runs on SEV-SNP under `fips` and `cnsa`;
-  claim C42; the cGPU measurement listed as open.
+  and `reference-design-01` — the binaries built with `GOFIPS140=v1.0.0`,
+  every Go process on the guests (and design 01's third party on the
+  runner) under `GODEBUG=fips140=only`, the record saying so on every
+  party (each daemon's `version` line and `identity`, the guest's
+  `steps.txt`, the runner's `build.txt`), the verdict requiring it; runs
+  on SEV-SNP under `fips` and `cnsa` (2026-10-21); claim C42; the cGPU
+  measurement listed as open.
 - **Part three (release):** the `-fips` matrix in `release.yml` (binaries,
   images, SBOMs, provenance, the images list), an rc rehearsal (§4.1),
   `05_release_procedure.md`, the ledger in `08_upgrading.md` (bundle v4,
