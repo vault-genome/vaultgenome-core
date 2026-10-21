@@ -68,4 +68,8 @@ the cosign, attestation and SLSA outputs per image,
 it stopped at the first `cosign verify` — the packages were private
 (`verify/image-sagvd-cosign.txt`: "authentication required") — and has
 no guest record; the public-read check and the one-time step in the
-release procedure (§4, item 8) come from it.
+release procedure (§4, item 8) come from it. `20261021T113822Z` is the
+second, once the packages were public: the images verified
+(`verify/image-sagvd-cosign.txt`), but the kit counted verify-blob's
+"Verified OK" where `cosign verify` prints "Verification for", and
+stopped itself; the counts now read the right line.

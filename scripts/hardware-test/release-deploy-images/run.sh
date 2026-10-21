@@ -100,8 +100,11 @@ echo "== 2. each image by digest: the signature, the SBOM attestation, the prove
 while read -r ref; do
   name="${ref##*/}"; name="${name%@*}"; digest="${ref##*@}"
   echo "  $name @ $digest"
-  cosign verify "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-cosign.txt" | grep -c 'Verified OK' | sed 's|^|    signature Verified OK: |'
-  cosign verify-attestation --type spdxjson "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-attestation.txt" | grep -c 'Verified OK' | sed 's|^|    SBOM attestation Verified OK: |'
+  # `cosign verify` and `verify-attestation` print "Verification for <ref> --"
+  # over the checks they performed, not verify-blob's "Verified OK" (the
+  # kit's second run, 2026-10-21, counted the wrong line and stopped here).
+  cosign verify "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-cosign.txt" | { grep -c '^Verification for ' || true; } | sed 's|^|    signature verifications: |'
+  cosign verify-attestation --type spdxjson "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-attestation.txt" | { grep -c '^Verification for ' || true; } | sed 's|^|    SBOM attestation verifications: |'
   slsa-verifier verify-image "$ref" --source-uri "github.com/$REPO" --source-tag "$TAG" 2>&1 | rec "image-$name-slsa.txt" | tail -1 | sed 's|^|    |'
   ( cd "$ROOT" && go run "$CRANE" export "$ref" - ) | tar -xO "usr/local/bin/$name" > "$WORK/inside-$name"
   a="$(sha256sum "$WORK/inside-$name" | awk '{print $1}')"; b="$(sha256sum "$DL/$name" | awk '{print $1}')"
@@ -109,7 +112,8 @@ while read -r ref; do
   ( cd "$ROOT" && go run "$CRANE" pull "$ref" "$WORK/$name.tar" )
   echo "    pulled to $name.tar ($(stat -f %z "$WORK/$name.tar" 2>/dev/null || stat -c %s "$WORK/$name.tar") bytes)"
 done < "$DL/images-$TAG.txt"
-test "$(grep -c 'Verified OK' "$EVIDENCE"/verify/image-*-cosign.txt | awk -F: '{s+=$2} END {print s}')" -ge 2 || { echo "ERROR: an image signature did not verify"; exit 1; }
+test "$(grep -c '^Verification for ' "$EVIDENCE"/verify/image-*-cosign.txt | awk -F: '{s+=$2} END {print s}')" -ge 2 || { echo "ERROR: an image signature did not verify"; exit 1; }
+test "$(grep -c '^Verification for ' "$EVIDENCE"/verify/image-*-attestation.txt | awk -F: '{s+=$2} END {print s}')" -ge 2 || { echo "ERROR: an image SBOM attestation did not verify"; exit 1; }
 test "$(grep -c 'PASSED: SLSA verification passed' "$EVIDENCE"/verify/image-*-slsa.txt | awk -F: '{s+=$2} END {print s}')" = 2 || { echo "ERROR: an image provenance did not verify"; exit 1; }
 ( cd "$ROOT" && git fetch -q origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
   git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag "$TAG" ) 2>&1 | rec tag.txt | tail -1 | sed 's|^|  tag: |'
