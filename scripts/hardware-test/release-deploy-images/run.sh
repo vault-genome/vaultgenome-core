@@ -90,7 +90,8 @@ while read -r ref; do
   if [ "$code" != 200 ]; then
     echo "ERROR: $ref is not publicly readable (HTTP $code): a package pushed for the first time is private."
     echo "       An org owner makes it public once: https://github.com/orgs/${REPO%%/*}/packages/container/${repo#*/}/settings"
-    echo "       (Danger zone → Change visibility → Public), then run again."
+    echo "       (Danger zone → Change visibility → Public; if Public is greyed out there, first allow public"
+    echo "       containers in Organization settings → Packages → Package creation), then run again."
     exit 1
   fi
 done < "$DL/images-$TAG.txt"

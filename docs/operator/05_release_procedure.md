@@ -114,7 +114,12 @@ The tag push runs `.github/workflows/release.yml`:
    found it on 2026-10-21 (an anonymous pull answers 403) — so an org
    owner makes `ghcr.io/vault-genome/sagvd` and
    `ghcr.io/vault-genome/acp-compute` public once, in each package's
-   settings (Change visibility → Public); §5, item 5 checks it.
+   settings (Change visibility → Public, confirmed by typing the
+   package's name). "Public" is greyed out there — "Setting is disabled
+   by organization administrators" — until the organization allows
+   public containers: Organization settings → Packages → Package
+   creation → Public, which the same owner enables first. §5, item 5
+   checks the result.
 9. `slsa-images` runs the SLSA container generator
    (`generator_container_slsa3.yml` v2.1.0) once per image, over the
    image's digest, and pushes the provenance to the registry beside the
