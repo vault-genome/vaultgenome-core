@@ -2296,10 +2296,46 @@ with the sealed files refused before any key is read,
 120.7 s on the guest (the runtime from the locks 72 s, the fine-tune 8 s,
 the job 4 s).
 
+The same kit on `v0.6.1`, six minutes after the release was published
+(2026-10-21, 13:21:28Z):
+[`scripts/hardware-test/release-deploy/evidence/20261021T132732Z/`](scripts/hardware-test/release-deploy/evidence/20261021T132732Z/)
+— `verify/assets.sha256` 55 assets (the six of the images job among
+them); `verify/cosign.txt` twelve "Verified OK" (the pairs);
+`verify/cosign-bundle-nonet.txt` the same twelve from their bundles with
+`--trusted-root trusted_root.json` under `sandbox-exec` with no route,
+twelve "Verified OK" (the trust root `6494e21e…bc0b66`, the same file as
+for `v0.6.0`); `verify/slsa.txt` six "PASSED"; `verify/tag.txt` the tag's
+signature under the pinned key; `verify/rebuild.txt` the five binaries
+and the package rebuilt from the tag (commit `3250f2717bc0`, go1.27.3,
+GNU tar 1.35, GNU gzip 1.15) with the same sha256 as the released files
+(`sagvd` `6291f59e…`, `acp-compute` `a418fdfe…`, `acpctl` `8ed5f5e5…`,
+`acp-bootstrap` `fbec80a1…`, `acp-keygen` `80b356e4…`, the package
+`301e382f…`); `results/versions.txt` the four released binaries reporting
+`v0.6.1` at the tag's commit; `results/amd-chain.txt` the Milan chain
+fetched on the guest by the released `acpctl` and checked against the
+pinned ARK-Milan; both daemons read `7dc7c12e…25acc` from the chip and
+sealed their key files to it (`results/sealed-files.txt`);
+`results/rogue-sealed-worker.log` the thief with the sealed files refused
+before any key is read, `results/rogue-worker.log` the unpinned worker
+refused at the handshake; `results/job.json` gate level EXACT, 6 of 6,
+`max_abs_err` 0, `release_authorized`; `results/audit-verify.json` `ok:
+true`, 17 events; 128.4 s on the guest (the runtime from the locks 76 s,
+the fine-tune 9 s, the job 5 s). The same release's two container
+images, deployed by `scripts/hardware-test/release-deploy-images` in the
+same minutes:
+[`scripts/hardware-test/release-deploy-images/evidence/20261021T132958Z/`](scripts/hardware-test/release-deploy-images/evidence/20261021T132958Z/)
+— each image verified by digest on the runner (signature, SBOM
+attestation, SLSA provenance, the binary inside equal to the release
+asset), loaded on the guest from tarballs whose hashes the guest
+re-computed, each loaded image's `RootFS.Layers` equal to the signed
+config's `diff_ids`; both daemons from their images, the key files sealed,
+the rogue refused, gate level EXACT, the audit log verified; 178.3 s.
+
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.6.0    # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.6.1           # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.6.1    # the images; ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---

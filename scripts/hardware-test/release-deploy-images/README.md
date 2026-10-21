@@ -85,3 +85,12 @@ identities from the chip, keys sealed, the rogue refused,
 `gate_level=EXACT` 6/6, the audit log verified (1158 s on the guest);
 the six input hashes are identical on both sides. The layer comparison
 and the config records came after that run, so it has neither file.
+`20261021T132958Z` is the first run on a real release, `v0.6.1`, eight
+minutes after it was published: PASS, and the first record with the
+tie whole — the six input hashes identical on both sides, and each
+loaded image's `RootFS.Layers` equal to the signed config's `diff_ids`
+(13 layers for `sagvd`, 9 for `acp-compute`; `verify/config-digests.txt`
+names the configs). The images are `sagvd@sha256:b7ff8436…` and
+`acp-compute@sha256:6f843dc1…`, both publicly readable; the binary inside
+each equals the release asset (`6291f59e…`, `a418fdfe…`); on the guest,
+`gate_level=EXACT` 6/6, the rogue refused, the audit log verified, 178 s.
