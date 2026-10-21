@@ -11,6 +11,15 @@ given release can still open.
 
 ## [Unreleased]
 
+### Security
+
+- Go 1.27.3. GO-2026-6809 (CVE-2026-111943): `crypto/x509` now refuses
+  the known compromised intermediate certificates when verifying a
+  chain; `govulncheck` finds the call reachable from the verification of
+  NVIDIA's RIM certificate chains (`tee.VerifyRIMCertChain`). The
+  toolchain, the six workflows and the two builder images move together;
+  the next release's binaries are built with it.
+
 ### Added
 
 - `tee.provider: "auto"` on an Azure confidential VM: where the kernel has
