@@ -22,7 +22,8 @@ prove-it phase.
 | 04 | [Frontier AI lab — model continuity at training scale](04-ai-lab-training-continuity.md) | GCP SEV-SNP | Multi-region + insider-risk mitigation    |
 
 Design 01 was revised on 2026-10-17 against v0.6.0 and the acceptance
-trial. Designs 02–04 are of 2026-05-06 and stand on backends the
+trial, and since 2026-10-21 has a kit that plays it end to end on real
+hardware (`scripts/hardware-test/reference-design-01`; C41). Designs 02–04 are of 2026-05-06 and stand on backends the
 product does not ship (AWS Nitro, Intel SGX bare metal); each is
 revised in its sector's pass — the healthcare and AI-lab designs with
 the business pass, the defence design with the military pass — and

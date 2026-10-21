@@ -6,7 +6,7 @@
 | Primary | GCP: the release authority on an AMD SEV-SNP Confidential VM (`gcp-sev-snp`); CPU workers on SEV-SNP or Intel TDX (`gcp-tdx`) |
 | Standby | Azure: an AMD SEV-SNP Confidential VM (`azure-sev-snp`) for CPU models; an NCC H100 v5 (`azure-cgpu`) for models that need a GPU |
 | Licence | AGPL-3.0-or-later, or the commercial licence for the bank's closed-source integrations (ADR 0003) |
-| Revised | 2026-10-17, on v0.6.0 and the acceptance trial of October 2026; replaces the design of 2026-05-06, which stood on Intel SGX bare metal, AWS Nitro, an HSM wrap and Terraform modules that are not in the tree |
+| Revised | 2026-10-17, on v0.6.0 and the acceptance trial of October 2026; replaces the design of 2026-05-06, which stood on Intel SGX bare metal, AWS Nitro, an HSM wrap and Terraform modules that are not in the tree. The kit that plays the design end to end, and C41, added 2026-10-21 on v0.7.0 |
 
 ## The problem
 
@@ -135,7 +135,29 @@ models, it does not serve them per message. What is measured:
 
 The bank runs the same kits on its own accounts and writes its own
 figures next to these; they are the test hardware's, not a service
-level.
+level. The design's own kit, below, writes this table from one run.
+
+## Prove it, in the bank's own project
+
+`scripts/hardware-test/reference-design-01/run.sh <gcp-project> [zone-a]
+[zone-b] [profile]` plays this design end to end on two SEV-SNP
+Confidential VMs in two regions and writes the figures table above from
+the run (`evidence/<stamp>/REPORT.md`): the quant's seal; the operator's
+job with the handshake, the material released for the session, EXACT and
+`RELEASE_DECIDED`; the standby's attestation, the key released to it
+under the profile's suite, the restore confirmed from its chip-signed
+receipt, the restored model gated on its chip; a thief with the sealed
+files, a worker that is not the pinned identity, a release to an
+unlisted guest and one under the operator's stop — all four refused,
+with the reasons on the record; both audit logs verified by a third
+party, the machine that ran the kit, with acpctl alone. The reference
+run is [C41](../../VERIFIABLE-CLAIMS.md#c41); a bank runs the same
+command in its own project, under the profile its policy names
+(`general`, `fips`, `cnsa`), and the table is its own. What the kit does
+not stand in for is named in its README: the authority and the worker
+share a chip there, the standby is a second region of one cloud, and the
+move is a planned release rather than a failover — those are C8, C14,
+C35 and `authority-loss`.
 
 ## Threat model
 

@@ -1,0 +1,24 @@
+== binaries from gs://rats-probe-vg-rd01-20261021t184052z/in
+== the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== provision (acp-keygen, private modes; every key file is sealed to the chip below)
+== identities: each daemon reads its launch measurement from the chip
+== the cross-cloud transport's own client pair and the operator's stop key, before sealing; the policy files start as placeholders
+== the standby's bundle, taken before sealing: its TLS material, the CA, a client pair for the bank's transport, the token
+== the key files sealed to this host (ADR 0023)
+== the quant's fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl (design step 1)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 499.44it/s]
+== hand-off to the standby through the bucket: its bundle, the base model, the sealed genome (opaque without its key), the authority's public key
+== sagvd on SEV-SNP
+== a thief with the sealed key files, off the chip: they do not open (ADR 0023)
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+== acp-compute on SEV-SNP, the real door: the handshake with the chip's report (design step 3)
+== the operator's gate job over the Return Path (design steps 2, 4, 5)
+== the continuity: wait for the standby's identity (its chip's measurement, for the allow-list)
+== the genome's key released to the standby in region B, only after its chip attested (the allow-list, the report against the AMD chain)
+== the standby restores by itself; the restore confirmed from its chip-signed receipt
+== release refused: a guest not on the allow-list
+== release refused: the operator's stop in force
+== metrics; stop both; both audit logs verified with the published key (design step 6, here first)
+== hand the record to the third party: both audit logs, the published audit key, the job's view

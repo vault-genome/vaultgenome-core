@@ -1,0 +1,2 @@
+acpctl: 86ac4cca68cdd0a0bcd3297f7f26d62a6ad6929990eaf5e49f3b6c1757a9527c (built from the same tree for this machine, Darwin arm64)
+acpctl 0.0.0-dev (commit aafd49be92c9-dirty)

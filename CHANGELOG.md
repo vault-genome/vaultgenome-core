@@ -11,6 +11,17 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/hardware-test/reference-design-01`: reference design 01 played
+  end to end on real SEV-SNP in two regions by one command — the bank's
+  job EXACT, the genome's key released to the attested standby under the
+  profile's suite, the restore gated EXACT on the standby's chip, four
+  refusals with their reasons, both audit logs verified by a third party
+  with acpctl alone; the design's figures table written from the run;
+  on record under `general`, `fips` and `cnsa` (C41; design 01, "Prove
+  it").
+
 ## [0.7.0] — 2026-10-21
 
 The release that lets a deployment choose its cryptography and says so in

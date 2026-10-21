@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -2627,6 +2627,79 @@ and `genome_drill_test.go` (`TestLiveGenomeDrill_EscrowedKeyUnderFIPS`).
 ```bash
 scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <gcp-project> us-central1-c fips    # ~10 min, one n2d-standard-2; general, fips or cnsa
 scripts/hardware-test/authority-loss/run.sh <gcp-project> us-central1-c fips                # ~30 min, two n2d-standard-4
+```
+
+---
+
+<a id="c41"></a>
+
+### C41 — Reference design 01 played end to end on real SEV-SNP in two regions: the bank's job EXACT, the genome's key released to the attested standby and the restore gated EXACT on its chip, four refusals with their reasons, both audit logs verified by a third party with acpctl alone
+
+**Claim.** One command in a GCP project plays reference design 01 — its "A job, end
+to end" and its continuity — on two AMD SEV-SNP Confidential VMs in two
+regions, under the chosen profile of ADR 0029 — on record under all
+three — and writes the design's figures table from the run. The bank
+(region A): the authority and its pinned worker attest with the chip,
+every key file sealed to it; the quant's fine-tune sealed by acpctl; a
+thief with the sealed files and a worker that is not the pinned identity
+refused; the gate job over the Return Path EXACT, `RELEASE_DECIDED` on
+the record. The continuity (region B): the standby's chip attests and
+its measurement goes on the allow-list; `sagvd crosscloud-restore`
+releases the genome's key under the profile's suite only after the
+standby's report verified against the AMD chain; the standby restores by
+itself and signs the receipt with its chip; `sagvd crosscloud-confirm`
+verifies it; `acpctl genome gate` recomputes every sealed fixture on the
+standby's chip through the real door and holds the results to the sealed
+references: EXACT; a release to a guest not on the allow-list and one
+under the operator's stop are refused with the reason on the record. The
+third party: the machine that ran the kit verifies both of the bank's
+audit logs with the published key and acpctl alone, queries the
+request's events and the session's lineage. Nothing is simulated, and
+the figures are the run's.
+
+**Evidence.** [`scripts/hardware-test/reference-design-01/evidence/20261021T183244Z/`](scripts/hardware-test/reference-design-01/evidence/20261021T183244Z/)
+(profile `general`, the key under `hpke-x25519-v1`; the bank
+`us-central1-c`, measurement `7dc7c12e…`; the standby `europe-west4-b`,
+`0e017d2f…`; tree `aafd49b` with the kit): `a/steps.txt` — `sagvd
+seal-keys exit=0 sealer=sev-snp-derived-key` and the worker's, the
+transport's own key among the sealed files (`a/sealed-files.txt`),
+`rogue with the sealed files exit=1 sealed to gcp-sev-snp, this host is
+simulated`, `rogue refused after 1s`, `session opened after 8s`,
+`gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6
+max_abs_err=0`, `release exit=0`, `release suite=hpke-x25519-v1`,
+`confirm exit=0`, `unlisted exit=1 policy denied key release:
+destination measurement not in allow-list`, `stopped exit=1 policy
+denied key release: operator stop in force`, `audit verify exit=0`, `xcc
+audit verify exit=0`; `a/sagvd.handshake_ms.txt` 8187 ms for the first
+report of the boot, then 27 ms; `a/timeline.txt` the job 5.2 s, the
+release 4.9 s, the release to the restore confirmed 15.5 s;
+`a/confirm.json` `status: ok`, `key_to_restored_seconds` 0.003;
+`b/standby-gate.json` EXACT, 6 fixtures, backend 4.05 s;
+`b/receipt.json`; `a/audit-verify.json` 17 events,
+`a/xcc-audit-verify.json` 10; `third-party/steps.txt` the four
+verifications at exit 0 — the request's 6 events, the lineage of
+`ses-bbae08fe…`; `REPORT.md` the design's table filled from the run;
+`runner-timeline.txt` 317 s from the run's first line to the third
+party's verdict, the guests' creation included. The same two zones under
+`fips` and `cnsa`, minutes apart:
+[`…/evidence/20261021T184052Z/`](scripts/hardware-test/reference-design-01/evidence/20261021T184052Z/)
+(`fips`, the key under `hpke-p384-v1`, recipient key `c9bfde06…`: the
+job EXACT in 5.2 s, the release 4.9 s, the restore confirmed at 15.5 s,
+the standby's gate EXACT with the backend at 4.39 s, the same four
+refusals with their reasons, 17 + 10 events, the third party's four
+verifications at exit 0, 308 s to its verdict) and
+[`…/evidence/20261021T184112Z/`](scripts/hardware-test/reference-design-01/evidence/20261021T184112Z/)
+(`cnsa`, `hpke-mlkem1024-p384-v1`, recipient key `57aa0729…`: the job
+EXACT in 5.2 s, the release 4.9 s, the restore confirmed at 15.7 s, the
+standby's gate EXACT with the backend at 3.99 s, the same refusals, 17 +
+10 events, four verifications at exit 0, 308 s). The profile is the only
+thing that changed between the three runs; the suite changed with it,
+and nothing else in the figures did.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/reference-design-01/run.sh <gcp-project> us-central1-c europe-west4-b general   # general, fips or cnsa; ~6 min after the build; one n2d-standard-4 and one n2d-standard-2, both deleted
 ```
 
 ---
