@@ -106,3 +106,19 @@ loaded image's `RootFS.Layers` equal to the signed config's `diff_ids`
 publicly readable; the binary inside each equals the release asset
 (`fc11d465…`, `367d4b15…`); on the guest, `gate_level=EXACT` 6/6, the
 rogue refused, the audit log verified (17 events), 211 s.
+
+`20261021T224031Z` is the run on the rehearsal `v0.8.0-rc1` of the
+`-fips` release variant (ADR 0030, part three; release procedure §4.1),
+ten minutes after the tag's pipeline finished: PASS — the first record
+with four images. `sagvd@sha256:2fa0a32b…`, `acp-compute@sha256:db2019ae…`,
+`sagvd-fips@sha256:19ed8ecf…` and `acp-compute-fips@sha256:c97ad11c…`,
+all four publicly readable at their first push; each signature, SBOM
+attestation and container provenance verified; the binary inside each
+equal to its release asset — `sagvd-fips`'s to the `sagvd-fips` asset
+(`5ed67cf2…`), `acp-compute-fips`'s to `acp-compute-fips` (`1dc2bab2…`),
+the binary at the same path inside as in the default image; each loaded
+image's `RootFS.Layers` equal to the signed config's `diff_ids` (13
+layers for `sagvd` and `sagvd-fips`, 9 for the two workers). The two
+default images ran on the guest: `gate_level=EXACT` 6/6, both rogues
+refused, the audit log verified (17 events), 186.9 s. The rehearsal's
+release was deleted afterwards and the tag kept (§4.1).

@@ -85,7 +85,7 @@ done
 { echo "release: $TAG"; echo "verified at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"; echo "cosign: $(cosign version 2>&1 | grep GitVersion | awk '{print $2}')"; echo "slsa-verifier: $(slsa-verifier version 2>&1 | grep GitVersion | awk '{print $2}')"; } | rec tools.txt >/dev/null
 grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt" | sed 's/^/  cosign Verified OK: /'
 grep -c 'PASSED: SLSA verification passed' "$EVIDENCE/verify/slsa.txt" | sed 's/^/  slsa PASSED: /'
-test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = 12 || { echo "ERROR: a signature did not verify"; exit 1; }
+test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = $((N_ART * 2)) || { echo "ERROR: a signature did not verify"; exit 1; }
 # From 0.4.3 the release carries a Sigstore bundle beside each pair: the
 # same twelve files verified from their bundles with the Sigstore trust
 # root as a file (cosign initialize fetches it) and no route — the check

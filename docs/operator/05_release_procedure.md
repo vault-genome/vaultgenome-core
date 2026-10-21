@@ -162,6 +162,32 @@ rehearsals found three things no job had: the packages are created
 private and the organization has to allow public ones (§4, item 8);
 `cosign verify` prints "Verification for", not verify-blob's "Verified
 OK"; and the asset count is 55, not 54.
+The `-fips` release variant of ADR 0030 (part three) was rehearsed as
+`v0.8.0-rc1` on 2026-10-21 (run 39686635713, 22:27:53–22:34:53Z on the
+tag's push): the build job built both variants, refused nothing, and
+uploaded 88 assets; the images job built, pushed, signed and attested
+the four images; the generic and the four container provenances
+followed — 97 assets, four images in `images-v0.8.0-rc1.txt`. The two
+new packages, `sagvd-fips` and `acp-compute-fips`, were publicly
+readable at their first push (an anonymous manifest fetch answered 200),
+unlike the first two on 2026-10-21 — the organization's packages
+setting had been opened by then; a kit still checks. Verified like a release (§5) by the kits against the rehearsal: `release-deploy`
+(`scripts/hardware-test/release-deploy/evidence/20261021T223719Z/`) — the
+twenty-two signature pairs and the twenty-two bundles (with
+`--trusted-root` and the network denied), the eleven provenances and the
+tag; the five binaries, their five `-fips` variants and the package
+rebuilt from the tag byte for byte on a Darwin arm64 host; the guest from
+release assets alone, the gate job EXACT, 17 events verified — and
+`release-deploy-images`
+(`scripts/hardware-test/release-deploy-images/evidence/20261021T224031Z/`) —
+the four images publicly readable, each signature, SBOM attestation and
+container provenance verified, the binary inside each image equal to its
+release asset (the `-fips` images to the `-fips` assets), the two default
+images run on the guest, the gate job EXACT, 17 events verified. The
+rehearsal found one thing: the `release-deploy` kit's count of verified
+signature pairs was still twelve while it verified twenty-two, and the
+run stopped on its own arithmetic; the count follows the artifact count
+now. The rehearsal's GitHub release was deleted and the tag kept.
 After any change to the workflow or to the actions it pins (a Dependabot
 bump included), run the pipeline on a signed rehearsal tag before the
 real one: `vX.Y.Z-rcN` on the merge commit, verified like a release (§5),
