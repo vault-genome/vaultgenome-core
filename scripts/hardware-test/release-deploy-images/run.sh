@@ -57,19 +57,26 @@ cleanup() {
 trap cleanup EXIT
 rec() { tee -a "$EVIDENCE/verify/$1" ; }
 
-echo "== 1. the release $TAG: images-$TAG.txt, the two binaries, their bundles"
+echo "== 1. the release $TAG: images-$TAG.txt, the four image binaries, their bundles"
 DL="$WORK/assets"; mkdir -p "$DL"
 WORKER_PKG="genome-worker-$TAG.tar.gz"
 gh release download "$TAG" --repo "$REPO" --dir "$DL" \
   --pattern "images-$TAG.txt*" --pattern sagvd --pattern 'sagvd.sigstore.json' --pattern acp-compute --pattern 'acp-compute.sigstore.json' \
+  --pattern sagvd-fips --pattern 'sagvd-fips.sigstore.json' --pattern acp-compute-fips --pattern 'acp-compute-fips.sigstore.json' \
   --pattern acpctl --pattern 'acpctl.sigstore.json' --pattern acp-keygen --pattern 'acp-keygen.sigstore.json' \
   --pattern "$WORKER_PKG" --pattern "$WORKER_PKG.sigstore.json" >/dev/null
 ( cd "$DL" && sha256sum -- * ) | rec assets.sha256 >/dev/null
-for f in "images-$TAG.txt" sagvd acp-compute acpctl acp-keygen "$WORKER_PKG"; do
+# From 0.8.0 the release carries the -fips images (ADR 0030) beside the two;
+# a release before it has no -fips assets, and the kit verifies what is there.
+FIPS_ASSETS=""; [ -f "$DL/sagvd-fips" ] && FIPS_ASSETS="sagvd-fips acp-compute-fips"
+# shellcheck disable=SC2086
+for f in "images-$TAG.txt" sagvd acp-compute $FIPS_ASSETS acpctl acp-keygen "$WORKER_PKG"; do
   ( cd "$DL" && cosign verify-blob --new-bundle-format --bundle "$f.sigstore.json" \
       --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$f" ) 2>&1 | rec cosign.txt | tail -1 | sed "s|^|  $f: |"
 done
-test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = 6 || { echo "ERROR: an asset did not verify"; exit 1; }
+WANT_OK=6; [ -n "$FIPS_ASSETS" ] && WANT_OK=8
+test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = "$WANT_OK" || { echo "ERROR: an asset did not verify"; exit 1; }
+N_IMAGES="$(grep -c . "$DL/images-$TAG.txt")"
 cp "$DL/images-$TAG.txt" "$EVIDENCE/verify/"
 cat "$DL/images-$TAG.txt" | sed 's|^|  |'
 
@@ -114,15 +121,18 @@ while read -r ref; do
   ( cd "$ROOT" && go run "$CRANE" manifest "$ref" ) | python3 -c 'import sys,json; m=json.load(sys.stdin); print(m["config"]["digest"])' | sed "s|^|$ref config.digest=|" | rec config-digests.txt | sed 's|^|    |'
   ( cd "$ROOT" && go run "$CRANE" config "$ref" ) | python3 -c 'import sys,json; print(json.dumps(json.load(sys.stdin)["rootfs"]["diff_ids"]))' > "$EVIDENCE/verify/diff-ids-$name.json"
   echo "    rootfs diff_ids recorded: $(python3 -c 'import sys,json; print(len(json.load(open(sys.argv[1]))))' "$EVIDENCE/verify/diff-ids-$name.json") layers"
-  ( cd "$ROOT" && go run "$CRANE" export "$ref" - ) | tar -xO "usr/local/bin/$name" > "$WORK/inside-$name"
+  # The -fips image carries the -fips binary under the binary's own name
+  # (the same Dockerfile, the same path), so it is a drop-in; the asset it
+  # must equal is the -fips one.
+  ( cd "$ROOT" && go run "$CRANE" export "$ref" - ) | tar -xO "usr/local/bin/${name%-fips}" > "$WORK/inside-$name"
   a="$(sha256sum "$WORK/inside-$name" | awk '{print $1}')"; b="$(sha256sum "$DL/$name" | awk '{print $1}')"
   if [ "$a" = "$b" ]; then echo "    binary inside = release asset ($a)" | rec binaries-inside.txt; else echo "    MISMATCH $name: image $a asset $b" | rec binaries-inside.txt; exit 1; fi
   ( cd "$ROOT" && go run "$CRANE" pull "$ref" "$WORK/$name.tar" )
   echo "    pulled to $name.tar ($(stat -f %z "$WORK/$name.tar" 2>/dev/null || stat -c %s "$WORK/$name.tar") bytes)"
 done < "$DL/images-$TAG.txt"
-test "$(grep -c '^Verification for ' "$EVIDENCE"/verify/image-*-cosign.txt | awk -F: '{s+=$2} END {print s}')" -ge 2 || { echo "ERROR: an image signature did not verify"; exit 1; }
-test "$(grep -c '^Verification for ' "$EVIDENCE"/verify/image-*-attestation.txt | awk -F: '{s+=$2} END {print s}')" -ge 2 || { echo "ERROR: an image SBOM attestation did not verify"; exit 1; }
-test "$(grep -c 'PASSED: SLSA verification passed' "$EVIDENCE"/verify/image-*-slsa.txt | awk -F: '{s+=$2} END {print s}')" = 2 || { echo "ERROR: an image provenance did not verify"; exit 1; }
+test "$(grep -c '^Verification for ' "$EVIDENCE"/verify/image-*-cosign.txt | awk -F: '{s+=$2} END {print s}')" -ge "$N_IMAGES" || { echo "ERROR: an image signature did not verify"; exit 1; }
+test "$(grep -c '^Verification for ' "$EVIDENCE"/verify/image-*-attestation.txt | awk -F: '{s+=$2} END {print s}')" -ge "$N_IMAGES" || { echo "ERROR: an image SBOM attestation did not verify"; exit 1; }
+test "$(grep -c 'PASSED: SLSA verification passed' "$EVIDENCE"/verify/image-*-slsa.txt | awk -F: '{s+=$2} END {print s}')" = "$N_IMAGES" || { echo "ERROR: an image provenance did not verify"; exit 1; }
 ( cd "$ROOT" && git fetch -q origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
   git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag "$TAG" ) 2>&1 | rec tag.txt | tail -1 | sed 's|^|  tag: |'
 { echo "release: $TAG"; echo "verified at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"; echo "cosign: $(cosign version 2>&1 | grep GitVersion | awk '{print $2}')"

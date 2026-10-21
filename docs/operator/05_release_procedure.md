@@ -43,7 +43,8 @@ workflow.
 | - | - | - |
 | Clean working tree | `git status` | No uncommitted changes |
 | Local gate green | `make vault-gate` | Exit 0, `vault-gate: PASS` |
-| CI-only checks | `make test-integration && make verify-reproducible` | Both exit 0 (osv-scanner runs only in CI) |
+| CI-only checks | `make test-integration && make verify-reproducible` | Both exit 0 (osv-scanner runs only in CI); `verify-reproducible` covers the default build and the FIPS build |
+| The FIPS variant | `make build-fips && ./bin/sagvd-fips version` | `bin/<binary>-fips` present; the line ends `fips140=on module=v1.0.0 enforced=false` (ADR 0030; `go version -m bin/sagvd-fips` shows `GOFIPS140=v1.0.0-…`) |
 | SBOM generable | `make sbom` | `dist/sbom.spdx.json` present, non-empty |
 | Deps within policy | `make dep-allowlist && make dep-depth` | Both exit 0 |
 | Doctrine clean | `make test-doctrine` | Every `TestInvariant_NN` passes, including `TestInvariant_11_SupplyChainAttested` |
@@ -78,13 +79,18 @@ The tag push runs `.github/workflows/release.yml`:
 1. Check out the tag and run `git verify-tag` on it against the keys pinned on
    the default branch.
 2. Set up Go 1.27.3 (the toolchain `go.mod` names).
-3. `make build` and `make verify-reproducible`, with `VERSION` = the tag name,
-   `COMMIT` = the full commit SHA and `SOURCE_DATE_EPOCH` = the tagged commit's
-   timestamp.
+3. `make build build-fips` and `make verify-reproducible`, with `VERSION` =
+   the tag name, `COMMIT` = the full commit SHA and `SOURCE_DATE_EPOCH` =
+   the tagged commit's timestamp. The `-fips` variants (ADR 0030) are the
+   same five binaries built on the certified Go Cryptographic Module
+   (`GOFIPS140=v1.0.0`, the version named, never an alias) from the same
+   commit by the same reproducible build; the job refuses a `-fips`
+   binary whose build settings do not name the module, and prints
+   `sagvd-fips version` (`fips140=on module=v1.0.0`).
 4. Pack `workers/genome` as `genome-worker-<tag>.tar.gz` with GNU tar
    from the tagged commit's time (sorted names, numeric owner 0, `gzip
    -n`), twice, and compare; `syft`: one SPDX-JSON SBOM per published
-   binary, `dist/<binary>.sbom.spdx.json`, and one for the package.
+   binary (the ten), `dist/<binary>.sbom.spdx.json`, and one for the package.
 5. `cosign sign-blob` (keyless): a signature and certificate for each binary
    and for the package (`dist/<artifact>.sig`, `.cert`) and for each SBOM
    (`.sbom.sig`, `.sbom.cert`), and beside each pair the Sigstore bundle
@@ -92,28 +98,34 @@ The tag push runs `.github/workflows/release.yml`:
    certificate and the Rekor entry in one file, for verification with a
    trusted-root file and no route).
 6. Upload `bin/sagvd`, `bin/acp-compute`, `bin/acpctl`, `bin/acp-bootstrap`,
-   `bin/acp-keygen`, the package, the SBOMs, signatures, certificates and
-   bundles to the GitHub Release: 48 assets.
+   `bin/acp-keygen`, their five `-fips` variants, the package, the SBOMs,
+   signatures, certificates and bundles to the GitHub Release: 88 assets
+   (48 before 0.8.0).
 7. A second job runs the SLSA generic generator
    (`slsa-framework/slsa-github-generator`, `generator_generic_slsa3.yml`
-   v2.1.0) over the five binaries' and the worker package's SHA-256 and uploads the provenance to the
+   v2.1.0) over the ten binaries' and the worker package's SHA-256 and uploads the provenance to the
    release.
-8. The `images` job takes `bin/sagvd` and `bin/acp-compute` with their
-   Sigstore bundles from the build job, verifies each binary under this
-   workflow's identity on this tag before packing it, builds the two
-   release images (`deploy/image/sagvd/Dockerfile` on distroless static,
-   `deploy/image/acp-compute/Dockerfile` on python-slim with the worker's
-   hash-locked runtime — nothing is compiled in either), pushes them to
-   `ghcr.io/vault-genome/sagvd:<tag>` and `ghcr.io/vault-genome/acp-compute:<tag>`,
-   signs each by digest (`cosign sign`, keyless), attests an SPDX SBOM of
-   each image to it (`cosign attest --type spdxjson`), and uploads
-   `images-<tag>.txt` — both images named by digest — with its signature,
-   certificate and bundle, and the two image SBOMs: 6 more assets, 55 in
-   all (the build job's 48, the provenance, these 6). The first push of
+8. The `images` job takes `bin/sagvd`, `bin/acp-compute` and their `-fips`
+   variants with their Sigstore bundles from the build job, verifies each
+   binary under this workflow's identity on this tag before packing it,
+   builds the four release images (`deploy/image/sagvd/Dockerfile` on
+   distroless static, `deploy/image/acp-compute/Dockerfile` on python-slim
+   with the worker's hash-locked runtime — nothing is compiled in either;
+   the `-fips` images are the same Dockerfiles over the `-fips` binaries,
+   the binary at the same path inside, so a `-fips` image is a drop-in),
+   pushes them to `ghcr.io/vault-genome/sagvd:<tag>`,
+   `ghcr.io/vault-genome/acp-compute:<tag>`, `ghcr.io/vault-genome/sagvd-fips:<tag>`
+   and `ghcr.io/vault-genome/acp-compute-fips:<tag>`, signs each by digest
+   (`cosign sign`, keyless), attests an SPDX SBOM of each image to it
+   (`cosign attest --type spdxjson`), and uploads `images-<tag>.txt` — the
+   four images named by digest — with its signature, certificate and
+   bundle, and the four image SBOMs: 8 more assets, 97 in all (the build
+   job's 88, the provenance, these 8; 55 before 0.8.0). The first push of
    an image creates its package *private* — the rehearsal `v0.6.1-rc2`
    found it on 2026-10-21 (an anonymous pull answers 403) — so an org
-   owner makes `ghcr.io/vault-genome/sagvd` and
-   `ghcr.io/vault-genome/acp-compute` public once, in each package's
+   owner makes `ghcr.io/vault-genome/sagvd`,
+   `ghcr.io/vault-genome/acp-compute` and, at their first push, the two
+   `-fips` packages public once, in each package's
    settings (Change visibility → Public, confirmed by typing the
    package's name). "Public" is greyed out there — "Setting is disabled
    by organization administrators" — until the organization allows
@@ -121,9 +133,9 @@ The tag push runs `.github/workflows/release.yml`:
    creation → Public, which the same owner enables first. §5, item 5
    checks the result.
 9. `slsa-images` runs the SLSA container generator
-   (`generator_container_slsa3.yml` v2.1.0) once per image, over the
-   image's digest, and pushes the provenance to the registry beside the
-   image.
+   (`generator_container_slsa3.yml` v2.1.0) once per image (four), over
+   the image's digest, and pushes the provenance to the registry beside
+   the image.
 
 `TestInvariant_11_SupplyChainAttested` does not run in `release.yml`; it runs
 with the doctrine tests in vault-gate. It reads `release.yml` and fails if the
@@ -185,7 +197,8 @@ Once the release workflow completes:
      sagvd
    ```
    `docs/security/supply_chain.md` explains what a successful check proves.
-   Then the bundle of each of the twelve, with the Sigstore trust root as
+   Then the bundle of each of the twenty-two (the ten binaries, the
+   package, their SBOMs; twelve before 0.8.0), with the Sigstore trust root as
    a file (`cosign initialize` fetches it into
    `~/.sigstore/root/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json`),
    which needs no route — run it with the network denied, as the
@@ -198,8 +211,8 @@ Once the release workflow completes:
    ```
    — the check an air-gapped site runs (`runbooks/air_gap.md`). Not
    `--offline`: on cosign 2.6.5 it still updates TUF from the mirror.
-3. Check that the SLSA provenance attached to the release names each
-   binary's and the worker package's SHA-256 (for example with
+3. Check that the SLSA provenance attached to the release names each of
+   the ten binaries' and the worker package's SHA-256 (for example with
    `slsa-verifier`).
 4. Rebuild from the tag with Go 1.27.3, from any host — the binaries are
    static (`CGO_ENABLED=0`) and carry the tag's VCS stamp, so the rebuild
@@ -207,8 +220,8 @@ Once the release workflow completes:
    ```
    git clone https://github.com/vault-genome/vaultgenome-core.git && cd vaultgenome-core
    git checkout vX.Y.Z
-   GOOS=linux GOARCH=amd64 make build VERSION=vX.Y.Z COMMIT=$(git rev-parse HEAD)
-   sha256sum bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen
+   GOOS=linux GOARCH=amd64 make build build-fips VERSION=vX.Y.Z COMMIT=$(git rev-parse HEAD)
+   sha256sum bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen bin/*-fips
    ```
    Every hash must equal the released file's. The worker package repacks
    the same way with GNU tar (`--sort=name --mtime=@SOURCE_DATE_EPOCH
@@ -221,11 +234,12 @@ Once the release workflow completes:
    `scripts/hardware-test/release-deploy/run.sh` does all six. `go version -m <binary>`
    prints the build settings a released binary was made with (Go
    version, GOOS/GOARCH, CGO_ENABLED, -trimpath, the VCS revision and
-   time); compare them first when hashes differ. (v0.1.0 and v0.2.0 were
+   time; for a `-fips` binary `GOFIPS140=v1.0.0-…`, the module snapshot
+   it was built on); compare them first when hashes differ. (v0.1.0 and v0.2.0 were
    built with cgo on the runner: their rebuild needs linux/amd64 with a
    C toolchain; from v0.2.1 the binaries are static.)
-5. Verify the two images by digest, from `images-<tag>.txt` (itself
-   verified like the other assets): the signature under this workflow's
+5. Verify the four images by digest (two before 0.8.0), from
+   `images-<tag>.txt` (itself verified like the other assets): the signature under this workflow's
    identity, the SBOM attestation, and the provenance —
    ```
    cosign verify ghcr.io/vault-genome/sagvd@sha256:… \
@@ -236,14 +250,22 @@ Once the release workflow completes:
    slsa-verifier verify-image ghcr.io/vault-genome/sagvd@sha256:… \
      --source-uri github.com/vault-genome/vaultgenome-core --source-tag vX.Y.Z
    ```
-   and the same for `acp-compute`. Both must work from a machine with no
+   and the same for `acp-compute`, `sagvd-fips` and `acp-compute-fips`.
+   All must work from a machine with no
    registry login: a private package (§4, item 8) answers 403, and an
    integrator could neither pull nor verify —
    `scripts/hardware-test/release-deploy-images/run.sh` checks exactly
    that, anonymously, before anything else. The binary inside is the
    released one: `docker create` the image, `docker cp`
-   `/usr/local/bin/sagvd` out, and its SHA-256 equals the release asset's.
+   `/usr/local/bin/sagvd` out, and its SHA-256 equals the release asset's
+   — `sagvd` for the `sagvd` image, `sagvd-fips` for the `sagvd-fips`
+   image (the same path inside both).
 6. Verify the tag signature — `git verify-tag v0.1.0`.
+6a. The `-fips` variants name their module: `./sagvd-fips version` ends
+   `fips140=on module=v1.0.0 enforced=false`, and so do the other four;
+   `identity` on a host carries the same under `fips140` (ADR 0030). A
+   deployment that needs the certified module runs these five and records
+   the module version from `identity`.
 7. Record the release hashes externally (the external pin is itself a
    defence against a later tag rewrite — see
    `04_observability.md` §2.2 for the parallel idea on audit chains).

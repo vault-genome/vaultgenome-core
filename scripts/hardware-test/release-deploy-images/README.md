@@ -23,8 +23,9 @@ seal to a vTPM call `tpm2-tools`, which the images do not carry.
 ## What a run does
 
 1. On the runner: downloads `images-<tag>.txt` and the released
-   `sagvd`, `acp-compute`, `acpctl`, `acp-keygen` and worker package
-   with their Sigstore bundles and verifies all six under the release
+   `sagvd`, `acp-compute`, `acpctl`, `acp-keygen` and worker package —
+   from 0.8.0 `sagvd-fips` and `acp-compute-fips` too (ADR 0030) — with
+   their Sigstore bundles and verifies all of them under the release
    workflow's identity; confirms each image is publicly readable — an
    anonymous pull of its manifest, no registry login consulted, because
    a package pushed for the first time is private and an integrator
@@ -32,7 +33,9 @@ seal to a vTPM call `tpm2-tools`, which the images do not carry.
    then each image by digest — `cosign verify`,
    `cosign verify-attestation --type spdxjson`, `slsa-verifier
    verify-image` — and exports each to check that the binary inside is
-   byte-identical to the release asset; then pulls each image into a
+   byte-identical to the release asset (for a `-fips` image, the `-fips`
+   asset: the binary sits at the same path inside, so the image is a
+   drop-in); the two default images then go to the guest; then pulls each image into a
    tarball (`crane`, by digest) and records the signed manifest's config
    digest and the config's `rootfs.diff_ids`.
 2. Uploads the two tarballs, the released `acpctl`, `acp-keygen` and

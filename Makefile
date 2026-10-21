@@ -35,6 +35,13 @@ LDFLAGS       := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -buildid= -
 endif
 GOFLAGS_REPRO := -trimpath -ldflags '$(LDFLAGS)'
 
+# The FIPS build (ADR 0030): the same binaries on the certified Go
+# Cryptographic Module, named by its version — never `certified` or
+# `latest`, which move. GOFIPS140 selects the module snapshot at build
+# time and makes fips140=on the binary's default; `version` and
+# `identity` print it. `make build-fips` writes bin/<name>-fips.
+FIPS_MODULE := v1.0.0
+
 .PHONY: all
 all: fmt vet build test
 
@@ -42,6 +49,9 @@ all: fmt vet build test
 
 .PHONY: build
 build: $(BINARIES:%=bin/%)
+
+.PHONY: build-fips
+build-fips: $(BINARIES:%=bin/%-fips)
 
 # CGO_ENABLED=0: static binaries that run on any linux/amd64 without a
 # libc to match, and that anyone rebuilds byte for byte from any host with
@@ -51,19 +61,24 @@ bin/%: cmd/%
 	@mkdir -p bin
 	CGO_ENABLED=0 $(GO) build $(GOFLAGS_REPRO) -o $@ ./$<
 
-# verify-reproducible builds every binary twice with identical flags and
-# diffs the resulting bytes. Failure means a non-determinism source
+# The same, on the certified module (the shorter stem wins the pattern).
+bin/%-fips: cmd/%
+	@mkdir -p bin
+	CGO_ENABLED=0 GOFIPS140=$(FIPS_MODULE) $(GO) build $(GOFLAGS_REPRO) -o $@ ./$<
+
+# verify-reproducible builds every binary twice — the default build and
+# the FIPS build — with identical flags and diffs the resulting bytes. Failure means a non-determinism source
 # crept in (random build IDs, embedded timestamps, GOPATH leakage,
 # CGO non-determinism). CI runs this as sub-check 18 in vault-gate.yml.
 .PHONY: verify-reproducible
 verify-reproducible:
 	@$(MAKE) --no-print-directory clean-bin
-	@$(MAKE) --no-print-directory build
+	@$(MAKE) --no-print-directory build build-fips
 	@mkdir -p dist/repro
-	@for b in $(BINARIES); do cp bin/$$b dist/repro/$$b.first; done
+	@for b in $(BINARIES) $(BINARIES:%=%-fips); do cp bin/$$b dist/repro/$$b.first; done
 	@$(MAKE) --no-print-directory clean-bin
-	@$(MAKE) --no-print-directory build
-	@for b in $(BINARIES); do \
+	@$(MAKE) --no-print-directory build build-fips
+	@for b in $(BINARIES) $(BINARIES:%=%-fips); do \
 	  if cmp -s dist/repro/$$b.first bin/$$b; then \
 	    echo "  $$b: byte-identical across two builds"; \
 	  else \

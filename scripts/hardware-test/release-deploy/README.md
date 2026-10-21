@@ -15,13 +15,14 @@ created and deleted by the run.
 
 ## What the run does
 
-1. **Downloads the release's assets** — the five binaries and the worker
-   package, their keyless cosign signatures and certificates, the SBOMs
-   with theirs, and the SLSA provenance — and **verifies every one** before
-   anything runs: `cosign verify-blob` against the release workflow's
-   identity and the GitHub OIDC issuer (twelve signatures), `slsa-verifier
-   verify-artifact` against the source repository and the tag (six
-   artifacts), and the tag's own signature against the keys pinned on
+1. **Downloads the release's assets** — the five binaries, from 0.8.0
+   their `-fips` variants on the certified module (ADR 0030), and the
+   worker package, their keyless cosign signatures and certificates, the
+   SBOMs with theirs, and the SLSA provenance — and **verifies every one**
+   before anything runs: `cosign verify-blob` against the release
+   workflow's identity and the GitHub OIDC issuer (twelve signatures;
+   twenty-two from 0.8.0), `slsa-verifier verify-artifact` against the
+   source repository and the tag (six artifacts; eleven from 0.8.0), and the tag's own signature against the keys pinned on
    `main` (`.github/allowed_signers`). A signature that does not verify
    stops the run. From 0.4.3 the release carries a Sigstore bundle beside
    each pair, and the kit verifies the same twelve files from their
@@ -31,7 +32,7 @@ created and deleted by the run.
    0.4.2 has four binaries and no
    package: eight signatures, four provenances, and the pieces below from
    the tag's source — the record of `v0.4.1` says so.)
-2. **Rebuilds the five binaries and the worker package from the tag** with
+2. **Rebuilds the five binaries (and the `-fips` five, from 0.8.0) and the worker package from the tag** with
    the inputs `release.yml` uses (the tag as VERSION, the commit as COMMIT,
    its time as SOURCE_DATE_EPOCH, CGO off, linux/amd64; GNU tar with sorted
    names, numeric owner 0 and that time as every mtime, GNU gzip without a

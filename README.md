@@ -108,9 +108,11 @@ once after provisioning ([ADR 0023](docs/adr/0023-the-daemons-key-files-sealed-t
 
 Releases are cut by [`release.yml`](.github/workflows/release.yml) from a tag
 signed by a key pinned in [`.github/allowed_signers`](.github/allowed_signers):
-five binaries and the worker package built reproducibly, each with a keyless cosign signature and a
-transparency-log entry, an SPDX SBOM, and a SLSA level 3 provenance
-attestation. Check what you downloaded before you run it:
+five binaries and the worker package built reproducibly — and, from
+0.8.0, a `-fips` variant of each binary and image on the certified Go
+Cryptographic Module v1.0.0 (ADR 0030) — each with a keyless cosign
+signature and a transparency-log entry, an SPDX SBOM, and a SLSA level
+3 provenance attestation. Check what you downloaded before you run it:
 
 ```bash
 cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \

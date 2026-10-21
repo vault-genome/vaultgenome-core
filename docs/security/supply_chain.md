@@ -43,6 +43,15 @@ Verification: `cosign verify <image>@<digest>` under the release
 workflow's identity, `cosign verify-attestation --type spdxjson`, and
 `slsa-verifier verify-image` (`docs/operator/05_release_procedure.md` §5).
 
+From 0.8.0 the release also carries a `-fips` variant of every binary
+(`sagvd-fips`, `acp-compute-fips`, `acpctl-fips`, `acp-bootstrap-fips`,
+`acp-keygen-fips`) and of both images (`ghcr.io/vault-genome/sagvd-fips`,
+`ghcr.io/vault-genome/acp-compute-fips`), built on the certified Go
+Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`; ADR 0030) from the same
+commit by the same reproducible build, with the same signatures, SBOMs
+and provenance: 88 build assets and four images, 97 assets in all. A
+`-fips` image carries its binary at the same path as the default one.
+
 All artifacts are attached to the GitHub Release for the corresponding
 signed semver tag (`v*.*.*`). Each release tag is itself git-signed by
 a key whose fingerprint is in the

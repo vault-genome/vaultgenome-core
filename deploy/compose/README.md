@@ -47,9 +47,14 @@ its base directory into the worker with `ACP_BASE_MODEL=/path/to/base`.
 
 ## Run the released images instead of building
 
-From the next release the images are on `ghcr.io`, signed by digest
-(`docs/security/supply_chain.md`). Take both digests from the release's
-`images-<tag>.txt` (verify it like any asset first), verify each image,
+From 0.6.1 the images are on `ghcr.io`, signed by digest
+(`docs/security/supply_chain.md`); from 0.8.0 the `-fips` images
+`sagvd-fips` and `acp-compute-fips` — the same images over the binaries
+built on the certified Go Cryptographic Module v1.0.0 (ADR 0030), the
+binary at the same path inside, so an override file names one or the
+other — are beside them, lines three and four of the list. Take the
+digests from the release's `images-<tag>.txt` (verify it like any asset
+first), verify each image,
 then point the services at them with an override file instead of
 `build:`:
 
