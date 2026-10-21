@@ -208,6 +208,7 @@ summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
 | [`docs/compliance/`](docs/compliance/README.md), [`docs/reference-designs/`](docs/reference-designs/README.md) | The control catalogue, the sector maps and four reference designs |
 | [`docs/spec/`](docs/spec/draft-vault-genome-tap-00.md) | The TEE-Agnostic Attestation Protocol draft |
 | [`docs/reference/cli.md`](docs/reference/cli.md) | Every command and flag of the five binaries, generated from their own usage text |
+| [`docs/reference/api.md`](docs/reference/api.md) | The operator REST API for an integrator — `POST /v1/jobs`, `GET /v1/jobs/{id}`, the error envelope, the job view, how to verify what it says |
 | [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md), [`ROADMAP.md`](ROADMAP.md), [`CHANGELOG.md`](CHANGELOG.md) | Limits, what is next, what changed |
 
 ## Development
