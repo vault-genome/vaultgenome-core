@@ -8,6 +8,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"errors"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,7 +179,7 @@ func TestEscrowRecover_StdoutFailure(t *testing.T) {
 	require.NoError(t, err)
 	rpub, err := escrow.ParsePublicPEM(pemBytes)
 	require.NoError(t, err)
-	escrowKey, err := escrow.GenerateKey()
+	escrowKey, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	env, err := escrow.WrapRecovery(escrowKey, rpub)
 	require.NoError(t, err)

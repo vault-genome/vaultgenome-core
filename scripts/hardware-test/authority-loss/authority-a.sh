@@ -65,7 +65,8 @@ tar -C "$W" -czf /root/secrets.tgz secrets && gcs_put /root/secrets.tgz safe/sec
 # The operator's copy of the API token: seal-keys seals the daemon's file
 # below; the operator submits jobs with this one.
 cp "$W/secrets/sagvd/api_token" "$W/api_token.operator" && chmod 600 "$W/api_token.operator"
-acpctl escrow recovery-keygen --out "$W/recovery.seed" --pub "$W/recovery.pem" > "$OUT/recovery-keygen.txt"
+echo "profile=$PROFILE suite=$SUITE" >> "$OUT/steps.txt"
+acpctl escrow recovery-keygen --suite "$SUITE" --out "$W/recovery.seed" --pub "$W/recovery.pem" > "$OUT/recovery-keygen.txt"
 gcs_put "$W/recovery.seed" safe/recovery.seed; gcs_put "$W/recovery.pem" safe/recovery.pem
 
 step "identities: each daemon reads its launch measurement from the chip"
@@ -89,7 +90,7 @@ acp-compute seal-keys -config "$W/worker.json" > "$OUT/seal-keys-worker.json" 2>
 
 step "the escrow key made inside sagvd, sealed to this chip, wrapped to the operator's recovery key (ADR 0016); the envelope to the safe"
 sagvd escrow-provision -config "$W/sagvd.json" -out "$W/escrow.sealed" -pub "$W/escrow.pem" -recovery-to "$W/recovery.pem" -recovery-out "$W/escrow.recovery.json" > "$OUT/escrow-provision.json" 2> "$OUT/escrow-provision.err"
-echo "escrow-provision exit=$? tee=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("tee"))' "$OUT/escrow-provision.json")" >> "$OUT/steps.txt"
+echo "escrow-provision exit=$? tee=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("tee"))' "$OUT/escrow-provision.json") suite=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("suite"))' "$OUT/escrow-provision.json" 2>/dev/null)" >> "$OUT/steps.txt"
 gcs_put "$W/escrow.recovery.json" safe/escrow.recovery.json; cp "$W/escrow.pem" "$OUT/escrow.pem"
 rm -f "$W/recovery.seed"
 

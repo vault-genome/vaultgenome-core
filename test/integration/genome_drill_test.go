@@ -430,9 +430,22 @@ func TestLiveGenomeDrill_GatedModel(t *testing.T) {
 // `sagvd identity`); only the authority opens the envelope, and only to
 // release the key to an attested destination.
 func TestLiveGenomeDrill_EscrowedKey(t *testing.T) {
+	escrowedKeyDrill(t, "general", "hpke-x25519-v1")
+}
+
+// The same drill under the fips profile (ADR 0029): the escrow key is
+// P-384, the envelope names the suite, the authority publishes it, and the
+// release to the destination meets on P-384 too.
+func TestLiveGenomeDrill_EscrowedKeyUnderFIPS(t *testing.T) {
+	escrowedKeyDrill(t, "fips", "hpke-p384-v1")
+}
+
+func escrowedKeyDrill(t *testing.T, profile, suite string) {
+	t.Helper()
 	x := newXCC(t)
 	escrowKey := filepath.Join(x.dir, "escrow.key")
-	acpctl(t, "escrow", "keygen", "--out", escrowKey, "--pub", filepath.Join(x.dir, "escrow-local.pem"))
+	acpctl(t, "escrow", "keygen", "--suite", suite, "--out", escrowKey, "--pub", filepath.Join(x.dir, "escrow-local.pem"))
+	crypto := map[string]any{"crypto": map[string]any{"profile": profile}}
 
 	root := t.TempDir()
 	bundles, restored := filepath.Join(root, "bundles"), filepath.Join(root, "restored")
@@ -441,10 +454,10 @@ func TestLiveGenomeDrill_EscrowedKey(t *testing.T) {
 	}
 	destCfg := x.destinationConfig(t, "destination", map[string]any{
 		"genome": map[string]any{"bundle_dir": bundles, "restore_dir": restored, "rescan_seconds": 1},
-	})
+	}, crypto)
 	id := identityOf(t, bins.bootstrap, destCfg)
 	x.startDestination(t, destCfg)
-	srcCfg := x.sourceConfig(t, id, id["measurement_hex"])
+	srcCfg := x.sourceConfigWith(t, id, crypto, id["measurement_hex"])
 	raw, err := os.ReadFile(srcCfg)
 	if err != nil {
 		t.Fatal(err)
@@ -460,6 +473,9 @@ func TestLiveGenomeDrill_EscrowedKey(t *testing.T) {
 	authority := identityOf(t, bins.sagvd, srcCfg)
 	if authority["key_escrow_public_key_pem"] == "" {
 		t.Fatalf("sagvd identity does not publish the escrow key: %v", authority)
+	}
+	if authority["key_escrow_suite"] != suite || authority["crypto_profile"] != profile {
+		t.Fatalf("sagvd identity: escrow key under %q, profile %q; want %s under %s", authority["key_escrow_suite"], authority["crypto_profile"], suite, profile)
 	}
 	pinned := filepath.Join(t.TempDir(), "escrow.pem")
 	if err := os.WriteFile(pinned, []byte(authority["key_escrow_public_key_pem"]), 0o644); err != nil {
@@ -481,6 +497,20 @@ func TestLiveGenomeDrill_EscrowedKey(t *testing.T) {
 	if sealed.EscrowKey != authority["key_escrow_tag"] {
 		t.Fatalf("sealed to escrow key %s, the authority publishes %s", sealed.EscrowKey, authority["key_escrow_tag"])
 	}
+	envRaw, err := os.ReadFile(sealed.EscrowFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env struct {
+		Schema string `json:"schema"`
+		Suite  string `json:"suite"`
+	}
+	if err := json.Unmarshal(envRaw, &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Schema != "vault-genome/key-escrow/v2" || env.Suite != suite {
+		t.Fatalf("the envelope is %s under %q; want v2 under %s", env.Schema, env.Suite, suite)
+	}
 	entries, err := os.ReadDir(vault)
 	if err != nil {
 		t.Fatal(err)
@@ -493,6 +523,9 @@ func TestLiveGenomeDrill_EscrowedKey(t *testing.T) {
 	rel, out, err := runRelease(t, srcCfg, x.endpoint, "escrow-1", "-key-escrow", sealed.EscrowFile)
 	if err != nil || rel.Status != "ok" {
 		t.Fatalf("release from escrow: %v\n%s", err, out)
+	}
+	if rel.RecipientKeySuite != suite || rel.CryptoProfile != profile {
+		t.Fatalf("released under %q as %q; want %s as %s", rel.RecipientKeySuite, rel.CryptoProfile, suite, profile)
 	}
 	conf, out, err := x.confirm(t, srcCfg, "-decision-id", "escrow-1", "-destination-endpoint", x.endpoint, "-bundle", bundlePath, "-wait", "30s")
 	if err != nil || conf.Status != "ok" || !conf.MatchedOperatorBundle {

@@ -30,6 +30,21 @@ given release can still open.
   (`delivery_mode`, `crypto_profile`), in both daemons' `identity`
   output and in `sagvd crosscloud-restore`'s report.
 
+- Escrow under the suites (ADR 0029, part two). The authority's escrow
+  key and the operator's recovery key are KEM keys of a suite:
+  `sagvd escrow-provision` makes the escrow key under the suite the
+  profile writes (or `-suite`), `acpctl escrow keygen` and
+  `recovery-keygen` take `--suite`, and the documents name it — the
+  escrow envelope beside a bundle (`vault-genome/key-escrow/v2`), the
+  sealed key file (`sealed-escrow-key/v2`), the recovery envelope
+  (`escrow-recovery/v2`). A P-384 key travels as PKIX PEM like an X25519
+  key; an ML-KEM or hybrid key as the product's own PEM block, which
+  names its suite; a private key file is that PEM too, and `acpctl
+  escrow recover` prints it for the pipe. `sagvd identity` prints
+  `key_escrow_suite`. Every v1 document — the X25519 envelopes, sealed
+  keys and recovery envelopes of 0.1.0 to 0.6.1 — still opens with the
+  same X25519 key, and the raw 32-byte key files still read.
+
 ### Changed
 
 - The cross-cloud wire moves to schema 2: `CrossCloudHandshakeRequest`

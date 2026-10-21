@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -127,7 +128,7 @@ func TestSealedEscrowKeyDoesNotOpenElsewhere(t *testing.T) {
 // on a hardware one: on the chip the key is not on the disk.
 func TestPlaintextEscrowKeyOnlyUnderSimulation(t *testing.T) {
 	f := newMaterialFixture(t)
-	priv, err := escrow.GenerateKey()
+	priv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	keyPath := filepath.Join(f.dir, "escrow.key")
 	require.NoError(t, os.WriteFile(keyPath, priv.Bytes(), 0o600))
@@ -161,7 +162,7 @@ func TestPlaintextEscrowKeyOnlyUnderSimulation(t *testing.T) {
 // through stdin, as the same escrow key.
 func TestEscrowProvisionRecoveryRoundTrip(t *testing.T) {
 	f := newMaterialFixture(t)
-	recovery, err := escrow.GenerateKey()
+	recovery, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	recoveryPEM, err := escrow.PublicPEM(recovery.PublicKey())
 	require.NoError(t, err)
@@ -208,7 +209,7 @@ func TestEscrowProvisionRecoveryRoundTrip(t *testing.T) {
 	// A short or malformed key on stdin is refused before anything is written.
 	err = runEscrowProvisionCmd([]string{"-config", cfgPath, "-out", filepath.Join(host2.dir, "y"), "-pub", filepath.Join(host2.dir, "y.pem"), "-stdin"},
 		bytes.NewReader([]byte("short")), &out, &errOut)
-	require.ErrorContains(t, err, "want the 32-byte")
+	require.ErrorContains(t, err, "not a private key")
 	_, err = os.Stat(filepath.Join(host2.dir, "y"))
 	require.True(t, os.IsNotExist(err))
 }

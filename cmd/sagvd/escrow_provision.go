@@ -4,7 +4,6 @@
 package main
 
 import (
-	"crypto/ecdh"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -21,7 +20,9 @@ import (
 
 // escrowProvisionOutput is what `sagvd escrow-provision` prints.
 type escrowProvisionOutput struct {
-	EscrowKey      string `json:"escrow_key"`
+	EscrowKey string `json:"escrow_key"`
+	// Suite is the key's KEM suite (ADR 0029): the profile's, or -suite.
+	Suite          string `json:"suite"`
 	PublicKeyPEM   string `json:"public_key_pem"`
 	TEE            string `json:"tee"`
 	MeasurementHex string `json:"measurement_hex"`
@@ -50,20 +51,22 @@ type escrowProvisionOutput struct {
 //	-pub <path>           where to write the public key, PEM (required)
 //	-recovery-to <path>   the operator's recovery public key (PEM, acpctl escrow recovery-keygen)
 //	-recovery-out <path>  where to write the recovery envelope (required with -recovery-to)
-//	-stdin                read the 32-byte escrow private key to seal from stdin instead of generating one
+//	-suite <id>           the KEM suite of a fresh key (default: what crypto.profile writes)
+//	-stdin                read the escrow private key to seal from stdin (the PEM acpctl escrow recover writes, or a raw 32-byte X25519 key) instead of generating one
 func runEscrowProvisionCmd(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("sagvd escrow-provision", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var (
-		configPath, out, pub, recoveryTo, recoveryOut string
-		fromStdin                                     bool
+		configPath, out, pub, recoveryTo, recoveryOut, suiteFlag string
+		fromStdin                                                bool
 	)
 	fs.StringVar(&configPath, "config", "", "path to sagvd JSON config (required)")
+	fs.StringVar(&suiteFlag, "suite", "", "KEM suite of a fresh escrow key (ADR 0029); default: the suite crypto.profile writes")
 	fs.StringVar(&out, "out", "", "where to write the sealed escrow key (0600, never overwritten) (required)")
 	fs.StringVar(&pub, "pub", "", "where to write the escrow public key, PEM (required)")
 	fs.StringVar(&recoveryTo, "recovery-to", "", "the operator's recovery public key (PEM): also wrap the key to it")
 	fs.StringVar(&recoveryOut, "recovery-out", "", "where to write the recovery envelope (required with -recovery-to)")
-	fs.BoolVar(&fromStdin, "stdin", false, "seal the 32-byte escrow private key read from stdin (re-provisioning) instead of a fresh one")
+	fs.BoolVar(&fromStdin, "stdin", false, "seal the escrow private key read from stdin (re-provisioning: the PEM acpctl escrow recover writes, or a raw 32-byte X25519 key) instead of a fresh one")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -80,7 +83,7 @@ func runEscrowProvisionCmd(args []string, stdin io.Reader, stdout, stderr io.Wri
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("escrow-provision: config validation: %w", err)
 	}
-	var recoveryPub *ecdh.PublicKey
+	var recoveryPub escrow.PublicKey
 	if recoveryTo != "" {
 		raw, err := os.ReadFile(recoveryTo)
 		if err == nil {
@@ -88,6 +91,19 @@ func runEscrowProvisionCmd(args []string, stdin io.Reader, stdout, stderr io.Wri
 		}
 		if err != nil {
 			return fmt.Errorf("escrow-provision: -recovery-to: %w", err)
+		}
+	}
+	suites, err := cfg.Crypto.Policy()
+	if err != nil {
+		return fmt.Errorf("escrow-provision: crypto: %w", err)
+	}
+	suite := suites.Writes()
+	if suiteFlag != "" {
+		if suite, err = kms.ParseSuite(suiteFlag); err != nil {
+			return fmt.Errorf("escrow-provision: -suite: %w", err)
+		}
+		if !suites.Allows(suite) {
+			return fmt.Errorf("escrow-provision: -suite %s is not a suite the %s profile accepts (%v)", suite, suites.Profile(), suites.SuiteIDs())
 		}
 	}
 
@@ -105,25 +121,26 @@ func runEscrowProvisionCmd(args []string, stdin io.Reader, stdout, stderr io.Wri
 		fmt.Fprintln(stderr, "escrow-provision: SIMULATED TEE: the key is sealed under a key derived from the simulated measurement, with no hardware behind it; development and tests only")
 	}
 
-	var priv *ecdh.PrivateKey
+	var priv *escrow.PrivateKey
 	source := "generated"
 	if fromStdin {
-		raw, err := io.ReadAll(io.LimitReader(stdin, kms.RecipientKeySize+1))
+		raw, err := io.ReadAll(io.LimitReader(stdin, 8<<10))
 		if err != nil {
 			return fmt.Errorf("escrow-provision: -stdin: %w", err)
 		}
-		if len(raw) != kms.RecipientKeySize {
-			return fmt.Errorf("escrow-provision: -stdin: read %d bytes, want the %d-byte escrow private key (acpctl escrow recover writes it)", len(raw), kms.RecipientKeySize)
-		}
-		priv, err = ecdh.X25519().NewPrivateKey(raw)
+		priv, err = escrow.ParsePrivate(raw)
 		clear(raw)
 		if err != nil {
-			return fmt.Errorf("escrow-provision: -stdin: %w", err)
+			return fmt.Errorf("escrow-provision: -stdin: %w (acpctl escrow recover writes the key to pipe here)", err)
+		}
+		if !suites.Allows(priv.Suite()) {
+			return fmt.Errorf("escrow-provision: -stdin: the key is under KEM suite %s, which the %s profile does not accept (%v)", priv.Suite(), suites.Profile(), suites.SuiteIDs())
 		}
 		source = "stdin"
-	} else if priv, err = escrow.GenerateKey(); err != nil {
+	} else if priv, err = escrow.GenerateKey(suite); err != nil {
 		return err
 	}
+	defer priv.Clear()
 
 	measurement := mat.Producer.Measurement()
 	sealed, err := escrow.SealKey(priv, sealer, mat.Provider, measurement)
@@ -136,7 +153,7 @@ func runEscrowProvisionCmd(args []string, stdin io.Reader, stdout, stderr io.Wri
 		return fmt.Errorf("escrow-provision: the sealed key does not open on this host: %w", err)
 	}
 	var recovery *escrow.Recovery
-	if recoveryPub != nil {
+	if !recoveryPub.IsZero() {
 		env, err := escrow.WrapRecovery(priv, recoveryPub)
 		if err != nil {
 			return fmt.Errorf("escrow-provision: %w", err)
@@ -155,7 +172,7 @@ func runEscrowProvisionCmd(args []string, stdin io.Reader, stdout, stderr io.Wri
 		return fmt.Errorf("escrow-provision: -pub: %w", err)
 	}
 	result := escrowProvisionOutput{
-		EscrowKey: sealed.EscrowKey, PublicKeyPEM: sealed.PublicKeyPEM, TEE: sealed.TEE,
+		EscrowKey: sealed.EscrowKey, Suite: sealed.Suite, PublicKeyPEM: sealed.PublicKeyPEM, TEE: sealed.TEE,
 		MeasurementHex: hex.EncodeToString(measurement), Source: source, SealedPath: out, PublicPath: pub,
 	}
 	if recovery != nil {

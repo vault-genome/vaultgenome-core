@@ -22,7 +22,8 @@
 //     --escrow-to), restore it all or nothing, check it.
 //   - stop keygen|issue|verify: the operator's signed stop list (ADR 0010).
 //   - escrow keygen|recovery-keygen|recover: the operator's side of escrow
-//     custody (ADR 0016) — keygen writes a plaintext escrow key, for the
+//     custody (ADR 0016); every key is under a KEM suite, --suite (ADR
+//     0029) — keygen writes a plaintext escrow key, for the
 //     simulated TEE only; a hardware release host makes its own sealed key
 //     with `sagvd escrow-provision`, wrapped to the recovery key
 //     recovery-keygen makes, and recover opens that envelope off the host

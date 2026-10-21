@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,7 +34,7 @@ func TestEscrowRecoveryCommands(t *testing.T) {
 	require.NoError(t, err)
 	rpub, err := escrow.ParsePublicPEM(pemBytes)
 	require.NoError(t, err)
-	escrowKey, err := escrow.GenerateKey()
+	escrowKey, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	env, err := escrow.WrapRecovery(escrowKey, rpub)
 	require.NoError(t, err)
@@ -45,7 +46,9 @@ func TestEscrowRecoveryCommands(t *testing.T) {
 	out.Reset()
 	errOut.Reset()
 	require.Equal(t, 0, escrowCmd([]string{"recover", "--in", envelope, "--key", recoverySeed}, &out, &errOut), errOut.String())
-	require.Equal(t, escrowKey.Bytes(), out.Bytes(), "the raw key, for the pipe")
+	piped, err := escrow.ParsePrivate(out.Bytes())
+	require.NoError(t, err, "the key as a PEM naming its suite, for the pipe")
+	require.True(t, piped.Equal(escrowKey))
 	require.Contains(t, errOut.String(), env.EscrowKey)
 
 	// The wrong recovery key, a damaged envelope, a readable seed: refused.

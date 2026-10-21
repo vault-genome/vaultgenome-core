@@ -89,7 +89,7 @@ step "the recovery ceremony: A's escrow key, from the envelope, sealed to this c
 mark ceremony_start
 acpctl escrow recover --in "$W/escrow.recovery.json" --key "$W/recovery.seed" 2> "$OUT/escrow-recover.err" \
   | sagvd escrow-provision -config "$W/sagvd.json" -out "$W/escrow.sealed" -pub "$W/escrow.pem" -stdin > "$OUT/escrow-reprovision.json" 2> "$OUT/escrow-reprovision.err"
-echo "escrow re-provision exit=$? escrow_key=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["escrow_key"])' "$OUT/escrow-reprovision.json" 2>/dev/null)" >> "$OUT/steps.txt"
+echo "escrow re-provision exit=$? escrow_key=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["escrow_key"])' "$OUT/escrow-reprovision.json" 2>/dev/null) suite=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("suite"))' "$OUT/escrow-reprovision.json" 2>/dev/null)" >> "$OUT/steps.txt"
 cp "$W/escrow.pem" "$OUT/escrow.pem"; rm -f "$W/recovery.seed"
 mark ceremony_done
 

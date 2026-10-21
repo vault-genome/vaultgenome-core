@@ -6,11 +6,11 @@ package sentinel
 import (
 	"bytes"
 	"context"
-	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"io"
 	"os"
 	"os/exec"
@@ -72,7 +72,7 @@ type rig struct {
 	outbox string
 	key    ed25519.PrivateKey
 	pub    ed25519.PublicKey
-	escrow *ecdh.PrivateKey
+	escrow *escrow.PrivateKey
 	clock  *clock
 }
 
@@ -80,7 +80,7 @@ func newRig(t *testing.T) *rig {
 	t.Helper()
 	pub, key, err := ed25519.GenerateKey(rand.Reader)
 	must(t, err)
-	esc, err := escrow.GenerateKey()
+	esc, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	must(t, err)
 	r := &rig{t: t, state: t.TempDir(), outbox: filepath.Join(t.TempDir(), "outbox"), key: key, pub: pub, escrow: esc, clock: newClock()}
 	write(t, filepath.Join(r.state, "adapter.safetensors"), "weights v1")
@@ -450,7 +450,7 @@ func TestNewRefusesIncompleteConfig(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){
 		"no source":   func(c *Config) { c.Source = nil },
 		"no outbox":   func(c *Config) { c.Outbox = "" },
-		"no escrow":   func(c *Config) { c.Escrow = nil },
+		"no escrow":   func(c *Config) { c.Escrow = escrow.PublicKey{} },
 		"no key":      func(c *Config) { c.Key = nil },
 		"no interval": func(c *Config) { c.Interval = 0 },
 		"bad settle":  func(c *Config) { c.Settle = -1 },

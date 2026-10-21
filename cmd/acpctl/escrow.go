@@ -4,13 +4,13 @@
 package main
 
 import (
-	"crypto/ecdh"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // escrowCmd dispatches `acpctl escrow <keygen|recovery-keygen|recover>`.
@@ -25,7 +25,8 @@ import (
 // the clear.
 //
 // `keygen` writes a plaintext escrow key: for the simulated TEE,
-// development and tests.
+// development and tests. Every key is under a KEM suite (ADR 0029),
+// --suite; the private key is written as a PEM that names it.
 func escrowCmd(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		printEscrowUsage(stderr)
@@ -55,15 +56,18 @@ func printEscrowUsage(w io.Writer) {
 	fmt.Fprintln(w, "                   (on a hardware TEE the release host makes its own: sagvd escrow-provision)")
 	fmt.Fprintln(w, "  recovery-keygen  the operator's recovery key pair; keep the private half off the release host")
 	fmt.Fprintln(w, "  recover          open a recovery envelope (sagvd escrow-provision -recovery-out) with the")
-	fmt.Fprintln(w, "                   recovery private key; the escrow key goes to stdout, for")
+	fmt.Fprintln(w, "                   recovery private key; the escrow key goes to stdout (PEM), for")
 	fmt.Fprintln(w, "                   `sagvd escrow-provision -stdin` on the new host")
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "  --suite          the KEM suite of a new key (ADR 0029): %v; default %s\n", kms.AllSuites(), kms.SuiteHPKEX25519)
 }
 
 func escrowKeygenCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("escrow keygen", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	out := fs.String("out", "", "Where to write the private key (32 raw bytes, mode 0600; never overwritten)")
+	out := fs.String("out", "", "Where to write the private key (PEM, mode 0600; never overwritten)")
 	pub := fs.String("pub", "", "Where to write the public key (PEM) that sealers use")
+	suiteFlag := fs.String("suite", string(kms.SuiteHPKEX25519), "The key's KEM suite (ADR 0029)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -71,25 +75,32 @@ func escrowKeygenCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "acpctl escrow keygen: --out and --pub are required")
 		return 2
 	}
-	priv, err := escrow.GenerateKey()
+	suite, err := kms.ParseSuite(*suiteFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl escrow keygen: --suite: %v\n", err)
+		return 2
+	}
+	priv, err := escrow.GenerateKey(suite)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl escrow keygen: %v\n", err)
 		return 1
 	}
-	if err := writeKeyPair(*out, *pub, priv.Bytes(), priv.PublicKey()); err != nil {
+	defer priv.Clear()
+	if err := writeKeyPair(*out, *pub, priv); err != nil {
 		fmt.Fprintf(stderr, "acpctl escrow keygen: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "escrow key %s: private %s (plaintext: accepted under the simulated TEE only), public %s (give it to sealers)\n",
-		escrow.KeyTag(priv.PublicKey()), *out, *pub)
+	fmt.Fprintf(stdout, "escrow key %s (%s): private %s (plaintext: accepted under the simulated TEE only), public %s (give it to sealers)\n",
+		escrow.KeyTag(priv.PublicKey()), suite, *out, *pub)
 	return 0
 }
 
 func escrowRecoveryKeygenCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("escrow recovery-keygen", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	out := fs.String("out", "", "Where to write the recovery private key (32 raw bytes, mode 0600; never overwritten); keep it off the release host")
+	out := fs.String("out", "", "Where to write the recovery private key (PEM, mode 0600; never overwritten); keep it off the release host")
 	pub := fs.String("pub", "", "Where to write the recovery public key (PEM) for sagvd escrow-provision -recovery-to")
+	suiteFlag := fs.String("suite", string(kms.SuiteHPKEX25519), "The key's KEM suite (ADR 0029)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -97,23 +108,29 @@ func escrowRecoveryKeygenCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "acpctl escrow recovery-keygen: --out and --pub are required")
 		return 2
 	}
-	priv, err := escrow.GenerateKey()
+	suite, err := kms.ParseSuite(*suiteFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl escrow recovery-keygen: --suite: %v\n", err)
+		return 2
+	}
+	priv, err := escrow.GenerateKey(suite)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl escrow recovery-keygen: %v\n", err)
 		return 1
 	}
-	if err := writeKeyPair(*out, *pub, priv.Bytes(), priv.PublicKey()); err != nil {
+	defer priv.Clear()
+	if err := writeKeyPair(*out, *pub, priv); err != nil {
 		fmt.Fprintf(stderr, "acpctl escrow recovery-keygen: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "recovery key %s: private %s (keep it off the release host), public %s (for sagvd escrow-provision -recovery-to)\n",
-		escrow.KeyTag(priv.PublicKey()), *out, *pub)
+	fmt.Fprintf(stdout, "recovery key %s (%s): private %s (keep it off the release host), public %s (for sagvd escrow-provision -recovery-to)\n",
+		escrow.KeyTag(priv.PublicKey()), suite, *out, *pub)
 	return 0
 }
 
-// escrowRecoverCmd opens a recovery envelope and writes the 32-byte escrow
-// private key to stdout — raw bytes, to be piped, never a file the
-// operator forgets.
+// escrowRecoverCmd opens a recovery envelope and writes the escrow
+// private key to stdout — a PEM naming its suite, to be piped, never a
+// file the operator forgets.
 func escrowRecoverCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("escrow recover", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -146,22 +163,23 @@ func escrowRecoverCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl escrow recover: %v\n", err)
 		return 1
 	}
-	if _, err := stdout.Write(priv.Bytes()); err != nil {
+	defer priv.Clear()
+	if _, err := stdout.Write(escrow.PrivatePEM(priv)); err != nil {
 		fmt.Fprintf(stderr, "acpctl escrow recover: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stderr, "escrow key %s recovered: pipe it into `sagvd escrow-provision -stdin` on the new host\n", env.EscrowKey)
+	fmt.Fprintf(stderr, "escrow key %s (%s) recovered: pipe it into `sagvd escrow-provision -stdin` on the new host\n", env.EscrowKey, priv.Suite())
 	return 0
 }
 
-// writeKeyPair writes a private key (0600, never overwritten) and its
-// public half as PEM.
-func writeKeyPair(privPath, pubPath string, priv []byte, pub *ecdh.PublicKey) error {
-	pemBytes, err := escrow.PublicPEM(pub)
+// writeKeyPair writes a private key (PEM, 0600, never overwritten) and
+// its public half as PEM.
+func writeKeyPair(privPath, pubPath string, priv *escrow.PrivateKey) error {
+	pemBytes, err := escrow.PublicPEM(priv.PublicKey())
 	if err != nil {
 		return err
 	}
-	if err := writeKeyFile(privPath, priv, false); err != nil {
+	if err := writeKeyFile(privPath, escrow.PrivatePEM(priv), false); err != nil {
 		return err
 	}
 	return os.WriteFile(pubPath, pemBytes, 0o644)

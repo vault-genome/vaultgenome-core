@@ -93,7 +93,8 @@
 //   - genome.bundle_dir         the .genome bundles a job may name, with
 //     their key files or escrow envelopes beside them
 //   - genome.key_escrow_path    the escrow private key that opens <bundle>.escrow,
-//     as `sagvd escrow-provision` wrote it: sealed to this host's TEE and
+//     as `sagvd escrow-provision` wrote it (under the KEM suite crypto.profile
+//     writes, or -suite; ADR 0029): sealed to this host's TEE and
 //     unsealed in memory at start (ADR 0016); a plaintext key is accepted
 //     under tee.insecure_simulation only (falls back to
 //     crosscloud.key_escrow_path)

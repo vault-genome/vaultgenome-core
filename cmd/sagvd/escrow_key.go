@@ -4,7 +4,6 @@
 package main
 
 import (
-	"crypto/ecdh"
 	"fmt"
 	"io"
 	"os"
@@ -25,10 +24,10 @@ const (
 // loadEscrowKey opens the escrow private key path names. The file is the
 // one `sagvd escrow-provision` wrote — the key sealed to this host's TEE,
 // opened here in memory and nowhere else — or, under the simulated TEE
-// only, a raw 32-byte key as `acpctl escrow keygen` writes it. A raw key
-// on a hardware TEE is refused: the whole point of the chip is that the
-// key is not on the disk (ADR 0016, KNOWN_ISSUES #11).
-func loadEscrowKey(path string, mat *materials) (*ecdh.PrivateKey, string, error) {
+// only, a plaintext key as `acpctl escrow keygen` writes it. A plaintext
+// key on a hardware TEE is refused: the whole point of the chip is that
+// the key is not on the disk (ADR 0016, KNOWN_ISSUES #11).
+func loadEscrowKey(path string, mat *materials) (*escrow.PrivateKey, string, error) {
 	raw, err := readEscrowFile(path)
 	if err != nil {
 		return nil, "", fmt.Errorf("sagvd: key_escrow_path: %w", err)
@@ -60,26 +59,26 @@ func loadEscrowKey(path string, mat *materials) (*ecdh.PrivateKey, string, error
 
 // escrowPublicFromFile reads the escrow public key from the file path
 // names without unsealing anything: a sealed file carries it in the
-// clear; a raw key file yields it by arithmetic.
-func escrowPublicFromFile(path string) (*ecdh.PublicKey, string, error) {
+// clear; a plaintext key file yields it by arithmetic.
+func escrowPublicFromFile(path string) (escrow.PublicKey, string, error) {
 	raw, err := readEscrowFile(path)
 	if err != nil {
-		return nil, "", err
+		return escrow.PublicKey{}, "", err
 	}
 	if !escrow.IsSealed(raw) {
 		priv, err := escrow.ReadPrivate(path)
 		if err != nil {
-			return nil, "", err
+			return escrow.PublicKey{}, "", err
 		}
 		return priv.PublicKey(), escrowSourcePlaintext, nil
 	}
 	sealed, err := escrow.ParseSealed(raw)
 	if err != nil {
-		return nil, "", err
+		return escrow.PublicKey{}, "", err
 	}
 	pub, err := sealed.PublicKey()
 	if err != nil {
-		return nil, "", err
+		return escrow.PublicKey{}, "", err
 	}
 	return pub, escrowSourceSealed + sealed.TEE, nil
 }

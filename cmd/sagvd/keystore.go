@@ -4,9 +4,9 @@
 package main
 
 import (
-	"crypto/ecdh"
 	"errors"
 	"fmt"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
 	"io"
 	"os"
 
@@ -80,7 +80,7 @@ type materials struct {
 	// from the sealed file key_escrow_path names (ADR 0016); nil when
 	// no escrow key is configured. EscrowSource says how it was kept
 	// on disk: "sealed:<tee>" or "plaintext" (simulation only).
-	Escrow       *ecdh.PrivateKey
+	Escrow       *escrow.PrivateKey
 	EscrowSource string
 
 	tee        TEEConfig

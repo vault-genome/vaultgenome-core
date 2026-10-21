@@ -20,7 +20,7 @@ the last genome sealed while that machine could still be trusted.
 ```bash
 # Operator (once; the same key signs stop lists — see 06), and the escrow recovery key:
 acpctl stop keygen --out operator.seed --pub operator.pem
-acpctl escrow recovery-keygen --out recovery.seed --pub recovery.pem
+acpctl escrow recovery-keygen --out recovery.seed --pub recovery.pem   # --suite for a fips or cnsa deployment (ADR 0029)
 # Release authority (once): its escrow key, made in its own process and sealed to its TEE;
 # sealers pin the public half (06, ADR 0016).
 sagvd escrow-provision -config sagvd.json -out /etc/acp/secrets/sagvd/escrow.sealed -pub escrow-local.pem \

@@ -6,7 +6,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -195,7 +194,7 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 	if *escrowOut == "" && *escrowTo != "" {
 		*escrowOut = *outputPath + ".escrow"
 	}
-	var escrowPub *ecdh.PublicKey
+	var escrowPub escrow.PublicKey
 	if *escrowTo != "" {
 		raw, err := os.ReadFile(*escrowTo)
 		if err == nil {
@@ -269,7 +268,7 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	var escrowTag string
-	if escrowPub != nil {
+	if !escrowPub.IsZero() {
 		env, err := escrow.Seal(dek, sealed.KeyID, escrowPub)
 		var raw []byte
 		if err == nil {

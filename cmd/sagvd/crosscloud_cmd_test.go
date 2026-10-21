@@ -5,7 +5,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/ecdh"
 	"errors"
 	"os"
 	"path/filepath"
@@ -160,12 +159,12 @@ func TestCrossCloudConfirmCmd_RefusesAnUnknownGateLevel(t *testing.T) {
 
 func TestOpenEscrows(t *testing.T) {
 	dir := t.TempDir()
-	authority, err := escrow.GenerateKey()
+	authority, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	keyPath := filepath.Join(dir, "escrow.key")
 	require.NoError(t, os.WriteFile(keyPath, authority.Bytes(), 0o600))
 
-	envelope := func(to *ecdh.PublicKey) (string, string, []byte) {
+	envelope := func(to escrow.PublicKey) (string, string, []byte) {
 		kid, _, dek := sealedGenomeKey(t, t.TempDir())
 		env, err := escrow.Seal(dek, kid, to)
 		require.NoError(t, err)
@@ -182,13 +181,13 @@ func TestOpenEscrows(t *testing.T) {
 	require.Equal(t, kid, string(got[0].KeyID))
 	require.Equal(t, dek, got[0].Plaintext)
 
-	other, err := escrow.GenerateKey()
+	other, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	_, foreign, _ := envelope(other.PublicKey())
 	garbage := filepath.Join(dir, "garbage.escrow")
 	require.NoError(t, os.WriteFile(garbage, []byte("{"), 0o644))
 	for name, tc := range map[string]struct {
-		key   *ecdh.PrivateKey
+		key   *escrow.PrivateKey
 		paths []string
 		want  string
 	}{

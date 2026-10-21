@@ -29,11 +29,16 @@
 # from B's own first line, and the RTO from B's runtime being ready (what a
 # warm standby would need).
 #
-# Usage: run.sh <project> [zone]      (two n2d-standard-4 SEV-SNP VMs, one after the other, ~30 min)
+# Usage: run.sh <project> [zone] [profile]   (two n2d-standard-4 SEV-SNP VMs, one after
+# the other, ~30 min; profile general, fips or cnsa — the cryptographic profile of
+# ADR 0029 the authorities run under: the escrow key and the operator's recovery
+# key are made under the suite the profile writes)
 set -euo pipefail
 
-PROJECT="${1:?usage: run.sh <project> [zone]}"
+PROJECT="${1:?usage: run.sh <project> [zone] [profile]}"
 ZONE="${2:-us-central1-c}"
+PROFILE="${3:-general}"
+case "$PROFILE" in general|fips|cnsa) ;; *) echo "profile must be general, fips or cnsa; got $PROFILE"; exit 2;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -69,7 +74,7 @@ boot() { # boot <name> <startup script>
     --machine-type n2d-standard-4 --min-cpu-platform "AMD Milan" \
     --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
     --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud --boot-disk-size 20GB \
-    --scopes storage-rw --metadata "vg-bucket=$BUCKET" \
+    --scopes storage-rw --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE" \
     --metadata-from-file "vg-common=$HERE/common.sh,startup-script=$2" >/dev/null
 }
 

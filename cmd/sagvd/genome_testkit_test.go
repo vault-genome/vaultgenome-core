@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"math"
 	"math/rand"
 	"os"
@@ -187,7 +188,7 @@ func sealTestGenome(t *testing.T, dir string, opts genomeOptions) testGenome {
 // public PEM into dir and returns both paths.
 func escrowKeyPair(t *testing.T, dir string) (privPath, pubPath string) {
 	t.Helper()
-	priv, err := escrow.GenerateKey()
+	priv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	privPath = filepath.Join(dir, "escrow.key")
 	require.NoError(t, os.WriteFile(privPath, priv.Bytes(), 0o600))

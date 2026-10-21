@@ -205,3 +205,25 @@ func TestSuiteInfo_LengthPrefixed(t *testing.T) {
 	require.NotEqual(t, a, b)
 	require.Equal(t, 4+len(hpkeInfoLabel)+4+len(SuiteHPKEX25519)+4+2, len(a))
 }
+
+// A private key names its public half under every suite, and a private
+// key of another suite or another length is refused.
+func TestSuite_PublicKeyOf(t *testing.T) {
+	t.Parallel()
+	for _, s := range AllSuites() {
+		t.Run(string(s), func(t *testing.T) {
+			t.Parallel()
+			priv, pub, err := s.GenerateRecipientKey()
+			require.NoError(t, err)
+			got, err := s.PublicKeyOf(priv)
+			require.NoError(t, err)
+			require.Equal(t, pub, got)
+			_, err = s.PublicKeyOf(priv[:len(priv)-1])
+			require.Error(t, err)
+			_, err = s.PublicKeyOf(nil)
+			require.Error(t, err)
+		})
+	}
+	_, err := Suite("nope").PublicKeyOf([]byte{1})
+	require.Error(t, err)
+}

@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +40,7 @@ func writeV2Bundle(t *testing.T, path string, env GenomeEnvelope, sealed []byte)
 // escrowPublicPEM writes a fresh escrow public key to dir and returns its path.
 func escrowPublicPEM(t *testing.T, dir string) string {
 	t.Helper()
-	priv, err := escrow.GenerateKey()
+	priv, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
 	require.NoError(t, err)
 	pemBytes, err := escrow.PublicPEM(priv.PublicKey())
 	require.NoError(t, err)

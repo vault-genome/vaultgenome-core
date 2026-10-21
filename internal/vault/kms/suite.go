@@ -330,3 +330,20 @@ func RecipientChallengeV2(suite Suite, recipientPub, nonce []byte) []byte {
 	}
 	return h.Sum(nil)
 }
+
+// PublicKeyOf derives the public key of a private key in the KEM's
+// SerializePrivateKey form, as GenerateRecipientKey returns it; what an
+// escrow key file or a sealed key holds is enough to name its public
+// half without a second file.
+func (s Suite) PublicKeyOf(priv []byte) ([]byte, error) {
+	sp, err := s.spec()
+	if err != nil {
+		return nil, err
+	}
+	k, err := sp.kem().NewPrivateKey(priv)
+	if err != nil {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("kms: invalid %s private key", s), err)
+	}
+	return k.PublicKey().Bytes(), nil
+}
