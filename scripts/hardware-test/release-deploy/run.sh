@@ -87,7 +87,9 @@ test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = 12 || { echo "ER
 # root as a file (cosign initialize fetches it) and no route — the check
 # an air-gapped site runs. On macOS the route is taken away from cosign
 # with sandbox-exec; elsewhere the check runs with the route and says so.
-if [ "$(ls "$DL"/*.sigstore.json 2>/dev/null | wc -l | tr -d ' ')" = 12 ]; then
+# Twelve bundles from 0.4.3; from the release that carries its images there
+# is a thirteenth, images-<tag>.txt.sigstore.json, verified with the images.
+if [ "$(ls "$DL"/*.sigstore.json 2>/dev/null | wc -l | tr -d ' ')" -ge 12 ]; then
   cosign initialize 2>&1 | rec cosign-initialize.txt >/dev/null || true
   TRUSTED_ROOT="$(find "${TUF_ROOT:-$HOME/.sigstore/root}" -name trusted_root.json 2>/dev/null | head -1)"
   [ -n "$TRUSTED_ROOT" ] || { echo "ERROR: no trusted_root.json in cosign's TUF cache after cosign initialize"; exit 1; }
