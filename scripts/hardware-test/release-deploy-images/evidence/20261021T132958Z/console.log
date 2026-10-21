@@ -1,0 +1,19 @@
+== inputs from gs://rats-probe-vg-img-20261021t132732z/e2e: the two image tarballs the runner verified, the released acpctl, acp-keygen and worker package
+== docker, and the two images loaded from the tarballs (nothing pulled from a registry on this guest)
+grep: warning: ? at start of expression
+grep: warning: ? at start of expression
+== the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== configfs-tsm
+== the worker runtime on the host, for the fine-tune only (the door runs inside the worker image)
+== provision (acp-keygen, private modes; every key file is sealed to the chip below)
+== identities: each daemon, from its image, reads its launch measurement from the chip
+== the key files sealed to this host from inside the images (ADR 0023)
+== a real fine-tune on the host: tiny base model built here, LoRA adapter trained by vg_genome, sealed by the released acpctl
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 583.84it/s]
+== sagvd from its image, on SEV-SNP
+== a thief with the sealed key files, off the chip: they do not open (ADR 0023)
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+== acp-compute from its image, on SEV-SNP, the door inside the image
+== the gate job over the Return Path
+== metrics
+== stop both containers; verify the audit log with the published key, with the released acpctl
