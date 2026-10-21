@@ -108,8 +108,13 @@ The tag push runs `.github/workflows/release.yml`:
    signs each by digest (`cosign sign`, keyless), attests an SPDX SBOM of
    each image to it (`cosign attest --type spdxjson`), and uploads
    `images-<tag>.txt` — both images named by digest — with its signature,
-   certificate and bundle, and the two image SBOMs: 6 more assets, 54 in
-   all.
+   certificate and bundle, and the two image SBOMs: 6 more assets, 55 in
+   all (the build job's 48, the provenance, these 6). The first push of
+   an image creates its package *private* — the rehearsal `v0.6.1-rc2`
+   found it on 2026-10-21 (an anonymous pull answers 403) — so an org
+   owner makes `ghcr.io/vault-genome/sagvd` and
+   `ghcr.io/vault-genome/acp-compute` public once, in each package's
+   settings (Change visibility → Public); §5, item 5 checks it.
 9. `slsa-images` runs the SLSA container generator
    (`generator_container_slsa3.yml` v2.1.0) once per image, over the
    image's digest, and pushes the provenance to the registry beside the
@@ -219,9 +224,13 @@ Once the release workflow completes:
    slsa-verifier verify-image ghcr.io/vault-genome/sagvd@sha256:… \
      --source-uri github.com/vault-genome/vaultgenome-core --source-tag vX.Y.Z
    ```
-   and the same for `acp-compute`. The binary inside is the released one:
-   `docker create` the image, `docker cp` `/usr/local/bin/sagvd` out, and
-   its SHA-256 equals the release asset's.
+   and the same for `acp-compute`. Both must work from a machine with no
+   registry login: a private package (§4, item 8) answers 403, and an
+   integrator could neither pull nor verify —
+   `scripts/hardware-test/release-deploy-images/run.sh` checks exactly
+   that, anonymously, before anything else. The binary inside is the
+   released one: `docker create` the image, `docker cp`
+   `/usr/local/bin/sagvd` out, and its SHA-256 equals the release asset's.
 6. Verify the tag signature — `git verify-tag v0.1.0`.
 7. Record the release hashes externally (the external pin is itself a
    defence against a later tag rewrite — see

@@ -73,6 +73,28 @@ test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = 6 || { echo "ERR
 cp "$DL/images-$TAG.txt" "$EVIDENCE/verify/"
 cat "$DL/images-$TAG.txt" | sed 's|^|  |'
 
+echo "== 1b. each image is publicly readable: an anonymous pull of its manifest"
+# A package pushed for the first time is private, and ghcr refuses an
+# anonymous reader (the first run of this kit, 2026-10-21 on v0.6.1-rc2,
+# found it: HTTP 403, cosign "authentication required"). An org owner makes
+# it public once — Package settings → Change visibility → Public — and the
+# pull below answers 200. No local registry login is consulted: this is
+# what an integrator sees.
+while read -r ref; do
+  repo="${ref%@*}"; repo="${repo#ghcr.io/}"; digest="${ref##*@}"
+  tok="$(curl -sS "https://ghcr.io/token?scope=repository:$repo:pull" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+  code="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $tok" \
+    -H 'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json' \
+    "https://ghcr.io/v2/$repo/manifests/$digest")"
+  echo "  $ref: anonymous manifest HTTP $code" | rec public-read.txt
+  if [ "$code" != 200 ]; then
+    echo "ERROR: $ref is not publicly readable (HTTP $code): a package pushed for the first time is private."
+    echo "       An org owner makes it public once: https://github.com/orgs/${REPO%%/*}/packages/container/${repo#*/}/settings"
+    echo "       (Danger zone → Change visibility → Public), then run again."
+    exit 1
+  fi
+done < "$DL/images-$TAG.txt"
+
 echo "== 2. each image by digest: the signature, the SBOM attestation, the provenance, the binary inside"
 while read -r ref; do
   name="${ref##*/}"; name="${name%@*}"; digest="${ref##*@}"
