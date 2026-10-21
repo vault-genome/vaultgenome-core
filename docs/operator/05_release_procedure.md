@@ -126,8 +126,13 @@ a change that drops a pillar cannot merge. It does not run the workflow.
 ### 4.1 Rehearsal after a change to release.yml
 
 `release.yml` runs only on a tag, so a pull request cannot exercise it.
-The image jobs (§4, items 8–9) and the Go 1.27.3 toolchain are to be
-rehearsed as `v0.6.1-rc1` before the next release.
+The image jobs (§4, items 8–9) and the Go 1.27.3 toolchain were
+rehearsed as `v0.6.1-rc1` on 2026-10-21: the build, the 49 assets and
+the provenance as before; the `images` job failed at its first `COPY` —
+the repository's `.dockerignore` excludes `bin/`, so a root build
+context carries no binary. Each image now builds from a staged context
+of its own (`dist/image-context/<name>`); the rehearsal of that is
+`v0.6.1-rc2`. The rc1 release was deleted, its tag kept.
 After any change to the workflow or to the actions it pins (a Dependabot
 bump included), run the pipeline on a signed rehearsal tag before the
 real one: `vX.Y.Z-rcN` on the merge commit, verified like a release (§5),

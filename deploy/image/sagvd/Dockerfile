@@ -5,7 +5,9 @@
 # one the release job built reproducibly, signed and attested (bin/sagvd,
 # the same bytes the release assets carry — `docker create` + `docker cp`
 # gives it back and `cosign verify-blob` checks it against the release's
-# bundle). Build context: the repository root after `make build`.
+# bundle). Build context: dist/image-context/sagvd, staged by release.yml
+# from bin/ — the repository's .dockerignore excludes bin/, so the root
+# cannot be the context (the rehearsal v0.6.1-rc1 found it).
 #
 # Runtime: distroless/static-debian12:nonroot — no shell, no package
 # manager, no root; one static binary reading JSON config and key material
@@ -16,7 +18,7 @@
 
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 
-COPY bin/sagvd /usr/local/bin/sagvd
+COPY sagvd /usr/local/bin/sagvd
 
 # Must match the listen_address fields in config.json:
 # 9443 Return Path (mTLS), 9080 REST API (bearer token), 9091 health.
