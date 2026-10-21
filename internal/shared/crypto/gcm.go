@@ -6,6 +6,7 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"slices"
 
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
@@ -90,10 +91,10 @@ func Open(key, nonce, ciphertext, aad []byte) ([]byte, error) {
 			nil,
 		)
 	}
-	joined := make([]byte, 0, len(nonce)+len(ciphertext))
-	joined = append(joined, nonce...)
-	joined = append(joined, ciphertext...)
-	plaintext, err := aead.Open(nil, nil, joined, aad)
+	// The module opens nonce ‖ ciphertext ‖ tag as one slice; slices.Concat
+	// sizes the join itself (and refuses an overflow), so no size arithmetic
+	// of our own stands in front of the allocation.
+	plaintext, err := aead.Open(nil, nil, slices.Concat(nonce, ciphertext), aad)
 	if err != nil {
 		// Authentication failure is an integrity event.
 		return nil, shared_errors.Integrity(
