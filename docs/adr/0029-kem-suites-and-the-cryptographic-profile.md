@@ -1,6 +1,6 @@
 # ADR 0029 — KEM suites and the cryptographic profile: HPKE for every key encapsulation, pinned by policy, named in every record
 
-- **Status:** Proposed (2026-10-21) — Accepted when the implementation lands
+- **Status:** Accepted (2026-10-21) — parts one (cross-cloud) and two (escrow) in the tree, proven on SEV-SNP under the three profiles
 - **Tags:** crypto, kms, escrow, crosscloud, fips, post-quantum, profile
 - **Extends:** ADR 0009 (X25519 KEM for cross-cloud DEK delivery) — its rule stands, its construction is replaced
 - **Closes:** finding F2 of the banking map (`docs/compliance/banking.md` §9)
