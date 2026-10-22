@@ -1,6 +1,6 @@
 # ADR 0032 — The protocols in ProVerif: the proofs, the attacks and the assumptions
 
-- **Status:** Proposed (2026-10-22) — part one (the cross-cloud key release: eight models, the recorded run, the check in CI) in the tree; part two (the Return Path handshake) and part three (the sentinel and the failover) follow
+- **Status:** Proposed (2026-10-22) — part one (the cross-cloud key release: eight models) and part two (the Return Path handshake: nine models) in the tree with the recorded run and the check in CI; part three (the sentinel and the failover) follows
 - **Tags:** formal, protocol, crosscloud, returnpath, failover, verification
 - **Extends:** ADR 0009 and ADR 0029 (the key binding and the suites), ADR 0010 (the stop list), ADR 0011 (the receipt), ADR 0014 and ADR 0025 (the Return Path), ADR 0012 and ADR 0017 (the failover)
 
@@ -67,8 +67,8 @@ the code; none has a model.
 
 ## Part one: the cross-cloud key release (2026-10-22)
 
-Eight models, seven queries each, 62 recorded verdicts
-(`formal/results/proverif-20261022T165658Z.txt`). The release as the
+Eight models, seven queries each, 62 recorded verdicts (the first 62 lines
+of `formal/results/proverif-20261022T170804Z.txt`). The release as the
 daemons run it holds all seven: the released key stays secret from the
 network; a key the destination opens was authorized by the source for
 that decision; the source authorizes only to a key the honest destination
@@ -85,6 +85,32 @@ lifts the stop; without the decision in the receipt an earlier receipt
 confirms a later decision; a leaked chip key breaks everything; a leaked
 authority key lets the attacker feed the destination a token of its own
 and exposes nothing the honest authority released.
+
+## Part two: the Return Path handshake (2026-10-22)
+
+Nine models, eight queries each, 81 recorded verdicts (the rest of the same
+run). The handshake over mutual TLS, as the daemons run it, holds all
+eight: the sealed material and the candidate stay secret, the frame MAC
+keys are not the attacker's, every admission corresponds to one quote the
+honest worker's chip made over that session, the unlisted chip is never
+admitted, every acceptance of the vault's quote corresponds to one quote
+its chip made for that nonce, every verdict to one candidate the honest
+worker produced, every candidate to one job the vault issued. The
+variants separate what the attestation gives from what the TLS gives: on
+an open channel the admission, the pins and the vault's quote still hold
+(the nonces in the challenges are what give that; without them a quote
+serves another session), while the candidate's secrecy, the MAC keys and
+the one-job-per-session discipline are the TLS's — the frame MAC keys are
+derived from the two nonces and the derivation context, which travel
+inside the TLS, so they are secret exactly when the transcript is, and
+the frame MAC binds a frame to its handshake rather than keeping a
+secret of its own. The sealed material has two layers, the session
+sealing key and the channel, and either keeps it. The registry key ties
+a verdict to the honest worker when the channel is open; under TLS a
+rogue with a certificate is never admitted, so a leaked registry key
+changes nothing there. The vault's TLS key leaked is a man in the middle
+who sees the candidate and replays jobs and does not open the material;
+the chips' key leaked breaks the admission and nothing the TLS carries.
 
 ## Consequences
 

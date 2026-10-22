@@ -22,7 +22,7 @@ import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-RECORDED = HERE / "results" / "proverif-20261022T165658Z.txt"
+RECORDED = HERE / "results" / "proverif-20261022T170804Z.txt"
 MODEL_HEADER = re.compile(r"^### (\S+\.pv)$")
 
 

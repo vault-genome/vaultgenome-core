@@ -26,7 +26,17 @@ given release can still open.
   chip-vouched restore, no release to an unlisted chip. The recorded run
   (`formal/results/`) reproduces query by query under ProVerif 2.05
   (`make formal-check`; the `formal` workflow builds the tool from the
-  official tarball by digest).
+  official tarball by digest). Part two, the Return Path handshake (ADR
+  0014, 0025): nine models — the handshake over mutual TLS as the daemons
+  run it, the same on an open channel, without the nonces in the chips'
+  challenges, and with the session sealing key, the worker's registry
+  key, the vault's TLS key or the chips' key leaked — with eight queries
+  each: the sealed material's and the candidate's secrecy, the frame MAC
+  keys not the attacker's, one admission per quote the worker's chip
+  made over the session, no admission of an unlisted chip, one acceptance
+  per quote the vault's chip made, one verdict per candidate the worker
+  produced, one candidate per job issued. Seventeen models, 143 recorded
+  verdicts.
 
 ## [0.9.0] — 2026-10-22
 
