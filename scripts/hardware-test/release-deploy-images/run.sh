@@ -46,15 +46,29 @@ LOW="$(echo "$STAMP" | tr 'A-Z' 'a-z')"
 NAME="vg-images-$LOW"
 BUCKET="$PROJECT-vg-img-$LOW"
 WORK="$(mktemp -d)"
-EVIDENCE="$HERE/evidence/$STAMP"
+RAW_DIR="${VG_E2E_RAW_DIR:-$HOME/.cache/vaultgenome/release-deploy-images}"; mkdir -p "$RAW_DIR"
+# The record is staged under WORK and published into evidence/ by one move
+# at the end: a directory under evidence/ is a finished record, never a run
+# in flight. A run that stops early leaves its stage beside the raw capture,
+# outside the tree (RAW_DIR/failed-<stamp>).
+EVIDENCE="$WORK/evidence"; PUBLISHED=0
 mkdir -p "$EVIDENCE/verify"
+# cosign's TUF cache is this run's own (TUF_ROOT): two kits in the same
+# minutes no longer race on one cache — on 2026-10-21 a verify-blob of this
+# kit failed on "failed to create TUF client" while another kit initialized
+# the shared cache beside it — and a fetch that stumbles on the mirror is
+# retried.
+export TUF_ROOT="$WORK/tuf"
+retry() { local n; for n in 1 2 3; do "$@" && return 0; [ "$n" = 3 ] && return 1; echo "  (attempt $n failed; retrying in $((n * 5)) s)"; sleep $((n * 5)); done; }
 cleanup() {
   echo "cleanup: deleting $NAME and gs://$BUCKET"
   gcloud compute instances delete "$NAME" --project "$PROJECT" --zone "$ZONE" --quiet >/dev/null 2>&1 || true
   gcloud storage rm -r "gs://$BUCKET" --project "$PROJECT" >/dev/null 2>&1 || true
+  if [ "$PUBLISHED" = 0 ] && [ -d "$EVIDENCE" ]; then cp -R "$EVIDENCE" "$RAW_DIR/failed-$STAMP" && echo "the run's stage is kept at $RAW_DIR/failed-$STAMP (outside the tree)"; fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
+retry cosign initialize > "$EVIDENCE/verify/cosign-initialize.txt" 2>&1 || { echo "ERROR: cosign initialize failed three times (the TUF mirror)"; exit 1; }
 rec() { tee -a "$EVIDENCE/verify/$1" ; }
 
 echo "== 1. the release $TAG: images-$TAG.txt, the four image binaries, their bundles"
@@ -71,7 +85,7 @@ gh release download "$TAG" --repo "$REPO" --dir "$DL" \
 FIPS_ASSETS=""; [ -f "$DL/sagvd-fips" ] && FIPS_ASSETS="sagvd-fips acp-compute-fips"
 # shellcheck disable=SC2086
 for f in "images-$TAG.txt" sagvd acp-compute $FIPS_ASSETS acpctl acp-keygen "$WORKER_PKG"; do
-  ( cd "$DL" && cosign verify-blob --new-bundle-format --bundle "$f.sigstore.json" \
+  ( cd "$DL" && retry cosign verify-blob --new-bundle-format --bundle "$f.sigstore.json" \
       --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$f" ) 2>&1 | rec cosign.txt | tail -1 | sed "s|^|  $f: |"
 done
 WANT_OK=6; [ -n "$FIPS_ASSETS" ] && WANT_OK=8
@@ -110,9 +124,9 @@ while read -r ref; do
   # `cosign verify` and `verify-attestation` print "Verification for <ref> --"
   # over the checks they performed, not verify-blob's "Verified OK" (the
   # kit's second run, 2026-10-21, counted the wrong line and stopped here).
-  cosign verify "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-cosign.txt" | { grep -c '^Verification for ' || true; } | sed 's|^|    signature verifications: |'
-  cosign verify-attestation --type spdxjson "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-attestation.txt" | { grep -c '^Verification for ' || true; } | sed 's|^|    SBOM attestation verifications: |'
-  slsa-verifier verify-image "$ref" --source-uri "github.com/$REPO" --source-tag "$TAG" 2>&1 | rec "image-$name-slsa.txt" | tail -1 | sed 's|^|    |'
+  retry cosign verify "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-cosign.txt" | { grep -c '^Verification for ' || true; } | sed 's|^|    signature verifications: |'
+  retry cosign verify-attestation --type spdxjson "$ref" --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" --output text 2>&1 | rec "image-$name-attestation.txt" | { grep -c '^Verification for ' || true; } | sed 's|^|    SBOM attestation verifications: |'
+  retry slsa-verifier verify-image "$ref" --source-uri "github.com/$REPO" --source-tag "$TAG" 2>&1 | rec "image-$name-slsa.txt" | tail -1 | sed 's|^|    |'
   # The signed manifest's config digest and its rootfs diff_ids, recorded
   # for the tie to the guest: docker's image id after `docker load` is a
   # digest of a manifest rebuilt on the guest (not the registry's), but
@@ -158,8 +172,6 @@ gcloud compute instances create "$NAME" --project "$PROJECT" --zone "$ZONE" \
   --metadata-from-file "startup-script=$HERE/cvm-returnpath-images.sh" >/dev/null
 
 echo "== 6. waiting for results on the serial console (up to 30 min)"
-RAW_DIR="${VG_E2E_RAW_DIR:-$HOME/.cache/vaultgenome/release-deploy-images}"
-mkdir -p "$RAW_DIR"
 SERIAL="$RAW_DIR/serial-$STAMP.txt"
 for _ in $(seq 1 180); do
   sleep 10
@@ -168,13 +180,16 @@ for _ in $(seq 1 180); do
 done
 grep -q "===E2E-END===" "$SERIAL" || { echo "no results after 30 minutes"; tail -40 "$SERIAL"; exit 1; }
 echo "serial capture: $SERIAL ($(shasum -a 256 "$SERIAL" | cut -d' ' -f1))"
-"$E2E/decode-results.sh" "$SERIAL" "$HERE/evidence"
-# decode-results names the directory by the guest's stamp; the runner's records sit beside it.
-GUEST=""
-for d in "$HERE"/evidence/*/; do d="${d%/}"; [ "$(basename "$d")" = "$STAMP" ] && continue; [ "$d" \> "$GUEST" ] && GUEST="$d"; done
-[ -n "$GUEST" ] || { echo "no decoded guest record"; exit 1; }
-GUEST_STAMP="$(basename "$GUEST")"
-mv "$EVIDENCE/verify" "$GUEST/verify" && rmdir "$EVIDENCE"
+# decode-results names the record by the guest's stamp; it is decoded
+# under WORK and published into evidence/ with the runner's records inside
+# it by one move — the record appears finished or not at all, and a second
+# run in the same minutes cannot be mistaken for this one.
+DEC="$WORK/decoded"; mkdir -p "$DEC"
+"$E2E/decode-results.sh" "$SERIAL" "$DEC"
+GUEST_STAMP="$(ls "$DEC" | head -1)"; [ -n "$GUEST_STAMP" ] || { echo "no decoded guest record"; exit 1; }
+mv "$EVIDENCE/verify" "$DEC/$GUEST_STAMP/verify"
+GUEST="$HERE/evidence/$GUEST_STAMP"; mkdir -p "$HERE/evidence"
+mv "$DEC/$GUEST_STAMP" "$GUEST"; PUBLISHED=1
 echo "evidence: $GUEST"
 echo "== 7. the guest's record against the runner's: the six inputs, and each loaded image's layers against its signed config"
 diff <(grep -E ' (sagvd-image\.tar|acp-compute-image\.tar|acpctl|keygen|genome-worker\.tgz|images\.txt)$' "$GUEST/verify/guest-inputs.sha256" | sort) \

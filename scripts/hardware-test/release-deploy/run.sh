@@ -41,15 +41,29 @@ LOW="$(echo "$STAMP" | tr 'A-Z' 'a-z')"
 NAME="vg-release-$LOW"
 BUCKET="$PROJECT-vg-rel-$LOW"
 WORK="$(mktemp -d)"
-EVIDENCE="$HERE/evidence/$STAMP"
+RAW_DIR="${VG_E2E_RAW_DIR:-$HOME/.cache/vaultgenome/release-deploy}"; mkdir -p "$RAW_DIR"
+# The record is staged under WORK and published into evidence/ by one move
+# at the end: a directory under evidence/ is a finished record, never a run
+# in flight. A run that stops early leaves its stage beside the raw capture,
+# outside the tree (RAW_DIR/failed-<stamp>).
+EVIDENCE="$WORK/evidence"; PUBLISHED=0
 mkdir -p "$EVIDENCE/verify"
+# cosign's TUF cache is this run's own (TUF_ROOT): two kits in the same
+# minutes no longer race on one cache — on 2026-10-21 a verify-blob of this
+# kit failed on "failed to create TUF client" while another kit initialized
+# the shared cache beside it — and a fetch that stumbles on the mirror is
+# retried.
+export TUF_ROOT="$WORK/tuf"
+retry() { local n; for n in 1 2 3; do "$@" && return 0; [ "$n" = 3 ] && return 1; echo "  (attempt $n failed; retrying in $((n * 5)) s)"; sleep $((n * 5)); done; }
 cleanup() {
   echo "cleanup: deleting $NAME and gs://$BUCKET"
   gcloud compute instances delete "$NAME" --project "$PROJECT" --zone "$ZONE" --quiet >/dev/null 2>&1 || true
   gcloud storage rm -r "gs://$BUCKET" --project "$PROJECT" >/dev/null 2>&1 || true
+  if [ "$PUBLISHED" = 0 ] && [ -d "$EVIDENCE" ]; then cp -R "$EVIDENCE" "$RAW_DIR/failed-$STAMP" && echo "the run's stage is kept at $RAW_DIR/failed-$STAMP (outside the tree)"; fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
+retry cosign initialize > "$EVIDENCE/verify/cosign-initialize.txt" 2>&1 || { echo "ERROR: cosign initialize failed three times (the TUF mirror)"; exit 1; }
 rec() { tee -a "$EVIDENCE/verify/$1" ; }
 
 echo "== 1. download the release $TAG"
@@ -74,10 +88,10 @@ for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES "$WORK
   for f in "$b" "$sbom"; do
     sig="$f.sig"; cert="$f.cert"
     [ "$f" = "$sbom" ] && { sig="$sbomsig"; cert="$sbomcert"; }
-    ( cd "$DL" && cosign verify-blob --signature "$sig" --certificate "$cert" \
+    ( cd "$DL" && retry cosign verify-blob --signature "$sig" --certificate "$cert" \
         --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$f" ) 2>&1 | rec cosign.txt | tail -1 | sed "s|^|  $f: |"
   done
-  ( cd "$DL" && slsa-verifier verify-artifact "$b" --provenance-path multiple.intoto.jsonl \
+  ( cd "$DL" && retry slsa-verifier verify-artifact "$b" --provenance-path multiple.intoto.jsonl \
       --source-uri "github.com/$REPO" --source-tag "$TAG" ) 2>&1 | rec slsa.txt | tail -1 | sed "s|^|  $b: |"
 done
 ( cd "$ROOT" && git fetch -q origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
@@ -94,7 +108,7 @@ test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = $((N_ART * 2)) |
 # Twelve bundles from 0.4.3; from the release that carries its images there
 # is a thirteenth, images-<tag>.txt.sigstore.json, verified with the images.
 if [ "$(ls "$DL"/*.sigstore.json 2>/dev/null | wc -l | tr -d ' ')" -ge 12 ]; then
-  cosign initialize 2>&1 | rec cosign-initialize.txt >/dev/null || true
+  # the trust root is in this run's TUF cache (cosign initialize, above)
   TRUSTED_ROOT="$(find "${TUF_ROOT:-$HOME/.sigstore/root}" -name trusted_root.json 2>/dev/null | head -1)"
   [ -n "$TRUSTED_ROOT" ] || { echo "ERROR: no trusted_root.json in cosign's TUF cache after cosign initialize"; exit 1; }
   cp "$TRUSTED_ROOT" "$DL/trusted_root.json"
@@ -186,5 +200,8 @@ cp "$SERIAL" "$EVIDENCE/serial-console.txt"
 DEC="$WORK/decoded"; mkdir -p "$DEC"
 "$E2E/decode-results.sh" "$SERIAL" "$DEC"
 mv "$DEC"/*/ "$EVIDENCE/results"
+# The record is complete: published into evidence/ by one move.
+FINAL="$HERE/evidence/$STAMP"; mkdir -p "$HERE/evidence"
+mv "$EVIDENCE" "$FINAL"; EVIDENCE="$FINAL"; PUBLISHED=1
 echo "evidence: $EVIDENCE"
 ls "$EVIDENCE/results" | tr '\n' ' '; echo

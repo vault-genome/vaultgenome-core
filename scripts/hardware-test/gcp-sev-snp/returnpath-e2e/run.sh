@@ -53,15 +53,27 @@ cleanup() {
   echo "cleanup: deleting $NAME and gs://$BUCKET"
   gcloud compute instances delete "$NAME" --project "$PROJECT" --zone "$ZONE" --quiet >/dev/null 2>&1 || true
   gcloud storage rm -r "gs://$BUCKET" --project "$PROJECT" >/dev/null 2>&1 || true
+  git -C "$ROOT" worktree prune >/dev/null 2>&1 || true
   rm -rf "$BUILD"
 }
 trap cleanup EXIT
 
 echo "build (linux/amd64)"
-( cd "$ROOT" && for b in sagvd acp-compute acpctl; do
+# Build from a clean checkout of HEAD when the tracked tree is clean, so the
+# binaries' VCS stamp is the commit's even while other kits write their
+# records into the tree (untracked files mark a build modified; on
+# 2026-10-21 the binaries of a release record came out "-dirty" for that
+# reason); a tree with modified tracked files builds from the working tree,
+# stamped so.
+SRC="$ROOT"
+if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]; then
+  SRC="$BUILD/src"; git -C "$ROOT" worktree add -q --detach "$SRC" HEAD
+fi
+( cd "$SRC" && for b in sagvd acp-compute acpctl; do
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
-( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
-( cd "$ROOT/workers" && COPYFILE_DISABLE=1 tar czf "$BUILD/genome-worker.tgz" --no-xattrs --exclude '__pycache__' --exclude '.pytest_cache' genome )
+( cd "$SRC" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
+( cd "$SRC/workers" && COPYFILE_DISABLE=1 tar czf "$BUILD/genome-worker.tgz" --no-xattrs --exclude '__pycache__' --exclude '.pytest_cache' genome )
+[ "$SRC" = "$ROOT" ] || git -C "$ROOT" worktree remove --force "$SRC"
 
 echo "upload to gs://$BUCKET"
 gcloud storage buckets create "gs://$BUCKET" --project "$PROJECT" --location us-central1 --uniform-bucket-level-access >/dev/null

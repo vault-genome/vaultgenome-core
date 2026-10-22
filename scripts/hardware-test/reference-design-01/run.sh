@@ -78,7 +78,7 @@ cleanup() {
   set +e
   if [ "$OK" = 0 ] && [ -n "${VG_KEEP_ON_FAILURE:-}" ]; then
     echo "cleanup: VG_KEEP_ON_FAILURE is set and the run failed — $A ($ZONE_A), $B ($ZONE_B), the rule $RULE and gs://$BUCKET are left for a look; delete them yourself"
-    rm -rf "$BUILD"; return
+    git -C "$ROOT" worktree prune >/dev/null 2>&1 || true; rm -rf "$BUILD"; return
   fi
   if [ "$OK" = 0 ]; then  # a guest that died before its record: its console is the only trace
     [ "$CREATED_A" = 1 ] && gcloud compute instances get-serial-port-output "$A" --project "$PROJECT" --zone "$ZONE_A" > "$EVIDENCE/a-serial-console.txt" 2>/dev/null
@@ -89,6 +89,7 @@ cleanup() {
   [ "$CREATED_B" = 1 ] && gcloud compute instances delete "$B" --project "$PROJECT" --zone "$ZONE_B" --quiet >/dev/null 2>&1
   [ "$CREATED_RULE" = 1 ] && gcloud compute firewall-rules delete "$RULE" --project "$PROJECT" --quiet >/dev/null 2>&1
   gcloud storage rm -r "gs://$BUCKET" --project "$PROJECT" >/dev/null 2>&1 || true
+  git -C "$ROOT" worktree prune >/dev/null 2>&1 || true
   rm -rf "$BUILD"
 }
 trap cleanup EXIT
@@ -113,10 +114,21 @@ collect() { # collect <a|b>
 exec > >(tee -a "$EVIDENCE/runner.log") 2>&1
 mark run_start
 echo "build sagvd, acp-compute, acp-bootstrap, acpctl, acp-keygen (linux/amd64), acpctl for this machine; pack workers/genome"
-( cd "$ROOT" && for b in sagvd acp-compute acp-bootstrap acpctl; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done \
+# Build from a clean checkout of HEAD when the tracked tree is clean, so the
+# binaries' VCS stamp is the commit's even while other kits write their
+# records into the tree (untracked files mark a build modified; on
+# 2026-10-21 the binaries of a release record came out "-dirty" for that
+# reason); a tree with modified tracked files builds from the working tree,
+# stamped so.
+SRC="$ROOT"
+if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]; then
+  SRC="$BUILD/src"; git -C "$ROOT" worktree add -q --detach "$SRC" HEAD
+fi
+( cd "$SRC" && for b in sagvd acp-compute acp-bootstrap acpctl; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done \
   && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen \
   && CGO_ENABLED=0 go build -trimpath -o "$BUILD/acpctl-host" ./cmd/acpctl )
-( cd "$ROOT/workers" && COPYFILE_DISABLE=1 tar czf "$BUILD/genome-worker.tgz" --no-xattrs --exclude '__pycache__' --exclude '.pytest_cache' genome )
+( cd "$SRC/workers" && COPYFILE_DISABLE=1 tar czf "$BUILD/genome-worker.tgz" --no-xattrs --exclude '__pycache__' --exclude '.pytest_cache' genome )
+[ "$SRC" = "$ROOT" ] || git -C "$ROOT" worktree remove --force "$SRC"
 ( cd "$BUILD" && shasum -a 256 sagvd acp-compute acp-bootstrap acpctl keygen genome-worker.tgz acpctl-host ) | tee "$EVIDENCE/inputs.sha256"
 { echo "tree $(git -C "$ROOT" rev-parse HEAD)"; echo "stamp $STAMP"; echo "profile $PROFILE"; echo "zone_a $ZONE_A"; echo "go $(go version | cut -d' ' -f3)"; echo "host $(uname -sm)"; echo "fips ${VG_FIPS:-0}"; echo "gofips140 ${GOFIPS140:-off}"; } > "$EVIDENCE/run.txt"
 # What was built, from the binaries themselves (the module setting and the commit).
