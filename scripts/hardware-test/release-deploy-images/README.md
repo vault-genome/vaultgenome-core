@@ -122,3 +122,19 @@ layers for `sagvd` and `sagvd-fips`, 9 for the two workers). The two
 default images ran on the guest: `gate_level=EXACT` 6/6, both rogues
 refused, the audit log verified (17 events), 186.9 s. The rehearsal's
 release was deleted afterwards and the tag kept (§4.1).
+
+`20261021T235410Z` is the run on `v0.8.0`, twenty-nine minutes after it
+was published: PASS — the four images `sagvd@sha256:54a0a9bf…`,
+`acp-compute@sha256:3b8c34de…`, `sagvd-fips@sha256:0522af4a…` and
+`acp-compute-fips@sha256:6b11c99d…`, all publicly readable; each
+signature, SBOM attestation and container provenance verified; the
+binary inside each equal to its release asset (`ea231f03…`,
+`7537fe16…`, `9a25e112…`, `b3acc700…`); each loaded image's
+`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
+the two `sagvd` images, 9 for the two workers); on the guest, from the
+two default images, `gate_level=EXACT` 6/6, both rogues refused, the
+audit log verified (17 events), 182.5 s. Two earlier runs against the
+same release reached no verdict on the runner: one stopped on a
+transient error of the TUF mirror while another kit initialized the
+same cosign cache beside it, the other lost its runner-side `verify/`
+to a cleanup by hand while it ran; their logs are kept outside the tree.
