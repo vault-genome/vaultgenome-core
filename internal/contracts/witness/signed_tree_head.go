@@ -69,9 +69,12 @@ type SignedTreeHead struct {
 	// authority and audit signing purposes so that a compromise of one
 	// cannot forge the others.
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
 
-	// Signature is the Ed25519 signature over CanonicalBytes (which
-	// excludes Signature itself).
+	// Signature is the signature, under the suite Alg names, over
+	// CanonicalBytes (which excludes Signature itself).
 	Signature []byte `json:"signature"`
 }
 
@@ -221,6 +224,16 @@ func sthCoverBytes(s *SignedTreeHead) []byte {
 	binary.BigEndian.PutUint32(u32[:], uint32(len(kid)))
 	out = append(out, u32[:]...)
 	out = append(out, kid...)
+	// The alg (ADR 0031) is under the signature when the suite is not
+	// ed25519: length-prefixed, after the kid. An ed25519 tree head's
+	// cover is the one every earlier release signed, so every tree head
+	// ever written verifies as it did.
+	if s.Alg != "" {
+		alg := []byte(s.Alg)
+		binary.BigEndian.PutUint32(u32[:], uint32(len(alg)))
+		out = append(out, u32[:]...)
+		out = append(out, alg...)
+	}
 
 	return out
 }
@@ -250,6 +263,11 @@ func (s *SignedTreeHead) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, s.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	s.Alg = alg
 	cb := sthCoverBytes(s)
 	sig, err := signer.Sign(s.SigningKeyID, keys.PurposeSigningWitness, cb)
 	if err != nil {
@@ -279,7 +297,7 @@ func (s *SignedTreeHead) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, s.Signature)
+	return vk.VerifyRecord(s.Alg, cb, s.Signature)
 }
 
 // UnmarshalJSON rejects unknown fields and gates SchemaVersion.

@@ -46,6 +46,7 @@ package key_release_token
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
@@ -117,7 +118,10 @@ type KeyReleaseToken struct {
 	AuthorizedAt time.Time `json:"authorized_at"`
 
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
-	Signature    []byte    `json:"signature"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature"`
 
 	// AuditEventID points at the KindKeyReleaseAuthorized audit
 	// event that records this dispatch. An un-evidenced token is

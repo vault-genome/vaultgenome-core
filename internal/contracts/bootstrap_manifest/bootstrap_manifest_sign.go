@@ -30,6 +30,11 @@ func (b *BootstrapManifest) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, b.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	b.Alg = alg
 	cp := *b
 	cp.Signature = nil
 	cb, err := crypto.CanonicalJSON(&cp)
@@ -66,5 +71,5 @@ func (b *BootstrapManifest) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, b.Signature)
+	return vk.VerifyRecord(b.Alg, cb, b.Signature)
 }

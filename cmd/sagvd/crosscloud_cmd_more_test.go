@@ -123,7 +123,7 @@ func newDestination(t *testing.T, f *materialFixture) *destination {
 	authPub, _, err := crypto.Ed25519FromSeed(f.authSeed)
 	require.NoError(t, err)
 	resolver := server.NewPublicKeyResolver(map[ids.KeyID]keys.VerifyingKey{
-		ids.KeyID(f.cfg.Keys.AuthoritySigning.KeyID): {KeyID: ids.KeyID(f.cfg.Keys.AuthoritySigning.KeyID), Purpose: keys.PurposeSigningAuthority, PublicKey: authPub},
+		ids.KeyID(f.cfg.Keys.AuthoritySigning.KeyID): {KeyID: ids.KeyID(f.cfg.Keys.AuthoritySigning.KeyID), Purpose: keys.PurposeSigningAuthority, Suite: crypto.SuiteEd25519, PublicKey: authPub},
 	})
 	d := &destination{tee: sim}
 	receiver, err := crosscloud.NewReceiver(crosscloud.Config{

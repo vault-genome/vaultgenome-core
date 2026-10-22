@@ -14,6 +14,7 @@ import (
 	witness_contract "github.com/vault-genome/vaultgenome-core/internal/contracts/witness"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/store"
 	witness_op "github.com/vault-genome/vaultgenome-core/internal/genome/witness"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/disclosure"
@@ -202,4 +203,9 @@ func TestIssuer_Issue_SigningFailureLeavesTheEntryCommitted(t *testing.T) {
 	require.Nil(t, proof)
 	require.Equal(t, "signer_offline", shared_errors.CodeOf(err))
 	require.Equal(t, uint64(1), f.Log.Size(), "the entry was committed before the signature was asked for")
+}
+
+// Suite reports ed25519: a record this fake signs carries no alg (ADR 0031).
+func (refusingSigner) Suite(ids.KeyID) (crypto.SignatureSuite, error) {
+	return crypto.SuiteEd25519, nil
 }

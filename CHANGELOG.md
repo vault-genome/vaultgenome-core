@@ -13,6 +13,21 @@ given release can still open.
 
 ### Added
 
+- The signature suite on every record (ADR 0031, part one). The `keys`
+  package signs and verifies under a named suite — `ed25519`,
+  `ecdsa-p384-sha384`, `ml-dsa-87` — and every signed contract carries
+  `alg` beside `signing_key_id` and `signature`: absent for ed25519, so
+  the bytes of every record written so far are unchanged, and named for
+  the other two. A verifier checks the suite a record names against the
+  key it resolves before any signature is checked. `acpctl audit verify`
+  reads the suite from the key's PEM (Ed25519, ECDSA P-384 or ML-DSA-87,
+  as `sagvd identity` prints it) and reports it as `signature_suite`.
+  Audit chains and release decisions signed under each suite are kept as
+  fixtures and verified from the file in every test run; the doctrine
+  suite checks that every signed contract carries `alg`. Key files,
+  configuration, identities and the profile follow in parts two and
+  three.
+
 - ADR 0031 (proposed): the signature suite — `ed25519`, `ecdsa-p384-sha384`
   and `ml-dsa-87` named, the profile naming what a daemon signs with and
   accepts (`crypto.signature_suite` within it), `alg` beside every
@@ -24,6 +39,17 @@ given release can still open.
 
 ### Changed
 
+- Audit event schema v8: the optional `alg` field (ADR 0031). A v7 reader
+  refuses a v8 event; a v8 reader verifies every earlier event as it did.
+  The text line of `acpctl audit verify` names the suite
+  (`… events verified under ed25519, tip …`).
+- ML-DSA-87 is the standard library's and unavailable on the `-fips`
+  build (the Go Cryptographic Module v1.0.0): a key of that suite is
+  refused there with the module's reason, and a record signed under it
+  cannot be verified there — reported, never assumed. Zeroize wipes the
+  Ed25519 private key and the seeds; the ECDSA scalar and the expanded
+  ML-DSA key live in representations the standard library does not
+  expose for wiping and are dropped for the collector.
 - The Return Path handshake classifies its I/O errors: a peer that
   closes or loses its connection mid-handshake is `peer_disconnected`
   (Operational — nothing was evaluated, the retry is the peer's), a

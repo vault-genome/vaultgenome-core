@@ -13,6 +13,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/disclosure_message"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/reconstitution_decision"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
@@ -47,6 +48,11 @@ func (s *scriptedSigner) Sign(kid ids.KeyID, purpose keys.Purpose, msg []byte) (
 		return nil, errSignerUnavailable
 	}
 	return s.inner.Sign(kid, purpose, msg)
+}
+
+// Suite delegates to the wrapped signer (ADR 0031).
+func (s *scriptedSigner) Suite(kid ids.KeyID) (crypto.SignatureSuite, error) {
+	return s.inner.Suite(kid)
 }
 
 // newOrchestratorWithSigners mirrors newTestOrchestrator but lets the

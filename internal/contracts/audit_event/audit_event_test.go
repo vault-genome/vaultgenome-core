@@ -192,12 +192,12 @@ func TestAuditEvent_SchemaVersion_V5BackwardCompatible(t *testing.T) {
 
 // TestAuditEvent_SchemaVersion_V7CurrentAccepted asserts the current
 // write-side schema version is accepted. ADR 0027 bumps
-// SchemaVersionCurrent from 6 → 7 with KindAuditSegmentClosed.
-func TestAuditEvent_SchemaVersion_V7CurrentAccepted(t *testing.T) {
+// SchemaVersionCurrent from 7 → 8 with the alg field (ADR 0031).
+func TestAuditEvent_SchemaVersion_V8CurrentAccepted(t *testing.T) {
 	t.Parallel()
 	e := validFixture()
 	e.SchemaVersion = SchemaVersionCurrent
-	require.Equal(t, uint16(7), SchemaVersionCurrent,
-		"ADR 0027 sets SchemaVersionCurrent to 7; a change here MUST be reflected in an ADR")
+	require.Equal(t, uint16(8), SchemaVersionCurrent,
+		"ADR 0031 sets SchemaVersionCurrent to 8; a change here MUST be reflected in an ADR")
 	require.NoError(t, e.Validate())
 }

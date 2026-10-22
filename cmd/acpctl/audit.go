@@ -5,8 +5,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/ed25519"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -206,7 +204,7 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	var (
 		auditPath = fs.String("audit", "", "Path to the audit bbolt file (required)")
-		pubKey    = fs.String("audit-pubkey", "", "Path to the audit Ed25519 public key: PEM (as `sagvd identity` prints it) or 32 raw bytes (required)")
+		pubKey    = fs.String("audit-pubkey", "", "Path to the audit public key: PEM as `sagvd identity` prints it (Ed25519, ECDSA P-384 or ML-DSA-87 — the suite is read from the key) or 32 raw bytes (Ed25519) (required)")
 		pubKID    = fs.String("audit-kid", "", "KeyID under which the audit-signing key is registered (required)")
 		archive   = fs.String("archive-dir", "", "Directory of the log's closed segments, verified before the live file (default: \"archive\" beside --audit; ADR 0027)")
 		fromTip   = fs.String("from-tip", "", "Hash (hex) the oldest present segment continues from, when the segments before it were moved away and verified where they are")
@@ -232,7 +230,7 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	pub, err := readEd25519PublicKey(*pubKey)
+	suite, pub, err := readSigningPublicKey(*pubKey)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl audit verify: %v\n", err)
 		return 1
@@ -252,11 +250,12 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	resolver := newSinglePubkeyResolver(ids.KeyID(*pubKID), pub)
+	resolver := newSinglePubkeyResolver(ids.KeyID(*pubKID), suite, pub)
 	verified, verifyErr := verifyAuditLog(log, resolver, from)
 	res := auditVerifyResult{
 		AuditPath:  *auditPath,
 		ArchiveDir: log.archiveDir,
+		Suite:      string(suite),
 		EventCount: verified.Count,
 		Segments:   verified.Segments,
 	}
@@ -287,6 +286,9 @@ type auditVerifyResult struct {
 	OK         bool   `json:"ok"`
 	AuditPath  string `json:"audit_path"`
 	ArchiveDir string `json:"archive_dir,omitempty"`
+	// Suite is the signature suite of the audit key (ADR 0031): every
+	// event verified was signed under it.
+	Suite      string `json:"signature_suite"`
 	EventCount int    `json:"event_count"`
 	// Tip is the hash of the last event. A log whose tail was cut off
 	// still verifies; compare the tip with one recorded earlier.
@@ -306,7 +308,7 @@ func emitAuditVerify(w io.Writer, asJSON bool, r auditVerifyResult) {
 		return
 	}
 	if r.OK {
-		fmt.Fprintf(w, "audit chain ok — %d events verified, tip %s\n", r.EventCount, r.Tip)
+		fmt.Fprintf(w, "audit chain ok — %d events verified under %s, tip %s\n", r.EventCount, r.Suite, r.Tip)
 	} else {
 		fmt.Fprintf(w, "audit chain BROKEN: %s\n", r.Error)
 	}
@@ -355,16 +357,15 @@ func verifyEventsInOrder(events []audit_event.AuditEvent, resolver keys.Resolver
 }
 
 // singlePubkeyResolver is a minimal Resolver that returns the same
-// pubkey for a single registered KID.
+// pubkey, of one signature suite, for a single registered KID.
 type singlePubkeyResolver struct {
 	kid    ids.KeyID
-	pubkey crypto.PublicKey
+	suite  crypto.SignatureSuite
+	pubkey []byte
 }
 
-func newSinglePubkeyResolver(kid ids.KeyID, pub []byte) keys.Resolver {
-	cp := make(crypto.PublicKey, len(pub))
-	copy(cp, pub)
-	return &singlePubkeyResolver{kid: kid, pubkey: cp}
+func newSinglePubkeyResolver(kid ids.KeyID, suite crypto.SignatureSuite, pub []byte) keys.Resolver {
+	return &singlePubkeyResolver{kid: kid, suite: suite, pubkey: append([]byte(nil), pub...)}
 }
 
 func (r *singlePubkeyResolver) Resolve(kid ids.KeyID, want keys.Purpose) (keys.VerifyingKey, error) {
@@ -388,6 +389,7 @@ func (r *singlePubkeyResolver) Resolve(kid ids.KeyID, want keys.Purpose) (keys.V
 	return keys.VerifyingKey{
 		KeyID:     r.kid,
 		Purpose:   keys.PurposeSigningAudit,
+		Suite:     r.suite,
 		PublicKey: r.pubkey,
 	}, nil
 }
@@ -400,26 +402,38 @@ var _ = strings.TrimSpace
 // rare case the verifier path isn't taken
 var _ = chain.NewInMemoryChain
 
-// readEd25519PublicKey reads an Ed25519 public key file: a PEM "PUBLIC
-// KEY" block (as `sagvd identity` prints it) or the raw 32 bytes.
-func readEd25519PublicKey(path string) ([]byte, error) {
+// readSigningPublicKey reads the audit public key file and names its
+// suite: a PEM "PUBLIC KEY" block (as `sagvd identity` prints it; the
+// algorithm names the suite — Ed25519, ECDSA P-384 or ML-DSA-87) or the
+// raw 32 bytes of an Ed25519 key.
+func readSigningPublicKey(path string) (crypto.SignatureSuite, []byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read pubkey: %w", err)
+		return "", nil, fmt.Errorf("read pubkey: %w", err)
 	}
 	if block, _ := pem.Decode(data); block != nil {
-		key, err := x509.ParsePKIXPublicKey(block.Bytes)
+		suite, pub, err := crypto.ParsePublicKeyPEM(data)
 		if err != nil {
-			return nil, fmt.Errorf("parse pubkey PEM: %w", err)
+			return "", nil, fmt.Errorf("parse pubkey PEM: %w", err)
 		}
-		ed, ok := key.(ed25519.PublicKey)
-		if !ok {
-			return nil, fmt.Errorf("pubkey PEM holds %T, want an Ed25519 key", key)
-		}
-		return ed, nil
+		return suite, pub, nil
 	}
 	if len(data) != crypto.Ed25519PublicKeySize {
-		return nil, errors.New("pubkey must be PEM or exactly 32 raw bytes")
+		return "", nil, errors.New("pubkey must be PEM (Ed25519, ECDSA P-384 or ML-DSA-87) or exactly 32 raw bytes (Ed25519)")
 	}
-	return data, nil
+	return crypto.SuiteEd25519, data, nil
+}
+
+// readEd25519PublicKey reads a public key file as readSigningPublicKey and
+// requires it to be Ed25519 — the commands whose records are not yet on
+// the signature suite (ADR 0031 part two) call it.
+func readEd25519PublicKey(path string) ([]byte, error) {
+	suite, pub, err := readSigningPublicKey(path)
+	if err != nil {
+		return nil, err
+	}
+	if suite != crypto.SuiteEd25519 {
+		return nil, fmt.Errorf("pubkey is %s, want an Ed25519 key", suite)
+	}
+	return pub, nil
 }

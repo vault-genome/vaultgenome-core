@@ -21,6 +21,7 @@ package audit_event
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
@@ -59,12 +60,19 @@ const (
 	//            log, of the segment it closed — name, indices, tip,
 	//            length and SHA-256 of the archived file. Struct shape
 	//            unchanged.
+	//   v7 → v8: ADR 0031 added the optional alg field beside
+	//            signing_key_id and signature: the signature suite the
+	//            event was signed under, absent for ed25519 (what every
+	//            event before v8 carried) and named for
+	//            ecdsa-p384-sha384 and ml-dsa-87. Kind set unchanged.
+	//            A v7 reader refuses a v8 event; a v8 reader verifies
+	//            every earlier event as it did.
 	// See docs/doctrine/bootstrap-contracts.md §5 (contract-frozen
 	// discipline), the Stage F.2 / Stage G doctrine notes in
 	// docs/internal/status-journal.md, ADR 0006 (cross-cloud KMS-mediated
 	// restore) and ADR 0010 (operator stop and recorded refusals).
-	SchemaVersionMax     uint16 = 7
-	SchemaVersionCurrent uint16 = 7
+	SchemaVersionMax     uint16 = 8
+	SchemaVersionCurrent uint16 = 8
 
 	// HashSize is the length in bytes of PrevHash and Hash (SHA-256).
 	HashSize = 32
@@ -261,5 +269,8 @@ type AuditEvent struct {
 	Hash []byte `json:"hash"`
 
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
-	Signature    []byte    `json:"signature"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature"`
 }

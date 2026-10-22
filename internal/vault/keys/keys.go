@@ -5,6 +5,7 @@ package keys
 
 import (
 	"crypto/rand"
+	"fmt"
 	"io"
 	"sync"
 
@@ -21,12 +22,12 @@ type Purpose uint8
 const (
 	PurposeUnknown Purpose = 0
 
-	// PurposeSigningAuthority — vault Ed25519 signing for authority
+	// PurposeSigningAuthority — vault signing for authority
 	// artifacts (SessionObject, AttestationResult, DisclosureMessage,
 	// ReconstructionJobManifest, ReleaseDecision).
 	PurposeSigningAuthority Purpose = 1
 
-	// PurposeSigningAudit — vault Ed25519 signing for AuditEvent records.
+	// PurposeSigningAudit — vault signing for AuditEvent records.
 	// Kept separate from authority signing so that a compromised authority
 	// key does not automatically compromise audit-chain continuity.
 	PurposeSigningAudit Purpose = 2
@@ -35,7 +36,7 @@ const (
 	// and of persisted vault material.
 	PurposeSealing Purpose = 3
 
-	// PurposeSigningWitness — Ed25519 signing for the transparency log's
+	// PurposeSigningWitness — signing for the transparency log's
 	// SignedTreeHead. Kept separate from authority and audit so that a
 	// compromised authority or audit key cannot forge an STH that covers
 	// the same history with a different Merkle root. The doctrinal role
@@ -61,21 +62,67 @@ func (p Purpose) String() string {
 	}
 }
 
-// VerifyingKey is the public half of an Ed25519 signing key, together
-// with its KeyID and Purpose. Safe to hand to any party that needs to
-// verify vault signatures.
+// VerifyingKey is the public half of a signing key, together with its
+// KeyID, Purpose and signature suite (ADR 0031). Safe to hand to any
+// party that needs to verify vault signatures.
 type VerifyingKey struct {
-	KeyID     ids.KeyID
-	Purpose   Purpose
-	PublicKey crypto.PublicKey
+	KeyID   ids.KeyID
+	Purpose Purpose
+	// Suite is the signature suite the key signs under. A record signed
+	// with this key carries crypto.RecordAlg(Suite) as its alg: absent
+	// for ed25519, the suite id otherwise.
+	Suite crypto.SignatureSuite
+	// PublicKey is the suite's raw public-key encoding: 32 bytes for
+	// ed25519, the 97-byte uncompressed point for ecdsa-p384-sha384,
+	// 2592 bytes for ml-dsa-87.
+	PublicKey []byte
 	CreatedAt int64 // unix-nanos of creation; used for rotation ordering
+}
+
+// Verify checks sig over msg under the key's suite.
+func (vk VerifyingKey) Verify(msg, sig []byte) error {
+	if vk.Suite == "" {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"keys: verifying key names no signature suite",
+			nil,
+		)
+	}
+	return crypto.VerifySuite(vk.Suite, vk.PublicKey, msg, sig)
+}
+
+// VerifyRecord checks the signature a record carries: the record's alg
+// (absent means ed25519) must be the key's suite — a record does not
+// choose an algorithm the key was not made for — and sig must verify
+// over msg under it. A mismatch is an Integrity-classified error, as a
+// bad signature is.
+func (vk VerifyingKey) VerifyRecord(alg crypto.SignatureSuite, msg, sig []byte) error {
+	want, err := crypto.RecordSuite(alg)
+	if err != nil {
+		return err
+	}
+	if vk.Suite == "" {
+		return shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"keys: verifying key names no signature suite",
+			nil,
+		)
+	}
+	if want != vk.Suite {
+		return shared_errors.Integrity(
+			shared_errors.CodeSignatureInvalid,
+			fmt.Sprintf("keys: record alg %q does not match the key's suite %q", want, vk.Suite),
+			nil,
+		)
+	}
+	return crypto.VerifySuite(vk.Suite, vk.PublicKey, msg, sig)
 }
 
 // signingKey is the full key pair. It is never returned by the Resolver
 // interface — only used internally by the Signer.
 type signingKey struct {
 	VerifyingKey
-	Priv crypto.PrivateKey
+	Priv *crypto.SigningKey
 }
 
 // sealingKey is a 32-byte AES-256 key plus its ID/purpose metadata.
@@ -100,9 +147,27 @@ type Resolver interface {
 // Signer is the write-side capability: sign cover-bytes under a specific
 // KeyID. Implementations enforce purpose bindings identically to Resolver.
 type Signer interface {
-	// Sign returns Ed25519(priv[kid], msg). Purpose must match the key's
-	// declared Purpose. Sealing keys cannot be used here.
+	// Sign returns the signature of msg under kid's key, in the key's
+	// suite. Purpose must match the key's declared Purpose. Sealing keys
+	// cannot be used here.
 	Sign(kid ids.KeyID, purpose Purpose, msg []byte) ([]byte, error)
+
+	// Suite reports the signature suite of kid's key: what Sign produces,
+	// and what a record signed under kid carries as its alg (RecordAlg).
+	// An unknown kid is an Authority-classified error.
+	Suite(kid ids.KeyID) (crypto.SignatureSuite, error)
+}
+
+// RecordAlg is the alg a record signed by signer under kid carries:
+// absent for ed25519, the suite id otherwise (ADR 0031). Every
+// contract's SignWith sets it before taking the cover-bytes, so the
+// suite is under the signature.
+func RecordAlg(signer Signer, kid ids.KeyID) (crypto.SignatureSuite, error) {
+	suite, err := signer.Suite(kid)
+	if err != nil {
+		return "", err
+	}
+	return crypto.RecordAlg(suite), nil
 }
 
 // Sealer is the symmetric-key capability. The vault uses this to wrap
@@ -140,10 +205,33 @@ func NewInMemoryStore(clock shared_time.Clock) *InMemoryStore {
 }
 
 // GenerateSigning creates a fresh Ed25519 key pair and registers it under
-// kid with the given purpose. purpose must be PurposeSigningAuthority or
-// PurposeSigningAudit. Returns the VerifyingKey so callers can hand it to
-// out-of-band distribution.
+// kid with the given purpose — the suite every deployment before ADR
+// 0031 signs under. GenerateSigningSuite takes the suite.
 func (s *InMemoryStore) GenerateSigning(kid ids.KeyID, purpose Purpose) (VerifyingKey, error) {
+	return s.GenerateSigningSuite(kid, purpose, crypto.SuiteEd25519)
+}
+
+// GenerateSigningSuite creates a fresh key of suite and registers it under
+// kid with the given purpose. purpose must be a signing purpose. A suite
+// this build cannot sign under (ml-dsa-87 on the FIPS module v1.0.0) is
+// refused with the module's reason. Returns the VerifyingKey so callers
+// can hand it to out-of-band distribution.
+func (s *InMemoryStore) GenerateSigningSuite(kid ids.KeyID, purpose Purpose, suite crypto.SignatureSuite) (VerifyingKey, error) {
+	if err := suite.Available(); err != nil {
+		return VerifyingKey{}, err
+	}
+	key, err := crypto.GenerateSigningKey(suite, nil)
+	if err != nil {
+		return VerifyingKey{}, err
+	}
+	return s.RegisterSigningKey(kid, purpose, key)
+}
+
+// RegisterSigningKey registers a caller-built signing key (from a seed, a
+// PKCS#8 file or a derivation) under kid with the given purpose. The
+// store takes ownership: Zeroize wipes it. Re-registering an existing
+// kid is a structural error (no silent overwrite of operator intent).
+func (s *InMemoryStore) RegisterSigningKey(kid ids.KeyID, purpose Purpose, key *crypto.SigningKey) (VerifyingKey, error) {
 	if kid.IsZero() {
 		return VerifyingKey{}, shared_errors.Structural(
 			shared_errors.CodeRequiredFieldMissing,
@@ -160,13 +248,28 @@ func (s *InMemoryStore) GenerateSigning(kid ids.KeyID, purpose Purpose) (Verifyi
 			nil,
 		)
 	}
-	pub, priv, err := crypto.GenerateEd25519(nil)
-	if err != nil {
+	if key == nil || !key.Suite().Valid() {
+		return VerifyingKey{}, shared_errors.Structural(
+			shared_errors.CodeRequiredFieldMissing,
+			"keys: signing key required",
+			nil,
+		)
+	}
+	if err := key.Suite().Available(); err != nil {
 		return VerifyingKey{}, err
+	}
+	pub := key.PublicKeyBytes()
+	if len(pub) != key.Suite().PublicKeySize() {
+		return VerifyingKey{}, shared_errors.Structural(
+			shared_errors.CodeFieldValueInvalid,
+			"keys: signing key has no public key",
+			nil,
+		)
 	}
 	vk := VerifyingKey{
 		KeyID:     kid,
 		Purpose:   purpose,
+		Suite:     key.Suite(),
 		PublicKey: pub,
 		CreatedAt: s.clock.Now().UnixNano(),
 	}
@@ -180,7 +283,7 @@ func (s *InMemoryStore) GenerateSigning(kid ids.KeyID, purpose Purpose) (Verifyi
 			nil,
 		)
 	}
-	s.signing[kid] = signingKey{VerifyingKey: vk, Priv: priv}
+	s.signing[kid] = signingKey{VerifyingKey: vk, Priv: key}
 	return vk, nil
 }
 
@@ -218,27 +321,11 @@ func (s *InMemoryStore) RegisterSigningFromSeed(kid ids.KeyID, purpose Purpose, 
 			nil,
 		)
 	}
-	pub, priv, err := crypto.Ed25519FromSeed(seed)
+	key, err := crypto.SigningKeyFromSeed(crypto.SuiteEd25519, seed)
 	if err != nil {
 		return VerifyingKey{}, err
 	}
-	vk := VerifyingKey{
-		KeyID:     kid,
-		Purpose:   purpose,
-		PublicKey: pub,
-		CreatedAt: s.clock.Now().UnixNano(),
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, exists := s.signing[kid]; exists {
-		return VerifyingKey{}, shared_errors.Structural(
-			shared_errors.CodeFieldValueInvalid,
-			"keys: kid already registered (signing)",
-			nil,
-		)
-	}
-	s.signing[kid] = signingKey{VerifyingKey: vk, Priv: priv}
-	return vk, nil
+	return s.RegisterSigningKey(kid, purpose, key)
 }
 
 // RegisterSealing installs a caller-supplied AES-256 key under kid.
@@ -363,7 +450,22 @@ func (s *InMemoryStore) Sign(kid ids.KeyID, purpose Purpose, msg []byte) ([]byte
 			nil,
 		)
 	}
-	return crypto.Sign(sk.Priv, msg)
+	return sk.Priv.Sign(msg)
+}
+
+// Suite implements Signer.
+func (s *InMemoryStore) Suite(kid ids.KeyID) (crypto.SignatureSuite, error) {
+	s.mu.RLock()
+	sk, ok := s.signing[kid]
+	s.mu.RUnlock()
+	if !ok {
+		return "", shared_errors.Authority(
+			shared_errors.CodeRequiredFieldMissing,
+			"keys: unknown kid on suite",
+			nil,
+		)
+	}
+	return sk.Suite, nil
 }
 
 // Seal implements Sealer.
@@ -420,9 +522,7 @@ func (s *InMemoryStore) Zeroize() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for kid, sk := range s.signing {
-		for i := range sk.Priv {
-			sk.Priv[i] = 0
-		}
+		sk.Priv.Zeroize()
 		delete(s.signing, kid)
 	}
 	for kid, k := range s.sealing {

@@ -88,7 +88,7 @@ suite written on the record it will show its auditor.
    | Suite | Algorithm | Signature | Public key | Where it is approved or registered | In the certified module v1.0.0 | Profiles that allow it |
    | - | - | - | - | - | - | - |
    | `ed25519` | EdDSA on Ed25519 (FIPS 186-5 §7; RFC 8032) | 64 bytes | 32 bytes | FIPS 186-5; #5247 | yes | general, fips |
-   | `ecdsa-p384-sha384` | ECDSA on P-384 with SHA-384 (FIPS 186-5 §6; SEC1 §4.1.3–4.1.4 as X9 SD-34 00009 directs), deterministic per RFC 6979 as the module implements it, the signature the fixed-length `r ‖ s` of 96 bytes | 96 bytes | 97 bytes (uncompressed point; PKIX in files) | FIPS 186-5 and 186-4; X9 SD-34 00009; CNSA 2.0 (transition); #5247 | yes | general, fips, cnsa |
+   | `ecdsa-p384-sha384` | ECDSA on P-384 with SHA-384 (FIPS 186-5 §6; SEC1 §4.1.3–4.1.4 as X9 SD-34 00009 directs), the nonce randomized as `crypto/ecdsa` draws it (Go 1.26 and later always use the system's random source — measured on 2026-10-22; verification does not depend on how the nonce was chosen), the signature the fixed-length `r ‖ s` of 96 bytes | 96 bytes | 97 bytes (uncompressed point; PKIX in files) | FIPS 186-5 and 186-4; X9 SD-34 00009; CNSA 2.0 (transition); #5247 | yes | general, fips, cnsa |
    | `ml-dsa-87` | ML-DSA-87 (FIPS 204), pure mode, no context string | 4627 bytes | 2592 bytes | FIPS 204; X9 SD-34 00015; CNSA 2.0 (destination) | **no** — the standard library's implementation in the default build; unavailable in the `-fips` build until the module version that certifies it | general, cnsa |
 
    The suite is what a verifier checks: the key's algorithm must be the
@@ -118,7 +118,9 @@ suite written on the record it will show its auditor.
    Beside every `signing_key_id` and `signature` the record carries
    `alg`, the suite id; absent, it means `ed25519` — what every record
    before this ADR carried, so every record ever written verifies as it
-   did. The audit event schema becomes v8 for the field; `AuditEvent`,
+   did. The writer leaves it absent for `ed25519`, so a record under
+   that suite keeps the bytes every earlier reader verifies, and names
+   it for every other suite. The audit event schema becomes v8 for the field; `AuditEvent`,
    the signed verdict and release decision, the key-release token, the
    bootstrap manifest, the signed tree head and witness receipt, the
    sentinel's records, the failover policy and the revocation list all
@@ -210,6 +212,11 @@ suite written on the record it will show its auditor.
   held to X9 runs (`ecdsa-p384-sha384`) and the one CNSA 2.0 names
   (`ml-dsa-87`, with its module status); §9 closes F2b when parts one to
   three are in the tree. `controls.md` VG-004 and VG-038 name the suite.
+- Zeroize wipes the Ed25519 private key and the seeds of the seed-form
+  suites; the ECDSA scalar and the expanded ML-DSA key live in
+  representations `crypto/ecdsa` (Go 1.26 and later) and `crypto/mldsa`
+  do not expose for wiping, so they are dropped for the collector — the
+  sealed key file of ADR 0023 remains the material's boundary.
 - No change to the KEM suites, the AEAD, the bundle or the TLS
   configuration.
 

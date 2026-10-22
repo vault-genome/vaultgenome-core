@@ -28,6 +28,11 @@ func (a *AttestationResult) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, a.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	a.Alg = alg
 	cp := *a
 	cp.Signature = nil
 	cb, err := crypto.CanonicalJSON(&cp)
@@ -65,5 +70,5 @@ func (a *AttestationResult) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, a.Signature)
+	return vk.VerifyRecord(a.Alg, cb, a.Signature)
 }
