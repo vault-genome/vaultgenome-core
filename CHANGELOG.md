@@ -11,6 +11,44 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- The protocols in ProVerif (ADR 0032, Accepted; claim C45). Part one,
+  the cross-cloud key release: eight models under `formal/`, written by `gen.py` from one
+  template — the release as the daemons run it, and seven variants that
+  each remove one protection or leak one key (the key binding, the suite
+  in the binding, a shared recipient key, the stop list's no-rollback
+  rule, the decision in the receipt, the chips' attestation key, the
+  authority's signing key) — with seven queries each: the released key's
+  secrecy, the authenticity of what the destination opens, the binding of
+  the authorization to the key the destination generated, one opening per
+  release, no release after the operator's stop, one confirmation per
+  chip-vouched restore, no release to an unlisted chip. The recorded run
+  (`formal/results/`) reproduces query by query under ProVerif 2.05
+  (`make formal-check`; the `formal` workflow builds the tool from the
+  official tarball by digest). Part two, the Return Path handshake (ADR
+  0014, 0025): nine models — the handshake over mutual TLS as the daemons
+  run it, the same on an open channel, without the nonces in the chips'
+  challenges, and with the session sealing key, the worker's registry
+  key, the vault's TLS key or the chips' key leaked — with eight queries
+  each: the sealed material's and the candidate's secrecy, the frame MAC
+  keys not the attacker's, one admission per quote the worker's chip
+  made over the session, no admission of an unlisted chip, one acceptance
+  per quote the vault's chip made, one verdict per candidate the worker
+  produced, one candidate per job issued. Part three, the sentinel and
+  the failover (ADR 0012, 0017): six models — as the daemons run them,
+  the sentinel's seed leaked and used off the chip, the same without
+  the primary's chip pinned, the primary itself in the attacker's hands,
+  the same with the executor taking the standby from the report instead
+  of the policy, and the chips' key leaked — with seven queries each: the
+  genome key's secrecy, a policy behind every failover, the key released
+  only to the measurement the policy names, the trigger and the chosen
+  generation the sentinel's word on its chip, a decision behind every
+  opening, no release after the stop. Twenty-three models, 185 recorded
+  verdicts; the two rules the symbolic model does not establish — one
+  failover per policy serial, an older serial refused — are named as the
+  authority's record.
+
 ## [0.9.0] — 2026-10-22
 
 The release that names the signature suite on every record and lets

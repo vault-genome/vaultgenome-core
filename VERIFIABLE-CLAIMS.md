@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -3111,6 +3111,58 @@ manifests — is NVIDIA's, verified here and not computed here, and the
 vTPM is the root the cloud provider virtualises inside the confidential
 VM (item 4 below). The `cnsa` profile has not been run on this host:
 this claim is for `fips`, with both suites the profile accepts.
+
+### C45 — The three protocols the daemons run are modelled in ProVerif, with the verdicts recorded and reproduced in CI: twenty-three models and 185 verdicts, each variant showing what one protection or one key carries
+
+**Claim.** The cross-cloud key release (ADR 0009, 0029, 0010, 0011), the
+Return Path handshake (ADR 0014, 0025) and the sentinel and the failover
+(ADR 0012, 0017) are modelled in ProVerif 2.05, in the tree under
+`formal/` ([ADR 0032](docs/adr/0032-the-protocols-in-proverif.md)). One
+generator writes every model from one template per protocol, so that the
+variants differ only in the lines that change; for each protocol the
+model of what the daemons run holds every query — the released key's
+secrecy and the binding of a release to the key the destination's chip
+quoted over; the admission of a Return Path session only on a quote the
+worker's chip made over that session's nonces, the material's and the
+candidate's secrecy and the verdict tied to the worker's signature; the
+genome key's secrecy from the primary, a release only to the standby the
+operator's policy names, the trigger and the genome the sentinel's word
+on its chip — and each variant removes one protection or leaks one key
+and loses exactly what it carries. The recorded run reproduces query by
+query: `make formal-check`, and the `formal` workflow, which builds the
+tool from the official tarball by digest on every push.
+
+**Evidence.**
+[`formal/results/proverif-20261022T173929Z.txt`](formal/results/proverif-20261022T173929Z.txt)
+— ProVerif 2.05 on the twenty-three models as `gen.py` writes them, 185
+`RESULT` lines, unedited; [`formal/README.md`](formal/README.md) — the
+three tables of verdicts, the mapping of every line of each model to the
+function that implements it, the queries and the assumptions;
+[`formal/check_results.py`](formal/check_results.py) — the comparison
+with the recorded run, model by model; the `formal` workflow's job
+`models` green on the pull request that brought the models.
+
+**Reproduce:**
+
+```bash
+make formal-check    # ProVerif 2.05 on PATH or PROVERIF=…; built from https://proverif.inria.fr/proverif2.05.tar.gz (sha256 4871f53c…ceabc4) with ./build -nointeract
+make formal          # a new recorded run in formal/results/
+```
+
+**Scope.** The symbolic model: the attacker is the network and composes
+messages, no primitive breaks, a chip's quote is a signature with one key
+standing for the vendor root, HPKE and AES-GCM are ideal, the mutual TLS
+of the Return Path is a fresh key under the vault's certificate key. The
+models prove the protocols as written, not the code as shipped: the tie
+to the code is the tests that remove each check (ADR 0009) and the kits
+on hardware (C27, C40–C44), and the README names the function behind
+every line. Not modelled: the audit log's hash chain, the executor's
+clock (quarantine, RPO, timeouts), the handshake tables' TTL and size,
+TLS's own handshake and record numbers, the gate's judgement; two rules
+of the failover — one failover per policy serial, an older serial
+refused — are the authority's record and the model does not establish
+them. The models are the authors' and have had no external review (what
+we do not claim, #8).
 
 ## What we do not claim
 

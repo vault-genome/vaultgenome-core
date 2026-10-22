@@ -44,6 +44,7 @@ ADRs interact with the test-enforced invariant system.
 | 0029 | [KEM suites and the cryptographic profile](0029-kem-suites-and-the-cryptographic-profile.md) | Accepted | crypto, kms, escrow, crosscloud, fips, post-quantum, profile |
 | 0030 | [The FIPS 140-3 build](0030-the-fips-140-3-build.md) | Accepted | crypto, fips, build, release, aead, bundle, hkdf, assessment |
 | 0031 | [The signature suite](0031-the-signature-suite.md) | Accepted | crypto, signatures, audit, profile, fips, x9, cnsa, post-quantum |
+| 0032 | [The protocols in ProVerif: the proofs, the attacks and the assumptions](0032-the-protocols-in-proverif.md) | Accepted | formal, protocol, verification |
 
 ## Adding an ADR
 

@@ -243,6 +243,19 @@ sbom:
 terminology:
 	bash scripts/terminology_check.sh
 
+# The formal models (ADR 0032): the models are what formal/gen.py writes, and ProVerif 2.05
+# gives the recorded verdicts. ProVerif 2.05 on PATH or in PROVERIF (built from
+# https://proverif.inria.fr/proverif2.05.tar.gz with ./build -nointeract); not part of
+# vault-gate, so that the gate needs no ProVerif on a developer's machine.
+PROVERIF ?= proverif
+.PHONY: formal-check formal
+formal-check:
+	cd formal && python3 gen.py && git diff --exit-code -- '*.pv'
+	python3 formal/check_results.py --proverif $(PROVERIF)
+
+formal:
+	python3 formal/check_results.py --proverif $(PROVERIF) --out formal/results/proverif-$$(date -u +%Y%m%dT%H%M%SZ).txt
+
 .PHONY: cli-reference
 cli-reference:
 	bash scripts/gen_cli_reference.sh
