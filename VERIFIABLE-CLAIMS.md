@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -3223,6 +3223,57 @@ of C44's record passes the same policy offline, in the tests; no Turin
 chip has been on record. The operator's floor one above the chip is the
 kit's way to show the refusal on the hardware at hand — a chip below the
 live floors was not available to refuse.
+
+### C47 — The SEV-SNP verifier's reading is equal to two implementations nobody here wrote, on every genuine report on record, and no single-byte mutant verifies on any side: Google's go-sev-guest and VirTEE's snpguest on 41 reports from 25 chips, reproduced in CI
+
+**Claim.** One test ([ADR 0034](docs/adr/0034-the-differential-corpus.md);
+`internal/shared/tee/differential_test.go`, `make differential`) calls the
+product's SEV-SNP parse, AMD-chain and signature checks and, on the same
+bytes, Google's `go-sev-guest` v0.15.0 (`tools/oracle`, a module of its
+own) and VirTEE's `snpguest` 0.10.0, on every genuine report on record
+(`test/corpus/sev-snp`: 41 reports on 2026-10-22 — 17 the kits kept, 24
+from the key-release receipts — 25 distinct chips, Milan and Genoa, report
+versions 3 and 5, firmware from SNP 0x17 to 0x1d, each with its VCEK and
+AMD's chain). Each report verifies under all three; nineteen fields are
+equal between the product and go-sev-guest (version, guest SVN, policy,
+PLATFORM_INFO, VMPL, signature algorithm, the current, reported, committed
+and launch TCBs, measurement, host data, report data, chip id, both
+mitigation vectors, both firmware versions, CPUID as FMS); `snpguest`
+shows the measurement and chip id the product read; and of the 1184
+single-byte mutants of each report none verifies in the product or in
+go-sev-guest (the product refuses 416 at the parse and 768 at the
+signature, go-sev-guest 557 at the parse and 627 at verification). The
+first run found the product verifying 416 mutants — the reserved bytes of
+the signature block, not under the signature — and the parser now refuses
+them; the claim is made on the tree with that fix.
+
+**Evidence.**
+[`test/corpus/sev-snp/results/differential-ci-20261022T222534Z.json`](test/corpus/sev-snp/results/differential-ci-20261022T222534Z.json)
+— the `differential` workflow's first green run on the pull request (run
+39864468613, ubuntu-24.04 x86-64; `snpguest` built from crates.io in
+1 min 45 s): 41 rows, each with the three verdicts, the fields compared
+and the two refusal counts;
+[`test/corpus/sev-snp/results/differential-20261022T220839Z.json`](test/corpus/sev-snp/results/differential-20261022T220839Z.json)
+— the local run after the fix, the Google reading alone;
+[`test/corpus/sev-snp/manifest.tsv`](test/corpus/sev-snp/manifest.tsv) and
+[`test/corpus/sev-snp/SHA256SUMS`](test/corpus/sev-snp/SHA256SUMS) — the
+corpus; the `corpus` job of the `differential` workflow on every push.
+
+**Reproduce:**
+
+```bash
+python3 -I test/corpus/sev-snp/build.py --no-fetch && git diff --exit-code -- test/corpus/sev-snp   # the corpus is what build.py writes
+make differential                                                        # the product and go-sev-guest; VG_SNPGUEST=… adds VirTEE's reading on Linux x86-64
+cargo install snpguest --version 0.10.0 --locked                         # VirTEE's reading (Linux x86-64)
+```
+
+**Scope.** Two readings maintained by others, run on the same bytes: not a
+proof that any of the three is correct, but that they agree on 41 reports
+of two product lines and disagree on none, and that a byte out of place
+is refused by all. The stage of a refusal differs and may: go-sev-guest
+refuses reserved and must-be-one bits at the parse where the product
+refuses at the signature. No Turin report; nothing for a report the corpus
+does not hold; the records (the audit chain, the receipts) are part three.
 
 ## What we do not claim
 
