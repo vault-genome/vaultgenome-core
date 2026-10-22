@@ -22,6 +22,8 @@ coverage.txt
 *.sbom.json
 *.sbom.spdx.json
 *.sig
+# the vTPM quote signatures in the hardware kits' records are evidence, not CI output
+!scripts/hardware-test/**/evidence/**/*.sig
 *.cert
 *.intoto.jsonl
 

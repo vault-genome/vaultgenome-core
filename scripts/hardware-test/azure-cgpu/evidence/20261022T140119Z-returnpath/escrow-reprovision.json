@@ -1,0 +1,10 @@
+{
+  "escrow_key": "b3cb5e3cdfcceb8c",
+  "suite": "hpke-p384-v2",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEhVU3GR8bN6lS450JyT1n6UOAlJMKr2cE\ncH9NIiMMVN7G9puAS6ZqhIgeJdZgv67CArMbt5nYfMKhCO4ehC1qFAHpEolBgUjo\nkSUp3gQNrkMbmrZblLyLtQB/7VfPv5Eg\n-----END PUBLIC KEY-----\n",
+  "tee": "azure-cgpu",
+  "measurement_hex": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+  "source": "stdin",
+  "sealed_path": "escrow-2.sealed",
+  "public_path": "escrow-2.pem"
+}

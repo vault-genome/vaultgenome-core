@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -2843,11 +2843,10 @@ VG_FIPS=1 scripts/hardware-test/reference-design-01/run.sh <gcp-project> us-cent
 **Scope.** `only` is the assessment, never the product (ADR 0030, §2):
 no release binary carries it, and part three's `-fips` variant runs the
 module in its approved mode without the enforcement switch. The
-confidential-GPU path (Azure NCC H100 v5, C17 and C18) is not under this
-claim: its measurement is open (the vTPM quote's SHA-1 PCR bank and
-NVIDIA's token path are to be assessed on the chip). What the module
-enforces is the set of services invoked; the module's boundary and the
-operating environments are the certificate's.
+confidential-GPU path (Azure NCC H100 v5, C17 and C18) was measured on
+the chip the next day and is under the same terms ([C44](#c44)). What
+the module enforces is the set of services invoked; the module's boundary
+and the operating environments are the certificate's.
 
 ### C43 — The signature suite on every record, decided by the profile: the two kits on real SEV-SNP under `cnsa` with ECDSA P-384, and under `fips` picking ECDSA P-384 on the certified module with enforcement on — every record, identity and audit verification naming the suite
 
@@ -2931,6 +2930,119 @@ the profile decides is the suite; the records a reader of an earlier
 release can verify are the Ed25519 ones, as `docs/operator/08_upgrading.md`
 says. The suites' standing with the registries banks cite is the
 ADR's, and `docs/compliance/banking.md` §6 carries it.
+
+### C44 — The confidential-GPU path under the certified module with enforcement on: the `azure-cgpu` kit on a real NCC H100 v5 with every binary built on the Go Cryptographic Module v1.0.0 and every Go process under `fips140=only`, under `fips` with Ed25519 and under `fips` with ECDSA P-384 — the chip, the vTPM and the H100 verified, the 7B genome EXACT on the GPU, and neither SHA-1 use ADR 0030 had named invoked
+
+**Claim.** With `VG_FIPS=1` the `azure-cgpu` kit builds `sagvd`,
+`acp-compute`, `acpctl` and `keygen` on the certified Go Cryptographic
+Module v1.0.0 (CMVP #5247; `GOFIPS140=v1.0.0`) from a clean checkout of
+the tree and runs every Go process on the confidential GPU VM under
+`GODEBUG=fips140=only` — `acpctl` in the capture; both daemons, `acpctl`
+and `keygen` in the Return Path — the module's enforcement mode, in which
+a non-approved service (AES-GCM with a caller's nonce, X25519, SHA-1, a
+short HKDF or HMAC key) fails instead of succeeding ([ADR 0030](docs/adr/0030-the-fips-140-3-build.md),
+§2 and part four). Under the `fips` profile, with its own Ed25519 and
+with `ecdsa-p384-sha384` picked by `VG_SIGSUITE`, the runs pass with the
+verdicts, refusals and verifications of the runs without the flag, and
+the record says so on every party and both stages. ADR 0030 had kept
+this path outside [C42](#c42) for two named uses of SHA-1 — NVIDIA's
+OCSP issuer hash as the responder chose it, the vTPM's `sha1` PCR bank
+name. Measured, neither is invoked: the producer quotes the `sha256`
+bank (`DefaultTPMQuotePCRs`), and `sha1` in the quote parser is the name
+it gives a selection with algorithm id 0x0004, not a hash it computes;
+the verifier's OCSP requests carry SHA-256 certificate ids
+(`buildOCSPRequest`), the parser reads an answer's hash id into a name
+and computes no hash with it, each answer's signature is checked by
+`crypto/x509`, which refuses SHA-1 in every build, and the three answers
+of each handshake were fetched and verified by a process in which
+`crypto/sha1` refuses outright. The claim is as narrow as C42's: the
+services these runs invoked on this path are approved ones; it is not a
+validation of the product.
+
+**Evidence.** Two runs on 2026-10-22 on the tree `14822ea`, `VG_FIPS=1`,
+one `Standard_NCC40ads_H100_v5` in West Europe each, 22 minutes from the
+VM's creation to its deletion (kernel `7.0.0-1016-azure-fde`, driver
+595.91.07, `CC State: ON`, `CC GPUs Ready State: Ready`; torch
+2.14.1+cu126 and transformers 5.19.0 from the hash-pinned locks): every
+binary `GOFIPS140=v1.0.0-c2097c7c vcs.modified=false` (`build.txt`),
+every `version` line `fips140=only module=v1.0.0 enforced=true`
+(`versions.txt` on both stages), both daemons' `identity` `fips140
+enabled=true enforced=true version=v1.0.0`, both stages' `steps.txt`
+`fips=1 GODEBUG=fips140=only`, `run.txt` `fips 1`, `gofips140 v1.0.0`,
+`profile fips`.
+
+- [`scripts/hardware-test/azure-cgpu/evidence/20261022T133850Z/`](scripts/hardware-test/azure-cgpu/evidence/20261022T133850Z/)
+  and [`…/20261022T133850Z-returnpath/`](scripts/hardware-test/azure-cgpu/evidence/20261022T133850Z-returnpath/)
+  — `fips`, Ed25519. The capture (480 s): the HCL report, the VCEK
+  chain from THIM, two vTPM quotes under our nonces over the `sha256`
+  bank (`quote1.txt`), NVIDIA's local verifier and NRAS under the same
+  nonce, Microsoft's own tools — every one exit 0 (`steps.txt`);
+  `Qwen/Qwen2.5-7B-Instruct` @ `a09a35458c70…` fine-tuned on the H100
+  in bfloat16 (`finetune.json`: loss 6.053 → 2.2e-04 in 18.6 s), sealed
+  and verified (`verify.json`: ok, `vault-genome-v4`, 10,149,791 bytes),
+  gated **EXACT** on the GPU (`gate-gpu.json`, 18.0 s), measured 16/16
+  exact (`measure-gpu.json`), replayed bit for bit (`replay-gpu.json`).
+  The Return Path: the daemons' key files sealed to the vTPM
+  (`seal-keys-sagvd.json`, `seal-keys-worker.json`), both daemons
+  reading the launch measurement `11920f61…91c4`; `sagvd identity`
+  `crypto_profile fips`, `signature_suite ed25519` accepting
+  `ed25519,ecdsa-p384-sha384`; the escrow key `9f443e60287bd925` sealed
+  under `hpke-p384-v2` (`escrow-provision.json`: `tee: azure-cgpu`) and
+  re-sealed through the ceremony; the rogue refused at the handshake in
+  3 s (`rogue-worker.log`); the pinned worker's session opened in 1 s
+  under `gpu_policy.evaluation: both`, the manifests for driver
+  595.91.07 and three OCSP answers fetched during the handshake
+  (`rim-cache-ls.txt`; `sagvd-metrics.txt`: verify success 1, handshake
+  failures 1 — the rogue); the gate job **EXACT** (pinned replay, 16/16,
+  max abs err 0, `release_authorized`) in 56 s (`job.json`);
+  `audit verify exit=0` under `ed25519`, 17 events, tip `0fd58f6e…9831`
+  (`audit-verify.json`); 60 and 42 checksums.
+- [`…/20261022T140119Z/`](scripts/hardware-test/azure-cgpu/evidence/20261022T140119Z/)
+  and [`…/20261022T140119Z-returnpath/`](scripts/hardware-test/azure-cgpu/evidence/20261022T140119Z-returnpath/)
+  — `fips` with `VG_SIGSUITE=ecdsa-p384-sha384`: the deployment a bank
+  held to X9 SD-34 runs, on the confidential GPU. The same capture
+  (465 s; loss 6.053 → 2.2e-04 in 18.8 s, a 10,149,791-byte bundle,
+  EXACT in 17.4 s, 16/16, the replay exact); the Return Path with every
+  key under ECDSA P-384 — `sagvd signature_suite=ecdsa-p384-sha384`,
+  `authority_signature_suite`, `audit_signature_suite` and `acp-compute
+  signing_signature_suite` all `ecdsa-p384-sha384` (`steps.txt`; the
+  P-384 PEMs in `sagvd-identity.json` and `acp-compute-identity.json`);
+  the escrow key `b3cb5e3cdfcceb8c` sealed and re-sealed; the rogue
+  refused in 3 s; the session opened in 1 s under `both` with the
+  manifests and three OCSP answers fetched; the gate job **EXACT**
+  (16/16, max abs err 0) in 56 s, the worker's frames signed under its
+  ECDSA key and verified under the key's suite; `acpctl audit verify`
+  exit 0 reporting `signature_suite` `ecdsa-p384-sha384` over 17
+  events, tip `7cd08bd9…65e6`; 60 and 42 checksums.
+
+The figures are those of the kit's run of 2026-10-15 on the same image
+and runtime (C17's record): the module and the suite changed on every
+party, and nothing in the figures moved. The verdict (`run.sh`) refuses
+a run whose record lacks the module's lines on either stage, the profile
+or the suite on any party; the VM and its disk, NIC, IP and NSG were
+deleted after each record was read back and checked, the resource group
+empty afterwards. Two runs earlier the same day are not kept: the first
+FIPS run's daemons were built after the capture's evidence had landed in
+the tree and their stamps said `vcs.modified=true` — the kit now builds
+all four binaries first, from a clean checkout of HEAD, before anything
+is written to the tree — and the ECDSA run started on the kit before
+that change was stopped before its verdict once the cause was found.
+
+**Reproduce:**
+
+```bash
+VG_FIPS=1 scripts/hardware-test/azure-cgpu/run.sh vg-cgpu-weu westeurope                                # ~25 min of NCC40ads_H100_v5 (about $9 an hour); profile fips, signatures ed25519
+VG_FIPS=1 VG_SIGSUITE=ecdsa-p384-sha384 scripts/hardware-test/azure-cgpu/run.sh vg-cgpu-weu westeurope  # the X9 bank on the confidential GPU
+```
+
+**Scope.** As C42's: `only` is the assessment, never the product; what
+the module enforces is the set of services the product invokes, and the
+module's boundary and operating environments are the certificate's. The
+H100's own cryptography — its report's signature, NVIDIA's tokens and
+manifests — is NVIDIA's, verified here and not computed here, and the
+vTPM is the root the cloud provider virtualises inside the confidential
+VM (item 4 below). The `cnsa` profile has not been run on this host:
+this claim is for `fips`, with both suites the profile accepts.
 
 ## What we do not claim
 

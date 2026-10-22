@@ -1,6 +1,6 @@
 # ADR 0030 — The FIPS 140-3 build: the certified Go Cryptographic Module, approved-mode discipline in every build, and the only-mode assessment on the record
 
-- **Status:** Accepted (2026-10-21) — part one (the code: the v2 suites, the module's AES-GCM and HKDF, bundle v4, the only-mode assessment in the gate), part two (the kits under `VG_FIPS=1`, C42) and part three (the `-fips` release variant in `release.yml`, the documents) in the tree
+- **Status:** Accepted (2026-10-21) — part one (the code: the v2 suites, the module's AES-GCM and HKDF, bundle v4, the only-mode assessment in the gate), part two (the kits under `VG_FIPS=1`, C42) and part three (the `-fips` release variant in `release.yml`, the documents) in the tree; part four (the confidential-GPU measurement of 2026-10-22, C44) in the tree — the `azure-cgpu` path is under the claim
 - **Tags:** crypto, fips, build, release, aead, bundle, hkdf, assessment
 - **Extends:** ADR 0029 (the profiles and the suites: what each build may *use*); ADR 0023 (sealed key files); `docs/operator/05_release_procedure.md`
 - **Closes:** the rest of finding F2 of the banking map (`docs/compliance/banking.md` §9), once parts one to three are in the tree
@@ -79,6 +79,35 @@ every listener (TLS 1.3, ECDSA P-256 certificates from `acp-keygen`), the
 P-384 and ML-KEM suites, the integer door — none reached a non-approved
 algorithm.
 
+**The confidential-GPU measurement** (2026-10-22, tree `14822ea`,
+go1.27.3; `scripts/hardware-test/azure-cgpu/evidence/20261022T133850Z`
+and `20261022T140119Z`, each with its `-returnpath` directory; C44). The
+`azure-cgpu` kit under `VG_FIPS=1` on an NCC H100 v5: the four binaries
+built on the module from a clean checkout (`build.txt`:
+`GOFIPS140=v1.0.0-c2097c7c vcs.modified=false`), every Go process on the
+guest under `fips140=only` — `acpctl` in the capture; `sagvd`,
+`acp-compute`, `acpctl` and `keygen` in the Return Path (`versions.txt`:
+`fips140=only module=v1.0.0 enforced=true`) — under `fips` with Ed25519
+and under `fips` with ECDSA P-384. Both runs pass with the figures of the
+runs without the flag: the chip, the vTPM and the H100 asked under our
+nonces; the 7B genome fine-tuned, sealed, gated EXACT, measured 16/16 and
+replayed bit for bit on the H100; the key files and the escrow key sealed
+to the vTPM; the rogue refused; the pinned worker's session opened under
+`gpu_policy.evaluation: both`, the manifests and three OCSP answers
+fetched during the handshake; the gate job EXACT; 17 audit events
+verified. Neither use named in 3e is invoked. The producer quotes the
+`sha256` bank (`DefaultTPMQuotePCRs`; `quote1.txt`, `vtpm-pcrs.txt`), and
+`sha1` in `azure_cgpu_tpm.go` is the name the quote parser gives a
+selection whose algorithm id is 0x0004 — a name, not a hash it computes.
+The verifier's OCSP requests carry SHA-256 certificate ids
+(`buildOCSPRequest`); `x/crypto/ocsp` reads the answer's hash id into a
+name and computes no hash with it; each answer's signature is checked by
+`crypto/x509`, which refuses SHA-1 in every build; and on a process in
+which `crypto/sha1` refuses outright (go1.27.3 `crypto/sha1`: "use of
+SHA-1 is not allowed in FIPS 140-only mode") the three answers of each
+handshake were fetched and verified. Nothing on the path reached a
+non-approved algorithm.
+
 ## Decision
 
 1. **The FIPS build is a release variant, named by its module version.**
@@ -126,10 +155,13 @@ algorithm.
       `x25519-kem-v1`, a v1 suite or a v1 escrow document is refused with
       the reason, not a panic. `identity` prints the module's state.
    e. The SHA-1 in the test goes (SHA-256 issuer hash). The two
-      production uses — NVIDIA's OCSP issuer hash as the responder chose
-      it, the vTPM `sha1` bank name — are named as non-approved uses on
-      the `azure-cgpu` path, which stays outside the FIPS claim until it
-      is measured on that hardware (its own item).
+      production uses named when this was decided — NVIDIA's OCSP issuer
+      hash as the responder chose it, the vTPM `sha1` bank name — kept
+      the `azure-cgpu` path outside the FIPS claim until it was measured
+      on that hardware. Measured on 2026-10-22 (the Context above; C44):
+      neither is invoked — the quote is over the `sha256` bank and the
+      OCSP exchange is SHA-256 end to end — and the path is under the
+      claim on the same terms as SEV-SNP (§2).
 3f. **The AEAD step of the suites is the module's.** The assessment of
    part one found that Go's `crypto/hpke` cannot seal under `fips140=only`
    ("use of GCM with arbitrary IVs"): HPKE derives each nonce as
@@ -153,9 +185,10 @@ algorithm.
    together, as ADR 0029 ruled. (Decided 2026-10-21 after the
    measurement; probed: export-only HPKE with P-384, ML-KEM-768 and the
    hybrid runs under `fips140=only`.)
-4. **Not decided here:** signatures beyond Ed25519 and SHA-256 (F2b);
-   the move to v1.26.0 (a ledger entry when it is certified); a FIPS claim
-   for the confidential-GPU path.
+4. **Not decided here:** signatures beyond Ed25519 and SHA-256 (F2b —
+   decided in ADR 0031); the move to v1.26.0 (a ledger entry when it is
+   certified). The FIPS claim for the confidential-GPU path, open when
+   this was written, is settled by the measurement of 2026-10-22 (3e).
 
 ## Alternatives considered
 
@@ -213,7 +246,7 @@ algorithm.
   party (each daemon's `version` line and `identity`, the guest's
   `steps.txt`, the runner's `build.txt`), the verdict requiring it; runs
   on SEV-SNP under `fips` and `cnsa` (2026-10-21); claim C42; the cGPU
-  measurement listed as open.
+  measurement listed as open (part four).
 - **Part three (release):** `make build-fips` (`bin/<name>-fips`,
   `GOFIPS140=$(FIPS_MODULE)`, `FIPS_MODULE := v1.0.0`), `verify-reproducible`
   over both builds, the gate building both; in `release.yml` the five
@@ -228,6 +261,18 @@ algorithm.
   named), `controls.md` VG-038, `supply_chain.md`, the compose README,
   `CHANGELOG.md`, `README.md`. The rehearsal of the workflow (§4.1) is on
   the record in `05_release_procedure.md`.
+- **Part four (the confidential-GPU measurement, 2026-10-22):** `VG_FIPS=1`,
+  `VG_PROFILE` and `VG_SIGSUITE` in the `azure-cgpu` kit — the four
+  binaries built on the module from a clean checkout of HEAD before
+  anything is written to the tree (the stamps `vcs.modified=false`
+  whatever the tree holds untracked), every Go process on the guest under
+  `GODEBUG=fips140=only` in both stages, the record saying so
+  (`build.txt`, `versions.txt` on both stages, `steps.txt`, `run.txt`),
+  the verdict requiring it and the profile and the suite on every party;
+  two runs on the NCC H100 v5 — `fips` with Ed25519, `fips` with ECDSA
+  P-384 — and the two named uses of SHA-1 traced in the code and on the
+  hardware; claim C44; C42's scope, `banking.md` §6 and §9, `controls.md`
+  VG-038, the kit's README, `CHANGELOG.md`.
 
 ## References
 
@@ -244,3 +289,4 @@ algorithm.
 - ADR 0009 (the X25519 KEM), ADR 0023 (sealed key files), ADR 0029 (suites
   and profiles); `docs/compliance/banking.md` §6 and §9 (F2).
 - The measurement: `0030-the-fips-140-3-build.measurement-20261021.log`.
+- The confidential-GPU measurement: `scripts/hardware-test/azure-cgpu/evidence/20261022T133850Z/` and `20261022T140119Z/`, each with its `-returnpath/` directory (C44); the kit's README.

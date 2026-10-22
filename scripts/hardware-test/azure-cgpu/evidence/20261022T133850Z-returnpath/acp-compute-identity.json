@@ -1,0 +1,21 @@
+{
+  "signing_kid": "acp-compute-worker-demo",
+  "signing_public_key_hex": "827f9a48c24f4713682a45c667693837445dae9e077e875e75675b1b58c5f1e8",
+  "signing_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAgn+aSMJPRxNoKkXGZ2k4N0Rdrp4HfodedWdbG1jF8eg=\n-----END PUBLIC KEY-----\n",
+  "signing_signature_suite": "ed25519",
+  "tee_provider": "azure-cgpu",
+  "tee_measurement_hex": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+  "sealer": "tpm2",
+  "fips140": {
+    "enabled": true,
+    "enforced": true,
+    "version": "v1.0.0",
+    "build": "v1.0.0-c2097c7c"
+  },
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "2c4a9a00607761c15738052ee0476907447beba38ee708a6202f6772d48aa7d4"
+  }
+}
