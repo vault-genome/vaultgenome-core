@@ -1,6 +1,6 @@
 # ADR 0033 — The attack record in the verifier's policy: TCB floors per chip, the platform's word, the guest's policy, the mitigation vector and the machine
 
-- **Status:** Proposed (2026-10-22) — part one (the code: every field of the report read and on the record, the floors per chip variant, the predicates, the configuration, the identity) in the tree; part two (the runs on hardware: the chips on record admitted at the live floors, a floor raised above a chip refused on the record) follows, and with it Accepted and claim C46
+- **Status:** Accepted (2026-10-22) — part one (the code: every field of the report read and on the record, the floors per chip variant, the predicates, the configuration, the identity) and part two (the runs on hardware: two GCP Milan hosts admitted at the live floors with their reports on the record, a release refused under a floor raised one above the chip) in the tree; claim C46
 - **Tags:** tee, sev-snp, attestation, policy, tcb, verifier
 - **Extends:** ADR 0014 and 0018 (SEV-SNP on the Return Path), ADR 0024 (the vendor roots pinned in the binary), ADR 0025 (families, not clouds); ADR 0009's key binding and ADR 0021's GPU evaluation are unchanged
 
@@ -144,8 +144,8 @@ meet every live floor.
   taken on; a bank's reviewer can hold it to the bulletin.
 - The table ages. `identity` says when it was read; the library's live
   reading, the document and the code refresh together.
-- The kits gain a refusal run: a floor raised above the chip, refused on
-  the record (part two).
+- The kits carry a refusal run: a floor raised one above the chip,
+  refused on the record (part two, below).
 
 ## Implementation notes
 
@@ -161,13 +161,29 @@ meet every live floor.
   holds it to the code; the synthetic reports of the test suites stamped
   at the floors, the way the genuine ones are; the genuine Milan and
   Genoa reports on record admitted by the default policy in the tests.
-- **Part two (hardware):** `keyrelease-e2e` reads the chip's SNP firmware
-  SVN back from the release's own record and releases once more under a
-  floor one above it, refused with the component on the record;
-  `returnpath-e2e` records the policy from `identity` and the admitted
-  peer's chip; runs on GCP Milan at the live floors and above them; the
-  Azure Genoa record's values in the claim; C46; `banking.md` and
-  `controls.md`.
+- **Part two (hardware, 2026-10-22):** both GCP kits on the tree of part
+  one (`be37c6f`), `n2d` SEV-SNP guests in us-central1-c under `fips` on
+  the certified module with enforcement on. `keyrelease-e2e`, run
+  `20261022T193735Z` (ECDSA P-384 on the authority and the audit log):
+  the chip on the `CROSS_CLOUD_ATTESTATION_VERIFIED` record — Milan
+  00A00F11, report version 5, SNP 0x1d, microcode 0xde, boot loader
+  0x04, the four TCBs the same, firmware 1.58.1, guest policy 0x30000,
+  PLATFORM_INFO 0x25 with the alias check complete, mitigation vector
+  0xb at launch and now, held to the bulletins' Milan floor 0x1b/0xde —
+  then the release, the restore and the two refusals as before, and a
+  fourth: the stop lifted, the registry entry's `sev_snp.tcb_floor.snp`
+  set to 0x1e, the release refused with `TCB floor: reported TCB snp
+  0x1d below 0x1e (tee.peer.sev_snp.tcb_floor)` and the
+  `KEY_RELEASE_DENIED` record at the attestation stage naming it; the
+  audit log verified over 12 events. `returnpath-e2e`, run
+  `20261022T194156Z`: `sagvd identity` carries `sev_snp_policy`
+  (`bulletins_read_on` 2026-10-22, the Milan row); the admitted worker's
+  `TRUST_EVALUATED` record carries its chip — another Milan host, SNP
+  0x1d, microcode 0xde, firmware 1.58.1, the alias check complete,
+  mitigation vector 0xb, the same floor; the rogue's record carries no
+  chip, a simulated TEE having none; both rogues refused, the gate job
+  EXACT, the audit log verified over 17 events; 127 s on the guest.
+  Claim C46; VG-039; `banking.md` (DORA Art. 9(4)(d); RTS Art. 10).
 
 ## References
 

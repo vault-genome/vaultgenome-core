@@ -34,7 +34,14 @@ given release can still open.
   confidential-GPU record at 0x1b and 0x58 — pass the default policy.
   The GCP kits (`keyrelease-e2e`, `returnpath-e2e`) print the chip as
   the record saw it and refuse a fourth release under a floor one above
-  the chip; their first run under this is part two of the ADR.
+  the chip. Part two, the same day: both kits on GCP Milan hosts on the
+  tree of the change, under `fips` on the certified module — the chip on
+  the `CROSS_CLOUD_ATTESTATION_VERIFIED` record at SNP 0x1d and
+  microcode 0xde with the alias check complete and mitigation vector
+  0xb, the release refused under a floor of 0x1e with the
+  `KEY_RELEASE_DENIED` record naming it, the Return Path's admitted
+  worker with its chip on the `TRUST_EVALUATED` record and the policy on
+  `sagvd identity` (C46). ADR 0033 Accepted.
 - The protocols in ProVerif (ADR 0032, Accepted; claim C45). Part one,
   the cross-cloud key release: eight models under `formal/`, written by `gen.py` from one
   template — the release as the daemons run it, and seven variants that

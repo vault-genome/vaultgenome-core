@@ -108,7 +108,7 @@ DECODED="$("$HERE/decode-results.sh" "$SERIAL" "$HERE/evidence")"; echo "$DECODE
 GUEST="$HERE/evidence/$(printf '%s\n' "$DECODED" | sed -n 's/^decoded \([^:]*\):.*/\1/p' | tail -1)"
 STEPS="$GUEST/steps.txt"
 [ -s "$STEPS" ] || { echo "FAIL: no steps.txt under $GUEST"; exit 1; }
-grep -E 'profile=|fips=|sealer=|exit=|refused|session opened|job status=|gate_level=' "$STEPS" | sed 's|^|  |'
+grep -E 'profile=|fips=|sealer=|exit=|refused|session opened|job status=|gate_level=|^sagvd sev_snp_policy|^peer chip' "$STEPS" | sed 's|^|  |'
 FIPS_OK=1
 if [ "$VG_FIPS" = 1 ]; then
   # The record must say it: the daemons and acpctl on the certified module

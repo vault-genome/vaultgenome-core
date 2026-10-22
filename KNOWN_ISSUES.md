@@ -67,7 +67,8 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    four TCB versions against per-chip floors from AMD's bulletins, the
    platform's alias check, the mitigation vector, the guest policy (no
    DEBUG, no migration agent), VMPL and the challenge binding (ADR 0033),
-   and is proven offline against genuine GCP and Azure reports. The TDX producer and
+   and is proven offline against genuine GCP and Azure reports and on GCP
+   Milan hosts in both kits (2026-10-22, C46). The TDX producer and
    verifier (ADR 0018, `tee.provider: "gcp-tdx"`) do the same for a TDX
    quote: the attestation key and the PCK chain to the pinned Intel SGX Root
    CA, Intel's signed TCB info and QE identity verified before use, the

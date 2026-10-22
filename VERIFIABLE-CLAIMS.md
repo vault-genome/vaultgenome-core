@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -3163,6 +3163,66 @@ of the failover — one failover per policy serial, an older serial
 refused — are the authority's record and the model does not establish
 them. The models are the authors' and have had no external review (what
 we do not claim, #8).
+
+### C46 — A chip's firmware is held to AMD's published floors and what the chip said is on the record: two GCP Milan hosts admitted at the live floors with their reports on the record, and a release refused under a floor one above the chip
+
+**Claim.** The SEV-SNP verifier reads the whole report and holds it to
+the attack record ([ADR 0033](docs/adr/0033-the-attack-record-in-the-policy.md)):
+the chip's variant by CPUID; the current, reported, committed and launch
+TCB versions, component by component, against the floors AMD's security
+bulletins set for that variant when they were read on 2026-10-22
+(RMPocalypse's SNP firmware, StackWarp's microcode;
+[`docs/compliance/sev-snp-tcb-floors.md`](docs/compliance/sev-snp-tcb-floors.md),
+held equal to the code by a test); BadRAM's alias check; the mitigation
+vector's bit; no migration agent in the guest policy. What the chip said
+— the variant, every TCB, the firmware, the platform's bits, both
+mitigation vectors, the chip id, the floor applied and where it came
+from — is on every admission and release record, and the policy on each
+daemon's `identity`. On 2026-10-22 both GCP kits ran on the tree of the
+ADR (`be37c6f`) on `n2d` SEV-SNP guests under `fips` on the certified
+module with enforcement on: the cross-cloud release to a Milan at SNP
+0x1d and microcode 0xde — the four TCBs the same, the alias check
+complete, mitigation vector 0xb — with the chip on the
+`CROSS_CLOUD_ATTESTATION_VERIFIED` record and, after the release, the
+restore and the allow-list and operator-stop refusals, a fourth refusal
+under a registry floor of SNP 0x1e, one above the chip, named on the
+`KEY_RELEASE_DENIED` record at the attestation stage; and the Return
+Path, where `sagvd identity` carries the policy and the admitted
+worker's `TRUST_EVALUATED` record carries its chip, another Milan host at
+the same levels, with both rogues refused and the gate job EXACT.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261022T193735Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261022T193735Z/)
+— `steps.txt` (the `chip` line and the `floor` line),
+`attestation-verified.jsonl` (the record with `destination_detail.sev_snp`),
+`release-floor.err` and `release-floor.json` (the refusal),
+`key-release-denied.jsonl` (the three refusals on the record, the third
+at the stage `attestation` naming the floor), `audit-verify.json` (ok,
+12 events, `ecdsa-p384-sha384`), `versions.txt` (both daemons
+`commit be37c6f6b98a`, `fips140=only module=v1.0.0 enforced=true`),
+`sha256sums.txt`;
+[`scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20261022T194156Z/`](scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20261022T194156Z/)
+— `steps.txt` (`sagvd sev_snp_policy …` and `peer chip …`),
+`sagvd-identity.json` (`sev_snp_policy`), `audit-events.jsonl` (the
+`TRUST_EVALUATED` record with `peer_detail.sev_snp`; the rogue's without
+a report), `audit-verify.json` (ok, 17 events), `versions.txt`,
+`sha256sums.txt`. The readers: the two kits' READMEs.
+
+**Reproduce:**
+
+```bash
+VG_FIPS=1 VG_SIGSUITE=ecdsa-p384-sha384 scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <project> us-central1-c fips
+VG_FIPS=1 scripts/hardware-test/gcp-sev-snp/returnpath-e2e/run.sh <project> us-central1-c fips
+go test ./internal/shared/tee/ -run 'TestSEVSNPPolicy|TestSEVSNPFloorsMatchTheDocument'
+```
+
+**Scope.** The floors are AMD's published values as read on a day, not a
+judgement of the firmware; a value a bulletin withdraws (SB-3034) lowers
+no floor here. Two Milan hosts of one region on one day; the Azure Genoa
+of C44's record passes the same policy offline, in the tests; no Turin
+chip has been on record. The operator's floor one above the chip is the
+kit's way to show the refusal on the hardware at hand — a chip below the
+live floors was not available to refuse.
 
 ## What we do not claim
 

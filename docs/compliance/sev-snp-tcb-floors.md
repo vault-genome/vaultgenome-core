@@ -40,7 +40,9 @@ What the chips on record show (`internal/shared/tee/sev_snp_policy_test.go`,
 reports SNP 0x1d, microcode 0xde — on the StackWarp floor exactly — with the alias
 check complete and mitigation vector 0xb; the Azure NCC H100 v5 Genoa of 2026-10-22
 reports SNP 0x1b, microcode 0x58, the alias check complete and mitigation vector 0x7.
-Both pass the default policy. No Turin chip has been on record.
+Both pass the default policy, as did the two Milan hosts of the kits' runs of 2026-10-22
+(SNP 0x1d, microcode 0xde, the alias check complete, mitigation vector 0xb; C46), one of
+which then refused a release under a floor of 0x1e. No Turin chip has been on record.
 
 How to refresh. Read the live bulletins (the site refuses non-browser fetches; the
 library's `wayback_latest_fetch.py` takes the archive's byte-exact copy), save them to

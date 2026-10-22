@@ -38,6 +38,25 @@ the Return Path handshake carries genuine hardware Evidence on both sides,
 that the pinned identity is the one admitted, and that every decision of
 the authority is on a verifiable record before it took effect.
 
+## Results — run `20261022T194156Z`: the policy on the identity, and the admitted worker's chip on the record (ADR 0033, part two)
+
+The same kit on the tree of ADR 0033 part one (`be37c6f`), `fips` under
+`VG_FIPS=1`, us-central1-c, `n2d-standard-4`, the image of every run
+since September (measurement `7dc7c12e…25acc`); both daemons `commit
+be37c6f6b98a`, `fips140=only module=v1.0.0 enforced=true`. The whole
+guest script took **127.0 s**. New on the record, and required by the
+verdict: what the authority holds a SEV-SNP peer to, and what the
+admitted worker's chip said.
+
+| | `20261022T194156Z` |
+| - | - |
+| `sagvd identity` → `sev_snp_policy` | `bulletins_read_on=2026-10-22`; the Milan row `snp 0x1b microcode 0xde, mitigation vector bits 0x2, alias check` |
+| The admitted worker's chip, from its `TRUST_EVALUATED` record (`outcome=allow`, `peer_detail.sev_snp`) | Milan (CPUID 0x19/0x01/0x01), SNP **0x1d**, microcode **0xde**, firmware 1.58.1, the alias check complete, mitigation vector `0xb`; held to the floor 0x1b/0xde; chip id `35e7e230…` — another host than the key-release run's, at the same levels |
+| The rogue worker's `TRUST_EVALUATED` record | `outcome=deny` at the handshake after 1 s, `handshake_failure`: its evidence is not the type this verifier reads — a simulated TEE has no report, so no `sev_snp` detail |
+| The thief with the sealed files | does not open them off the chip (`sev-snp-derived-key`) |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 5 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `62d50a58…`, `ed25519` — the `fips` profile's own suite, `VG_SIGSUITE` unset |
+
 ## Results — runs `20261021T212451Z` (cnsa) and `20261021T213945Z` (fips): `VG_FIPS=1` — the certified module with enforcement on (ADR 0030, part two)
 
 The same kit with every binary built on the certified Go Cryptographic
@@ -271,8 +290,8 @@ Milan row the authority holds a peer of that variant to — and a
 `peer chip` line from the admitted worker's `TRUST_EVALUATED` record
 (`peer_detail.sev_snp` in `audit-events.jsonl`): its variant by CPUID,
 the TCB it reported, the firmware, the alias check, the mitigation vector
-and the floor applied. No run under this is on the record yet; the first
-is part two of the ADR.
+and the floor applied. The first run under it is `20261022T194156Z`
+(ADR 0033, part two), the first of the results above.
 
 ## Reproduce
 
