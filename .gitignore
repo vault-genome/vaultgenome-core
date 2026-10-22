@@ -37,6 +37,7 @@ coverage.txt
 # public AMD KDS certificate chains captured as hardware attestation evidence
 # (X.509 certs, not keys) — needed by the SEV-SNP verification tests.
 !scripts/hardware-test/**/*.pem
+!test/corpus/sev-snp/chains/*.pem
 
 # Key material provisioned by deploy/compose/keygen (NEVER commit)
 /deploy/compose/secrets/
