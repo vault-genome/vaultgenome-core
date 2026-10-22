@@ -20,13 +20,12 @@ import (
 // -signature-suite writes the three signing keys in the suite's file form
 // and names the suite in the worker registry; the TEE seeds stay the
 // simulated TEE's Ed25519 keys. On the FIPS module v1.0.0 ml-dsa-87 is
-// refused with the module's reason.
+// refused with the module's reason. Not parallel: realMain resolves the
+// build's version into package variables, as the other tests of it do.
 func TestRun_SignatureSuite(t *testing.T) {
-	t.Parallel()
 	for _, suite := range crypto.Suites() {
 		suite := suite
 		t.Run(string(suite), func(t *testing.T) {
-			t.Parallel()
 			dir := filepath.Join(t.TempDir(), "secrets")
 			var stdout, stderr bytes.Buffer
 			rc := realMain([]string{"-out", dir, "-signature-suite", string(suite)}, &stdout, &stderr)
