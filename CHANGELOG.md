@@ -11,6 +11,17 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- ADR 0031 (proposed): the signature suite — `ed25519`, `ecdsa-p384-sha384`
+  and `ml-dsa-87` named, the profile naming what a daemon signs with and
+  accepts (`crypto.signature_suite` within it), `alg` beside every
+  signature on the record (audit schema v8), key material by suite under
+  the same sealed files, the `-fips` build's availability reported;
+  closes finding F2b of the banking map when its parts are in the tree;
+  with the measurement of 2026-10-22 (ML-DSA-87 in the default build,
+  unavailable in the certified module v1.0.0).
+
 ### Changed
 
 - The Return Path handshake classifies its I/O errors: a peer that
