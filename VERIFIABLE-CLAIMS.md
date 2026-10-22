@@ -2418,13 +2418,61 @@ the release was published:
 module=v1.0.0 enforced=true`; a key released across clouds under
 `hpke-p384-v2`, the restore confirmed by the chip receipt, the unlisted
 guest and the operator stop refused, the audit log verified (10 events)
-— C42 on the released commit.
+— C42 on the released commit. The same three kits on `v0.9.0`
+(2026-10-22, published 15:38:17Z). The release itself, eight minutes
+after:
+[`scripts/hardware-test/release-deploy/evidence/20261022T154611Z/`](scripts/hardware-test/release-deploy/evidence/20261022T154611Z/)
+— `verify/assets.sha256` 97 assets; `verify/cosign.txt` twenty-two
+"Verified OK" (the pairs); `verify/cosign-bundle-nonet.txt` the same
+twenty-two from their bundles with `--trusted-root trusted_root.json`
+and no route; `verify/slsa.txt` the eleven artifacts' provenance
+verified; `verify/tag.txt` the tag's signature under the pinned key;
+`verify/rebuild.txt` the ten binaries and the package rebuilt from the
+tag (commit `0428a5a634e4`, go1.27.3, GNU tar 1.35, GNU gzip 1.15, on
+Darwin arm64) with the same sha256 as the released files (`sagvd`
+`35abeda8…`, `sagvd-fips` `d1ed4805…`, `acp-compute` `2c1ed7d4…`,
+`acp-compute-fips` `34bcc8be…`, `acpctl` `87e61135…`, `acpctl-fips`
+`fb30a7c8…`, `acp-bootstrap` `89af3676…`, `acp-bootstrap-fips`
+`9bc358ae…`, `acp-keygen` `4bc0d2a2…`, `acp-keygen-fips` `b33a641e…`,
+the package `44955f44…`); `results/versions.txt` the released binaries
+reporting `v0.9.0` at the tag's commit; both daemons read
+`7dc7c12e…25acc` from the chip and sealed their key files to it; the
+thief with the sealed files and the unpinned worker refused;
+`results/job.json` gate level EXACT, 6 of 6, `max_abs_err` 0,
+`release_authorized`; `results/audit-verify.json` `ok: true`, 17
+events; 287.8 s on the guest. The four container images, twelve
+minutes after:
+[`scripts/hardware-test/release-deploy-images/evidence/20261022T155049Z/`](scripts/hardware-test/release-deploy-images/evidence/20261022T155049Z/)
+— `sagvd@sha256:4222a3fb…`, `acp-compute@sha256:8e74b2b9…`,
+`sagvd-fips@sha256:01b45872…`, `acp-compute-fips@sha256:2a876975…`,
+all four publicly readable; each verified by digest on the runner
+(signature, SBOM attestation, SLSA provenance, the binary inside equal
+to its release asset: `35abeda8…`, `2c1ed7d4…`, `d1ed4805…`,
+`34bcc8be…`); each loaded image's `RootFS.Layers` equal to the signed
+config's `diff_ids` (13 layers for the `sagvd` images, 9 for the
+workers); both daemons from their images, the key files sealed, both
+rogues refused, gate level EXACT, the audit log verified (17 events);
+185.9 s. And the released commit under `fips` with `VG_FIPS=1` and
+`VG_SIGSUITE=ecdsa-p384-sha384` — the deployment a bank held to X9
+runs, on the released commit, on the certified module with enforcement
+on — by the key-release kit eighteen minutes after:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261022T155613Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261022T155613Z/)
+— `versions.txt`: `sagvd v0.9.0 (commit 0428a5a634e4) fips140=only
+module=v1.0.0 enforced=true`, the same for `acp-bootstrap`; `build.txt`
+every binary `GOFIPS140=v1.0.0-c2097c7c` at that commit; the authority
+signing under `ecdsa-p384-sha384` and accepting `ed25519` and
+`ecdsa-p384-sha384` (`steps.txt`); a key released across clouds under
+`hpke-p384-v2` (recipient key `9a746824…`), the restore confirmed by
+the chip receipt, `genome verify` ok, the unlisted guest and the
+operator stop refused, `acpctl audit verify` at exit 0 reporting
+`signature_suite` `ecdsa-p384-sha384` over 10 events — C42 and C43 on
+the released commit.
 
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.8.0           # ~15 min, one n2d-standard-4, deletes it
-scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.8.0    # the images; ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.9.0           # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.9.0    # the images; ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
@@ -2830,7 +2878,15 @@ after the release was published:
 (fips, `hpke-p384-v2`; `versions.txt`: `sagvd v0.8.0 (commit
 20dc289f092c) fips140=only module=v1.0.0 enforced=true`, the same for
 `acp-bootstrap`; the release, the restore confirmed, both refusals,
-`audit verify exit=0`, 10 events).
+`audit verify exit=0`, 10 events), and on the released commit of
+`v0.9.0` (`0428a5a`), eighteen minutes after that release, under `fips`
+with `VG_SIGSUITE=ecdsa-p384-sha384`:
+[`…/keyrelease-e2e/evidence/20261022T155613Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261022T155613Z/)
+(`versions.txt`: `sagvd v0.9.0 (commit 0428a5a634e4) fips140=only
+module=v1.0.0 enforced=true`, the same for `acp-bootstrap`; `build.txt`
+`GOFIPS140=v1.0.0-c2097c7c` on every binary; the release under
+`hpke-p384-v2`, the restore confirmed, both refusals, `audit verify
+exit=0`, 10 events under `ecdsa-p384-sha384`).
 
 **Reproduce:**
 
@@ -2910,7 +2966,19 @@ suites (`internal/compute/returnpath/server/session_suite_test.go`).
 
 The figures are those of the runs under Ed25519 (C40, C41, C42): the
 suite changed on every record, 64-byte signatures became 96-byte ones,
-and nothing else in the figures moved.
+and nothing else in the figures moved. On the released commit of
+`v0.9.0` (`0428a5a`), eighteen minutes after the release was published,
+the key-release kit under `fips` with `VG_SIGSUITE=ecdsa-p384-sha384`
+and `VG_FIPS=1`, from a clean checkout of the tag:
+[`…/keyrelease-e2e/evidence/20261022T155613Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261022T155613Z/)
+— `sagvd v0.9.0 (commit 0428a5a634e4) fips140=only module=v1.0.0
+enforced=true` and the same for `acp-bootstrap` (`versions.txt`), the
+authority `signature_suite=ecdsa-p384-sha384` accepting
+`ed25519,ecdsa-p384-sha384`, the destination accepting the same
+(`steps.txt`), the key released under `hpke-p384-v2`, the restore
+confirmed, `genome verify` ok, both refusals, and `acpctl audit verify`
+at exit 0 reporting `signature_suite` `ecdsa-p384-sha384` over 10
+events (`audit-verify.json`, tip `27ca94e2…`).
 
 **Reproduce:**
 
