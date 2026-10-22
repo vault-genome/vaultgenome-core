@@ -19,6 +19,10 @@ step() { echo "== $(date -u +%H:%M:%S) $*"; echo "== $(date -u +%H:%M:%S) $*" >>
 mark() { echo "$1=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" >> "$OUT/timeline.txt"; }
 T0=$(date +%s)
 VENV=/usr/local/lib/local_gpu_verifier/.venv/bin/python
+# VG_FIPS=1 (ADR 0030): acpctl, the one Go process of the capture, runs
+# under the module's enforcement; its version line goes on the record.
+FIPS="${VG_FIPS:-0}"; [ "$FIPS" = 1 ] || FIPS=0
+if [ "$FIPS" = 1 ]; then export GODEBUG=fips140=only; echo "fips=1 GODEBUG=fips140=only" >> "$OUT/steps.txt"; fi
 
 step "the guest"
 { uname -a; lsb_release -ds; echo "secure boot: $(mokutil --sb-state 2>&1)"; nproc; free -g | head -2; } > "$OUT/system.txt"
@@ -119,6 +123,7 @@ step "the 7B genome path on the confidential GPU"
 mark runtime_start
 apt-get install -y -qq python3-venv python3-pip >/dev/null 2>&1
 mkdir -p /opt/worker && tar -xzf "$HOME_DIR/worker.tgz" -C /opt/worker && install -m 0755 "$HOME_DIR/acpctl" /usr/local/bin/acpctl
+acpctl version > "$OUT/versions.txt" 2>&1
 python3 -m venv /opt/vg
 # The runtime from the hash-pinned locks, each from its own index: the worker's packages, torch's
 # dependencies and huggingface_hub from PyPI, the CUDA libraries from PyPI, then the torch cu126
