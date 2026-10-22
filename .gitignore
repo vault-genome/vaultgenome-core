@@ -7,6 +7,7 @@
 /acp-bootstrap
 /acp-demo
 /acpctl
+/acp-keygen
 *.exe
 *.test
 *.out
