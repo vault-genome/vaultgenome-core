@@ -1,0 +1,37 @@
+# The formal models (ADR 0032): the models are what formal/gen.py writes, and ProVerif 2.05 on
+# them gives the recorded verdicts, query by query. ProVerif is built from the official tarball,
+# pinned by digest, without its GTK front end; one apt package suffices. The job does not run in
+# vault-gate so that `make vault-gate` needs no ProVerif on a developer's machine; the check is
+# `make formal-check` here and this workflow on every push.
+name: formal
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  models:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: OCaml
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ocaml
+      - name: ProVerif 2.05 from the official tarball
+        run: |
+          curl -sSL -o proverif2.05.tar.gz https://proverif.inria.fr/proverif2.05.tar.gz
+          echo "4871f53c32ab4a04669a060c4886ba5d9080496963fb980a9a62d2c429ceabc4  proverif2.05.tar.gz" | sha256sum -c -
+          tar -xzf proverif2.05.tar.gz
+          (cd proverif2.05 && ./build -nointeract)
+          echo "$PWD/proverif2.05" >> "$GITHUB_PATH"
+      - name: The models are what gen.py writes
+        run: cd formal && python3 gen.py && git diff --exit-code -- .
+      - name: ProVerif gives the recorded verdicts
+        run: python3 formal/check_results.py --out proverif-ci.txt
+      - name: Keep the run
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: proverif-output
+          path: proverif-ci.txt

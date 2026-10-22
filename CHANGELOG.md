@@ -11,6 +11,23 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- The protocols in ProVerif (ADR 0032, part one: the cross-cloud key
+  release). Eight models under `formal/`, written by `gen.py` from one
+  template — the release as the daemons run it, and seven variants that
+  each remove one protection or leak one key (the key binding, the suite
+  in the binding, a shared recipient key, the stop list's no-rollback
+  rule, the decision in the receipt, the chips' attestation key, the
+  authority's signing key) — with seven queries each: the released key's
+  secrecy, the authenticity of what the destination opens, the binding of
+  the authorization to the key the destination generated, one opening per
+  release, no release after the operator's stop, one confirmation per
+  chip-vouched restore, no release to an unlisted chip. The recorded run
+  (`formal/results/`) reproduces query by query under ProVerif 2.05
+  (`make formal-check`; the `formal` workflow builds the tool from the
+  official tarball by digest).
+
 ## [0.9.0] — 2026-10-22
 
 The release that names the signature suite on every record and lets
