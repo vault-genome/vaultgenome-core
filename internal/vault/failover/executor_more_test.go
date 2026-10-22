@@ -5,7 +5,6 @@ package failover
 
 import (
 	"context"
-	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -19,6 +18,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/receipt"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
@@ -51,10 +51,10 @@ func TestTriggerWithoutARecordVouchesForNothing(t *testing.T) {
 }
 
 // heartbeat writes a heartbeat signed by the sentinel key into outbox.
-func heartbeat(t *testing.T, outbox string, key ed25519.PrivateKey, seq uint64, status string, at time.Time) {
+func heartbeat(t *testing.T, outbox string, key *crypto.SigningKey, seq uint64, status string, at time.Time) {
 	t.Helper()
 	h, err := sentinel.SignHeartbeat(sentinel.Heartbeat{
-		Sentinel: sentinel.KeyID(key.Public().(ed25519.PublicKey)), Seq: seq, At: at, StartedAt: at.Add(-time.Minute), Status: status, Wires: 1,
+		Sentinel: sentinel.KeyID(key.Public()), Seq: seq, At: at, StartedAt: at.Add(-time.Minute), Status: status, Wires: 1,
 	}, key)
 	must(t, err)
 	raw, err := json.Marshal(h)
@@ -67,7 +67,8 @@ func heartbeat(t *testing.T, outbox string, key ed25519.PrivateKey, seq uint64, 
 // compromise trigger on its own when the report itself is missing, and
 // only when the policy acts on compromise reports.
 func TestWatcherReadsTheHeartbeatsSequenceAndStatus(t *testing.T) {
-	sPub, sKey, err := ed25519.GenerateKey(rand.Reader)
+	sKey, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	sPub := sKey.Public()
 	must(t, err)
 	outbox := t.TempDir()
 	now := t0.Add(time.Hour)
@@ -145,7 +146,7 @@ func TestPinnedPrimaryRefusesAnotherMeasurement(t *testing.T) {
 		t.Fatalf("ignored %v", w.Ignored)
 	}
 
-	hb, raw, err := sentinel.ReadHeartbeat(d.outbox, d.sentinelKey.Public().(ed25519.PublicKey))
+	hb, raw, err := sentinel.ReadHeartbeat(d.outbox, d.sentinelKey.Public())
 	must(t, err)
 	tr := Trigger{Kind: TriggerHeartbeatTimeout, At: hb.At.Add(time.Second), Heartbeat: &hb, Evidence: raw}
 	choice, why, err := Choose(d.outbox, pol, tr, escrowTag(d), verifier)

@@ -24,7 +24,6 @@ package sentinel
 
 import (
 	"bytes"
-	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -71,8 +70,8 @@ var (
 
 // KeyID names a sentinel key: "sentinel-" and the first 16 hex digits of the
 // SHA-256 of its public key.
-func KeyID(pub ed25519.PublicKey) string {
-	sum := sha256.Sum256(pub)
+func KeyID(pub crypto.SuitePublicKey) string {
+	sum := sha256.Sum256(pub.Bytes)
 	return "sentinel-" + hex.EncodeToString(sum[:8])
 }
 
@@ -128,7 +127,11 @@ type SealRecord struct {
 	// Attestation is the primary's TEE report over this record, when the
 	// sentinel attests (acpctl sentinel watch --tee).
 	Attestation *Attestation `json:"attestation,omitempty"`
-	Signature   []byte       `json:"signature,omitempty"`
+	// Alg is the signature suite the record was signed under (ADR 0031):
+	// absent for ed25519, the suite id otherwise. Under the signature,
+	// outside the attestation (which binds the content alone).
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature,omitempty"`
 }
 
 // Link returns the record's link.
@@ -189,7 +192,11 @@ type Heartbeat struct {
 	// Wires is how many tripwires are armed.
 	Wires       int          `json:"wires"`
 	Attestation *Attestation `json:"attestation,omitempty"`
-	Signature   []byte       `json:"signature,omitempty"`
+	// Alg is the signature suite the record was signed under (ADR 0031):
+	// absent for ed25519, the suite id otherwise. Under the signature,
+	// outside the attestation (which binds the content alone).
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature,omitempty"`
 }
 
 func (h Heartbeat) validate() error {
@@ -232,7 +239,11 @@ type Compromise struct {
 	Tripped     []Trip       `json:"tripped"`
 	Last        *Link        `json:"last,omitempty"`
 	Attestation *Attestation `json:"attestation,omitempty"`
-	Signature   []byte       `json:"signature,omitempty"`
+	// Alg is the signature suite the record was signed under (ADR 0031):
+	// absent for ed25519, the suite id otherwise. Under the signature,
+	// outside the attestation (which binds the content alone).
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature,omitempty"`
 }
 
 func (c Compromise) validate() error {
@@ -259,24 +270,28 @@ type signable interface {
 	unattested() any
 	attestation() *Attestation
 	signature() []byte
+	alg() crypto.SignatureSuite
 	sentinel() string
 }
 
-func (r SealRecord) unsigned() any             { r.Signature = nil; return r }
-func (r SealRecord) unattested() any           { r.Signature, r.Attestation = nil, nil; return r }
-func (r SealRecord) attestation() *Attestation { return r.Attestation }
-func (r SealRecord) signature() []byte         { return r.Signature }
-func (r SealRecord) sentinel() string          { return r.Sentinel }
-func (h Heartbeat) unsigned() any              { h.Signature = nil; return h }
-func (h Heartbeat) unattested() any            { h.Signature, h.Attestation = nil, nil; return h }
-func (h Heartbeat) attestation() *Attestation  { return h.Attestation }
-func (h Heartbeat) signature() []byte          { return h.Signature }
-func (h Heartbeat) sentinel() string           { return h.Sentinel }
-func (c Compromise) unsigned() any             { c.Signature = nil; return c }
-func (c Compromise) unattested() any           { c.Signature, c.Attestation = nil, nil; return c }
-func (c Compromise) attestation() *Attestation { return c.Attestation }
-func (c Compromise) signature() []byte         { return c.Signature }
-func (c Compromise) sentinel() string          { return c.Sentinel }
+func (r SealRecord) unsigned() any              { r.Signature = nil; return r }
+func (r SealRecord) unattested() any            { r.Signature, r.Alg, r.Attestation = nil, "", nil; return r }
+func (r SealRecord) attestation() *Attestation  { return r.Attestation }
+func (r SealRecord) signature() []byte          { return r.Signature }
+func (r SealRecord) alg() crypto.SignatureSuite { return r.Alg }
+func (r SealRecord) sentinel() string           { return r.Sentinel }
+func (h Heartbeat) unsigned() any               { h.Signature = nil; return h }
+func (h Heartbeat) unattested() any             { h.Signature, h.Alg, h.Attestation = nil, "", nil; return h }
+func (h Heartbeat) attestation() *Attestation   { return h.Attestation }
+func (h Heartbeat) signature() []byte           { return h.Signature }
+func (h Heartbeat) alg() crypto.SignatureSuite  { return h.Alg }
+func (h Heartbeat) sentinel() string            { return h.Sentinel }
+func (c Compromise) unsigned() any              { c.Signature = nil; return c }
+func (c Compromise) unattested() any            { c.Signature, c.Alg, c.Attestation = nil, "", nil; return c }
+func (c Compromise) attestation() *Attestation  { return c.Attestation }
+func (c Compromise) signature() []byte          { return c.Signature }
+func (c Compromise) alg() crypto.SignatureSuite { return c.Alg }
+func (c Compromise) sentinel() string           { return c.Sentinel }
 
 // attestationNonce is what the TEE report binds: the record's canonical
 // form without signature or attestation.
@@ -365,21 +380,27 @@ func (c Compromise) Attested(verifier tee.Verifier) (tee.Measurement, error) {
 	return verifyAttestation(c, verifier)
 }
 
-func signatureOver(v signable, priv ed25519.PrivateKey) ([]byte, error) {
+func signatureOver(v signable, key *crypto.SigningKey) ([]byte, error) {
+	if key == nil {
+		return nil, errors.New("sentinel: signing key required")
+	}
 	if err := v.validate(); err != nil {
 		return nil, err
 	}
-	if v.sentinel() != KeyID(priv.Public().(ed25519.PublicKey)) {
-		return nil, fmt.Errorf("sentinel: record names %s, the key is %s", v.sentinel(), KeyID(priv.Public().(ed25519.PublicKey)))
+	if v.sentinel() != KeyID(key.Public()) {
+		return nil, fmt.Errorf("sentinel: record names %s, the key is %s", v.sentinel(), KeyID(key.Public()))
+	}
+	if v.alg() != crypto.RecordAlg(key.Suite()) {
+		return nil, fmt.Errorf("sentinel: record names suite %q, the key signs under %s", v.alg(), key.Suite())
 	}
 	msg, err := crypto.CanonicalJSON(v.unsigned())
 	if err != nil {
 		return nil, err
 	}
-	return ed25519.Sign(priv, msg), nil
+	return key.Sign(msg)
 }
 
-func verify(v signable, pub ed25519.PublicKey) error {
+func verify(v signable, pub crypto.SuitePublicKey) error {
 	if err := v.validate(); err != nil {
 		return err
 	}
@@ -390,30 +411,33 @@ func verify(v signable, pub ed25519.PublicKey) error {
 	if err != nil {
 		return err
 	}
-	if !ed25519.Verify(pub, msg, v.signature()) {
-		return errors.New("sentinel: signature does not verify under the pinned sentinel key")
+	if err := pub.VerifyRecord(v.alg(), msg, v.signature()); err != nil {
+		return fmt.Errorf("sentinel: signature does not verify under the pinned sentinel key: %w", err)
 	}
 	return nil
 }
 
 // SignRecord, SignHeartbeat and SignCompromise sign with the sentinel key.
-func SignRecord(r SealRecord, priv ed25519.PrivateKey) (SealRecord, error) {
+func SignRecord(r SealRecord, key *crypto.SigningKey) (SealRecord, error) {
 	r.Schema = SealSchema
-	sig, err := signatureOver(r, priv)
+	r.Alg = crypto.RecordAlg(key.Suite())
+	sig, err := signatureOver(r, key)
 	r.Signature = sig
 	return r, err
 }
 
-func SignHeartbeat(h Heartbeat, priv ed25519.PrivateKey) (Heartbeat, error) {
+func SignHeartbeat(h Heartbeat, key *crypto.SigningKey) (Heartbeat, error) {
 	h.Schema = HeartbeatSchema
-	sig, err := signatureOver(h, priv)
+	h.Alg = crypto.RecordAlg(key.Suite())
+	sig, err := signatureOver(h, key)
 	h.Signature = sig
 	return h, err
 }
 
-func SignCompromise(c Compromise, priv ed25519.PrivateKey) (Compromise, error) {
+func SignCompromise(c Compromise, key *crypto.SigningKey) (Compromise, error) {
 	c.Schema = CompromiseSchema
-	sig, err := signatureOver(c, priv)
+	c.Alg = crypto.RecordAlg(key.Suite())
+	sig, err := signatureOver(c, key)
 	c.Signature = sig
 	return c, err
 }
@@ -432,7 +456,7 @@ func decode(raw []byte, v any) error {
 
 // ParseRecord, ParseHeartbeat and ParseCompromise decode a record and
 // accept it only if it is well formed and verifies under pub.
-func ParseRecord(raw []byte, pub ed25519.PublicKey) (SealRecord, error) {
+func ParseRecord(raw []byte, pub crypto.SuitePublicKey) (SealRecord, error) {
 	var r SealRecord
 	if err := decode(raw, &r); err != nil {
 		return SealRecord{}, err
@@ -440,7 +464,7 @@ func ParseRecord(raw []byte, pub ed25519.PublicKey) (SealRecord, error) {
 	return r, verify(r, pub)
 }
 
-func ParseHeartbeat(raw []byte, pub ed25519.PublicKey) (Heartbeat, error) {
+func ParseHeartbeat(raw []byte, pub crypto.SuitePublicKey) (Heartbeat, error) {
 	var h Heartbeat
 	if err := decode(raw, &h); err != nil {
 		return Heartbeat{}, err
@@ -448,7 +472,7 @@ func ParseHeartbeat(raw []byte, pub ed25519.PublicKey) (Heartbeat, error) {
 	return h, verify(h, pub)
 }
 
-func ParseCompromise(raw []byte, pub ed25519.PublicKey) (Compromise, error) {
+func ParseCompromise(raw []byte, pub crypto.SuitePublicKey) (Compromise, error) {
 	var c Compromise
 	if err := decode(raw, &c); err != nil {
 		return Compromise{}, err

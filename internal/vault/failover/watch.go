@@ -5,13 +5,13 @@ package failover
 
 import (
 	"context"
-	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -70,7 +70,7 @@ func (t Trigger) reportedLast() *sentinel.Link {
 type Watcher struct {
 	policy  Policy
 	outbox  string
-	pub     ed25519.PublicKey
+	pub     crypto.SuitePublicKey
 	primary tee.Verifier
 	now     func() time.Time
 

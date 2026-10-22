@@ -5,8 +5,6 @@ package main
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/json"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
@@ -18,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/failover"
@@ -27,7 +26,7 @@ type failoverFixture struct {
 	dir      string
 	cfg      Config
 	cfgPath  string
-	operator ed25519.PrivateKey
+	operator *crypto.SigningKey
 	outbox   string
 }
 
@@ -63,10 +62,11 @@ func (f *failoverFixture) write(t *testing.T, name string) {
 
 // policy signs a failover policy to the simulated destination the config
 // trusts (or another kind), with key.
-func (f *failoverFixture) policy(t *testing.T, kind string, key ed25519.PrivateKey) string {
+func (f *failoverFixture) policy(t *testing.T, kind string, key *crypto.SigningKey) string {
 	t.Helper()
-	spub, _, err := ed25519.GenerateKey(rand.Reader)
+	skey, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	require.NoError(t, err)
+	spub := skey.Public().Bytes
 	p, err := failover.Sign(failover.Policy{
 		Serial:            4,
 		IssuedAt:          time.Now().Add(-time.Minute).UTC(),
@@ -86,7 +86,7 @@ func (f *failoverFixture) policy(t *testing.T, kind string, key ed25519.PrivateK
 func TestFailoverCmd_RefusesBeforeWatching(t *testing.T) {
 	f := newFailoverFixture(t)
 	good := f.policy(t, string(tee.ProviderSimulated), f.operator)
-	_, stranger, err := ed25519.GenerateKey(rand.Reader)
+	stranger, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	require.NoError(t, err)
 	forged := f.policy(t, string(tee.ProviderSimulated), stranger)
 	unverifiable := f.policy(t, string(tee.ProviderGCPSEVSNP), f.operator)

@@ -263,7 +263,7 @@ func TestAuditVerifyCmd_Refusals(t *testing.T) {
 		"no flags":     {[]string{}, 2, "all required"},
 		"no kid":       {[]string{"--audit", auditPath, "--audit-pubkey", pubPath}, 2, "all required"},
 		"unknown flag": {[]string{"--nope"}, 2, "flag provided but not defined"},
-		"bad pubkey":   {[]string{"--audit", auditPath, "--audit-pubkey", shortPub, "--audit-kid", string(kid)}, 1, "pubkey must be PEM"},
+		"bad pubkey":   {[]string{"--audit", auditPath, "--audit-pubkey", shortPub, "--audit-kid", string(kid)}, 1, "public key file must be PEM"},
 		"cannot open":  {[]string{"--audit", absent, "--audit-pubkey", pubPath, "--audit-kid", string(kid)}, 1, "open audit store"},
 		"cannot load":  {[]string{"--audit", corrupt, "--audit-pubkey", pubPath, "--audit-kid", string(kid)}, 1, "load:"},
 	} {
@@ -414,10 +414,10 @@ func TestReadEd25519PublicKey(t *testing.T) {
 		"wrong length":  {write("short", []byte("too short")), "exactly 32 raw bytes"},
 		"not ed25519":   {write("ec.pem", ecPEM), "pubkey is ecdsa-p384-sha384, want an Ed25519 key"},
 		"not a suite":   {write("p256.pem", p256PEM), "must be on P-384"},
-		"pem not pkix":  {write("junk.pem", junkPEM), "parse pubkey PEM"},
+		"pem not pkix":  {write("junk.pem", junkPEM), "parse PKIX public key"},
 		"seed sized":    {write("seed", bytes.Repeat([]byte{1}, 33)), "exactly 32 raw bytes"},
 		"empty file":    {write("empty", nil), "exactly 32 raw bytes"},
-		"pem of 32 raw": {write("raw32.pem", pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: edPub})), "parse pubkey PEM"},
+		"pem of 32 raw": {write("raw32.pem", pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: edPub})), "parse PKIX public key"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

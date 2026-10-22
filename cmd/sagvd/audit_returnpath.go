@@ -17,7 +17,6 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/audit/store"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
-	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
@@ -140,13 +139,13 @@ func openReturnPathAudit(cfg Config, clock shared_time.Clock, registry *metrics.
 	if cfg.Keys.AuditSigning.KeyID == "" || cfg.Keys.AuditSigning.SeedPath == "" {
 		return nil, errors.New("sagvd: audit.log_path needs keys.audit_signing.kid and seed_path")
 	}
-	seed, err := readSecret(cfg.TEE, cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
+	auditKey, err := loadSigningKey(cfg.TEE, cfg.Keys.AuditSigning, "keys.audit_signing")
 	if err != nil {
 		return nil, err
 	}
 	kid := ids.KeyID(cfg.Keys.AuditSigning.KeyID)
 	ks := keys.NewInMemoryStore(clock)
-	if _, err := ks.RegisterSigningFromSeed(kid, keys.PurposeSigningAudit, seed); err != nil {
+	if _, err := ks.RegisterSigningKey(kid, keys.PurposeSigningAudit, auditKey); err != nil {
 		return nil, fmt.Errorf("sagvd: register audit signing key: %w", err)
 	}
 	archiveDir := cfg.Audit.ArchiveDirectory()

@@ -308,20 +308,27 @@ func finite(x float64) bool { return !math.IsNaN(x) && !math.IsInf(x, 0) }
 type SignedVerdict struct {
 	Verdict   Verdict `json:"verdict"`
 	Signature []byte  `json:"signature"`
-	SignerPub []byte  `json:"signer_pub"`
+	// SignerPub is the raw public key of the signer under Alg.
+	SignerPub []byte `json:"signer_pub"`
+	// Alg is the signature suite the verdict was signed under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
 }
 
 // Sign produces a SignedVerdict over the canonical bytes of v.
-func Sign(v Verdict, pub crypto.PublicKey, priv crypto.PrivateKey) (SignedVerdict, error) {
+func Sign(v Verdict, key *crypto.SigningKey) (SignedVerdict, error) {
+	if key == nil {
+		return SignedVerdict{}, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "equivalence: signing key required", nil)
+	}
 	msg, err := v.CanonicalBytes()
 	if err != nil {
 		return SignedVerdict{}, err
 	}
-	sig, err := crypto.Sign(priv, msg)
+	sig, err := key.Sign(msg)
 	if err != nil {
 		return SignedVerdict{}, err
 	}
-	return SignedVerdict{Verdict: v, Signature: sig, SignerPub: append([]byte(nil), pub...)}, nil
+	return SignedVerdict{Verdict: v, Signature: sig, SignerPub: key.PublicKeyBytes(), Alg: crypto.RecordAlg(key.Suite())}, nil
 }
 
 // VerifySigned recomputes the canonical bytes and verifies the signature.
@@ -330,7 +337,11 @@ func VerifySigned(sv SignedVerdict) error {
 	if err != nil {
 		return err
 	}
-	if err := crypto.Verify(crypto.PublicKey(sv.SignerPub), msg, sv.Signature); err != nil {
+	suite, err := crypto.RecordSuite(sv.Alg)
+	if err != nil {
+		return err
+	}
+	if err := crypto.VerifySuite(suite, sv.SignerPub, msg, sv.Signature); err != nil {
 		return shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "equivalence: verdict signature invalid", err)
 	}
 	return nil

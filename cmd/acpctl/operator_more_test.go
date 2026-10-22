@@ -139,7 +139,7 @@ func TestFailover_VerifyReportsAnExpiredPolicy(t *testing.T) {
 		Serial: 9, IssuedAt: issued, NotAfter: issued.Add(24 * time.Hour), SentinelPublicKey: spubBytes,
 		Standby:  failover.Standby{Kind: "gcp-sev-snp", Endpoint: "https://standby.example:8443", Measurements: []string{strings.Repeat("ab", 48)}},
 		Triggers: failover.Triggers{CompromiseReport: true}, SigningKeyID: "operator-1",
-	}, ed25519.NewKeyFromSeed(seedBytes))
+	}, ed25519KeyFromSeed(t, seedBytes))
 	require.NoError(t, err)
 	raw, err := json.Marshal(p)
 	require.NoError(t, err)

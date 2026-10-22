@@ -699,11 +699,15 @@ func gateDimension(gate GateView) validation_result.DimensionVerdict {
 }
 
 // signVerdict signs a passing verdict with the authority's signing key.
-func signVerdict(view *GateView, signer keys.Signer, kid ids.KeyID, pub crypto.PublicKey) error {
+func signVerdict(view *GateView, signer keys.Signer, kid ids.KeyID, pub []byte) error {
 	if view.SignedVerdict == nil {
 		return nil
 	}
 	msg, err := view.SignedVerdict.Verdict.CanonicalBytes()
+	if err != nil {
+		return err
+	}
+	alg, err := keys.RecordAlg(signer, kid)
 	if err != nil {
 		return err
 	}
@@ -713,6 +717,7 @@ func signVerdict(view *GateView, signer keys.Signer, kid ids.KeyID, pub crypto.P
 	}
 	view.SignedVerdict.Signature = sig
 	view.SignedVerdict.SignerPub = append([]byte(nil), pub...)
+	view.SignedVerdict.Alg = alg
 	view.SignerKeyID = string(kid)
 	return nil
 }

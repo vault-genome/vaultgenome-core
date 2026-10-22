@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 )
 
 func readFile(t *testing.T, path string) []byte {
@@ -45,7 +46,7 @@ func TestRun_WritesTheTree(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "secrets")
 	var out bytes.Buffer
-	require.NoError(t, run(dir, false, false, false, &out))
+	require.NoError(t, run(dir, false, false, false, crypto.SuiteEd25519, &out))
 	require.Contains(t, out.String(), "acp-keygen: wrote secrets under")
 	require.NotContains(t, out.String(), strings.TrimSpace(string(readFile(t, filepath.Join(dir, "sagvd", "api_token")))), "the token is never printed")
 
@@ -124,7 +125,7 @@ func TestRun_WritesTheTree(t *testing.T) {
 func TestRun_PrivateModes(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "secrets")
-	require.NoError(t, run(dir, false, true, true, &bytes.Buffer{}))
+	require.NoError(t, run(dir, false, true, true, crypto.SuiteEd25519, &bytes.Buffer{}))
 	lo := newLayout(dir)
 	for _, p := range lo.files() {
 		st, err := os.Stat(p)
@@ -143,16 +144,16 @@ func TestRun_PrivateModes(t *testing.T) {
 func TestRun_RefusesToOverwriteWithoutForce(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "secrets")
-	require.NoError(t, run(dir, false, true, true, &bytes.Buffer{}))
+	require.NoError(t, run(dir, false, true, true, crypto.SuiteEd25519, &bytes.Buffer{}))
 	lo := newLayout(dir)
 	before := readFile(t, lo.sealingKey)
 
-	err := run(dir, false, true, false, &bytes.Buffer{})
+	err := run(dir, false, true, false, crypto.SuiteEd25519, &bytes.Buffer{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "refusing to overwrite existing secrets (17 files")
 	require.Equal(t, before, readFile(t, lo.sealingKey), "nothing was touched")
 
-	require.NoError(t, run(dir, true, true, false, &bytes.Buffer{}))
+	require.NoError(t, run(dir, true, true, false, crypto.SuiteEd25519, &bytes.Buffer{}))
 	require.NotEqual(t, before, readFile(t, lo.sealingKey), "regenerated")
 	st, err := os.Stat(lo.sealingKey)
 	require.NoError(t, err)

@@ -5,8 +5,6 @@ package failover
 
 import (
 	"bytes"
-	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"strings"
@@ -14,6 +12,7 @@ import (
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
@@ -24,12 +23,13 @@ var t0 = time.Date(2026, 9, 15, 1, 0, 0, 0, time.UTC)
 
 func standbyMeasurement() []byte { return bytes.Repeat([]byte{0x5a}, 32) }
 
-func testPolicy(sentinelPub ed25519.PublicKey) Policy {
+func testPolicy(sentinelPub crypto.SuitePublicKey) Policy {
 	return Policy{
 		Serial:            7,
 		IssuedAt:          t0,
 		NotAfter:          t0.Add(30 * 24 * time.Hour),
-		SentinelPublicKey: sentinelPub,
+		SentinelPublicKey: sentinelPub.Bytes,
+		SentinelAlg:       crypto.RecordAlg(sentinelPub.Suite),
 		Standby: Standby{
 			Kind:         string(tee.ProviderSimulated),
 			Endpoint:     "https://standby.example:8443",
@@ -41,9 +41,10 @@ func testPolicy(sentinelPub ed25519.PublicKey) Policy {
 	}
 }
 
-func operatorKey(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {
+func operatorKey(t *testing.T) (crypto.SuitePublicKey, *crypto.SigningKey) {
 	t.Helper()
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	priv, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := priv.Public()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func TestPolicySignsAndVerifies(t *testing.T) {
 	must(t, err)
 	got, err := Parse(raw, opPub, "operator-1")
 	must(t, err)
-	if got.Serial != 7 || !bytes.Equal(got.SentinelPublicKey, sPub) {
+	if got.Serial != 7 || !bytes.Equal(got.SentinelPublicKey, sPub.Bytes) {
 		t.Fatalf("parsed %+v", got)
 	}
 	if _, sid := got.Sentinel(); !strings.HasPrefix(sid, "sentinel-") {
@@ -91,7 +92,7 @@ func TestPolicyValidation(t *testing.T) {
 	for name, mutate := range map[string]func(*Policy){
 		"serial 0":           func(p *Policy) { p.Serial = 0 },
 		"no expiry":          func(p *Policy) { p.NotAfter = p.IssuedAt },
-		"short sentinel key": func(p *Policy) { p.SentinelPublicKey = sPub[:31] },
+		"short sentinel key": func(p *Policy) { p.SentinelPublicKey = sPub.Bytes[:31] },
 		"no trigger":         func(p *Policy) { p.Triggers = Triggers{} },
 		"negative timeout":   func(p *Policy) { p.Triggers.HeartbeatTimeoutSeconds = -1 },
 		"negative rpo":       func(p *Policy) { p.MaxRPOSeconds = -1 },

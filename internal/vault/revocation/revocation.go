@@ -17,7 +17,6 @@ package revocation
 
 import (
 	"bytes"
-	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -51,7 +50,10 @@ type List struct {
 	// Reason is recorded with every refusal the list causes.
 	Reason       string `json:"reason,omitempty"`
 	SigningKeyID string `json:"signing_key_id"`
-	Signature    []byte `json:"signature,omitempty"`
+	// Alg is the signature suite the list was signed under (ADR 0031):
+	// absent for ed25519, the suite id otherwise.
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature,omitempty"`
 }
 
 func (l List) signedBytes() ([]byte, error) {
@@ -72,6 +74,9 @@ func (l List) validate() error {
 	if l.SigningKeyID == "" {
 		return errors.New("revocation: signing_key_id required")
 	}
+	if _, err := crypto.RecordSuite(l.Alg); err != nil {
+		return fmt.Errorf("revocation: alg: %w", err)
+	}
 	for provider, list := range l.RevokedMeasurements {
 		if _, err := tee.ParseProvider(provider); err != nil {
 			return fmt.Errorf("revocation: revoked_measurements: %w", err)
@@ -91,10 +96,14 @@ func (l List) validate() error {
 
 // Sign validates l and signs it with the operator key. Schema is filled
 // in when empty.
-func Sign(l List, priv ed25519.PrivateKey) (List, error) {
+func Sign(l List, key *crypto.SigningKey) (List, error) {
+	if key == nil {
+		return List{}, errors.New("revocation: operator key required")
+	}
 	if l.Schema == "" {
 		l.Schema = Schema
 	}
+	l.Alg = crypto.RecordAlg(key.Suite())
 	if err := l.validate(); err != nil {
 		return List{}, err
 	}
@@ -102,13 +111,16 @@ func Sign(l List, priv ed25519.PrivateKey) (List, error) {
 	if err != nil {
 		return List{}, err
 	}
-	l.Signature = ed25519.Sign(priv, msg)
+	l.Signature, err = key.Sign(msg)
+	if err != nil {
+		return List{}, err
+	}
 	return l, nil
 }
 
 // Parse decodes a signed list and accepts it only if it is well formed,
 // names kid as its signer, and verifies under pub.
-func Parse(raw []byte, pub ed25519.PublicKey, kid string) (List, error) {
+func Parse(raw []byte, pub crypto.SuitePublicKey, kid string) (List, error) {
 	var l List
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
@@ -125,8 +137,8 @@ func Parse(raw []byte, pub ed25519.PublicKey, kid string) (List, error) {
 	if err != nil {
 		return List{}, err
 	}
-	if len(pub) != ed25519.PublicKeySize || !ed25519.Verify(pub, msg, l.Signature) {
-		return List{}, errors.New("revocation: signature does not verify under the operator key")
+	if err := pub.VerifyRecord(l.Alg, msg, l.Signature); err != nil {
+		return List{}, fmt.Errorf("revocation: signature does not verify under the operator key: %w", err)
 	}
 	return l, nil
 }

@@ -22,8 +22,9 @@ import (
 // key-release token against, and this vault's TEE identity for the
 // workers' pins.
 type authorityIdentity struct {
-	AuthorityKID          string `json:"authority_kid"`
-	AuthorityPublicKeyPEM string `json:"authority_public_key_pem"`
+	AuthorityKID            string `json:"authority_kid"`
+	AuthorityPublicKeyPEM   string `json:"authority_public_key_pem"`
+	AuthoritySignatureSuite string `json:"authority_signature_suite"`
 	// TEEProvider names what attests for this vault on the Return Path:
 	// gcp-sev-snp (the measurement is the chip's launch measurement, 48
 	// bytes) or simulated (the key below signs).
@@ -39,8 +40,9 @@ type authorityIdentity struct {
 	VTPM *vtpmIdentity `json:"vtpm,omitempty"`
 	// The key auditors verify the cross-cloud audit log with, when
 	// keys.audit_signing is configured.
-	AuditKID          string `json:"audit_kid,omitempty"`
-	AuditPublicKeyPEM string `json:"audit_public_key_pem,omitempty"`
+	AuditKID            string `json:"audit_kid,omitempty"`
+	AuditPublicKeyPEM   string `json:"audit_public_key_pem,omitempty"`
+	AuditSignatureSuite string `json:"audit_signature_suite,omitempty"`
 	// The key sealers encapsulate genome keys to (acpctl genome seal
 	// --escrow-to), when crosscloud.key_escrow_path is configured.
 	KeyEscrowTag          string `json:"key_escrow_tag,omitempty"`
@@ -95,7 +97,7 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	}
 	defer func() { mat.Store.Zeroize(); _ = mat.Close() }()
 
-	authPEM, err := crypto.PublicKeyPEM(mat.AuthoritySigningPublicKey)
+	authPEM, err := crypto.PublicKeyPEMSuite(mat.AuthoritySigningSuite, mat.AuthoritySigningPublicKey)
 	if err != nil {
 		return err
 	}
@@ -104,13 +106,14 @@ func runIdentityCmd(args []string, w io.Writer) error {
 		return fmt.Errorf("crypto: %w", err)
 	}
 	id := authorityIdentity{
-		AuthorityKID:          string(mat.AuthoritySigningKeyID),
-		AuthorityPublicKeyPEM: string(authPEM),
-		TEEProvider:           string(mat.Provider),
-		CryptoProfile:         string(suites.Profile()),
-		FIPS140:               crypto.FIPSStatus(),
-		KEMSuites:             suites.SuiteIDs(),
-		TEEMeasurementHex:     hex.EncodeToString(mat.Producer.Measurement()),
+		AuthorityKID:            string(mat.AuthoritySigningKeyID),
+		AuthorityPublicKeyPEM:   string(authPEM),
+		AuthoritySignatureSuite: string(mat.AuthoritySigningSuite),
+		TEEProvider:             string(mat.Provider),
+		CryptoProfile:           string(suites.Profile()),
+		FIPS140:                 crypto.FIPSStatus(),
+		KEMSuites:               suites.SuiteIDs(),
+		TEEMeasurementHex:       hex.EncodeToString(mat.Producer.Measurement()),
 	}
 	if kind, err := mat.SealerKind(); err == nil {
 		id.Sealer = string(kind)
@@ -125,19 +128,17 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	id.TDX = tdxIdentityOf(mat.Producer)
 	id.VTPM = vtpmIdentityOf(mat.Producer)
 	if a := cfg.Keys.AuditSigning; a.KeyID != "" && a.SeedPath != "" {
-		seed, err := readSecret(cfg.TEE, a.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
+		auditKey, err := loadSigningKey(cfg.TEE, a, "keys.audit_signing")
 		if err != nil {
 			return err
 		}
-		pub, _, err := crypto.Ed25519FromSeed(seed)
+		auditPEM, err := auditKey.Public().PEM()
+		auditSuite := auditKey.Suite()
+		auditKey.Zeroize()
 		if err != nil {
 			return err
 		}
-		auditPEM, err := crypto.PublicKeyPEM(pub)
-		if err != nil {
-			return err
-		}
-		id.AuditKID, id.AuditPublicKeyPEM = a.KeyID, string(auditPEM)
+		id.AuditKID, id.AuditPublicKeyPEM, id.AuditSignatureSuite = a.KeyID, string(auditPEM), string(auditSuite)
 	}
 	if p := cfg.EscrowKeyPath(); p != "" {
 		// The public half is read from the file itself: a sealed key

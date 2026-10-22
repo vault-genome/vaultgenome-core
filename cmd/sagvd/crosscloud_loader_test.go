@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
@@ -483,7 +484,7 @@ func TestLoadCrossCloudMaterials_HappyPath(t *testing.T) {
 // as `keygen` does: a fresh durable audit log with its signing seed, and
 // an operator key with a signed stop list (serial 1, nothing stopped).
 // It returns the operator key so tests can issue further lists.
-func withAuditLog(t *testing.T, dir string, cfg *Config) ed25519.PrivateKey {
+func withAuditLog(t *testing.T, dir string, cfg *Config) *crypto.SigningKey {
 	t.Helper()
 	seed := make([]byte, 32)
 	if _, err := rand.Read(seed); err != nil {
@@ -492,20 +493,20 @@ func withAuditLog(t *testing.T, dir string, cfg *Config) ed25519.PrivateKey {
 	cfg.Keys.AuditSigning = SigningKeyConfig{KeyID: "xcc-audit-test", SeedPath: writeFile(t, dir, "audit_signing_seed", seed)}
 	cfg.CrossCloud.AuditLogPath = filepath.Join(dir, "xcc-audit.db")
 
-	opPub, opPriv, err := ed25519.GenerateKey(rand.Reader)
+	opPriv, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cfg.CrossCloud.OperatorStop = OperatorStopConfig{
 		KeyID:         "operator-test",
-		PublicKeyPath: writeFile(t, dir, "operator.pub", opPub),
+		PublicKeyPath: writeFile(t, dir, "operator.pub", opPriv.Public().Bytes),
 		ListPath:      filepath.Join(dir, "stop.json"),
 	}
 	writeStopList(t, cfg.CrossCloud.OperatorStop.ListPath, opPriv, revocation.List{Serial: 1})
 	return opPriv
 }
 
-func writeStopList(t *testing.T, path string, priv ed25519.PrivateKey, l revocation.List) {
+func writeStopList(t *testing.T, path string, priv *crypto.SigningKey, l revocation.List) {
 	t.Helper()
 	l.IssuedAt = time.Date(2026, 9, 14, 21, 0, 0, 0, time.UTC)
 	l.SigningKeyID = "operator-test"

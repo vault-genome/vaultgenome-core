@@ -5,8 +5,6 @@ package main
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -18,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/failover"
@@ -89,13 +88,13 @@ func TestFailoverCmd_RefusesMoreBeforeWatching(t *testing.T) {
 
 // compromiseReport writes a compromise report signed by the sentinel key
 // into the outbox.
-func compromiseReport(t *testing.T, outbox string, spub ed25519.PublicKey, spriv ed25519.PrivateKey) {
+func compromiseReport(t *testing.T, outbox string, skey *crypto.SigningKey) {
 	t.Helper()
 	report := sentinel.Compromise{
-		Sentinel: sentinel.KeyID(spub), DetectedAt: time.Now().Add(-time.Minute).UTC(),
+		Sentinel: sentinel.KeyID(skey.Public()), DetectedAt: time.Now().Add(-time.Minute).UTC(),
 		Tripped: []sentinel.Trip{{Wire: "path", Target: "/srv/models/current", Want: "sha256:" + hex.EncodeToString(make([]byte, 32)), Got: "missing"}},
 	}
-	report, err := sentinel.SignCompromise(report, spriv)
+	report, err := sentinel.SignCompromise(report, skey)
 	require.NoError(t, err)
 	raw, err := json.Marshal(report)
 	require.NoError(t, err)
@@ -108,10 +107,11 @@ func compromiseReport(t *testing.T, outbox string, spub ed25519.PublicKey, spriv
 // with the report written, the standby never contacted.
 func TestFailoverCmd_DeclinesWhenTheOutboxHoldsNoGenome(t *testing.T) {
 	f := newFailoverFixture(t)
-	spub, spriv, err := ed25519.GenerateKey(rand.Reader)
+	skey, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	spub := skey.Public().Bytes
 	require.NoError(t, err)
 	pol := f.signedPolicy(t, string(tee.ProviderSimulated), f.operator, func(p *failover.Policy) { p.SentinelPublicKey = spub })
-	compromiseReport(t, f.outbox, spub, spriv)
+	compromiseReport(t, f.outbox, skey)
 
 	reportPath := filepath.Join(f.dir, "report.json")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -144,7 +144,7 @@ func TestFailoverCmd_DeclinesWhenTheOutboxHoldsNoGenome(t *testing.T) {
 	// A decision taken but a report that cannot be written is a failure
 	// the exit code reports, after the decision went on the record.
 	g := newFailoverFixture(t)
-	compromiseReport(t, g.outbox, spub, spriv)
+	compromiseReport(t, g.outbox, skey)
 	gpol := g.signedPolicy(t, string(tee.ProviderSimulated), g.operator, func(p *failover.Policy) { p.SentinelPublicKey = spub })
 	captureStdout(t, func() {
 		code, err = runFailoverCmd(ctx, []string{"-config", g.cfgPath, "-policy", g.policyFile(t, gpol), "-outbox", g.outbox, "-poll", "20ms", "-report", filepath.Join(g.dir, "missing", "report.json")})

@@ -44,8 +44,11 @@ type keyFile struct {
 }
 
 func keyFiles(cfg Config) []keyFile {
+	// The signing key's length follows its suite (ADR 0031); the config
+	// is validated before this runs.
+	signingSuite, _ := cfg.Keys.WorkerSigning.signatureSuite()
 	files := []keyFile{
-		{"keys.worker_signing.seed_path", cfg.Keys.WorkerSigning.SeedPath, crypto.Ed25519SeedSize},
+		{"keys.worker_signing.seed_path", cfg.Keys.WorkerSigning.SeedPath, signingSuite.KeyFileSize()},
 		{"keys.session_sealing.material_path", cfg.Keys.SessionSealing.MaterialPath, crypto.AES256KeySize},
 	}
 	if cfg.Vault.TLS.Enabled && cfg.Vault.TLS.ClientKey != "" {

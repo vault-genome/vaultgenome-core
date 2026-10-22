@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -82,4 +83,30 @@ func readSecret(cfg TEEConfig, path string, wantLen int, field string) ([]byte, 
 		return nil, fmt.Errorf("acp-compute: %s (%q): the sealed key is %d bytes, want %d", field, path, n, wantLen)
 	}
 	return plain, nil
+}
+
+// loadSigningKey reads a signing key file under the suite its
+// configuration names (ADR 0031): the 32-byte seed of an ed25519 or
+// ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384 key — bare, or
+// sealed in place by `acp-compute seal-keys`. The plaintext read from
+// disk is wiped once the key holds it.
+func loadSigningKey(cfg TEEConfig, kc SigningKeyConfig, field string) (*crypto.SigningKey, error) {
+	suite, err := kc.signatureSuite()
+	if err != nil {
+		return nil, fmt.Errorf("acp-compute: %s.suite: %w", field, err)
+	}
+	raw, err := readSecret(cfg, kc.SeedPath, suite.KeyFileSize(), field+".seed_path")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		for i := range raw {
+			raw[i] = 0
+		}
+	}()
+	key, err := crypto.LoadSigningKey(suite, raw)
+	if err != nil {
+		return nil, fmt.Errorf("acp-compute: %s (%q): %w", field, kc.SeedPath, err)
+	}
+	return key, nil
 }

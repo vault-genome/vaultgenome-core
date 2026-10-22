@@ -24,9 +24,24 @@ given release can still open.
   as `sagvd identity` prints it) and reports it as `signature_suite`.
   Audit chains and release decisions signed under each suite are kept as
   fixtures and verified from the file in every test run; the doctrine
-  suite checks that every signed contract carries `alg`. Key files,
-  configuration, identities and the profile follow in parts two and
-  three.
+  suite checks that every signed contract carries `alg`.
+- The keys follow the suite (ADR 0031, part two). `acp-keygen
+  -signature-suite` makes the authority, audit and worker signing keys
+  under one suite in the suite's file form — the 32-byte seed of an
+  ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384 key —
+  under the same file names; `keys.<name>.suite` in the sagvd and
+  acp-compute configs names the suite the file is read under (ed25519
+  when absent; never guessed from its length), and `seal-keys` seals the
+  file whatever its form. `sagvd identity` and `acp-compute identity`
+  print `*_signature_suite` beside each PEM; the worker registry names
+  each worker's `suite` beside its raw key; acp-bootstrap pins the source
+  authority's key from a PEM of any suite. The sentinel's records, the
+  failover policy (which pins the sentinel key with `sentinel_alg`), the
+  operator's stop list and the signed gate verdict carry `alg` and are
+  signed through the same key type: `acpctl sentinel keygen`, `stop
+  keygen` and `failover issue` take `--signature-suite`, and every
+  verifier reads the suite from the PEM. The profile's choice of suite
+  and the hardware proof follow in part three.
 
 - ADR 0031 (proposed): the signature suite — `ed25519`, `ecdsa-p384-sha384`
   and `ml-dsa-87` named, the profile naming what a daemon signs with and

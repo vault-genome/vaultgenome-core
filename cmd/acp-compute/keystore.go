@@ -34,10 +34,12 @@ type materials struct {
 	// for CandidateOutputFrame signatures to verify.
 	SigningKeyID ids.KeyID
 
-	// SigningPublicKey is the 32-byte Ed25519 public key corresponding
-	// to SigningKeyID. Exposed only so the daemon can log it once at
-	// startup (operators copy it into sagvd config).
-	SigningPublicKey crypto.PublicKey
+	// SigningPublicKey is the raw public key corresponding to
+	// SigningKeyID, under SigningSuite (ADR 0031). Exposed so the daemon
+	// can log it once at startup and `identity` can print it (operators
+	// copy it into sagvd's worker registry).
+	SigningPublicKey []byte
+	SigningSuite     crypto.SignatureSuite
 
 	// SealingKeyID is the kid under which the session-sealing material
 	// is registered. JobRequest.SealedMaterialRef.RecipientKeyID on the
@@ -66,7 +68,8 @@ type materials struct {
 //
 // File formats (all raw binary, no encoding):
 //   - TEE seed file:            32 bytes (Ed25519 seed; simulated provider only)
-//   - Worker signing seed file: 32 bytes (Ed25519 seed for CandidateOutputFrame signing)
+//   - Worker signing key file:  the suite's file form (keys.worker_signing.suite): the 32-byte
+//     seed of an ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384 key
 //   - Session sealing key file: 32 bytes (AES-256 key, pre-shared with sagvd)
 //   - Peer TEE pubkey file:     32 bytes (Ed25519 public key; simulated peer only)
 //   - Peer TEE measurement:     32 bytes (simulated) or 48 bytes (SEV-SNP launch measurement)
@@ -88,14 +91,15 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 		return nil, err
 	}
 
-	// 3. Worker signing seed → register under cfg.Keys.WorkerSigning.KeyID.
-	signingSeed, err := readSecret(cfg.TEE, cfg.Keys.WorkerSigning.SeedPath, crypto.Ed25519SeedSize, "keys.worker_signing.seed_path")
+	// 3. Worker signing key → register under cfg.Keys.WorkerSigning.KeyID,
+	//    under the suite the configuration names.
+	signingKey, err := loadSigningKey(cfg.TEE, cfg.Keys.WorkerSigning, "keys.worker_signing")
 	if err != nil {
 		return nil, err
 	}
 	store := keys.NewInMemoryStore(clock)
 	signingKID := ids.KeyID(cfg.Keys.WorkerSigning.KeyID)
-	vk, err := store.RegisterSigningFromSeed(signingKID, keys.PurposeSigningAuthority, signingSeed)
+	vk, err := store.RegisterSigningKey(signingKID, keys.PurposeSigningAuthority, signingKey)
 	if err != nil {
 		return nil, fmt.Errorf("acp-compute: register worker signing key: %w", err)
 	}
@@ -120,6 +124,7 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 		Store:            store,
 		SigningKeyID:     signingKID,
 		SigningPublicKey: vk.PublicKey,
+		SigningSuite:     vk.Suite,
 		SealingKeyID:     sealingKID,
 		Producer:         producer,
 		Provider:         provider,

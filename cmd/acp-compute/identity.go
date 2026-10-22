@@ -20,9 +20,10 @@ import (
 // every CandidateOutputFrame with (workers.registry_path), and the TEE
 // identity its Return Path Evidence must carry (tee.peer).
 type workerIdentity struct {
-	SigningKID          string `json:"signing_kid"`
-	SigningPublicKeyHex string `json:"signing_public_key_hex"`
-	SigningPublicKeyPEM string `json:"signing_public_key_pem"`
+	SigningKID            string `json:"signing_kid"`
+	SigningPublicKeyHex   string `json:"signing_public_key_hex"`
+	SigningPublicKeyPEM   string `json:"signing_public_key_pem"`
+	SigningSignatureSuite string `json:"signing_signature_suite"`
 	// TEEProvider names what attests for this worker: gcp-sev-snp (the
 	// measurement is the chip's launch measurement, 48 bytes) or
 	// simulated (the key below signs).
@@ -65,16 +66,17 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	}
 	defer mat.Store.Zeroize()
 
-	signPEM, err := crypto.PublicKeyPEM(mat.SigningPublicKey)
+	signPEM, err := crypto.PublicKeyPEMSuite(mat.SigningSuite, mat.SigningPublicKey)
 	if err != nil {
 		return err
 	}
 	id := workerIdentity{
-		SigningKID:          string(mat.SigningKeyID),
-		SigningPublicKeyHex: hex.EncodeToString(mat.SigningPublicKey),
-		SigningPublicKeyPEM: string(signPEM),
-		TEEProvider:         string(mat.Provider),
-		TEEMeasurementHex:   hex.EncodeToString(mat.Producer.Measurement()),
+		SigningKID:            string(mat.SigningKeyID),
+		SigningPublicKeyHex:   hex.EncodeToString(mat.SigningPublicKey),
+		SigningPublicKeyPEM:   string(signPEM),
+		SigningSignatureSuite: string(mat.SigningSuite),
+		TEEProvider:           string(mat.Provider),
+		TEEMeasurementHex:     hex.EncodeToString(mat.Producer.Measurement()),
 	}
 	id.FIPS140 = crypto.FIPSStatus()
 	if kind, err := tee.SealerKindFor(mat.Producer, cfg.TEE.SealerMode()); err == nil {

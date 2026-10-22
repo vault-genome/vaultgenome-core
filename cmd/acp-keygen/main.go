@@ -17,15 +17,15 @@
 //	  tls/ca.crt                private CA certificate, trusted by both sides
 //	sagvd/
 //	  tee_seed                  32 B Ed25519 seed (vault simulated TEE)
-//	  authority_signing_seed    32 B Ed25519 seed (authority signing)
-//	  audit_signing_seed        32 B Ed25519 seed (cross-cloud audit log)
+//	  authority_signing_seed    authority signing key file (see -signature-suite)
+//	  audit_signing_seed        audit signing key file (see -signature-suite)
 //	  peer_worker_pubkey        32 B Ed25519 public key (pinned worker TEE)
 //	  peer_worker_measurement   32 B SHA-256 (pinned worker workload)
 //	  api_token                 REST API bearer token (64 hex chars, 128+ bits)
 //	  tls/server.crt|.key       Return Path server certificate (ECDSA P-256)
 //	acp-compute/
 //	  tee_seed                  32 B Ed25519 seed (worker simulated TEE)
-//	  worker_signing_seed       32 B Ed25519 seed (CandidateOutput signing)
+//	  worker_signing_seed       worker signing key file (see -signature-suite)
 //	  peer_vault_pubkey         32 B Ed25519 public key (pinned vault TEE)
 //	  peer_vault_measurement    32 B SHA-256 (pinned vault workload)
 //	  tls/client.crt|.key       Return Path client certificate (ECDSA P-256)
@@ -45,9 +45,22 @@
 // commands print the measurements the chips report, and those replace
 // the two peer_*_measurement files before the first start, as the kits do.
 //
+// # The signature suite
+//
+// The three signing keys — the authority's, the audit log's, the
+// worker's — are made under one signature suite (ADR 0031), ed25519 by
+// default: -signature-suite ecdsa-p384-sha384 or ml-dsa-87 makes them
+// under that suite instead, and the daemons' configs then name it
+// (keys.<name>.suite) so the file is read as the suite says. A key file
+// is the suite's file form: the 32-byte seed of an ed25519 or ml-dsa-87
+// key, the PKCS#8 PEM of an ecdsa-p384-sha384 key; the file names stay
+// the same. The worker registry names the suite beside the worker's raw
+// public key. The two TEE seeds are the simulated TEE's Ed25519
+// evidence keys and are not on the suite.
+//
 // # Usage
 //
-//	acp-keygen -out /etc/acp/secrets [-private] [-force] [-quiet]
+//	acp-keygen -out /etc/acp/secrets [-signature-suite SUITE] [-private] [-force] [-quiet]
 //
 // acp-keygen refuses to overwrite an existing tree unless -force is
 // passed: regenerating secrets under a running pair desynchronises it
@@ -90,6 +103,7 @@ import (
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 )
 
 var (
@@ -208,7 +222,10 @@ type workersRegistry struct {
 type workerEntry struct {
 	KeyID               string `json:"kid"`
 	SigningPublicKeyHex string `json:"signing_pubkey_hex"`
-	Note                string `json:"note,omitempty"`
+	// Suite is the signature suite of the worker's key (ADR 0031):
+	// absent for ed25519, the suite id otherwise.
+	Suite string `json:"suite,omitempty"`
+	Note  string `json:"note,omitempty"`
 }
 
 func main() {
@@ -225,6 +242,7 @@ func realMain(args []string, stdout, stderr io.Writer) int {
 		force       = fs.Bool("force", false, "overwrite any existing files under -out")
 		quiet       = fs.Bool("quiet", false, "suppress non-error stdout")
 		private     = fs.Bool("private", false, "write files 0600 and directories 0700 instead of 0644/0755")
+		suiteName   = fs.String("signature-suite", string(crypto.SuiteEd25519), "signature suite of the three signing keys (ADR 0031): ed25519, ecdsa-p384-sha384 or ml-dsa-87; the daemons' configs name it as keys.<name>.suite")
 		showVersion = fs.Bool("version", false, "print the build version and exit")
 	)
 	if err := fs.Parse(args); err != nil {
@@ -239,14 +257,22 @@ func realMain(args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
-	if err := run(*outDir, *force, *quiet, *private, stdout); err != nil {
+	suite, err := crypto.SuiteOrDefault(*suiteName)
+	if err == nil {
+		err = suite.Available()
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, "acp-keygen: -signature-suite:", err)
+		return 2
+	}
+	if err := run(*outDir, *force, *quiet, *private, suite, stdout); err != nil {
 		fmt.Fprintln(stderr, "acp-keygen:", err)
 		return 1
 	}
 	return 0
 }
 
-func run(outDir string, force, quiet, private bool, stdout io.Writer) error {
+func run(outDir string, force, quiet, private bool, suite crypto.SignatureSuite, stdout io.Writer) error {
 	lo := newLayout(outDir)
 	if err := preflight(lo, force); err != nil {
 		return err
@@ -266,13 +292,28 @@ func run(outDir string, force, quiet, private bool, stdout io.Writer) error {
 		}
 	}
 
-	seeds := make(map[string][]byte, 5)
-	for _, name := range []string{"sagvdTEE", "sagvdAuthority", "sagvdAudit", "workerTEE", "workerSigning"} {
+	// The TEE seeds: the simulated TEE's Ed25519 evidence keys.
+	seeds := make(map[string][]byte, 2)
+	for _, name := range []string{"sagvdTEE", "workerTEE"} {
 		b, err := randomBytes(ed25519.SeedSize)
 		if err != nil {
 			return err
 		}
 		seeds[name] = b
+	}
+	// The signing keys, under the suite (ADR 0031), in the suite's file form.
+	signing := make(map[string]*crypto.SigningKey, 3)
+	keyFiles := make(map[string][]byte, 3)
+	for _, name := range []string{"sagvdAuthority", "sagvdAudit", "workerSigning"} {
+		k, err := crypto.GenerateSigningKey(suite, nil)
+		if err != nil {
+			return fmt.Errorf("generate %s signing key (%s): %w", name, suite, err)
+		}
+		file, err := k.KeyFileBytes()
+		if err != nil {
+			return err
+		}
+		signing[name], keyFiles[name] = k, file
 	}
 	sealingKey, err := randomBytes(32)
 	if err != nil {
@@ -288,7 +329,7 @@ func run(outDir string, force, quiet, private bool, stdout io.Writer) error {
 	// verifier rejects evidence signed by anything but the expected seed.
 	sagvdTEEPub := ed25519.NewKeyFromSeed(seeds["sagvdTEE"]).Public().(ed25519.PublicKey)
 	workerTEEPub := ed25519.NewKeyFromSeed(seeds["workerTEE"]).Public().(ed25519.PublicKey)
-	workerSigningPub := ed25519.NewKeyFromSeed(seeds["workerSigning"]).Public().(ed25519.PublicKey)
+	workerSigningPub := signing["workerSigning"].PublicKeyBytes()
 
 	sagvdMeasurement := sha256.Sum256([]byte(vaultWorkloadDescriptor))
 	workerMeasurement := sha256.Sum256([]byte(workerWorkloadDescriptor))
@@ -301,6 +342,7 @@ func run(outDir string, force, quiet, private bool, stdout io.Writer) error {
 	reg := workersRegistry{Workers: []workerEntry{{
 		KeyID:               kidWorkerSigning,
 		SigningPublicKeyHex: hex.EncodeToString(workerSigningPub),
+		Suite:               string(crypto.RecordAlg(suite)),
 		Note:                "Provisioned by acp-keygen; regenerate with acp-keygen -force.",
 	}}}
 	regBytes, err := json.MarshalIndent(reg, "", "  ")
@@ -317,8 +359,8 @@ func run(outDir string, force, quiet, private bool, stdout io.Writer) error {
 		{lo.caCert, pki.caPEM},
 
 		{lo.sagvdTEESeed, seeds["sagvdTEE"]},
-		{lo.sagvdAuthoritySigningSeed, seeds["sagvdAuthority"]},
-		{lo.sagvdAuditSigningSeed, seeds["sagvdAudit"]},
+		{lo.sagvdAuthoritySigningSeed, keyFiles["sagvdAuthority"]},
+		{lo.sagvdAuditSigningSeed, keyFiles["sagvdAudit"]},
 		{lo.sagvdPeerWorkerPubkey, workerTEEPub},
 		{lo.sagvdPeerWorkerMeasure, workerMeasurement[:]},
 		{lo.sagvdAPIToken, []byte(apiToken + "\n")},
@@ -326,7 +368,7 @@ func run(outDir string, force, quiet, private bool, stdout io.Writer) error {
 		{lo.sagvdTLSKey, pki.serverKeyPEM},
 
 		{lo.workerTEESeed, seeds["workerTEE"]},
-		{lo.workerSigningSeed, seeds["workerSigning"]},
+		{lo.workerSigningSeed, keyFiles["workerSigning"]},
 		{lo.workerPeerVaultPubkey, sagvdTEEPub},
 		{lo.workerPeerVaultMeas, sagvdMeasurement[:]},
 		{lo.workerTLSCert, pki.clientCertPEM},
@@ -342,6 +384,7 @@ func run(outDir string, force, quiet, private bool, stdout io.Writer) error {
 		// Identity lines operators can eyeball against the daemons'
 		// startup logs. The bearer token itself is never printed.
 		fmt.Fprintf(stdout, "acp-keygen: wrote secrets under %q (files %04o, directories %04o)\n", outDir, fileMode, dirMode)
+		fmt.Fprintf(stdout, "  signature suite:             %s (keys.<name>.suite in the daemons' configs)\n", suite)
 		fmt.Fprintf(stdout, "  authority signing kid:       %s\n", kidAuthoritySigning)
 		fmt.Fprintf(stdout, "  session sealing kid:         %s\n", kidSessionSealing)
 		fmt.Fprintf(stdout, "  worker signing kid:          %s\n", kidWorkerSigning)

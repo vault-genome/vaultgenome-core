@@ -4,13 +4,12 @@
 package main
 
 import (
-	"crypto/ed25519"
-	"crypto/rand"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
 
@@ -20,9 +19,9 @@ import (
 // read stops admissions rather than letting them through.
 func TestNewOperatorStopSource(t *testing.T) {
 	dir := t.TempDir()
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	priv, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	require.NoError(t, err)
-	cfg := OperatorStopConfig{KeyID: "operator-test", PublicKeyPath: writeFile(t, dir, "operator.pub", pub), ListPath: filepath.Join(dir, "stop.json")}
+	cfg := OperatorStopConfig{KeyID: "operator-test", PublicKeyPath: writeFile(t, dir, "operator.pub", priv.Public().Bytes), ListPath: filepath.Join(dir, "stop.json")}
 
 	_, _, err = newOperatorStopSource(cfg)
 	require.ErrorContains(t, err, "sagvd: operator_stop", "no list on disk: the daemon does not start")

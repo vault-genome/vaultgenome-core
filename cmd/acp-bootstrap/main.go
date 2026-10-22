@@ -380,7 +380,7 @@ func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 type pubkeyResolver struct {
 	kid     ids.KeyID
 	purpose keys.Purpose
-	pub     crypto.PublicKey
+	pub     crypto.SuitePublicKey
 	created int64
 }
 
@@ -394,19 +394,25 @@ func (r *pubkeyResolver) Resolve(kid ids.KeyID, want keys.Purpose) (keys.Verifyi
 	return keys.VerifyingKey{
 		KeyID:     r.kid,
 		Purpose:   r.purpose,
-		Suite:     crypto.SuiteEd25519,
-		PublicKey: r.pub,
+		Suite:     r.pub.Suite,
+		PublicKey: r.pub.Bytes,
 		CreatedAt: r.created,
 	}, nil
 }
 
 // loadSourceAuthorityResolver loads the source-authority public key
-// from disk (raw or PEM) and wraps it in a verify-only resolver
-// keyed by cfg.KeyID under keys.PurposeSigningAuthority.
+// from disk — PEM, whose algorithm names its signature suite (ADR
+// 0031), or the raw 32 bytes of an Ed25519 key — and wraps it in a
+// verify-only resolver keyed by cfg.KeyID under
+// keys.PurposeSigningAuthority.
 func loadSourceAuthorityResolver(cfg SourceAuthorityConfig, clock shared_time.Clock) (keys.Resolver, error) {
-	pub, err := loadAttestorPubKey(cfg.PublicKeyPath)
+	data, err := os.ReadFile(cfg.PublicKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("acp-bootstrap: load source authority pubkey: %w", err)
+	}
+	pub, err := crypto.ParsePublicKeyFile(data)
+	if err != nil {
+		return nil, fmt.Errorf("acp-bootstrap: source authority pubkey %q: %w", cfg.PublicKeyPath, err)
 	}
 	return &pubkeyResolver{
 		kid:     ids.KeyID(cfg.KeyID),

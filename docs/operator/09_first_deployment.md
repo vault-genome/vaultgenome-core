@@ -176,8 +176,12 @@ In the order the reference guest script does it
    material with the release's `acp-keygen`
    (`acp-keygen -out <dir> -private`; stdlib-only, signed and attested like
    the daemons): the private CA and the two TLS identities, the session
-   sealing key, the signing seeds, the REST token, the worker registry
-   (`deploy/compose/README.md` lists every file). The AMD chain the
+   sealing key, the signing keys, the REST token, the worker registry
+   (`deploy/compose/README.md` lists every file). The signing keys are
+   Ed25519 unless `-signature-suite ecdsa-p384-sha384` or `ml-dsa-87` is
+   passed (ADR 0031); a deployment on another suite names it in both
+   daemons' configs as `keys.<name>.suite`, and the key files are the
+   suite's form under the same names. The AMD chain the
    verifiers need comes from `acpctl tee fetch-amd-chain --product
    <milan|genoa|turin> --out <file>`, which verifies it against the roots
    the binary pins before writing it (ADR 0024). A host that will lose its

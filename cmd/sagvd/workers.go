@@ -45,6 +45,10 @@ type WorkerEntry struct {
 	// operators can eyeball-compare against the daemon's startup
 	// log output, which emits hex.
 	SigningPublicKeyHex string `json:"signing_pubkey_hex"`
+	// Suite is the signature suite of the worker's key (ADR 0031): the
+	// raw key in SigningPublicKeyHex is read under it. Absent, it is
+	// ed25519.
+	Suite string `json:"suite,omitempty"`
 
 	// Note is a free-form operator comment. Ignored by sagvd.
 	Note string `json:"note,omitempty"`
@@ -87,10 +91,14 @@ func LoadWorkerRegistry(path string) (*server.PublicKeyResolver, []WorkerEntry, 
 				"sagvd: worker registry entry %d (kid=%q): signing_pubkey_hex invalid hex: %w",
 				i, w.KeyID, err)
 		}
-		if len(pub) != crypto.Ed25519PublicKeySize {
+		suite, err := crypto.SuiteOrDefault(w.Suite)
+		if err != nil {
+			return nil, nil, fmt.Errorf("sagvd: worker registry entry %d (kid=%q): suite: %w", i, w.KeyID, err)
+		}
+		if len(pub) != suite.PublicKeySize() {
 			return nil, nil, fmt.Errorf(
-				"sagvd: worker registry entry %d (kid=%q): signing_pubkey_hex must decode to %d bytes (got %d)",
-				i, w.KeyID, crypto.Ed25519PublicKeySize, len(pub))
+				"sagvd: worker registry entry %d (kid=%q): signing_pubkey_hex must decode to %d bytes for %s (got %d)",
+				i, w.KeyID, suite.PublicKeySize(), suite, len(pub))
 		}
 		kid := ids.KeyID(w.KeyID)
 		if _, dup := entries[kid]; dup {
@@ -100,7 +108,7 @@ func LoadWorkerRegistry(path string) (*server.PublicKeyResolver, []WorkerEntry, 
 		entries[kid] = keys.VerifyingKey{
 			KeyID:     kid,
 			Purpose:   keys.PurposeSigningAuthority,
-			Suite:     crypto.SuiteEd25519,
+			Suite:     suite,
 			PublicKey: pub,
 		}
 		outEntries = append(outEntries, w)

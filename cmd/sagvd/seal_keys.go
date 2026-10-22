@@ -44,12 +44,17 @@ type keyFile struct {
 }
 
 func keyFiles(cfg Config) []keyFile {
+	// The signing keys' lengths follow their suites (ADR 0031): the
+	// 32-byte seed of ed25519 and ml-dsa-87, any length for the PKCS#8 PEM
+	// of ecdsa-p384-sha384. The config is validated before this runs.
+	authSuite, _ := cfg.Keys.AuthoritySigning.signatureSuite()
 	files := []keyFile{
-		{"keys.authority_signing.seed_path", cfg.Keys.AuthoritySigning.SeedPath, crypto.Ed25519SeedSize},
+		{"keys.authority_signing.seed_path", cfg.Keys.AuthoritySigning.SeedPath, authSuite.KeyFileSize()},
 		{"keys.session_sealing.material_path", cfg.Keys.SessionSealing.MaterialPath, crypto.AES256KeySize},
 	}
 	if cfg.Keys.AuditSigning.SeedPath != "" {
-		files = append(files, keyFile{"keys.audit_signing.seed_path", cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize})
+		auditSuite, _ := cfg.Keys.AuditSigning.signatureSuite()
+		files = append(files, keyFile{"keys.audit_signing.seed_path", cfg.Keys.AuditSigning.SeedPath, auditSuite.KeyFileSize()})
 	}
 	if cfg.Vault.TLS.Enabled && cfg.Vault.TLS.ServerKey != "" {
 		files = append(files, keyFile{"vault.tls.server_key", cfg.Vault.TLS.ServerKey, 0})

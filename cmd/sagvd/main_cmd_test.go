@@ -5,8 +5,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/json"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"io"
@@ -68,9 +66,9 @@ func daemonConfig(t *testing.T) (*materialFixture, Config) {
 	auditSeed := filepath.Join(f.dir, "audit.seed")
 	require.NoError(t, os.WriteFile(auditSeed, bytes.Repeat([]byte{0x42}, crypto.Ed25519SeedSize), 0o600))
 	cfg.Keys.AuditSigning = SigningKeyConfig{KeyID: "audit-1", SeedPath: auditSeed}
-	opPub, opPriv, err := ed25519.GenerateKey(rand.Reader)
+	opPriv, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	require.NoError(t, err)
-	cfg.OperatorStop = OperatorStopConfig{KeyID: "operator-test", PublicKeyPath: writeFile(t, f.dir, "operator.pub", opPub), ListPath: filepath.Join(f.dir, "stop.json")}
+	cfg.OperatorStop = OperatorStopConfig{KeyID: "operator-test", PublicKeyPath: writeFile(t, f.dir, "operator.pub", opPriv.Public().Bytes), ListPath: filepath.Join(f.dir, "stop.json")}
 	writeStopList(t, cfg.OperatorStop.ListPath, opPriv, revocation.List{Serial: 1})
 	// A plaintext escrow key, accepted under the simulated TEE only.
 	escrowPriv, err := escrow.GenerateKey(kms.DefaultSuitePolicy().Writes())
