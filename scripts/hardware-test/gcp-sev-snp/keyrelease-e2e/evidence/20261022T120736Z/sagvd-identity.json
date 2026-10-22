@@ -1,0 +1,26 @@
+{
+  "authority_kid": "sagvd-authority-demo",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAErR807yfmZ3EmqbHVACsvK1RQVPF12+/R\nSnXS5mR3vdEX/yy3F4aXhXcs5vb6zpuXgdnrCPUajGQ5ne580pYzFToBEnIUHHQ8\nPnvwDnxNbAEDmBq4PyviaU+CTDd0JjLi\n-----END PUBLIC KEY-----\n",
+  "authority_signature_suite": "ecdsa-p384-sha384",
+  "tee_provider": "simulated",
+  "tee_measurement_hex": "d59a461d1130614a2a5e57ea9a8135a034d8a05c4c6ad6d077debaf276ebb068",
+  "tee_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEATGaQhKPW6g8BpaaWTzmZUGlXW5m9WCOYKcqmDprH26Q=\n-----END PUBLIC KEY-----\n",
+  "sealer": "simulated",
+  "audit_kid": "sagvd-audit-demo",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEAixI+uCW3US2gHU0mqWSgFUzeDK1PKP+\ncvWKMUfutIzVvggoYtPJlYtqUk47VU5/hVi0kCGlbt+HR3saYCQ6E8Dbzy/J1s13\nUA1QlEvcOrvTeiDFKbYGb0SbpiY+GlgX\n-----END PUBLIC KEY-----\n",
+  "audit_signature_suite": "ecdsa-p384-sha384",
+  "crypto_profile": "cnsa",
+  "kem_suites": [
+    "hpke-mlkem1024-p384-v2"
+  ],
+  "signature_suite": "ecdsa-p384-sha384",
+  "signature_suites": [
+    "ecdsa-p384-sha384",
+    "ml-dsa-87"
+  ],
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  }
+}

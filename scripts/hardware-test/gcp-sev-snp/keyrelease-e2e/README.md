@@ -24,9 +24,10 @@ destination's Evidence is genuine hardware and that the whole chain accepts it.
 
 ## Results — the signature suite on the record: `cnsa` with ECDSA P-384, and `fips` with ECDSA P-384 on the certified module (ADR 0031, part three)
 
-The same kit on the tree of ADR 0031 part three, two guests
-`n2d-standard-2` SEV-SNP in us-central1-c (launch measurement
-`ccdc5cf0…`, the image of the runs below), minutes apart. The profile
+The same kit on the tree of ADR 0031 part three (`1a41568`, with the
+Return Path frame naming its suite), two guests `n2d-standard-2`
+SEV-SNP in us-central1-c (launch measurement `ccdc5cf0…`, the image of
+the runs below), a minute apart. The profile
 now decides the signature suite: `cnsa` signs with `ecdsa-p384-sha384`
 and accepts `ml-dsa-87` beside it; `fips` signs with `ed25519` unless
 `VG_SIGSUITE` picks `ecdsa-p384-sha384`, which it accepts — the
@@ -44,8 +45,8 @@ signatures the module's own.
 
 | Profile | Run | The suite both sides met on | Signatures | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
 |---|---|---|---|---|---|---|---|---|---|
-| `cnsa` | `evidence/20261022T115436Z` | `hpke-mlkem1024-p384-v2` | `ecdsa-p384-sha384` on the authority and the audit log; accepted: `ecdsa-p384-sha384`, `ml-dsa-87` | **ok**, recipient key `20dbc6f7…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
-| `fips`, `VG_SIGSUITE=ecdsa-p384-sha384`, `VG_FIPS=1` | `evidence/20261022T115627Z` | `hpke-p384-v2` | `ecdsa-p384-sha384` on the authority and the audit log; accepted: `ed25519`, `ecdsa-p384-sha384`; both daemons `fips140=only module=v1.0.0 enforced=true` | **ok**, recipient key `c4872361…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
+| `cnsa` | `evidence/20261022T120736Z` | `hpke-mlkem1024-p384-v2` | `ecdsa-p384-sha384` on the authority and the audit log; accepted: `ecdsa-p384-sha384`, `ml-dsa-87` | **ok**, recipient key `830b38d5…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
+| `fips`, `VG_SIGSUITE=ecdsa-p384-sha384`, `VG_FIPS=1` | `evidence/20261022T120821Z` | `hpke-p384-v2` | `ecdsa-p384-sha384` on the authority and the audit log; accepted: `ed25519`, `ecdsa-p384-sha384`; both daemons `fips140=only module=v1.0.0 enforced=true` | **ok**, recipient key `6b656ce7…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
 
 ## Results — `VG_FIPS=1`: the certified module with enforcement on, under `cnsa` and `fips` (ADR 0030, part two)
 

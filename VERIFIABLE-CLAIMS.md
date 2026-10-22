@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -2848,6 +2848,89 @@ claim: its measurement is open (the vTPM quote's SHA-1 PCR bank and
 NVIDIA's token path are to be assessed on the chip). What the module
 enforces is the set of services invoked; the module's boundary and the
 operating environments are the certificate's.
+
+### C43 — The signature suite on every record, decided by the profile: the two kits on real SEV-SNP under `cnsa` with ECDSA P-384, and under `fips` picking ECDSA P-384 on the certified module with enforcement on — every record, identity and audit verification naming the suite
+
+**Claim.** The profile of ADR 0029 decides the signature suite of ADR
+0031 — `general` and `fips` sign with `ed25519`, `cnsa` with
+`ecdsa-p384-sha384`, and `crypto.signature_suite` picks within what the
+profile accepts, never beyond it — and the product runs end to end on
+real SEV-SNP under a suite other than Ed25519 with every record naming
+it: the authority's verdicts, tokens and manifests, both audit logs, the
+worker's frames, the operator's lists and the pinned keys. Two kits,
+four runs on the tree `1a41568`, each built from a clean checkout:
+
+- [`…/keyrelease-e2e/evidence/20261022T120736Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261022T120736Z/)
+  — `cnsa`: the authority signs under `ecdsa-p384-sha384` and accepts
+  `ecdsa-p384-sha384` and `ml-dsa-87` (`sagvd signature_suite=…
+  signature_suites=…`, `authority_signature_suite`,
+  `audit_signature_suite` in `steps.txt`, from `sagvd-identity.json`);
+  the destination accepts the same (`destination signature_suites=…`,
+  from `destination-identity.json`); the key released under
+  `hpke-mlkem1024-p384-v2`, the restore confirmed, `genome verify`
+  ok, the two refusals, and `acpctl audit verify` at exit 0 reporting
+  `signature_suite` `ecdsa-p384-sha384` over 10 events
+  (`audit-verify.json`).
+- [`…/keyrelease-e2e/evidence/20261022T120821Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261022T120821Z/)
+  — `fips` with `VG_SIGSUITE=ecdsa-p384-sha384` under `VG_FIPS=1`: the
+  deployment a bank held to X9 SD-34 runs. The same record under
+  `hpke-p384-v2`, the authority accepting `ed25519` and
+  `ecdsa-p384-sha384`, both daemons `fips140=only module=v1.0.0
+  enforced=true` (`versions.txt`), every binary
+  `GOFIPS140=v1.0.0-c2097c7c` (`build.txt`): the ECDSA signatures are
+  the certified module's.
+- [`…/reference-design-01/evidence/20261022T120741Z/`](scripts/hardware-test/reference-design-01/evidence/20261022T120741Z/)
+  — `cnsa`, two regions: the bank's job EXACT 6 of 6 in 5 s, the
+  handshake 8200 ms then 24 ms, the key to the attested standby and
+  the restore confirmed in 15.6 s (the release 4.8 s), the standby's
+  gate EXACT (backend 4.63 s), the four refusals with their reasons,
+  17 + 10 events under `ecdsa-p384-sha384`, and the third party's
+  four verifications at exit 0 with `signature_suite`
+  `ecdsa-p384-sha384` on both logs (`third-party/steps.txt`,
+  `audit-verify-returnpath.json`, `audit-verify-crosscloud.json`). The
+  worker's frames signed under its ECDSA key
+  (`acp-compute signing_signature_suite=…`), verified by the bank
+  under the key's suite.
+- [`…/reference-design-01/evidence/20261022T120827Z/`](scripts/hardware-test/reference-design-01/evidence/20261022T120827Z/)
+  — `fips` picking `ecdsa-p384-sha384` under `VG_FIPS=1`, every party
+  on the certified module with enforcement on: EXACT 6 of 6 in 5 s,
+  8214 ms then 25 ms, 15.6 s (the release 4.9 s), the standby's gate
+  EXACT (backend 4.06 s), 17 + 10 events, the third party's
+  verifications naming the suite, its `acpctl` under `fips140=only`
+  (`third-party/tools.txt`); 313 s to its verdict.
+
+The kits refuse a run whose record lacks the suite on any party
+(`run.sh`, `SIG_OK`). Two earlier runs of the same day on the tree
+before `1a41568` failed at the bank's job and were not kept: the Return
+Path server verified the worker's `CandidateOutputFrame` as Ed25519
+while the worker signed under ECDSA — the one signing path outside the
+contracts that part one of the ADR had not moved. The frame now names
+its suite under the signature, the server verifies under the key's
+suite, and a test drives the verification under every suite and across
+suites (`internal/compute/returnpath/server/session_suite_test.go`).
+
+The figures are those of the runs under Ed25519 (C40, C41, C42): the
+suite changed on every record, 64-byte signatures became 96-byte ones,
+and nothing else in the figures moved.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <gcp-project> us-central1-c cnsa                                                 # ~10 min; signatures ecdsa-p384-sha384, the profile's own
+VG_FIPS=1 VG_SIGSUITE=ecdsa-p384-sha384 scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <gcp-project> us-central1-c fips         # the X9 bank, on the module with enforcement
+scripts/hardware-test/reference-design-01/run.sh <gcp-project> us-central1-c europe-west4-b cnsa                                          # ~7 min, one n2d-standard-4 and one n2d-standard-2
+VG_FIPS=1 VG_SIGSUITE=ecdsa-p384-sha384 scripts/hardware-test/reference-design-01/run.sh <gcp-project> us-central1-c europe-west4-b fips
+```
+
+**Scope.** `ml-dsa-87` is named by the `cnsa` profile as what it
+accepts and by ADR 0031 as the destination; no run here signs under it:
+it is the standard library's implementation, outside the Go
+Cryptographic Module v1.0.0, and the product refuses it on the `-fips`
+build with the module's own reason (measured in the ADR's log). What
+the profile decides is the suite; the records a reader of an earlier
+release can verify are the Ed25519 ones, as `docs/operator/08_upgrading.md`
+says. The suites' standing with the registries banks cite is the
+ADR's, and `docs/compliance/banking.md` §6 carries it.
 
 ## What we do not claim
 
