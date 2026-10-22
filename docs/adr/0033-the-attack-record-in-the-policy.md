@@ -161,11 +161,13 @@ meet every live floor.
   holds it to the code; the synthetic reports of the test suites stamped
   at the floors, the way the genuine ones are; the genuine Milan and
   Genoa reports on record admitted by the default policy in the tests.
-- **Part two (hardware):** `VG_SEV_TCB_FLOOR_SNP` in `keyrelease-e2e` and
-  `returnpath-e2e` — the floor raised above the chip, the handshake or the
-  release refused with the component on the record; runs on GCP Milan at
-  the live floors and above them; the Azure Genoa record's values in the
-  claim; C46; `banking.md` and `controls.md`.
+- **Part two (hardware):** `keyrelease-e2e` reads the chip's SNP firmware
+  SVN back from the release's own record and releases once more under a
+  floor one above it, refused with the component on the record;
+  `returnpath-e2e` records the policy from `identity` and the admitted
+  peer's chip; runs on GCP Milan at the live floors and above them; the
+  Azure Genoa record's values in the claim; C46; `banking.md` and
+  `controls.md`.
 
 ## References
 
