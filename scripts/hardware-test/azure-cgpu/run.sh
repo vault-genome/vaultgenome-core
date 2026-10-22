@@ -67,6 +67,7 @@ CREATED=0
 OK=0
 
 cleanup() {
+  git -C "$ROOT" worktree prune >/dev/null 2>&1 || true
   if [ "$CREATED" = 1 ] && [ "$OK" = 0 ] && [ -n "${VG_KEEP_ON_FAILURE:-}" ]; then
     echo "cleanup: VG_KEEP_ON_FAILURE is set and the run failed — $VM is left running for a look; delete it yourself (az group delete -n $RG)"
     rm -rf "$BUILD"; return
@@ -97,8 +98,21 @@ wait_ssh() { # wait_ssh <minutes>
   echo "no ssh after $1 minutes"; return 1
 }
 
-echo "build acpctl (linux/amd64${GOFIPS140:+, GOFIPS140=$GOFIPS140}) and pack workers/genome"
-( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/acpctl" ./cmd/acpctl )
+echo "build sagvd, acp-compute, acpctl, acp-keygen (linux/amd64${GOFIPS140:+, GOFIPS140=$GOFIPS140}) and pack workers/genome"
+# All four binaries are built here, before anything of this run lands in
+# the tree, and from a clean checkout of HEAD when the tracked files are
+# clean, so their VCS stamp is the commit's: on 2026-10-22 the daemons of
+# the first run under the module were built after the capture's record
+# had been read into the tree and came out "-dirty" for that reason. A
+# tree with modified tracked files builds from the working tree, stamped so.
+SRC="$ROOT"
+if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]; then
+  SRC="$BUILD/src"; git -C "$ROOT" worktree add -q --detach "$SRC" HEAD
+fi
+( cd "$SRC" && for b in sagvd acp-compute acpctl; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
+( cd "$SRC" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
+[ "$SRC" = "$ROOT" ] || git -C "$ROOT" worktree remove --force "$SRC"
+for b in sagvd acp-compute acpctl keygen; do echo "$b: $(go version -m "$BUILD/$b" | awk '$1=="build" && ($2 ~ /^GOFIPS140=/ || $2 ~ /^vcs.revision=/ || $2 ~ /^vcs.modified=/) {printf "%s ", $2}')"; done > "$BUILD/build.txt"
 { echo "tree $(git -C "$ROOT" rev-parse HEAD)"; echo "stamp $STAMP"; echo "profile $PROFILE"; echo "signature_suite $SIGSUITE"; echo "fips ${VG_FIPS:-0}"; echo "gofips140 ${GOFIPS140:-}"; echo "go $(go version | awk '{print $3}')"; } > "$BUILD/run.txt"
 COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt requirements-ci.lock requirements-cuda.lock requirements-torch-cpu.lock requirements-torch-cu126.lock examples
 echo "Microsoft's onboarding package V4.4.1 (pinned by SHA-256)"
@@ -169,9 +183,6 @@ for f in gate-gpu.json nras-response.json snp-report.bin quote1.msg; do [ -s "$E
 echo "capture evidence: $EVIDENCE"
 
 echo "the Return Path on the guest: sagvd and acp-compute as azure-cgpu, the escrow key sealed to the vTPM, the handshake under gpu_policy.evaluation both"
-( cd "$ROOT" && for b in sagvd acp-compute; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
-( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
-for b in sagvd acp-compute acpctl keygen; do echo "$b: $(go version -m "$BUILD/$b" | awk '$1=="build" && ($2 ~ /^GOFIPS140=/ || $2 ~ /^vcs.revision=/ || $2 ~ /^vcs.modified=/) {printf "%s ", $2}')"; done > "$BUILD/build.txt"
 wait_ssh 5 || { echo "the guest did not answer SSH before the Return Path"; exit 1; }
 scp_to "$BUILD/sagvd" "$BUILD/acp-compute" "$BUILD/keygen" "$HERE/returnpath-cgpu.sh" "$HERE/gpu-token.py"
 ssh_vm "sudo env VG_STAMP=$STAMP VG_CAPTURE_STAMP=$STAMP VG_FIPS=${VG_FIPS:-0} VG_PROFILE=$PROFILE VG_SIGSUITE=$SIGSUITE bash returnpath-cgpu.sh 2>&1 | tail -40"
