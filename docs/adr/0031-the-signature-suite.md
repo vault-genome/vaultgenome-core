@@ -1,6 +1,6 @@
 # ADR 0031 — The signature suite: ECDSA P-384 beside Ed25519 for the registries banks cite, ML-DSA-87 named as the destination, and the suite on every record
 
-- **Status:** Proposed (2026-10-22)
+- **Status:** Accepted (2026-10-22; parts one to three in the tree — the records, the keys, the profile and the proof on SEV-SNP — in three pull requests; part four, `ml-dsa-87` as the `cnsa` default, waits for a certified module that carries ML-DSA)
 - **Tags:** crypto, signatures, audit, profile, fips, x9, cnsa, post-quantum
 - **Extends:** ADR 0029 (the profile: what each daemon writes and accepts), ADR 0030 (the module each build runs on), ADR 0010 and ADR 0014 (the signed, hash-chained records), ADR 0023 (sealed key files)
 - **Closes:** finding F2b of the banking map (`docs/compliance/banking.md` §9), once parts one to three are in the tree

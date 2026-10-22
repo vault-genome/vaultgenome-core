@@ -40,6 +40,22 @@ signatures do not depend on the kinds, so a 0.6.0 chain verifies under an
 earlier `acpctl` as well. Where the two sides of a wire must agree, the
 ledger says so (the Return Path cap in 0.2.0, the wire 1.1 in 0.5.0).
 
+The next release changes the audit schema to v8 for the signature suite
+(ADR 0031): every signed record — audit events, verdicts, tokens,
+manifests, tree heads, the operator's lists and policies, the sentinel's
+records — carries `alg`, the suite it was signed under, absent for
+`ed25519`. A deployment that stays on `ed25519` writes the bytes it
+wrote before, and every record ever written verifies as it did; a
+record signed under `ecdsa-p384-sha384` or `ml-dsa-87` is refused by a
+reader of an earlier release, so readers go first: upgrade every
+`acpctl`, every destination and every standby before the authority
+moves to another suite, and move both daemons of a `cnsa` deployment
+together — `cnsa` signs with ECDSA P-384 and accepts nothing under
+`ed25519`. The suite a daemon signs with is the profile's unless
+`crypto.signature_suite` picks another the profile accepts; its keys
+(`keys.<name>.suite`) must be of that suite, or the daemon does not
+start.
+
 ## How to upgrade a deployment
 
 1. **Read the release's Compatibility paragraph** in `CHANGELOG.md` and

@@ -94,6 +94,34 @@ hybrid; a source that offers nothing the destination accepts is refused at
 the handshake, on the source's record. Both daemons must run a release that
 knows suites: a request or an answer that names none is refused.
 
+The same profile decides the signature suite (ADR 0031) — what the
+authority signs its verdicts, tokens, manifests and audit events with,
+and what a destination accepts them under:
+
+| Profile | The daemon signs with | It accepts |
+| - | - | - |
+| `general` (default) | `ed25519` | `ed25519`, `ecdsa-p384-sha384`, `ml-dsa-87` |
+| `fips` | `ed25519` | `ed25519`, `ecdsa-p384-sha384` — the two on the certificate of the Go Cryptographic Module v1.0.0 |
+| `cnsa` | `ecdsa-p384-sha384` | `ecdsa-p384-sha384`, `ml-dsa-87` |
+
+`crypto.signature_suite` picks the signing suite within the profile's
+list and never widens it — `fips` with `ecdsa-p384-sha384` is the
+deployment a bank held to X9 SD-34 runs. The keys must be of that suite:
+`acp-keygen -signature-suite` makes them, `keys.<name>.suite` in each
+config names the suite the key file is read under (the 32-byte seed of
+an `ed25519` or `ml-dsa-87` key, the PKCS#8 PEM of an
+`ecdsa-p384-sha384` key; `ed25519` when absent), and a key of another
+suite than the profile signs with stops the daemon at startup with the
+reason. A key the profile does not accept is refused where it is pinned,
+with the reason: a worker registry entry, the operator's stop key, the
+sentinel key a failover policy pins, the source authority key the
+destination pins. Every record names its suite (`alg`, absent for
+`ed25519`), `identity` prints `signature_suite` and `signature_suites`
+beside the KEM suites and the suite of each key beside its PEM, and
+`acpctl audit verify` reports the suite of the key the chain verified
+under. `ml-dsa-87` is the standard library's: on the `-fips` build it is
+refused with the module's reason.
+
 Both daemons' `identity` and every command's `version` also report
 `fips140` — whether the build runs the certified Go Cryptographic Module
 (`enabled`), whether enforcement is on (`enforced`, the `fips140=only`
