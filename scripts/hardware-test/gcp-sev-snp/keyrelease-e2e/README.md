@@ -73,7 +73,15 @@ after the release was published, both daemons reporting `v0.8.0` at
 commit (`build.txt`). The fourth row is the kit's own proof of the
 clean-checkout build (2026-10-22): run while the two §5 kits wrote their
 records into the tree, the binaries stamped `commit e784bab3e688` with no
-`-dirty` (`versions.txt`).
+`-dirty` (`versions.txt`). The fifth row is the released commit
+`v0.9.0` under `fips` with `VG_SIGSUITE=ecdsa-p384-sha384` — the
+deployment a bank held to X9 runs, on the released commit: the kit run
+from a clean checkout of the tag eighteen minutes after the release was
+published, both daemons reporting `v0.9.0` at `0428a5a` with
+`fips140=only module=v1.0.0 enforced=true` (`versions.txt`), every
+binary `GOFIPS140=v1.0.0-c2097c7c` at that commit (`build.txt`), the
+authority signing under ECDSA P-384 and the audit log verified under it
+(C42 and C43 on the released commit).
 
 | Profile | Run | The suite both sides met on | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
 |---|---|---|---|---|---|---|---|---|
@@ -81,6 +89,7 @@ records into the tree, the binaries stamped `commit e784bab3e688` with no
 | `fips` | `evidence/20261021T214501Z` | `hpke-p384-v2` | **ok**, recipient key `d834fdc8…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
 | `fips`, the release `v0.8.0` | `evidence/20261021T234401Z` | `hpke-p384-v2` | **ok**, recipient key `a39ddae5…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
 | `fips`, the clean build beside other kits | `evidence/20261022T001059Z` | `hpke-p384-v2` | **ok**, recipient key `7640b822…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips` with `ecdsa-p384-sha384`, the release `v0.9.0` | `evidence/20261022T155613Z` | `hpke-p384-v2` | **ok**, recipient key `9a746824…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
 
 ## Results — runs `20261021T202413Z`, `20261021T202422Z`, `20261021T202423Z`: the three profiles under the v2 suites (ADR 0030)
 

@@ -149,3 +149,15 @@ the run's work directory and published with the runner's `verify/` inside
 it by one move, no retry needed: PASS, the four images verified and the
 binary inside each equal to its asset, the guest's gate EXACT, 17
 events, 1157.2 s.
+
+`20261022T155049Z` is the run on `v0.9.0`, twelve minutes after it was
+published: PASS — the four images `sagvd@sha256:4222a3fb…`,
+`acp-compute@sha256:8e74b2b9…`, `sagvd-fips@sha256:01b45872…` and
+`acp-compute-fips@sha256:2a876975…`, all publicly readable; each
+signature, SBOM attestation and container provenance verified; the
+binary inside each equal to its release asset (`35abeda8…`,
+`2c1ed7d4…`, `d1ed4805…`, `34bcc8be…`); each loaded image's
+`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
+the two `sagvd` images, 9 for the two workers); on the guest, from the
+two default images, `gate_level=EXACT` 6/6, both rogues refused, the
+audit log verified (17 events), 185.9 s.
