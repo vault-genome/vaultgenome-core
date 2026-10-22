@@ -280,3 +280,9 @@ certified Go Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`) and runs
 every Go process on the guest under `GODEBUG=fips140=only` (ADR 0030,
 part two); the profile defaults to `fips` and `general` is refused, its
 first suite being X25519.
+The binaries are built from a clean checkout of `HEAD` when the tree's
+tracked files are clean, so their VCS stamp is the commit's even while
+other kits write their records into the tree (untracked files mark a
+build modified; on 2026-10-21 the binaries of a release record came out
+`-dirty` for that reason); a tree with modified tracked files builds from
+the working tree, stamped so.

@@ -204,7 +204,7 @@ unset TOKEN
 cp /root/e2e.log "$OUT/console.log"
 sha256sum "$OUT"/* > "$WORK/sha256sums.txt"; mv "$WORK/sha256sums.txt" "$OUT/"
 
-step "emit"
+echo "== emit"   # not via step: steps.txt is already under sha256sums.txt
 cd "$WORK/out" && tar czf "$STAMP.tgz" "$STAMP" && base64 -w0 "$STAMP.tgz" > "$STAMP.b64"
 SZ=$(stat -c%s "$STAMP.b64"); H=$(sha256sum "$STAMP.b64" | cut -d' ' -f1)
 fold -w 76 "$STAMP.b64" | awk '{printf "@@%04d %s\n", NR-1, $0}' > "$STAMP.lines"; NL=$(wc -l < "$STAMP.lines")

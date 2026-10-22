@@ -58,6 +58,7 @@ cleanup() {
   gcloud compute instances delete "$A" --project "$PROJECT" --zone "$ZONE" --quiet >/dev/null 2>&1 || true
   gcloud compute instances delete "$B" --project "$PROJECT" --zone "$ZONE" --quiet >/dev/null 2>&1 || true
   gcloud storage rm -r "gs://$BUCKET" --project "$PROJECT" >/dev/null 2>&1 || true
+  git -C "$ROOT" worktree prune >/dev/null 2>&1 || true
   rm -rf "$BUILD"
 }
 trap cleanup EXIT
@@ -79,9 +80,21 @@ boot() { # boot <name> <startup script>
 }
 
 echo "build sagvd, acp-compute, acpctl, acp-keygen (linux/amd64) and pack workers/genome"
-( cd "$ROOT" && for b in sagvd acp-compute acpctl; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done \
+# Build from a clean checkout of HEAD when the tracked tree is clean, so the
+# binaries' VCS stamp is the commit's even while other kits write their
+# records into the tree (untracked files mark a build modified; on
+# 2026-10-21 the binaries of a release record came out "-dirty" for that
+# reason); a tree with modified tracked files builds from the working tree,
+# stamped so.
+SRC="$ROOT"
+if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]; then
+  SRC="$BUILD/src"; git -C "$ROOT" worktree add -q --detach "$SRC" HEAD
+fi
+SRC_WORKERS="$SRC/workers/genome"
+( cd "$SRC" && for b in sagvd acp-compute acpctl; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done \
   && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
-COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt requirements-ci.lock requirements-cuda.lock requirements-torch-cpu.lock requirements-torch-cu126.lock examples tests
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$SRC_WORKERS" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt requirements-ci.lock requirements-cuda.lock requirements-torch-cpu.lock requirements-torch-cu126.lock examples tests
+[ "$SRC" = "$ROOT" ] || git -C "$ROOT" worktree remove --force "$SRC"
 ( cd "$BUILD" && shasum -a 256 sagvd acp-compute acpctl keygen worker.tgz ) | tee "$EVIDENCE/inputs.sha256"
 { echo "tree $(git -C "$ROOT" rev-parse --short HEAD)"; echo "stamp $STAMP"; echo "zone $ZONE"; } > "$EVIDENCE/run.txt"
 
