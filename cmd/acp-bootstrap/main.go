@@ -30,6 +30,7 @@ import (
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // version / commit are populated at link time by the Makefile.
@@ -170,7 +171,11 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	sourceResolver, err := loadSourceAuthorityResolver(cfg.SourceAuthority, clock)
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return nil, fmt.Errorf("acp-bootstrap: crypto: %w", err)
+	}
+	sourceResolver, err := loadSourceAuthorityResolver(cfg.SourceAuthority, sigPol, clock)
 	if err != nil {
 		return nil, err
 	}
@@ -405,13 +410,18 @@ func (r *pubkeyResolver) Resolve(kid ids.KeyID, want keys.Purpose) (keys.Verifyi
 // 0031), or the raw 32 bytes of an Ed25519 key — and wraps it in a
 // verify-only resolver keyed by cfg.KeyID under
 // keys.PurposeSigningAuthority.
-func loadSourceAuthorityResolver(cfg SourceAuthorityConfig, clock shared_time.Clock) (keys.Resolver, error) {
+func loadSourceAuthorityResolver(cfg SourceAuthorityConfig, sigPol kms.SignaturePolicy, clock shared_time.Clock) (keys.Resolver, error) {
 	data, err := os.ReadFile(cfg.PublicKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("acp-bootstrap: load source authority pubkey: %w", err)
 	}
 	pub, err := crypto.ParsePublicKeyFile(data)
 	if err != nil {
+		return nil, fmt.Errorf("acp-bootstrap: source authority pubkey %q: %w", cfg.PublicKeyPath, err)
+	}
+	// A source whose key the profile does not accept would have every
+	// handshake and token refused; it is refused here, with the reason.
+	if err := sigPol.CheckAcceptedKey("source authority key "+cfg.KeyID, pub.Suite); err != nil {
 		return nil, fmt.Errorf("acp-bootstrap: source authority pubkey %q: %w", cfg.PublicKeyPath, err)
 	}
 	return &pubkeyResolver{

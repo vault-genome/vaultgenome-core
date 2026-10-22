@@ -40,6 +40,12 @@ FIPS=$(md attributes/vg-fips 2>/dev/null || true); [ "$FIPS" = 1 ] || FIPS=0
 # guest runs under enforcement; a non-approved service fails instead of
 # succeeding. The binaries came built on the certified module.
 if [ "$FIPS" = 1 ]; then export GODEBUG=fips140=only; echo "fips=1 GODEBUG=fips140=only" >> "$OUT/steps.txt"; fi
+# The signature suite (ADR 0031): what acp-keygen makes the keys under and
+# what every config names, from the runner (vg-sigsuite); absent, the
+# profile's own.
+SIGSUITE=$(md attributes/vg-sigsuite 2>/dev/null || true)
+case "$SIGSUITE" in ed25519|ecdsa-p384-sha384|ml-dsa-87) ;; *) case "$PROFILE" in cnsa) SIGSUITE=ecdsa-p384-sha384;; *) SIGSUITE=ed25519;; esac;; esac
+echo "signature_suite=$SIGSUITE" >> "$OUT/steps.txt"
 { echo "instance=$(md name)"; echo "zone=$(md zone | awk -F/ '{print $NF}')"; echo "machine=$(md machine-type | awk -F/ '{print $NF}')"; echo "captured=$STAMP"; } > "$OUT/metadata.txt"
 uname -a > "$OUT/kernel.txt"
 
@@ -69,7 +75,7 @@ n=0; while [ ! -d /sys/kernel/config/tsm/report ] && [ $n -lt 30 ]; do sleep 1; 
 { ls -la /sys/kernel/config/tsm/report 2>&1; dmesg | grep -i -E "sev|snp|tsm" | tail -20; } > "$OUT/tsm.txt"
 
 step "provision (keygen)"
-./keygen -out secrets -quiet
+./keygen -out secrets -quiet -signature-suite "$SIGSUITE"
 TOKEN=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'); printf '%s\n' "$TOKEN" > secrets/xcc_token; chmod 600 secrets/xcc_token
 
 step "sagvd identity"
@@ -81,19 +87,20 @@ cat > sagvd.json <<EOF
   "http_api": {"listen_address": "127.0.0.1:9080", "bearer_token_file": "$S/sagvd/api_token"},
   "tee": {"workload_descriptor": "sagvd-phase1-demo-v1", "seed_path": "$S/sagvd/tee_seed", "insecure_simulation": true,
     "peer": {"public_key_path": "$S/sagvd/peer_worker_pubkey", "measurement_path": "$S/sagvd/peer_worker_measurement"}},
-  "keys": {"authority_signing": {"kid": "sagvd-authority-demo", "seed_path": "$S/sagvd/authority_signing_seed"},
-           "audit_signing": {"kid": "sagvd-audit-demo", "seed_path": "$S/sagvd/audit_signing_seed"},
+  "keys": {"authority_signing": {"kid": "sagvd-authority-demo", "seed_path": "$S/sagvd/authority_signing_seed", "suite": "$SIGSUITE"},
+           "audit_signing": {"kid": "sagvd-audit-demo", "seed_path": "$S/sagvd/audit_signing_seed", "suite": "$SIGSUITE"},
            "session_sealing": {"kid": "session-sealing-demo", "material_path": "$S/shared/sealing.key"}},
   "workers": {"registry_path": "$S/shared/workers.json"},
   "runtime": {"job_timeout_seconds": 60, "handshake_timeout_seconds": 10, "queue_poll_ms": 50,
     "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 60, "max_payload_bytes": 4194304},
   "health": {"listen_address": "127.0.0.1:9081"},
   "log": {"level": "info", "format": "json"},
-  "crypto": {"profile": "$PROFILE"}
+  "crypto": {"profile": "$PROFILE", "signature_suite": "$SIGSUITE"}
 }
 EOF
 ./sagvd identity -config sagvd.json > "$OUT/sagvd-identity.json"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd signature_suite=%s signature_suites=%s" % (d.get("signature_suite"), ",".join(d.get("signature_suites") or []))); print("sagvd authority_signature_suite=%s audit_signature_suite=%s" % (d.get("authority_signature_suite"), d.get("audit_signature_suite")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("sagvd fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["authority_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > authority.pem
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
@@ -113,8 +120,8 @@ cp gen-1.genome bundles/.incoming && mv bundles/.incoming bundles/gen-1.genome
 step "operator stop key and first list (nothing stopped)"
 # In production the operator key lives on the operator's machine; the
 # release host only ever sees operator.pem and the signed list.
-./acpctl stop keygen -out operator.seed -pub operator.pem > /dev/null
-./acpctl stop issue -key operator.seed -kid operator-1 -serial 1 -out stop.json > /dev/null
+./acpctl stop keygen -out operator.seed -pub operator.pem -signature-suite "$SIGSUITE" > /dev/null
+./acpctl stop issue -key operator.seed -signature-suite "$SIGSUITE" -kid operator-1 -serial 1 -out stop.json > /dev/null
 
 step "acp-bootstrap on SEV-SNP"
 cat > dest.json <<EOF
@@ -132,6 +139,7 @@ EOF
 ./acp-bootstrap identity -config dest.json > "$OUT/destination-identity.json" 2> "$OUT/destination-identity.err"
 echo "identity exit=$?" >> "$OUT/steps.txt"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("destination crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/destination-identity.json" >> "$OUT/steps.txt" 2>/dev/null
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("destination signature_suites=%s" % ",".join(d.get("signature_suites") or []))' "$OUT/destination-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("destination fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/destination-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 ./acp-bootstrap -config dest.json > "$OUT/acp-bootstrap.log" 2>&1 &
 DEST=$!
@@ -190,7 +198,7 @@ echo "unlisted exit=$?" >> "$OUT/steps.txt"
 
 step "release refused: operator stop in force"
 source_config "$MEAS" sagvd-xcc.json   # this guest allow-listed again; only the stop refuses it
-./acpctl stop issue -key operator.seed -kid operator-1 -serial 2 -all -reason "e2e: operator stop" -out stop.json > /dev/null
+./acpctl stop issue -key operator.seed -signature-suite "$SIGSUITE" -kid operator-1 -serial 2 -all -reason "e2e: operator stop" -out stop.json > /dev/null
 ./sagvd crosscloud-restore -config sagvd-xcc.json -decision-id e2e-decision-3 -destination-kind gcp-sev-snp \
   -destination-endpoint https://127.0.0.1:8443 -key-file "genome-dek-3:$WORK/throwaway.key" > "$OUT/release-stopped.json" 2> "$OUT/release-stopped.err"
 echo "stopped exit=$?" >> "$OUT/steps.txt"
@@ -198,6 +206,7 @@ echo "stopped exit=$?" >> "$OUT/steps.txt"
 step "audit log verified with the published audit key"
 ./acpctl audit verify --audit xcc-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-demo --json > "$OUT/audit-verify.json" 2> "$OUT/audit-verify.err"
 echo "audit verify exit=$?" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("audit suite=%s events=%s" % (d.get("signature_suite"), d.get("event_count")))' "$OUT/audit-verify.json" >> "$OUT/steps.txt" 2>/dev/null
 
 sleep 2; kill -TERM $DEST; wait $DEST 2>/dev/null
 unset TOKEN

@@ -59,6 +59,14 @@ if [ "$VG_FIPS" = 1 ]; then
   [ "$PROFILE" != general ] || { echo "VG_FIPS=1 needs the fips or cnsa profile: general's first suite is X25519, unavailable under enforcement"; exit 2; }
   export GOFIPS140=v1.0.0
 fi
+# The signature suite (ADR 0031, part three): the profile signs with its
+# own — ed25519 under general and fips, ecdsa-p384-sha384 under cnsa —
+# unless VG_SIGSUITE picks another the profile accepts (fips with
+# ecdsa-p384-sha384 is the deployment a bank held to X9 runs). Written
+# into acp-keygen, every key file and every config on the guest.
+case "$PROFILE" in cnsa) SIGSUITE_DEFAULT=ecdsa-p384-sha384;; *) SIGSUITE_DEFAULT=ed25519;; esac
+SIGSUITE="${VG_SIGSUITE:-$SIGSUITE_DEFAULT}"
+case "$SIGSUITE" in ed25519|ecdsa-p384-sha384|ml-dsa-87) ;; *) echo "VG_SIGSUITE must be ed25519, ecdsa-p384-sha384 or ml-dsa-87; got $SIGSUITE"; exit 2;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -144,7 +152,7 @@ gcloud compute instances create "$A" --project "$PROJECT" --zone "$ZONE_A" \
   --machine-type n2d-standard-4 --min-cpu-platform "AMD Milan" \
   --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
   --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud --boot-disk-size 20GB \
-  --scopes storage-rw --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0}" \
+  --scopes storage-rw --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0},vg-sigsuite=$SIGSUITE" \
   --metadata-from-file "startup-script=$HERE/bank.sh" >/dev/null
 CREATED_A=1
 A_IP="$(gcloud compute instances describe "$A" --project "$PROJECT" --zone "$ZONE_A" --format='value(networkInterfaces[0].networkIP)')"
@@ -164,7 +172,7 @@ for z in ${ZONE_B_LIST//,/ }; do
       --machine-type n2d-standard-2 --min-cpu-platform "AMD Milan" \
       --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
       --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud --boot-disk-size 20GB \
-      --tags "$TAG_B" --scopes storage-rw --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0}" \
+      --tags "$TAG_B" --scopes storage-rw --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0},vg-sigsuite=$SIGSUITE" \
       --metadata-from-file "startup-script=$HERE/standby.sh" > "$BUILD/b-create.log" 2>&1; then
     ZONE_B="$z"; CREATED_B=1; break
   fi
@@ -213,6 +221,18 @@ echo "== the bank's steps"; cat "$EVIDENCE/a/steps.txt" 2>/dev/null || true
 echo "== the standby's steps"; cat "$EVIDENCE/b/steps.txt" 2>/dev/null || true
 echo "== the third party's steps"; cat "$TP/steps.txt" 2>/dev/null || true
 case "$PROFILE" in general) WANT=hpke-x25519-v2;; fips) WANT=hpke-p384-v2;; cnsa) WANT=hpke-mlkem1024-p384-v2;; esac
+# The signature suite on the record (ADR 0031): the bank's daemons sign
+# under it, the standby accepts it, both audit logs verify under it on the
+# bank and at the third party.
+SIG_OK=1
+grep -q "sagvd signature_suite=$SIGSUITE " "$EVIDENCE/a/steps.txt" && grep -q "sagvd authority_signature_suite=$SIGSUITE audit_signature_suite=$SIGSUITE" "$EVIDENCE/a/steps.txt" \
+  && grep -q "acp-compute signing_signature_suite=$SIGSUITE" "$EVIDENCE/a/steps.txt" \
+  && grep -E "^standby signature_suites=.*\b$SIGSUITE\b" "$EVIDENCE/b/steps.txt" >/dev/null \
+  && grep -q "audit suite=$SIGSUITE" "$EVIDENCE/a/steps.txt" && grep -q "xcc audit suite=$SIGSUITE" "$EVIDENCE/a/steps.txt" || SIG_OK=0
+for f in audit-verify-returnpath audit-verify-crosscloud; do
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("signature_suite")==sys.argv[2] else 1)' "$TP/$f.json" "$SIGSUITE" 2>/dev/null \
+    && echo "third-party $f signature_suite=$SIGSUITE" | tee -a "$TP/steps.txt" || SIG_OK=0
+done
 FIPS_OK=1
 if [ "$VG_FIPS" = 1 ]; then
   # The record must say it on every party: the bank's two daemons, the
@@ -224,7 +244,7 @@ if [ "$VG_FIPS" = 1 ]; then
     && grep -q 'standby fips140 enabled=true enforced=true version=v1.0.0' "$EVIDENCE/b/steps.txt" \
     && grep -q 'fips140=only module=v1.0.0 enforced=true' "$TP/tools.txt" || FIPS_OK=0
 fi
-if [ "$A_OK" = 1 ] && [ "$B_OK" = 1 ] && [ "$FIPS_OK" = 1 ] \
+if [ "$A_OK" = 1 ] && [ "$B_OK" = 1 ] && [ "$FIPS_OK" = 1 ] && [ "$SIG_OK" = 1 ] \
    && grep -q 'gate_level=EXACT' "$EVIDENCE/a/steps.txt" && grep -q 'rogue refused after' "$EVIDENCE/a/steps.txt" && grep -q 'rogue with the sealed files exit=1' "$EVIDENCE/a/steps.txt" \
    && grep -q 'release exit=0' "$EVIDENCE/a/steps.txt" && grep -q "release suite=$WANT" "$EVIDENCE/a/steps.txt" && grep -q 'confirm exit=0' "$EVIDENCE/a/steps.txt" \
    && grep -q 'unlisted exit=1 policy denied key release: destination measurement not in allow-list' "$EVIDENCE/a/steps.txt" && grep -q 'stopped exit=1 policy denied key release: operator stop in force' "$EVIDENCE/a/steps.txt" \
@@ -237,5 +257,5 @@ mark run_end
 # exits — after this line — so it stays outside the sums.
 ( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt ! -name runner.log -print0 | sort -z | xargs -0 shasum -a 256 > sha256sums.txt )
 echo "evidence: $EVIDENCE"
-[ "$OK" = 1 ] || { echo "FAIL: the run did not reach every mark; see the steps above"; exit 1; }
-echo "PASS: reference design 01 end to end on SEV-SNP under $PROFILE ($WANT)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on, every party} — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party ($STAMP)"
+[ "$OK" = 1 ] || { echo "FAIL: the run did not reach every mark; see the steps above (signature suite $SIGSUITE on the record: SIG_OK=$SIG_OK)"; exit 1; }
+echo "PASS: reference design 01 end to end on SEV-SNP under $PROFILE ($WANT; signatures $SIGSUITE)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on, every party} — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party ($STAMP)"

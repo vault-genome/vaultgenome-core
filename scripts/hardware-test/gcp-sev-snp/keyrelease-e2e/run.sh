@@ -34,6 +34,14 @@ if [ "$VG_FIPS" = 1 ]; then
   [ "$PROFILE" != general ] || { echo "VG_FIPS=1 needs the fips or cnsa profile: general's first suite is X25519, unavailable under enforcement"; exit 2; }
   export GOFIPS140=v1.0.0
 fi
+# The signature suite (ADR 0031, part three): the profile signs with its
+# own — ed25519 under general and fips, ecdsa-p384-sha384 under cnsa —
+# unless VG_SIGSUITE picks another the profile accepts (fips with
+# ecdsa-p384-sha384 is the deployment a bank held to X9 runs). Written
+# into acp-keygen, every key file and every config on the guest.
+case "$PROFILE" in cnsa) SIGSUITE_DEFAULT=ecdsa-p384-sha384;; *) SIGSUITE_DEFAULT=ed25519;; esac
+SIGSUITE="${VG_SIGSUITE:-$SIGSUITE_DEFAULT}"
+case "$SIGSUITE" in ed25519|ecdsa-p384-sha384|ml-dsa-87) ;; *) echo "VG_SIGSUITE must be ed25519, ecdsa-p384-sha384 or ml-dsa-87; got $SIGSUITE"; exit 2;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -77,7 +85,7 @@ gcloud compute instances create "$NAME" --project "$PROJECT" --zone "$ZONE" \
   --machine-type n2d-standard-2 --min-cpu-platform "AMD Milan" \
   --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
   --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
-  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0},vg-stamp=$STAMP" \
+  --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-profile=$PROFILE,vg-fips=${VG_FIPS:-0},vg-sigsuite=$SIGSUITE,vg-stamp=$STAMP" \
   --metadata-from-file "startup-script=$HERE/cvm-keyrelease.sh" >/dev/null
 
 echo "waiting for results on the serial console (up to 15 min)"
@@ -116,8 +124,13 @@ if [ "$VG_FIPS" = 1 ]; then
   [ "$(grep -c 'fips140=only module=v1.0.0 enforced=true' "$GUEST/versions.txt")" = 2 ] || FIPS_OK=0
   grep -q 'sagvd fips140 enabled=true enforced=true version=v1.0.0' "$STEPS" && grep -q 'destination fips140 enabled=true enforced=true version=v1.0.0' "$STEPS" || FIPS_OK=0
 fi
+# The signature suite on the record (ADR 0031): the authority signs under
+# it, the destination accepts it, the audit log verifies under it.
+SIG_OK=1
+grep -q "sagvd signature_suite=$SIGSUITE " "$STEPS" && grep -q "sagvd authority_signature_suite=$SIGSUITE audit_signature_suite=$SIGSUITE" "$STEPS" \
+  && grep -E "^destination signature_suites=.*\b$SIGSUITE\b" "$STEPS" >/dev/null && grep -q "audit suite=$SIGSUITE" "$STEPS" || SIG_OK=0
 grep -q "release exit=0" "$STEPS" && grep -q "release suite=$WANT" "$STEPS" && grep -q "release profile=$PROFILE" "$STEPS" \
   && grep -q "confirm exit=0" "$STEPS" && grep -q "verify exit=0" "$STEPS" \
-  && grep -q "unlisted exit=1" "$STEPS" && grep -q "stopped exit=1" "$STEPS" && grep -q "audit verify exit=0" "$STEPS" && [ "$FIPS_OK" = 1 ] \
-  && echo "PASS: key release under $PROFILE ($WANT)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on}, restore confirmed, refusals refused, audit verified ($(basename "$GUEST"))" \
-  || { echo "FAIL: see $STEPS${VG_FIPS:+ (VG_FIPS=1: the record must show the certified module with enforcement on)}"; exit 1; }
+  && grep -q "unlisted exit=1" "$STEPS" && grep -q "stopped exit=1" "$STEPS" && grep -q "audit verify exit=0" "$STEPS" && [ "$FIPS_OK" = 1 ] && [ "$SIG_OK" = 1 ] \
+  && echo "PASS: key release under $PROFILE ($WANT; signatures $SIGSUITE)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on}, restore confirmed, refusals refused, audit verified ($(basename "$GUEST"))" \
+  || { echo "FAIL: see $STEPS${VG_FIPS:+ (VG_FIPS=1: the record must show the certified module with enforcement on)} (signature suite $SIGSUITE must be on the record: SIG_OK=$SIG_OK)"; exit 1; }

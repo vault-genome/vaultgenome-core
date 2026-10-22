@@ -98,6 +98,7 @@ CFG
 ./acp-bootstrap identity -config dest.json > "$OUT/destination-identity.json" 2> "$OUT/destination-identity.err"
 echo "identity exit=$?" >> "$OUT/steps.txt"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("standby crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/destination-identity.json" >> "$OUT/steps.txt" 2>&1
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("standby signature_suites=%s" % ",".join(d.get("signature_suites") or []))' "$OUT/destination-identity.json" >> "$OUT/steps.txt" 2>&1
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("standby fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/destination-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 MEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["measurement_hex"])' "$OUT/destination-identity.json" 2>/dev/null)
 echo "measurement=$MEAS" >> "$OUT/steps.txt"

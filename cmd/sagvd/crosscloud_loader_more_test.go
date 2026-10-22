@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 func TestCrossCloudMaterials_CloseIsNilSafe(t *testing.T) {
@@ -28,11 +29,11 @@ func TestCrossCloudMaterials_CloseIsNilSafe(t *testing.T) {
 func TestLoadOperatorStop_ListMissing(t *testing.T) {
 	dir := t.TempDir()
 	cfg := OperatorStopConfig{KeyID: "operator-test", PublicKeyPath: writeFile(t, dir, "op.pub", generateEd25519PubRaw(t)), ListPath: filepath.Join(dir, "absent.json")}
-	_, err := loadOperatorStop(cfg)
+	_, err := loadOperatorStop(cfg, kms.DefaultSignaturePolicy())
 	require.ErrorContains(t, err, "list_path")
 	require.ErrorContains(t, err, "without a valid list nothing is released")
 	cfg.PublicKeyPath = filepath.Join(dir, "absent.pub")
-	_, err = loadOperatorStop(cfg)
+	_, err = loadOperatorStop(cfg, kms.DefaultSignaturePolicy())
 	require.ErrorContains(t, err, "public_key_path")
 }
 

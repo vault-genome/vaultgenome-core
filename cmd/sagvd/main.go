@@ -264,7 +264,11 @@ func runDaemon(args []string) error {
 	if genomes != nil {
 		var stopList trust.StopListSource
 		if cfg.OperatorStopEnabled() {
-			src, serial, err := newOperatorStopSource(cfg.OperatorStop)
+			sigPol, err := cfg.Crypto.SignaturePolicy()
+			if err != nil {
+				return fmt.Errorf("sagvd: crypto: %w", err)
+			}
+			src, serial, err := newOperatorStopSource(cfg.OperatorStop, sigPol)
 			if err != nil {
 				return err
 			}
