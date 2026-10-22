@@ -263,7 +263,7 @@ func TestAuditVerifyCmd_Refusals(t *testing.T) {
 		"no flags":     {[]string{}, 2, "all required"},
 		"no kid":       {[]string{"--audit", auditPath, "--audit-pubkey", pubPath}, 2, "all required"},
 		"unknown flag": {[]string{"--nope"}, 2, "flag provided but not defined"},
-		"bad pubkey":   {[]string{"--audit", auditPath, "--audit-pubkey", shortPub, "--audit-kid", string(kid)}, 1, "pubkey must be PEM or exactly 32 raw bytes"},
+		"bad pubkey":   {[]string{"--audit", auditPath, "--audit-pubkey", shortPub, "--audit-kid", string(kid)}, 1, "pubkey must be PEM"},
 		"cannot open":  {[]string{"--audit", absent, "--audit-pubkey", pubPath, "--audit-kid", string(kid)}, 1, "open audit store"},
 		"cannot load":  {[]string{"--audit", corrupt, "--audit-pubkey", pubPath, "--audit-kid", string(kid)}, 1, "load:"},
 	} {
@@ -312,12 +312,12 @@ func TestAuditVerifyCmd_JSON(t *testing.T) {
 
 func TestEmitAuditVerify_Forms(t *testing.T) {
 	t.Parallel()
-	ok := auditVerifyResult{OK: true, AuditPath: "/a", EventCount: 4, Tip: "abcd"}
+	ok := auditVerifyResult{OK: true, AuditPath: "/a", Suite: "ed25519", EventCount: 4, Tip: "abcd"}
 	broken := auditVerifyResult{OK: false, AuditPath: "/a", EventCount: 4, Error: "event #2: bad"}
 
 	var buf bytes.Buffer
 	emitAuditVerify(&buf, false, ok)
-	require.Equal(t, "audit chain ok — 4 events verified, tip abcd\n", buf.String())
+	require.Equal(t, "audit chain ok — 4 events verified under ed25519, tip abcd\n", buf.String())
 
 	buf.Reset()
 	emitAuditVerify(&buf, false, broken)
@@ -335,13 +335,14 @@ func TestEmitAuditVerify_Forms(t *testing.T) {
 func TestSinglePubkeyResolver(t *testing.T) {
 	t.Parallel()
 	pub := bytes.Repeat([]byte{0x11}, crypto.Ed25519PublicKeySize)
-	r := newSinglePubkeyResolver("audit-1", pub)
+	r := newSinglePubkeyResolver("audit-1", crypto.SuiteEd25519, pub)
 
 	vk, err := r.Resolve("audit-1", keys.PurposeSigningAudit)
 	require.NoError(t, err)
 	require.Equal(t, ids.KeyID("audit-1"), vk.KeyID)
 	require.Equal(t, keys.PurposeSigningAudit, vk.Purpose)
-	require.Equal(t, crypto.PublicKey(pub), vk.PublicKey)
+	require.Equal(t, crypto.SuiteEd25519, vk.Suite)
+	require.Equal(t, pub, vk.PublicKey)
 	pub[0] = 0xEE
 	require.Equal(t, byte(0x11), vk.PublicKey[0], "the resolver keeps its own copy of the key")
 
@@ -360,7 +361,7 @@ func TestSinglePubkeyResolver(t *testing.T) {
 func TestVerifyEventsInOrder_BrokenLink(t *testing.T) {
 	t.Parallel()
 	_, pub, kid, events := buildAuditFixture(t, 3)
-	resolver := newSinglePubkeyResolver(kid, pub)
+	resolver := newSinglePubkeyResolver(kid, crypto.SuiteEd25519, pub)
 	require.NoError(t, verifyEventsInOrder(events, resolver))
 	require.NoError(t, verifyEventsInOrder(nil, resolver), "an empty log is sound")
 
@@ -385,11 +386,16 @@ func TestReadEd25519PublicKey(t *testing.T) {
 	require.NoError(t, err)
 	edPEM, err := crypto.PublicKeyPEM(crypto.PublicKey(edPub))
 	require.NoError(t, err)
-	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ecKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	require.NoError(t, err)
 	ecDER, err := x509.MarshalPKIXPublicKey(&ecKey.PublicKey)
 	require.NoError(t, err)
 	ecPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: ecDER})
+	p256Key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	p256DER, err := x509.MarshalPKIXPublicKey(&p256Key.PublicKey)
+	require.NoError(t, err)
+	p256PEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: p256DER})
 	junkPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("not DER")})
 
 	got, err := readEd25519PublicKey(write("raw", edPub))
@@ -406,7 +412,8 @@ func TestReadEd25519PublicKey(t *testing.T) {
 	}{
 		"absent":        {filepath.Join(dir, "absent"), "read pubkey"},
 		"wrong length":  {write("short", []byte("too short")), "exactly 32 raw bytes"},
-		"not ed25519":   {write("ec.pem", ecPEM), "want an Ed25519 key"},
+		"not ed25519":   {write("ec.pem", ecPEM), "pubkey is ecdsa-p384-sha384, want an Ed25519 key"},
+		"not a suite":   {write("p256.pem", p256PEM), "must be on P-384"},
 		"pem not pkix":  {write("junk.pem", junkPEM), "parse pubkey PEM"},
 		"seed sized":    {write("seed", bytes.Repeat([]byte{1}, 33)), "exactly 32 raw bytes"},
 		"empty file":    {write("empty", nil), "exactly 32 raw bytes"},

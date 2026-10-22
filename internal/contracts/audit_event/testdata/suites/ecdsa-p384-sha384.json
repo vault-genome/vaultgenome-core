@@ -1,0 +1,50 @@
+{
+  "suite": "ecdsa-p384-sha384",
+  "kid": "audit-fixture-ecdsa-p384-sha384",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE9rm2mHJNRbsgGN8oTL6To5an2l3MvKNw\nmE9pUQXXasGsAnaDhkp/TSkBT0ALS7ZiNP6bVVOrxCPYohXPB3viN0eis5GVtYij\nhg7gbwwnYcWFb2lOzi16shL1MatUvAgu\n-----END PUBLIC KEY-----\n",
+  "written_by": "vaultgenome-core, go1.27.3, 2026-10-22",
+  "events": [
+    {
+      "schema_version": 8,
+      "event_id": "evt-0001",
+      "kind": "REQUEST_RECEIVED",
+      "occurred_at": "2026-10-22T02:00:00Z",
+      "session_id": "sess-0001",
+      "request_id": "req-0001",
+      "payload": "eyJmaXh0dXJlIjoiZWNkc2EtcDM4NC1zaGEzODQifQ==",
+      "prev_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "hash": "S9GfsZ5MNO3dUSqsuEzwYYTTGkhrlTvMCki2aksUjNg=",
+      "signing_key_id": "audit-fixture-ecdsa-p384-sha384",
+      "alg": "ecdsa-p384-sha384",
+      "signature": "5aluFYmVLkDZgW2YkshnjpuQqNbo80NpB/U6CPkTC0UC8EE/2EL1ZAgcOpIQtDADn3KtXwr8EZKhRCWptTsz6QwXIQOwEgNycXQ1RR/MR2Qu8fAJ94W0braf3bc6D2dI"
+    },
+    {
+      "schema_version": 8,
+      "event_id": "evt-0002",
+      "kind": "REQUEST_RECEIVED",
+      "occurred_at": "2026-10-22T02:00:01Z",
+      "session_id": "sess-0001",
+      "request_id": "req-0002",
+      "payload": "eyJmaXh0dXJlIjoiZWNkc2EtcDM4NC1zaGEzODQifQ==",
+      "prev_hash": "S9GfsZ5MNO3dUSqsuEzwYYTTGkhrlTvMCki2aksUjNg=",
+      "hash": "2RxWrGlJN4X5O93UEcHh9ITLbjOFZewSiJ2VheqqvV4=",
+      "signing_key_id": "audit-fixture-ecdsa-p384-sha384",
+      "alg": "ecdsa-p384-sha384",
+      "signature": "HVYJOtPiRORYL1z4mRt/figNcGofYguy0JDSO/H1CYSCqsSrpaMEM3BmiIZyTnxzHQwzxKG/TDhJ3BXi/Rep0ZeKGaE7VMzXuZDbbimP8U2U0IJRwAHVW8I9Fl6hAwks"
+    },
+    {
+      "schema_version": 8,
+      "event_id": "evt-0003",
+      "kind": "REQUEST_RECEIVED",
+      "occurred_at": "2026-10-22T02:00:02Z",
+      "session_id": "sess-0001",
+      "request_id": "req-0003",
+      "payload": "eyJmaXh0dXJlIjoiZWNkc2EtcDM4NC1zaGEzODQifQ==",
+      "prev_hash": "2RxWrGlJN4X5O93UEcHh9ITLbjOFZewSiJ2VheqqvV4=",
+      "hash": "PE4bSeynUzCWxbish6mLdr3JcepzoQ8mH/HEng6i774=",
+      "signing_key_id": "audit-fixture-ecdsa-p384-sha384",
+      "alg": "ecdsa-p384-sha384",
+      "signature": "36H8OrvWNSqOekVYoZKTM2+XMPUL0F34DJslS3KpdZqdR2f3udZJNNIlysCGzsK1Usk65CCmdqwGxvbwLaMBxvfS1eEc+wLp6YtTcqsZWtJY/zt8+5e526on5WAz80WP"
+    }
+  ]
+}

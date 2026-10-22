@@ -37,6 +37,7 @@ package cross_cloud_handshake_request
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
@@ -118,7 +119,10 @@ type CrossCloudHandshakeRequest struct {
 	InitiatedAt time.Time `json:"initiated_at"`
 
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
-	Signature    []byte    `json:"signature"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature"`
 
 	// AuditEventID points at the KindCrossCloudHandshakeInitiated
 	// audit event that records this dispatch. An un-evidenced

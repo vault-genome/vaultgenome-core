@@ -92,6 +92,7 @@ func newTestFixture(t *testing.T) *testFixture {
 		ids.KeyID("worker-sign-1"): {
 			KeyID:     ids.KeyID("worker-sign-1"),
 			Purpose:   keys.PurposeSigningAuthority,
+			Suite:     crypto.SuiteEd25519,
 			PublicKey: workerPub,
 		},
 	})

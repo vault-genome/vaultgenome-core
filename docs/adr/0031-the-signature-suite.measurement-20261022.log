@@ -41,3 +41,10 @@ measurement 2026-10-22, the tree ecbd5cc (main after #160), go version go1.27.3 
    default build:        fips140 enabled: false version: latest sign err: <nil> sig bytes: 4627; verify err: <nil>
    GOFIPS140=v1.0.0:     fips140 enabled: true version: v1.0.0 keygen err: mldsa: unavailable in FIPS 140-3 Go Cryptographic Module v1.0.0
    + GODEBUG=fips140=only: the same error
+
+== part one (2026-10-22), the implementation's probe on go1.27.3 (scratchpad suite-probe), default build and GOFIPS140=v1.0.0
+   go doc crypto/ecdsa.SignASN1: "The signature is randomized. Since Go 1.26, a secure source of random bytes is always used, and the Reader is ignored unless GODEBUG=cryptocustomrand=1 is set."
+   two SignASN1 over the same digest differ in both builds: the suite's ECDSA nonce is randomized, not RFC 6979 — the ADR's table cell corrected in part one; verification is unaffected
+   ecdsa P-384: public key 97 B (uncompressed), r||s 96 B verifies, PKIX 120 B, PKCS#8 185 B, raw scalar 48 B
+   ml-dsa-87 (default build): seed 32 B, public key 2592 B, signature 4627 B, SignDeterministic present; PKIX 2614 B parses back as *mldsa.PublicKey; PKCS#8 54 B parses back as *mldsa.PrivateKey
+   GOFIPS140=v1.0.0: mldsa.NewPublicKey, GenerateKey and Verify return "mldsa: unavailable in FIPS 140-3 Go Cryptographic Module v1.0.0" (the package doc: available from module v1.26.0); ecdsa P-384 unchanged

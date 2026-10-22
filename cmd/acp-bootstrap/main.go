@@ -394,6 +394,7 @@ func (r *pubkeyResolver) Resolve(kid ids.KeyID, want keys.Purpose) (keys.Verifyi
 	return keys.VerifyingKey{
 		KeyID:     r.kid,
 		Purpose:   r.purpose,
+		Suite:     crypto.SuiteEd25519,
 		PublicKey: r.pub,
 		CreatedAt: r.created,
 	}, nil

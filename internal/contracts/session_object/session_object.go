@@ -20,6 +20,7 @@ package session_object
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
@@ -56,6 +57,9 @@ type SessionObject struct {
 
 	// SigningKeyID identifies the vault key that signed this object.
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
 
 	// Signature is the Ed25519 signature over CanonicalBytes excluding
 	// Signature itself (see docs/doctrine/open-decisions-resolved.md R-10).

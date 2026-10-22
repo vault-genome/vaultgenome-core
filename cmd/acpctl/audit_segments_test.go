@@ -164,7 +164,7 @@ func TestAuditVerifyCmd_VerifiesTheSegmentsAsOneChain(t *testing.T) {
 	rc = auditCmd(l.verifyArgs(), &stdout, &errOut)
 	require.Equal(t, 0, rc, errOut.String())
 	out := stdout.String()
-	require.Contains(t, out, "audit chain ok — 12 events verified, tip "+res.Tip)
+	require.Contains(t, out, "audit chain ok — 12 events verified under ed25519, tip "+res.Tip)
 	require.Contains(t, out, "archive "+l.archives[0].Path+": events #0..#3  sha256 "+before[0])
 	require.Contains(t, out, "archive "+l.archives[1].Path+": events #4..#7  sha256 "+before[1])
 	require.Contains(t, out, "live    "+l.live+": events #8..#11")

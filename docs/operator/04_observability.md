@@ -47,7 +47,11 @@ It replays the chain from its first event (whose previous hash must be 32 zero
 bytes), checks every hash link and every signature under the one key given,
 and prints `ok`, `event_count` and `tip` (the hash of the last event).
 `--audit-pubkey` takes the PEM `sagvd identity` prints as
-`audit_public_key_pem`, or the 32 raw bytes.
+`audit_public_key_pem` — the key's algorithm names the signature suite
+(Ed25519, ECDSA P-384 or ML-DSA-87; ADR 0031), and the output reports it
+as `signature_suite` — or the 32 raw bytes of an Ed25519 key. A chain
+whose records name another suite than the key's is refused before any
+signature is checked.
 
 **Expected output:** `"ok": true`, exit 0. On the first inconsistency it
 reports the offending event's index — `event #N: prev_hash does not link to

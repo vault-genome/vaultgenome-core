@@ -75,6 +75,9 @@ type Scorecard struct {
 	// SigningKeyID identifies the probe-runner authority that signed
 	// this scorecard. Binds under keys.PurposeSigningAuthority.
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
 
 	// Signature is the Ed25519 signature over CanonicalBytes (which
 	// excludes Signature itself).
@@ -271,6 +274,11 @@ func (s *Scorecard) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, s.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	s.Alg = alg
 	cp := *s
 	cp.Signature = nil
 	cp.Entries = append([]ScoreEntry(nil), s.Entries...)
@@ -309,7 +317,7 @@ func (s *Scorecard) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, s.Signature)
+	return vk.VerifyRecord(s.Alg, cb, s.Signature)
 }
 
 // UnmarshalJSON rejects unknown fields and gates SchemaVersion.

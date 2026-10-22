@@ -1,0 +1,20 @@
+{
+  "suite": "ecdsa-p384-sha384",
+  "kid": "authority-fixture-ecdsa-p384-sha384",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEkTeHQimBe+8q5wMZqGxL5OpEY0FJHYEm\n/UymbBySkEbygK/Wp+jrjwNaVcvSzyCN2pk5JlXRxdCUmTyU/Bmd9wjHL3KN8ehh\nfILP5YLiIHRwlYP+9KS/NO0pdiLSCJSG\n-----END PUBLIC KEY-----\n",
+  "written_by": "vaultgenome-core, go1.27.3, 2026-10-22",
+  "decision": {
+    "schema_version": 2,
+    "decision_id": "dec-0001",
+    "session_id": "sess-0001",
+    "manifest_id": "man-0001",
+    "validation_result_id": "vr-0001",
+    "release": true,
+    "reason": "validation_pass",
+    "decided_at": "2026-10-22T02:00:00Z",
+    "signing_key_id": "authority-fixture-ecdsa-p384-sha384",
+    "alg": "ecdsa-p384-sha384",
+    "signature": "eZTQSPnwwKM/NyyxTsfe37pf7gbIZL/MzfN51RHXazUNxgKnxgBqN6hxpJm6GcXgsy8t/5lfWSiFUMxNdhf/SaAAy3/0Yp7hrj14bBq8wmwJ05m9oVlCyO2NmeCUxyYD",
+    "audit_event_id": "evt-0001"
+  }
+}

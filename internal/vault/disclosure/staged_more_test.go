@@ -26,7 +26,7 @@ func TestStagedIssuer_Emit_RefusesKeysTheStoreDoesNotHold(t *testing.T) {
 		want       string
 	}{
 		{"sealing key missing", kidAuthority, "no-such-sealing-key", "unknown sealing kid"},
-		{"signing key missing", "no-such-signing-key", kidSealing, "unknown kid on sign"},
+		{"signing key missing", "no-such-signing-key", kidSealing, "unknown kid"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -6,6 +6,7 @@ package genome_descriptor
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
@@ -210,6 +211,9 @@ type GenomeDescriptor struct {
 	// SigningKeyID identifies the authority that signed this descriptor.
 	// Signatures use PurposeSigningAuthority.
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
 
 	// Signature is the Ed25519 signature over CanonicalBytes (which
 	// excludes Signature itself).

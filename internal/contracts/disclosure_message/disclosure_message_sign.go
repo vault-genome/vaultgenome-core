@@ -27,6 +27,11 @@ func (d *DisclosureMessage) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, d.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	d.Alg = alg
 	cp := *d
 	cp.Signature = nil
 	cb, err := crypto.CanonicalJSON(&cp)
@@ -63,5 +68,5 @@ func (d *DisclosureMessage) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, d.Signature)
+	return vk.VerifyRecord(d.Alg, cb, d.Signature)
 }

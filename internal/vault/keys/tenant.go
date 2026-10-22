@@ -242,9 +242,11 @@ func (s *InMemoryStore) EnsureTenantSealing(masterKID ids.KeyID, tenant TenantID
 }
 
 // DeriveTenantSigning derives a per-tenant Ed25519 signing key from
-// a master signing key's seed-equivalent (the first 32 bytes of the
-// private key, which IS the seed for Ed25519). Registers it under
-// the canonical tenant KID and returns the resulting VerifyingKey.
+// a master signing key's seed — the 32-byte Ed25519 seed, or the
+// 32-byte ML-DSA seed — into a seed of the master's suite, and registers
+// the derived key under the canonical tenant KID. A master of a suite
+// with no seed form (ecdsa-p384-sha384, a PKCS#8 key) cannot derive
+// tenant keys and is refused. Returns the resulting VerifyingKey.
 //
 // purpose must be one of the signing purposes
 // (PurposeSigningAuthority, PurposeSigningAudit, PurposeSigningWitness).
@@ -273,15 +275,30 @@ func (s *InMemoryStore) DeriveTenantSigning(masterKID ids.KeyID, tenant TenantID
 			nil,
 		)
 	}
-	// Ed25519 private keys are 64 bytes (32-byte seed || 32-byte
-	// public). The seed is the IKM for HKDF — using the full private
-	// key would needlessly mix the public half into the input, which
-	// changes nothing (HMAC's pseudorandomness floor is the same)
-	// but obscures the construction.
-	masterSeed := master.Priv[:crypto.Ed25519SeedSize]
+	// The seed is the IKM for HKDF — for Ed25519 the 32-byte seed, not
+	// the 64-byte private key: mixing the public half into the input
+	// would change nothing (HMAC's pseudorandomness floor is the same)
+	// but obscure the construction. The derived seed is a seed of the
+	// master's suite, so a tenant key signs under the suite its master
+	// signs under.
+	suite := master.Suite
+	seedSize := suite.SeedSize()
+	if seedSize == 0 {
+		return VerifyingKey{}, shared_errors.Structural(
+			shared_errors.CodeFieldValueInvalid,
+			fmt.Sprintf("keys: tenant signing derivation needs a seed-form master; %q has none", suite),
+			nil,
+		)
+	}
+	masterSeed := master.Priv.Seed()
+	defer func() {
+		for i := range masterSeed {
+			masterSeed[i] = 0
+		}
+	}()
 
 	info := tenantDeriveInfo(tenant, purpose)
-	derivedSeed, err := crypto.HKDFSHA256(tenantDeriveSalt, masterSeed, info, crypto.Ed25519SeedSize)
+	derivedSeed, err := crypto.HKDFSHA256(tenantDeriveSalt, masterSeed, info, seedSize)
 	if err != nil {
 		return VerifyingKey{}, err
 	}
@@ -290,7 +307,11 @@ func (s *InMemoryStore) DeriveTenantSigning(masterKID ids.KeyID, tenant TenantID
 			derivedSeed[i] = 0
 		}
 	}()
-	return s.RegisterSigningFromSeed(derivedKID, purpose, derivedSeed)
+	key, err := crypto.SigningKeyFromSeed(suite, derivedSeed)
+	if err != nil {
+		return VerifyingKey{}, err
+	}
+	return s.RegisterSigningKey(derivedKID, purpose, key)
 }
 
 // EnsureTenantSigning — idempotent variant of DeriveTenantSigning.

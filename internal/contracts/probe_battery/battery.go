@@ -66,6 +66,9 @@ type ProbeBattery struct {
 	// SigningKeyID identifies the battery-issuing authority. Signatures
 	// use keys.PurposeSigningAuthority.
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
 
 	// Signature is the Ed25519 signature over CanonicalBytes (which
 	// excludes Signature itself).
@@ -268,6 +271,11 @@ func (b *ProbeBattery) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, b.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	b.Alg = alg
 	cp := *b
 	cp.Signature = nil
 	cp.Probes = append([]Probe(nil), b.Probes...)
@@ -309,7 +317,7 @@ func (b *ProbeBattery) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, b.Signature)
+	return vk.VerifyRecord(b.Alg, cb, b.Signature)
 }
 
 // UnmarshalJSON rejects unknown fields and gates SchemaVersion.

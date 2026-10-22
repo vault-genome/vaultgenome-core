@@ -100,7 +100,8 @@ func LoadWorkerRegistry(path string) (*server.PublicKeyResolver, []WorkerEntry, 
 		entries[kid] = keys.VerifyingKey{
 			KeyID:     kid,
 			Purpose:   keys.PurposeSigningAuthority,
-			PublicKey: crypto.PublicKey(pub),
+			Suite:     crypto.SuiteEd25519,
+			PublicKey: pub,
 		}
 		outEntries = append(outEntries, w)
 	}

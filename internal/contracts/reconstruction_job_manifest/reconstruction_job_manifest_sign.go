@@ -28,6 +28,11 @@ func (m *ReconstructionJobManifest) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, m.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	m.Alg = alg
 	cp := *m
 	cp.Signature = nil
 	cb, err := crypto.CanonicalJSON(&cp)
@@ -64,5 +69,5 @@ func (m *ReconstructionJobManifest) VerifySignature(resolver keys.Resolver) erro
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, m.Signature)
+	return vk.VerifyRecord(m.Alg, cb, m.Signature)
 }

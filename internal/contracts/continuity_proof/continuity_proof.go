@@ -9,6 +9,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/genome_descriptor"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/probe_battery"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/witness"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
@@ -82,6 +83,9 @@ type ContinuityProof struct {
 	// ASSERTION "I, the issuing authority, vouch that this bundle is
 	// internally consistent and that I stand behind its release."
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
 
 	// Signature is the Ed25519 signature over CanonicalBytes (which
 	// excludes Signature itself). Binds every field above.
