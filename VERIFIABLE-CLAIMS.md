@@ -2374,13 +2374,57 @@ by the key-release kit in the same minutes:
 — a key released across clouds under `hpke-p384-v1`, the restore
 confirmed by the chip receipt, the unlisted guest and the operator stop
 refused, the audit log verified (10 events) — C40 on the released
-commit.
+commit. The same kit on `v0.8.0`, eight minutes after the release was published
+(2026-10-21, 23:24:52Z):
+[`scripts/hardware-test/release-deploy/evidence/20261021T233121Z/`](scripts/hardware-test/release-deploy/evidence/20261021T233121Z/)
+— `verify/assets.sha256` 97 assets (the five `-fips` variants' 40 and
+the images job's 8 among them); `verify/cosign.txt` twenty-two "Verified
+OK" (the pairs); `verify/cosign-bundle-nonet.txt` the same twenty-two
+from their bundles with `--trusted-root trusted_root.json` under
+`sandbox-exec` with no route; `verify/slsa.txt` eleven "PASSED";
+`verify/tag.txt` the tag's signature under the pinned key;
+`verify/rebuild.txt` the ten binaries and the package rebuilt from the
+tag (commit `20dc289f092c`, go1.27.3, GNU tar 1.35, GNU gzip 1.15, on
+Darwin arm64) with the same sha256 as the released files (`sagvd`
+`ea231f03…`, `sagvd-fips` `9a25e112…`, `acp-compute` `7537fe16…`,
+`acp-compute-fips` `b3acc700…`, `acpctl` `56afe915…`, `acpctl-fips`
+`9c56064d…`, `acp-bootstrap` `557f4e0a…`, `acp-bootstrap-fips`
+`c001da77…`, `acp-keygen` `6006a14d…`, `acp-keygen-fips` `4c861e17…`);
+`results/versions.txt` the released binaries reporting `v0.8.0` at the
+tag's commit; both daemons read `7dc7c12e…25acc` from the chip and sealed
+their key files to it; the thief with the sealed files and the unpinned
+worker refused; `results/job.json` gate level EXACT, 6 of 6,
+`max_abs_err` 0, `release_authorized`; `results/audit-verify.json`
+`ok: true`, 17 events; 453.1 s on the guest (three kits sharing the
+project's quota in the same minutes). The same release's four container images, deployed by
+`scripts/hardware-test/release-deploy-images` twenty-nine minutes
+after it was published:
+[`scripts/hardware-test/release-deploy-images/evidence/20261021T235410Z/`](scripts/hardware-test/release-deploy-images/evidence/20261021T235410Z/)
+— each image verified by digest on the runner (signature, SBOM
+attestation, SLSA provenance, the binary inside equal to its release
+asset — the `-fips` images to the `-fips` assets), all four publicly
+readable, the two default images loaded on the guest from tarballs
+whose hashes the guest re-computed, each loaded image's `RootFS.Layers`
+equal to the signed config's `diff_ids` (13 layers for the `sagvd`
+images, 9 for the workers); both daemons from their images, the key
+files sealed, both rogues refused, gate level EXACT, the audit log
+verified (17 events); 182.5 s. And the released
+commit under `fips` with `VG_FIPS=1` — the binaries built from a clean
+checkout of the tag on the certified module, every Go process on the
+guest under `fips140=only` — by the key-release kit twenty minutes after
+the release was published:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T234401Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T234401Z/)
+— `versions.txt`: `sagvd v0.8.0 (commit 20dc289f092c) fips140=only
+module=v1.0.0 enforced=true`; a key released across clouds under
+`hpke-p384-v2`, the restore confirmed by the chip receipt, the unlisted
+guest and the operator stop refused, the audit log verified (10 events)
+— C42 on the released commit.
 
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.7.0           # ~15 min, one n2d-standard-4, deletes it
-scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.7.0    # the images; ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.8.0           # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.8.0    # the images; ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
@@ -2779,7 +2823,14 @@ backend 4.34 s and 4.47 s), the four refusals with their reasons, 17 +
 300 s; `run.txt` `fips 1`, `gofips140 v1.0.0`; `REPORT.md` names the
 module. The figures are those of the runs without the flag (C40, C41).
 The kits' verdicts (`run.sh`) refuse a run whose record lacks any of the
-module's lines.
+module's lines. The same key-release kit on the released commit of
+`v0.8.0` (`20dc289`), from a clean checkout of the tag twenty minutes
+after the release was published:
+[`…/keyrelease-e2e/evidence/20261021T234401Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261021T234401Z/)
+(fips, `hpke-p384-v2`; `versions.txt`: `sagvd v0.8.0 (commit
+20dc289f092c) fips140=only module=v1.0.0 enforced=true`, the same for
+`acp-bootstrap`; the release, the restore confirmed, both refusals,
+`audit verify exit=0`, 10 events).
 
 **Reproduce:**
 

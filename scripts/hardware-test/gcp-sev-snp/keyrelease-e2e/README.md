@@ -39,12 +39,18 @@ the kit's `vg-stamp`, new: an earlier `fips` guest booted in the same
 second as the `cnsa` one, both named their record by their own clock,
 and the later decode overwrote the earlier record, so the guests now
 take the runner's stamp, unique per run; the `cnsa` run's record keeps
-the guest's clock, as before.
+the guest's clock, as before. The third row is the released commit:
+the kit run from a clean checkout of the tag `v0.8.0` twenty minutes
+after the release was published, both daemons reporting `v0.8.0` at
+`20dc289` with `fips140=only module=v1.0.0 enforced=true`
+(`versions.txt`), every binary `GOFIPS140=v1.0.0-c2097c7c` at that
+commit (`build.txt`).
 
 | Profile | Run | The suite both sides met on | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
 |---|---|---|---|---|---|---|---|---|
 | `cnsa` | `evidence/20261021T213940Z` | `hpke-mlkem1024-p384-v2` | **ok**, recipient key `a84b1616…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
 | `fips` | `evidence/20261021T214501Z` | `hpke-p384-v2` | **ok**, recipient key `d834fdc8…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips`, the release `v0.8.0` | `evidence/20261021T234401Z` | `hpke-p384-v2` | **ok**, recipient key `a39ddae5…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
 
 ## Results — runs `20261021T202413Z`, `20261021T202422Z`, `20261021T202423Z`: the three profiles under the v2 suites (ADR 0030)
 
