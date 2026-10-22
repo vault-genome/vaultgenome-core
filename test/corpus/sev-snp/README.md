@@ -16,7 +16,11 @@ VCEK and AMD's chain are what any verifier is handed.
 `internal/shared/tee/differential_test.go` (build tag `differential`) walks
 the manifest and holds the product's reading of every report against
 Google's go-sev-guest (`tools/oracle`) and VirTEE's `snpguest`: the verdict,
-the fields, and the refusal of every single-byte mutant.
+the fields, and the refusal of every single-byte mutant. `results/` holds
+the runs on record: the local run after the first run's fix
+(`differential-20261022T220839Z.json`, the Google reading) and the
+workflow's first green run with all three readings
+(`differential-ci-20261022T222534Z.json`).
 
 ```bash
 python3 -I test/corpus/sev-snp/build.py        # rebuild after a kit adds a report; --no-fetch stays offline

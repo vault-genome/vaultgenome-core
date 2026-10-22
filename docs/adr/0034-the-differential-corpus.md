@@ -1,6 +1,6 @@
 # ADR 0034 — The verifier held to readings nobody here wrote: the differential corpus
 
-- **Status:** Proposed (2026-10-22) — part one (every genuine SEV-SNP report on record as a corpus; Google's go-sev-guest as a second reading through a module of its own; the test that calls both on the verdict, the fields and every single-byte mutant; the laxity it found on its first run, and the fix) in the tree; part two (VirTEE's `snpguest` on Linux, the run recorded in CI, and the claim), part three (the auditor's own verifier of the records, in Python, no dependencies) and part four (the corpus and the harness published for other verifiers to run) follow, and with part two Accepted and claim C47
+- **Status:** Accepted (2026-10-22) — part one (every genuine SEV-SNP report on record as a corpus; Google's go-sev-guest as a second reading through a module of its own; the test that calls both on the verdict, the fields and every single-byte mutant; the laxity it found on its first run, and the fix) and part two (VirTEE's `snpguest` as the third reading, on the record from Linux in the `differential` workflow's first green run) in the tree; claim C47. Part three (the auditor's own verifier of the records, in Python, no dependencies), part four (the corpus and the harness published for other verifiers to run) and part five (version-aware must-be-zero checks in the signed body; a hardware day adding a fresh report) follow
 - **Date:** 2026-10-22
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 
@@ -94,11 +94,13 @@ code.
    the reserved bytes 0x4C–0x4F, 0x18B–0x19F and 0x208–0x29F, the top byte
    of each build field); both refuse. Version-aware must-be-zero checks in
    the signed body are part two's question, with the specification open.
-5. **The claim is narrow and comes with part two.** Part one shows the
-   product's reading equal to Google's on every report on record and no
-   single-byte mutant verified by either; the claim (C47) is made when
-   VirTEE's reading is on the same record from Linux and the workflow
-   reproduces the run.
+5. **The claim is narrow.** The product's reading equals Google's on
+   every report on record, VirTEE's tool verifies each under the same
+   certificates and shows the same measurement and chip id, and no
+   single-byte mutant verifies on either library reading — on the corpus
+   of 2026-10-22 and in the workflow that reproduces it (C47). Nothing is
+   claimed for a report the corpus does not hold, for another TEE family,
+   or for the records (part three).
 
 ## Alternatives considered
 
@@ -140,15 +142,23 @@ code.
   report: product 416 refused at the parse and 768 at the signature,
   go-sev-guest 557 at the parse and 627 at verification, none verified by
   either.
-- **Part two:** `snpguest` on Linux in the workflow and on the hardware day
-  (a fresh report from a GCP guest added to the corpus by the kit), the
-  run recorded; C47; must-be-zero in the signed body, version-aware, from
-  the specification.
+- **Part two (2026-10-22):** the `differential` workflow's first green run
+  on the pull request (run 39864468613, ubuntu-24.04, x86-64): `snpguest`
+  0.10.0 built from crates.io in 1 min 45 s, then one test with all three
+  readings — 41 of 41 verified by the product, by go-sev-guest and by
+  `snpguest` (`verify certs`, `verify attestation`; `display report`
+  showing the measurement and chip id the product read), 19 fields equal,
+  no mutant verified by either library reading; the record
+  `results/differential-ci-20261022T222534Z.json` is the workflow's
+  artifact. Claim C47; control VG-040; `banking.md` (RTS Art. 16).
 - **Part three:** the auditor's verifier of the records (the audit chain's
   hashes and signatures, the receipts), Python, standard library only, with
   the test that calls it and `acpctl audit verify` on the same files.
 - **Part four:** the corpus with expected results and the harness published
   for other verifiers.
+- **Part five:** must-be-zero in the signed body, version-aware, from the
+  specification; a hardware day adding a fresh report to the corpus by the
+  kit.
 
 ## References
 

@@ -46,7 +46,7 @@ ADRs interact with the test-enforced invariant system.
 | 0031 | [The signature suite](0031-the-signature-suite.md) | Accepted | crypto, signatures, audit, profile, fips, x9, cnsa, post-quantum |
 | 0032 | [The protocols in ProVerif: the proofs, the attacks and the assumptions](0032-the-protocols-in-proverif.md) | Accepted | formal, protocol, verification |
 | 0033 | [The attack record in the verifier's policy: TCB floors per chip, the platform's word, the guest's policy, the mitigation vector and the machine](0033-the-attack-record-in-the-policy.md) | Accepted | tee, sev-snp, policy |
-| 0034 | [The verifier held to readings nobody here wrote: the differential corpus](0034-the-differential-corpus.md) | Proposed | tee, sev-snp, testing |
+| 0034 | [The verifier held to readings nobody here wrote: the differential corpus](0034-the-differential-corpus.md) | Accepted | tee, sev-snp, testing |
 
 ## Adding an ADR
 

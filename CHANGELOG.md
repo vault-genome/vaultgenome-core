@@ -25,6 +25,9 @@ given release can still open.
   per report that Google's library refused — the reserved bytes of the
   signature block, not under the signature — and the parser now refuses
   any non-zero byte there (`TestSEVSNPParse_RefusesANonZeroSignatureReserve`).
+  Part two, the same day: the `differential` workflow's first green run,
+  with VirTEE's `snpguest` built from crates.io — 41 of 41 verified by
+  all three readings, on the record (C47, VG-040); ADR 0034 Accepted.
 - The attack record in the verifier's policy (ADR 0033, part one). A
   SEV-SNP report is read whole and put on the record — the chip's family,
   model and stepping, the guest policy and PLATFORM_INFO bit by bit, the
