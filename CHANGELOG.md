@@ -13,8 +13,8 @@ given release can still open.
 
 ### Added
 
-- The protocols in ProVerif (ADR 0032, part one: the cross-cloud key
-  release). Eight models under `formal/`, written by `gen.py` from one
+- The protocols in ProVerif (ADR 0032, Accepted; claim C45). Part one,
+  the cross-cloud key release: eight models under `formal/`, written by `gen.py` from one
   template — the release as the daemons run it, and seven variants that
   each remove one protection or leak one key (the key binding, the suite
   in the binding, a shared recipient key, the stop list's no-rollback
@@ -35,8 +35,19 @@ given release can still open.
   keys not the attacker's, one admission per quote the worker's chip
   made over the session, no admission of an unlisted chip, one acceptance
   per quote the vault's chip made, one verdict per candidate the worker
-  produced, one candidate per job issued. Seventeen models, 143 recorded
-  verdicts.
+  produced, one candidate per job issued. Part three, the sentinel and
+  the failover (ADR 0012, 0017): six models — as the daemons run them,
+  the sentinel's seed leaked and used off the chip, the same without
+  the primary's chip pinned, the primary itself in the attacker's hands,
+  the same with the executor taking the standby from the report instead
+  of the policy, and the chips' key leaked — with seven queries each: the
+  genome key's secrecy, a policy behind every failover, the key released
+  only to the measurement the policy names, the trigger and the chosen
+  generation the sentinel's word on its chip, a decision behind every
+  opening, no release after the stop. Twenty-three models, 185 recorded
+  verdicts; the two rules the symbolic model does not establish — one
+  failover per policy serial, an older serial refused — are named as the
+  authority's record.
 
 ## [0.9.0] — 2026-10-22
 

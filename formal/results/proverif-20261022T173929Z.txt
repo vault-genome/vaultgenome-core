@@ -1,7 +1,3751 @@
 ### proverif version
 Proverif 2.05. Cryptographic protocol verifier, by Bruno Blanchet, Vincent Cheval, and Marc Sylvestre
 ### date
-2026-10-22T17:08:04Z
+2026-10-22T17:39:29Z
+### failover-base.pv
+Process 0 (that is, the initial process):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, sign((s0,nostop),skO));
+(
+    {7}event PolicyIssued(serial1);
+    {8}event PolicyNames(serial1,m_SB);
+    {9}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {10}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {11}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {12}event SentinelSealed(g1);
+    {13}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {14}let cr: bitstring = (CR,g1,m_SB) in
+    {15}event SentinelReported(g1);
+    {16}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {17}!
+    {18}let ser_stop: bitstring = s0 in
+    {19}let ph: bitstring = ph0 in
+    {20}in(c, pol: bitstring);
+    {21}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {22}let pk2b(pkSent: pkey) = pks in
+    {23}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {24}if (checksig(scr,pkSent) = cr_1) then
+    {25}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {26}if (mq = mp) then
+    {27}if (rq = h((label_rec,cr_1))) then
+    {28}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {29}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {30}if (checksig(srec,pkSent) = rec_1) then
+    {31}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {32}if (mq2 = mp) then
+    {33}if (rq2 = h((label_rec,rec_1))) then
+    {34}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {35}if (g = glast) then
+    {36}if (bh = h(bundle)) then
+    {37}event Decided(serial,g);
+    {38}event Chosen(g);
+    {39}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {40}new reqid: bitstring;
+    {41}new decid: bitstring;
+    {42}new n: bitstring;
+    {43}out(c, sign((reqid,decid,n,kind),skS));
+    {44}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {45}let pk2b(pkh: pkey) = pkb in
+    {46}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {47}if (rd = h((label_bind,suite,pkb,n))) then
+    {48}in(c, sl: bitstring);
+    {49}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {50}if (sserial = ser_stop) then
+    {51}if (flag = nostop) then
+    {52}if (m = msb) then
+    {53}new tokenid: bitstring;
+    {54}let aad: bitstring = h((tokenid,m,kid1)) in
+    {55}event Released(serial,m);
+    {56}event AuthorizedIn(ph);
+    {57}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {58}!
+    {59}in(c, req: bitstring);
+    {60}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {61}new hk: skey;
+    {62}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {63}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {64}in(c, tok: bitstring);
+    {65}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {66}if (decid2 = decid_1) then
+    {67}if (reqid2 = reqid_1) then
+    {68}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {69}if (suite_1 = suite_strong) then
+    {70}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {71}event Opened(serial_1,x)
+) | (
+    {72}!
+    {73}in(c, chal: bitstring);
+    {74}out(c, sign((meas_bad,chal),tk))
+) | (
+    {75}phase 1;
+    (
+        {76}out(c, sign((s1,stopall),skO))
+    ) | (
+        {77}!
+        {78}let ser_stop_1: bitstring = s1 in
+        {79}let ph_1: bitstring = ph1 in
+        {80}in(c, pol_1: bitstring);
+        {81}let (=POLICY,serial_2: bitstring,pks_1: bitstring,mp_1: bitstring,msb_1: bitstring) = checksig(pol_1,pk(skO)) in
+        {82}let pk2b(pkSent_1: pkey) = pks_1 in
+        {83}in(c, (cr_2: bitstring,scr_1: bitstring,qcr_1: bitstring));
+        {84}if (checksig(scr_1,pkSent_1) = cr_2) then
+        {85}let (mq_1: bitstring,rq_1: bitstring) = checksig(qcr_1,pk(tk)) in
+        {86}if (mq_1 = mp_1) then
+        {87}if (rq_1 = h((label_rec,cr_2))) then
+        {88}let (=CR,glast_1: bitstring,dsb_1: bitstring) = cr_2 in
+        {89}in(c, (rec_2: bitstring,srec_1: bitstring,qrec_1: bitstring));
+        {90}if (checksig(srec_1,pkSent_1) = rec_2) then
+        {91}let (mq2_1: bitstring,rq2_1: bitstring) = checksig(qrec_1,pk(tk)) in
+        {92}if (mq2_1 = mp_1) then
+        {93}if (rq2_1 = h((label_rec,rec_2))) then
+        {94}let (=SEAL,g_1: bitstring,bh_1: bitstring,env_2: bitstring,parent_1: bitstring) = rec_2 in
+        {95}if (g_1 = glast_1) then
+        {96}if (bh_1 = h(bundle)) then
+        {97}event Decided(serial_2,g_1);
+        {98}event Chosen(g_1);
+        {99}let dek_1: bitstring = hpke_open(env_2,skEsc,g_1) in
+        {100}new reqid_2: bitstring;
+        {101}new decid_2: bitstring;
+        {102}new n_2: bitstring;
+        {103}out(c, sign((reqid_2,decid_2,n_2,kind),skS));
+        {104}in(c, (suite_2: bitstring,pkb_2: bitstring,ev_1: bitstring));
+        {105}let pk2b(pkh_1: pkey) = pkb_2 in
+        {106}let (m_2: bitstring,rd_1: bitstring) = checksig(ev_1,pk(tk)) in
+        {107}if (rd_1 = h((label_bind,suite_2,pkb_2,n_2))) then
+        {108}in(c, sl_1: bitstring);
+        {109}let (sserial_1: bitstring,flag_1: bitstring) = checksig(sl_1,pk(skO)) in
+        {110}if (sserial_1 = ser_stop_1) then
+        {111}if (flag_1 = nostop) then
+        {112}if (m_2 = msb_1) then
+        {113}new tokenid_2: bitstring;
+        {114}let aad_2: bitstring = h((tokenid_2,m_2,kid1)) in
+        {115}event Released(serial_2,m_2);
+        {116}event AuthorizedIn(ph_1);
+        {117}out(c, sign((tokenid_2,decid_2,reqid_2,m_2,kid1,suite_2,hpke(dek_1,pkh_1,aad_2),aad_2,serial_2),skS))
+    ) | (
+        {118}!
+        {119}in(c, req_1: bitstring);
+        {120}let (reqid_3: bitstring,decid_3: bitstring,n_3: bitstring,k_1: bitstring) = checksig(req_1,pk(skS)) in
+        {121}new hk_1: skey;
+        {122}let pkb_3: bitstring = pk2b(pk(hk_1)) in
+        {123}out(c, (suite_strong,pkb_3,sign((m_SB,h((label_bind,suite_strong,pkb_3,n_3))),tk)));
+        {124}in(c, tok_1: bitstring);
+        {125}let (tokenid_3: bitstring,decid2_1: bitstring,reqid2_1: bitstring,m_3: bitstring,kid_1: bitstring,suite_3: bitstring,ct_1: bitstring,aad_3: bitstring,serial_3: bitstring) = checksig(tok_1,pk(skS)) in
+        {126}if (decid2_1 = decid_3) then
+        {127}if (reqid2_1 = reqid_3) then
+        {128}if (aad_3 = h((tokenid_3,m_3,kid_1))) then
+        {129}if (suite_3 = suite_strong) then
+        {130}let x_1: bitstring = hpke_open(ct_1,hk_1,aad_3) in
+        {131}event Opened(serial_3,x_1)
+    ) | (
+        {132}!
+        {133}in(c, chal_1: bitstring);
+        {134}out(c, sign((meas_bad,chal_1),tk))
+    )
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, sign((s0,nostop),skO));
+(
+    {7}event PolicyIssued(serial1);
+    {8}event PolicyNames(serial1,m_SB);
+    {9}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {12}event SentinelSealed(g1);
+    {10}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {11}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {13}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {15}event SentinelReported(g1);
+    {14}let cr: bitstring = (CR,g1,m_SB) in
+    {16}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {17}!
+    {20}in(c, pol: bitstring);
+    {21}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {22}let pk2b(pkSent: pkey) = pks in
+    {23}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {24}if (checksig(scr,pkSent) = cr_1) then
+    {25}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {26}if (mq = mp) then
+    {27}if (rq = h((label_rec,cr_1))) then
+    {28}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {29}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {30}if (checksig(srec,pkSent) = rec_1) then
+    {31}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {32}if (mq2 = mp) then
+    {33}if (rq2 = h((label_rec,rec_1))) then
+    {34}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {35}if (g = glast) then
+    {36}if (bh = h(bundle)) then
+    {37}event Decided(serial,g);
+    {38}event Chosen(g);
+    {39}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {40}new reqid: bitstring;
+    {41}new decid: bitstring;
+    {42}new n: bitstring;
+    {43}out(c, sign((reqid,decid,n,kind),skS));
+    {44}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {45}let pk2b(pkh: pkey) = pkb in
+    {46}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {47}if (rd = h((label_bind,suite,pkb,n))) then
+    {48}in(c, sl: bitstring);
+    {49}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {18}let ser_stop: bitstring = s0 in
+    {50}if (sserial = ser_stop) then
+    {51}if (flag = nostop) then
+    {52}if (m = msb) then
+    {53}new tokenid: bitstring;
+    {55}event Released(serial,m);
+    {19}let ph: bitstring = ph0 in
+    {56}event AuthorizedIn(ph);
+    {54}let aad: bitstring = h((tokenid,m,kid1)) in
+    {57}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {58}!
+    {59}in(c, req: bitstring);
+    {60}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {61}new hk: skey;
+    {62}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {63}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {64}in(c, tok: bitstring);
+    {65}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {66}if (decid2 = decid_1) then
+    {67}if (reqid2 = reqid_1) then
+    {68}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {69}if (suite_1 = suite_strong) then
+    {70}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {71}event Opened(serial_1,x)
+) | (
+    {72}!
+    {73}in(c, chal: bitstring);
+    {74}out(c, sign((meas_bad,chal),tk))
+) | (
+    {75}phase 1;
+    (
+        {76}out(c, sign((s1,stopall),skO))
+    ) | (
+        {77}!
+        {80}in(c, pol_1: bitstring);
+        {81}let (=POLICY,serial_2: bitstring,pks_1: bitstring,mp_1: bitstring,msb_1: bitstring) = checksig(pol_1,pk(skO)) in
+        {82}let pk2b(pkSent_1: pkey) = pks_1 in
+        {83}in(c, (cr_2: bitstring,scr_1: bitstring,qcr_1: bitstring));
+        {84}if (checksig(scr_1,pkSent_1) = cr_2) then
+        {85}let (mq_1: bitstring,rq_1: bitstring) = checksig(qcr_1,pk(tk)) in
+        {86}if (mq_1 = mp_1) then
+        {87}if (rq_1 = h((label_rec,cr_2))) then
+        {88}let (=CR,glast_1: bitstring,dsb_1: bitstring) = cr_2 in
+        {89}in(c, (rec_2: bitstring,srec_1: bitstring,qrec_1: bitstring));
+        {90}if (checksig(srec_1,pkSent_1) = rec_2) then
+        {91}let (mq2_1: bitstring,rq2_1: bitstring) = checksig(qrec_1,pk(tk)) in
+        {92}if (mq2_1 = mp_1) then
+        {93}if (rq2_1 = h((label_rec,rec_2))) then
+        {94}let (=SEAL,g_1: bitstring,bh_1: bitstring,env_2: bitstring,parent_1: bitstring) = rec_2 in
+        {95}if (g_1 = glast_1) then
+        {96}if (bh_1 = h(bundle)) then
+        {97}event Decided(serial_2,g_1);
+        {98}event Chosen(g_1);
+        {99}let dek_1: bitstring = hpke_open(env_2,skEsc,g_1) in
+        {100}new reqid_2: bitstring;
+        {101}new decid_2: bitstring;
+        {102}new n_2: bitstring;
+        {103}out(c, sign((reqid_2,decid_2,n_2,kind),skS));
+        {104}in(c, (suite_2: bitstring,pkb_2: bitstring,ev_1: bitstring));
+        {105}let pk2b(pkh_1: pkey) = pkb_2 in
+        {106}let (m_2: bitstring,rd_1: bitstring) = checksig(ev_1,pk(tk)) in
+        {107}if (rd_1 = h((label_bind,suite_2,pkb_2,n_2))) then
+        {108}in(c, sl_1: bitstring);
+        {109}let (sserial_1: bitstring,flag_1: bitstring) = checksig(sl_1,pk(skO)) in
+        {78}let ser_stop_1: bitstring = s1 in
+        {110}if (sserial_1 = ser_stop_1) then
+        {111}if (flag_1 = nostop) then
+        {112}if (m_2 = msb_1) then
+        {113}new tokenid_2: bitstring;
+        {115}event Released(serial_2,m_2);
+        {79}let ph_1: bitstring = ph1 in
+        {116}event AuthorizedIn(ph_1);
+        {114}let aad_2: bitstring = h((tokenid_2,m_2,kid1)) in
+        {117}out(c, sign((tokenid_2,decid_2,reqid_2,m_2,kid1,suite_2,hpke(dek_1,pkh_1,aad_2),aad_2,serial_2),skS))
+    ) | (
+        {118}!
+        {119}in(c, req_1: bitstring);
+        {120}let (reqid_3: bitstring,decid_3: bitstring,n_3: bitstring,k_1: bitstring) = checksig(req_1,pk(skS)) in
+        {121}new hk_1: skey;
+        {122}let pkb_3: bitstring = pk2b(pk(hk_1)) in
+        {123}out(c, (suite_strong,pkb_3,sign((m_SB,h((label_bind,suite_strong,pkb_3,n_3))),tk)));
+        {124}in(c, tok_1: bitstring);
+        {125}let (tokenid_3: bitstring,decid2_1: bitstring,reqid2_1: bitstring,m_3: bitstring,kid_1: bitstring,suite_3: bitstring,ct_1: bitstring,aad_3: bitstring,serial_3: bitstring) = checksig(tok_1,pk(skS)) in
+        {126}if (decid2_1 = decid_3) then
+        {127}if (reqid2_1 = reqid_3) then
+        {128}if (aad_3 = h((tokenid_3,m_3,kid_1))) then
+        {129}if (suite_3 = suite_strong) then
+        {130}let x_1: bitstring = hpke_open(ct_1,hk_1,aad_3) in
+        {131}event Opened(serial_3,x_1)
+    ) | (
+        {132}!
+        {133}in(c, chal_1: bitstring);
+        {134}out(c, sign((meas_bad,chal_1),tk))
+    )
+)
+
+-- Query not attacker_p1(kg[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 193 rules (94 with conclusion selected). Queue: 28 rules.
+400 rules inserted. Base: 319 rules (99 with conclusion selected). Queue: 90 rules.
+600 rules inserted. Base: 382 rules (102 with conclusion selected). Queue: 108 rules.
+800 rules inserted. Base: 455 rules (102 with conclusion selected). Queue: 109 rules.
+1000 rules inserted. Base: 548 rules (105 with conclusion selected). Queue: 65 rules.
+1200 rules inserted. Base: 607 rules (111 with conclusion selected). Queue: 16 rules.
+Starting query not attacker_p1(kg[])
+RESULT not attacker_p1(kg[]) is true.
+-- Query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (94 with conclusion selected). Queue: 40 rules.
+400 rules inserted. Base: 327 rules (96 with conclusion selected). Queue: 95 rules.
+600 rules inserted. Base: 431 rules (103 with conclusion selected). Queue: 106 rules.
+800 rules inserted. Base: 491 rules (103 with conclusion selected). Queue: 127 rules.
+1000 rules inserted. Base: 551 rules (103 with conclusion selected). Queue: 108 rules.
+1200 rules inserted. Base: 640 rules (106 with conclusion selected). Queue: 60 rules.
+1400 rules inserted. Base: 697 rules (112 with conclusion selected). Queue: 19 rules.
+Starting query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser))
+goal reachable: b-event(PolicyIssued(serial1)) -> event(Decided(serial1,g1))
+RESULT event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) is true.
+-- Query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 193 rules (94 with conclusion selected). Queue: 34 rules.
+400 rules inserted. Base: 328 rules (99 with conclusion selected). Queue: 86 rules.
+600 rules inserted. Base: 399 rules (102 with conclusion selected). Queue: 109 rules.
+800 rules inserted. Base: 460 rules (102 with conclusion selected). Queue: 111 rules.
+1000 rules inserted. Base: 552 rules (103 with conclusion selected). Queue: 72 rules.
+1200 rules inserted. Base: 622 rules (112 with conclusion selected). Queue: 11 rules.
+Starting query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4))
+goal reachable: b-event(PolicyNames(serial1,m_SB)) -> event(Released(serial1,m_SB))
+RESULT event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) is true.
+-- Query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (94 with conclusion selected). Queue: 40 rules.
+400 rules inserted. Base: 323 rules (96 with conclusion selected). Queue: 100 rules.
+600 rules inserted. Base: 434 rules (103 with conclusion selected). Queue: 119 rules.
+800 rules inserted. Base: 493 rules (103 with conclusion selected). Queue: 137 rules.
+1000 rules inserted. Base: 548 rules (103 with conclusion selected). Queue: 122 rules.
+1200 rules inserted. Base: 636 rules (104 with conclusion selected). Queue: 83 rules.
+1400 rules inserted. Base: 718 rules (112 with conclusion selected). Queue: 12 rules.
+Starting query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2))
+goal reachable: b-event(SentinelReported(g1)) -> event(Decided(serial1,g1))
+RESULT event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) is true.
+-- Query event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (94 with conclusion selected). Queue: 40 rules.
+400 rules inserted. Base: 312 rules (96 with conclusion selected). Queue: 86 rules.
+600 rules inserted. Base: 405 rules (103 with conclusion selected). Queue: 112 rules.
+800 rules inserted. Base: 455 rules (103 with conclusion selected). Queue: 110 rules.
+1000 rules inserted. Base: 539 rules (104 with conclusion selected). Queue: 94 rules.
+1200 rules inserted. Base: 636 rules (109 with conclusion selected). Queue: 13 rules.
+Starting query event(Chosen(g_2)) ==> event(SentinelSealed(g_2))
+goal reachable: b-event(SentinelSealed(g1)) -> event(Chosen(g1))
+RESULT event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) is true.
+-- Query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 193 rules (94 with conclusion selected). Queue: 31 rules.
+400 rules inserted. Base: 328 rules (99 with conclusion selected). Queue: 87 rules.
+600 rules inserted. Base: 399 rules (102 with conclusion selected). Queue: 114 rules.
+800 rules inserted. Base: 458 rules (102 with conclusion selected). Queue: 112 rules.
+1000 rules inserted. Base: 546 rules (103 with conclusion selected). Queue: 77 rules.
+1200 rules inserted. Base: 629 rules (112 with conclusion selected). Queue: 10 rules.
+Starting query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2))
+goal reachable: b-event(Decided(serial1,g1)) -> event(Opened(serial1,kg[]))
+RESULT event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) is true.
+-- Query not event(AuthorizedIn(ph1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 193 rules (94 with conclusion selected). Queue: 34 rules.
+400 rules inserted. Base: 328 rules (99 with conclusion selected). Queue: 86 rules.
+600 rules inserted. Base: 399 rules (102 with conclusion selected). Queue: 109 rules.
+800 rules inserted. Base: 460 rules (102 with conclusion selected). Queue: 111 rules.
+1000 rules inserted. Base: 552 rules (103 with conclusion selected). Queue: 72 rules.
+1200 rules inserted. Base: 622 rules (112 with conclusion selected). Queue: 15 rules.
+Starting query not event(AuthorizedIn(ph1))
+RESULT not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker_p1(kg[]) is true.
+
+Query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) is true.
+
+Query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) is true.
+
+Query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) is true.
+
+Query event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) is true.
+
+Query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) is true.
+
+Query not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+### failover-primary-compromised-worm.pv
+Process 0 (that is, the initial process):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, skSent);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {13}event SentinelSealed(g1);
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {16}event SentinelReported(g1);
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {19}let ser_stop: bitstring = s0 in
+    {20}let ph: bitstring = ph0 in
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {27}if (mq = mp) then
+    {28}if (rq = h((label_rec,cr_1))) then
+    {29}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {30}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {31}if (checksig(srec,pkSent) = rec_1) then
+    {32}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {33}if (mq2 = mp) then
+    {34}if (rq2 = h((label_rec,rec_1))) then
+    {35}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {36}if (g = glast) then
+    {37}if (bh = h(bundle)) then
+    {38}event Decided(serial,g);
+    {39}event Chosen(g);
+    {40}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {41}new reqid: bitstring;
+    {42}new decid: bitstring;
+    {43}new n: bitstring;
+    {44}out(c, sign((reqid,decid,n,kind),skS));
+    {45}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {46}let pk2b(pkh: pkey) = pkb in
+    {47}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {48}if (rd = h((label_bind,suite,pkb,n))) then
+    {49}in(c, sl: bitstring);
+    {50}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {51}if (sserial = ser_stop) then
+    {52}if (flag = nostop) then
+    {53}if (m = dsb) then
+    {54}new tokenid: bitstring;
+    {55}let aad: bitstring = h((tokenid,m,kid1)) in
+    {56}event Released(serial,m);
+    {57}event AuthorizedIn(ph);
+    {58}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {59}!
+    {60}in(c, req: bitstring);
+    {61}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {62}new hk: skey;
+    {63}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {64}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {65}in(c, tok: bitstring);
+    {66}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {67}if (decid2 = decid_1) then
+    {68}if (reqid2 = reqid_1) then
+    {69}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {70}if (suite_1 = suite_strong) then
+    {71}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {72}event Opened(serial_1,x)
+) | (
+    {73}!
+    {74}in(c, chal: bitstring);
+    {75}out(c, sign((meas_bad,chal),tk))
+) | (
+    {76}!
+    {77}in(c, chal_1: bitstring);
+    {78}out(c, sign((m_P,chal_1),tk))
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, skSent);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {13}event SentinelSealed(g1);
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {16}event SentinelReported(g1);
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {27}if (mq = mp) then
+    {28}if (rq = h((label_rec,cr_1))) then
+    {29}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {30}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {31}if (checksig(srec,pkSent) = rec_1) then
+    {32}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {33}if (mq2 = mp) then
+    {34}if (rq2 = h((label_rec,rec_1))) then
+    {35}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {36}if (g = glast) then
+    {37}if (bh = h(bundle)) then
+    {38}event Decided(serial,g);
+    {39}event Chosen(g);
+    {40}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {41}new reqid: bitstring;
+    {42}new decid: bitstring;
+    {43}new n: bitstring;
+    {44}out(c, sign((reqid,decid,n,kind),skS));
+    {45}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {46}let pk2b(pkh: pkey) = pkb in
+    {47}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {48}if (rd = h((label_bind,suite,pkb,n))) then
+    {49}in(c, sl: bitstring);
+    {50}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {19}let ser_stop: bitstring = s0 in
+    {51}if (sserial = ser_stop) then
+    {52}if (flag = nostop) then
+    {53}if (m = dsb) then
+    {54}new tokenid: bitstring;
+    {56}event Released(serial,m);
+    {20}let ph: bitstring = ph0 in
+    {57}event AuthorizedIn(ph);
+    {55}let aad: bitstring = h((tokenid,m,kid1)) in
+    {58}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {59}!
+    {60}in(c, req: bitstring);
+    {61}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {62}new hk: skey;
+    {63}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {64}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {65}in(c, tok: bitstring);
+    {66}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {67}if (decid2 = decid_1) then
+    {68}if (reqid2 = reqid_1) then
+    {69}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {70}if (suite_1 = suite_strong) then
+    {71}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {72}event Opened(serial_1,x)
+) | (
+    {73}!
+    {74}in(c, chal: bitstring);
+    {75}out(c, sign((meas_bad,chal),tk))
+) | (
+    {76}!
+    {77}in(c, chal_1: bitstring);
+    {78}out(c, sign((m_P,chal_1),tk))
+)
+
+-- Query not attacker(kg[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 140 rules (67 with conclusion selected). Queue: 25 rules.
+400 rules inserted. Base: 195 rules (95 with conclusion selected). Queue: 21 rules.
+600 rules inserted. Base: 219 rules (117 with conclusion selected). Queue: 8 rules.
+Starting query not attacker(kg[])
+goal reachable: attacker(kg[])
+
+Derivation:
+Abbreviations:
+n_2 = n[qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]),scr = sign((CR,g1,m_P),skSent[]),cr_1 = (CR,g1,m_P),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+tokenid_2 = tokenid[sl = sign((s0,nostop),skO[]),ev = sign((m_P,h((label_bind,suite_2,pk2b(pk(k_1)),n_2))),tk[]),pkb = pk2b(pk(k_1)),suite = suite_2,qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]),scr = sign((CR,g1,m_P),skSent[]),cr_1 = (CR,g1,m_P),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+decid_2 = decid[qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]),scr = sign((CR,g1,m_P),skSent[]),cr_1 = (CR,g1,m_P),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+reqid_2 = reqid[qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]),scr = sign((CR,g1,m_P),skSent[]),cr_1 = (CR,g1,m_P),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+
+1. Using the function kid1 the attacker may obtain kid1.
+attacker(kid1).
+
+2. Using the function m_P the attacker may obtain m_P.
+attacker(m_P).
+
+3. The message pk(skS[]) may be sent to the attacker at output {5}.
+attacker(pk(skS[])).
+
+4. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) may be sent to the attacker at output {10}.
+attacker(sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[])).
+
+5. Using the function g1 the attacker may obtain g1.
+attacker(g1).
+
+6. Using the function CR the attacker may obtain CR.
+attacker(CR).
+
+7. By 6, the attacker may know CR.
+By 5, the attacker may know g1.
+By 2, the attacker may know m_P.
+Using the function 3-tuple the attacker may obtain (CR,g1,m_P).
+attacker((CR,g1,m_P)).
+
+8. Using the function label_rec the attacker may obtain label_rec.
+attacker(label_rec).
+
+9. By 8, the attacker may know label_rec.
+By 7, the attacker may know (CR,g1,m_P).
+Using the function 2-tuple the attacker may obtain (label_rec,(CR,g1,m_P)).
+attacker((label_rec,(CR,g1,m_P))).
+
+10. By 9, the attacker may know (label_rec,(CR,g1,m_P)).
+Using the function h the attacker may obtain h((label_rec,(CR,g1,m_P))).
+attacker(h((label_rec,(CR,g1,m_P)))).
+
+11. The message h((label_rec,(CR,g1,m_P))) that the attacker may have by 10 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[])).
+
+12. The message skSent[] may be sent to the attacker at output {6}.
+attacker(skSent[]).
+
+13. By 7, the attacker may know (CR,g1,m_P).
+By 12, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((CR,g1,m_P),skSent[]).
+attacker(sign((CR,g1,m_P),skSent[])).
+
+14. By 7, the attacker may know (CR,g1,m_P).
+By 13, the attacker may know sign((CR,g1,m_P),skSent[]).
+By 11, the attacker may know sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((CR,g1,m_P),sign((CR,g1,m_P),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[])).
+attacker(((CR,g1,m_P),sign((CR,g1,m_P),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]))).
+
+15. The message ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])) may be sent to the attacker at output {14}.
+attacker(((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]))).
+
+16. By 15, the attacker may know ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+Using the function 3-proj-3-tuple the attacker may obtain sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]).
+attacker(sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+
+17. Using the function g0 the attacker may obtain g0.
+attacker(g0).
+
+18. By 15, the attacker may know ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+Using the function 1-proj-3-tuple the attacker may obtain (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+attacker((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)).
+
+19. By 18, the attacker may know (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+Using the function 4-proj-5-tuple the attacker may obtain hpke(kg[],pk(skEsc[]),g1).
+attacker(hpke(kg[],pk(skEsc[]),g1)).
+
+20. The attacker initially knows bundle[].
+attacker(bundle[]).
+
+21. By 20, the attacker may know bundle[].
+Using the function h the attacker may obtain h(bundle[]).
+attacker(h(bundle[])).
+
+22. Using the function SEAL the attacker may obtain SEAL.
+attacker(SEAL).
+
+23. By 22, the attacker may know SEAL.
+By 5, the attacker may know g1.
+By 21, the attacker may know h(bundle[]).
+By 19, the attacker may know hpke(kg[],pk(skEsc[]),g1).
+By 17, the attacker may know g0.
+Using the function 5-tuple the attacker may obtain (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+attacker((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)).
+
+24. By 23, the attacker may know (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+By 12, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]).
+attacker(sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[])).
+
+25. By 23, the attacker may know (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+By 24, the attacker may know sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]).
+By 16, the attacker may know sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+attacker(((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]))).
+
+26. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 4 may be received at input {21}.
+The message ((CR,g1,m_P),sign((CR,g1,m_P),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[])) that the attacker may have by 14 may be received at input {24}.
+The message ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])) that the attacker may have by 25 may be received at input {30}.
+So the message sign((reqid_2,decid_2,n_2,kind),skS[]) may be sent to the attacker at output {44}.
+attacker(sign((reqid_2,decid_2,n_2,kind),skS[])).
+
+27. By 26, the attacker may know sign((reqid_2,decid_2,n_2,kind),skS[]).
+By 3, the attacker may know pk(skS[]).
+Using the function checksig the attacker may obtain (reqid_2,decid_2,n_2,kind).
+attacker((reqid_2,decid_2,n_2,kind)).
+
+28. By 27, the attacker may know (reqid_2,decid_2,n_2,kind).
+Using the function 3-proj-4-tuple the attacker may obtain n_2.
+attacker(n_2).
+
+29. The attacker has some term k_1.
+attacker(k_1).
+
+30. By 29, the attacker may know k_1.
+Using the function pk the attacker may obtain pk(k_1).
+attacker(pk(k_1)).
+
+31. By 30, the attacker may know pk(k_1).
+Using the function pk2b the attacker may obtain pk2b(pk(k_1)).
+attacker(pk2b(pk(k_1))).
+
+32. The attacker has some term suite_2.
+attacker(suite_2).
+
+33. Using the function label_bind the attacker may obtain label_bind.
+attacker(label_bind).
+
+34. By 33, the attacker may know label_bind.
+By 32, the attacker may know suite_2.
+By 31, the attacker may know pk2b(pk(k_1)).
+By 28, the attacker may know n_2.
+Using the function 4-tuple the attacker may obtain (label_bind,suite_2,pk2b(pk(k_1)),n_2).
+attacker((label_bind,suite_2,pk2b(pk(k_1)),n_2)).
+
+35. By 34, the attacker may know (label_bind,suite_2,pk2b(pk(k_1)),n_2).
+Using the function h the attacker may obtain h((label_bind,suite_2,pk2b(pk(k_1)),n_2)).
+attacker(h((label_bind,suite_2,pk2b(pk(k_1)),n_2))).
+
+36. The message h((label_bind,suite_2,pk2b(pk(k_1)),n_2)) that the attacker may have by 35 may be received at input {77}.
+So the message sign((m_P,h((label_bind,suite_2,pk2b(pk(k_1)),n_2))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_bind,suite_2,pk2b(pk(k_1)),n_2))),tk[])).
+
+37. By 32, the attacker may know suite_2.
+By 31, the attacker may know pk2b(pk(k_1)).
+By 36, the attacker may know sign((m_P,h((label_bind,suite_2,pk2b(pk(k_1)),n_2))),tk[]).
+Using the function 3-tuple the attacker may obtain (suite_2,pk2b(pk(k_1)),sign((m_P,h((label_bind,suite_2,pk2b(pk(k_1)),n_2))),tk[])).
+attacker((suite_2,pk2b(pk(k_1)),sign((m_P,h((label_bind,suite_2,pk2b(pk(k_1)),n_2))),tk[]))).
+
+38. The message sign((s0,nostop),skO[]) may be sent to the attacker at output {7}.
+attacker(sign((s0,nostop),skO[])).
+
+39. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 4 may be received at input {21}.
+The message ((CR,g1,m_P),sign((CR,g1,m_P),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[])) that the attacker may have by 14 may be received at input {24}.
+The message ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])) that the attacker may have by 25 may be received at input {30}.
+The message (suite_2,pk2b(pk(k_1)),sign((m_P,h((label_bind,suite_2,pk2b(pk(k_1)),n_2))),tk[])) that the attacker may have by 37 may be received at input {45}.
+The message sign((s0,nostop),skO[]) that the attacker may have by 38 may be received at input {49}.
+So the message sign((tokenid_2,decid_2,reqid_2,m_P,kid1,suite_2,hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1))),h((tokenid_2,m_P,kid1)),serial1),skS[]) may be sent to the attacker at output {58}.
+attacker(sign((tokenid_2,decid_2,reqid_2,m_P,kid1,suite_2,hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1))),h((tokenid_2,m_P,kid1)),serial1),skS[])).
+
+40. By 39, the attacker may know sign((tokenid_2,decid_2,reqid_2,m_P,kid1,suite_2,hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1))),h((tokenid_2,m_P,kid1)),serial1),skS[]).
+By 3, the attacker may know pk(skS[]).
+Using the function checksig the attacker may obtain (tokenid_2,decid_2,reqid_2,m_P,kid1,suite_2,hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1))),h((tokenid_2,m_P,kid1)),serial1).
+attacker((tokenid_2,decid_2,reqid_2,m_P,kid1,suite_2,hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1))),h((tokenid_2,m_P,kid1)),serial1)).
+
+41. By 40, the attacker may know (tokenid_2,decid_2,reqid_2,m_P,kid1,suite_2,hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1))),h((tokenid_2,m_P,kid1)),serial1).
+Using the function 1-proj-9-tuple the attacker may obtain tokenid_2.
+attacker(tokenid_2).
+
+42. By 41, the attacker may know tokenid_2.
+By 2, the attacker may know m_P.
+By 1, the attacker may know kid1.
+Using the function 3-tuple the attacker may obtain (tokenid_2,m_P,kid1).
+attacker((tokenid_2,m_P,kid1)).
+
+43. By 42, the attacker may know (tokenid_2,m_P,kid1).
+Using the function h the attacker may obtain h((tokenid_2,m_P,kid1)).
+attacker(h((tokenid_2,m_P,kid1))).
+
+44. By 40, the attacker may know (tokenid_2,decid_2,reqid_2,m_P,kid1,suite_2,hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1))),h((tokenid_2,m_P,kid1)),serial1).
+Using the function 7-proj-9-tuple the attacker may obtain hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1))).
+attacker(hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1)))).
+
+45. By 44, the attacker may know hpke(kg[],pk(k_1),h((tokenid_2,m_P,kid1))).
+By 29, the attacker may know k_1.
+By 43, the attacker may know h((tokenid_2,m_P,kid1)).
+Using the function hpke_open the attacker may obtain kg[].
+attacker(kg[]).
+
+46. By 45, attacker(kg[]).
+The goal is reached, represented in the following fact:
+attacker(kg[]).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(tk) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skO) at {2}
+
+out(c, ~M_2) with ~M_2 = pk(skSent) at {3}
+
+out(c, ~M_3) with ~M_3 = pk(skEsc) at {4}
+
+out(c, ~M_4) with ~M_4 = pk(skS) at {5}
+
+out(c, ~M_5) with ~M_5 = skSent at {6}
+
+out(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {7}
+
+event SentinelSealed(g1) at {13}
+
+out(c, ((~M_7,~M_8,~M_9,~M_10,~M_11),~M_12,~M_13)) with ~M_7 = SEAL, ~M_8 = g1, ~M_9 = h(bundle), ~M_10 = hpke(kg,pk(skEsc),g1), ~M_11 = g0, ~M_12 = sign((SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0),skSent), ~M_13 = sign((m_P,h((label_rec,(SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0)))),tk) at {14}
+
+event SentinelReported(g1) at {16}
+
+out(c, ((~M_14,~M_15,~M_16),~M_17,~M_18)) with ~M_14 = CR, ~M_15 = g1, ~M_16 = m_SB, ~M_17 = sign((CR,g1,m_SB),skSent), ~M_18 = sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk) at {17}
+
+event PolicyIssued(serial1) at {8}
+
+event PolicyNames(serial1,m_SB) at {9}
+
+out(c, ~M_19) with ~M_19 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {10}
+
+in(c, ~M_19) with ~M_19 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {21} in copy a
+
+in(c, h((label_rec,(CR,g1,m_P)))) at {77} in copy a_1
+
+out(c, ~M_20) with ~M_20 = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk) at {78} in copy a_1
+
+in(c, ((CR,g1,m_P),sign((CR,g1,m_P),~M_5),~M_20)) with sign((CR,g1,m_P),~M_5) = sign((CR,g1,m_P),skSent), ~M_20 = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk) at {24} in copy a
+
+in(c, ((SEAL,g1,h(bundle),~M_10,g0),sign((SEAL,g1,h(bundle),~M_10,g0),~M_5),~M_13)) with ~M_10 = hpke(kg,pk(skEsc),g1), sign((SEAL,g1,h(bundle),~M_10,g0),~M_5) = sign((SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0),skSent), ~M_13 = sign((m_P,h((label_rec,(SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0)))),tk) at {30} in copy a
+
+event Decided(serial1,g1) at {38} in copy a
+
+event Chosen(g1) at {39} in copy a
+
+new reqid: bitstring creating reqid_3 at {41} in copy a
+
+new decid: bitstring creating decid_3 at {42} in copy a
+
+new n: bitstring creating n_3 at {43} in copy a
+
+out(c, ~M_21) with ~M_21 = sign((reqid_3,decid_3,n_3,kind),skS) at {44} in copy a
+
+in(c, h((label_bind,a_2,pk2b(pk(a_3)),3-proj-4-tuple(checksig(~M_21,~M_4))))) with h((label_bind,a_2,pk2b(pk(a_3)),3-proj-4-tuple(checksig(~M_21,~M_4)))) = h((label_bind,a_2,pk2b(pk(a_3)),n_3)) at {77} in copy a_4
+
+out(c, ~M_22) with ~M_22 = sign((m_P,h((label_bind,a_2,pk2b(pk(a_3)),n_3))),tk) at {78} in copy a_4
+
+in(c, (a_2,pk2b(pk(a_3)),~M_22)) with ~M_22 = sign((m_P,h((label_bind,a_2,pk2b(pk(a_3)),n_3))),tk) at {45} in copy a
+
+in(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {49} in copy a
+
+new tokenid: bitstring creating tokenid_3 at {54} in copy a
+
+event Released(serial1,m_P) at {56} in copy a
+
+event AuthorizedIn(ph0) at {57} in copy a
+
+out(c, ~M_23) with ~M_23 = sign((tokenid_3,decid_3,reqid_3,m_P,kid1,a_2,hpke(kg,pk(a_3),h((tokenid_3,m_P,kid1))),h((tokenid_3,m_P,kid1)),serial1),skS) at {58} in copy a
+
+The attacker has the message hpke_open(7-proj-9-tuple(checksig(~M_23,~M_4)),a_3,h((1-proj-9-tuple(checksig(~M_23,~M_4)),m_P,kid1))) = kg.
+A trace has been found.
+RESULT not attacker(kg[]) is false.
+-- Query event(Decided(ser,g_1)) ==> event(PolicyIssued(ser)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 137 rules (59 with conclusion selected). Queue: 26 rules.
+400 rules inserted. Base: 205 rules (93 with conclusion selected). Queue: 17 rules.
+600 rules inserted. Base: 232 rules (118 with conclusion selected). Queue: 23 rules.
+Starting query event(Decided(ser,g_1)) ==> event(PolicyIssued(ser))
+goal reachable: attacker(g_1) && b-event(PolicyIssued(serial1)) -> event(Decided(serial1,g_1))
+RESULT event(Decided(ser,g_1)) ==> event(PolicyIssued(ser)) is true.
+-- Query event(Released(ser,m_2)) ==> event(PolicyNames(ser,m_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 142 rules (64 with conclusion selected). Queue: 24 rules.
+400 rules inserted. Base: 205 rules (90 with conclusion selected). Queue: 24 rules.
+600 rules inserted. Base: 222 rules (117 with conclusion selected). Queue: 31 rules.
+Starting query event(Released(ser,m_2)) ==> event(PolicyNames(ser,m_2))
+goal reachable: b-event(PolicyNames(serial1,m_SB)) -> event(Released(serial1,m_P))
+
+Derivation:
+Abbreviations:
+n_2 = n[qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]),scr = sign((CR,g1,m_P),skSent[]),cr_1 = (CR,g1,m_P),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+reqid_2 = reqid[qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]),scr = sign((CR,g1,m_P),skSent[]),cr_1 = (CR,g1,m_P),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+decid_2 = decid[qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]),scr = sign((CR,g1,m_P),skSent[]),cr_1 = (CR,g1,m_P),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+
+1. The event PolicyNames(serial1,m_SB) may be executed at {9}.
+So the message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) may be sent to the attacker at output {10}.
+attacker(sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[])).
+
+2. Using the function m_P the attacker may obtain m_P.
+attacker(m_P).
+
+3. Using the function g1 the attacker may obtain g1.
+attacker(g1).
+
+4. Using the function CR the attacker may obtain CR.
+attacker(CR).
+
+5. By 4, the attacker may know CR.
+By 3, the attacker may know g1.
+By 2, the attacker may know m_P.
+Using the function 3-tuple the attacker may obtain (CR,g1,m_P).
+attacker((CR,g1,m_P)).
+
+6. Using the function label_rec the attacker may obtain label_rec.
+attacker(label_rec).
+
+7. By 6, the attacker may know label_rec.
+By 5, the attacker may know (CR,g1,m_P).
+Using the function 2-tuple the attacker may obtain (label_rec,(CR,g1,m_P)).
+attacker((label_rec,(CR,g1,m_P))).
+
+8. By 7, the attacker may know (label_rec,(CR,g1,m_P)).
+Using the function h the attacker may obtain h((label_rec,(CR,g1,m_P))).
+attacker(h((label_rec,(CR,g1,m_P)))).
+
+9. The message h((label_rec,(CR,g1,m_P))) that the attacker may have by 8 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[])).
+
+10. The message skSent[] may be sent to the attacker at output {6}.
+attacker(skSent[]).
+
+11. By 5, the attacker may know (CR,g1,m_P).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((CR,g1,m_P),skSent[]).
+attacker(sign((CR,g1,m_P),skSent[])).
+
+12. By 5, the attacker may know (CR,g1,m_P).
+By 11, the attacker may know sign((CR,g1,m_P),skSent[]).
+By 9, the attacker may know sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((CR,g1,m_P),sign((CR,g1,m_P),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[])).
+attacker(((CR,g1,m_P),sign((CR,g1,m_P),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[]))).
+
+13. The message ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])) may be sent to the attacker at output {14}.
+attacker(((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]))).
+
+14. By 13, the attacker may know ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+Using the function 3-proj-3-tuple the attacker may obtain sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]).
+attacker(sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+
+15. Using the function g0 the attacker may obtain g0.
+attacker(g0).
+
+16. By 13, the attacker may know ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+Using the function 1-proj-3-tuple the attacker may obtain (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+attacker((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)).
+
+17. By 16, the attacker may know (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+Using the function 4-proj-5-tuple the attacker may obtain hpke(kg[],pk(skEsc[]),g1).
+attacker(hpke(kg[],pk(skEsc[]),g1)).
+
+18. The attacker initially knows bundle[].
+attacker(bundle[]).
+
+19. By 18, the attacker may know bundle[].
+Using the function h the attacker may obtain h(bundle[]).
+attacker(h(bundle[])).
+
+20. Using the function SEAL the attacker may obtain SEAL.
+attacker(SEAL).
+
+21. By 20, the attacker may know SEAL.
+By 3, the attacker may know g1.
+By 19, the attacker may know h(bundle[]).
+By 17, the attacker may know hpke(kg[],pk(skEsc[]),g1).
+By 15, the attacker may know g0.
+Using the function 5-tuple the attacker may obtain (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+attacker((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)).
+
+22. By 21, the attacker may know (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]).
+attacker(sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[])).
+
+23. By 21, the attacker may know (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+By 22, the attacker may know sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]).
+By 14, the attacker may know sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+attacker(((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]))).
+
+24. The message pk(skS[]) may be sent to the attacker at output {5}.
+attacker(pk(skS[])).
+
+25. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 1 may be received at input {21}.
+The message ((CR,g1,m_P),sign((CR,g1,m_P),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[])) that the attacker may have by 12 may be received at input {24}.
+The message ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])) that the attacker may have by 23 may be received at input {30}.
+So the message sign((reqid_2,decid_2,n_2,kind),skS[]) may be sent to the attacker at output {44}.
+attacker(sign((reqid_2,decid_2,n_2,kind),skS[])).
+
+26. By 25, the attacker may know sign((reqid_2,decid_2,n_2,kind),skS[]).
+By 24, the attacker may know pk(skS[]).
+Using the function checksig the attacker may obtain (reqid_2,decid_2,n_2,kind).
+attacker((reqid_2,decid_2,n_2,kind)).
+
+27. By 26, the attacker may know (reqid_2,decid_2,n_2,kind).
+Using the function 3-proj-4-tuple the attacker may obtain n_2.
+attacker(n_2).
+
+28. The attacker has some term pkh_1.
+attacker(pkh_1).
+
+29. By 28, the attacker may know pkh_1.
+Using the function pk2b the attacker may obtain pk2b(pkh_1).
+attacker(pk2b(pkh_1)).
+
+30. The attacker has some term suite_2.
+attacker(suite_2).
+
+31. Using the function label_bind the attacker may obtain label_bind.
+attacker(label_bind).
+
+32. By 31, the attacker may know label_bind.
+By 30, the attacker may know suite_2.
+By 29, the attacker may know pk2b(pkh_1).
+By 27, the attacker may know n_2.
+Using the function 4-tuple the attacker may obtain (label_bind,suite_2,pk2b(pkh_1),n_2).
+attacker((label_bind,suite_2,pk2b(pkh_1),n_2)).
+
+33. By 32, the attacker may know (label_bind,suite_2,pk2b(pkh_1),n_2).
+Using the function h the attacker may obtain h((label_bind,suite_2,pk2b(pkh_1),n_2)).
+attacker(h((label_bind,suite_2,pk2b(pkh_1),n_2))).
+
+34. The message h((label_bind,suite_2,pk2b(pkh_1),n_2)) that the attacker may have by 33 may be received at input {77}.
+So the message sign((m_P,h((label_bind,suite_2,pk2b(pkh_1),n_2))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_bind,suite_2,pk2b(pkh_1),n_2))),tk[])).
+
+35. By 30, the attacker may know suite_2.
+By 29, the attacker may know pk2b(pkh_1).
+By 34, the attacker may know sign((m_P,h((label_bind,suite_2,pk2b(pkh_1),n_2))),tk[]).
+Using the function 3-tuple the attacker may obtain (suite_2,pk2b(pkh_1),sign((m_P,h((label_bind,suite_2,pk2b(pkh_1),n_2))),tk[])).
+attacker((suite_2,pk2b(pkh_1),sign((m_P,h((label_bind,suite_2,pk2b(pkh_1),n_2))),tk[]))).
+
+36. The message sign((s0,nostop),skO[]) may be sent to the attacker at output {7}.
+attacker(sign((s0,nostop),skO[])).
+
+37. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 1 may be received at input {21}.
+The message ((CR,g1,m_P),sign((CR,g1,m_P),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_P)))),tk[])) that the attacker may have by 12 may be received at input {24}.
+The message ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])) that the attacker may have by 23 may be received at input {30}.
+The message (suite_2,pk2b(pkh_1),sign((m_P,h((label_bind,suite_2,pk2b(pkh_1),n_2))),tk[])) that the attacker may have by 35 may be received at input {45}.
+The message sign((s0,nostop),skO[]) that the attacker may have by 36 may be received at input {49}.
+So event Released(serial1,m_P) may be executed at {56}.
+event(Released(serial1,m_P)).
+
+38. By 37, event(Released(serial1,m_P)).
+The goal is reached, represented in the following fact:
+event(Released(serial1,m_P)).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(tk) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skO) at {2}
+
+out(c, ~M_2) with ~M_2 = pk(skSent) at {3}
+
+out(c, ~M_3) with ~M_3 = pk(skEsc) at {4}
+
+out(c, ~M_4) with ~M_4 = pk(skS) at {5}
+
+out(c, ~M_5) with ~M_5 = skSent at {6}
+
+out(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {7}
+
+event SentinelSealed(g1) at {13}
+
+out(c, ((~M_7,~M_8,~M_9,~M_10,~M_11),~M_12,~M_13)) with ~M_7 = SEAL, ~M_8 = g1, ~M_9 = h(bundle), ~M_10 = hpke(kg,pk(skEsc),g1), ~M_11 = g0, ~M_12 = sign((SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0),skSent), ~M_13 = sign((m_P,h((label_rec,(SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0)))),tk) at {14}
+
+event SentinelReported(g1) at {16}
+
+out(c, ((~M_14,~M_15,~M_16),~M_17,~M_18)) with ~M_14 = CR, ~M_15 = g1, ~M_16 = m_SB, ~M_17 = sign((CR,g1,m_SB),skSent), ~M_18 = sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk) at {17}
+
+event PolicyIssued(serial1) at {8}
+
+event PolicyNames(serial1,m_SB) at {9}
+
+out(c, ~M_19) with ~M_19 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {10}
+
+in(c, ~M_19) with ~M_19 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {21} in copy a
+
+in(c, h((label_rec,(CR,g1,m_P)))) at {77} in copy a_1
+
+out(c, ~M_20) with ~M_20 = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk) at {78} in copy a_1
+
+in(c, ((CR,g1,m_P),sign((CR,g1,m_P),~M_5),~M_20)) with sign((CR,g1,m_P),~M_5) = sign((CR,g1,m_P),skSent), ~M_20 = sign((m_P,h((label_rec,(CR,g1,m_P)))),tk) at {24} in copy a
+
+in(c, ((SEAL,g1,h(bundle),~M_10,g0),sign((SEAL,g1,h(bundle),~M_10,g0),~M_5),~M_13)) with ~M_10 = hpke(kg,pk(skEsc),g1), sign((SEAL,g1,h(bundle),~M_10,g0),~M_5) = sign((SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0),skSent), ~M_13 = sign((m_P,h((label_rec,(SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0)))),tk) at {30} in copy a
+
+event Decided(serial1,g1) at {38} in copy a
+
+event Chosen(g1) at {39} in copy a
+
+new reqid: bitstring creating reqid_3 at {41} in copy a
+
+new decid: bitstring creating decid_3 at {42} in copy a
+
+new n: bitstring creating n_3 at {43} in copy a
+
+out(c, ~M_21) with ~M_21 = sign((reqid_3,decid_3,n_3,kind),skS) at {44} in copy a
+
+in(c, h((label_bind,a_2,pk2b(a_3),3-proj-4-tuple(checksig(~M_21,~M_4))))) with h((label_bind,a_2,pk2b(a_3),3-proj-4-tuple(checksig(~M_21,~M_4)))) = h((label_bind,a_2,pk2b(a_3),n_3)) at {77} in copy a_4
+
+out(c, ~M_22) with ~M_22 = sign((m_P,h((label_bind,a_2,pk2b(a_3),n_3))),tk) at {78} in copy a_4
+
+in(c, (a_2,pk2b(a_3),~M_22)) with ~M_22 = sign((m_P,h((label_bind,a_2,pk2b(a_3),n_3))),tk) at {45} in copy a
+
+in(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {49} in copy a
+
+new tokenid: bitstring creating tokenid_2 at {54} in copy a
+
+event Released(serial1,m_P) at {56} in copy a (goal)
+
+The event Released(serial1,m_P) is executed at {56} in copy a.
+A trace has been found.
+RESULT event(Released(ser,m_2)) ==> event(PolicyNames(ser,m_2)) is false.
+-- Query event(Decided(ser,g_1)) ==> event(SentinelReported(g_1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 131 rules (55 with conclusion selected). Queue: 25 rules.
+400 rules inserted. Base: 203 rules (92 with conclusion selected). Queue: 18 rules.
+600 rules inserted. Base: 217 rules (111 with conclusion selected). Queue: 32 rules.
+Starting query event(Decided(ser,g_1)) ==> event(SentinelReported(g_1))
+goal reachable: attacker(g_1) -> event(Decided(serial1,g_1))
+
+Derivation:
+
+1. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) may be sent to the attacker at output {10}.
+attacker(sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[])).
+
+2. The attacker has some term dsb_1.
+attacker(dsb_1).
+
+3. We assume as hypothesis that
+attacker(g_1).
+
+4. Using the function CR the attacker may obtain CR.
+attacker(CR).
+
+5. By 4, the attacker may know CR.
+By 3, the attacker may know g_1.
+By 2, the attacker may know dsb_1.
+Using the function 3-tuple the attacker may obtain (CR,g_1,dsb_1).
+attacker((CR,g_1,dsb_1)).
+
+6. Using the function label_rec the attacker may obtain label_rec.
+attacker(label_rec).
+
+7. By 6, the attacker may know label_rec.
+By 5, the attacker may know (CR,g_1,dsb_1).
+Using the function 2-tuple the attacker may obtain (label_rec,(CR,g_1,dsb_1)).
+attacker((label_rec,(CR,g_1,dsb_1))).
+
+8. By 7, the attacker may know (label_rec,(CR,g_1,dsb_1)).
+Using the function h the attacker may obtain h((label_rec,(CR,g_1,dsb_1))).
+attacker(h((label_rec,(CR,g_1,dsb_1)))).
+
+9. The message h((label_rec,(CR,g_1,dsb_1))) that the attacker may have by 8 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])).
+
+10. The message skSent[] may be sent to the attacker at output {6}.
+attacker(skSent[]).
+
+11. By 5, the attacker may know (CR,g_1,dsb_1).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((CR,g_1,dsb_1),skSent[]).
+attacker(sign((CR,g_1,dsb_1),skSent[])).
+
+12. By 5, the attacker may know (CR,g_1,dsb_1).
+By 11, the attacker may know sign((CR,g_1,dsb_1),skSent[]).
+By 9, the attacker may know sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])).
+attacker(((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]))).
+
+13. The attacker has some term parent_1.
+attacker(parent_1).
+
+14. The attacker has some term env_2.
+attacker(env_2).
+
+15. The attacker initially knows bundle[].
+attacker(bundle[]).
+
+16. By 15, the attacker may know bundle[].
+Using the function h the attacker may obtain h(bundle[]).
+attacker(h(bundle[])).
+
+17. Using the function SEAL the attacker may obtain SEAL.
+attacker(SEAL).
+
+18. By 17, the attacker may know SEAL.
+By 3, the attacker may know g_1.
+By 16, the attacker may know h(bundle[]).
+By 14, the attacker may know env_2.
+By 13, the attacker may know parent_1.
+Using the function 5-tuple the attacker may obtain (SEAL,g_1,h(bundle[]),env_2,parent_1).
+attacker((SEAL,g_1,h(bundle[]),env_2,parent_1)).
+
+19. By 6, the attacker may know label_rec.
+By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+Using the function 2-tuple the attacker may obtain (label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)).
+attacker((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))).
+
+20. By 19, the attacker may know (label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)).
+Using the function h the attacker may obtain h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))).
+attacker(h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))).
+
+21. The message h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))) that the attacker may have by 20 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])).
+
+22. By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]).
+attacker(sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[])).
+
+23. By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+By 22, the attacker may know sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]).
+By 21, the attacker may know sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])).
+attacker(((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]))).
+
+24. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 1 may be received at input {21}.
+The message ((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])) that the attacker may have by 12 may be received at input {24}.
+The message ((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])) that the attacker may have by 23 may be received at input {30}.
+So event Decided(serial1,g_1) may be executed at {38}.
+event(Decided(serial1,g_1)).
+
+25. By 24, event(Decided(serial1,g_1)).
+The goal is reached, represented in the following fact:
+event(Decided(serial1,g_1)).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(tk) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skO) at {2}
+
+out(c, ~M_2) with ~M_2 = pk(skSent) at {3}
+
+out(c, ~M_3) with ~M_3 = pk(skEsc) at {4}
+
+out(c, ~M_4) with ~M_4 = pk(skS) at {5}
+
+out(c, ~M_5) with ~M_5 = skSent at {6}
+
+out(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {7}
+
+event SentinelSealed(g1) at {13}
+
+out(c, ((~M_7,~M_8,~M_9,~M_10,~M_11),~M_12,~M_13)) with ~M_7 = SEAL, ~M_8 = g1, ~M_9 = h(bundle), ~M_10 = hpke(kg,pk(skEsc),g1), ~M_11 = g0, ~M_12 = sign((SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0),skSent), ~M_13 = sign((m_P,h((label_rec,(SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0)))),tk) at {14}
+
+event PolicyIssued(serial1) at {8}
+
+event PolicyNames(serial1,m_SB) at {9}
+
+out(c, ~M_14) with ~M_14 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {10}
+
+in(c, ~M_14) with ~M_14 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {21} in copy a
+
+in(c, h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))) at {77} in copy a_4
+
+out(c, ~M_15) with ~M_15 = sign((m_P,h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))),tk) at {78} in copy a_4
+
+in(c, h((label_rec,(CR,a_1,a_5)))) at {77} in copy a_6
+
+out(c, ~M_16) with ~M_16 = sign((m_P,h((label_rec,(CR,a_1,a_5)))),tk) at {78} in copy a_6
+
+in(c, ((CR,a_1,a_5),sign((CR,a_1,a_5),~M_5),~M_16)) with sign((CR,a_1,a_5),~M_5) = sign((CR,a_1,a_5),skSent), ~M_16 = sign((m_P,h((label_rec,(CR,a_1,a_5)))),tk) at {24} in copy a
+
+in(c, ((SEAL,a_1,h(bundle),a_2,a_3),sign((SEAL,a_1,h(bundle),a_2,a_3),~M_5),~M_15)) with sign((SEAL,a_1,h(bundle),a_2,a_3),~M_5) = sign((SEAL,a_1,h(bundle),a_2,a_3),skSent), ~M_15 = sign((m_P,h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))),tk) at {30} in copy a
+
+event Decided(serial1,a_1) at {38} in copy a (goal)
+
+The event Decided(serial1,a_1) is executed at {38} in copy a.
+A trace has been found.
+RESULT event(Decided(ser,g_1)) ==> event(SentinelReported(g_1)) is false.
+-- Query event(Chosen(g_1)) ==> event(SentinelSealed(g_1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 125 rules (59 with conclusion selected). Queue: 24 rules.
+400 rules inserted. Base: 191 rules (93 with conclusion selected). Queue: 17 rules.
+600 rules inserted. Base: 218 rules (119 with conclusion selected). Queue: 20 rules.
+Starting query event(Chosen(g_1)) ==> event(SentinelSealed(g_1))
+goal reachable: attacker(g_1) -> event(Chosen(g_1))
+
+Derivation:
+
+1. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) may be sent to the attacker at output {10}.
+attacker(sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[])).
+
+2. The attacker has some term dsb_1.
+attacker(dsb_1).
+
+3. We assume as hypothesis that
+attacker(g_1).
+
+4. Using the function CR the attacker may obtain CR.
+attacker(CR).
+
+5. By 4, the attacker may know CR.
+By 3, the attacker may know g_1.
+By 2, the attacker may know dsb_1.
+Using the function 3-tuple the attacker may obtain (CR,g_1,dsb_1).
+attacker((CR,g_1,dsb_1)).
+
+6. Using the function label_rec the attacker may obtain label_rec.
+attacker(label_rec).
+
+7. By 6, the attacker may know label_rec.
+By 5, the attacker may know (CR,g_1,dsb_1).
+Using the function 2-tuple the attacker may obtain (label_rec,(CR,g_1,dsb_1)).
+attacker((label_rec,(CR,g_1,dsb_1))).
+
+8. By 7, the attacker may know (label_rec,(CR,g_1,dsb_1)).
+Using the function h the attacker may obtain h((label_rec,(CR,g_1,dsb_1))).
+attacker(h((label_rec,(CR,g_1,dsb_1)))).
+
+9. The message h((label_rec,(CR,g_1,dsb_1))) that the attacker may have by 8 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])).
+
+10. The message skSent[] may be sent to the attacker at output {6}.
+attacker(skSent[]).
+
+11. By 5, the attacker may know (CR,g_1,dsb_1).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((CR,g_1,dsb_1),skSent[]).
+attacker(sign((CR,g_1,dsb_1),skSent[])).
+
+12. By 5, the attacker may know (CR,g_1,dsb_1).
+By 11, the attacker may know sign((CR,g_1,dsb_1),skSent[]).
+By 9, the attacker may know sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])).
+attacker(((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]))).
+
+13. The attacker has some term parent_1.
+attacker(parent_1).
+
+14. The attacker has some term env_2.
+attacker(env_2).
+
+15. The attacker initially knows bundle[].
+attacker(bundle[]).
+
+16. By 15, the attacker may know bundle[].
+Using the function h the attacker may obtain h(bundle[]).
+attacker(h(bundle[])).
+
+17. Using the function SEAL the attacker may obtain SEAL.
+attacker(SEAL).
+
+18. By 17, the attacker may know SEAL.
+By 3, the attacker may know g_1.
+By 16, the attacker may know h(bundle[]).
+By 14, the attacker may know env_2.
+By 13, the attacker may know parent_1.
+Using the function 5-tuple the attacker may obtain (SEAL,g_1,h(bundle[]),env_2,parent_1).
+attacker((SEAL,g_1,h(bundle[]),env_2,parent_1)).
+
+19. By 6, the attacker may know label_rec.
+By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+Using the function 2-tuple the attacker may obtain (label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)).
+attacker((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))).
+
+20. By 19, the attacker may know (label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)).
+Using the function h the attacker may obtain h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))).
+attacker(h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))).
+
+21. The message h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))) that the attacker may have by 20 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])).
+
+22. By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]).
+attacker(sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[])).
+
+23. By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+By 22, the attacker may know sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]).
+By 21, the attacker may know sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])).
+attacker(((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]))).
+
+24. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 1 may be received at input {21}.
+The message ((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])) that the attacker may have by 12 may be received at input {24}.
+The message ((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])) that the attacker may have by 23 may be received at input {30}.
+So event Chosen(g_1) may be executed at {39}.
+event(Chosen(g_1)).
+
+25. By 24, event(Chosen(g_1)).
+The goal is reached, represented in the following fact:
+event(Chosen(g_1)).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(tk) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skO) at {2}
+
+out(c, ~M_2) with ~M_2 = pk(skSent) at {3}
+
+out(c, ~M_3) with ~M_3 = pk(skEsc) at {4}
+
+out(c, ~M_4) with ~M_4 = pk(skS) at {5}
+
+out(c, ~M_5) with ~M_5 = skSent at {6}
+
+out(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {7}
+
+event PolicyIssued(serial1) at {8}
+
+event PolicyNames(serial1,m_SB) at {9}
+
+out(c, ~M_7) with ~M_7 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {10}
+
+in(c, ~M_7) with ~M_7 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {21} in copy a
+
+in(c, h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))) at {77} in copy a_4
+
+out(c, ~M_8) with ~M_8 = sign((m_P,h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))),tk) at {78} in copy a_4
+
+in(c, h((label_rec,(CR,a_1,a_5)))) at {77} in copy a_6
+
+out(c, ~M_9) with ~M_9 = sign((m_P,h((label_rec,(CR,a_1,a_5)))),tk) at {78} in copy a_6
+
+in(c, ((CR,a_1,a_5),sign((CR,a_1,a_5),~M_5),~M_9)) with sign((CR,a_1,a_5),~M_5) = sign((CR,a_1,a_5),skSent), ~M_9 = sign((m_P,h((label_rec,(CR,a_1,a_5)))),tk) at {24} in copy a
+
+in(c, ((SEAL,a_1,h(bundle),a_2,a_3),sign((SEAL,a_1,h(bundle),a_2,a_3),~M_5),~M_8)) with sign((SEAL,a_1,h(bundle),a_2,a_3),~M_5) = sign((SEAL,a_1,h(bundle),a_2,a_3),skSent), ~M_8 = sign((m_P,h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))),tk) at {30} in copy a
+
+event Decided(serial1,a_1) at {38} in copy a
+
+event Chosen(a_1) at {39} in copy a (goal)
+
+The event Chosen(a_1) is executed at {39} in copy a.
+A trace has been found.
+RESULT event(Chosen(g_1)) ==> event(SentinelSealed(g_1)) is false.
+-- Query event(Opened(ser,k_1)) ==> event(Decided(ser,g_1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 142 rules (66 with conclusion selected). Queue: 29 rules.
+400 rules inserted. Base: 200 rules (93 with conclusion selected). Queue: 24 rules.
+600 rules inserted. Base: 227 rules (120 with conclusion selected). Queue: 19 rules.
+Starting query event(Opened(ser,k_1)) ==> event(Decided(ser,g_1))
+goal reachable: b-event(Decided(serial1,g1)) && attacker(k_1) -> event(Opened(serial1,k_1))
+goal reachable: b-event(Decided(serial1,a)) && attacker(k_1) && attacker(a) -> event(Opened(serial1,k_1))
+RESULT event(Opened(ser,k_1)) ==> event(Decided(ser,g_1)) is true.
+-- Query not event(AuthorizedIn(ph1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 142 rules (64 with conclusion selected). Queue: 24 rules.
+400 rules inserted. Base: 207 rules (90 with conclusion selected). Queue: 20 rules.
+600 rules inserted. Base: 208 rules (115 with conclusion selected). Queue: 31 rules.
+Starting query not event(AuthorizedIn(ph1))
+RESULT not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker(kg[]) is false.
+
+Query event(Decided(ser,g_1)) ==> event(PolicyIssued(ser)) is true.
+
+Query event(Released(ser,m_2)) ==> event(PolicyNames(ser,m_2)) is false.
+
+Query event(Decided(ser,g_1)) ==> event(SentinelReported(g_1)) is false.
+
+Query event(Chosen(g_1)) ==> event(SentinelSealed(g_1)) is false.
+
+Query event(Opened(ser,k_1)) ==> event(Decided(ser,g_1)) is true.
+
+Query not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+### failover-primary-compromised.pv
+Process 0 (that is, the initial process):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, skSent);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {13}event SentinelSealed(g1);
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {16}event SentinelReported(g1);
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {19}let ser_stop: bitstring = s0 in
+    {20}let ph: bitstring = ph0 in
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {27}if (mq = mp) then
+    {28}if (rq = h((label_rec,cr_1))) then
+    {29}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {30}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {31}if (checksig(srec,pkSent) = rec_1) then
+    {32}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {33}if (mq2 = mp) then
+    {34}if (rq2 = h((label_rec,rec_1))) then
+    {35}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {36}if (g = glast) then
+    {37}if (bh = h(bundle)) then
+    {38}event Decided(serial,g);
+    {39}event Chosen(g);
+    {40}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {41}new reqid: bitstring;
+    {42}new decid: bitstring;
+    {43}new n: bitstring;
+    {44}out(c, sign((reqid,decid,n,kind),skS));
+    {45}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {46}let pk2b(pkh: pkey) = pkb in
+    {47}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {48}if (rd = h((label_bind,suite,pkb,n))) then
+    {49}in(c, sl: bitstring);
+    {50}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {51}if (sserial = ser_stop) then
+    {52}if (flag = nostop) then
+    {53}if (m = msb) then
+    {54}new tokenid: bitstring;
+    {55}let aad: bitstring = h((tokenid,m,kid1)) in
+    {56}event Released(serial,m);
+    {57}event AuthorizedIn(ph);
+    {58}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {59}!
+    {60}in(c, req: bitstring);
+    {61}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {62}new hk: skey;
+    {63}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {64}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {65}in(c, tok: bitstring);
+    {66}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {67}if (decid2 = decid_1) then
+    {68}if (reqid2 = reqid_1) then
+    {69}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {70}if (suite_1 = suite_strong) then
+    {71}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {72}event Opened(serial_1,x)
+) | (
+    {73}!
+    {74}in(c, chal: bitstring);
+    {75}out(c, sign((meas_bad,chal),tk))
+) | (
+    {76}!
+    {77}in(c, chal_1: bitstring);
+    {78}out(c, sign((m_P,chal_1),tk))
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, skSent);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {13}event SentinelSealed(g1);
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {16}event SentinelReported(g1);
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {27}if (mq = mp) then
+    {28}if (rq = h((label_rec,cr_1))) then
+    {29}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {30}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {31}if (checksig(srec,pkSent) = rec_1) then
+    {32}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {33}if (mq2 = mp) then
+    {34}if (rq2 = h((label_rec,rec_1))) then
+    {35}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {36}if (g = glast) then
+    {37}if (bh = h(bundle)) then
+    {38}event Decided(serial,g);
+    {39}event Chosen(g);
+    {40}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {41}new reqid: bitstring;
+    {42}new decid: bitstring;
+    {43}new n: bitstring;
+    {44}out(c, sign((reqid,decid,n,kind),skS));
+    {45}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {46}let pk2b(pkh: pkey) = pkb in
+    {47}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {48}if (rd = h((label_bind,suite,pkb,n))) then
+    {49}in(c, sl: bitstring);
+    {50}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {19}let ser_stop: bitstring = s0 in
+    {51}if (sserial = ser_stop) then
+    {52}if (flag = nostop) then
+    {53}if (m = msb) then
+    {54}new tokenid: bitstring;
+    {56}event Released(serial,m);
+    {20}let ph: bitstring = ph0 in
+    {57}event AuthorizedIn(ph);
+    {55}let aad: bitstring = h((tokenid,m,kid1)) in
+    {58}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {59}!
+    {60}in(c, req: bitstring);
+    {61}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {62}new hk: skey;
+    {63}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {64}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {65}in(c, tok: bitstring);
+    {66}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {67}if (decid2 = decid_1) then
+    {68}if (reqid2 = reqid_1) then
+    {69}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {70}if (suite_1 = suite_strong) then
+    {71}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {72}event Opened(serial_1,x)
+) | (
+    {73}!
+    {74}in(c, chal: bitstring);
+    {75}out(c, sign((meas_bad,chal),tk))
+) | (
+    {76}!
+    {77}in(c, chal_1: bitstring);
+    {78}out(c, sign((m_P,chal_1),tk))
+)
+
+-- Query not attacker(kg[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 140 rules (67 with conclusion selected). Queue: 26 rules.
+400 rules inserted. Base: 196 rules (101 with conclusion selected). Queue: 10 rules.
+Starting query not attacker(kg[])
+RESULT not attacker(kg[]) is true.
+-- Query event(Decided(ser,g_1)) ==> event(PolicyIssued(ser)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 137 rules (59 with conclusion selected). Queue: 26 rules.
+400 rules inserted. Base: 204 rules (96 with conclusion selected). Queue: 11 rules.
+Starting query event(Decided(ser,g_1)) ==> event(PolicyIssued(ser))
+goal reachable: attacker(g_1) && b-event(PolicyIssued(serial1)) -> event(Decided(serial1,g_1))
+RESULT event(Decided(ser,g_1)) ==> event(PolicyIssued(ser)) is true.
+-- Query event(Released(ser,m_2)) ==> event(PolicyNames(ser,m_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 142 rules (64 with conclusion selected). Queue: 26 rules.
+400 rules inserted. Base: 195 rules (94 with conclusion selected). Queue: 10 rules.
+Starting query event(Released(ser,m_2)) ==> event(PolicyNames(ser,m_2))
+goal reachable: b-event(PolicyNames(serial1,m_SB)) -> event(Released(serial1,m_SB))
+RESULT event(Released(ser,m_2)) ==> event(PolicyNames(ser,m_2)) is true.
+-- Query event(Decided(ser,g_1)) ==> event(SentinelReported(g_1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 131 rules (55 with conclusion selected). Queue: 25 rules.
+400 rules inserted. Base: 202 rules (93 with conclusion selected). Queue: 12 rules.
+Starting query event(Decided(ser,g_1)) ==> event(SentinelReported(g_1))
+goal reachable: attacker(g_1) -> event(Decided(serial1,g_1))
+
+Derivation:
+
+1. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) may be sent to the attacker at output {10}.
+attacker(sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[])).
+
+2. The attacker has some term dsb_1.
+attacker(dsb_1).
+
+3. We assume as hypothesis that
+attacker(g_1).
+
+4. Using the function CR the attacker may obtain CR.
+attacker(CR).
+
+5. By 4, the attacker may know CR.
+By 3, the attacker may know g_1.
+By 2, the attacker may know dsb_1.
+Using the function 3-tuple the attacker may obtain (CR,g_1,dsb_1).
+attacker((CR,g_1,dsb_1)).
+
+6. Using the function label_rec the attacker may obtain label_rec.
+attacker(label_rec).
+
+7. By 6, the attacker may know label_rec.
+By 5, the attacker may know (CR,g_1,dsb_1).
+Using the function 2-tuple the attacker may obtain (label_rec,(CR,g_1,dsb_1)).
+attacker((label_rec,(CR,g_1,dsb_1))).
+
+8. By 7, the attacker may know (label_rec,(CR,g_1,dsb_1)).
+Using the function h the attacker may obtain h((label_rec,(CR,g_1,dsb_1))).
+attacker(h((label_rec,(CR,g_1,dsb_1)))).
+
+9. The message h((label_rec,(CR,g_1,dsb_1))) that the attacker may have by 8 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])).
+
+10. The message skSent[] may be sent to the attacker at output {6}.
+attacker(skSent[]).
+
+11. By 5, the attacker may know (CR,g_1,dsb_1).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((CR,g_1,dsb_1),skSent[]).
+attacker(sign((CR,g_1,dsb_1),skSent[])).
+
+12. By 5, the attacker may know (CR,g_1,dsb_1).
+By 11, the attacker may know sign((CR,g_1,dsb_1),skSent[]).
+By 9, the attacker may know sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])).
+attacker(((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]))).
+
+13. The attacker has some term parent_1.
+attacker(parent_1).
+
+14. The attacker has some term env_2.
+attacker(env_2).
+
+15. The attacker initially knows bundle[].
+attacker(bundle[]).
+
+16. By 15, the attacker may know bundle[].
+Using the function h the attacker may obtain h(bundle[]).
+attacker(h(bundle[])).
+
+17. Using the function SEAL the attacker may obtain SEAL.
+attacker(SEAL).
+
+18. By 17, the attacker may know SEAL.
+By 3, the attacker may know g_1.
+By 16, the attacker may know h(bundle[]).
+By 14, the attacker may know env_2.
+By 13, the attacker may know parent_1.
+Using the function 5-tuple the attacker may obtain (SEAL,g_1,h(bundle[]),env_2,parent_1).
+attacker((SEAL,g_1,h(bundle[]),env_2,parent_1)).
+
+19. By 6, the attacker may know label_rec.
+By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+Using the function 2-tuple the attacker may obtain (label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)).
+attacker((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))).
+
+20. By 19, the attacker may know (label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)).
+Using the function h the attacker may obtain h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))).
+attacker(h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))).
+
+21. The message h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))) that the attacker may have by 20 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])).
+
+22. By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]).
+attacker(sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[])).
+
+23. By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+By 22, the attacker may know sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]).
+By 21, the attacker may know sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])).
+attacker(((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]))).
+
+24. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 1 may be received at input {21}.
+The message ((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])) that the attacker may have by 12 may be received at input {24}.
+The message ((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])) that the attacker may have by 23 may be received at input {30}.
+So event Decided(serial1,g_1) may be executed at {38}.
+event(Decided(serial1,g_1)).
+
+25. By 24, event(Decided(serial1,g_1)).
+The goal is reached, represented in the following fact:
+event(Decided(serial1,g_1)).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(tk) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skO) at {2}
+
+out(c, ~M_2) with ~M_2 = pk(skSent) at {3}
+
+out(c, ~M_3) with ~M_3 = pk(skEsc) at {4}
+
+out(c, ~M_4) with ~M_4 = pk(skS) at {5}
+
+out(c, ~M_5) with ~M_5 = skSent at {6}
+
+out(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {7}
+
+event SentinelSealed(g1) at {13}
+
+out(c, ((~M_7,~M_8,~M_9,~M_10,~M_11),~M_12,~M_13)) with ~M_7 = SEAL, ~M_8 = g1, ~M_9 = h(bundle), ~M_10 = hpke(kg,pk(skEsc),g1), ~M_11 = g0, ~M_12 = sign((SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0),skSent), ~M_13 = sign((m_P,h((label_rec,(SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0)))),tk) at {14}
+
+event PolicyIssued(serial1) at {8}
+
+event PolicyNames(serial1,m_SB) at {9}
+
+out(c, ~M_14) with ~M_14 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {10}
+
+in(c, ~M_14) with ~M_14 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {21} in copy a
+
+in(c, h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))) at {77} in copy a_4
+
+out(c, ~M_15) with ~M_15 = sign((m_P,h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))),tk) at {78} in copy a_4
+
+in(c, h((label_rec,(CR,a_1,a_5)))) at {77} in copy a_6
+
+out(c, ~M_16) with ~M_16 = sign((m_P,h((label_rec,(CR,a_1,a_5)))),tk) at {78} in copy a_6
+
+in(c, ((CR,a_1,a_5),sign((CR,a_1,a_5),~M_5),~M_16)) with sign((CR,a_1,a_5),~M_5) = sign((CR,a_1,a_5),skSent), ~M_16 = sign((m_P,h((label_rec,(CR,a_1,a_5)))),tk) at {24} in copy a
+
+in(c, ((SEAL,a_1,h(bundle),a_2,a_3),sign((SEAL,a_1,h(bundle),a_2,a_3),~M_5),~M_15)) with sign((SEAL,a_1,h(bundle),a_2,a_3),~M_5) = sign((SEAL,a_1,h(bundle),a_2,a_3),skSent), ~M_15 = sign((m_P,h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))),tk) at {30} in copy a
+
+event Decided(serial1,a_1) at {38} in copy a (goal)
+
+The event Decided(serial1,a_1) is executed at {38} in copy a.
+A trace has been found.
+RESULT event(Decided(ser,g_1)) ==> event(SentinelReported(g_1)) is false.
+-- Query event(Chosen(g_1)) ==> event(SentinelSealed(g_1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 125 rules (59 with conclusion selected). Queue: 24 rules.
+400 rules inserted. Base: 189 rules (97 with conclusion selected). Queue: 13 rules.
+Starting query event(Chosen(g_1)) ==> event(SentinelSealed(g_1))
+goal reachable: attacker(g_1) -> event(Chosen(g_1))
+
+Derivation:
+
+1. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) may be sent to the attacker at output {10}.
+attacker(sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[])).
+
+2. The attacker has some term dsb_1.
+attacker(dsb_1).
+
+3. We assume as hypothesis that
+attacker(g_1).
+
+4. Using the function CR the attacker may obtain CR.
+attacker(CR).
+
+5. By 4, the attacker may know CR.
+By 3, the attacker may know g_1.
+By 2, the attacker may know dsb_1.
+Using the function 3-tuple the attacker may obtain (CR,g_1,dsb_1).
+attacker((CR,g_1,dsb_1)).
+
+6. Using the function label_rec the attacker may obtain label_rec.
+attacker(label_rec).
+
+7. By 6, the attacker may know label_rec.
+By 5, the attacker may know (CR,g_1,dsb_1).
+Using the function 2-tuple the attacker may obtain (label_rec,(CR,g_1,dsb_1)).
+attacker((label_rec,(CR,g_1,dsb_1))).
+
+8. By 7, the attacker may know (label_rec,(CR,g_1,dsb_1)).
+Using the function h the attacker may obtain h((label_rec,(CR,g_1,dsb_1))).
+attacker(h((label_rec,(CR,g_1,dsb_1)))).
+
+9. The message h((label_rec,(CR,g_1,dsb_1))) that the attacker may have by 8 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])).
+
+10. The message skSent[] may be sent to the attacker at output {6}.
+attacker(skSent[]).
+
+11. By 5, the attacker may know (CR,g_1,dsb_1).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((CR,g_1,dsb_1),skSent[]).
+attacker(sign((CR,g_1,dsb_1),skSent[])).
+
+12. By 5, the attacker may know (CR,g_1,dsb_1).
+By 11, the attacker may know sign((CR,g_1,dsb_1),skSent[]).
+By 9, the attacker may know sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])).
+attacker(((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[]))).
+
+13. The attacker has some term parent_1.
+attacker(parent_1).
+
+14. The attacker has some term env_2.
+attacker(env_2).
+
+15. The attacker initially knows bundle[].
+attacker(bundle[]).
+
+16. By 15, the attacker may know bundle[].
+Using the function h the attacker may obtain h(bundle[]).
+attacker(h(bundle[])).
+
+17. Using the function SEAL the attacker may obtain SEAL.
+attacker(SEAL).
+
+18. By 17, the attacker may know SEAL.
+By 3, the attacker may know g_1.
+By 16, the attacker may know h(bundle[]).
+By 14, the attacker may know env_2.
+By 13, the attacker may know parent_1.
+Using the function 5-tuple the attacker may obtain (SEAL,g_1,h(bundle[]),env_2,parent_1).
+attacker((SEAL,g_1,h(bundle[]),env_2,parent_1)).
+
+19. By 6, the attacker may know label_rec.
+By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+Using the function 2-tuple the attacker may obtain (label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)).
+attacker((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))).
+
+20. By 19, the attacker may know (label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)).
+Using the function h the attacker may obtain h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))).
+attacker(h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))).
+
+21. The message h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1))) that the attacker may have by 20 may be received at input {77}.
+So the message sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]) may be sent to the attacker at output {78}.
+attacker(sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])).
+
+22. By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+By 10, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]).
+attacker(sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[])).
+
+23. By 18, the attacker may know (SEAL,g_1,h(bundle[]),env_2,parent_1).
+By 22, the attacker may know sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]).
+By 21, the attacker may know sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])).
+attacker(((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[]))).
+
+24. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 1 may be received at input {21}.
+The message ((CR,g_1,dsb_1),sign((CR,g_1,dsb_1),skSent[]),sign((m_P,h((label_rec,(CR,g_1,dsb_1)))),tk[])) that the attacker may have by 12 may be received at input {24}.
+The message ((SEAL,g_1,h(bundle[]),env_2,parent_1),sign((SEAL,g_1,h(bundle[]),env_2,parent_1),skSent[]),sign((m_P,h((label_rec,(SEAL,g_1,h(bundle[]),env_2,parent_1)))),tk[])) that the attacker may have by 23 may be received at input {30}.
+So event Chosen(g_1) may be executed at {39}.
+event(Chosen(g_1)).
+
+25. By 24, event(Chosen(g_1)).
+The goal is reached, represented in the following fact:
+event(Chosen(g_1)).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(tk) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skO) at {2}
+
+out(c, ~M_2) with ~M_2 = pk(skSent) at {3}
+
+out(c, ~M_3) with ~M_3 = pk(skEsc) at {4}
+
+out(c, ~M_4) with ~M_4 = pk(skS) at {5}
+
+out(c, ~M_5) with ~M_5 = skSent at {6}
+
+out(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {7}
+
+event PolicyIssued(serial1) at {8}
+
+event PolicyNames(serial1,m_SB) at {9}
+
+out(c, ~M_7) with ~M_7 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {10}
+
+in(c, ~M_7) with ~M_7 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {21} in copy a
+
+in(c, h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))) at {77} in copy a_4
+
+out(c, ~M_8) with ~M_8 = sign((m_P,h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))),tk) at {78} in copy a_4
+
+in(c, h((label_rec,(CR,a_1,a_5)))) at {77} in copy a_6
+
+out(c, ~M_9) with ~M_9 = sign((m_P,h((label_rec,(CR,a_1,a_5)))),tk) at {78} in copy a_6
+
+in(c, ((CR,a_1,a_5),sign((CR,a_1,a_5),~M_5),~M_9)) with sign((CR,a_1,a_5),~M_5) = sign((CR,a_1,a_5),skSent), ~M_9 = sign((m_P,h((label_rec,(CR,a_1,a_5)))),tk) at {24} in copy a
+
+in(c, ((SEAL,a_1,h(bundle),a_2,a_3),sign((SEAL,a_1,h(bundle),a_2,a_3),~M_5),~M_8)) with sign((SEAL,a_1,h(bundle),a_2,a_3),~M_5) = sign((SEAL,a_1,h(bundle),a_2,a_3),skSent), ~M_8 = sign((m_P,h((label_rec,(SEAL,a_1,h(bundle),a_2,a_3)))),tk) at {30} in copy a
+
+event Decided(serial1,a_1) at {38} in copy a
+
+event Chosen(a_1) at {39} in copy a (goal)
+
+The event Chosen(a_1) is executed at {39} in copy a.
+A trace has been found.
+RESULT event(Chosen(g_1)) ==> event(SentinelSealed(g_1)) is false.
+-- Query event(Opened(ser,k_1)) ==> event(Decided(ser,g_1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 142 rules (66 with conclusion selected). Queue: 30 rules.
+400 rules inserted. Base: 197 rules (96 with conclusion selected). Queue: 13 rules.
+Starting query event(Opened(ser,k_1)) ==> event(Decided(ser,g_1))
+goal reachable: b-event(Decided(serial1,g1)) && attacker(k_1) -> event(Opened(serial1,k_1))
+goal reachable: b-event(Decided(serial1,a)) && attacker(k_1) && attacker(a) -> event(Opened(serial1,k_1))
+goal reachable: b-event(Decided(serial1,g1)) -> event(Opened(serial1,kg[]))
+RESULT event(Opened(ser,k_1)) ==> event(Decided(ser,g_1)) is true.
+-- Query not event(AuthorizedIn(ph1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 142 rules (64 with conclusion selected). Queue: 26 rules.
+400 rules inserted. Base: 188 rules (94 with conclusion selected). Queue: 10 rules.
+Starting query not event(AuthorizedIn(ph1))
+RESULT not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker(kg[]) is true.
+
+Query event(Decided(ser,g_1)) ==> event(PolicyIssued(ser)) is true.
+
+Query event(Released(ser,m_2)) ==> event(PolicyNames(ser,m_2)) is true.
+
+Query event(Decided(ser,g_1)) ==> event(SentinelReported(g_1)) is false.
+
+Query event(Chosen(g_1)) ==> event(SentinelSealed(g_1)) is false.
+
+Query event(Opened(ser,k_1)) ==> event(Decided(ser,g_1)) is true.
+
+Query not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+### failover-seed-leaked-nopin.pv
+Process 0 (that is, the initial process):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, skSent);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {13}event SentinelSealed(g1);
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {16}event SentinelReported(g1);
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {19}let ser_stop: bitstring = s0 in
+    {20}let ph: bitstring = ph0 in
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {27}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {28}if (checksig(srec,pkSent) = rec_1) then
+    {29}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {30}if (g = glast) then
+    {31}if (bh = h(bundle)) then
+    {32}event Decided(serial,g);
+    {33}event Chosen(g);
+    {34}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {35}new reqid: bitstring;
+    {36}new decid: bitstring;
+    {37}new n: bitstring;
+    {38}out(c, sign((reqid,decid,n,kind),skS));
+    {39}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {40}let pk2b(pkh: pkey) = pkb in
+    {41}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {42}if (rd = h((label_bind,suite,pkb,n))) then
+    {43}in(c, sl: bitstring);
+    {44}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {45}if (sserial = ser_stop) then
+    {46}if (flag = nostop) then
+    {47}if (m = msb) then
+    {48}new tokenid: bitstring;
+    {49}let aad: bitstring = h((tokenid,m,kid1)) in
+    {50}event Released(serial,m);
+    {51}event AuthorizedIn(ph);
+    {52}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {53}!
+    {54}in(c, req: bitstring);
+    {55}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {56}new hk: skey;
+    {57}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {58}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {59}in(c, tok: bitstring);
+    {60}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {61}if (decid2 = decid_1) then
+    {62}if (reqid2 = reqid_1) then
+    {63}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {64}if (suite_1 = suite_strong) then
+    {65}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {66}event Opened(serial_1,x)
+) | (
+    {67}!
+    {68}in(c, chal: bitstring);
+    {69}out(c, sign((meas_bad,chal),tk))
+) | (
+    {70}phase 1;
+    (
+        {71}out(c, sign((s1,stopall),skO))
+    ) | (
+        {72}!
+        {73}let ser_stop_1: bitstring = s1 in
+        {74}let ph_1: bitstring = ph1 in
+        {75}in(c, pol_1: bitstring);
+        {76}let (=POLICY,serial_2: bitstring,pks_1: bitstring,mp_1: bitstring,msb_1: bitstring) = checksig(pol_1,pk(skO)) in
+        {77}let pk2b(pkSent_1: pkey) = pks_1 in
+        {78}in(c, (cr_2: bitstring,scr_1: bitstring,qcr_1: bitstring));
+        {79}if (checksig(scr_1,pkSent_1) = cr_2) then
+        {80}let (=CR,glast_1: bitstring,dsb_1: bitstring) = cr_2 in
+        {81}in(c, (rec_2: bitstring,srec_1: bitstring,qrec_1: bitstring));
+        {82}if (checksig(srec_1,pkSent_1) = rec_2) then
+        {83}let (=SEAL,g_1: bitstring,bh_1: bitstring,env_2: bitstring,parent_1: bitstring) = rec_2 in
+        {84}if (g_1 = glast_1) then
+        {85}if (bh_1 = h(bundle)) then
+        {86}event Decided(serial_2,g_1);
+        {87}event Chosen(g_1);
+        {88}let dek_1: bitstring = hpke_open(env_2,skEsc,g_1) in
+        {89}new reqid_2: bitstring;
+        {90}new decid_2: bitstring;
+        {91}new n_2: bitstring;
+        {92}out(c, sign((reqid_2,decid_2,n_2,kind),skS));
+        {93}in(c, (suite_2: bitstring,pkb_2: bitstring,ev_1: bitstring));
+        {94}let pk2b(pkh_1: pkey) = pkb_2 in
+        {95}let (m_2: bitstring,rd_1: bitstring) = checksig(ev_1,pk(tk)) in
+        {96}if (rd_1 = h((label_bind,suite_2,pkb_2,n_2))) then
+        {97}in(c, sl_1: bitstring);
+        {98}let (sserial_1: bitstring,flag_1: bitstring) = checksig(sl_1,pk(skO)) in
+        {99}if (sserial_1 = ser_stop_1) then
+        {100}if (flag_1 = nostop) then
+        {101}if (m_2 = msb_1) then
+        {102}new tokenid_2: bitstring;
+        {103}let aad_2: bitstring = h((tokenid_2,m_2,kid1)) in
+        {104}event Released(serial_2,m_2);
+        {105}event AuthorizedIn(ph_1);
+        {106}out(c, sign((tokenid_2,decid_2,reqid_2,m_2,kid1,suite_2,hpke(dek_1,pkh_1,aad_2),aad_2,serial_2),skS))
+    ) | (
+        {107}!
+        {108}in(c, req_1: bitstring);
+        {109}let (reqid_3: bitstring,decid_3: bitstring,n_3: bitstring,k_1: bitstring) = checksig(req_1,pk(skS)) in
+        {110}new hk_1: skey;
+        {111}let pkb_3: bitstring = pk2b(pk(hk_1)) in
+        {112}out(c, (suite_strong,pkb_3,sign((m_SB,h((label_bind,suite_strong,pkb_3,n_3))),tk)));
+        {113}in(c, tok_1: bitstring);
+        {114}let (tokenid_3: bitstring,decid2_1: bitstring,reqid2_1: bitstring,m_3: bitstring,kid_1: bitstring,suite_3: bitstring,ct_1: bitstring,aad_3: bitstring,serial_3: bitstring) = checksig(tok_1,pk(skS)) in
+        {115}if (decid2_1 = decid_3) then
+        {116}if (reqid2_1 = reqid_3) then
+        {117}if (aad_3 = h((tokenid_3,m_3,kid_1))) then
+        {118}if (suite_3 = suite_strong) then
+        {119}let x_1: bitstring = hpke_open(ct_1,hk_1,aad_3) in
+        {120}event Opened(serial_3,x_1)
+    ) | (
+        {121}!
+        {122}in(c, chal_1: bitstring);
+        {123}out(c, sign((meas_bad,chal_1),tk))
+    )
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, skSent);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {13}event SentinelSealed(g1);
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {16}event SentinelReported(g1);
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {27}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {28}if (checksig(srec,pkSent) = rec_1) then
+    {29}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {30}if (g = glast) then
+    {31}if (bh = h(bundle)) then
+    {32}event Decided(serial,g);
+    {33}event Chosen(g);
+    {34}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {35}new reqid: bitstring;
+    {36}new decid: bitstring;
+    {37}new n: bitstring;
+    {38}out(c, sign((reqid,decid,n,kind),skS));
+    {39}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {40}let pk2b(pkh: pkey) = pkb in
+    {41}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {42}if (rd = h((label_bind,suite,pkb,n))) then
+    {43}in(c, sl: bitstring);
+    {44}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {19}let ser_stop: bitstring = s0 in
+    {45}if (sserial = ser_stop) then
+    {46}if (flag = nostop) then
+    {47}if (m = msb) then
+    {48}new tokenid: bitstring;
+    {50}event Released(serial,m);
+    {20}let ph: bitstring = ph0 in
+    {51}event AuthorizedIn(ph);
+    {49}let aad: bitstring = h((tokenid,m,kid1)) in
+    {52}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {53}!
+    {54}in(c, req: bitstring);
+    {55}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {56}new hk: skey;
+    {57}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {58}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {59}in(c, tok: bitstring);
+    {60}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {61}if (decid2 = decid_1) then
+    {62}if (reqid2 = reqid_1) then
+    {63}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {64}if (suite_1 = suite_strong) then
+    {65}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {66}event Opened(serial_1,x)
+) | (
+    {67}!
+    {68}in(c, chal: bitstring);
+    {69}out(c, sign((meas_bad,chal),tk))
+) | (
+    {70}phase 1;
+    (
+        {71}out(c, sign((s1,stopall),skO))
+    ) | (
+        {72}!
+        {75}in(c, pol_1: bitstring);
+        {76}let (=POLICY,serial_2: bitstring,pks_1: bitstring,mp_1: bitstring,msb_1: bitstring) = checksig(pol_1,pk(skO)) in
+        {77}let pk2b(pkSent_1: pkey) = pks_1 in
+        {78}in(c, (cr_2: bitstring,scr_1: bitstring,qcr_1: bitstring));
+        {79}if (checksig(scr_1,pkSent_1) = cr_2) then
+        {80}let (=CR,glast_1: bitstring,dsb_1: bitstring) = cr_2 in
+        {81}in(c, (rec_2: bitstring,srec_1: bitstring,qrec_1: bitstring));
+        {82}if (checksig(srec_1,pkSent_1) = rec_2) then
+        {83}let (=SEAL,g_1: bitstring,bh_1: bitstring,env_2: bitstring,parent_1: bitstring) = rec_2 in
+        {84}if (g_1 = glast_1) then
+        {85}if (bh_1 = h(bundle)) then
+        {86}event Decided(serial_2,g_1);
+        {87}event Chosen(g_1);
+        {88}let dek_1: bitstring = hpke_open(env_2,skEsc,g_1) in
+        {89}new reqid_2: bitstring;
+        {90}new decid_2: bitstring;
+        {91}new n_2: bitstring;
+        {92}out(c, sign((reqid_2,decid_2,n_2,kind),skS));
+        {93}in(c, (suite_2: bitstring,pkb_2: bitstring,ev_1: bitstring));
+        {94}let pk2b(pkh_1: pkey) = pkb_2 in
+        {95}let (m_2: bitstring,rd_1: bitstring) = checksig(ev_1,pk(tk)) in
+        {96}if (rd_1 = h((label_bind,suite_2,pkb_2,n_2))) then
+        {97}in(c, sl_1: bitstring);
+        {98}let (sserial_1: bitstring,flag_1: bitstring) = checksig(sl_1,pk(skO)) in
+        {73}let ser_stop_1: bitstring = s1 in
+        {99}if (sserial_1 = ser_stop_1) then
+        {100}if (flag_1 = nostop) then
+        {101}if (m_2 = msb_1) then
+        {102}new tokenid_2: bitstring;
+        {104}event Released(serial_2,m_2);
+        {74}let ph_1: bitstring = ph1 in
+        {105}event AuthorizedIn(ph_1);
+        {103}let aad_2: bitstring = h((tokenid_2,m_2,kid1)) in
+        {106}out(c, sign((tokenid_2,decid_2,reqid_2,m_2,kid1,suite_2,hpke(dek_1,pkh_1,aad_2),aad_2,serial_2),skS))
+    ) | (
+        {107}!
+        {108}in(c, req_1: bitstring);
+        {109}let (reqid_3: bitstring,decid_3: bitstring,n_3: bitstring,k_1: bitstring) = checksig(req_1,pk(skS)) in
+        {110}new hk_1: skey;
+        {111}let pkb_3: bitstring = pk2b(pk(hk_1)) in
+        {112}out(c, (suite_strong,pkb_3,sign((m_SB,h((label_bind,suite_strong,pkb_3,n_3))),tk)));
+        {113}in(c, tok_1: bitstring);
+        {114}let (tokenid_3: bitstring,decid2_1: bitstring,reqid2_1: bitstring,m_3: bitstring,kid_1: bitstring,suite_3: bitstring,ct_1: bitstring,aad_3: bitstring,serial_3: bitstring) = checksig(tok_1,pk(skS)) in
+        {115}if (decid2_1 = decid_3) then
+        {116}if (reqid2_1 = reqid_3) then
+        {117}if (aad_3 = h((tokenid_3,m_3,kid_1))) then
+        {118}if (suite_3 = suite_strong) then
+        {119}let x_1: bitstring = hpke_open(ct_1,hk_1,aad_3) in
+        {120}event Opened(serial_3,x_1)
+    ) | (
+        {121}!
+        {122}in(c, chal_1: bitstring);
+        {123}out(c, sign((meas_bad,chal_1),tk))
+    )
+)
+
+-- Query not attacker_p1(kg[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 194 rules (93 with conclusion selected). Queue: 17 rules.
+400 rules inserted. Base: 281 rules (114 with conclusion selected). Queue: 46 rules.
+600 rules inserted. Base: 340 rules (131 with conclusion selected). Queue: 52 rules.
+800 rules inserted. Base: 382 rules (132 with conclusion selected). Queue: 15 rules.
+Starting query not attacker_p1(kg[])
+RESULT not attacker_p1(kg[]) is true.
+-- Query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (93 with conclusion selected). Queue: 29 rules.
+400 rules inserted. Base: 281 rules (112 with conclusion selected). Queue: 47 rules.
+600 rules inserted. Base: 344 rules (130 with conclusion selected). Queue: 46 rules.
+800 rules inserted. Base: 390 rules (134 with conclusion selected). Queue: 30 rules.
+Starting query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser))
+goal reachable: attacker(g_2) && b-event(PolicyIssued(serial1)) -> event(Decided(serial1,g_2))
+goal reachable: attacker_p1(g_2) && b-event(PolicyIssued(serial1)) -> event(Decided(serial1,g_2))
+RESULT event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) is true.
+-- Query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 194 rules (93 with conclusion selected). Queue: 28 rules.
+400 rules inserted. Base: 292 rules (110 with conclusion selected). Queue: 44 rules.
+600 rules inserted. Base: 351 rules (129 with conclusion selected). Queue: 43 rules.
+800 rules inserted. Base: 402 rules (133 with conclusion selected). Queue: 32 rules.
+Starting query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4))
+goal reachable: b-event(PolicyNames(serial1,m_SB)) -> event(Released(serial1,m_SB))
+RESULT event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) is true.
+-- Query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (93 with conclusion selected). Queue: 29 rules.
+400 rules inserted. Base: 281 rules (112 with conclusion selected). Queue: 47 rules.
+600 rules inserted. Base: 344 rules (130 with conclusion selected). Queue: 46 rules.
+800 rules inserted. Base: 390 rules (134 with conclusion selected). Queue: 30 rules.
+Starting query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2))
+goal reachable: attacker(g_2) -> event(Decided(serial1,g_2))
+
+Derivation:
+
+1. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) may be sent to the attacker at output {10}.
+attacker(sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[])).
+
+2. The attacker has some term qcr_2.
+attacker(qcr_2).
+
+3. The message skSent[] may be sent to the attacker at output {6}.
+attacker(skSent[]).
+
+4. The attacker has some term dsb_2.
+attacker(dsb_2).
+
+5. We assume as hypothesis that
+attacker(g_2).
+
+6. Using the function CR the attacker may obtain CR.
+attacker(CR).
+
+7. By 6, the attacker may know CR.
+By 5, the attacker may know g_2.
+By 4, the attacker may know dsb_2.
+Using the function 3-tuple the attacker may obtain (CR,g_2,dsb_2).
+attacker((CR,g_2,dsb_2)).
+
+8. By 7, the attacker may know (CR,g_2,dsb_2).
+By 3, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((CR,g_2,dsb_2),skSent[]).
+attacker(sign((CR,g_2,dsb_2),skSent[])).
+
+9. By 7, the attacker may know (CR,g_2,dsb_2).
+By 8, the attacker may know sign((CR,g_2,dsb_2),skSent[]).
+By 2, the attacker may know qcr_2.
+Using the function 3-tuple the attacker may obtain ((CR,g_2,dsb_2),sign((CR,g_2,dsb_2),skSent[]),qcr_2).
+attacker(((CR,g_2,dsb_2),sign((CR,g_2,dsb_2),skSent[]),qcr_2)).
+
+10. The attacker has some term qrec_2.
+attacker(qrec_2).
+
+11. The attacker has some term parent_2.
+attacker(parent_2).
+
+12. The attacker has some term env_3.
+attacker(env_3).
+
+13. The attacker initially knows bundle[].
+attacker(bundle[]).
+
+14. By 13, the attacker may know bundle[].
+Using the function h the attacker may obtain h(bundle[]).
+attacker(h(bundle[])).
+
+15. Using the function SEAL the attacker may obtain SEAL.
+attacker(SEAL).
+
+16. By 15, the attacker may know SEAL.
+By 5, the attacker may know g_2.
+By 14, the attacker may know h(bundle[]).
+By 12, the attacker may know env_3.
+By 11, the attacker may know parent_2.
+Using the function 5-tuple the attacker may obtain (SEAL,g_2,h(bundle[]),env_3,parent_2).
+attacker((SEAL,g_2,h(bundle[]),env_3,parent_2)).
+
+17. By 16, the attacker may know (SEAL,g_2,h(bundle[]),env_3,parent_2).
+By 3, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]).
+attacker(sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[])).
+
+18. By 16, the attacker may know (SEAL,g_2,h(bundle[]),env_3,parent_2).
+By 17, the attacker may know sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]).
+By 10, the attacker may know qrec_2.
+Using the function 3-tuple the attacker may obtain ((SEAL,g_2,h(bundle[]),env_3,parent_2),sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]),qrec_2).
+attacker(((SEAL,g_2,h(bundle[]),env_3,parent_2),sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]),qrec_2)).
+
+19. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 1 may be received at input {21}.
+The message ((CR,g_2,dsb_2),sign((CR,g_2,dsb_2),skSent[]),qcr_2) that the attacker may have by 9 may be received at input {24}.
+The message ((SEAL,g_2,h(bundle[]),env_3,parent_2),sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]),qrec_2) that the attacker may have by 18 may be received at input {27}.
+So event Decided(serial1,g_2) may be executed at {32}.
+event(Decided(serial1,g_2)).
+
+20. By 19, event(Decided(serial1,g_2)).
+The goal is reached, represented in the following fact:
+event(Decided(serial1,g_2)).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(tk) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skO) at {2}
+
+out(c, ~M_2) with ~M_2 = pk(skSent) at {3}
+
+out(c, ~M_3) with ~M_3 = pk(skEsc) at {4}
+
+out(c, ~M_4) with ~M_4 = pk(skS) at {5}
+
+out(c, ~M_5) with ~M_5 = skSent at {6}
+
+out(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {7}
+
+event SentinelSealed(g1) at {13}
+
+out(c, ((~M_7,~M_8,~M_9,~M_10,~M_11),~M_12,~M_13)) with ~M_7 = SEAL, ~M_8 = g1, ~M_9 = h(bundle), ~M_10 = hpke(kg,pk(skEsc),g1), ~M_11 = g0, ~M_12 = sign((SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0),skSent), ~M_13 = sign((m_P,h((label_rec,(SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0)))),tk) at {14}
+
+event PolicyIssued(serial1) at {8}
+
+event PolicyNames(serial1,m_SB) at {9}
+
+out(c, ~M_14) with ~M_14 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {10}
+
+in(c, ~M_14) with ~M_14 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {21} in copy a
+
+in(c, ((CR,a_1,a_2),sign((CR,a_1,a_2),~M_5),a_3)) with sign((CR,a_1,a_2),~M_5) = sign((CR,a_1,a_2),skSent) at {24} in copy a
+
+in(c, ((SEAL,a_1,h(bundle),a_4,a_5),sign((SEAL,a_1,h(bundle),a_4,a_5),~M_5),a_6)) with sign((SEAL,a_1,h(bundle),a_4,a_5),~M_5) = sign((SEAL,a_1,h(bundle),a_4,a_5),skSent) at {27} in copy a
+
+event Decided(serial1,a_1) at {32} in copy a (goal)
+
+The event Decided(serial1,a_1) is executed at {32} in copy a.
+A trace has been found.
+RESULT event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) is false.
+-- Query event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (93 with conclusion selected). Queue: 29 rules.
+400 rules inserted. Base: 277 rules (112 with conclusion selected). Queue: 43 rules.
+600 rules inserted. Base: 335 rules (131 with conclusion selected). Queue: 50 rules.
+800 rules inserted. Base: 379 rules (134 with conclusion selected). Queue: 27 rules.
+Starting query event(Chosen(g_2)) ==> event(SentinelSealed(g_2))
+goal reachable: attacker(g_2) -> event(Chosen(g_2))
+
+Derivation:
+
+1. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) may be sent to the attacker at output {10}.
+attacker(sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[])).
+
+2. The attacker has some term qcr_2.
+attacker(qcr_2).
+
+3. The message skSent[] may be sent to the attacker at output {6}.
+attacker(skSent[]).
+
+4. The attacker has some term dsb_2.
+attacker(dsb_2).
+
+5. We assume as hypothesis that
+attacker(g_2).
+
+6. Using the function CR the attacker may obtain CR.
+attacker(CR).
+
+7. By 6, the attacker may know CR.
+By 5, the attacker may know g_2.
+By 4, the attacker may know dsb_2.
+Using the function 3-tuple the attacker may obtain (CR,g_2,dsb_2).
+attacker((CR,g_2,dsb_2)).
+
+8. By 7, the attacker may know (CR,g_2,dsb_2).
+By 3, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((CR,g_2,dsb_2),skSent[]).
+attacker(sign((CR,g_2,dsb_2),skSent[])).
+
+9. By 7, the attacker may know (CR,g_2,dsb_2).
+By 8, the attacker may know sign((CR,g_2,dsb_2),skSent[]).
+By 2, the attacker may know qcr_2.
+Using the function 3-tuple the attacker may obtain ((CR,g_2,dsb_2),sign((CR,g_2,dsb_2),skSent[]),qcr_2).
+attacker(((CR,g_2,dsb_2),sign((CR,g_2,dsb_2),skSent[]),qcr_2)).
+
+10. The attacker has some term qrec_2.
+attacker(qrec_2).
+
+11. The attacker has some term parent_2.
+attacker(parent_2).
+
+12. The attacker has some term env_3.
+attacker(env_3).
+
+13. The attacker initially knows bundle[].
+attacker(bundle[]).
+
+14. By 13, the attacker may know bundle[].
+Using the function h the attacker may obtain h(bundle[]).
+attacker(h(bundle[])).
+
+15. Using the function SEAL the attacker may obtain SEAL.
+attacker(SEAL).
+
+16. By 15, the attacker may know SEAL.
+By 5, the attacker may know g_2.
+By 14, the attacker may know h(bundle[]).
+By 12, the attacker may know env_3.
+By 11, the attacker may know parent_2.
+Using the function 5-tuple the attacker may obtain (SEAL,g_2,h(bundle[]),env_3,parent_2).
+attacker((SEAL,g_2,h(bundle[]),env_3,parent_2)).
+
+17. By 16, the attacker may know (SEAL,g_2,h(bundle[]),env_3,parent_2).
+By 3, the attacker may know skSent[].
+Using the function sign the attacker may obtain sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]).
+attacker(sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[])).
+
+18. By 16, the attacker may know (SEAL,g_2,h(bundle[]),env_3,parent_2).
+By 17, the attacker may know sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]).
+By 10, the attacker may know qrec_2.
+Using the function 3-tuple the attacker may obtain ((SEAL,g_2,h(bundle[]),env_3,parent_2),sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]),qrec_2).
+attacker(((SEAL,g_2,h(bundle[]),env_3,parent_2),sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]),qrec_2)).
+
+19. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 1 may be received at input {21}.
+The message ((CR,g_2,dsb_2),sign((CR,g_2,dsb_2),skSent[]),qcr_2) that the attacker may have by 9 may be received at input {24}.
+The message ((SEAL,g_2,h(bundle[]),env_3,parent_2),sign((SEAL,g_2,h(bundle[]),env_3,parent_2),skSent[]),qrec_2) that the attacker may have by 18 may be received at input {27}.
+So event Chosen(g_2) may be executed at {33}.
+event(Chosen(g_2)).
+
+20. By 19, event(Chosen(g_2)).
+The goal is reached, represented in the following fact:
+event(Chosen(g_2)).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(tk) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skO) at {2}
+
+out(c, ~M_2) with ~M_2 = pk(skSent) at {3}
+
+out(c, ~M_3) with ~M_3 = pk(skEsc) at {4}
+
+out(c, ~M_4) with ~M_4 = pk(skS) at {5}
+
+out(c, ~M_5) with ~M_5 = skSent at {6}
+
+out(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {7}
+
+event PolicyIssued(serial1) at {8}
+
+event PolicyNames(serial1,m_SB) at {9}
+
+out(c, ~M_7) with ~M_7 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {10}
+
+in(c, ~M_7) with ~M_7 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {21} in copy a
+
+in(c, ((CR,a_1,a_2),sign((CR,a_1,a_2),~M_5),a_3)) with sign((CR,a_1,a_2),~M_5) = sign((CR,a_1,a_2),skSent) at {24} in copy a
+
+in(c, ((SEAL,a_1,h(bundle),a_4,a_5),sign((SEAL,a_1,h(bundle),a_4,a_5),~M_5),a_6)) with sign((SEAL,a_1,h(bundle),a_4,a_5),~M_5) = sign((SEAL,a_1,h(bundle),a_4,a_5),skSent) at {27} in copy a
+
+event Decided(serial1,a_1) at {32} in copy a
+
+event Chosen(a_1) at {33} in copy a (goal)
+
+The event Chosen(a_1) is executed at {33} in copy a.
+A trace has been found.
+RESULT event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) is false.
+-- Query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 194 rules (93 with conclusion selected). Queue: 26 rules.
+400 rules inserted. Base: 293 rules (110 with conclusion selected). Queue: 49 rules.
+600 rules inserted. Base: 343 rules (128 with conclusion selected). Queue: 37 rules.
+800 rules inserted. Base: 395 rules (134 with conclusion selected). Queue: 37 rules.
+Starting query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2))
+goal reachable: b-event(Decided(serial1,a)) && attacker(k_2) && attacker(a) -> event(Opened(serial1,k_2))
+goal reachable: b-event(Decided(serial1,g1)) -> event(Opened(serial1,kg[]))
+RESULT event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) is true.
+-- Query not event(AuthorizedIn(ph1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 194 rules (93 with conclusion selected). Queue: 28 rules.
+400 rules inserted. Base: 292 rules (110 with conclusion selected). Queue: 44 rules.
+600 rules inserted. Base: 343 rules (129 with conclusion selected). Queue: 52 rules.
+800 rules inserted. Base: 401 rules (133 with conclusion selected). Queue: 63 rules.
+Starting query not event(AuthorizedIn(ph1))
+RESULT not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker_p1(kg[]) is true.
+
+Query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) is true.
+
+Query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) is true.
+
+Query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) is false.
+
+Query event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) is false.
+
+Query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) is true.
+
+Query not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+### failover-seed-leaked.pv
+Process 0 (that is, the initial process):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, skSent);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {13}event SentinelSealed(g1);
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {16}event SentinelReported(g1);
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {19}let ser_stop: bitstring = s0 in
+    {20}let ph: bitstring = ph0 in
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {27}if (mq = mp) then
+    {28}if (rq = h((label_rec,cr_1))) then
+    {29}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {30}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {31}if (checksig(srec,pkSent) = rec_1) then
+    {32}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {33}if (mq2 = mp) then
+    {34}if (rq2 = h((label_rec,rec_1))) then
+    {35}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {36}if (g = glast) then
+    {37}if (bh = h(bundle)) then
+    {38}event Decided(serial,g);
+    {39}event Chosen(g);
+    {40}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {41}new reqid: bitstring;
+    {42}new decid: bitstring;
+    {43}new n: bitstring;
+    {44}out(c, sign((reqid,decid,n,kind),skS));
+    {45}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {46}let pk2b(pkh: pkey) = pkb in
+    {47}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {48}if (rd = h((label_bind,suite,pkb,n))) then
+    {49}in(c, sl: bitstring);
+    {50}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {51}if (sserial = ser_stop) then
+    {52}if (flag = nostop) then
+    {53}if (m = msb) then
+    {54}new tokenid: bitstring;
+    {55}let aad: bitstring = h((tokenid,m,kid1)) in
+    {56}event Released(serial,m);
+    {57}event AuthorizedIn(ph);
+    {58}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {59}!
+    {60}in(c, req: bitstring);
+    {61}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {62}new hk: skey;
+    {63}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {64}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {65}in(c, tok: bitstring);
+    {66}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {67}if (decid2 = decid_1) then
+    {68}if (reqid2 = reqid_1) then
+    {69}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {70}if (suite_1 = suite_strong) then
+    {71}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {72}event Opened(serial_1,x)
+) | (
+    {73}!
+    {74}in(c, chal: bitstring);
+    {75}out(c, sign((meas_bad,chal),tk))
+) | (
+    {76}phase 1;
+    (
+        {77}out(c, sign((s1,stopall),skO))
+    ) | (
+        {78}!
+        {79}let ser_stop_1: bitstring = s1 in
+        {80}let ph_1: bitstring = ph1 in
+        {81}in(c, pol_1: bitstring);
+        {82}let (=POLICY,serial_2: bitstring,pks_1: bitstring,mp_1: bitstring,msb_1: bitstring) = checksig(pol_1,pk(skO)) in
+        {83}let pk2b(pkSent_1: pkey) = pks_1 in
+        {84}in(c, (cr_2: bitstring,scr_1: bitstring,qcr_1: bitstring));
+        {85}if (checksig(scr_1,pkSent_1) = cr_2) then
+        {86}let (mq_1: bitstring,rq_1: bitstring) = checksig(qcr_1,pk(tk)) in
+        {87}if (mq_1 = mp_1) then
+        {88}if (rq_1 = h((label_rec,cr_2))) then
+        {89}let (=CR,glast_1: bitstring,dsb_1: bitstring) = cr_2 in
+        {90}in(c, (rec_2: bitstring,srec_1: bitstring,qrec_1: bitstring));
+        {91}if (checksig(srec_1,pkSent_1) = rec_2) then
+        {92}let (mq2_1: bitstring,rq2_1: bitstring) = checksig(qrec_1,pk(tk)) in
+        {93}if (mq2_1 = mp_1) then
+        {94}if (rq2_1 = h((label_rec,rec_2))) then
+        {95}let (=SEAL,g_1: bitstring,bh_1: bitstring,env_2: bitstring,parent_1: bitstring) = rec_2 in
+        {96}if (g_1 = glast_1) then
+        {97}if (bh_1 = h(bundle)) then
+        {98}event Decided(serial_2,g_1);
+        {99}event Chosen(g_1);
+        {100}let dek_1: bitstring = hpke_open(env_2,skEsc,g_1) in
+        {101}new reqid_2: bitstring;
+        {102}new decid_2: bitstring;
+        {103}new n_2: bitstring;
+        {104}out(c, sign((reqid_2,decid_2,n_2,kind),skS));
+        {105}in(c, (suite_2: bitstring,pkb_2: bitstring,ev_1: bitstring));
+        {106}let pk2b(pkh_1: pkey) = pkb_2 in
+        {107}let (m_2: bitstring,rd_1: bitstring) = checksig(ev_1,pk(tk)) in
+        {108}if (rd_1 = h((label_bind,suite_2,pkb_2,n_2))) then
+        {109}in(c, sl_1: bitstring);
+        {110}let (sserial_1: bitstring,flag_1: bitstring) = checksig(sl_1,pk(skO)) in
+        {111}if (sserial_1 = ser_stop_1) then
+        {112}if (flag_1 = nostop) then
+        {113}if (m_2 = msb_1) then
+        {114}new tokenid_2: bitstring;
+        {115}let aad_2: bitstring = h((tokenid_2,m_2,kid1)) in
+        {116}event Released(serial_2,m_2);
+        {117}event AuthorizedIn(ph_1);
+        {118}out(c, sign((tokenid_2,decid_2,reqid_2,m_2,kid1,suite_2,hpke(dek_1,pkh_1,aad_2),aad_2,serial_2),skS))
+    ) | (
+        {119}!
+        {120}in(c, req_1: bitstring);
+        {121}let (reqid_3: bitstring,decid_3: bitstring,n_3: bitstring,k_1: bitstring) = checksig(req_1,pk(skS)) in
+        {122}new hk_1: skey;
+        {123}let pkb_3: bitstring = pk2b(pk(hk_1)) in
+        {124}out(c, (suite_strong,pkb_3,sign((m_SB,h((label_bind,suite_strong,pkb_3,n_3))),tk)));
+        {125}in(c, tok_1: bitstring);
+        {126}let (tokenid_3: bitstring,decid2_1: bitstring,reqid2_1: bitstring,m_3: bitstring,kid_1: bitstring,suite_3: bitstring,ct_1: bitstring,aad_3: bitstring,serial_3: bitstring) = checksig(tok_1,pk(skS)) in
+        {127}if (decid2_1 = decid_3) then
+        {128}if (reqid2_1 = reqid_3) then
+        {129}if (aad_3 = h((tokenid_3,m_3,kid_1))) then
+        {130}if (suite_3 = suite_strong) then
+        {131}let x_1: bitstring = hpke_open(ct_1,hk_1,aad_3) in
+        {132}event Opened(serial_3,x_1)
+    ) | (
+        {133}!
+        {134}in(c, chal_1: bitstring);
+        {135}out(c, sign((meas_bad,chal_1),tk))
+    )
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, skSent);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {13}event SentinelSealed(g1);
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {16}event SentinelReported(g1);
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {27}if (mq = mp) then
+    {28}if (rq = h((label_rec,cr_1))) then
+    {29}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {30}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {31}if (checksig(srec,pkSent) = rec_1) then
+    {32}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {33}if (mq2 = mp) then
+    {34}if (rq2 = h((label_rec,rec_1))) then
+    {35}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {36}if (g = glast) then
+    {37}if (bh = h(bundle)) then
+    {38}event Decided(serial,g);
+    {39}event Chosen(g);
+    {40}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {41}new reqid: bitstring;
+    {42}new decid: bitstring;
+    {43}new n: bitstring;
+    {44}out(c, sign((reqid,decid,n,kind),skS));
+    {45}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {46}let pk2b(pkh: pkey) = pkb in
+    {47}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {48}if (rd = h((label_bind,suite,pkb,n))) then
+    {49}in(c, sl: bitstring);
+    {50}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {19}let ser_stop: bitstring = s0 in
+    {51}if (sserial = ser_stop) then
+    {52}if (flag = nostop) then
+    {53}if (m = msb) then
+    {54}new tokenid: bitstring;
+    {56}event Released(serial,m);
+    {20}let ph: bitstring = ph0 in
+    {57}event AuthorizedIn(ph);
+    {55}let aad: bitstring = h((tokenid,m,kid1)) in
+    {58}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {59}!
+    {60}in(c, req: bitstring);
+    {61}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {62}new hk: skey;
+    {63}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {64}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {65}in(c, tok: bitstring);
+    {66}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {67}if (decid2 = decid_1) then
+    {68}if (reqid2 = reqid_1) then
+    {69}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {70}if (suite_1 = suite_strong) then
+    {71}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {72}event Opened(serial_1,x)
+) | (
+    {73}!
+    {74}in(c, chal: bitstring);
+    {75}out(c, sign((meas_bad,chal),tk))
+) | (
+    {76}phase 1;
+    (
+        {77}out(c, sign((s1,stopall),skO))
+    ) | (
+        {78}!
+        {81}in(c, pol_1: bitstring);
+        {82}let (=POLICY,serial_2: bitstring,pks_1: bitstring,mp_1: bitstring,msb_1: bitstring) = checksig(pol_1,pk(skO)) in
+        {83}let pk2b(pkSent_1: pkey) = pks_1 in
+        {84}in(c, (cr_2: bitstring,scr_1: bitstring,qcr_1: bitstring));
+        {85}if (checksig(scr_1,pkSent_1) = cr_2) then
+        {86}let (mq_1: bitstring,rq_1: bitstring) = checksig(qcr_1,pk(tk)) in
+        {87}if (mq_1 = mp_1) then
+        {88}if (rq_1 = h((label_rec,cr_2))) then
+        {89}let (=CR,glast_1: bitstring,dsb_1: bitstring) = cr_2 in
+        {90}in(c, (rec_2: bitstring,srec_1: bitstring,qrec_1: bitstring));
+        {91}if (checksig(srec_1,pkSent_1) = rec_2) then
+        {92}let (mq2_1: bitstring,rq2_1: bitstring) = checksig(qrec_1,pk(tk)) in
+        {93}if (mq2_1 = mp_1) then
+        {94}if (rq2_1 = h((label_rec,rec_2))) then
+        {95}let (=SEAL,g_1: bitstring,bh_1: bitstring,env_2: bitstring,parent_1: bitstring) = rec_2 in
+        {96}if (g_1 = glast_1) then
+        {97}if (bh_1 = h(bundle)) then
+        {98}event Decided(serial_2,g_1);
+        {99}event Chosen(g_1);
+        {100}let dek_1: bitstring = hpke_open(env_2,skEsc,g_1) in
+        {101}new reqid_2: bitstring;
+        {102}new decid_2: bitstring;
+        {103}new n_2: bitstring;
+        {104}out(c, sign((reqid_2,decid_2,n_2,kind),skS));
+        {105}in(c, (suite_2: bitstring,pkb_2: bitstring,ev_1: bitstring));
+        {106}let pk2b(pkh_1: pkey) = pkb_2 in
+        {107}let (m_2: bitstring,rd_1: bitstring) = checksig(ev_1,pk(tk)) in
+        {108}if (rd_1 = h((label_bind,suite_2,pkb_2,n_2))) then
+        {109}in(c, sl_1: bitstring);
+        {110}let (sserial_1: bitstring,flag_1: bitstring) = checksig(sl_1,pk(skO)) in
+        {79}let ser_stop_1: bitstring = s1 in
+        {111}if (sserial_1 = ser_stop_1) then
+        {112}if (flag_1 = nostop) then
+        {113}if (m_2 = msb_1) then
+        {114}new tokenid_2: bitstring;
+        {116}event Released(serial_2,m_2);
+        {80}let ph_1: bitstring = ph1 in
+        {117}event AuthorizedIn(ph_1);
+        {115}let aad_2: bitstring = h((tokenid_2,m_2,kid1)) in
+        {118}out(c, sign((tokenid_2,decid_2,reqid_2,m_2,kid1,suite_2,hpke(dek_1,pkh_1,aad_2),aad_2,serial_2),skS))
+    ) | (
+        {119}!
+        {120}in(c, req_1: bitstring);
+        {121}let (reqid_3: bitstring,decid_3: bitstring,n_3: bitstring,k_1: bitstring) = checksig(req_1,pk(skS)) in
+        {122}new hk_1: skey;
+        {123}let pkb_3: bitstring = pk2b(pk(hk_1)) in
+        {124}out(c, (suite_strong,pkb_3,sign((m_SB,h((label_bind,suite_strong,pkb_3,n_3))),tk)));
+        {125}in(c, tok_1: bitstring);
+        {126}let (tokenid_3: bitstring,decid2_1: bitstring,reqid2_1: bitstring,m_3: bitstring,kid_1: bitstring,suite_3: bitstring,ct_1: bitstring,aad_3: bitstring,serial_3: bitstring) = checksig(tok_1,pk(skS)) in
+        {127}if (decid2_1 = decid_3) then
+        {128}if (reqid2_1 = reqid_3) then
+        {129}if (aad_3 = h((tokenid_3,m_3,kid_1))) then
+        {130}if (suite_3 = suite_strong) then
+        {131}let x_1: bitstring = hpke_open(ct_1,hk_1,aad_3) in
+        {132}event Opened(serial_3,x_1)
+    ) | (
+        {133}!
+        {134}in(c, chal_1: bitstring);
+        {135}out(c, sign((meas_bad,chal_1),tk))
+    )
+)
+
+-- Query not attacker_p1(kg[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (93 with conclusion selected). Queue: 21 rules.
+400 rules inserted. Base: 314 rules (98 with conclusion selected). Queue: 87 rules.
+600 rules inserted. Base: 366 rules (101 with conclusion selected). Queue: 83 rules.
+800 rules inserted. Base: 452 rules (102 with conclusion selected). Queue: 50 rules.
+1000 rules inserted. Base: 512 rules (110 with conclusion selected). Queue: 19 rules.
+Starting query not attacker_p1(kg[])
+RESULT not attacker_p1(kg[]) is true.
+-- Query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 189 rules (93 with conclusion selected). Queue: 35 rules.
+400 rules inserted. Base: 326 rules (93 with conclusion selected). Queue: 84 rules.
+600 rules inserted. Base: 410 rules (102 with conclusion selected). Queue: 103 rules.
+800 rules inserted. Base: 453 rules (102 with conclusion selected). Queue: 82 rules.
+1000 rules inserted. Base: 540 rules (105 with conclusion selected). Queue: 30 rules.
+1200 rules inserted. Base: 584 rules (111 with conclusion selected). Queue: 0 rules.
+Starting query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser))
+goal reachable: b-event(PolicyIssued(serial1)) -> event(Decided(serial1,g1))
+RESULT event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) is true.
+-- Query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (93 with conclusion selected). Queue: 27 rules.
+400 rules inserted. Base: 319 rules (98 with conclusion selected). Queue: 79 rules.
+600 rules inserted. Base: 371 rules (101 with conclusion selected). Queue: 80 rules.
+800 rules inserted. Base: 457 rules (102 with conclusion selected). Queue: 61 rules.
+1000 rules inserted. Base: 521 rules (111 with conclusion selected). Queue: 15 rules.
+Starting query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4))
+goal reachable: b-event(PolicyNames(serial1,m_SB)) -> event(Released(serial1,m_SB))
+RESULT event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) is true.
+-- Query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 189 rules (93 with conclusion selected). Queue: 35 rules.
+400 rules inserted. Base: 323 rules (93 with conclusion selected). Queue: 88 rules.
+600 rules inserted. Base: 414 rules (99 with conclusion selected). Queue: 117 rules.
+800 rules inserted. Base: 454 rules (102 with conclusion selected). Queue: 94 rules.
+1000 rules inserted. Base: 535 rules (103 with conclusion selected). Queue: 53 rules.
+1200 rules inserted. Base: 595 rules (111 with conclusion selected). Queue: 19 rules.
+Starting query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2))
+goal reachable: b-event(SentinelReported(g1)) -> event(Decided(serial1,g1))
+RESULT event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) is true.
+-- Query event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 189 rules (93 with conclusion selected). Queue: 35 rules.
+400 rules inserted. Base: 299 rules (95 with conclusion selected). Queue: 73 rules.
+600 rules inserted. Base: 359 rules (102 with conclusion selected). Queue: 92 rules.
+800 rules inserted. Base: 429 rules (102 with conclusion selected). Queue: 88 rules.
+1000 rules inserted. Base: 518 rules (109 with conclusion selected). Queue: 12 rules.
+Starting query event(Chosen(g_2)) ==> event(SentinelSealed(g_2))
+goal reachable: b-event(SentinelSealed(g1)) -> event(Chosen(g1))
+RESULT event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) is true.
+-- Query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (93 with conclusion selected). Queue: 28 rules.
+400 rules inserted. Base: 319 rules (98 with conclusion selected). Queue: 80 rules.
+600 rules inserted. Base: 371 rules (101 with conclusion selected). Queue: 81 rules.
+800 rules inserted. Base: 451 rules (102 with conclusion selected). Queue: 65 rules.
+1000 rules inserted. Base: 526 rules (111 with conclusion selected). Queue: 17 rules.
+Starting query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2))
+goal reachable: b-event(Decided(serial1,g1)) -> event(Opened(serial1,kg[]))
+RESULT event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) is true.
+-- Query not event(AuthorizedIn(ph1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (93 with conclusion selected). Queue: 27 rules.
+400 rules inserted. Base: 319 rules (98 with conclusion selected). Queue: 79 rules.
+600 rules inserted. Base: 371 rules (101 with conclusion selected). Queue: 80 rules.
+800 rules inserted. Base: 457 rules (102 with conclusion selected). Queue: 61 rules.
+1000 rules inserted. Base: 523 rules (111 with conclusion selected). Queue: 22 rules.
+Starting query not event(AuthorizedIn(ph1))
+RESULT not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker_p1(kg[]) is true.
+
+Query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) is true.
+
+Query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) is true.
+
+Query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) is true.
+
+Query event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) is true.
+
+Query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) is true.
+
+Query not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+### failover-tee-key-leaked.pv
+Process 0 (that is, the initial process):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, tk);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {13}event SentinelSealed(g1);
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {16}event SentinelReported(g1);
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {19}let ser_stop: bitstring = s0 in
+    {20}let ph: bitstring = ph0 in
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {27}if (mq = mp) then
+    {28}if (rq = h((label_rec,cr_1))) then
+    {29}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {30}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {31}if (checksig(srec,pkSent) = rec_1) then
+    {32}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {33}if (mq2 = mp) then
+    {34}if (rq2 = h((label_rec,rec_1))) then
+    {35}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {36}if (g = glast) then
+    {37}if (bh = h(bundle)) then
+    {38}event Decided(serial,g);
+    {39}event Chosen(g);
+    {40}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {41}new reqid: bitstring;
+    {42}new decid: bitstring;
+    {43}new n: bitstring;
+    {44}out(c, sign((reqid,decid,n,kind),skS));
+    {45}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {46}let pk2b(pkh: pkey) = pkb in
+    {47}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {48}if (rd = h((label_bind,suite,pkb,n))) then
+    {49}in(c, sl: bitstring);
+    {50}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {51}if (sserial = ser_stop) then
+    {52}if (flag = nostop) then
+    {53}if (m = msb) then
+    {54}new tokenid: bitstring;
+    {55}let aad: bitstring = h((tokenid,m,kid1)) in
+    {56}event Released(serial,m);
+    {57}event AuthorizedIn(ph);
+    {58}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {59}!
+    {60}in(c, req: bitstring);
+    {61}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {62}new hk: skey;
+    {63}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {64}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {65}in(c, tok: bitstring);
+    {66}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {67}if (decid2 = decid_1) then
+    {68}if (reqid2 = reqid_1) then
+    {69}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {70}if (suite_1 = suite_strong) then
+    {71}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {72}event Opened(serial_1,x)
+) | (
+    {73}!
+    {74}in(c, chal: bitstring);
+    {75}out(c, sign((meas_bad,chal),tk))
+) | (
+    {76}phase 1;
+    (
+        {77}out(c, sign((s1,stopall),skO))
+    ) | (
+        {78}!
+        {79}let ser_stop_1: bitstring = s1 in
+        {80}let ph_1: bitstring = ph1 in
+        {81}in(c, pol_1: bitstring);
+        {82}let (=POLICY,serial_2: bitstring,pks_1: bitstring,mp_1: bitstring,msb_1: bitstring) = checksig(pol_1,pk(skO)) in
+        {83}let pk2b(pkSent_1: pkey) = pks_1 in
+        {84}in(c, (cr_2: bitstring,scr_1: bitstring,qcr_1: bitstring));
+        {85}if (checksig(scr_1,pkSent_1) = cr_2) then
+        {86}let (mq_1: bitstring,rq_1: bitstring) = checksig(qcr_1,pk(tk)) in
+        {87}if (mq_1 = mp_1) then
+        {88}if (rq_1 = h((label_rec,cr_2))) then
+        {89}let (=CR,glast_1: bitstring,dsb_1: bitstring) = cr_2 in
+        {90}in(c, (rec_2: bitstring,srec_1: bitstring,qrec_1: bitstring));
+        {91}if (checksig(srec_1,pkSent_1) = rec_2) then
+        {92}let (mq2_1: bitstring,rq2_1: bitstring) = checksig(qrec_1,pk(tk)) in
+        {93}if (mq2_1 = mp_1) then
+        {94}if (rq2_1 = h((label_rec,rec_2))) then
+        {95}let (=SEAL,g_1: bitstring,bh_1: bitstring,env_2: bitstring,parent_1: bitstring) = rec_2 in
+        {96}if (g_1 = glast_1) then
+        {97}if (bh_1 = h(bundle)) then
+        {98}event Decided(serial_2,g_1);
+        {99}event Chosen(g_1);
+        {100}let dek_1: bitstring = hpke_open(env_2,skEsc,g_1) in
+        {101}new reqid_2: bitstring;
+        {102}new decid_2: bitstring;
+        {103}new n_2: bitstring;
+        {104}out(c, sign((reqid_2,decid_2,n_2,kind),skS));
+        {105}in(c, (suite_2: bitstring,pkb_2: bitstring,ev_1: bitstring));
+        {106}let pk2b(pkh_1: pkey) = pkb_2 in
+        {107}let (m_2: bitstring,rd_1: bitstring) = checksig(ev_1,pk(tk)) in
+        {108}if (rd_1 = h((label_bind,suite_2,pkb_2,n_2))) then
+        {109}in(c, sl_1: bitstring);
+        {110}let (sserial_1: bitstring,flag_1: bitstring) = checksig(sl_1,pk(skO)) in
+        {111}if (sserial_1 = ser_stop_1) then
+        {112}if (flag_1 = nostop) then
+        {113}if (m_2 = msb_1) then
+        {114}new tokenid_2: bitstring;
+        {115}let aad_2: bitstring = h((tokenid_2,m_2,kid1)) in
+        {116}event Released(serial_2,m_2);
+        {117}event AuthorizedIn(ph_1);
+        {118}out(c, sign((tokenid_2,decid_2,reqid_2,m_2,kid1,suite_2,hpke(dek_1,pkh_1,aad_2),aad_2,serial_2),skS))
+    ) | (
+        {119}!
+        {120}in(c, req_1: bitstring);
+        {121}let (reqid_3: bitstring,decid_3: bitstring,n_3: bitstring,k_1: bitstring) = checksig(req_1,pk(skS)) in
+        {122}new hk_1: skey;
+        {123}let pkb_3: bitstring = pk2b(pk(hk_1)) in
+        {124}out(c, (suite_strong,pkb_3,sign((m_SB,h((label_bind,suite_strong,pkb_3,n_3))),tk)));
+        {125}in(c, tok_1: bitstring);
+        {126}let (tokenid_3: bitstring,decid2_1: bitstring,reqid2_1: bitstring,m_3: bitstring,kid_1: bitstring,suite_3: bitstring,ct_1: bitstring,aad_3: bitstring,serial_3: bitstring) = checksig(tok_1,pk(skS)) in
+        {127}if (decid2_1 = decid_3) then
+        {128}if (reqid2_1 = reqid_3) then
+        {129}if (aad_3 = h((tokenid_3,m_3,kid_1))) then
+        {130}if (suite_3 = suite_strong) then
+        {131}let x_1: bitstring = hpke_open(ct_1,hk_1,aad_3) in
+        {132}event Opened(serial_3,x_1)
+    ) | (
+        {133}!
+        {134}in(c, chal_1: bitstring);
+        {135}out(c, sign((meas_bad,chal_1),tk))
+    )
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}out(c, pk(tk));
+{2}out(c, pk(skO));
+{3}out(c, pk(skSent));
+{4}out(c, pk(skEsc));
+{5}out(c, pk(skS));
+{6}out(c, tk);
+{7}out(c, sign((s0,nostop),skO));
+(
+    {8}event PolicyIssued(serial1);
+    {9}event PolicyNames(serial1,m_SB);
+    {10}out(c, sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO))
+) | (
+    {13}event SentinelSealed(g1);
+    {11}let env: bitstring = hpke(kg,pk(skEsc),g1) in
+    {12}let rec: bitstring = (SEAL,g1,h(bundle),env,g0) in
+    {14}out(c, (rec,sign(rec,skSent),sign((m_P,h((label_rec,rec))),tk)));
+    {16}event SentinelReported(g1);
+    {15}let cr: bitstring = (CR,g1,m_SB) in
+    {17}out(c, (cr,sign(cr,skSent),sign((m_P,h((label_rec,cr))),tk)))
+) | (
+    {18}!
+    {21}in(c, pol: bitstring);
+    {22}let (=POLICY,serial: bitstring,pks: bitstring,mp: bitstring,msb: bitstring) = checksig(pol,pk(skO)) in
+    {23}let pk2b(pkSent: pkey) = pks in
+    {24}in(c, (cr_1: bitstring,scr: bitstring,qcr: bitstring));
+    {25}if (checksig(scr,pkSent) = cr_1) then
+    {26}let (mq: bitstring,rq: bitstring) = checksig(qcr,pk(tk)) in
+    {27}if (mq = mp) then
+    {28}if (rq = h((label_rec,cr_1))) then
+    {29}let (=CR,glast: bitstring,dsb: bitstring) = cr_1 in
+    {30}in(c, (rec_1: bitstring,srec: bitstring,qrec: bitstring));
+    {31}if (checksig(srec,pkSent) = rec_1) then
+    {32}let (mq2: bitstring,rq2: bitstring) = checksig(qrec,pk(tk)) in
+    {33}if (mq2 = mp) then
+    {34}if (rq2 = h((label_rec,rec_1))) then
+    {35}let (=SEAL,g: bitstring,bh: bitstring,env_1: bitstring,parent: bitstring) = rec_1 in
+    {36}if (g = glast) then
+    {37}if (bh = h(bundle)) then
+    {38}event Decided(serial,g);
+    {39}event Chosen(g);
+    {40}let dek: bitstring = hpke_open(env_1,skEsc,g) in
+    {41}new reqid: bitstring;
+    {42}new decid: bitstring;
+    {43}new n: bitstring;
+    {44}out(c, sign((reqid,decid,n,kind),skS));
+    {45}in(c, (suite: bitstring,pkb: bitstring,ev: bitstring));
+    {46}let pk2b(pkh: pkey) = pkb in
+    {47}let (m: bitstring,rd: bitstring) = checksig(ev,pk(tk)) in
+    {48}if (rd = h((label_bind,suite,pkb,n))) then
+    {49}in(c, sl: bitstring);
+    {50}let (sserial: bitstring,flag: bitstring) = checksig(sl,pk(skO)) in
+    {19}let ser_stop: bitstring = s0 in
+    {51}if (sserial = ser_stop) then
+    {52}if (flag = nostop) then
+    {53}if (m = msb) then
+    {54}new tokenid: bitstring;
+    {56}event Released(serial,m);
+    {20}let ph: bitstring = ph0 in
+    {57}event AuthorizedIn(ph);
+    {55}let aad: bitstring = h((tokenid,m,kid1)) in
+    {58}out(c, sign((tokenid,decid,reqid,m,kid1,suite,hpke(dek,pkh,aad),aad,serial),skS))
+) | (
+    {59}!
+    {60}in(c, req: bitstring);
+    {61}let (reqid_1: bitstring,decid_1: bitstring,n_1: bitstring,k: bitstring) = checksig(req,pk(skS)) in
+    {62}new hk: skey;
+    {63}let pkb_1: bitstring = pk2b(pk(hk)) in
+    {64}out(c, (suite_strong,pkb_1,sign((m_SB,h((label_bind,suite_strong,pkb_1,n_1))),tk)));
+    {65}in(c, tok: bitstring);
+    {66}let (tokenid_1: bitstring,decid2: bitstring,reqid2: bitstring,m_1: bitstring,kid: bitstring,suite_1: bitstring,ct: bitstring,aad_1: bitstring,serial_1: bitstring) = checksig(tok,pk(skS)) in
+    {67}if (decid2 = decid_1) then
+    {68}if (reqid2 = reqid_1) then
+    {69}if (aad_1 = h((tokenid_1,m_1,kid))) then
+    {70}if (suite_1 = suite_strong) then
+    {71}let x: bitstring = hpke_open(ct,hk,aad_1) in
+    {72}event Opened(serial_1,x)
+) | (
+    {73}!
+    {74}in(c, chal: bitstring);
+    {75}out(c, sign((meas_bad,chal),tk))
+) | (
+    {76}phase 1;
+    (
+        {77}out(c, sign((s1,stopall),skO))
+    ) | (
+        {78}!
+        {81}in(c, pol_1: bitstring);
+        {82}let (=POLICY,serial_2: bitstring,pks_1: bitstring,mp_1: bitstring,msb_1: bitstring) = checksig(pol_1,pk(skO)) in
+        {83}let pk2b(pkSent_1: pkey) = pks_1 in
+        {84}in(c, (cr_2: bitstring,scr_1: bitstring,qcr_1: bitstring));
+        {85}if (checksig(scr_1,pkSent_1) = cr_2) then
+        {86}let (mq_1: bitstring,rq_1: bitstring) = checksig(qcr_1,pk(tk)) in
+        {87}if (mq_1 = mp_1) then
+        {88}if (rq_1 = h((label_rec,cr_2))) then
+        {89}let (=CR,glast_1: bitstring,dsb_1: bitstring) = cr_2 in
+        {90}in(c, (rec_2: bitstring,srec_1: bitstring,qrec_1: bitstring));
+        {91}if (checksig(srec_1,pkSent_1) = rec_2) then
+        {92}let (mq2_1: bitstring,rq2_1: bitstring) = checksig(qrec_1,pk(tk)) in
+        {93}if (mq2_1 = mp_1) then
+        {94}if (rq2_1 = h((label_rec,rec_2))) then
+        {95}let (=SEAL,g_1: bitstring,bh_1: bitstring,env_2: bitstring,parent_1: bitstring) = rec_2 in
+        {96}if (g_1 = glast_1) then
+        {97}if (bh_1 = h(bundle)) then
+        {98}event Decided(serial_2,g_1);
+        {99}event Chosen(g_1);
+        {100}let dek_1: bitstring = hpke_open(env_2,skEsc,g_1) in
+        {101}new reqid_2: bitstring;
+        {102}new decid_2: bitstring;
+        {103}new n_2: bitstring;
+        {104}out(c, sign((reqid_2,decid_2,n_2,kind),skS));
+        {105}in(c, (suite_2: bitstring,pkb_2: bitstring,ev_1: bitstring));
+        {106}let pk2b(pkh_1: pkey) = pkb_2 in
+        {107}let (m_2: bitstring,rd_1: bitstring) = checksig(ev_1,pk(tk)) in
+        {108}if (rd_1 = h((label_bind,suite_2,pkb_2,n_2))) then
+        {109}in(c, sl_1: bitstring);
+        {110}let (sserial_1: bitstring,flag_1: bitstring) = checksig(sl_1,pk(skO)) in
+        {79}let ser_stop_1: bitstring = s1 in
+        {111}if (sserial_1 = ser_stop_1) then
+        {112}if (flag_1 = nostop) then
+        {113}if (m_2 = msb_1) then
+        {114}new tokenid_2: bitstring;
+        {116}event Released(serial_2,m_2);
+        {80}let ph_1: bitstring = ph1 in
+        {117}event AuthorizedIn(ph_1);
+        {115}let aad_2: bitstring = h((tokenid_2,m_2,kid1)) in
+        {118}out(c, sign((tokenid_2,decid_2,reqid_2,m_2,kid1,suite_2,hpke(dek_1,pkh_1,aad_2),aad_2,serial_2),skS))
+    ) | (
+        {119}!
+        {120}in(c, req_1: bitstring);
+        {121}let (reqid_3: bitstring,decid_3: bitstring,n_3: bitstring,k_1: bitstring) = checksig(req_1,pk(skS)) in
+        {122}new hk_1: skey;
+        {123}let pkb_3: bitstring = pk2b(pk(hk_1)) in
+        {124}out(c, (suite_strong,pkb_3,sign((m_SB,h((label_bind,suite_strong,pkb_3,n_3))),tk)));
+        {125}in(c, tok_1: bitstring);
+        {126}let (tokenid_3: bitstring,decid2_1: bitstring,reqid2_1: bitstring,m_3: bitstring,kid_1: bitstring,suite_3: bitstring,ct_1: bitstring,aad_3: bitstring,serial_3: bitstring) = checksig(tok_1,pk(skS)) in
+        {127}if (decid2_1 = decid_3) then
+        {128}if (reqid2_1 = reqid_3) then
+        {129}if (aad_3 = h((tokenid_3,m_3,kid_1))) then
+        {130}if (suite_3 = suite_strong) then
+        {131}let x_1: bitstring = hpke_open(ct_1,hk_1,aad_3) in
+        {132}event Opened(serial_3,x_1)
+    ) | (
+        {133}!
+        {134}in(c, chal_1: bitstring);
+        {135}out(c, sign((meas_bad,chal_1),tk))
+    )
+)
+
+-- Query not attacker_p1(kg[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 187 rules (91 with conclusion selected). Queue: 10 rules.
+400 rules inserted. Base: 283 rules (96 with conclusion selected). Queue: 60 rules.
+600 rules inserted. Base: 359 rules (100 with conclusion selected). Queue: 52 rules.
+800 rules inserted. Base: 415 rules (111 with conclusion selected). Queue: 32 rules.
+1000 rules inserted. Base: 427 rules (112 with conclusion selected). Queue: 27 rules.
+Starting query not attacker_p1(kg[])
+goal reachable: attacker_p1(kg[])
+
+Derivation:
+Abbreviations:
+n_4 = n[qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[]),scr = sign((CR,g1,m_SB),skSent[]),cr_1 = (CR,g1,m_SB),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+tokenid_4 = tokenid[sl = sign((s0,nostop),skO[]),ev = sign((m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4))),tk[]),pkb = pk2b(pk(k_2)),suite = suite_4,qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[]),scr = sign((CR,g1,m_SB),skSent[]),cr_1 = (CR,g1,m_SB),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+decid_4 = decid[qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[]),scr = sign((CR,g1,m_SB),skSent[]),cr_1 = (CR,g1,m_SB),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+reqid_4 = reqid[qrec = sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]),srec = sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),rec_1 = (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),qcr = sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[]),scr = sign((CR,g1,m_SB),skSent[]),cr_1 = (CR,g1,m_SB),pol = sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]),!1 = @sid]
+
+1. Using the function kid1 the attacker may obtain kid1.
+attacker(kid1).
+
+2. Using the function m_SB the attacker may obtain m_SB.
+attacker(m_SB).
+
+3. The message pk(skS[]) may be sent to the attacker at output {5}.
+attacker(pk(skS[])).
+
+4. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) may be sent to the attacker at output {10}.
+attacker(sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[])).
+
+5. The message tk[] may be sent to the attacker at output {6}.
+attacker(tk[]).
+
+6. Using the function g1 the attacker may obtain g1.
+attacker(g1).
+
+7. Using the function CR the attacker may obtain CR.
+attacker(CR).
+
+8. By 7, the attacker may know CR.
+By 6, the attacker may know g1.
+By 2, the attacker may know m_SB.
+Using the function 3-tuple the attacker may obtain (CR,g1,m_SB).
+attacker((CR,g1,m_SB)).
+
+9. Using the function label_rec the attacker may obtain label_rec.
+attacker(label_rec).
+
+10. By 9, the attacker may know label_rec.
+By 8, the attacker may know (CR,g1,m_SB).
+Using the function 2-tuple the attacker may obtain (label_rec,(CR,g1,m_SB)).
+attacker((label_rec,(CR,g1,m_SB))).
+
+11. By 10, the attacker may know (label_rec,(CR,g1,m_SB)).
+Using the function h the attacker may obtain h((label_rec,(CR,g1,m_SB))).
+attacker(h((label_rec,(CR,g1,m_SB)))).
+
+12. Using the function m_P the attacker may obtain m_P.
+attacker(m_P).
+
+13. By 12, the attacker may know m_P.
+By 11, the attacker may know h((label_rec,(CR,g1,m_SB))).
+Using the function 2-tuple the attacker may obtain (m_P,h((label_rec,(CR,g1,m_SB)))).
+attacker((m_P,h((label_rec,(CR,g1,m_SB))))).
+
+14. By 13, the attacker may know (m_P,h((label_rec,(CR,g1,m_SB)))).
+By 5, the attacker may know tk[].
+Using the function sign the attacker may obtain sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[]).
+attacker(sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[])).
+
+15. The message ((CR,g1,m_SB),sign((CR,g1,m_SB),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[])) may be sent to the attacker at output {17}.
+attacker(((CR,g1,m_SB),sign((CR,g1,m_SB),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[]))).
+
+16. By 15, the attacker may know ((CR,g1,m_SB),sign((CR,g1,m_SB),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[])).
+Using the function 2-proj-3-tuple the attacker may obtain sign((CR,g1,m_SB),skSent[]).
+attacker(sign((CR,g1,m_SB),skSent[])).
+
+17. By 8, the attacker may know (CR,g1,m_SB).
+By 16, the attacker may know sign((CR,g1,m_SB),skSent[]).
+By 14, the attacker may know sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((CR,g1,m_SB),sign((CR,g1,m_SB),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[])).
+attacker(((CR,g1,m_SB),sign((CR,g1,m_SB),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[]))).
+
+18. Using the function g0 the attacker may obtain g0.
+attacker(g0).
+
+19. The message ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])) may be sent to the attacker at output {14}.
+attacker(((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]))).
+
+20. By 19, the attacker may know ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+Using the function 1-proj-3-tuple the attacker may obtain (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+attacker((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)).
+
+21. By 20, the attacker may know (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+Using the function 4-proj-5-tuple the attacker may obtain hpke(kg[],pk(skEsc[]),g1).
+attacker(hpke(kg[],pk(skEsc[]),g1)).
+
+22. The attacker initially knows bundle[].
+attacker(bundle[]).
+
+23. By 22, the attacker may know bundle[].
+Using the function h the attacker may obtain h(bundle[]).
+attacker(h(bundle[])).
+
+24. Using the function SEAL the attacker may obtain SEAL.
+attacker(SEAL).
+
+25. By 24, the attacker may know SEAL.
+By 6, the attacker may know g1.
+By 23, the attacker may know h(bundle[]).
+By 21, the attacker may know hpke(kg[],pk(skEsc[]),g1).
+By 18, the attacker may know g0.
+Using the function 5-tuple the attacker may obtain (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+attacker((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)).
+
+26. By 9, the attacker may know label_rec.
+By 25, the attacker may know (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+Using the function 2-tuple the attacker may obtain (label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)).
+attacker((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0))).
+
+27. By 26, the attacker may know (label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)).
+Using the function h the attacker may obtain h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0))).
+attacker(h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))).
+
+28. By 12, the attacker may know m_P.
+By 27, the attacker may know h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0))).
+Using the function 2-tuple the attacker may obtain (m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))).
+attacker((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0))))).
+
+29. By 28, the attacker may know (m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))).
+By 5, the attacker may know tk[].
+Using the function sign the attacker may obtain sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]).
+attacker(sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+
+30. By 19, the attacker may know ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+Using the function 2-proj-3-tuple the attacker may obtain sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]).
+attacker(sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[])).
+
+31. By 25, the attacker may know (SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0).
+By 30, the attacker may know sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]).
+By 29, the attacker may know sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]).
+Using the function 3-tuple the attacker may obtain ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])).
+attacker(((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[]))).
+
+32. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 4 may be received at input {21}.
+The message ((CR,g1,m_SB),sign((CR,g1,m_SB),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[])) that the attacker may have by 17 may be received at input {24}.
+The message ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])) that the attacker may have by 31 may be received at input {30}.
+So the message sign((reqid_4,decid_4,n_4,kind),skS[]) may be sent to the attacker at output {44}.
+attacker(sign((reqid_4,decid_4,n_4,kind),skS[])).
+
+33. By 32, the attacker may know sign((reqid_4,decid_4,n_4,kind),skS[]).
+By 3, the attacker may know pk(skS[]).
+Using the function checksig the attacker may obtain (reqid_4,decid_4,n_4,kind).
+attacker((reqid_4,decid_4,n_4,kind)).
+
+34. By 33, the attacker may know (reqid_4,decid_4,n_4,kind).
+Using the function 3-proj-4-tuple the attacker may obtain n_4.
+attacker(n_4).
+
+35. The attacker has some term k_2.
+attacker(k_2).
+
+36. By 35, the attacker may know k_2.
+Using the function pk the attacker may obtain pk(k_2).
+attacker(pk(k_2)).
+
+37. By 36, the attacker may know pk(k_2).
+Using the function pk2b the attacker may obtain pk2b(pk(k_2)).
+attacker(pk2b(pk(k_2))).
+
+38. The attacker has some term suite_4.
+attacker(suite_4).
+
+39. Using the function label_bind the attacker may obtain label_bind.
+attacker(label_bind).
+
+40. By 39, the attacker may know label_bind.
+By 38, the attacker may know suite_4.
+By 37, the attacker may know pk2b(pk(k_2)).
+By 34, the attacker may know n_4.
+Using the function 4-tuple the attacker may obtain (label_bind,suite_4,pk2b(pk(k_2)),n_4).
+attacker((label_bind,suite_4,pk2b(pk(k_2)),n_4)).
+
+41. By 40, the attacker may know (label_bind,suite_4,pk2b(pk(k_2)),n_4).
+Using the function h the attacker may obtain h((label_bind,suite_4,pk2b(pk(k_2)),n_4)).
+attacker(h((label_bind,suite_4,pk2b(pk(k_2)),n_4))).
+
+42. By 2, the attacker may know m_SB.
+By 41, the attacker may know h((label_bind,suite_4,pk2b(pk(k_2)),n_4)).
+Using the function 2-tuple the attacker may obtain (m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4))).
+attacker((m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4)))).
+
+43. By 42, the attacker may know (m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4))).
+By 5, the attacker may know tk[].
+Using the function sign the attacker may obtain sign((m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4))),tk[]).
+attacker(sign((m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4))),tk[])).
+
+44. By 38, the attacker may know suite_4.
+By 37, the attacker may know pk2b(pk(k_2)).
+By 43, the attacker may know sign((m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4))),tk[]).
+Using the function 3-tuple the attacker may obtain (suite_4,pk2b(pk(k_2)),sign((m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4))),tk[])).
+attacker((suite_4,pk2b(pk(k_2)),sign((m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4))),tk[]))).
+
+45. The message sign((s0,nostop),skO[]) may be sent to the attacker at output {7}.
+attacker(sign((s0,nostop),skO[])).
+
+46. The message sign((POLICY,serial1,pk2b(pk(skSent[])),m_P,m_SB),skO[]) that the attacker may have by 4 may be received at input {21}.
+The message ((CR,g1,m_SB),sign((CR,g1,m_SB),skSent[]),sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk[])) that the attacker may have by 17 may be received at input {24}.
+The message ((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),sign((SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0),skSent[]),sign((m_P,h((label_rec,(SEAL,g1,h(bundle[]),hpke(kg[],pk(skEsc[]),g1),g0)))),tk[])) that the attacker may have by 31 may be received at input {30}.
+The message (suite_4,pk2b(pk(k_2)),sign((m_SB,h((label_bind,suite_4,pk2b(pk(k_2)),n_4))),tk[])) that the attacker may have by 44 may be received at input {45}.
+The message sign((s0,nostop),skO[]) that the attacker may have by 45 may be received at input {49}.
+So the message sign((tokenid_4,decid_4,reqid_4,m_SB,kid1,suite_4,hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1))),h((tokenid_4,m_SB,kid1)),serial1),skS[]) may be sent to the attacker at output {58}.
+attacker(sign((tokenid_4,decid_4,reqid_4,m_SB,kid1,suite_4,hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1))),h((tokenid_4,m_SB,kid1)),serial1),skS[])).
+
+47. By 46, the attacker may know sign((tokenid_4,decid_4,reqid_4,m_SB,kid1,suite_4,hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1))),h((tokenid_4,m_SB,kid1)),serial1),skS[]).
+By 3, the attacker may know pk(skS[]).
+Using the function checksig the attacker may obtain (tokenid_4,decid_4,reqid_4,m_SB,kid1,suite_4,hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1))),h((tokenid_4,m_SB,kid1)),serial1).
+attacker((tokenid_4,decid_4,reqid_4,m_SB,kid1,suite_4,hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1))),h((tokenid_4,m_SB,kid1)),serial1)).
+
+48. By 47, the attacker may know (tokenid_4,decid_4,reqid_4,m_SB,kid1,suite_4,hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1))),h((tokenid_4,m_SB,kid1)),serial1).
+Using the function 1-proj-9-tuple the attacker may obtain tokenid_4.
+attacker(tokenid_4).
+
+49. By 48, the attacker may know tokenid_4.
+By 2, the attacker may know m_SB.
+By 1, the attacker may know kid1.
+Using the function 3-tuple the attacker may obtain (tokenid_4,m_SB,kid1).
+attacker((tokenid_4,m_SB,kid1)).
+
+50. By 49, the attacker may know (tokenid_4,m_SB,kid1).
+Using the function h the attacker may obtain h((tokenid_4,m_SB,kid1)).
+attacker(h((tokenid_4,m_SB,kid1))).
+
+51. By 47, the attacker may know (tokenid_4,decid_4,reqid_4,m_SB,kid1,suite_4,hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1))),h((tokenid_4,m_SB,kid1)),serial1).
+Using the function 7-proj-9-tuple the attacker may obtain hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1))).
+attacker(hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1)))).
+
+52. By 51, the attacker may know hpke(kg[],pk(k_2),h((tokenid_4,m_SB,kid1))).
+By 35, the attacker may know k_2.
+By 50, the attacker may know h((tokenid_4,m_SB,kid1)).
+Using the function hpke_open the attacker may obtain kg[].
+attacker(kg[]).
+
+53. By 52, the attacker may know kg[].
+So the attacker may know kg[] in phase 1.
+attacker_p1(kg[]).
+
+54. By 53, attacker_p1(kg[]).
+The goal is reached, represented in the following fact:
+attacker_p1(kg[]).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(tk) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skO) at {2}
+
+out(c, ~M_2) with ~M_2 = pk(skSent) at {3}
+
+out(c, ~M_3) with ~M_3 = pk(skEsc) at {4}
+
+out(c, ~M_4) with ~M_4 = pk(skS) at {5}
+
+out(c, ~M_5) with ~M_5 = tk at {6}
+
+out(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {7}
+
+event SentinelSealed(g1) at {13}
+
+out(c, ((~M_7,~M_8,~M_9,~M_10,~M_11),~M_12,~M_13)) with ~M_7 = SEAL, ~M_8 = g1, ~M_9 = h(bundle), ~M_10 = hpke(kg,pk(skEsc),g1), ~M_11 = g0, ~M_12 = sign((SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0),skSent), ~M_13 = sign((m_P,h((label_rec,(SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0)))),tk) at {14}
+
+event SentinelReported(g1) at {16}
+
+out(c, ((~M_14,~M_15,~M_16),~M_17,~M_18)) with ~M_14 = CR, ~M_15 = g1, ~M_16 = m_SB, ~M_17 = sign((CR,g1,m_SB),skSent), ~M_18 = sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk) at {17}
+
+event PolicyIssued(serial1) at {8}
+
+event PolicyNames(serial1,m_SB) at {9}
+
+out(c, ~M_19) with ~M_19 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {10}
+
+in(c, ~M_19) with ~M_19 = sign((POLICY,serial1,pk2b(pk(skSent)),m_P,m_SB),skO) at {21} in copy a
+
+in(c, ((CR,g1,m_SB),~M_17,sign((m_P,h((label_rec,(CR,g1,m_SB)))),~M_5))) with ~M_17 = sign((CR,g1,m_SB),skSent), sign((m_P,h((label_rec,(CR,g1,m_SB)))),~M_5) = sign((m_P,h((label_rec,(CR,g1,m_SB)))),tk) at {24} in copy a
+
+in(c, ((SEAL,g1,h(bundle),~M_10,g0),~M_12,sign((m_P,h((label_rec,(SEAL,g1,h(bundle),~M_10,g0)))),~M_5))) with ~M_10 = hpke(kg,pk(skEsc),g1), ~M_12 = sign((SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0),skSent), sign((m_P,h((label_rec,(SEAL,g1,h(bundle),~M_10,g0)))),~M_5) = sign((m_P,h((label_rec,(SEAL,g1,h(bundle),hpke(kg,pk(skEsc),g1),g0)))),tk) at {30} in copy a
+
+event Decided(serial1,g1) at {38} in copy a
+
+event Chosen(g1) at {39} in copy a
+
+new reqid: bitstring creating reqid_5 at {41} in copy a
+
+new decid: bitstring creating decid_5 at {42} in copy a
+
+new n: bitstring creating n_5 at {43} in copy a
+
+out(c, ~M_20) with ~M_20 = sign((reqid_5,decid_5,n_5,kind),skS) at {44} in copy a
+
+in(c, (a_1,pk2b(pk(a_2)),sign((m_SB,h((label_bind,a_1,pk2b(pk(a_2)),3-proj-4-tuple(checksig(~M_20,~M_4))))),~M_5))) with sign((m_SB,h((label_bind,a_1,pk2b(pk(a_2)),3-proj-4-tuple(checksig(~M_20,~M_4))))),~M_5) = sign((m_SB,h((label_bind,a_1,pk2b(pk(a_2)),n_5))),tk) at {45} in copy a
+
+in(c, ~M_6) with ~M_6 = sign((s0,nostop),skO) at {49} in copy a
+
+new tokenid: bitstring creating tokenid_5 at {54} in copy a
+
+event Released(serial1,m_SB) at {56} in copy a
+
+event AuthorizedIn(ph0) at {57} in copy a
+
+out(c, ~M_21) with ~M_21 = sign((tokenid_5,decid_5,reqid_5,m_SB,kid1,a_1,hpke(kg,pk(a_2),h((tokenid_5,m_SB,kid1))),h((tokenid_5,m_SB,kid1)),serial1),skS) at {58} in copy a
+
+The attacker has the message hpke_open(7-proj-9-tuple(checksig(~M_21,~M_4)),a_2,h((1-proj-9-tuple(checksig(~M_21,~M_4)),m_SB,kid1))) = kg in phase 1.
+A trace has been found.
+RESULT not attacker_p1(kg[]) is false.
+-- Query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (91 with conclusion selected). Queue: 17 rules.
+400 rules inserted. Base: 286 rules (93 with conclusion selected). Queue: 55 rules.
+600 rules inserted. Base: 336 rules (100 with conclusion selected). Queue: 52 rules.
+800 rules inserted. Base: 427 rules (103 with conclusion selected). Queue: 17 rules.
+1000 rules inserted. Base: 457 rules (112 with conclusion selected). Queue: 37 rules.
+Starting query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser))
+goal reachable: b-event(PolicyIssued(serial1)) -> event(Decided(serial1,g1))
+RESULT event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) is true.
+-- Query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 193 rules (91 with conclusion selected). Queue: 15 rules.
+400 rules inserted. Base: 289 rules (96 with conclusion selected). Queue: 58 rules.
+600 rules inserted. Base: 362 rules (100 with conclusion selected). Queue: 51 rules.
+800 rules inserted. Base: 420 rules (112 with conclusion selected). Queue: 35 rules.
+1000 rules inserted. Base: 440 rules (113 with conclusion selected). Queue: 29 rules.
+Starting query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4))
+goal reachable: b-event(PolicyNames(serial1,m_SB)) -> event(Released(serial1,m_SB))
+RESULT event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) is true.
+-- Query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (91 with conclusion selected). Queue: 17 rules.
+400 rules inserted. Base: 290 rules (93 with conclusion selected). Queue: 62 rules.
+600 rules inserted. Base: 352 rules (100 with conclusion selected). Queue: 54 rules.
+800 rules inserted. Base: 443 rules (103 with conclusion selected). Queue: 32 rules.
+1000 rules inserted. Base: 475 rules (112 with conclusion selected). Queue: 38 rules.
+1200 rules inserted. Base: 513 rules (113 with conclusion selected). Queue: 1 rules.
+Starting query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2))
+goal reachable: b-event(SentinelReported(g1)) -> event(Decided(serial1,g1))
+RESULT event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) is true.
+-- Query event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 191 rules (91 with conclusion selected). Queue: 17 rules.
+400 rules inserted. Base: 288 rules (93 with conclusion selected). Queue: 55 rules.
+600 rules inserted. Base: 353 rules (100 with conclusion selected). Queue: 59 rules.
+800 rules inserted. Base: 437 rules (108 with conclusion selected). Queue: 21 rules.
+1000 rules inserted. Base: 456 rules (113 with conclusion selected). Queue: 38 rules.
+Starting query event(Chosen(g_2)) ==> event(SentinelSealed(g_2))
+goal reachable: b-event(SentinelSealed(g1)) -> event(Chosen(g1))
+RESULT event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) is true.
+-- Query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 193 rules (91 with conclusion selected). Queue: 17 rules.
+400 rules inserted. Base: 296 rules (96 with conclusion selected). Queue: 58 rules.
+600 rules inserted. Base: 362 rules (99 with conclusion selected). Queue: 57 rules.
+800 rules inserted. Base: 430 rules (110 with conclusion selected). Queue: 26 rules.
+1000 rules inserted. Base: 454 rules (113 with conclusion selected). Queue: 35 rules.
+Starting query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2))
+goal reachable: b-event(Decided(serial1,g1)) -> event(Opened(serial1,kg[]))
+RESULT event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) is true.
+-- Query not event(AuthorizedIn(ph1)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 193 rules (91 with conclusion selected). Queue: 15 rules.
+400 rules inserted. Base: 289 rules (96 with conclusion selected). Queue: 58 rules.
+600 rules inserted. Base: 362 rules (100 with conclusion selected). Queue: 51 rules.
+800 rules inserted. Base: 422 rules (109 with conclusion selected). Queue: 31 rules.
+1000 rules inserted. Base: 441 rules (113 with conclusion selected). Queue: 46 rules.
+Starting query not event(AuthorizedIn(ph1))
+RESULT not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker_p1(kg[]) is false.
+
+Query event(Decided(ser,g_2)) ==> event(PolicyIssued(ser)) is true.
+
+Query event(Released(ser,m_4)) ==> event(PolicyNames(ser,m_4)) is true.
+
+Query event(Decided(ser,g_2)) ==> event(SentinelReported(g_2)) is true.
+
+Query event(Chosen(g_2)) ==> event(SentinelSealed(g_2)) is true.
+
+Query event(Opened(ser,k_2)) ==> event(Decided(ser,g_2)) is true.
+
+Query not event(AuthorizedIn(ph1)) is true.
+
+--------------------------------------------------------------
 ### keyrelease-authority-key-leaked.pv
 Process 0 (that is, the initial process):
 {1}out(c, pk(tk));

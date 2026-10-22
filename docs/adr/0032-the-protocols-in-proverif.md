@@ -1,6 +1,6 @@
 # ADR 0032 — The protocols in ProVerif: the proofs, the attacks and the assumptions
 
-- **Status:** Proposed (2026-10-22) — part one (the cross-cloud key release: eight models) and part two (the Return Path handshake: nine models) in the tree with the recorded run and the check in CI; part three (the sentinel and the failover) follows
+- **Status:** Accepted (2026-10-22) — the three parts in the tree: the cross-cloud key release (eight models), the Return Path handshake (nine), the sentinel and the failover (six), with the recorded run (185 verdicts) and the check in CI; claim C45
 - **Tags:** formal, protocol, crosscloud, returnpath, failover, verification
 - **Extends:** ADR 0009 and ADR 0029 (the key binding and the suites), ADR 0010 (the stop list), ADR 0011 (the receipt), ADR 0014 and ADR 0025 (the Return Path), ADR 0012 and ADR 0017 (the failover)
 
@@ -61,14 +61,13 @@ the code; none has a model.
 4. **The claim is narrow and comes last.** A model proves the protocol as
    written, not the code as shipped; the code is tied to the model by the
    tests that remove each check (ADR 0009) and, when it exists, by a
-   second implementation that verifies the same records. A verifiable
-   claim (C45) is written when all three parts are in the tree, and says
-   exactly that.
+   second implementation that verifies the same records. The verifiable
+   claim (C45) says exactly that.
 
 ## Part one: the cross-cloud key release (2026-10-22)
 
 Eight models, seven queries each, 62 recorded verdicts (the first 62 lines
-of `formal/results/proverif-20261022T170804Z.txt`). The release as the
+of `formal/results/proverif-20261022T173929Z.txt`). The release as the
 daemons run it holds all seven: the released key stays secret from the
 network; a key the destination opens was authorized by the source for
 that decision; the source authorizes only to a key the honest destination
@@ -111,6 +110,30 @@ rogue with a certificate is never admitted, so a leaked registry key
 changes nothing there. The vault's TLS key leaked is a man in the middle
 who sees the candidate and replays jobs and does not open the material;
 the chips' key leaked breaks the admission and nothing the TLS carries.
+
+## Part three: the sentinel and the failover (2026-10-22)
+
+Six models, seven queries each, 42 recorded verdicts (the rest of the
+same run). The sentinel and the failover as the daemons run them hold all
+seven: the genome key stays secret from the primary and the outbox; every
+failover corresponds to a policy the operator issued; the key is released
+only to the measurement the policy names; every trigger acted on and
+every generation chosen is the sentinel's word on its chip; every opening
+on the standby corresponds to a decision; no release once the stop is on
+the record. The variants place the anti-worm properties where they sit:
+with the primary itself in the attacker's hands — the sentinel's seed and
+the chip's quotes at its measurement — the attacker triggers a failover
+and names the genome, the limit ADR 0012 states, and the key still goes
+only where the operator's policy says and stays secret; let the executor
+take the standby from the compromise report instead, and the key goes
+wherever the primary points. The chip's quote over every record (ADR
+0017) is what makes a stolen seed worthless off the chip; without that
+pin the seed alone forges triggers and genomes. The escrow keeps the key
+from the primary and the outbox; the chips' key leaked lets an impostor
+stand in for the standby. Two rules of the executor are the authority's
+record rather than the protocol — one failover per policy serial, an
+older serial refused — and the symbolic model does not establish them;
+the model names them as what the audit log carries.
 
 ## Consequences
 

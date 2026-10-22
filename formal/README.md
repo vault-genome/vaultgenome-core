@@ -7,9 +7,10 @@ that change between them; `results/` holds the ProVerif 2.05 output, unedited, o
 run; `check_results.py` runs the tool and compares its verdicts, query by query, with that run.
 A change to a protocol that changes a verdict fails `make formal-check` and the `formal` workflow.
 
-Parts one and two, this directory today: the cross-cloud key release of ADR 0009, 0029, 0010 and
-0011 (eight models) and the Return Path handshake of ADR 0014 and 0025 (nine models) — seventeen
-models, 143 recorded verdicts. The sentinel and the failover (part three) follow in the same form.
+Three protocols, in this directory: the cross-cloud key release of ADR 0009, 0029, 0010 and 0011
+(eight models), the Return Path handshake of ADR 0014 and 0025 (nine models), and the sentinel and
+the failover of ADR 0012 and 0017 (six models) — twenty-three models, 185 recorded verdicts
+(`results/proverif-20261022T173929Z.txt`).
 
 ## The key release: what is modelled, and where it is in the code
 
@@ -46,7 +47,7 @@ gate verdict the receipt carries, the escrow of the key before the release.
 | **R** | `inj Confirmed(d, kid, m) ⇒ inj Restored(d, kid, m)` | every confirmation corresponds to one restore the chip vouched for |
 | **M** | `Authorized(d, meas_bad, p)` unreachable | no authorization to the unlisted chip |
 
-## The verdicts (`results/proverif-20261022T170804Z.txt`, the key-release models)
+## The verdicts: the key-release models
 
 | model | what changes | S | A1 | A2 | A3 | P | R | M |
 |---|---|---|---|---|---|---|---|---|
@@ -107,7 +108,7 @@ session's deadline.
 | **J** | `inj Judged(mf, cand) ⇒ inj Produced(mf, cand)` | every verdict corresponds to one candidate the honest worker produced for that manifest |
 | **I** | `inj Produced(mf, cand) ⇒ inj Issued(mf)` | every candidate the worker produced corresponds to one job the vault issued |
 
-## The verdicts (`results/proverif-20261022T170804Z.txt`, the Return Path models)
+## The verdicts: the Return Path models
 
 | model | what changes | S | C | K | W | M | V | J | I |
 |---|---|---|---|---|---|---|---|---|---|
@@ -136,12 +137,63 @@ admitted (seventh row). The vault's TLS key leaked is a man in the middle: the c
 MAC keys are its, and it replays jobs, while the material stays sealed (eighth row). The chips'
 key leaked breaks the admission and nothing the TLS carries (last row).
 
+## The sentinel and the failover: what is modelled, and where it is in the code
+
+| In the model | In the code |
+|---|---|
+| The operator's failover policy: its serial, the sentinel's key, the primary's measurement, the one standby's measurement, signed by the operator's key | `vault-genome/failover-policy/v1` (`acpctl failover issue`): `serial`, `sentinel_public_key`, `primary.kind` and `primary.measurements` (ADR 0017), `standby.measurements`; the operator key of `crosscloud.operator_stop` |
+| The sentinel seals a generation: the genome key encapsulated to the authority's escrow key, the seal record signed with the sentinel's key and quoted by the primary's chip over the record | `acpctl sentinel watch --tee`: the v3 bundle, the escrow envelope to the authority's escrow key (ADR 0011), the seal record with its `attestation` — `REPORT_DATA` bound to the record's content (ADR 0017 §1) |
+| The compromise report, naming the last generation sealed, signed and quoted the same way; it carries a standby the executor ignores | the compromise report of ADR 0012; ADR 0017 §1 and §3 |
+| The executor verifies the policy under the operator's key, accepts from the outbox only records under the policy's sentinel key that carry the primary chip's quote at the pinned measurement, acts on the trigger, and chooses the generation the report names whose bundle hashes to its record | `sagvd failover` (`internal/vault/failover`): `Arm`, `Watch`, `Choose`; unattested records ignored (ADR 0017 §1), nothing past the sentinel's last word (§3) |
+| The decision on the record, the key opened from escrow, the attested release of part one to the standby the policy names, under the operator's stop list | `FAILOVER_DECIDED`; the release policy `stop list ⟶ failover policy ⟶ allow-list` (ADR 0012) |
+| The standby: the destination of part one, at the measurement the policy names | `acp-bootstrap`, `crosscloud.Receiver` |
+
+Abstractions, beside those of parts one and two: one generation and one policy serial; the chain
+is one seal record and one report; the executor's clock — the quarantine, the RPO bound, the
+heartbeat timeout, the `stopped` grace, the policy's validity window — is not modelled; the
+receipt and the confirmation are part one's; the allow-list admits the standby. Two rules are the
+authority's record rather than the protocol, and the symbolic model does not establish them: that
+one policy serial performs at most one failover, and that an older serial is refused (both read
+from the verified audit log at arming). The models of the compromised primary carry no phase 1,
+so their **P** is vacuous.
+
+| | Query | Reads |
+|---|---|---|
+| **G** | `attacker(kg)` | the genome key stays secret: the primary and the outbox hold ciphertext |
+| **F1** | `Decided(ser, g) ⇒ PolicyIssued(ser)` | every failover corresponds to a policy the operator issued |
+| **F2** | `Released(ser, m) ⇒ PolicyNames(ser, m)` | the key is released only to the measurement the policy names — not the primary's, the model's or the outbox's choice |
+| **F3** | `Decided(ser, g) ⇒ SentinelReported(g)` | every trigger acted on is a report the sentinel wrote on its chip |
+| **F4** | `Chosen(g) ⇒ SentinelSealed(g)` | every generation chosen is one the sentinel sealed on its chip |
+| **F5** | `Opened(ser, k) ⇒ Decided(ser, g)` | every opening on the standby corresponds to a decision |
+| **P** | `AuthorizedIn(ph1)` unreachable | no release once the operator's stop is on the record |
+
+## The verdicts: the failover models
+
+| model | what changes | G | F1 | F2 | F3 | F4 | F5 | P |
+|---|---|---|---|---|---|---|---|---|
+| `failover-base.pv` | the sentinel and the failover as the daemons run them | true | true | true | true | true | true | true |
+| `failover-seed-leaked.pv` | the sentinel's seed leaked and used off the chip | true | true | true | true | true | true | true |
+| `failover-seed-leaked-nopin.pv` | the seed leaked, and the policy does not pin the primary's chip (ADR 0012 without ADR 0017) | true | true | true | **false** | **false** | true | true |
+| `failover-primary-compromised.pv` | the primary is the attacker's: the seed and its chip's quotes | true | true | true | **false** | **false** | true | (vacuous) |
+| `failover-primary-compromised-worm.pv` | the primary is the attacker's, and the executor takes the standby from the report | **false** | true | **false** | **false** | **false** | true | (vacuous) |
+| `failover-tee-key-leaked.pv` | the chips' attestation key leaked | **false** | true | true | true | true | true | true |
+
+What the rows show. The operator's policy is what keeps a worm out: with the primary in the
+attacker's hands — its sentinel's seed and its chip's quotes — the attacker can trigger a failover
+and name the genome (F3, F4: the primary's word is its own, the limit ADR 0012 states), and the
+key still goes only where the policy says and stays secret (F2, G; fourth row); let the executor
+take the standby from the report instead, and the key goes wherever the primary points (fifth
+row). The chip's quote over every record is what makes a stolen seed worthless off the chip
+(second row against the third: ADR 0017). The escrow is what keeps the key from the primary and
+the outbox (G, every row but the worm's and the chip key's). The chips' key leaked lets an
+impostor stand in for the standby (last row).
+
 ## Reproduce
 
 ProVerif 2.05 on PATH, or `PROVERIF=/path/to/proverif` (built from
 `https://proverif.inria.fr/proverif2.05.tar.gz`, sha256
 `4871f53c32ab4a04669a060c4886ba5d9080496963fb980a9a62d2c429ceabc4`, with `./build -nointeract`,
-which needs only an OCaml compiler; the seventeen models take a few seconds):
+which needs only an OCaml compiler; the twenty-three models take a few seconds):
 
     make formal-check        # the models are what gen.py writes; the verdicts are the recorded ones
     make formal              # a new recorded run in formal/results/
