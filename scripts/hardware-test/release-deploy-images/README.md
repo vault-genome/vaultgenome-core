@@ -138,3 +138,6 @@ same release reached no verdict on the runner: one stopped on a
 transient error of the TUF mirror while another kit initialized the
 same cosign cache beside it, the other lost its runner-side `verify/`
 to a cleanup by hand while it ran; their logs are kept outside the tree.
+Both causes are fixed in #160 — a TUF cache per run with retries, and
+the record staged outside `evidence/` until it is complete — and proven
+there by the three kits run in the same minutes against this release.
