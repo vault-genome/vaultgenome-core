@@ -420,6 +420,11 @@ type PeerTEEConfig struct {
 	// MinReportedTCB is the lowest REPORTED_TCB accepted from the
 	// worker. gcp-sev-snp peers only.
 	MinReportedTCB uint64 `json:"min_reported_tcb,omitempty"`
+	// SEVSNP holds a SEV-SNP peer's report to the attack record (ADR 0033):
+	// the TCB floors, the platform's word, the guest's policy, the mitigation
+	// vector, the chip. Absent: the floors AMD's bulletins printed when they
+	// were read, for the chip's variant.
+	SEVSNP *tee.SEVSNPPolicyConfig `json:"sev_snp,omitempty"`
 
 	// PCSURL overrides the Intel PCS base URL (a mirror, a PCCS); PCSCacheDir
 	// keeps the TCB info and QE identity documents between runs, each
@@ -785,8 +790,8 @@ func validateTEE(t TEEConfig) []error {
 		if t.Peer.PublicKeyPath == "" && !t.Peer.Verifier.delegated() {
 			errs = append(errs, errors.New("tee.peer.public_key_path required when tee.peer.provider=simulated"))
 		}
-		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
-			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"))
+		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 || t.Peer.SEVSNP != nil {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir, min_reported_tcb and sev_snp apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"))
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
@@ -805,8 +810,8 @@ func validateTEE(t TEEConfig) []error {
 		if t.Peer.PublicKeyPath != "" {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a TDX quote chains to the Intel SGX Root CA"))
 		}
-		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
-			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"))
+		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 || t.Peer.SEVSNP != nil {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir, min_reported_tcb and sev_snp apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"))
 		}
 	case peer == tee.ProviderAzureSEVSNP:
 		if t.Peer.PublicKeyPath != "" {

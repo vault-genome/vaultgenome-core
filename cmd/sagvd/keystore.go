@@ -295,6 +295,10 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 // cfg.Provider, pinned to the measurement file: by attestation key for a
 // simulated peer, by the AMD certificate chain for a SEV-SNP peer.
 func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
+	snpPol, err := cfg.SEVSNP.Policy()
+	if err != nil {
+		return "", nil, fmt.Errorf("sagvd: tee.peer.%w", err)
+	}
 	provider, err := cfg.ProviderKind()
 	if err != nil {
 		return "", nil, fmt.Errorf("sagvd: tee.peer.provider: %w", err)
@@ -330,7 +334,7 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 			AMDRootPEM:     chain,
 			AMDKDSURL:      cfg.AMDKDSURL,
 			VCEKCacheDir:   cfg.VCEKCacheDir,
-			MinReportedTCB: cfg.MinReportedTCB,
+			MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol,
 		}
 	case tee.ProviderGCPTDX:
 		if len(measurement) != 48 {
@@ -349,7 +353,7 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 		if err != nil {
 			return "", nil, fmt.Errorf("sagvd: tee.peer.%w", err)
 		}
-		spec.AzureSEVSNP = tee.AzureSEVSNPVerifierConfig{AMDRootPEM: chain, AMDKDSURL: cfg.AMDKDSURL, VCEKCacheDir: cfg.VCEKCacheDir, MinReportedTCB: cfg.MinReportedTCB, AcceptablePCRDigests: digests}
+		spec.AzureSEVSNP = tee.AzureSEVSNPVerifierConfig{AMDRootPEM: chain, AMDKDSURL: cfg.AMDKDSURL, VCEKCacheDir: cfg.VCEKCacheDir, MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol, AcceptablePCRDigests: digests}
 	case tee.ProviderAzureCGPU:
 		if len(measurement) != 48 {
 			return "", nil, fmt.Errorf("sagvd: tee.peer.measurement_path (%q) must hold a 48-byte SEV-SNP launch measurement (got %d bytes)", cfg.MeasurementPath, len(measurement))
@@ -362,7 +366,7 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 		if err != nil {
 			return "", nil, fmt.Errorf("sagvd: tee.peer.%w", err)
 		}
-		spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: cfg.AMDKDSURL, VCEKCacheDir: cfg.VCEKCacheDir, MinReportedTCB: cfg.MinReportedTCB,
+		spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: cfg.AMDKDSURL, VCEKCacheDir: cfg.VCEKCacheDir, MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol,
 			NRASJWKSURL: cfg.NRASJWKSURL, NRASCacheDir: cfg.NRASCacheDir, GPU: cfg.GPUPolicy.policy(), AcceptablePCRDigests: digests}
 		if err := cfg.GPUPolicy.apply(&spec.AzureCGPU); err != nil {
 			return "", nil, fmt.Errorf("sagvd: tee.peer.%w", err)

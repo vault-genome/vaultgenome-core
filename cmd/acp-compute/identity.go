@@ -38,6 +38,8 @@ type workerIdentity struct {
 	TDX *tdxIdentity `json:"tdx,omitempty"`
 	// VTPM is what an azure-cgpu guest's vTPM measured of its boot.
 	VTPM *vtpmIdentity `json:"vtpm,omitempty"`
+	// SEVSNPPolicy is what the vault's SEV-SNP report is held to (ADR 0033).
+	SEVSNPPolicy *tee.SEVSNPPolicySummary `json:"sev_snp_policy,omitempty"`
 }
 
 // runIdentityCmd implements `acp-compute identity -config <path>`: it
@@ -91,6 +93,7 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	}
 	id.TDX = tdxIdentityOf(mat.Producer)
 	id.VTPM = vtpmIdentityOf(mat.Producer)
+	id.SEVSNPPolicy = sevSNPPolicyIdentity(cfg.TEE.Peer.Provider, cfg.TEE.Peer.SEVSNP)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(id)
@@ -131,4 +134,19 @@ func vtpmIdentityOf(p tee.Producer) *vtpmIdentity {
 		return nil
 	}
 	return &vtpmIdentity{PCRs: pcrs, PCRDigestHex: hex.EncodeToString(digest)}
+}
+
+// sevSNPPolicyIdentity is the policy the vault's SEV-SNP report is held
+// to, for identity; nil for a vault of another family.
+func sevSNPPolicyIdentity(peer string, c *tee.SEVSNPPolicyConfig) *tee.SEVSNPPolicySummary {
+	p, err := tee.ParseProvider(peer)
+	if err != nil || (p != tee.ProviderGCPSEVSNP && p != tee.ProviderAzureSEVSNP && p != tee.ProviderAzureCGPU) {
+		return nil
+	}
+	pol, err := c.Policy()
+	if err != nil {
+		return nil
+	}
+	s := pol.Summary()
+	return &s
 }

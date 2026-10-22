@@ -10,10 +10,13 @@ The shipping binaries, run end to end on a Google Confidential VM
   0029), quoting over the key-binding challenge that commits to the suite,
   the key and the nonce.
 - `sagvd crosscloud-restore` verifies that Evidence (VCEK fetched from AMD KDS,
-  ECDSA-P384 signature, VCEK → ASK → ARK-Milan chain, TCB, guest policy with no
-  DEBUG, VMPL 0, REPORT_DATA binding the challenge), applies its allow-list and
-  the operator stop, and only then encapsulates the genome key to the attested
-  key.
+  ECDSA-P384 signature, VCEK → ASK → ARK-Milan chain, the TCB against the
+  floors AMD's security bulletins set for the chip's variant together with
+  the platform's alias check and the mitigation vector — the attack record
+  of ADR 0033, read 2026-10-22 — guest policy with no DEBUG and no
+  MIGRATE_MA, VMPL 0, REPORT_DATA binding the challenge), applies its
+  allow-list and the operator stop, and only then encapsulates the genome
+  key to the attested key.
 - `acp-bootstrap` finds the bundle the key opens, restores it all or nothing,
   and has the chip sign a receipt; `sagvd crosscloud-confirm` verifies that
   receipt against the release and the operator's bundle and records the restore
@@ -199,6 +202,24 @@ verifier failed closed (`integrity`), so nothing was released — but the run di
 not show the policy gate. That is why the verifier now keeps fetched VCEKs on
 disk (`vcek_cache_dir`) and waits out a 429 a few times before failing; the run
 above used both.
+
+## The chip on the record, and a floor one above it (ADR 0033, part one)
+
+Since ADR 0033 the kit reads back what the verifier held the chip to
+beyond its measurement, and refuses a fourth release. After the first
+release it queries the `CROSS_CLOUD_ATTESTATION_VERIFIED` record
+(`attestation-verified.jsonl`) and prints one `chip` line into
+`steps.txt`: the product and variant by CPUID, the TCB the chip reported
+(`snp`, `microcode`, `bootloader`), the firmware, whether the platform's
+alias check completed (BadRAM), the current mitigation vector, and the
+floor the report was held to with where it came from (the bulletins' row
+for this variant, or the operator's). After the operator stop it lifts
+the stop (a third list that stops nothing) and releases once more under
+a registry entry whose `sev_snp.tcb_floor.snp` is this chip's own SNP
+firmware SVN plus one: the verdict requires `floor exit=1`, the reason
+`TCB floor: …` out of `sagvd`, and the `KEY_RELEASE_DENIED` record that
+names it (`key-release-denied.jsonl`, `denied_on_record=1`). No run under
+this is on the record yet; the first is part two of the ADR.
 
 ## What this does not show
 

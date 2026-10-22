@@ -74,6 +74,8 @@ type AzureCGPUVerifierConfig struct {
 	AMDRootPEM     []byte
 	VCEKCacheDir   string
 	MinReportedTCB uint64
+	// SEVSNP holds the chip's report to the attack record (ADR 0033).
+	SEVSNP SEVSNPPolicy
 	// NRASJWKSURL overrides NVIDIA's key set URL; NRASCacheDir keeps it.
 	NRASJWKSURL  string
 	NRASCacheDir string
@@ -200,6 +202,7 @@ type AzureCGPUVerdict struct {
 	Product       string
 	ChipID        [64]byte
 	ReportedTCB   uint64
+	SEVSNP        *SEVSNPReportDetail
 	PCRSelections []tpmPCRSelection
 	PCRDigest     []byte
 	GPUs          []GPUVerdict
@@ -296,7 +299,7 @@ func (p *AzureCGPUProducer) Close() error {
 
 // NewAzureCGPUVerifier constructs the composite verifier.
 func NewAzureCGPUVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureCGPUVerifierConfig) (*AzureCGPUVerifier, error) {
-	snp, err := newAzureSNPChecker(string(ProviderAzureCGPU), cfg.AMDRootPEM, cfg.AMDKDSURL, cfg.VCEKCacheDir, cfg.MinReportedTCB, cfg.AcceptablePCRDigests)
+	snp, err := newAzureSNPChecker(string(ProviderAzureCGPU), cfg.AMDRootPEM, cfg.AMDKDSURL, cfg.VCEKCacheDir, cfg.MinReportedTCB, cfg.AcceptablePCRDigests, cfg.SEVSNP)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +379,7 @@ func (d *AzureCGPUVerdict) Detail() *AttestationDetail {
 		sel = append(sel, s.String())
 	}
 	return &AttestationDetail{Provider: ProviderAzureCGPU, Product: d.Product, ChipIDHex: hex.EncodeToString(d.ChipID[:]),
-		ReportedTCB: d.ReportedTCB, PCRSelection: strings.Join(sel, "+"), PCRDigestHex: hex.EncodeToString(d.PCRDigest),
+		ReportedTCB: d.ReportedTCB, SEVSNP: d.SEVSNP, PCRSelection: strings.Join(sel, "+"), PCRDigestHex: hex.EncodeToString(d.PCRDigest),
 		GPUs: d.GPUs, Evaluations: d.Evaluations}
 }
 
@@ -394,7 +397,7 @@ func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPU
 	}
 
 	// The chip and the vTPM (azure_vtpm.go).
-	h, product, quote, err := v.snp.check(env.HCLReport, env.QuoteMessage, env.QuoteSignature, nonce)
+	h, product, quote, snpDetail, err := v.snp.check(env.HCLReport, env.QuoteMessage, env.QuoteSignature, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +471,7 @@ func (v *AzureCGPUVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureCGPU
 	if err != nil {
 		return nil, err
 	}
-	return &AzureCGPUVerdict{Measurement: m, Product: product, ChipID: report.ChipID, ReportedTCB: report.ReportedTCB,
+	return &AzureCGPUVerdict{Measurement: m, Product: product, ChipID: report.ChipID, ReportedTCB: report.ReportedTCB, SEVSNP: snpDetail,
 		PCRSelections: quote.PCRSelections, PCRDigest: quote.PCRDigest, GPUs: gpus, Evaluations: evaluations}, nil
 }
 

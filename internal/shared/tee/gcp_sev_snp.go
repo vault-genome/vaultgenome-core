@@ -95,6 +95,12 @@ type GCPSEVVerifierConfig struct {
 	// advisories.
 	MinReportedTCB uint64
 
+	// SEVSNP holds the report to the attack record (ADR 0033): the TCB
+	// floors per product, the platform's word, the guest's policy, the
+	// mitigation vector and the chip. The zero value is the default policy:
+	// the floors AMD's bulletins printed when they were read.
+	SEVSNP SEVSNPPolicy
+
 	// MaxClockSkew bounds REPORT freshness using either REPORT_ID or
 	// an external timestamp service. Default 5 minutes.
 	MaxClockSkew time.Duration
@@ -306,17 +312,17 @@ func (p *GCPSEVProducer) Close() error {
 // Verify implements Verifier. Parses the SEV-SNP report, fetches and
 // validates the VCEK + AMD chain, verifies the ECDSA signature, and
 // checks REPORT_DATA + MEASUREMENT against expected values.
-func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
+func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPReportDetail, error) {
 	var zero Measurement
 	if len(nonce) < NonceMinBytes {
-		return zero, shared_errors.Structural(
+		return zero, nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"gcp-sev: challenger nonce too short",
 			nil,
 		)
 	}
 	if len(ev) < 1184 {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			"gcp-sev: evidence shorter than SEV-SNP report (1184 bytes)",
 			nil,
@@ -325,7 +331,7 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 
 	report, err := parseSEVSNPReport(ev)
 	if err != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: parse report: %v", err),
 			err,
@@ -335,14 +341,14 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	// Fetch + verify VCEK certificate chain (cached per CHIP_ID + TCB).
 	vcekPEM, err := v.fetchVCEK(report.ChipID, report.ReportedTCB)
 	if err != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: fetch VCEK: %v", err),
 			err,
 		)
 	}
 	if err := verifyAMDChain(vcekPEM, v.cfg.AMDRootPEM); err != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: AMD chain: %v", err),
 			err,
@@ -352,7 +358,7 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	// Verify ECDSA-P384 signature over the report (excluding the
 	// signature field).
 	if err := verifySEVReportSignature(report, vcekPEM); err != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: report signature: %v", err),
 			err,
@@ -363,21 +369,21 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	// report: signed by the VCEK this verifier fetched, with the
 	// algorithm it checked, for a non-debug guest at the expected VMPL.
 	if report.SignatureAlgo != 1 || report.SigningKey != 0 {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: report signed with algorithm %d by key kind %d; this verifier accepts ECDSA P-384 (1) by the VCEK (0)", report.SignatureAlgo, report.SigningKey),
 			nil,
 		)
 	}
 	if report.Policy&sevPolicyDebug != 0 {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
 			"gcp-sev: guest policy allows DEBUG — the hypervisor can read this guest's memory",
 			nil,
 		)
 	}
 	if report.VMPL != v.cfg.VMPL {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
 			fmt.Sprintf("gcp-sev: report requested at VMPL %d, expected %d", report.VMPL, v.cfg.VMPL),
 			nil,
@@ -386,16 +392,20 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 
 	// Reported TCB must be ≥ minimum (no rollback to vulnerable firmware).
 	if report.ReportedTCB < v.minReportedTCB {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: ReportedTCB %d below minimum %d", report.ReportedTCB, v.minReportedTCB),
 			nil,
 		)
 	}
+	snpDetail, err := checkSEVSNPPolicy(report, v.cfg.SEVSNP, "gcp-sev")
+	if err != nil {
+		return zero, nil, err
+	}
 
 	// Bind nonce.
 	if !nonceMatchesReportDataSEV(report.ReportData, nonce) {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			"gcp-sev: REPORT_DATA does not bind challenger nonce (replay?)",
 			nil,
@@ -412,7 +422,7 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 			}
 		}
 		if !ok {
-			return zero, shared_errors.Integrity(
+			return zero, nil, shared_errors.Integrity(
 				shared_errors.CodeSignatureInvalid,
 				fmt.Sprintf("gcp-sev: HOST_DATA %x not in acceptable set", report.HostData),
 				nil,
@@ -424,7 +434,7 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	// length (48-byte SHA-384) — no truncation (ADR-0007).
 	reported, mErr := MeasurementFromBytes(report.Measurement[:])
 	if mErr != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: unexpected MEASUREMENT length: %v", mErr),
 			nil,
@@ -438,14 +448,32 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 		}
 	}
 	if !matched {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: MEASUREMENT %x not in acceptable set", reported),
 			nil,
 		)
 	}
 
-	return reported, nil
+	return reported, snpDetail, nil
+}
+
+// Verify implements Verifier.
+func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
+	m, _, err := v.verify(ev, nonce)
+	return m, err
+}
+
+// VerifyDetailed is Verify with what the verifier read from the report
+// beside the measurement: the product and the chip, the four TCB
+// versions, the platform's word, the guest's policy, the mitigation
+// vector, and the floor the report was held to (ADR 0033).
+func (v *GCPSEVVerifier) VerifyDetailed(ev Evidence, nonce Nonce) (Measurement, *AttestationDetail, error) {
+	m, d, err := v.verify(ev, nonce)
+	if err != nil {
+		return nil, nil, err
+	}
+	return m, &AttestationDetail{Provider: ProviderGCPSEVSNP, Product: d.Product, ChipIDHex: d.ChipIDHex, ReportedTCB: d.ReportedTCBRaw, SEVSNP: d}, nil
 }
 
 // fetchVCEK returns the VCEK certificate for a CHIP_ID + TCB: from memory,

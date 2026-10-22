@@ -22,8 +22,11 @@ attesting with the chip and each pinning the other's launch measurement
   chip — dials the Return Path and is refused at the handshake; the refusal
   is on `sagvd`'s audit log;
 - the pinned worker dials, its SEV-SNP Evidence verifies (VCEK from AMD KDS,
-  ECDSA-P384, VCEK → ASK → ARK-Milan, no DEBUG, VMPL 0, REPORT_DATA binding
-  the transcript challenge), a gate job goes over the Return Path, the
+  ECDSA-P384, VCEK → ASK → ARK-Milan, the TCB against the floors AMD's
+  bulletins set for the chip's variant with the alias check and the
+  mitigation vector — ADR 0033 — no DEBUG, no MIGRATE_MA, VMPL 0,
+  REPORT_DATA binding the transcript challenge), a gate job goes over the
+  Return Path, the
   worker restores the model in memory through the door and answers the
   genome's prompts, `sagvd` judges the answers and signs the verdict;
 - both daemons stop; `acpctl audit verify` verifies the log under the key
@@ -260,6 +263,16 @@ workers' logs, metrics, the runtime versions,
 `sha256sums.txt` over all of it. Keys, seeds, the API token, the sealed
 bundle's key file and the configs stay on the VM and die with it: the VM
 and the bucket are deleted at the end of every run, also on failure.
+
+Since ADR 0033 `steps.txt` carries two more lines, and the verdict
+requires both: `sagvd sev_snp_policy bulletins_read_on=…` from `sagvd
+identity` — the day the floors were read from AMD's bulletins and the
+Milan row the authority holds a peer of that variant to — and a
+`peer chip` line from the admitted worker's `TRUST_EVALUATED` record
+(`peer_detail.sev_snp` in `audit-events.jsonl`): its variant by CPUID,
+the TCB it reported, the firmware, the alias check, the mitigation vector
+and the floor applied. No run under this is on the record yet; the first
+is part two of the ADR.
 
 ## Reproduce
 

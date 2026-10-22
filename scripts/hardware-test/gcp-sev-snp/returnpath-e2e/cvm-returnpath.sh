@@ -154,6 +154,7 @@ step "identities: each daemon reads its launch measurement from the chip"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("sagvd fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])).get("fips140") or {}; print("acp-compute fips140 enabled=%s enforced=%s version=%s" % (str(d.get("enabled")).lower(), str(d.get("enforced")).lower(), d.get("version")))' "$OUT/acp-compute-identity.json" >> "$OUT/steps.txt" 2>/dev/null
+python3 -c 'import json,sys; p=json.load(open(sys.argv[1])).get("sev_snp_policy") or {}; print("sagvd sev_snp_policy bulletins_read_on=%s milan=%s" % (p.get("bulletins_read_on"), (p.get("floors") or {}).get("Milan")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>/dev/null
 VMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/sagvd-identity.json" 2>/dev/null)
 WMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/acp-compute-identity.json" 2>/dev/null)
 echo "vault_measurement=$VMEAS" >> "$OUT/steps.txt"; echo "worker_measurement=$WMEAS" >> "$OUT/steps.txt"
@@ -283,6 +284,21 @@ kill -TERM $SAGVD; wait $SAGVD 2>/dev/null
 echo "audit verify exit=$?" >> "$OUT/steps.txt"
 ./acpctl audit query --audit audit/returnpath-audit.db --limit 0 --json > "$OUT/audit-events.jsonl" 2> "$OUT/audit-query.err"
 echo "audit query exit=$?" >> "$OUT/steps.txt"
+# The admitted worker's chip, as the vault's verifier read it (ADR 0033), from the
+# TRUST_EVALUATED record of the session it opened.
+python3 - "$OUT/audit-events.jsonl" >> "$OUT/steps.txt" <<'PY'
+import json, sys
+for line in open(sys.argv[1]):
+    e = json.loads(line)
+    if e.get("kind") != "TRUST_EVALUATED": continue
+    s = ((e.get("payload") or {}).get("peer_detail") or {}).get("sev_snp") or {}
+    if not s: continue
+    t, c, f = s["tcb"]["reported"], s["cpuid"], s["floor"]
+    print("peer chip product=%s variant=%s cpuid=%#x/%#x/%#x snp=%#x microcode=%#x firmware=%s alias_check=%s mit_vector=%s floor_snp=%#x floor_microcode=%#x" % (
+        s["product"], s.get("variant"), c["family"], c["model"], c["stepping"], t["snp"], t["microcode"], s["firmware"]["current"],
+        str(s["platform_info"]["alias_check_complete"]).lower(), s["mitigation_vector"]["current_hex"], f["snp"], f["microcode"]))
+    break
+PY
 cp audit.pem "$OUT/audit-public-key.pem"
 python3 -c 'import sys,time; t0=float(sys.argv[1]); print("elapsed_seconds=%.1f" % (time.time()-t0))' "$T0" >> "$OUT/steps.txt"
 

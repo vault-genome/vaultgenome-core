@@ -13,6 +13,28 @@ given release can still open.
 
 ### Added
 
+- The attack record in the verifier's policy (ADR 0033, part one). A
+  SEV-SNP report is read whole and put on the record — the chip's family,
+  model and stepping, the guest policy and PLATFORM_INFO bit by bit, the
+  current, reported, committed and launch TCB versions by component, the
+  firmware version, both mitigation vectors, the chip id — in
+  `AttestationDetail.sev_snp` on every admission and release record; the
+  `gcp-sev-snp` verifier gains `VerifyDetailed`. The report is held to
+  floors per chip variant, component by component over all four TCBs:
+  the SNP firmware and microcode levels AMD's bulletins printed when they
+  were read (2026-10-22; RMPocalypse, StackWarp; `docs/compliance/sev-snp-tcb-floors.md`,
+  held to the code by a test), the alias check of BadRAM, the mitigation
+  vector bit, no migration agent; a chip the table does not name is
+  refused until the operator sets `tee.peer.sev_snp.tcb_floor`, a floor
+  below the bulletins' needs `accept_below_bulletin` on the record, and
+  `chip_ids` names the machines a peer may be. `tee.peer.sev_snp` in
+  `sagvd` and `acp-compute`, `sev_snp` on a `verifier_registry`
+  destination; `identity` prints `sev_snp_policy`. The chips on record —
+  a GCP Milan at SNP 0x1d and microcode 0xde, the Azure Genoa of the
+  confidential-GPU record at 0x1b and 0x58 — pass the default policy.
+  The GCP kits (`keyrelease-e2e`, `returnpath-e2e`) print the chip as
+  the record saw it and refuse a fourth release under a floor one above
+  the chip; their first run under this is part two of the ADR.
 - The protocols in ProVerif (ADR 0032, Accepted; claim C45). Part one,
   the cross-cloud key release: eight models under `formal/`, written by `gen.py` from one
   template — the release as the daemons run it, and seven variants that

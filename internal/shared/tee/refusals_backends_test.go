@@ -614,7 +614,7 @@ func sevReport(nonce []byte, measurement []byte) []byte {
 	for i := range 64 {
 		raw[sevOffChipID+i] = byte(i)
 	}
-	binary.LittleEndian.PutUint64(raw[sevOffReportedTCB:], 0x0B000000000000C0)
+	stampSEVReportAtFloors(raw, 0x19, 0x01, 0x01) // Milan, at the floors of ADR 0033
 	return raw
 }
 

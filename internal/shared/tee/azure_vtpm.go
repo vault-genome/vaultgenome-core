@@ -189,6 +189,7 @@ type azureSNPChecker struct {
 	kdsURL     string
 	cacheDir   string
 	minTCB     uint64
+	policy     SEVSNPPolicy
 	pcrDigests [][]byte
 
 	mu        sync.Mutex
@@ -196,7 +197,7 @@ type azureSNPChecker struct {
 }
 
 // newAzureSNPChecker validates the AMD chain and fixes the defaults.
-func newAzureSNPChecker(family string, amdRootPEM []byte, kdsURL, cacheDir string, minTCB uint64, pcrDigests [][]byte) (*azureSNPChecker, error) {
+func newAzureSNPChecker(family string, amdRootPEM []byte, kdsURL, cacheDir string, minTCB uint64, pcrDigests [][]byte, policy SEVSNPPolicy) (*azureSNPChecker, error) {
 	if len(amdRootPEM) == 0 {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, family+": AMDRootPEM (the product's ASK+ARK chain) required", nil)
 	}
@@ -206,62 +207,66 @@ func newAzureSNPChecker(family string, amdRootPEM []byte, kdsURL, cacheDir strin
 	if kdsURL == "" {
 		kdsURL = "https://kdsintf.amd.com"
 	}
-	return &azureSNPChecker{family: family, amdRootPEM: amdRootPEM, kdsURL: kdsURL, cacheDir: cacheDir, minTCB: minTCB, pcrDigests: pcrDigests, vcekCache: map[string][]byte{}}, nil
+	return &azureSNPChecker{family: family, amdRootPEM: amdRootPEM, kdsURL: kdsURL, cacheDir: cacheDir, minTCB: minTCB, policy: policy, pcrDigests: pcrDigests, vcekCache: map[string][]byte{}}, nil
 }
 
 // check verifies the chip's report and the vTPM's quote for nonce and
 // returns the HCL report, the chip's product name and the quote. Every
 // refusal is an Integrity error naming the family.
-func (c *azureSNPChecker) check(hclRaw, quoteMsg, quoteSig []byte, nonce Nonce) (*hclReport, string, *tpmQuote, error) {
+func (c *azureSNPChecker) check(hclRaw, quoteMsg, quoteSig []byte, nonce Nonce) (*hclReport, string, *tpmQuote, *SEVSNPReportDetail, error) {
 	integrity := func(code, msg string, err error) error {
 		return shared_errors.Integrity(code, c.family+": "+msg, err)
 	}
 	// The chip: the SNP report inside the HCL report, verified to AMD.
 	h, err := parseHCLReport(hclRaw)
 	if err != nil {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid, "HCL report: "+err.Error(), err)
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, "HCL report: "+err.Error(), err)
 	}
 	report := h.SNP
 	product := sevProductName(report)
 	vcek, err := c.fetchVCEK(product, report.ChipID, report.ReportedTCB)
 	if err != nil {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid, "fetch VCEK: "+err.Error(), err)
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, "fetch VCEK: "+err.Error(), err)
 	}
 	if err := verifyAMDChain(vcek, c.amdRootPEM); err != nil {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid, "AMD chain ("+product+"): "+err.Error(), err)
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, "AMD chain ("+product+"): "+err.Error(), err)
 	}
 	if err := verifySEVReportSignature(report, vcek); err != nil {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid, "report signature: "+err.Error(), err)
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, "report signature: "+err.Error(), err)
 	}
 	if report.SignatureAlgo != 1 || report.SigningKey != 0 {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid,
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("report signed with algorithm %d by key kind %d; this verifier accepts ECDSA P-384 (1) by the VCEK (0)", report.SignatureAlgo, report.SigningKey), nil)
 	}
 	if report.Policy&sevPolicyDebug != 0 {
-		return nil, "", nil, integrity(shared_errors.CodeAttestationDenied, "guest policy allows DEBUG — the hypervisor can read this guest's memory", nil)
+		return nil, "", nil, nil, integrity(shared_errors.CodeAttestationDenied, "guest policy allows DEBUG — the hypervisor can read this guest's memory", nil)
 	}
 	if report.VMPL != 0 {
-		return nil, "", nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("report requested at VMPL %d, expected 0", report.VMPL), nil)
+		return nil, "", nil, nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("report requested at VMPL %d, expected 0", report.VMPL), nil)
 	}
 	if report.ReportedTCB < c.minTCB {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid, fmt.Sprintf("ReportedTCB %d below minimum %d", report.ReportedTCB, c.minTCB), nil)
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, fmt.Sprintf("ReportedTCB %d below minimum %d", report.ReportedTCB, c.minTCB), nil)
+	}
+	snpDetail, err := checkSEVSNPPolicy(report, c.policy, c.family)
+	if err != nil {
+		return nil, "", nil, nil, err
 	}
 
 	// The vTPM: the attestation key the chip named signs the challenge.
 	ak, err := h.attestationKey()
 	if err != nil {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid, err.Error(), err)
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, err.Error(), err)
 	}
 	quote, err := parseTPMQuote(quoteMsg)
 	if err != nil {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote: "+err.Error(), err)
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote: "+err.Error(), err)
 	}
 	if err := verifyTPMQuoteSignature(ak, quoteMsg, quoteSig); err != nil {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote: "+err.Error(), err)
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote: "+err.Error(), err)
 	}
 	challenge := tpmQuoteExtraDataFor(nonce)
 	if !bytes.Equal(quote.ExtraData, challenge[:]) {
-		return nil, "", nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote does not bind challenger nonce (replay?)", nil)
+		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote does not bind challenger nonce (replay?)", nil)
 	}
 	if len(c.pcrDigests) > 0 {
 		pinned := false
@@ -272,10 +277,10 @@ func (c *azureSNPChecker) check(hclRaw, quoteMsg, quoteSig []byte, nonce Nonce) 
 			}
 		}
 		if !pinned {
-			return nil, "", nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("PCR digest %x is not in the acceptable set: the boot measured into the vTPM is not one the policy names", quote.PCRDigest), nil)
+			return nil, "", nil, nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("PCR digest %x is not in the acceptable set: the boot measured into the vTPM is not one the policy names", quote.PCRDigest), nil)
 		}
 	}
-	return h, product, quote, nil
+	return h, product, quote, snpDetail, nil
 }
 
 // fetchVCEK is the GCP verifier's cache, per product.

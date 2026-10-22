@@ -140,6 +140,8 @@ type verifierEntry struct {
 	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
 	AMDKDSURL        string `json:"amd_kds_url,omitempty"`
 	MinReportedTCB   uint64 `json:"min_reported_tcb,omitempty"`
+	// SEVSNP holds the destination's report to the attack record (ADR 0033).
+	SEVSNP *tee.SEVSNPPolicyConfig `json:"sev_snp,omitempty"`
 	// VCEKCacheDir keeps fetched VCEK certificates between runs so each
 	// chip's certificate is asked of AMD KDS once (KDS rate-limits).
 	VCEKCacheDir string `json:"vcek_cache_dir,omitempty"`
@@ -321,6 +323,10 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 		if err != nil {
 			return nil, fmt.Errorf("sagvd: verifier_registry[%d].expected_measurement_hex must be a 32-, 48- or 64-byte measurement: %w", i, err)
 		}
+		snpPol, err := e.SEVSNP.Policy()
+		if err != nil {
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
+		}
 		spec := tee.VerifierSpec{Provider: provider, ExpectedMeasurement: measurement}
 		switch provider {
 		case tee.ProviderSimulated:
@@ -343,8 +349,8 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			spec.GCPSEV = tee.GCPSEVVerifierConfig{
 				AMDRootPEM:     chain,
 				AMDKDSURL:      e.AMDKDSURL,
-				MinReportedTCB: e.MinReportedTCB,
-				VCEKCacheDir:   e.VCEKCacheDir,
+				MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol,
+				VCEKCacheDir: e.VCEKCacheDir,
 			}
 		case tee.ProviderGCPTDX:
 			spec.GCPTDX = tee.GCPTDXVerifierConfig{PCSURL: e.PCSURL, PCSCacheDir: e.PCSCacheDir, AcceptableTCBStatuses: e.AcceptableTCBStatuses}
@@ -360,7 +366,7 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			if err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
 			}
-			spec.AzureSEVSNP = tee.AzureSEVSNPVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB, AcceptablePCRDigests: digests}
+			spec.AzureSEVSNP = tee.AzureSEVSNPVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol, AcceptablePCRDigests: digests}
 		case tee.ProviderAzureCGPU:
 			if e.AMDCertChainPath == "" {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: azure-cgpu requires amd_cert_chain_path (the AMD ASK+ARK chain of the chip's product, Genoa for NCC H100 v5)", i)
@@ -373,7 +379,7 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			if err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
 			}
-			spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB,
+			spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol,
 				NRASJWKSURL: e.NRASJWKSURL, NRASCacheDir: e.NRASCacheDir, GPU: e.GPUPolicy.policy(), AcceptablePCRDigests: digests}
 			if err := e.GPUPolicy.validate(); err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)

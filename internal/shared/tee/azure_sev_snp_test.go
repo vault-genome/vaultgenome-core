@@ -143,7 +143,7 @@ func TestAzureSEVSNPVerifierRefusesWhatItShould(t *testing.T) {
 		require.ErrorContains(t, err, "DEBUG")
 	})
 	t.Run("a TCB below the floor", func(t *testing.T) {
-		floor := azureSEVSNPVerifier(t, f, func(c *AzureSEVSNPVerifierConfig) { c.MinReportedTCB = 0x0B000000000000C1 })
+		floor := azureSEVSNPVerifier(t, f, func(c *AzureSEVSNPVerifierConfig) { c.MinReportedTCB = 0x561B000000000005 }) // one above the Genoa-at-the-floors fixture
 		_, err := floor.Verify(f.sevsnpEvidence(t, nonce), nonce)
 		require.ErrorContains(t, err, "below minimum")
 	})
