@@ -258,3 +258,30 @@ func TestHistogram_ZeroObservationsRendersHelpTypeOnly(t *testing.T) {
 	require.NotContains(t, out, "rp_zero_h_bucket")
 	require.NotContains(t, out, "rp_zero_h_count")
 }
+
+// A gauge kept with Add is exact under concurrent increments and
+// decrements: a hundred goroutines each add one and take it away, and
+// the gauge is back at zero; two that only add leave it at two.
+func TestGauge_AddIsAtomic(t *testing.T) {
+	r := NewRegistry()
+	g := r.NewGauge("in_flight", "things in flight")
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			g.Add(1)
+			g.Add(-1)
+		}()
+	}
+	wg.Wait()
+	if v := g.Value(); v != 0 {
+		t.Fatalf("after 100 add/remove pairs the gauge reads %v, want 0", v)
+	}
+	if v := g.Add(1); v != 1 {
+		t.Fatalf("Add(1) returned %v, want 1", v)
+	}
+	if v := g.Add(1); v != 2 {
+		t.Fatalf("second Add(1) returned %v, want 2", v)
+	}
+}

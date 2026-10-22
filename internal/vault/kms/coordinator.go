@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
@@ -710,10 +711,8 @@ func (c *Coordinator) validateRequest(req CoordinationRequest) error {
 // || KeyID), encoded as raw bytes. Both source-side wrapping and
 // destination-side unwrapping derive identical AAD.
 func canonicalWrapAAD(tokenID ids.DecisionID, destinationMeasurement []byte, keyID ids.KeyID) []byte {
-	buf := make([]byte, 0, len(tokenID)+len(destinationMeasurement)+len(keyID))
-	buf = append(buf, []byte(tokenID)...)
-	buf = append(buf, destinationMeasurement...)
-	buf = append(buf, []byte(keyID)...)
-	h := crypto.SHA256(buf)
+	// slices.Concat sizes the join itself, so no size arithmetic stands
+	// in front of the allocation (CodeQL go/allocation-size-overflow).
+	h := crypto.SHA256(slices.Concat([]byte(tokenID), destinationMeasurement, []byte(keyID)))
 	return h[:]
 }
