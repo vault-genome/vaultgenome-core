@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
@@ -552,7 +553,11 @@ type CandidateOutputFrame struct {
 	Bytes              []byte    `json:"bytes"`
 	ProducedAt         time.Time `json:"produced_at"`
 	WorkerSigningKeyID string    `json:"worker_signing_key_id"`
-	WorkerSignature    []byte    `json:"worker_signature"`
+	// WorkerSignatureAlg is the signature suite the frame was signed
+	// under (ADR 0031): absent for ed25519, the suite id otherwise. Under
+	// the signature (CoverBytes keeps it), so the suite cannot be swapped.
+	WorkerSignatureAlg crypto.SignatureSuite `json:"worker_signature_alg,omitempty"`
+	WorkerSignature    []byte                `json:"worker_signature"`
 }
 
 // Validate structural-checks a CandidateOutputFrame. Does NOT verify
