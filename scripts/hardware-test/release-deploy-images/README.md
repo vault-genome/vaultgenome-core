@@ -141,3 +141,11 @@ to a cleanup by hand while it ran; their logs are kept outside the tree.
 Both causes are fixed in #160 — a TUF cache per run with retries, and
 the record staged outside `evidence/` until it is complete — and proven
 there by the three kits run in the same minutes against this release.
+
+`20261022T001419Z` is the kit's own proof after those two: the same
+release, with the `release-deploy` and `keyrelease-e2e` kits running in
+the same minutes — a TUF cache of this run's own, the record staged under
+the run's work directory and published with the runner's `verify/` inside
+it by one move, no retry needed: PASS, the four images verified and the
+binary inside each equal to its asset, the guest's gate EXACT, 17
+events, 1157.2 s.

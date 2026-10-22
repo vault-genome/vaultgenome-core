@@ -59,6 +59,18 @@ created and deleted by the run.
 5. Decodes the results from the serial console and deletes the VM and the
    bucket — always, also on failure.
 
+The record is staged under the run's work directory and published into
+`evidence/` by one move at the end, so a directory under `evidence/` is a
+finished record and never a run in flight; a run that stops early keeps
+its stage beside the raw capture, outside the tree
+(`~/.cache/vaultgenome/release-deploy/failed-<stamp>`, or under `VG_E2E_RAW_DIR`).
+Each run has a TUF cache of its own (`TUF_ROOT`), initialized once with
+retries, and the online `cosign` and `slsa-verifier` calls are retried on
+a transient error: on 2026-10-21, against `v0.8.0`, a `verify-blob`
+failed on "failed to create TUF client" while another kit initialized the
+shared cache beside it, and a run's stage under `evidence/` was removed
+by hand because it looked like a finished record.
+
 ## What a run leaves
 
 ```
@@ -93,3 +105,4 @@ holds reports, decisions and logs only.
 | `v0.7.0` | [`evidence/20261021T164732Z/`](evidence/20261021T164732Z/) | 55 assets; the twelve pairs and the twelve bundles verified (the bundles with `--trusted-root` and the network denied), six provenances and the tag; the five binaries and the package rebuilt from the tag byte for byte (go1.27.3); the guest from release assets alone — the key files sealed to the chip, the thief with the sealed files and the unpinned worker both refused, the gate job EXACT, the audit log verified (18 events — the 18th a handshake that failed as sagvd stopped, on the record as a refusal); 133.2 s on the guest. The kit ran ten minutes after the release was published; the images kit deployed the same release's images in the same minutes (`../release-deploy-images/evidence/20261021T164959Z/`), and the key-release kit ran the binaries of the tag's commit under the `fips` profile (`../gcp-sev-snp/keyrelease-e2e/evidence/20261021T164918Z/`). |
 | `v0.8.0-rc1` (rehearsal, ADR 0030 part three) | [`evidence/20261021T223719Z/`](evidence/20261021T223719Z/) | 97 assets; the twenty-two pairs and the twenty-two bundles verified (the bundles with `--trusted-root` and the network denied), eleven provenances and the tag; the five binaries, their five `-fips` variants and the package rebuilt from the tag byte for byte (go1.27.3, on a Darwin arm64 host for linux/amd64 — the `-fips` builds on the certified module reproduce across hosts like the others); the guest from release assets alone — the key files sealed to the chip, both rogues refused, the gate job EXACT, the audit log verified (17 events); 128.1 s on the guest. The kit's first run against this tag stopped on its own count of signature pairs (still twelve while it verified twenty-two); the count follows the artifact count since. |
 | `v0.8.0` | [`evidence/20261021T233121Z/`](evidence/20261021T233121Z/) | 97 assets; the twenty-two pairs and the twenty-two bundles verified (the bundles with `--trusted-root` and the network denied), eleven provenances and the tag; the five binaries, their five `-fips` variants and the package rebuilt from the tag byte for byte (go1.27.3, on Darwin arm64 for linux/amd64); the guest from release assets alone — the released daemons reporting `v0.8.0` at `20dc289`, the key files sealed to the chip, both rogues refused, the gate job EXACT, the audit log verified (17 events); 453.1 s on the guest, three kits sharing the project's quota in the same minutes. The kit ran eight minutes after the release was published; the images kit and the key-release kit under `fips` with `VG_FIPS=1` ran against the same release (their records in `../release-deploy-images/` and `../gcp-sev-snp/keyrelease-e2e/`). |
+| `v0.8.0`, the kit's own proof | [`evidence/20261022T001053Z/`](evidence/20261022T001053Z/) | The run that proves the kit's changes of 2026-10-22: three kits in the same minutes against the published `v0.8.0` — this one, the images kit and the key-release kit — from a tree whose tracked files were clean while their records appeared beside the build. 97 assets, the twenty-two pairs and bundles, eleven provenances and the tag; the ten binaries and the package rebuilt byte for byte; the record staged under the run's work directory and published by one move; no retry needed; the guest's gate EXACT, 17 events; 714.9 s on the guest, three guests sharing the project's quota. |

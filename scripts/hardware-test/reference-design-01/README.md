@@ -86,6 +86,12 @@ which a non-approved service fails instead of succeeding (ADR 0030, part
 two); `general` is refused, its first suite being X25519; the verdict
 then requires the record of the module on every party, and `run.txt`,
 `build.txt` and `REPORT.md` say which module the run was on.
+The binaries are built from a clean checkout of `HEAD` when the tree's
+tracked files are clean, so their VCS stamp is the commit's even while
+other kits write their records into the tree (untracked files mark a
+build modified; on 2026-10-21 the binaries of a release record came out
+`-dirty` for that reason); a tree with modified tracked files builds from
+the working tree, stamped so.
 
 The record of a run is `evidence/<stamp>/`: `a/` (the bank's steps,
 timeline, identities, the job's view, both audit logs' verification,

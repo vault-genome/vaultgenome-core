@@ -44,13 +44,17 @@ the kit run from a clean checkout of the tag `v0.8.0` twenty minutes
 after the release was published, both daemons reporting `v0.8.0` at
 `20dc289` with `fips140=only module=v1.0.0 enforced=true`
 (`versions.txt`), every binary `GOFIPS140=v1.0.0-c2097c7c` at that
-commit (`build.txt`).
+commit (`build.txt`). The fourth row is the kit's own proof of the
+clean-checkout build (2026-10-22): run while the two §5 kits wrote their
+records into the tree, the binaries stamped `commit e784bab3e688` with no
+`-dirty` (`versions.txt`).
 
 | Profile | Run | The suite both sides met on | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
 |---|---|---|---|---|---|---|---|---|
 | `cnsa` | `evidence/20261021T213940Z` | `hpke-mlkem1024-p384-v2` | **ok**, recipient key `a84b1616…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
 | `fips` | `evidence/20261021T214501Z` | `hpke-p384-v2` | **ok**, recipient key `d834fdc8…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
 | `fips`, the release `v0.8.0` | `evidence/20261021T234401Z` | `hpke-p384-v2` | **ok**, recipient key `a39ddae5…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips`, the clean build beside other kits | `evidence/20261022T001059Z` | `hpke-p384-v2` | **ok**, recipient key `7640b822…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
 
 ## Results — runs `20261021T202413Z`, `20261021T202422Z`, `20261021T202423Z`: the three profiles under the v2 suites (ADR 0030)
 
@@ -188,6 +192,13 @@ a non-approved service fails instead of succeeding (ADR 0030, part two);
 `general` is refused, its first suite being X25519; the verdict then
 requires the record of the module on both daemons, and `build.txt` (the
 runner's, outside the guest's sums) notes what was built.
+The binaries are built from a clean checkout of `HEAD` when the tree's
+tracked files are clean, so their VCS stamp is the commit's even while
+other kits write their records into the tree (untracked files mark a
+build modified; on 2026-10-21 the binaries of a release record came out
+`-dirty` for that reason); a tree with modified tracked files builds from
+the working tree, stamped so. The guest writes its sums last, so `steps.txt`
+is under them.
 
 The results carry reports and logs only; keys, seeds, tokens and configs stay on
 the VM and die with it. The raw serial captures (whole boot logs) are kept
