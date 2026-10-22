@@ -11,6 +11,18 @@ given release can still open.
 
 ## [Unreleased]
 
+### Changed
+
+- The Return Path handshake classifies its I/O errors: a peer that
+  closes or loses its connection mid-handshake is `peer_disconnected`
+  (Operational — nothing was evaluated, the retry is the peer's), a
+  deadline that passed is `deadline_exceeded`, any other failure of the
+  connection is `transport_failure`; no raw socket error leaves the
+  handshake. On the authority's audit a hang-up is a `TRUST_EVALUATED`
+  deny with that code and category instead of `write: broken pipe` under
+  category `unknown`, so a refusal and a disconnect are told apart on the
+  record (`docs/operator/triage_table.md`).
+
 ## [0.8.0] — 2026-10-21
 
 The release that puts the product on the certified cryptographic

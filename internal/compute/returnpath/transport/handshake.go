@@ -6,7 +6,10 @@ package transport
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"io"
+	"net"
+	"syscall"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
@@ -252,6 +255,44 @@ func readBodyAs(r io.Reader, expected FrameType, dst any) ([]byte, error) {
 	return f.Payload, nil
 }
 
+// classifyIO turns the I/O error of a handshake step into a classified
+// error, so that no raw socket error leaves the handshake: a peer that
+// closed or lost its connection is CodePeerDisconnected (nothing was
+// evaluated; the retry is the peer's), a deadline that passed is
+// CodeDeadlineExceeded, and any other transport failure is
+// CodeTransportFailure, all Operational. An error that is already
+// classified — a protocol violation, the peer's error envelope, a
+// refusal — passes through. The authority records what the handshake
+// returns, so this is what tells a hang-up from a refusal on the audit.
+func classifyIO(err error, step string) error {
+	if err == nil {
+		return nil
+	}
+	if shared_errors.CategoryOf(err) != shared_errors.CategoryUnknown {
+		return err
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return shared_errors.Operational(CodeDeadlineExceeded,
+			"returnpath/transport: the connection's deadline passed during the handshake ("+step+")", err)
+	}
+	if peerGone(err) {
+		return shared_errors.Operational(CodePeerDisconnected,
+			"returnpath/transport: the peer closed the connection during the handshake ("+step+")", err)
+	}
+	return shared_errors.Operational(CodeTransportFailure,
+		"returnpath/transport: the connection failed during the handshake ("+step+")", err)
+}
+
+// peerGone reports whether err is the peer's connection closed or lost:
+// a clean close at a frame boundary, an EOF, a write to a closed or
+// reset connection.
+func peerGone(err error) bool {
+	return errors.Is(err, ErrWireClosed) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, io.ErrClosedPipe) || errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
+}
+
 // sendErrorAndReturn writes an ErrorFrame containing a classified error
 // and returns the same error to the local caller. Best-effort: a write
 // failure on the error frame itself is swallowed, because at that point
@@ -375,13 +416,13 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 	if err := writeBody(cfg.Conn, hc); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "hello_client")
 	}
 
 	// Step 2: HELLO_SERVER.
 	var hs HelloServer
 	if _, err := readBodyAs(cfg.Conn, FrameTypeHelloServer, &hs); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "hello_server")
 	}
 	if err := hs.Validate(); err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
@@ -423,13 +464,13 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 	if err := writeBody(cfg.Conn, ac); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "attest_client")
 	}
 
 	// Step 4: SESSION_READY.
 	var sr SessionReady
 	if _, err := readBodyAs(cfg.Conn, FrameTypeSessionReady, &sr); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "session_ready")
 	}
 	if err := sr.Validate(); err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
@@ -465,7 +506,7 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	// Step 1: read HELLO_CLIENT.
 	var hc HelloClient
 	if _, err := readBodyAs(cfg.Conn, FrameTypeHelloClient, &hc); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "hello_client")
 	}
 	if err := hc.Validate(); err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
@@ -495,13 +536,13 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 	if err := writeBody(cfg.Conn, hs); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "hello_server")
 	}
 
 	// Step 3: read ATTEST_CLIENT and verify.
 	var ac AttestClient
 	if _, err := readBodyAs(cfg.Conn, FrameTypeAttestClient, &ac); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "attest_client")
 	}
 	if err := ac.Validate(); err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
@@ -519,7 +560,7 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	// Step 4: send SESSION_READY.
 	ready := NewSessionReady(clockOf(cfg).Now())
 	if err := writeBody(cfg.Conn, ready); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "session_ready")
 	}
 
 	// Derive session keys. Server: TxKey = s2c, RxKey = c2s.
