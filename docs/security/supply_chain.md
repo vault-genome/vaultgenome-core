@@ -29,7 +29,7 @@ For each binary (`sagvd`, `acp-compute`, `acpctl`):
 | `<binary>.sigstore.json`, `<binary>.sbom.sigstore.json` (from 0.4.3) | Sigstore bundle (v0.3): the signature, the certificate and the Rekor entry in one file | cosign keyless (`--new-bundle-format --bundle`) | `cosign verify-blob --new-bundle-format --bundle`, with `--trusted-root` and no route |
 | SLSA provenance (`*.intoto.jsonl`) | in-toto v1.0 | slsa-github-generator | SLSA verifier CLI |
 
-From the next release the two container images ship with it:
+From 0.6.1 the two container images ship with it:
 `ghcr.io/vault-genome/sagvd` (distroless static) and
 `ghcr.io/vault-genome/acp-compute` (python-slim with the worker's
 hash-locked runtime), built in `release.yml` from the release's own
@@ -37,8 +37,8 @@ signed binaries — the image build compiles nothing, and the binary inside
 is byte-identical to the release asset — pushed and signed by digest
 (`cosign sign`, keyless), each with an SPDX SBOM attested to the image
 and a SLSA provenance of its own from the container generator.
-`images-<tag>.txt` among the assets names both by digest, with its
-Sigstore bundle; a deployment pulls by that digest, never by tag.
+`images-<tag>.txt` among the assets names each image by digest (four
+from 0.8.0, the `-fips` images beside), with its Sigstore bundle; a deployment pulls by that digest, never by tag.
 Verification: `cosign verify <image>@<digest>` under the release
 workflow's identity, `cosign verify-attestation --type spdxjson`, and
 `slsa-verifier verify-image` (`docs/operator/05_release_procedure.md` §5).

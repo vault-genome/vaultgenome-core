@@ -11,6 +11,27 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-22
+
+The release that names the signature suite on every record and lets
+the profile decide it (ADR 0031), and that brings the confidential-GPU
+path under the certified module's claim (ADR 0030, part four). Every
+signed record carries `alg`, the suite it was signed under — absent for
+`ed25519`, so every byte written so far is unchanged — and the keys
+follow the suite: `acp-keygen -signature-suite`, `keys.<name>.suite`,
+the suite beside every PEM `identity` prints. The profile decides:
+`general` and `fips` sign with Ed25519, `cnsa` with ECDSA P-384, and
+`crypto.signature_suite` picks within what the profile accepts — `fips`
+with `ecdsa-p384-sha384` is the deployment a bank held to X9 SD-34
+runs. Measured, not asserted: on real SEV-SNP under `cnsa` and under
+`fips` with ECDSA on the module with enforcement on (C43), and on a
+real NCC H100 v5 the confidential-GPU path under the same enforcement
+with both suites, neither SHA-1 use ADR 0030 had named invoked (C44).
+The audit schema is v8 and readers go first: a reader of an earlier
+release refuses a record signed under another suite than Ed25519, and a
+`cnsa` deployment re-keys under ECDSA P-384 and moves both daemons
+together. Finding F2b of the banking map is closed.
+
 ### Added
 
 - The signature suite on every record (ADR 0031, part one). The `keys`
@@ -77,14 +98,16 @@ given release can still open.
   the path is under the module claim on the same terms as SEV-SNP;
   `banking.md` §6 and §9 and `controls.md` VG-038 say so.
 
-- ADR 0031 (proposed): the signature suite — `ed25519`, `ecdsa-p384-sha384`
-  and `ml-dsa-87` named, the profile naming what a daemon signs with and
-  accepts (`crypto.signature_suite` within it), `alg` beside every
-  signature on the record (audit schema v8), key material by suite under
-  the same sealed files, the `-fips` build's availability reported;
-  closes finding F2b of the banking map when its parts are in the tree;
-  with the measurement of 2026-10-22 (ML-DSA-87 in the default build,
-  unavailable in the certified module v1.0.0).
+- ADR 0031 (accepted; parts one to three in this release): the signature
+  suite — `ed25519`, `ecdsa-p384-sha384` and `ml-dsa-87` named, the
+  profile naming what a daemon signs with and accepts
+  (`crypto.signature_suite` within it), `alg` beside every signature on
+  the record (audit schema v8), key material by suite under the same
+  sealed files, the `-fips` build's availability reported; finding F2b
+  of the banking map is closed; with the measurement of 2026-10-22
+  (ML-DSA-87 in the default build, unavailable in the certified module
+  v1.0.0). Part four — ML-DSA-87 as the `cnsa` default — waits for a
+  certified module that carries it.
 
 ### Changed
 
