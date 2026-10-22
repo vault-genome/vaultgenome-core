@@ -86,6 +86,13 @@ which a non-approved service fails instead of succeeding (ADR 0030, part
 two); `general` is refused, its first suite being X25519; the verdict
 then requires the record of the module on every party, and `run.txt`,
 `build.txt` and `REPORT.md` say which module the run was on.
+`VG_SIGSUITE` picks the signature suite (ADR 0031) within what the
+profile accepts — `ed25519`, `ecdsa-p384-sha384` or `ml-dsa-87`; the
+profile's own when unset (`ecdsa-p384-sha384` under `cnsa`, `ed25519`
+otherwise) — and the kit makes every key under it with `acp-keygen
+-signature-suite`, names it in every config, and refuses a record that
+does not show it on the bank's two daemons, the standby, and the two
+audit logs as the bank and the third party verify them.
 The binaries are built from a clean checkout of `HEAD` when the tree's
 tracked files are clean, so their VCS stamp is the commit's even while
 other kits write their records into the tree (untracked files mark a
@@ -138,8 +145,31 @@ before the bank seals its own copies.
 | `fips`, the v2 suites of ADR 0030 | [`evidence/20261021T202252Z/`](evidence/20261021T202252Z/) | `hpke-p384-v2` — HPKE export-only, the AEAD step the module's AES-256-GCM | EXACT 6/6 in 5.2 s | 15.6 s (the release 4.9 s; key to restored 0.006 s) | EXACT 6/6, backend 3.96 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0 | 8205 ms / 26 ms | 316 s |
 | `fips`, `VG_FIPS=1` | [`evidence/20261021T212303Z/`](evidence/20261021T212303Z/) | `hpke-p384-v2`; every binary on the certified module v1.0.0, every Go process under `fips140=only` | EXACT 6/6 in 5.2 s | 15.5 s | EXACT 6/6, backend 4.34 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0, the third party's `acpctl` under `fips140=only` | 8187 ms / 24 ms | 312 s |
 | `cnsa`, `VG_FIPS=1` | [`evidence/20261021T213017Z/`](evidence/20261021T213017Z/) | `hpke-mlkem1024-p384-v2`; the same | EXACT 6/6 in 5.2 s | 15.7 s | EXACT 6/6, backend 4.47 s | the same four, each with its reason | 17 + 10 events; four verifications at exit 0, the third party's `acpctl` under `fips140=only` | 8233 ms / 26 ms | 300 s |
+| `cnsa` — the signature suite (ADR 0031) | [`evidence/20261022T120741Z/`](evidence/20261022T120741Z/) | `hpke-mlkem1024-p384-v2`; signatures `ecdsa-p384-sha384` on the bank's two daemons (the profile's own), the standby accepting `ecdsa-p384-sha384` and `ml-dsa-87` | EXACT 6/6 in 5 s | 15.6 s (the release 4.8 s) | EXACT 6/6, backend 4.63 s | the same four, each with its reason | 17 + 10 events under `ecdsa-p384-sha384`; four verifications at exit 0, the third party's `acpctl` reporting `signature_suite` `ecdsa-p384-sha384` on both logs | 8200 ms / 24 ms | 420 s |
+| `fips`, `VG_SIGSUITE=ecdsa-p384-sha384`, `VG_FIPS=1` — the signature suite (ADR 0031) | [`evidence/20261022T120827Z/`](evidence/20261022T120827Z/) | `hpke-p384-v2`; signatures `ecdsa-p384-sha384` on the bank's two daemons, the standby accepting `ed25519` and `ecdsa-p384-sha384`; every binary on the certified module v1.0.0, every Go process under `fips140=only` | EXACT 6/6 in 5 s | 15.6 s (the release 4.9 s) | EXACT 6/6, backend 4.06 s | the same four, each with its reason | 17 + 10 events under `ecdsa-p384-sha384`; four verifications at exit 0, the third party's `acpctl` under `fips140=only` reporting `signature_suite` `ecdsa-p384-sha384` on both logs | 8214 ms / 25 ms | 313 s |
 
-The six runs are the same two zones and the same two guest images —
+The two runs of 2026-10-22 are the tree of ADR 0031 part three
+(`1a41568`): the profile decides the signature suite, and every key
+the kit made (`acp-keygen -signature-suite`), every config
+(`keys.<name>.suite`, `crypto.signature_suite`) and every record say
+so — the bank's `identity` (`signature_suite`, `signature_suites`,
+`authority_signature_suite`, `audit_signature_suite`), the worker's
+(`signing_signature_suite`), the standby's (`signature_suites`), and
+both audit logs as the bank and the third party verify them
+(`signature_suite` in `audit-verify*.json`). Under `cnsa` the suite is
+the profile's own; the second run is `fips` picking
+`ecdsa-p384-sha384` — the deployment a bank held to X9 SD-34 runs — on
+the certified module with enforcement on every party, the ECDSA
+signatures the module's. The figures are the figures of the runs
+before; what changed is the suite on every record and the 96-byte
+signatures. Two runs of the previous tree, under the same profiles,
+failed at the bank's job and were not kept: the Return Path server
+verified the worker's frame as Ed25519 while the worker signed under
+ECDSA — the one signing path outside the contracts that part one had
+not moved; the frame now names its suite under the signature, and the
+server verifies under the key's suite.
+
+The six runs of 2026-10-21 are the same two zones and the same two guest images —
 the bank `us-central1-c` (measurement `7dc7c12e…`), the standby
 `europe-west4-b` (`0e017d2f…`) — minutes apart. In the first three the
 profile is the only thing that changed; the suite the key went under

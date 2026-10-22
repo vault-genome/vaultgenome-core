@@ -48,6 +48,13 @@ type xcc struct {
 	health       string
 	dest         *proc
 	releases     int
+	// profile and suite are the source's cryptographic profile and the
+	// signature suite its keys were made under (ADR 0031): empty for the
+	// default — general, ed25519. A cnsa source signs with
+	// ecdsa-p384-sha384 and accepts nothing under ed25519, so its keys,
+	// its operator's key and its configs are made under that suite.
+	profile string
+	suite   string
 }
 
 // identityOf runs `<bin> identity -config cfg` and decodes its JSON.
@@ -73,11 +80,19 @@ func identityOf(t *testing.T, bin, cfg string) map[string]string {
 // the authority key as printed by `sagvd identity`.
 func newXCC(t *testing.T) *xcc {
 	t.Helper()
-	x := &xcc{secrets: keygen(t), dir: t.TempDir()}
+	return newXCCSuite(t, "", "")
+}
+
+// newXCCSuite is newXCC for a source under profile whose keys — the
+// authority's, the audit log's, the operator's — are made under suite
+// (ADR 0031); empty means the default (general, ed25519).
+func newXCCSuite(t *testing.T, profile, suite string) *xcc {
+	t.Helper()
+	x := &xcc{secrets: keygenSuite(t, suite), dir: t.TempDir(), profile: profile, suite: suite}
 	x.token = hex.EncodeToString(randomBytes(t, 32))
 	writeSecret(t, filepath.Join(x.dir, "api_token"), []byte(x.token+"\n"))
 
-	src := writeJSON(t, "sagvd-identity.json", vaultConfig(x.secrets, loopback(t), loopback(t), loopback(t)))
+	src := writeJSON(t, "sagvd-identity.json", x.vaultCfg(t))
 	id := identityOf(t, bins.sagvd, src)
 	if id["authority_kid"] != "sagvd-authority-demo" {
 		t.Fatalf("sagvd identity: authority_kid %q", id["authority_kid"])
@@ -95,9 +110,30 @@ func newXCC(t *testing.T) *xcc {
 	x.operatorSeed = filepath.Join(x.dir, "operator.seed")
 	x.operatorPEM = filepath.Join(x.dir, "operator.pem")
 	x.stopList = filepath.Join(x.dir, "stop.json")
-	acpctl(t, "stop", "keygen", "-out", x.operatorSeed, "-pub", x.operatorPEM)
+	keygenArgs := []string{"stop", "keygen", "-out", x.operatorSeed, "-pub", x.operatorPEM}
+	if x.suite != "" {
+		keygenArgs = append(keygenArgs, "-signature-suite", x.suite)
+	}
+	acpctl(t, keygenArgs...)
 	x.issueStop(t, "1")
 	return x
+}
+
+// vaultCfg is vaultConfig for this source: its keys named under the
+// suite they were made under, and its profile (ADR 0031).
+func (x *xcc) vaultCfg(t *testing.T) map[string]any {
+	t.Helper()
+	cfg := vaultConfig(x.secrets, loopback(t), loopback(t), loopback(t))
+	if x.suite != "" {
+		keys := cfg["keys"].(map[string]any)
+		for _, name := range []string{"authority_signing", "audit_signing"} {
+			keys[name].(map[string]any)["suite"] = x.suite
+		}
+	}
+	if x.profile != "" {
+		cfg["crypto"] = map[string]any{"profile": x.profile}
+	}
+	return cfg
 }
 
 // acpctl runs the operator CLI and fails the test if it fails.
@@ -113,7 +149,11 @@ func acpctl(t *testing.T, args ...string) string {
 // issueStop has the operator sign a new stop list over the current one.
 func (x *xcc) issueStop(t *testing.T, serial string, extra ...string) {
 	t.Helper()
-	args := append([]string{"stop", "issue", "-key", x.operatorSeed, "-kid", "operator-1", "-serial", serial, "-out", x.stopList}, extra...)
+	args := []string{"stop", "issue", "-key", x.operatorSeed, "-kid", "operator-1", "-serial", serial, "-out", x.stopList}
+	if x.suite != "" {
+		args = append(args, "-signature-suite", x.suite)
+	}
+	args = append(args, extra...)
 	acpctl(t, args...)
 }
 
@@ -228,7 +268,7 @@ func (x *xcc) sourceConfigWith(t *testing.T, dest map[string]string, extra map[s
 	})
 
 	sec := func(p ...string) string { return filepath.Join(append([]string{x.secrets}, p...)...) }
-	cfg := vaultConfig(x.secrets, loopback(t), loopback(t), loopback(t))
+	cfg := x.vaultCfg(t)
 	cfg["crosscloud"] = map[string]any{
 		"enabled":        true,
 		"audit_log_path": x.auditLog,
@@ -408,7 +448,10 @@ func TestLiveCrossCloud_KeyReleaseToAttestedDestination(t *testing.T) {
 // destination meet on P-384 and the record says so on both sides; a cnsa
 // source meets a fips destination on the MLKEM1024-P384 hybrid, the one
 // suite both accept; and a source whose only suite the destination does
-// not accept is refused at the handshake, on the source's record.
+// not accept is refused at the handshake, on the source's record. The
+// cnsa source signs under ecdsa-p384-sha384 (ADR 0031): its keys are
+// made under that suite, the fips destination accepts it, and the
+// identities and the audit verification name it.
 func TestLiveCrossCloud_ProfilesMeetOnTheirSuites(t *testing.T) {
 	x := newXCC(t)
 	dest := x.destinationConfig(t, "destination", map[string]any{"crypto": map[string]any{"profile": "fips"}})
@@ -427,21 +470,42 @@ func TestLiveCrossCloud_ProfilesMeetOnTheirSuites(t *testing.T) {
 		t.Fatalf("fips → fips: released under %q as %q, want hpke-p384-v2 as fips", res.RecipientKeySuite, res.CryptoProfile)
 	}
 
-	cnsa := x.sourceConfigWith(t, id, map[string]any{"crypto": map[string]any{"profile": "cnsa"}}, id["measurement_hex"])
-	res2, out, err := x.restore(t, cnsa, x.endpoint, randomBytes(t, 32))
+	// A cnsa source: its keys under ecdsa-p384-sha384, the suite the
+	// profile signs with; a second fips destination pins that authority.
+	y := newXCCSuite(t, "cnsa", "ecdsa-p384-sha384")
+	destB := y.destinationConfig(t, "destination-b", map[string]any{"crypto": map[string]any{"profile": "fips"}})
+	idB := identityOf(t, bins.bootstrap, destB)
+	if idB["crypto_profile"] != "fips" || !strings.Contains(idB["signature_suites"], "ecdsa-p384-sha384") {
+		t.Fatalf("destination-b identity: profile %q, signature suites %q; want fips accepting ecdsa-p384-sha384", idB["crypto_profile"], idB["signature_suites"])
+	}
+	y.startDestination(t, destB)
+	cnsa := y.sourceConfigWith(t, idB, map[string]any{"crypto": map[string]any{"profile": "cnsa"}}, idB["measurement_hex"])
+	if sid := identityOf(t, bins.sagvd, cnsa); sid["signature_suite"] != "ecdsa-p384-sha384" || sid["authority_signature_suite"] != "ecdsa-p384-sha384" || sid["audit_signature_suite"] != "ecdsa-p384-sha384" {
+		t.Fatalf("cnsa source identity: signature_suite %q, authority %q, audit %q; want ecdsa-p384-sha384", sid["signature_suite"], sid["authority_signature_suite"], sid["audit_signature_suite"])
+	}
+	res2, out, err := y.restore(t, cnsa, y.endpoint, randomBytes(t, 32))
 	if err != nil || res2.Status != "ok" {
 		t.Fatalf("cnsa → fips crosscloud-restore: %v\n%s", err, out)
 	}
-	if res2.RecipientKeySuite != "hpke-mlkem1024-p384-v2" {
-		t.Fatalf("cnsa → fips: released under %q, want the hybrid both accept", res2.RecipientKeySuite)
+	if res2.RecipientKeySuite != "hpke-mlkem1024-p384-v2" || res2.CryptoProfile != "cnsa" {
+		t.Fatalf("cnsa → fips: released under %q as %q, want the hybrid both accept as cnsa", res2.RecipientKeySuite, res2.CryptoProfile)
+	}
+	// The cnsa source's audit log verifies under its ECDSA audit key, and
+	// acpctl names the suite.
+	var av struct {
+		OK    bool   `json:"ok"`
+		Suite string `json:"signature_suite"`
+	}
+	if raw := acpctl(t, "audit", "verify", "--audit", y.auditLog, "--audit-pubkey", y.auditPEM, "--audit-kid", "sagvd-audit-demo", "--json"); json.Unmarshal([]byte(raw), &av) != nil || !av.OK || av.Suite != "ecdsa-p384-sha384" {
+		t.Fatalf("the cnsa source's audit log: %s", raw)
 	}
 
-	waitFor(t, 5*time.Second, "destination to log the accepted tokens", func() bool {
-		return len(x.destLog("crosscloud token accepted")) == 2
+	waitFor(t, 5*time.Second, "destinations to log the accepted tokens", func() bool {
+		return len(x.destLog("crosscloud token accepted")) == 1 && len(y.destLog("crosscloud token accepted")) == 1
 	})
-	answered := x.destLog("crosscloud handshake answered")
-	if len(answered) != 2 || answered[0]["recipient_key_suite"] != "hpke-p384-v2" || answered[1]["recipient_key_suite"] != "hpke-mlkem1024-p384-v2" {
-		t.Fatalf("destination's record of the suites: %v", answered)
+	answered, answeredB := x.destLog("crosscloud handshake answered"), y.destLog("crosscloud handshake answered")
+	if len(answered) != 1 || answered[0]["recipient_key_suite"] != "hpke-p384-v2" || len(answeredB) != 1 || answeredB[0]["recipient_key_suite"] != "hpke-mlkem1024-p384-v2" {
+		t.Fatalf("destinations' record of the suites: %v / %v", answered, answeredB)
 	}
 
 	// A general source narrowed to X25519 offers nothing fips accepts.
@@ -453,7 +517,7 @@ func TestLiveCrossCloud_ProfilesMeetOnTheirSuites(t *testing.T) {
 	if res3.Error == nil || !strings.Contains(res3.Error.Message, "none of the KEM suites") {
 		t.Fatalf("refusal must name the suites: %v\n%s", res3.Error, out)
 	}
-	if len(x.destLog("crosscloud handshake answered")) != 2 {
+	if len(x.destLog("crosscloud handshake answered")) != 1 {
 		t.Fatalf("the refused handshake must not have been answered")
 	}
 }

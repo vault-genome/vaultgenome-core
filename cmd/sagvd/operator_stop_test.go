@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
 
@@ -23,11 +24,11 @@ func TestNewOperatorStopSource(t *testing.T) {
 	require.NoError(t, err)
 	cfg := OperatorStopConfig{KeyID: "operator-test", PublicKeyPath: writeFile(t, dir, "operator.pub", priv.Public().Bytes), ListPath: filepath.Join(dir, "stop.json")}
 
-	_, _, err = newOperatorStopSource(cfg)
+	_, _, err = newOperatorStopSource(cfg, kms.DefaultSignaturePolicy())
 	require.ErrorContains(t, err, "sagvd: operator_stop", "no list on disk: the daemon does not start")
 
 	writeStopList(t, cfg.ListPath, priv, revocation.List{Serial: 3})
-	src, serial, err := newOperatorStopSource(cfg)
+	src, serial, err := newOperatorStopSource(cfg, kms.DefaultSignaturePolicy())
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), serial)
 	list, err := src()

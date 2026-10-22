@@ -1,0 +1,9 @@
+tree 1a415682703933b6198c250f982a55a7a5a2628c
+stamp 20261022T120741Z
+profile cnsa
+zone_a us-central1-c
+go go1.27.3
+host Darwin arm64
+fips 0
+gofips140 off
+zone_b europe-west4-b

@@ -1,0 +1,21 @@
+profile=fips
+fips=1 GODEBUG=fips140=only
+== binaries from gs://rats-probe-vg-rd01-20261022t120827z/in
+== configfs-tsm
+== the bank's hand-off: the standby's TLS material and token, the base model, the sealed genome (opaque without its key), the authority's public key
+key_id=genome-b54d37204c54-g0-b22972019298
+== acp-bootstrap on SEV-SNP: identity from this chip, published for the bank's allow-list
+identity exit=0
+standby crypto_profile=fips kem_suites=hpke-p384-v2,hpke-mlkem768-v2,hpke-mlkem1024-p384-v2
+standby signature_suites=ed25519,ecdsa-p384-sha384
+standby fips140 enabled=true enforced=true version=v1.0.0
+measurement=0e017d2fba7c4964575fdd8c770061abf07f0753148d030f94e969a2d1fa5a5747ba0ced9174f2d44b5f6663fa2de00f
+acp-bootstrap ready after 1s
+== the worker runtime, for the gate on this chip (the door needs it)
+== the key arrives only after this chip attested to the bank: wait for the restore (the receipt signed with the chip)
+restore seen
+== the restored model gated on this chip against the sealed fixtures, through the real door (acpctl genome gate)
+standby gate exit=0
+standby gate_level=EXACT fixtures=6 base=tiny-llama backend_seconds=4.05712217
+== wait for the bank to finish (its refusals go through this guest too), then stop
+elapsed_seconds=181.0

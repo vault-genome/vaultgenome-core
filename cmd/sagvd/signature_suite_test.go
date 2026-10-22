@@ -19,6 +19,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
 
@@ -45,6 +46,10 @@ func TestLoadMaterials_SigningKeysUnderEverySuite(t *testing.T) {
 			f := newMaterialFixture(t)
 			cfg := f.cfg
 			if suite.Available() != nil {
+				// cnsa accepts ml-dsa-87, so the configuration is valid; the
+				// build decides availability, at load, with the module's reason.
+				cfg.Crypto.Profile = "cnsa"
+				cfg.Crypto.SignatureSuite = string(suite)
 				cfg.Keys.AuthoritySigning.Suite = string(suite)
 				require.NoError(t, cfg.Validate(), "the suite id is valid; the build decides availability")
 				_, err := LoadMaterials(cfg, shared_time.NewSystemClock())
@@ -52,6 +57,9 @@ func TestLoadMaterials_SigningKeysUnderEverySuite(t *testing.T) {
 				require.Contains(t, err.Error(), "unavailable in FIPS 140-3 Go Cryptographic Module")
 				return
 			}
+			// The general profile signs with ed25519 unless the config picks
+			// another suite it accepts (part three): the keys and the pick agree.
+			cfg.Crypto.SignatureSuite = string(suite)
 			authKey := writeSigningKeyFile(t, filepath.Join(f.dir, "authority.key"), suite)
 			cfg.Keys.AuthoritySigning = SigningKeyConfig{KeyID: "authority-1", SeedPath: filepath.Join(f.dir, "authority.key"), Suite: string(crypto.RecordAlg(suite))}
 			auditKey := writeSigningKeyFile(t, filepath.Join(f.dir, "audit.key"), suite)
@@ -111,6 +119,7 @@ func TestLoadMaterials_SigningKeysUnderEverySuite(t *testing.T) {
 func TestLoadMaterials_RefusesAKeyFileOfAnotherSuite(t *testing.T) {
 	f := newMaterialFixture(t)
 	cfg := f.cfg
+	cfg.Crypto.SignatureSuite = string(crypto.SuiteECDSAP384SHA384)
 	cfg.Keys.AuthoritySigning.Suite = string(crypto.SuiteECDSAP384SHA384)
 	require.NoError(t, cfg.Validate())
 	_, err := LoadMaterials(cfg, shared_time.NewSystemClock())
@@ -148,7 +157,7 @@ func TestLoadWorkerRegistry_SuitePerWorker(t *testing.T) {
 	require.NoError(t, err)
 	path := filepath.Join(dir, "workers.json")
 	require.NoError(t, os.WriteFile(path, raw, 0o600))
-	resolver, loaded, err := LoadWorkerRegistry(path)
+	resolver, loaded, err := LoadWorkerRegistry(path, kms.DefaultSignaturePolicy())
 	require.NoError(t, err)
 	require.Len(t, loaded, len(entries))
 	for kid, pub := range want {
@@ -163,7 +172,7 @@ func TestLoadWorkerRegistry_SuitePerWorker(t *testing.T) {
 	raw, err = json.Marshal(bad)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, raw, 0o600))
-	_, _, err = LoadWorkerRegistry(path)
+	_, _, err = LoadWorkerRegistry(path, kms.DefaultSignaturePolicy())
 	require.ErrorContains(t, err, "97 bytes for ecdsa-p384-sha384")
 }
 
@@ -185,7 +194,7 @@ func TestNewOperatorStopSource_UnderEverySuite(t *testing.T) {
 			require.NoError(t, err)
 			cfg := OperatorStopConfig{KeyID: "operator-test", PublicKeyPath: writeFile(t, dir, "operator.pem", pemBytes), ListPath: filepath.Join(dir, "stop.json")}
 			writeStopList(t, cfg.ListPath, key, revocation.List{Serial: 3})
-			src, serial, err := newOperatorStopSource(cfg)
+			src, serial, err := newOperatorStopSource(cfg, kms.DefaultSignaturePolicy())
 			require.NoError(t, err)
 			require.Equal(t, uint64(3), serial)
 			list, err := src()

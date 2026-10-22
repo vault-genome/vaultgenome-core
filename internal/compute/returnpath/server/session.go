@@ -11,7 +11,6 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath"
 	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/transport"
 	rjm "github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
-	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
@@ -28,7 +27,7 @@ import (
 const CodeWorkerRejected = "worker_rejected_job"
 
 // CodeWorkerSignatureInvalid is emitted when the CandidateOutputFrame's
-// WorkerSignature fails Ed25519 verification under the key resolved via
+// WorkerSignature fails verification, under the key's suite, via
 // WorkerKeyResolver. Category is Integrity; callers on cmd/sagvd wire
 // this into IncidentEvent emission.
 const CodeWorkerSignatureInvalid = "worker_signature_invalid"
@@ -268,7 +267,8 @@ func (s *Session) ServeOneJob(ctx context.Context, req transport.JobRequest) (re
 //     (Heartbeats are skipped).
 //  5. Verify the CandidateOutputFrame against the JobRequest: match
 //     ManifestID, SessionID, OutputKind; re-compute CoverBytes and
-//     Ed25519-verify the WorkerSignature via WorkerKeyResolver.
+//     verify the WorkerSignature via WorkerKeyResolver, under the key's
+//     suite, which the frame's worker_signature_alg must name (ADR 0031).
 //  6. Translate to a returnpath.CandidateOutput and return it with the
 //     verified worker signing key ID.
 //
@@ -505,7 +505,7 @@ func (s *Session) verifyWorkerSignature(f transport.CandidateOutputFrame) error 
 			CodeWorkerSignatureInvalid,
 			"returnpath/server: cannot re-encode CandidateOutputFrame for verification", err)
 	}
-	if err := crypto.Verify(vk.PublicKey, cover, f.WorkerSignature); err != nil {
+	if err := vk.VerifyRecord(f.WorkerSignatureAlg, cover, f.WorkerSignature); err != nil {
 		return shared_errors.Integrity(
 			CodeWorkerSignatureInvalid,
 			"returnpath/server: CandidateOutputFrame.WorkerSignature verification failed", err)

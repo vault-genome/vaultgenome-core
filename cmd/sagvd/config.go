@@ -119,11 +119,26 @@ type CryptoConfig struct {
 	// order of preference (the first is written). Every name must be
 	// one the profile accepts; a profile is never widened here.
 	KEMSuites []string `json:"kem_suites,omitempty"`
+
+	// SignatureSuite picks the signature suite this daemon signs with
+	// from the profile's list (ADR 0031): general and fips sign with
+	// ed25519 and cnsa with ecdsa-p384-sha384 unless this names another
+	// suite the profile accepts — fips with ecdsa-p384-sha384 is the
+	// deployment a bank held to X9 runs. Every signing key the config
+	// names (keys.<name>.suite) must be of this suite; a profile is never
+	// widened here.
+	SignatureSuite string `json:"signature_suite,omitempty"`
 }
 
 // Policy returns the configuration as the policy the kms package applies.
 func (c CryptoConfig) Policy() (kms.SuitePolicy, error) {
 	return kms.NewSuitePolicyFromNames(c.Profile, c.KEMSuites)
+}
+
+// SignaturePolicy returns the profile's signature policy: the suite the
+// daemon signs with and the suites it accepts (ADR 0031).
+func (c CryptoConfig) SignaturePolicy() (kms.SignaturePolicy, error) {
+	return kms.NewSignaturePolicyFromNames(c.Profile, c.SignatureSuite)
 }
 
 // PolicyProfileGate is the one policy profile the daemon serves: restore
@@ -1304,6 +1319,25 @@ func (c Config) Validate() error {
 
 	if _, err := c.Crypto.Policy(); err != nil {
 		errs = append(errs, fmt.Errorf("crypto: %w", err))
+	}
+	// The signing keys must be of the suite the profile signs with: the
+	// key material and the configuration's intent agree, or the daemon
+	// does not start (ADR 0031).
+	if sigPol, err := c.Crypto.SignaturePolicy(); err != nil {
+		errs = append(errs, fmt.Errorf("crypto: %w", err))
+	} else {
+		if suite, err := c.Keys.AuthoritySigning.signatureSuite(); err == nil {
+			if err := sigPol.CheckSigningKey("keys.authority_signing", suite); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if c.Keys.AuditSigning.KeyID != "" || c.Keys.AuditSigning.SeedPath != "" {
+			if suite, err := c.Keys.AuditSigning.signatureSuite(); err == nil {
+				if err := sigPol.CheckSigningKey("keys.audit_signing", suite); err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
 	}
 
 	if strings.TrimSpace(c.Vault.ListenAddress) == "" {

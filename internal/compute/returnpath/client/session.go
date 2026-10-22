@@ -379,6 +379,15 @@ func (s *Session) ServeOneJob(ctx context.Context) error {
 		WorkerSigningKeyID: string(s.cfg.SigningKeyID),
 		// WorkerSignature filled in below once CoverBytes is built.
 	}
+	// The suite the worker's key signs under goes on the frame before the
+	// cover bytes are taken (ADR 0031): absent for ed25519, named otherwise.
+	alg, err := keys.RecordAlg(s.cfg.Signer, s.cfg.SigningKeyID)
+	if err != nil {
+		return shared_errors.Integrity(
+			CodeSignFailure,
+			"returnpath/client: Signer.Suite failed", err)
+	}
+	frame.WorkerSignatureAlg = alg
 	cover, err := frame.CoverBytes()
 	if err != nil {
 		return err

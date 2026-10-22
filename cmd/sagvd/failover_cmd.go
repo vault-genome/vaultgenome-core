@@ -88,7 +88,11 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 	if cfg.CrossCloud.KeyEscrowPath == "" {
 		return failoverExitFailed, errors.New("failover: crosscloud.key_escrow_path required: genome keys reach the release authority only through escrow")
 	}
-	pol, err := loadFailoverPolicy(cfg.CrossCloud.OperatorStop, policyPath)
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return failoverExitFailed, fmt.Errorf("failover: crypto: %w", err)
+	}
+	pol, err := loadFailoverPolicy(cfg.CrossCloud.OperatorStop, policyPath, sigPol)
 	if err != nil {
 		return failoverExitFailed, err
 	}
@@ -189,16 +193,29 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 
 // loadFailoverPolicy verifies the policy under the operator key the stop
 // list is pinned to: one operator, one key, for both.
-func loadFailoverPolicy(op OperatorStopConfig, path string) (failover.Policy, error) {
+func loadFailoverPolicy(op OperatorStopConfig, path string, sigPol kms.SignaturePolicy) (failover.Policy, error) {
 	pub, err := loadSigningPublicKey(op.PublicKeyPath)
 	if err != nil {
+		return failover.Policy{}, fmt.Errorf("failover: crosscloud.operator_stop.public_key_path: %w", err)
+	}
+	if err := sigPol.CheckAcceptedKey("operator key "+op.KeyID, pub.Suite); err != nil {
 		return failover.Policy{}, fmt.Errorf("failover: crosscloud.operator_stop.public_key_path: %w", err)
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return failover.Policy{}, fmt.Errorf("failover: -policy: %w", err)
 	}
-	return failover.Parse(raw, pub, op.KeyID)
+	p, err := failover.Parse(raw, pub, op.KeyID)
+	if err != nil {
+		return failover.Policy{}, err
+	}
+	// The sentinel's key the policy pins must be one this authority
+	// accepts: every record of the outbox is checked under it.
+	spub, sid := p.Sentinel()
+	if err := sigPol.CheckAcceptedKey("the policy's sentinel key "+sid, spub.Suite); err != nil {
+		return failover.Policy{}, fmt.Errorf("failover: -policy: %w", err)
+	}
+	return p, nil
 }
 
 // primaryVerifier builds the verifier for the primary's TEE the policy

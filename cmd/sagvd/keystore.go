@@ -195,7 +195,14 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 
 	// 5. Worker registry → PublicKeyResolver for CandidateOutputFrame
 	//    signature verification.
-	resolver, entries, err := LoadWorkerRegistry(cfg.Workers.RegistryPath)
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: crypto: %w", err)
+	}
+	if err := sigPol.CheckSigningKey("keys.authority_signing", vk.Suite); err != nil {
+		return nil, fmt.Errorf("sagvd: %w", err)
+	}
+	resolver, entries, err := LoadWorkerRegistry(cfg.Workers.RegistryPath, sigPol)
 	if err != nil {
 		return nil, err
 	}

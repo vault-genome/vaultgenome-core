@@ -40,8 +40,27 @@ given release can still open.
   operator's stop list and the signed gate verdict carry `alg` and are
   signed through the same key type: `acpctl sentinel keygen`, `stop
   keygen` and `failover issue` take `--signature-suite`, and every
-  verifier reads the suite from the PEM. The profile's choice of suite
-  and the hardware proof follow in part three.
+  verifier reads the suite from the PEM.
+- The profile decides the suite (ADR 0031, part three; the ADR is
+  Accepted). `general` signs with `ed25519` and accepts every suite the
+  build has; `fips` signs with `ed25519` and accepts `ed25519` and
+  `ecdsa-p384-sha384`, the two on the certificate of the Go
+  Cryptographic Module v1.0.0; `cnsa` signs with `ecdsa-p384-sha384` and
+  accepts `ml-dsa-87` beside it. `crypto.signature_suite` picks the
+  signing suite within the profile's list — `fips` with
+  `ecdsa-p384-sha384` is the deployment a bank held to X9 runs — and
+  never widens it. A signing key of another suite than the profile signs
+  with stops the daemon at validation; a key the profile does not accept
+  is refused where it is pinned, with the reason: a worker registry
+  entry, the operator's stop key, the sentinel key a failover policy
+  pins, the source authority key acp-bootstrap pins. `sagvd identity`
+  prints `signature_suite` and `signature_suites`, `acp-bootstrap
+  identity` `signature_suites`. The kits `keyrelease-e2e` and
+  `reference-design-01` take `VG_SIGSUITE` (the profile's own by
+  default), make every key under it and refuse a record that does not
+  show it on the authority, the destination and the audit logs; proven
+  on SEV-SNP under `cnsa` and under `fips` with ECDSA P-384 on the
+  certified module (C43). Finding F2b of the banking map is closed.
 
 - ADR 0031 (proposed): the signature suite — `ed25519`, `ecdsa-p384-sha384`
   and `ml-dsa-87` named, the profile naming what a daemon signs with and

@@ -15,6 +15,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // writeWorkerRegistry helper builds a JSON file on disk for the
@@ -54,7 +55,7 @@ func TestLoadWorkerRegistry_HappyPath(t *testing.T) {
 	e2, pub2 := randomWorker(t, "worker-beta")
 	writeWorkerRegistry(t, path, []WorkerEntry{e1, e2})
 
-	resolver, entries, err := LoadWorkerRegistry(path)
+	resolver, entries, err := LoadWorkerRegistry(path, kms.DefaultSignaturePolicy())
 	if err != nil {
 		t.Fatalf("LoadWorkerRegistry: %v", err)
 	}
@@ -80,14 +81,14 @@ func TestLoadWorkerRegistry_HappyPath(t *testing.T) {
 }
 
 func TestLoadWorkerRegistry_EmptyPath(t *testing.T) {
-	_, _, err := LoadWorkerRegistry("")
+	_, _, err := LoadWorkerRegistry("", kms.DefaultSignaturePolicy())
 	if err == nil || !strings.Contains(err.Error(), "required") {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestLoadWorkerRegistry_FileMissing(t *testing.T) {
-	_, _, err := LoadWorkerRegistry(filepath.Join(t.TempDir(), "nope.json"))
+	_, _, err := LoadWorkerRegistry(filepath.Join(t.TempDir(), "nope.json"), kms.DefaultSignaturePolicy())
 	if err == nil {
 		t.Fatal("err = nil")
 	}
@@ -97,7 +98,7 @@ func TestLoadWorkerRegistry_EmptyList(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "workers.json")
 	writeWorkerRegistry(t, path, nil)
-	_, _, err := LoadWorkerRegistry(path)
+	_, _, err := LoadWorkerRegistry(path, kms.DefaultSignaturePolicy())
 	if err == nil || !strings.Contains(err.Error(), "no entries") {
 		t.Fatalf("err = %v", err)
 	}
@@ -108,7 +109,7 @@ func TestLoadWorkerRegistry_DuplicateKID(t *testing.T) {
 	path := filepath.Join(dir, "workers.json")
 	e, _ := randomWorker(t, "dup")
 	writeWorkerRegistry(t, path, []WorkerEntry{e, e})
-	_, _, err := LoadWorkerRegistry(path)
+	_, _, err := LoadWorkerRegistry(path, kms.DefaultSignaturePolicy())
 	if err == nil || !strings.Contains(err.Error(), "duplicate kid") {
 		t.Fatalf("err = %v", err)
 	}
@@ -120,7 +121,7 @@ func TestLoadWorkerRegistry_BadHex(t *testing.T) {
 	writeWorkerRegistry(t, path, []WorkerEntry{{
 		KeyID: "bad", SigningPublicKeyHex: "not-hex!",
 	}})
-	_, _, err := LoadWorkerRegistry(path)
+	_, _, err := LoadWorkerRegistry(path, kms.DefaultSignaturePolicy())
 	if err == nil || !strings.Contains(err.Error(), "invalid hex") {
 		t.Fatalf("err = %v", err)
 	}
@@ -132,7 +133,7 @@ func TestLoadWorkerRegistry_WrongLenHex(t *testing.T) {
 	writeWorkerRegistry(t, path, []WorkerEntry{{
 		KeyID: "short", SigningPublicKeyHex: "aa",
 	}})
-	_, _, err := LoadWorkerRegistry(path)
+	_, _, err := LoadWorkerRegistry(path, kms.DefaultSignaturePolicy())
 	if err == nil || !strings.Contains(err.Error(), "decode to") {
 		t.Fatalf("err = %v", err)
 	}
@@ -145,7 +146,7 @@ func TestLoadWorkerRegistry_UnknownFieldRejected(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	_, _, err := LoadWorkerRegistry(path)
+	_, _, err := LoadWorkerRegistry(path, kms.DefaultSignaturePolicy())
 	if err == nil || !strings.Contains(err.Error(), "typo_field") {
 		t.Fatalf("err = %v", err)
 	}
@@ -156,7 +157,7 @@ func TestLoadWorkerRegistry_MissingKID(t *testing.T) {
 	path := filepath.Join(dir, "workers.json")
 	e, _ := randomWorker(t, "")
 	writeWorkerRegistry(t, path, []WorkerEntry{e})
-	_, _, err := LoadWorkerRegistry(path)
+	_, _, err := LoadWorkerRegistry(path, kms.DefaultSignaturePolicy())
 	if err == nil || !strings.Contains(err.Error(), "kid required") {
 		t.Fatalf("err = %v", err)
 	}

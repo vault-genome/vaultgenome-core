@@ -49,6 +49,12 @@ FIPS=$(md attributes/vg-fips 2>/dev/null || true); [ "$FIPS" = 1 ] || FIPS=0
 # guest runs under enforcement; a non-approved service fails instead of
 # succeeding. The binaries came built on the certified module.
 if [ "$FIPS" = 1 ]; then export GODEBUG=fips140=only; echo "fips=1 GODEBUG=fips140=only" >> "$OUT/steps.txt"; fi
+# The signature suite (ADR 0031): what acp-keygen makes the keys under and
+# what every config names, from the runner (vg-sigsuite); absent, the
+# profile's own.
+SIGSUITE=$(md attributes/vg-sigsuite 2>/dev/null || true)
+case "$SIGSUITE" in ed25519|ecdsa-p384-sha384|ml-dsa-87) ;; *) case "$PROFILE" in cnsa) SIGSUITE=ecdsa-p384-sha384;; *) SIGSUITE=ed25519;; esac;; esac
+echo "signature_suite=$SIGSUITE" >> "$OUT/steps.txt"
 T0=$(date +%s.%N)
 mark() { echo "$1=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" >> "$OUT/timeline.txt"; }
 step() { echo "== $*"; echo "== $*" >> "$OUT/steps.txt"; }
@@ -99,15 +105,15 @@ mark pip_end
 mark runtime_install_end
 
 step "provision (acp-keygen, private modes; every key file is sealed to the chip below)"
-./keygen -out secrets -quiet -private
+./keygen -out secrets -quiet -private -signature-suite "$SIGSUITE"
 S=$WORK/secrets
 TOKEN_XCC=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'); printf '%s\n' "$TOKEN_XCC" > "$S/xcc_token"; chmod 600 "$S/xcc_token"; unset TOKEN_XCC
 mkdir -p genomes audit queue vcek-cache
 head -c 48 /dev/zero > peer-vault.meas; head -c 48 /dev/zero > peer-worker.meas
 write_configs() { # $1 = vault measurement hex, $2 = worker measurement hex
-  python3 - "$1" "$2" "$PROFILE" <<'PY'
+  python3 - "$1" "$2" "$PROFILE" "$SIGSUITE" <<'PY'
 import json, os, sys, binascii
-vault_meas, worker_meas, profile = sys.argv[1], sys.argv[2], sys.argv[3]
+vault_meas, worker_meas, profile, sigsuite = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 W = "/root/rd01"; S = W + "/secrets"
 open(W + "/peer-vault.meas", "wb").write(binascii.unhexlify(vault_meas))
 open(W + "/peer-worker.meas", "wb").write(binascii.unhexlify(worker_meas))
@@ -117,8 +123,8 @@ sagvd = {
     "tls": {"enabled": True, "server_cert": S + "/sagvd/tls/server.crt", "server_key": S + "/sagvd/tls/server.key", "client_cas": S + "/shared/tls/ca.crt"}},
   "http_api": {"listen_address": "127.0.0.1:9080", "bearer_token_file": S + "/sagvd/api_token"},
   "tee": {"provider": "auto", "sealer": "auto", "workload_descriptor": "sagvd-rd01-bank-v1", "peer": peer(W + "/peer-worker.meas")},
-  "keys": {"authority_signing": {"kid": "sagvd-authority-e2e", "seed_path": S + "/sagvd/authority_signing_seed"},
-           "audit_signing": {"kid": "sagvd-audit-e2e", "seed_path": S + "/sagvd/audit_signing_seed"},
+  "keys": {"authority_signing": {"kid": "sagvd-authority-e2e", "seed_path": S + "/sagvd/authority_signing_seed", "suite": sigsuite},
+           "audit_signing": {"kid": "sagvd-audit-e2e", "seed_path": S + "/sagvd/audit_signing_seed", "suite": sigsuite},
            "session_sealing": {"kid": "session-sealing-e2e", "material_path": S + "/shared/sealing.key"}},
   "workers": {"registry_path": S + "/shared/workers.json"},
   "genome": {"bundle_dir": W + "/genomes", "gate": {"atol": 1e-2, "rtol": 1e-3, "max_non_critical_outliers": 0}},
@@ -128,12 +134,12 @@ sagvd = {
     "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 600, "max_payload_bytes": 4194304},
   "health": {"listen_address": "127.0.0.1:9081"},
   "log": {"level": "info", "format": "json"},
-  "crypto": {"profile": profile}}
+  "crypto": {"profile": profile, "signature_suite": sigsuite}}
 worker = {
   "vault": {"address": "127.0.0.1:9443",
     "tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt", "client_key": S + "/acp-compute/tls/client.key", "ca_bundle": S + "/shared/tls/ca.crt", "server_name": "localhost"}},
   "tee": {"provider": "auto", "sealer": "auto", "workload_descriptor": "acp-compute-rd01-bank-v1", "peer": peer(W + "/peer-vault.meas")},
-  "keys": {"worker_signing": {"kid": "acp-compute-worker-demo", "seed_path": S + "/acp-compute/worker_signing_seed"},
+  "keys": {"worker_signing": {"kid": "acp-compute-worker-demo", "seed_path": S + "/acp-compute/worker_signing_seed", "suite": sigsuite},
            "session_sealing": {"kid": "session-sealing-e2e", "material_path": S + "/shared/sealing.key"}},
   "genome": {"door": {"command": [W + "/venv/bin/python3", "-m", "vg_genome", "door", "--stdin-genome", "--base", W + "/base", "--device", "cpu"],
                       "env": ["PYTHONPATH=" + W + "/workers/genome", "TOKENIZERS_PARALLELISM=false"], "timeout_seconds": 300}},
@@ -177,6 +183,8 @@ WMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_mea
 [ -n "$VMEAS" ] && [ -n "$WMEAS" ] || fail "no measurement from the chip: $(cat "$OUT/sagvd-identity.err" "$OUT/acp-compute-identity.err")"
 echo "vault_measurement=$VMEAS" >> "$OUT/steps.txt"; echo "worker_measurement=$WMEAS" >> "$OUT/steps.txt"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or [])))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>&1
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd signature_suite=%s signature_suites=%s" % (d.get("signature_suite"), ",".join(d.get("signature_suites") or []))); print("sagvd authority_signature_suite=%s audit_signature_suite=%s" % (d.get("authority_signature_suite"), d.get("audit_signature_suite")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>&1
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("acp-compute signing_signature_suite=%s" % d.get("signing_signature_suite"))' "$OUT/acp-compute-identity.json" >> "$OUT/steps.txt" 2>&1
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["authority_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > authority.pem
 cp audit.pem "$OUT/audit-public-key.pem"
@@ -185,8 +193,8 @@ step "the cross-cloud transport's own client pair and the operator's stop key, b
 mkdir -p xcc && chmod 700 xcc
 cp "$S/acp-compute/tls/client.crt" xcc/client.crt && cp "$S/acp-compute/tls/client.key" xcc/client.key && chmod 600 xcc/client.key
 # In production the operator key lives on the operator's machine; the bank's host sees operator.pem and the signed list.
-./acpctl stop keygen -out operator.seed -pub operator.pem > /dev/null
-./acpctl stop issue -key operator.seed -kid operator-1 -serial 1 -out stop.json > /dev/null
+./acpctl stop keygen -out operator.seed -pub operator.pem -signature-suite "$SIGSUITE" > /dev/null
+./acpctl stop issue -key operator.seed -signature-suite "$SIGSUITE" -kid operator-1 -serial 1 -out stop.json > /dev/null
 write_policy "$ZEROS" "$ZEROS"
 write_configs "$VMEAS" "$WMEAS"
 
@@ -350,7 +358,7 @@ echo "unlisted exit=$? $(grep -oE 'policy denied key release: [a-z -]*' "$OUT/re
 
 step "release refused: the operator's stop in force"
 write_policy "$B_MEAS" "$B_MEAS"   # the standby allow-listed again; only the stop refuses it
-./acpctl stop issue -key operator.seed -kid operator-1 -serial 2 -all -reason "rd01: operator stop" -out stop.json > /dev/null
+./acpctl stop issue -key operator.seed -signature-suite "$SIGSUITE" -kid operator-1 -serial 2 -all -reason "rd01: operator stop" -out stop.json > /dev/null
 ./sagvd crosscloud-restore -config sagvd.json -decision-id rd01-decision-3 -destination-kind gcp-sev-snp \
   -destination-endpoint "$B_ENDPOINT" -key-file "genome-dek-3:$WORK/throwaway.key" > "$OUT/release-stopped.json" 2> "$OUT/release-stopped.err"
 echo "stopped exit=$? $(grep -oE 'policy denied key release: [a-z -]*' "$OUT/release-stopped.err" | head -1)" >> "$OUT/steps.txt"
@@ -363,10 +371,12 @@ kill -TERM $WORKER; wait $WORKER 2>/dev/null
 kill -TERM $SAGVD; wait $SAGVD 2>/dev/null
 ./acpctl audit verify --audit audit/returnpath-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-e2e --json > "$OUT/audit-verify.json" 2> "$OUT/audit-verify.err"
 echo "audit verify exit=$?" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("audit suite=%s events=%s" % (d.get("signature_suite"), d.get("event_count")))' "$OUT/audit-verify.json" >> "$OUT/steps.txt" 2>/dev/null
 ./acpctl audit query --audit audit/returnpath-audit.db --limit 0 --json > "$OUT/audit-events.jsonl" 2> "$OUT/audit-query.err"
 echo "audit query exit=$?" >> "$OUT/steps.txt"
 ./acpctl audit verify --audit xcc-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-e2e --json > "$OUT/xcc-audit-verify.json" 2> "$OUT/xcc-audit-verify.err"
 echo "xcc audit verify exit=$?" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("xcc audit suite=%s events=%s" % (d.get("signature_suite"), d.get("event_count")))' "$OUT/xcc-audit-verify.json" >> "$OUT/steps.txt" 2>/dev/null
 ./acpctl audit query --audit xcc-audit.db --limit 0 --json > "$OUT/xcc-audit-events.jsonl" 2> "$OUT/xcc-audit-query.err"
 echo "xcc audit query exit=$?" >> "$OUT/steps.txt"
 grep -o '"handshake_ms":[0-9]*' "$OUT/sagvd.log" | cut -d: -f2 > "$OUT/sagvd.handshake_ms.txt"

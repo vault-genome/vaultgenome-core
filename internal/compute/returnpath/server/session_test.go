@@ -145,6 +145,9 @@ func signedOutput(t *testing.T, p *peers, req transport.JobRequest, out []byte) 
 		OutputKind: req.ExpectedOutputKind, Bytes: out, ProducedAt: p.clock.Now().UTC(),
 		WorkerSigningKeyID: string(p.workerKID),
 	}
+	alg, err := keys.RecordAlg(p.workerStore, p.workerKID)
+	require.NoError(t, err)
+	f.WorkerSignatureAlg = alg
 	cover, err := f.CoverBytes()
 	require.NoError(t, err)
 	sig, err := p.workerStore.Sign(p.workerKID, keys.PurposeSigningAuthority, cover)

@@ -15,6 +15,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // WorkerRegistryFile is the on-disk JSON schema that lists every
@@ -61,7 +62,7 @@ type WorkerEntry struct {
 // signing_pubkey_hex decoding to exactly 32 bytes, and no duplicate
 // kids across the file. Any failure aborts the whole load — this is
 // operator-config hygiene, not a runtime condition.
-func LoadWorkerRegistry(path string) (*server.PublicKeyResolver, []WorkerEntry, error) {
+func LoadWorkerRegistry(path string, pol kms.SignaturePolicy) (*server.PublicKeyResolver, []WorkerEntry, error) {
 	if path == "" {
 		return nil, nil, errors.New("sagvd: workers.registry_path required")
 	}
@@ -94,6 +95,12 @@ func LoadWorkerRegistry(path string) (*server.PublicKeyResolver, []WorkerEntry, 
 		suite, err := crypto.SuiteOrDefault(w.Suite)
 		if err != nil {
 			return nil, nil, fmt.Errorf("sagvd: worker registry entry %d (kid=%q): suite: %w", i, w.KeyID, err)
+		}
+		// A worker whose key the profile does not accept would have every
+		// frame refused; it is refused here, at the registry, with the
+		// reason (ADR 0031).
+		if err := pol.CheckAcceptedKey(fmt.Sprintf("worker registry entry %d (kid=%q)", i, w.KeyID), suite); err != nil {
+			return nil, nil, fmt.Errorf("sagvd: %w", err)
 		}
 		if len(pub) != suite.PublicKeySize() {
 			return nil, nil, fmt.Errorf(

@@ -103,9 +103,12 @@ func (m *crossCloudMaterials) Close() error {
 
 // loadOperatorStop reads the operator's stop list and verifies it under
 // the pinned operator key.
-func loadOperatorStop(cfg OperatorStopConfig) (revocation.List, error) {
+func loadOperatorStop(cfg OperatorStopConfig, pol kms.SignaturePolicy) (revocation.List, error) {
 	pub, err := loadSigningPublicKey(cfg.PublicKeyPath)
 	if err != nil {
+		return revocation.List{}, fmt.Errorf("public_key_path %q: %w", cfg.PublicKeyPath, err)
+	}
+	if err := pol.CheckAcceptedKey("operator key "+cfg.KeyID, pub.Suite); err != nil {
 		return revocation.List{}, fmt.Errorf("public_key_path %q: %w", cfg.PublicKeyPath, err)
 	}
 	raw, err := os.ReadFile(cfg.ListPath)
@@ -246,7 +249,11 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 	// The operator stop: a valid list signed by the operator key is
 	// required, and a list older than one already applied (per the
 	// verified audit log) is refused, so a stop cannot be rolled back.
-	stopList, err := loadOperatorStop(cfg.CrossCloud.OperatorStop)
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: crypto: %w", err)
+	}
+	stopList, err := loadOperatorStop(cfg.CrossCloud.OperatorStop, sigPol)
 	if err == nil {
 		err = revocation.CheckNotRolledBack(stopList, auditChain.Events())
 	}

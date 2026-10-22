@@ -62,6 +62,10 @@ type authorityIdentity struct {
 	// every suite it accepts a destination's answer under.
 	CryptoProfile string   `json:"crypto_profile"`
 	KEMSuites     []string `json:"kem_suites"`
+	// SignatureSuite is the suite this daemon signs with and
+	// SignatureSuites the suites it accepts a signature under (ADR 0031).
+	SignatureSuite  string   `json:"signature_suite"`
+	SignatureSuites []string `json:"signature_suites"`
 	// FIPS140 is the cryptographic module this process runs on (ADR 0030):
 	// enabled, enforced (fips140=only), the module version, the build setting.
 	FIPS140 crypto.FIPS140 `json:"fips140"`
@@ -105,7 +109,13 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("crypto: %w", err)
 	}
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return fmt.Errorf("crypto: %w", err)
+	}
 	id := authorityIdentity{
+		SignatureSuite:          string(sigPol.SignsWith()),
+		SignatureSuites:         sigPol.AcceptIDs(),
 		AuthorityKID:            string(mat.AuthoritySigningKeyID),
 		AuthorityPublicKeyPEM:   string(authPEM),
 		AuthoritySignatureSuite: string(mat.AuthoritySigningSuite),

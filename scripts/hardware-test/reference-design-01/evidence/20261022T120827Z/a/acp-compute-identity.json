@@ -1,0 +1,15 @@
+{
+  "signing_kid": "acp-compute-worker-demo",
+  "signing_public_key_hex": "04ebbe864a882bde2770a9e6ef0ad3834daeebe65c7f9d8e58963c1f9a21d4979266c81dc4e54f97a779cfb684c9e268eee0a8d097259f2b91930af77a3dbb65b99bd9e371d5cf56537080fd2052a489c02ba97675d95eccc5ddbb1c301edd50a3",
+  "signing_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE676GSogr3idwqebvCtODTa7r5lx/nY5Y\nljwfmiHUl5JmyB3E5U+Xp3nPtoTJ4mju4KjQlyWfK5GTCvd6PbtluZvZ43HVz1ZT\ncID9IFKkicArqXZ12V7Mxd27HDAe3VCj\n-----END PUBLIC KEY-----\n",
+  "signing_signature_suite": "ecdsa-p384-sha384",
+  "tee_provider": "gcp-sev-snp",
+  "tee_measurement_hex": "7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc",
+  "sealer": "sev-snp-derived-key",
+  "fips140": {
+    "enabled": true,
+    "enforced": true,
+    "version": "v1.0.0",
+    "build": "v1.0.0-c2097c7c"
+  }
+}

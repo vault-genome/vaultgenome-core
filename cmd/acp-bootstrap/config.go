@@ -80,6 +80,14 @@ func (c CryptoConfig) Policy() (kms.SuitePolicy, error) {
 	return kms.NewSuitePolicyFromNames(c.Profile, c.KEMSuites)
 }
 
+// SignaturePolicy returns the profile's signature policy (ADR 0031): the
+// suites this destination accepts the source authority's signatures
+// under. The destination signs nothing under a suite of its own — its
+// receipts are the chip's — so the profile's own pick stands.
+func (c CryptoConfig) SignaturePolicy() (kms.SignaturePolicy, error) {
+	return kms.NewSignaturePolicyFromNames(c.Profile, "")
+}
+
 // HTTPConfig controls the destination's HTTP listener.
 type HTTPConfig struct {
 	// ListenAddress is the host:port the daemon binds to accept

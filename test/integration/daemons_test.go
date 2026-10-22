@@ -588,8 +588,19 @@ func TestSagvd_RefusesUnauthenticatedNetworkExposure(t *testing.T) {
 // API token) with the real acp-keygen binary (cmd/acp-keygen).
 func keygen(t *testing.T) string {
 	t.Helper()
+	return keygenSuite(t, "")
+}
+
+// keygenSuite is keygen with the signing keys made under suite (ADR
+// 0031); empty is ed25519.
+func keygenSuite(t *testing.T, suite string) string {
+	t.Helper()
 	out := filepath.Join(t.TempDir(), "secrets")
-	if b, err := exec.Command(bins.keygen, "-out", out, "-quiet").CombinedOutput(); err != nil {
+	args := []string{"-out", out, "-quiet"}
+	if suite != "" {
+		args = append(args, "-signature-suite", suite)
+	}
+	if b, err := exec.Command(bins.keygen, args...).CombinedOutput(); err != nil {
 		t.Fatalf("keygen: %v\n%s", err, b)
 	}
 	return out

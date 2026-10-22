@@ -22,6 +22,32 @@ The shipping binaries, run end to end on a Google Confidential VM
 Both processes run inside the same guest here; what the run proves is that the
 destination's Evidence is genuine hardware and that the whole chain accepts it.
 
+## Results — the signature suite on the record: `cnsa` with ECDSA P-384, and `fips` with ECDSA P-384 on the certified module (ADR 0031, part three)
+
+The same kit on the tree of ADR 0031 part three (`1a41568`, with the
+Return Path frame naming its suite), two guests `n2d-standard-2`
+SEV-SNP in us-central1-c (launch measurement `ccdc5cf0…`, the image of
+the runs below), a minute apart. The profile
+now decides the signature suite: `cnsa` signs with `ecdsa-p384-sha384`
+and accepts `ml-dsa-87` beside it; `fips` signs with `ed25519` unless
+`VG_SIGSUITE` picks `ecdsa-p384-sha384`, which it accepts — the
+deployment a bank held to X9 SD-34 runs. `acp-keygen -signature-suite`
+made every key under the suite (the authority's and the audit log's as
+PKCS#8 PEM), every config named it (`keys.<name>.suite`,
+`crypto.signature_suite`), and the verdict requires it on the record:
+the authority's `identity` (`signature_suite`, `signature_suites`,
+`authority_signature_suite`, `audit_signature_suite`), the destination's
+(`signature_suites`), and `acpctl audit verify` (`signature_suite`), all
+in `steps.txt`. The second run is also under `VG_FIPS=1`: every binary
+on the certified module v1.0.0 (`build.txt`, `GOFIPS140=v1.0.0-c2097c7c`)
+and both daemons under `fips140=only` (`versions.txt`), the ECDSA
+signatures the module's own.
+
+| Profile | Run | The suite both sides met on | Signatures | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
+|---|---|---|---|---|---|---|---|---|---|
+| `cnsa` | `evidence/20261022T120736Z` | `hpke-mlkem1024-p384-v2` | `ecdsa-p384-sha384` on the authority and the audit log; accepted: `ecdsa-p384-sha384`, `ml-dsa-87` | **ok**, recipient key `830b38d5…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
+| `fips`, `VG_SIGSUITE=ecdsa-p384-sha384`, `VG_FIPS=1` | `evidence/20261022T120821Z` | `hpke-p384-v2` | `ecdsa-p384-sha384` on the authority and the audit log; accepted: `ed25519`, `ecdsa-p384-sha384`; both daemons `fips140=only module=v1.0.0 enforced=true` | **ok**, recipient key `6b656ce7…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
+
 ## Results — `VG_FIPS=1`: the certified module with enforcement on, under `cnsa` and `fips` (ADR 0030, part two)
 
 The same kit with every binary built on the certified Go Cryptographic
@@ -191,7 +217,13 @@ runs every Go process on the guest under `GODEBUG=fips140=only`, in which
 a non-approved service fails instead of succeeding (ADR 0030, part two);
 `general` is refused, its first suite being X25519; the verdict then
 requires the record of the module on both daemons, and `build.txt` (the
-runner's, outside the guest's sums) notes what was built.
+runner's, outside the guest's sums) notes what was built. `VG_SIGSUITE`
+picks the signature suite (ADR 0031) within what the profile accepts —
+`ed25519`, `ecdsa-p384-sha384` or `ml-dsa-87`; the profile's own when
+unset (`ecdsa-p384-sha384` under `cnsa`, `ed25519` otherwise) — and the
+kit makes every key under it with `acp-keygen -signature-suite`, names
+it in every config, and refuses a record that does not show it on the
+authority's identity, the destination's and `acpctl audit verify`.
 The binaries are built from a clean checkout of `HEAD` when the tree's
 tracked files are clean, so their VCS stamp is the commit's even while
 other kits write their records into the tree (untracked files mark a

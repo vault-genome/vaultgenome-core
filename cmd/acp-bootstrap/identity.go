@@ -38,6 +38,9 @@ type destinationIdentity struct {
 	// in its order of preference.
 	CryptoProfile string   `json:"crypto_profile"`
 	KEMSuites     []string `json:"kem_suites"`
+	// SignatureSuites are the suites this destination accepts the source
+	// authority's signatures under (ADR 0031).
+	SignatureSuites []string `json:"signature_suites"`
 	// FIPS140 is the cryptographic module this process runs on (ADR 0030).
 	FIPS140 crypto.FIPS140 `json:"fips140"`
 }
@@ -70,12 +73,17 @@ func runIdentity(args []string, w io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("acp-bootstrap identity: crypto: %w", err)
 	}
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return fmt.Errorf("acp-bootstrap identity: crypto: %w", err)
+	}
 	id := destinationIdentity{
-		TEEProvider:    cfg.TEE.Provider,
-		MeasurementHex: hex.EncodeToString(producer.Measurement()),
-		CryptoProfile:  string(suites.Profile()),
-		FIPS140:        crypto.FIPSStatus(),
-		KEMSuites:      suites.SuiteIDs(),
+		TEEProvider:     cfg.TEE.Provider,
+		MeasurementHex:  hex.EncodeToString(producer.Measurement()),
+		CryptoProfile:   string(suites.Profile()),
+		FIPS140:         crypto.FIPSStatus(),
+		KEMSuites:       suites.SuiteIDs(),
+		SignatureSuites: sigPol.AcceptIDs(),
 	}
 	if kind, err := tee.SealerKindFor(producer, cfg.TEE.SealerMode()); err == nil {
 		id.Sealer = string(kind)
