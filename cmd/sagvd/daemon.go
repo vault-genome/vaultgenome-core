@@ -287,9 +287,14 @@ func (d *Daemon) serveInSlot(ctx context.Context, conn net.Conn) {
 		_ = conn.Close()
 		return
 	}
-	d.metrics.sessionsActive.Set(float64(d.active.Add(1)))
+	// The gauge is kept by its own atomic Add, not Set from the counter:
+	// two sessions' Add-then-Set could apply the Sets out of order and
+	// leave the gauge one below the truth (seen under the race detector).
+	d.active.Add(1)
+	d.metrics.sessionsActive.Add(1)
 	defer func() {
-		d.metrics.sessionsActive.Set(float64(d.active.Add(-1)))
+		d.active.Add(-1)
+		d.metrics.sessionsActive.Add(-1)
 		<-d.slots
 	}()
 	d.serveOne(ctx, conn)

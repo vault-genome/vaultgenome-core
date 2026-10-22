@@ -206,6 +206,22 @@ func (g *Gauge) Value() float64 {
 	return bitsToFloat64(g.value.Load())
 }
 
+// Add moves the gauge by delta atomically and returns the new value. A
+// gauge that counts things in flight is kept with Add(1) and Add(-1), not
+// with Set(count) from a counter kept elsewhere: two goroutines that each
+// increment the counter and then Set may apply their Sets in the other
+// order, and the gauge then reads one below the truth until the next
+// change (sagvd's sessions gauge did, 2026-10-21).
+func (g *Gauge) Add(delta float64) float64 {
+	for {
+		old := g.value.Load()
+		next := bitsToFloat64(old) + delta
+		if g.value.CompareAndSwap(old, float64bits(next)) {
+			return next
+		}
+	}
+}
+
 func (g *Gauge) write(w io.Writer, name string) error {
 	v := g.Value()
 	_, err := fmt.Fprintf(w, "%s %s\n", name, formatFloat(v))
