@@ -68,7 +68,7 @@ func newAzureCGPUFixture(t *testing.T) *azureCGPUFixture {
 		report[sevOffMeasurement+i] = byte(0xA0 + i)
 	}
 	binary.LittleEndian.PutUint64(report[sevOffReportedTCB:], 0x0B000000000000C0)
-	report[sevOffCPUIDFam], report[sevOffCPUIDFam+1] = 0x19, 0x11 // Genoa
+	stampSEVReportAtFloors(report, 0x19, 0x11, 0x01) // Genoa, at the floors of ADR 0033
 	for i := range 64 {
 		report[sevOffChipID+i] = byte(i + 1)
 	}

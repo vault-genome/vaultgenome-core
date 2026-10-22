@@ -111,7 +111,7 @@ DECODED="$("$HERE/decode-results.sh" "$SERIAL" "$HERE/evidence")"; echo "$DECODE
 GUEST="$HERE/evidence/$(printf '%s\n' "$DECODED" | sed -n 's/^decoded \([^:]*\):.*/\1/p' | tail -1)"
 STEPS="$GUEST/steps.txt"
 [ -s "$STEPS" ] || { echo "FAIL: no steps.txt under $GUEST"; exit 1; }
-grep -E 'profile=|suite=|exit=' "$STEPS" | sed 's|^|  |'
+grep -E 'profile=|suite=|exit=|^chip |^floor ' "$STEPS" | sed 's|^|  |'
 case "$PROFILE" in general) WANT=hpke-x25519-v2;; fips) WANT=hpke-p384-v2;; cnsa) WANT=hpke-mlkem1024-p384-v2;; esac
 FIPS_OK=1
 if [ "$VG_FIPS" = 1 ]; then
@@ -132,5 +132,6 @@ grep -q "sagvd signature_suite=$SIGSUITE " "$STEPS" && grep -q "sagvd authority_
 grep -q "release exit=0" "$STEPS" && grep -q "release suite=$WANT" "$STEPS" && grep -q "release profile=$PROFILE" "$STEPS" \
   && grep -q "confirm exit=0" "$STEPS" && grep -q "verify exit=0" "$STEPS" \
   && grep -q "unlisted exit=1" "$STEPS" && grep -q "stopped exit=1" "$STEPS" && grep -q "audit verify exit=0" "$STEPS" && [ "$FIPS_OK" = 1 ] && [ "$SIG_OK" = 1 ] \
-  && echo "PASS: key release under $PROFILE ($WANT; signatures $SIGSUITE)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on}, restore confirmed, refusals refused, audit verified ($(basename "$GUEST"))" \
+  && grep -q "^chip product=" "$STEPS" && grep -q "floor exit=1" "$STEPS" && grep -q "reason=TCB floor: " "$STEPS" && grep -q "denied_on_record=1" "$STEPS" \
+  && echo "PASS: key release under $PROFILE ($WANT; signatures $SIGSUITE)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on}, restore confirmed, refusals refused (the allow-list, the stop, the TCB floor one above the chip), audit verified ($(basename "$GUEST"))" \
   || { echo "FAIL: see $STEPS${VG_FIPS:+ (VG_FIPS=1: the record must show the certified module with enforcement on)} (signature suite $SIGSUITE must be on the record: SIG_OK=$SIG_OK)"; exit 1; }

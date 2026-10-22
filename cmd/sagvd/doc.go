@@ -75,8 +75,9 @@
 //   - tee.seed_path             32-byte Ed25519 seed (simulated only)
 //   - tee.peer.*                the worker's TEE pin: provider, measurement
 //     (48 bytes for SEV-SNP and TDX), amd_cert_chain_path
-//     (vcek_cache_dir, amd_kds_url, min_reported_tcb) for
-//     a SEV-SNP peer, pcs_cache_dir (pcs_url,
+//     (vcek_cache_dir, amd_kds_url, min_reported_tcb, sev_snp — the
+//     TCB floors, the platform's word, the guest's policy, the
+//     mitigation vector, chip_ids; ADR 0033) for a SEV-SNP peer, pcs_cache_dir (pcs_url,
 //     acceptable_tcb_statuses) for a TDX peer, the AMD
 //     fields plus nras_cache_dir (nras_jwks_url, gpu_policy)
 //     for an azure-cgpu peer, or public_key_path for a

@@ -147,9 +147,11 @@ n=0; until curl -sf http://127.0.0.1:8444/readyz >/dev/null || [ $n -ge 30 ]; do
 MEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["measurement_hex"])' "$OUT/destination-identity.json" 2>/dev/null)
 echo "measurement=$MEAS" >> "$OUT/steps.txt"
 
-source_config() { # $1 = allow-listed measurement hex, $2 = output file
+source_config() { # $1 = allow-listed measurement hex, $2 = output file, $3 = an SNP firmware floor for the destination (ADR 0033; empty = the bulletins')
+  local SEVSNP=""
+  [ -z "${3:-}" ] || SEVSNP=", \"sev_snp\": {\"tcb_floor\": {\"snp\": $3}}"
   cat > verifiers.json <<EOF
-{"verifiers": [{"provider": "gcp-sev-snp", "expected_measurement_hex": "$MEAS", "amd_cert_chain_path": "$WORK/amd-milan-cert_chain.pem", "vcek_cache_dir": "$WORK/vcek-cache"}]}
+{"verifiers": [{"provider": "gcp-sev-snp", "expected_measurement_hex": "$MEAS", "amd_cert_chain_path": "$WORK/amd-milan-cert_chain.pem", "vcek_cache_dir": "$WORK/vcek-cache"$SEVSNP}]}
 EOF
   cat > allow.json <<EOF
 {"version": "e2e-policy-v1", "allowed": {"gcp-sev-snp": ["$1"]}}
@@ -173,6 +175,22 @@ source_config "$MEAS" sagvd-xcc.json
 ./sagvd crosscloud-restore -config sagvd-xcc.json -decision-id e2e-decision-1 -destination-kind gcp-sev-snp \
   -destination-endpoint https://127.0.0.1:8443 -key-file "$KID:$WORK/gen-1.key" > "$OUT/release.json" 2> "$OUT/release.err"
 echo "release exit=$?" >> "$OUT/steps.txt"
+# What the verifier read from the chip's report beyond the measurement, from the
+# CROSS_CLOUD_ATTESTATION_VERIFIED record it wrote (ADR 0033): the chip's
+# variant, the TCB it reported, the platform's alias check, the mitigation
+# vector, and the floor it was held to.
+./acpctl audit query --audit xcc-audit.db --kind CROSS_CLOUD_ATTESTATION_VERIFIED --json > "$OUT/attestation-verified.jsonl" 2>/dev/null
+python3 - "$OUT/attestation-verified.jsonl" >> "$OUT/steps.txt" <<'PY'
+import json, sys
+for line in open(sys.argv[1]):
+    e = json.loads(line); s = ((e.get("payload") or {}).get("destination_detail") or {}).get("sev_snp") or {}
+    if not s: continue
+    t, c, f = s["tcb"]["reported"], s["cpuid"], s["floor"]
+    print("chip product=%s variant=%s cpuid=%#x/%#x/%#x snp=%#x microcode=%#x bootloader=%#x firmware=%s alias_check=%s mit_vector=%s floor_snp=%#x floor_microcode=%#x floor_from=%s" % (
+        s["product"], s.get("variant"), c["family"], c["model"], c["stepping"], t["snp"], t["microcode"], t["bootloader"], s["firmware"]["current"],
+        str(s["platform_info"]["alias_check_complete"]).lower(), s["mitigation_vector"]["current_hex"], f["snp"], f["microcode"], s["floor_source"].split(":")[0]))
+    break
+PY
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("release suite=%s" % d.get("recipient_key_suite")); print("release profile=%s" % d.get("crypto_profile")); print("release recipient_key_sha256=%s" % d.get("recipient_key_sha256"))' "$OUT/release.json" >> "$OUT/steps.txt" 2>/dev/null
 
 step "the destination restores by itself; confirm from its chip-signed receipt"
@@ -202,6 +220,19 @@ source_config "$MEAS" sagvd-xcc.json   # this guest allow-listed again; only the
 ./sagvd crosscloud-restore -config sagvd-xcc.json -decision-id e2e-decision-3 -destination-kind gcp-sev-snp \
   -destination-endpoint https://127.0.0.1:8443 -key-file "genome-dek-3:$WORK/throwaway.key" > "$OUT/release-stopped.json" 2> "$OUT/release-stopped.err"
 echo "stopped exit=$?" >> "$OUT/steps.txt"
+
+step "release refused: the operator's TCB floor one above this chip (ADR 0033)"
+# The stop is lifted first (a newer list that stops nothing), so that only the
+# floor refuses; the floor is the chip's own SNP firmware SVN plus one.
+./acpctl stop issue -key operator.seed -signature-suite "$SIGSUITE" -kid operator-1 -serial 3 -reason "e2e: the stop lifted for the floor step" -out stop.json > /dev/null
+SNP=$(sed -n 's/^chip .* snp=\(0x[0-9a-f]*\) .*/\1/p' "$OUT/steps.txt" | head -1)
+FLOOR=$(( SNP + 1 ))
+source_config "$MEAS" sagvd-floor.json "$FLOOR"
+./sagvd crosscloud-restore -config sagvd-floor.json -decision-id e2e-decision-4 -destination-kind gcp-sev-snp \
+  -destination-endpoint https://127.0.0.1:8443 -key-file "genome-dek-4:$WORK/throwaway.key" > "$OUT/release-floor.json" 2> "$OUT/release-floor.err"
+echo "floor exit=$?" >> "$OUT/steps.txt"
+./acpctl audit query --audit xcc-audit.db --kind KEY_RELEASE_DENIED --json > "$OUT/key-release-denied.jsonl" 2>/dev/null
+echo "floor chip_snp=$SNP floor_snp=$(printf '%#x' "$FLOOR") reason=$(grep -ho 'TCB floor: [^"]*' "$OUT/release-floor.err" "$OUT/release-floor.json" 2>/dev/null | head -1 | cut -c1-140) denied_on_record=$(grep -c 'TCB floor' "$OUT/key-release-denied.jsonl")" >> "$OUT/steps.txt"
 
 step "audit log verified with the published audit key"
 ./acpctl audit verify --audit xcc-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-demo --json > "$OUT/audit-verify.json" 2> "$OUT/audit-verify.err"

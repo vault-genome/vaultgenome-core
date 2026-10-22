@@ -108,7 +108,7 @@ DECODED="$("$HERE/decode-results.sh" "$SERIAL" "$HERE/evidence")"; echo "$DECODE
 GUEST="$HERE/evidence/$(printf '%s\n' "$DECODED" | sed -n 's/^decoded \([^:]*\):.*/\1/p' | tail -1)"
 STEPS="$GUEST/steps.txt"
 [ -s "$STEPS" ] || { echo "FAIL: no steps.txt under $GUEST"; exit 1; }
-grep -E 'profile=|fips=|sealer=|exit=|refused|session opened|job status=|gate_level=' "$STEPS" | sed 's|^|  |'
+grep -E 'profile=|fips=|sealer=|exit=|refused|session opened|job status=|gate_level=|^sagvd sev_snp_policy|^peer chip' "$STEPS" | sed 's|^|  |'
 FIPS_OK=1
 if [ "$VG_FIPS" = 1 ]; then
   # The record must say it: the daemons and acpctl on the certified module
@@ -122,5 +122,6 @@ if [ "$VG_FIPS" = 1 ]; then
 fi
 grep -q 'rogue with the sealed files exit=1' "$STEPS" && grep -q 'rogue refused after' "$STEPS" && grep -q 'session opened after' "$STEPS" \
   && grep -q 'job status=succeeded' "$STEPS" && grep -q 'gate_level=EXACT' "$STEPS" && grep -q 'audit verify exit=0' "$STEPS" && [ "$FIPS_OK" = 1 ] \
+  && grep -q '^sagvd sev_snp_policy bulletins_read_on=20' "$STEPS" && grep -q '^peer chip product=' "$STEPS" \
   && echo "PASS: the Return Path on SEV-SNP${PROFILE:+ under $PROFILE}${VG_FIPS:+ on the certified module v1.0.0 with enforcement on} — both rogues refused, the job succeeded with the gate EXACT, the audit log verified ($(basename "$GUEST"))" \
   || { echo "FAIL: see $STEPS${VG_FIPS:+ (VG_FIPS=1: the record must show the certified module with enforcement on)}"; exit 1; }

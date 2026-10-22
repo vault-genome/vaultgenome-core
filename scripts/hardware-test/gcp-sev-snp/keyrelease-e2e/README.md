@@ -10,10 +10,13 @@ The shipping binaries, run end to end on a Google Confidential VM
   0029), quoting over the key-binding challenge that commits to the suite,
   the key and the nonce.
 - `sagvd crosscloud-restore` verifies that Evidence (VCEK fetched from AMD KDS,
-  ECDSA-P384 signature, VCEK → ASK → ARK-Milan chain, TCB, guest policy with no
-  DEBUG, VMPL 0, REPORT_DATA binding the challenge), applies its allow-list and
-  the operator stop, and only then encapsulates the genome key to the attested
-  key.
+  ECDSA-P384 signature, VCEK → ASK → ARK-Milan chain, the TCB against the
+  floors AMD's security bulletins set for the chip's variant together with
+  the platform's alias check and the mitigation vector — the attack record
+  of ADR 0033, read 2026-10-22 — guest policy with no DEBUG and no
+  MIGRATE_MA, VMPL 0, REPORT_DATA binding the challenge), applies its
+  allow-list and the operator stop, and only then encapsulates the genome
+  key to the attested key.
 - `acp-bootstrap` finds the bundle the key opens, restores it all or nothing,
   and has the chip sign a receipt; `sagvd crosscloud-confirm` verifies that
   receipt against the release and the operator's bundle and records the restore
@@ -21,6 +24,26 @@ The shipping binaries, run end to end on a Google Confidential VM
 
 Both processes run inside the same guest here; what the run proves is that the
 destination's Evidence is genuine hardware and that the whole chain accepts it.
+
+## Results — run `20261022T193735Z`: the chip on the record, and the release refused under a floor one above it (ADR 0033, part two)
+
+The kit on the tree of ADR 0033 part one (`be37c6f`), one `n2d-standard-2`
+SEV-SNP guest in us-central1-c (launch measurement `ccdc5cf0…`, the image
+of the runs below), `fips` with `VG_SIGSUITE=ecdsa-p384-sha384` under
+`VG_FIPS=1`: both daemons `commit be37c6f6b98a`, `fips140=only
+module=v1.0.0 enforced=true`. The verifier now holds the destination's
+report to the attack record and the record says what it read; the kit
+then raises the floor one above the chip and is refused.
+
+| | `20261022T193735Z` |
+| - | - |
+| The chip, from the `CROSS_CLOUD_ATTESTATION_VERIFIED` record (`attestation-verified.jsonl`) | Milan (CPUID 0x19/0x01/0x01), report version 5; SNP firmware SVN **0x1d**, microcode **0xde**, boot loader 0x04, TEE 0x00 — the current, reported, committed and launch TCBs all the same; firmware 1.58.1 current and committed; guest policy `0x30000` (SMT allowed, nothing else); PLATFORM_INFO `0x25` (SMT on, ECC, the alias check complete); mitigation vector `0xb` at launch and now; chip id `c3cd3d65…` |
+| The floor it was held to | SNP 0x1b, microcode 0xde — the Milan row of AMD's bulletins as read 2026-10-22 (`floor_from=AMD bulletins read 2026-10-22 for Milan`) |
+| Release, restore, `genome verify` | **ok**: `hpke-p384-v2`, recipient key `3b2c1342…`; the restore confirmed from the chip-signed receipt; `genome verify` ok |
+| Unlisted guest; operator stop | refused; refused — `KEY_RELEASE_DENIED`, stage `policy`, each |
+| **The floor one above the chip** | the stop lifted (list serial 3), the registry entry's `sev_snp.tcb_floor.snp` = 0x1e: **refused** — `integrity[attestation_denied]: kms.CoordinateRestore: destination Evidence does not verify … gcp-sev: TCB floor: reported TCB snp 0x1d below 0x1e (tee.peer.sev_snp.tcb_floor)`; `KEY_RELEASE_DENIED` at the stage `attestation` naming it (`key-release-denied.jsonl`, the third record; `release-floor.err`, `release-floor.json`) |
+| `acpctl audit verify` | **ok — 12 events**, `ecdsa-p384-sha384`, tip `d8c3445c…` |
+| The whole kit | 3 min 40 s, the runner's start to the record decoded |
 
 ## Results — the signature suite on the record: `cnsa` with ECDSA P-384, and `fips` with ECDSA P-384 on the certified module (ADR 0031, part three)
 
@@ -199,6 +222,24 @@ verifier failed closed (`integrity`), so nothing was released — but the run di
 not show the policy gate. That is why the verifier now keeps fetched VCEKs on
 disk (`vcek_cache_dir`) and waits out a 429 a few times before failing; the run
 above used both.
+
+## The chip on the record, and a floor one above it (ADR 0033, part one)
+
+Since ADR 0033 the kit reads back what the verifier held the chip to
+beyond its measurement, and refuses a fourth release. After the first
+release it queries the `CROSS_CLOUD_ATTESTATION_VERIFIED` record
+(`attestation-verified.jsonl`) and prints one `chip` line into
+`steps.txt`: the product and variant by CPUID, the TCB the chip reported
+(`snp`, `microcode`, `bootloader`), the firmware, whether the platform's
+alias check completed (BadRAM), the current mitigation vector, and the
+floor the report was held to with where it came from (the bulletins' row
+for this variant, or the operator's). After the operator stop it lifts
+the stop (a third list that stops nothing) and releases once more under
+a registry entry whose `sev_snp.tcb_floor.snp` is this chip's own SNP
+firmware SVN plus one: the verdict requires `floor exit=1`, the reason
+`TCB floor: …` out of `sagvd`, and the `KEY_RELEASE_DENIED` record that
+names it (`key-release-denied.jsonl`, `denied_on_record=1`). The first run
+under it is `20261022T193735Z`, the first of the results above.
 
 ## What this does not show
 

@@ -118,7 +118,7 @@ func newFakeHardware(t testing.TB, label string) *fakeHardware {
 		hostData:    shared_crypto.SHA256([]byte("vg-fake-hostdata-" + label)),
 		isvSVN:      5,
 		isvPID:      1,
-		reportedTCB: 100,
+		reportedTCB: milanGenoaTCB(0x04, 0x00, 0x1D, 0xDE), // a Milan at the floors of ADR 0033
 	}
 	chipFront := shared_crypto.SHA256Slice([]byte("vg-fake-chipid-" + label))
 	chipBack := shared_crypto.SHA256Slice([]byte("vg-fake-chipid-extra-" + label))
@@ -534,7 +534,7 @@ func installSEVSNPFake(t testing.TB, fh *fakeHardware) {
 		var meas [48]byte
 		copy(meas[:32], att.Measurement[:])
 		return &sevSNPReport{
-			Raw:           raw,
+			Raw:           sevRawMilanAtFloors(), // the chip's bytes a fake has none of
 			Measurement:   meas,
 			HostData:      att.HostData,
 			ChipID:        att.ChipID,

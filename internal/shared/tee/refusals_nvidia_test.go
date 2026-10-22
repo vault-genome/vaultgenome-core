@@ -287,6 +287,8 @@ func TestGPUReportParserRefusesEachMalformedLayout(t *testing.T) {
 func buildHCL(reportData [64]byte, runtime []byte, payloadSize uint32) []byte {
 	report := make([]byte, sevReportLen)
 	binary.LittleEndian.PutUint32(report[0:], 3)
+	binary.LittleEndian.PutUint64(report[sevOffPolicy:], 0x30000)
+	stampSEVReportAtFloors(report, 0x19, 0x11, 0x01) // Genoa, at the floors of ADR 0033
 	copy(report[sevOffReportData:], reportData[:])
 	var hcl []byte
 	hcl = append(hcl, []byte(hclMagic)...)

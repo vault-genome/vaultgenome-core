@@ -156,9 +156,24 @@ family in `sagvd`'s verifier registry with the AMD chain the VCEK must chain to
   "expected_measurement_hex": "<measurement_hex from acp-bootstrap identity>",
   "amd_cert_chain_path": "/etc/acp/crosscloud/amd-milan-cert_chain.pem",
   "vcek_cache_dir": "/var/lib/acp/vcek-cache",
-  "min_reported_tcb": 0
+  "min_reported_tcb": 0,
+  "sev_snp": { "tcb_floor": { "snp": 27, "microcode": 222 }, "chip_ids": [ "<chip_id_hex from the destination's record>" ] }
 } ] }
 ```
+
+`sev_snp` is optional (ADR 0033). Without it the verifier holds the chip's
+report to the floors AMD's bulletins printed when they were read — per chip
+variant, over the current, reported, committed and launch TCB versions,
+component by component (`docs/compliance/sev-snp-tcb-floors.md`; `identity`
+prints `sev_snp_policy` with the day they were read) — requires the platform's
+`ALIAS_CHECK_COMPLETE` and the mitigation vector bit the bulletins name, and
+refuses a guest policy with a migration agent. `tcb_floor` replaces the
+table's floor (a floor below it needs `accept_below_bulletin: true`, which the
+records then say); `chip_ids` names the only chips the destination may be;
+`require_smt_disallowed`, `require_iommu_write_safe` and
+`require_page_swap_disable` add the predicates their names say. A chip the
+table does not name (a stepping AMD has not printed a floor for) is refused
+until `tcb_floor` names one.
 
 `vcek_cache_dir` keeps every VCEK fetched from AMD KDS (`<chip id>-<tcb>.der`),
 checked against the pinned chain on every use like a fresh one. A host that
@@ -177,8 +192,11 @@ and put the same measurement on the allow-list under `"gcp-sev-snp"`. The
 verifier fetches each chip's VCEK from AMD KDS, checks
 the ECDSA-P384 signature and the VCEK → ASK → ARK chain, and refuses a report
 that is not VCEK-signed, comes from a DEBUG-enabled guest, was requested at a
-VMPL other than 0, carries a TCB below `min_reported_tcb`, or does not bind the
-ADR 0009 key-binding challenge.
+VMPL other than 0, carries a TCB below `min_reported_tcb` or, in any of its four
+TCB versions, below the per-chip floor of ADR 0033, lacks the platform's alias
+check or the mitigation vector bit the bulletins name, allows a migration agent,
+comes from a chip `chip_ids` does not name, or does not bind the ADR 0009
+key-binding challenge; what it read is on the record (`sev_snp` in the detail).
 
 With a `genome` section in its config (`bundle_dir`, `restore_dir`; see
 [06](../06_cross_cloud_restore.md)) the SEV-SNP destination also restores a

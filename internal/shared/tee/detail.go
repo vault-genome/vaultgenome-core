@@ -16,6 +16,9 @@ type AttestationDetail struct {
 	Product     string   `json:"product,omitempty"`
 	ChipIDHex   string   `json:"chip_id_hex,omitempty"`
 	ReportedTCB uint64   `json:"reported_tcb,omitempty"`
+	// SEVSNP is what a SEV-SNP verifier read from the report beyond the
+	// measurement, and the floor it held it to (ADR 0033).
+	SEVSNP *SEVSNPReportDetail `json:"sev_snp,omitempty"`
 	// PCRSelection and PCRDigestHex are the vTPM quote's bank and PCRs
 	// and the digest over them the pin was held against.
 	PCRSelection string `json:"pcr_selection,omitempty"`

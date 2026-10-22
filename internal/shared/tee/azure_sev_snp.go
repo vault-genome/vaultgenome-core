@@ -54,6 +54,8 @@ type AzureSEVSNPVerifierConfig struct {
 	AMDRootPEM     []byte
 	VCEKCacheDir   string
 	MinReportedTCB uint64
+	// SEVSNP holds the chip's report to the attack record (ADR 0033).
+	SEVSNP SEVSNPPolicy
 	// AcceptablePCRDigests, when set, pins the quote's PCR digest — the
 	// SHA-256 over the selected PCRs' values, as TPM2_Quote computes it —
 	// to one of these, so the OS measured into the vTPM is policed and not
@@ -144,13 +146,14 @@ type AzureSEVSNPVerdict struct {
 	Product       string
 	ChipID        [64]byte
 	ReportedTCB   uint64
+	SEVSNP        *SEVSNPReportDetail
 	PCRSelections []tpmPCRSelection
 	PCRDigest     []byte
 }
 
 // NewAzureSEVSNPVerifier constructs the verifier.
 func NewAzureSEVSNPVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureSEVSNPVerifierConfig) (*AzureSEVSNPVerifier, error) {
-	snp, err := newAzureSNPChecker(string(ProviderAzureSEVSNP), cfg.AMDRootPEM, cfg.AMDKDSURL, cfg.VCEKCacheDir, cfg.MinReportedTCB, cfg.AcceptablePCRDigests)
+	snp, err := newAzureSNPChecker(string(ProviderAzureSEVSNP), cfg.AMDRootPEM, cfg.AMDKDSURL, cfg.VCEKCacheDir, cfg.MinReportedTCB, cfg.AcceptablePCRDigests, cfg.SEVSNP)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +190,7 @@ func (d *AzureSEVSNPVerdict) Detail() *AttestationDetail {
 		sel = append(sel, s.String())
 	}
 	return &AttestationDetail{Provider: ProviderAzureSEVSNP, Product: d.Product, ChipIDHex: hex.EncodeToString(d.ChipID[:]),
-		ReportedTCB: d.ReportedTCB, PCRSelection: strings.Join(sel, "+"), PCRDigestHex: hex.EncodeToString(d.PCRDigest)}
+		ReportedTCB: d.ReportedTCB, SEVSNP: d.SEVSNP, PCRSelection: strings.Join(sel, "+"), PCRDigestHex: hex.EncodeToString(d.PCRDigest)}
 }
 
 // VerifyEvidence verifies and says what the evidence said.
@@ -199,7 +202,7 @@ func (v *AzureSEVSNPVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureSE
 	if err := json.Unmarshal(ev, &env); err != nil || env.Schema != AzureSEVSNPEvidenceSchema {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "azure-sev-snp: evidence is not a "+AzureSEVSNPEvidenceSchema+" envelope", err)
 	}
-	h, product, quote, err := v.snp.check(env.HCLReport, env.QuoteMessage, env.QuoteSignature, nonce)
+	h, product, quote, snpDetail, err := v.snp.check(env.HCLReport, env.QuoteMessage, env.QuoteSignature, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +210,7 @@ func (v *AzureSEVSNPVerifier) VerifyEvidence(ev Evidence, nonce Nonce) (*AzureSE
 	if err != nil {
 		return nil, err
 	}
-	return &AzureSEVSNPVerdict{Measurement: m, Product: product, ChipID: h.SNP.ChipID, ReportedTCB: h.SNP.ReportedTCB,
+	return &AzureSEVSNPVerdict{Measurement: m, Product: product, ChipID: h.SNP.ChipID, ReportedTCB: h.SNP.ReportedTCB, SEVSNP: snpDetail,
 		PCRSelections: quote.PCRSelections, PCRDigest: quote.PCRDigest}, nil
 }
 

@@ -38,6 +38,8 @@ type authorityIdentity struct {
 	TDX *tdxIdentity `json:"tdx,omitempty"`
 	// VTPM is what an azure-cgpu guest's vTPM measured of its boot.
 	VTPM *vtpmIdentity `json:"vtpm,omitempty"`
+	// SEVSNPPolicy is what a SEV-SNP peer's report is held to (ADR 0033).
+	SEVSNPPolicy *tee.SEVSNPPolicySummary `json:"sev_snp_policy,omitempty"`
 	// The key auditors verify the cross-cloud audit log with, when
 	// keys.audit_signing is configured.
 	AuditKID            string `json:"audit_kid,omitempty"`
@@ -137,6 +139,7 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	}
 	id.TDX = tdxIdentityOf(mat.Producer)
 	id.VTPM = vtpmIdentityOf(mat.Producer)
+	id.SEVSNPPolicy = sevSNPPolicyIdentity(cfg.TEE.Peer.Provider, cfg.TEE.Peer.SEVSNP)
 	if a := cfg.Keys.AuditSigning; a.KeyID != "" && a.SeedPath != "" {
 		auditKey, err := loadSigningKey(cfg.TEE, a, "keys.audit_signing")
 		if err != nil {
@@ -207,4 +210,20 @@ func vtpmIdentityOf(p tee.Producer) *vtpmIdentity {
 		return nil
 	}
 	return &vtpmIdentity{PCRs: pcrs, PCRDigestHex: hex.EncodeToString(digest)}
+}
+
+// sevSNPPolicyIdentity is the policy a SEV-SNP peer's report is held to,
+// for identity; nil for a peer of another family or a policy that does
+// not load (validation reports that).
+func sevSNPPolicyIdentity(peer string, c *tee.SEVSNPPolicyConfig) *tee.SEVSNPPolicySummary {
+	p, err := tee.ParseProvider(peer)
+	if err != nil || (p != tee.ProviderGCPSEVSNP && p != tee.ProviderAzureSEVSNP && p != tee.ProviderAzureCGPU) {
+		return nil
+	}
+	pol, err := c.Policy()
+	if err != nil {
+		return nil
+	}
+	s := pol.Summary()
+	return &s
 }
