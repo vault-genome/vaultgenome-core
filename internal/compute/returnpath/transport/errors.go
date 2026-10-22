@@ -55,6 +55,18 @@ const (
 	// mid-read or mid-write. Category is Operational.
 	CodeDeadlineExceeded = "deadline_exceeded"
 
+	// CodePeerDisconnected is emitted when the peer closes or loses its
+	// connection during the handshake, before any admission check
+	// concluded: nothing was evaluated, and a retry is the peer's.
+	// Category is Operational. Before this code, a worker that hung up
+	// mid-handshake left the raw socket error ("write: broken pipe") on
+	// the authority's record as a trust refusal of category unknown
+	// (2026-10-22).
+	CodePeerDisconnected = "peer_disconnected"
+	// CodeTransportFailure is emitted for an I/O failure on the
+	// connection during the handshake that is neither a close nor a
+	// deadline. Category is Operational.
+	CodeTransportFailure = "transport_failure"
 	// CodeUnsupportedWireVersion is emitted when a peer's HELLO
 	// declares a wire-major/minor pair this binary cannot speak.
 	// Category is Structural: no amount of retry will help, the peer

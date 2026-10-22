@@ -213,6 +213,12 @@ func TestLiveDaemons_DelegatedVerifierRefusesWhatItContraindicatesOrCannotJudge(
 		}
 		switch p.Outcome {
 		case "deny":
+			if p.Code == "peer_disconnected" {
+				// The rogue worker hung up mid-handshake (its dial loop, or its
+				// stop): a disconnect on the record, not a trust decision —
+				// nothing was evaluated, and the record says so by its code.
+				continue
+			}
 			denied++
 			if p.Phase != "handshake" || !strings.Contains(p.Reason, "says SIM: contraindicated") || !strings.Contains(p.Reason, ver.srv.URL) || p.Code != "handshake_failure" {
 				t.Fatalf("the refusal on the record does not carry the Verifier's word: %s", e.Payload)
