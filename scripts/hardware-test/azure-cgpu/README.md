@@ -241,6 +241,79 @@ came back **EXACT** (pinned replay, 16/16, max abs err 0, top-1 16/16) in
 tip `e2be1cfe…5f9e`. The VM and its disk, NIC, IP and NSG were
 deleted after the evidence was read back and checked.
 
+## The certified module with enforcement on the confidential GPU — runs `20261022T133850Z` and `20261022T140119Z` (evidence/20261022T133850Z, evidence/20261022T140119Z, and their `-returnpath` directories)
+
+The 7B kit under `VG_FIPS=1` (ADR 0030): `sagvd`, `acp-compute`, `acpctl`
+and `keygen` built on the Go Cryptographic Module v1.0.0 from a clean
+checkout of the tree `14822ea` (`build.txt`: `GOFIPS140=v1.0.0-c2097c7c
+vcs.modified=false`, all four), every Go process on the guest under
+`GODEBUG=fips140=only` — `acpctl` in the capture; the two daemons,
+`acpctl` and `keygen` in the Return Path (`versions.txt` on both stages:
+`fips140=only module=v1.0.0 enforced=true`; `steps.txt`: `fips=1
+GODEBUG=fips140=only`) — under the `fips` profile, first with its own
+Ed25519 and then with `VG_SIGSUITE=ecdsa-p384-sha384`. The image and the
+onboarding package as on 2026-10-15 (kernel `7.0.0-1016-azure-fde`, driver
+**595.91.07**, `CC State: ON`; torch 2.14.1+cu126 from the hash-pinned
+locks), the measurement `11920f61…91c4` as then; 22 minutes from the
+VM's creation to its deletion, each.
+
+Run `20261022T133850Z` (Ed25519). The capture (480 s): the HCL report, the
+VCEK chain from THIM, two vTPM quotes under our nonces over the `sha256`
+bank, NVIDIA's local verifier and NRAS under the same nonce, Microsoft's
+own tools — every one exit 0 (`steps.txt`); the 7B genome fine-tuned on
+the H100 in bfloat16 (`finetune.json`: loss 6.053 → 2.2e-04 in 18.6 s),
+sealed and verified (`verify.json`: ok, `vault-genome-v4`, 10,149,791
+bytes), gated **EXACT** on the GPU (`gate-gpu.json`, 18.0 s), measured
+16/16 exact (`measure-gpu.json`), replayed bit for bit (`replay-gpu.json`,
+18.8 s). The Return Path: the daemons' key files sealed to the vTPM;
+`sagvd identity` `crypto_profile=fips`, `signature_suite=ed25519`
+accepting `ed25519,ecdsa-p384-sha384`, `fips140 enabled=true
+enforced=true version=v1.0.0` on both daemons; the escrow key
+`9f443e60287bd925` sealed under `hpke-p384-v2` and re-sealed through the
+ceremony; sagvd ready in 1 s; the rogue refused in 3 s; the pinned
+worker's session opened in 1 s under `both`, the manifests for this driver
+and three OCSP answers fetched during the handshake (`rim-cache-ls.txt`;
+`sagvd-metrics.txt`: verify success 1, handshake failures 1 — the rogue);
+the gate job **EXACT** (pinned replay, 16/16, max abs err 0) in 56 s; 17
+audit events verified under `ed25519`, tip `0fd58f6e…9831`. 60 and 42
+checksums.
+
+Run `20261022T140119Z` (`ecdsa-p384-sha384`: the X9 bank on the
+confidential GPU). The capture as above (465 s; 18.8 s, a
+10,149,791-byte bundle, EXACT in 17.4 s, 16/16, the replay exact). The
+Return Path with every key under ECDSA P-384 — `sagvd
+signature_suite=ecdsa-p384-sha384`, `authority_signature_suite`,
+`audit_signature_suite` and `acp-compute signing_signature_suite` all
+`ecdsa-p384-sha384` (`steps.txt`; the P-384 PEMs in the identities); the
+escrow key `b3cb5e3cdfcceb8c` sealed and re-sealed; the rogue refused in
+3 s; the session opened in 1 s under `both` with the manifests and three
+OCSP answers fetched; the gate job **EXACT** (16/16, max abs err 0) in
+56 s, the worker's frames signed under its ECDSA key and verified under
+the key's suite; `acpctl audit verify` exit 0 reporting `signature_suite`
+`ecdsa-p384-sha384` over 17 events, tip `7cd08bd9…65e6`. 60 and 42
+checksums.
+
+What the two runs settle (ADR 0030, 3e): neither SHA-1 use the ADR had
+named on this path is invoked. The producer quotes the `sha256` bank
+(`DefaultTPMQuotePCRs`; `quote1.txt`, `vtpm-pcrs.txt`), and `sha1` in
+the quote parser is the name it gives a selection with algorithm id
+0x0004, not a hash it computes; the verifier's OCSP requests carry
+SHA-256 certificate ids (`buildOCSPRequest`), the parser reads an
+answer's hash id into a name and computes no hash with it, each answer's
+signature is checked by `crypto/x509`, which refuses SHA-1 in every
+build, and the three answers were fetched and verified by a process in
+which `crypto/sha1` refuses outright. The verdict (`run.sh`) refuses a
+run whose record lacks the module's lines on either stage, the profile or
+the suite on any party. The VM and its disk, NIC, IP and NSG were deleted
+after each record was read back and checked.
+
+Two runs of the same day are not kept. The first FIPS run's daemons were
+built after the capture's evidence had landed in the tree, and their
+stamps said `vcs.modified=true`: the kit now builds all four binaries
+first, from a clean checkout of HEAD, before anything is written to the
+tree. The ECDSA run started on the kit before that change was stopped
+before its verdict once the cause was found.
+
 ## What the first attempt taught the kit
 
 - After Microsoft's kernel step, wait for the guest's *new* boot
@@ -270,18 +343,28 @@ deleted after the evidence was read back and checked.
 ## Reproduce
 
 ```bash
-scripts/hardware-test/azure-cgpu/run.sh vg-cgpu-weu westeurope      # ~40 min of NCC40ads_H100_v5 (about $9 an hour)
+scripts/hardware-test/azure-cgpu/run.sh vg-cgpu-weu westeurope                                          # ~25 min of NCC40ads_H100_v5 (about $9 an hour): the capture, then the Return Path
+VG_FIPS=1 scripts/hardware-test/azure-cgpu/run.sh vg-cgpu-weu westeurope                                # the certified module with enforcement on, profile fips, signatures ed25519 (ADR 0030)
+VG_FIPS=1 VG_SIGSUITE=ecdsa-p384-sha384 scripts/hardware-test/azure-cgpu/run.sh vg-cgpu-weu westeurope  # the X9 bank on the confidential GPU (ADR 0031)
 go test -count=1 -run 'AzureCGPU|HCL|TPMQuote|NRAS' ./internal/shared/tee/
 ```
 
-`run.sh` runs the capture and then the Return Path on the same guest:
-it builds `sagvd`, `acp-compute` and `keygen` for linux/amd64, uploads
-them with `returnpath-cgpu.sh` and `gpu-token.py`, runs `sudo env
+`run.sh` builds `sagvd`, `acp-compute`, `acpctl` and `keygen` for
+linux/amd64 first, from a clean checkout of HEAD (a worktree, so the
+stamps say `vcs.modified=false` whatever the tree holds untracked), then
+runs the capture and the Return Path on the same guest: it uploads the
+daemons with `returnpath-cgpu.sh` and `gpu-token.py`, runs `sudo env
 VG_STAMP=<stamp> VG_CAPTURE_STAMP=<stamp> bash returnpath-cgpu.sh`, and
 reads `out/<stamp>-returnpath.tgz` back into
-`evidence/<stamp>-returnpath/`. `VG_KEEP_ON_FAILURE=1` leaves the VM
-running when a stage fails, for a look and a manual fetch; delete it
-yourself afterwards.
+`evidence/<stamp>-returnpath/`. `VG_FIPS=1` builds the four binaries on
+the certified module (`GOFIPS140=v1.0.0`) and runs every Go process on
+the guest under `GODEBUG=fips140=only`; `VG_PROFILE` is the profile of
+ADR 0029 (`general` by default, `fips` under `VG_FIPS=1`, where `general`
+is refused — its first suite is X25519); `VG_SIGSUITE` is the signature
+suite of ADR 0031 within what the profile accepts (the profile's own when
+unset); the verdict requires the record to show all three on every party.
+`VG_KEEP_ON_FAILURE=1` leaves the VM running when a stage fails, for a
+look and a manual fetch; delete it yourself afterwards.
 
 Since ADR 0021 `gpu-token.py` prints one JSON object — NRAS's response
 under `nras` and, under `gpu_evidence`, the attestation report and

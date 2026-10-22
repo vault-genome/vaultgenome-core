@@ -1,0 +1,1 @@
+acpctl 0.0.0-dev (commit 14822ea9c148) fips140=only module=v1.0.0 enforced=true

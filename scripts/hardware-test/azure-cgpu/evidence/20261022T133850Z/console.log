@@ -1,0 +1,96 @@
+== 13:49:27 the guest
+
+==============NVSMI CONF-COMPUTE LOG==============
+
+    CC State                   : ON
+    Multi-GPU Mode             : None
+    CPU CC Capabilities        : AMD SEV-SNP(vTOM Mode)
+    GPU CC Capabilities        : CC Capable
+    CC GPUs Ready State        : Ready
+
+CPU CC capabilities: AMD SEV-SNP(vTOM Mode)
+
+Confidential Compute GPUs Ready state: ready
+
+== 13:49:27 vTPM: the HCL report (NV index 0x01400001) = SEV-SNP report + runtime data
+{
+ "hcl_bytes": 2900,
+ "hcl_header_hex": "48434c4102000000a50900000200000000000000000000000000000000000000",
+ "runtime_header": {
+  "data_size": 1253,
+  "version": 1,
+  "report_type": 2,
+  "hash_type": 1,
+  "payload_size": 1233
+ },
+ "report_data_is_sha256_of_runtime_data": true,
+ "report_data_hex": "26b2eda5519e928900073c99cb02c67d324ecc7e898ef066c5d8f83ded400b730000000000000000000000000000000000000000000000000000000000000000",
+ "snp": {
+  "version": 5,
+  "policy_hex": "1f00030000000000",
+  "measurement_hex": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+  "chip_id_hex": "cc7db86566c1c1b1167b567a065168e05fef89c3f1b8e97b31be47e884994e9b6884fd80612377580021211ad581777ce1972768c3f2f6a3b50cdf0861eb9836",
+  "reported_tcb_hex": "0a00000000001b58",
+  "vmpl": 0,
+  "signature_algo": 1
+ },
+ "runtime_keys": [
+  {
+   "kid": "HCLAkPub",
+   "kty": "RSA",
+   "ops": [
+    "sign"
+   ]
+  },
+  {
+   "kid": "HCLEkPub",
+   "kty": "RSA",
+   "ops": [
+    "encrypt"
+   ]
+  }
+ ],
+ "vm_configuration": {
+  "console-enabled": true,
+  "root-cert-thumbprint": "6nZZnYaJc4KqUZ_yvA-mucFdYNouvlPnITnNMXsHl-0",
+  "secure-boot": true,
+  "tpm-enabled": true,
+  "tpm-persisted": true,
+  "hardware-sealing-policy": "hash",
+  "vmUniqueId": "319C6A47-B876-498A-A3A6-95351937E598"
+ }
+}
+== 13:49:32 this chip's VCEK and chain from Azure IMDS (THIM)
+THIM: tcbm 581B00000000000A cacheTTL None vcek bytes 1879 chain bytes 4602
+== 13:49:32 vTPM: the HCL attestation key and two quotes with our nonces
+persistent handles: ['0x81000001', '0x81000003', '0x81000004'] | HCLAkPub matches 0x81000003
+Verified OK
+== 13:49:32 the H100: NVIDIA's local verifier under our nonce (GPU nonce = nonce 1)
+Use the provided nonce for attestation: 4e9e182fc1643c2ded9dabd90b29db5ea00f413d9dba0a8a2396389980f82e9d
+	Driver version fetched : 595.91.07
+	VBIOS version fetched : 96.00.9f.00.04
+		The nonce in the SPDM GET MEASUREMENT request message is matching with the generated nonce.
+		Driver version fetched from the attestation report : 595.91.07
+		VBIOS version fetched from the attestation report : 96.00.9f.00.04
+		Authenticating Driver RIM
+			Driver RIM verification successful
+		Authenticating VBIOS RIM.
+			Fetching the VBIOS RIM from the RIM service.
+			VBIOS RIM verification successful
+	Comparing measurements (runtime vs golden)
+			The runtime measurements are matching with the golden measurements.                            
+GPU Attestation is Successful.
+Number of GPUs available : 1
+Fetching GPU 0 information from GPU driver.
+All GPU Evidences fetched successfully
+NRAS https://nras.attestation.nvidia.com/v3/attest/gpu: HTTP 200 in 0.24s
+overall: {'iss': 'https://nras.attestation.nvidia.com', 'x-nvidia-ver': '2.0', 'x-nvidia-overall-att-result': True, 'eat_nonce': '4e9e182fc1643c2ded9dabd90b29db5ea00f413d9dba0a8a2396389980f82e9d', 'exp': 1792680573}
+GPU-0 {'measres': 'success', 'x-nvidia-gpu-attestation-report-nonce-match': True, 'x-nvidia-gpu-driver-version': '595.91.07', 'x-nvidia-gpu-vbios-version': '96.00.9F.00.04', 'hwmodel': 'GH100', 'secboot': True, 'dbgstat': 'disabled', 'x-nvidia-gpu-arch-check': True}
+== 13:49:34 Microsoft's own tools, for the record: cpu-attestation (MAA), gpu-attestation
+  "x-ms-ver": "1.0"
+}
+Attested Guest Successfully
+== 13:49:35 the 7B genome path on the confidential GPU
+2.14.1+cu126 12.6 NVIDIA H100 NVL 99456909312
+Fetching 14 files:   0%|          | 0/14 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 14 files:   7%|▋         | 1/14 [00:00<00:01,  7.78it/s]Fetching 14 files:  29%|██▊       | 4/14 [00:00<00:00, 17.60it/s]Fetching 14 files:  57%|█████▋    | 8/14 [00:00<00:00, 24.01it/s]Fetching 14 files:  71%|███████▏  | 10/14 [00:20<00:00, 24.01it/s]Fetching 14 files:  79%|███████▊  | 11/14 [01:09<00:27,  9.08s/it]Fetching 14 files:  86%|████████▌ | 12/14 [01:43<00:26, 13.06s/it]Fetching 14 files: 100%|██████████| 14/14 [01:50<00:00, 10.00s/it]Fetching 14 files: 100%|██████████| 14/14 [01:50<00:00,  7.86s/it]

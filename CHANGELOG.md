@@ -62,6 +62,21 @@ given release can still open.
   on SEV-SNP under `cnsa` and under `fips` with ECDSA P-384 on the
   certified module (C43). Finding F2b of the banking map is closed.
 
+- `VG_FIPS=1`, `VG_PROFILE` and `VG_SIGSUITE` in the `azure-cgpu` kit
+  (ADR 0030, part four: the confidential-GPU measurement). The four
+  binaries are built on the certified Go Cryptographic Module v1.0.0
+  from a clean checkout of HEAD before anything is written to the tree —
+  the stamps say `vcs.modified=false` whatever the tree holds untracked —
+  and every Go process on the confidential GPU VM runs under
+  `GODEBUG=fips140=only` in both stages; the record says so (`build.txt`,
+  `versions.txt`, `steps.txt`, `run.txt`) and the verdict requires it,
+  with the profile and the suite on every party. Two runs on an NCC
+  H100 v5 under `fips`, with Ed25519 and with ECDSA P-384 (C44): neither
+  SHA-1 use ADR 0030 had named on this path is invoked — the quote is
+  over the `sha256` bank, the OCSP exchange is SHA-256 end to end — and
+  the path is under the module claim on the same terms as SEV-SNP;
+  `banking.md` §6 and §9 and `controls.md` VG-038 say so.
+
 - ADR 0031 (proposed): the signature suite — `ed25519`, `ecdsa-p384-sha384`
   and `ml-dsa-87` named, the profile naming what a daemon signs with and
   accepts (`crypto.signature_suite` within it), `alg` beside every
