@@ -256,6 +256,13 @@ formal-check:
 formal:
 	python3 formal/check_results.py --proverif $(PROVERIF) --out formal/results/proverif-$$(date -u +%Y%m%dT%H%M%SZ).txt
 
+# The differential test (ADR 0034): the product's SEV-SNP verifier against Google's
+# go-sev-guest (tools/oracle, a module of its own) and VirTEE's snpguest (VG_SNPGUEST,
+# Linux x86-64) on every genuine report in test/corpus/sev-snp. Not part of vault-gate.
+.PHONY: differential
+differential:
+	$(GO) test -tags differential ./internal/shared/tee/ -run TestDifferential -count=1 -v
+
 .PHONY: cli-reference
 cli-reference:
 	bash scripts/gen_cli_reference.sh

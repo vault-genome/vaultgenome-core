@@ -82,6 +82,24 @@ func realParseSEVSNPReport(raw []byte) (*sevSNPReport, error) {
 	r.VMPL = binary.LittleEndian.Uint32(raw[sevOffVMPL : sevOffVMPL+4])
 	r.SignatureAlgo = binary.LittleEndian.Uint32(raw[sevOffSigAlgo : sevOffSigAlgo+4])
 	r.SigningKey = uint8(binary.LittleEndian.Uint32(raw[sevOffFlags:sevOffFlags+4])>>2) & 0x7
+	// The signature block is 512 bytes of which the firmware writes 48 for
+	// r and 48 for s; the 24 bytes above each and the 368 bytes after s are
+	// reserved and zero. They are not under the signature, so a verifier
+	// that ignores them accepts a report that is not what the firmware
+	// emitted. Refused here, as Google's go-sev-guest refuses it — the
+	// differential test of ADR 0034 found the product accepting those 416
+	// offsets on its first run.
+	for _, span := range [][2]int{
+		{sevOffSignature + sevSigComponent, sevOffSignature + sevSigSlot},
+		{sevOffSignature + sevSigSlot + sevSigComponent, sevOffSignature + 2*sevSigSlot},
+		{sevOffSignature + 2*sevSigSlot, sevReportLen},
+	} {
+		for i := span[0]; i < span[1]; i++ {
+			if raw[i] != 0 {
+				return nil, fmt.Errorf("sev report: reserved byte %#x of the signature block is not zero", i)
+			}
+		}
+	}
 	return r, nil
 }
 

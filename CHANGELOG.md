@@ -13,6 +13,18 @@ given release can still open.
 
 ### Added
 
+- The verifier held to readings nobody here wrote (ADR 0034, part one).
+  Every genuine SEV-SNP report on record — 41 on 2026-10-22, 25 chips,
+  Milan and Genoa — is a corpus (`test/corpus/sev-snp`, `build.py`, the
+  VCEKs from AMD KDS by chip id and TCB), and one test (`make
+  differential`) runs the product's reading and Google's go-sev-guest
+  (`tools/oracle`, a module of its own) on each: both must verify,
+  nineteen fields must be equal, and of the 1184 single-byte mutants of
+  each report neither may verify one; VirTEE's `snpguest` is the third
+  reading on Linux. The first run found the product verifying 416 mutants
+  per report that Google's library refused — the reserved bytes of the
+  signature block, not under the signature — and the parser now refuses
+  any non-zero byte there (`TestSEVSNPParse_RefusesANonZeroSignatureReserve`).
 - The attack record in the verifier's policy (ADR 0033, part one). A
   SEV-SNP report is read whole and put on the record — the chip's family,
   model and stepping, the guest policy and PLATFORM_INFO bit by bit, the
