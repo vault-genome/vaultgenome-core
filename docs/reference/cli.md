@@ -19,7 +19,7 @@ Usage:
   sagvd crosscloud-confirm -config PATH -decision-id ID -destination-endpoint URL \
         {-bundle PATH | -key-id KID} [-require-gate EQUIVALENT|EXACT] [-wait DURATION]
   sagvd failover -config PATH -policy POLICY.json -outbox DIR [-poll 2s] [-confirm-wait 15m] [-report PATH]
-  sagvd escrow-provision -config PATH -out SEALED -pub PUBLIC.pem [-recovery-to RECOVERY.pem -recovery-out ENVELOPE] [-suite ID] [-stdin]
+  sagvd escrow-provision -config PATH -out SEALED -pub PUBLIC.pem [-recovery-to RECOVERY.pem -recovery-out ENVELOPE] [-stdin]
   sagvd seal-keys -config PATH
   sagvd version
   sagvd help
@@ -94,9 +94,9 @@ Commands:
   stop keygen   Create the operator key that signs stop lists
   stop issue    Sign a list that stops all key releases or revokes destinations
   stop verify   Check a stop list against the operator public key
-  escrow keygen Create a plaintext escrow key pair (simulated TEE only; hardware: sagvd escrow-provision); --suite names its KEM suite (ADR 0029)
-  escrow recovery-keygen  Create the operator's recovery key the sealed escrow key is wrapped to; --suite names its KEM suite
-  escrow recover          Open a recovery envelope; pipe the key (a PEM naming its suite) into sagvd escrow-provision -stdin
+  escrow keygen Create a plaintext escrow key pair (simulated TEE only; hardware: sagvd escrow-provision)
+  escrow recovery-keygen  Create the operator's recovery key the sealed escrow key is wrapped to
+  escrow recover          Open a recovery envelope; pipe the key into sagvd escrow-provision -stdin
   sentinel keygen  Create the sentinel's signing key
   sentinel identity  Print the primary TEE's identity for the operator to pin
   sentinel seal-key  Seal the sentinel's seed file in place to the primary's TEE

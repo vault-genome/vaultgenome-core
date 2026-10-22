@@ -5,8 +5,6 @@ package main
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -73,8 +71,9 @@ func printSentinelUsage(w io.Writer) {
 func sentinelKeygenCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("sentinel keygen", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	seedPath := fs.String("out", "", "Where to write the 32-byte seed (created 0600, never overwritten)")
+	seedPath := fs.String("out", "", "Where to write the key file (created 0600, never overwritten): the 32-byte seed of an ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384 key")
 	pubPath := fs.String("pub", "", "Where to write the PEM public key the operator pins in the failover policy")
+	suiteFlag := addSuiteFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -82,35 +81,31 @@ func sentinelKeygenCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "acpctl sentinel keygen: --out and --pub are required")
 		return 2
 	}
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err == nil {
-		err = writeKeyFile(*seedPath, priv.Seed(), false)
+	suite, err := parseSuiteFlag(*suiteFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl sentinel keygen: %v\n", err)
+		return 2
 	}
-	var pemBytes []byte
-	if err == nil {
-		pemBytes, err = crypto.PublicKeyPEM(crypto.PublicKey(pub))
-	}
-	if err == nil {
-		err = os.WriteFile(*pubPath, pemBytes, 0o644)
-	}
+	key, err := generateSigningKeyFiles(suite, *seedPath, *pubPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl sentinel keygen: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "sentinel key %s: seed %s (stays on the primary), public key %s (pin it in the failover policy)\n", sentinel.KeyID(pub), *seedPath, *pubPath)
+	defer key.Zeroize()
+	fmt.Fprintf(stdout, "sentinel key %s (%s): key file %s (stays on the primary), public key %s (pin it in the failover policy)\n", sentinel.KeyID(key.Public()), suite, *seedPath, *pubPath)
 	return 0
 }
 
 // readSeed reads an Ed25519 seed file, refusing one other users can read.
-func readSeed(path string) (ed25519.PrivateKey, error) {
+func readSeedBytes(path string) ([]byte, error) {
 	seed, err := readPrivateFile(path)
 	if err != nil {
 		return nil, err
 	}
-	if len(seed) != ed25519.SeedSize {
-		return nil, fmt.Errorf("%s holds %d bytes, not a %d-byte seed", path, len(seed), ed25519.SeedSize)
+	if len(seed) != crypto.Ed25519SeedSize {
+		return nil, fmt.Errorf("%s holds %d bytes, not a %d-byte seed", path, len(seed), crypto.Ed25519SeedSize)
 	}
-	return ed25519.NewKeyFromSeed(seed), nil
+	return seed, nil
 }
 
 // teeFlags are the flags that name the primary's TEE, shared by
@@ -164,29 +159,24 @@ func (f teeFlags) producer() (tee.Provider, tee.Producer, error) {
 }
 
 // readSeedBytes reads a 32-byte seed file, refusing one other users can read.
-func readSeedBytes(path string) ([]byte, error) {
-	key, err := readSeed(path)
-	if err != nil {
-		return nil, err
-	}
-	return key.Seed(), nil
-}
 
 // sentinelIdentity is what `acpctl sentinel identity` prints: what the
 // operator pins with --primary-kind and --primary-measurement.
 type sentinelIdentity struct {
-	TEE                  string `json:"tee"`
-	MeasurementHex       string `json:"measurement_hex"`
-	AttestorPublicKeyPEM string `json:"attestor_public_key_pem,omitempty"`
-	SentinelKeyID        string `json:"sentinel,omitempty"`
-	SentinelPublicKeyPEM string `json:"sentinel_public_key_pem,omitempty"`
+	TEE                    string `json:"tee"`
+	MeasurementHex         string `json:"measurement_hex"`
+	AttestorPublicKeyPEM   string `json:"attestor_public_key_pem,omitempty"`
+	SentinelKeyID          string `json:"sentinel,omitempty"`
+	SentinelPublicKeyPEM   string `json:"sentinel_public_key_pem,omitempty"`
+	SentinelSignatureSuite string `json:"sentinel_signature_suite,omitempty"`
 }
 
 func sentinelIdentityCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("sentinel identity", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	tf := addTEEFlags(fs)
-	keyPath := fs.String("key", "", "Also print the sentinel key's ID and public half (seed file, mode 0600, bare or sealed by seal-key)")
+	keyPath := fs.String("key", "", "Also print the sentinel key's ID and public half (key file, mode 0600, bare or sealed by seal-key)")
+	suiteFlag := addSuiteFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -209,18 +199,24 @@ func sentinelIdentityCmd(args []string, stdout, stderr io.Writer) int {
 		id.AttestorPublicKeyPEM = string(pemBytes)
 	}
 	if *keyPath != "" {
-		key, err := readSentinelSeed(*keyPath, tf, provider, producer)
+		suite, err := parseSuiteFlag(*suiteFlag)
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl sentinel identity: %v\n", err)
+			return 2
+		}
+		key, err := readSentinelSeed(*keyPath, suite, tf, provider, producer)
 		if err != nil {
 			fmt.Fprintf(stderr, "acpctl sentinel identity: --key: %v\n", err)
 			return 2
 		}
-		pub := key.Public().(ed25519.PublicKey)
-		pemBytes, err := crypto.PublicKeyPEM(crypto.PublicKey(pub))
+		pub := key.Public()
+		key.Zeroize()
+		pemBytes, err := pub.PEM()
 		if err != nil {
 			fmt.Fprintf(stderr, "acpctl sentinel identity: %v\n", err)
 			return 1
 		}
-		id.SentinelKeyID, id.SentinelPublicKeyPEM = sentinel.KeyID(pub), string(pemBytes)
+		id.SentinelKeyID, id.SentinelPublicKeyPEM, id.SentinelSignatureSuite = sentinel.KeyID(pub), string(pemBytes), string(pub.Suite)
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
@@ -246,7 +242,8 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 		ollamaHome   = fs.String("ollama-home", defaultOllamaHome(), "Path to OLLAMA root")
 		outbox       = fs.String("outbox", "", "Directory the sentinel writes genomes, escrow envelopes and records to (required)")
 		escrowTo     = fs.String("escrow-to", "", "The release authority's escrow public key (PEM): every genome key is sealed to it (required)")
-		keyPath      = fs.String("key", "", "The sentinel's seed file, mode 0600 (acpctl sentinel keygen; sealed by seal-key opens with --tee) (required)")
+		keyPath      = fs.String("key", "", "The sentinel's key file, mode 0600 (acpctl sentinel keygen; sealed by seal-key opens with --tee) (required)")
+		suiteFlag    = addSuiteFlag(fs)
 		parentPath   = fs.String("parent", "", "For an empty outbox: the genome this state was restored from; the chain continues it")
 		interval     = fs.Duration("interval", 5*time.Second, "Time between ticks: tripwires, seal, heartbeat")
 		settle       = fs.Duration("settle", 3*time.Second, "How long the state must stay unchanged before it is sealed")
@@ -284,11 +281,17 @@ func sentinelWatchCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl sentinel watch: %v\n", err)
 		return 2
 	}
-	key, err := readSentinelSeed(*keyPath, tf, attestorKind, attestor)
+	suite, err := parseSuiteFlag(*suiteFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl sentinel watch: %v\n", err)
+		return 2
+	}
+	key, err := readSentinelSeed(*keyPath, suite, tf, attestorKind, attestor)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl sentinel watch: --key: %v\n", err)
 		return 2
 	}
+	defer key.Zeroize()
 	raw, err := os.ReadFile(*escrowTo)
 	var escrowPub escrow.PublicKey
 	if err == nil {

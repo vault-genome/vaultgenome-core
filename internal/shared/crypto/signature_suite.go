@@ -16,6 +16,7 @@ import (
 	"encoding/pem"
 	"io"
 	"math/big"
+	"strconv"
 
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
@@ -522,3 +523,161 @@ func ParsePublicKeyPEM(data []byte) (SignatureSuite, []byte, error) {
 	}
 	return ParsePublicKeyPKIX(block.Bytes)
 }
+
+// SuitePublicKey is a public key named with its suite: the raw encoding
+// of the suite (PublicKeySize bytes) and the suite id. It is what a
+// verifier pins — an operator key, a sentinel key, a peer authority —
+// and what a PEM file names by its algorithm.
+type SuitePublicKey struct {
+	Suite SignatureSuite
+	Bytes []byte
+}
+
+// Public returns the key's public half, named with its suite.
+func (k *SigningKey) Public() SuitePublicKey {
+	if k == nil {
+		return SuitePublicKey{}
+	}
+	return SuitePublicKey{Suite: k.suite, Bytes: k.PublicKeyBytes()}
+}
+
+// IsZero reports whether the key is unset.
+func (k SuitePublicKey) IsZero() bool { return k.Suite == "" && len(k.Bytes) == 0 }
+
+// Verify checks sig over msg under the key.
+func (k SuitePublicKey) Verify(msg, sig []byte) error {
+	if k.Suite == "" {
+		return shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "crypto: public key names no signature suite", nil)
+	}
+	return VerifySuite(k.Suite, k.Bytes, msg, sig)
+}
+
+// VerifyRecord checks the signature a record carries under the key: the
+// record's alg (absent means ed25519) must be the key's suite, and sig
+// must verify over msg under it.
+func (k SuitePublicKey) VerifyRecord(alg SignatureSuite, msg, sig []byte) error {
+	return VerifyRecord(k.Suite, k.Bytes, alg, msg, sig)
+}
+
+// PEM encodes the key as a PEM "PUBLIC KEY" block.
+func (k SuitePublicKey) PEM() ([]byte, error) { return PublicKeyPEMSuite(k.Suite, k.Bytes) }
+
+// VerifyRecord checks the signature a record carries under the key
+// (suite, pub): the alg the record names — absent means ed25519 — must be
+// the key's suite, so a record cannot choose an algorithm the key was not
+// made for (an Integrity-classified refusal, as a bad signature is), and
+// sig must verify over msg under the suite.
+func VerifyRecord(suite SignatureSuite, pub []byte, alg SignatureSuite, msg, sig []byte) error {
+	want, err := RecordSuite(alg)
+	if err != nil {
+		return err
+	}
+	if suite == "" {
+		return shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "crypto: verifying key names no signature suite", nil)
+	}
+	if want != suite {
+		return shared_errors.Integrity(
+			shared_errors.CodeSignatureInvalid,
+			"crypto: record alg "+quote(string(want))+" does not match the key's suite "+quote(string(suite)),
+			nil,
+		)
+	}
+	return VerifySuite(suite, pub, msg, sig)
+}
+
+// SuiteOrDefault is the suite a configuration names: the empty string is
+// ed25519 — what every configuration before ADR 0031 meant — and any
+// other value must be a registered id.
+func SuiteOrDefault(s string) (SignatureSuite, error) {
+	if s == "" {
+		return SuiteEd25519, nil
+	}
+	return ParseSignatureSuite(s)
+}
+
+// KeyFileSize is the exact length of a key file of s, or 0 when the file
+// has no fixed length (the PKCS#8 PEM of an ECDSA key).
+func (s SignatureSuite) KeyFileSize() int { return s.SeedSize() }
+
+// KeyFileBytes is the file form of the private key under its suite: the
+// 32-byte seed of an Ed25519 or ML-DSA-87 key, the PKCS#8 PEM of an ECDSA
+// P-384 key. A daemon reads the file back with LoadSigningKey under the
+// suite its configuration names, and seals it in place as ADR 0023 says.
+func (k *SigningKey) KeyFileBytes() ([]byte, error) {
+	if k == nil {
+		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "crypto: nil signing key", nil)
+	}
+	switch k.suite {
+	case SuiteEd25519, SuiteMLDSA87:
+		seed := k.Seed()
+		if len(seed) != k.suite.SeedSize() {
+			return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "crypto: signing key holds no seed", nil)
+		}
+		return seed, nil
+	case SuiteECDSAP384SHA384:
+		der, err := k.PKCS8()
+		if err != nil {
+			return nil, err
+		}
+		return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
+	}
+	return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: unknown signature suite "+quote(string(k.suite)), nil)
+}
+
+// LoadSigningKey reads a key file under the suite the configuration
+// names — never guessed from the bytes: a 32-byte file is an Ed25519 seed
+// or an ML-DSA-87 seed by the suite alone. For ECDSA P-384 the file is
+// PKCS#8, PEM or DER, and its curve must be P-384.
+func LoadSigningKey(suite SignatureSuite, raw []byte) (*SigningKey, error) {
+	switch suite {
+	case SuiteEd25519, SuiteMLDSA87:
+		if len(raw) != suite.SeedSize() {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+				"crypto: "+string(suite)+" key file must be the "+itoa(suite.SeedSize())+"-byte seed, got "+itoa(len(raw))+" bytes", nil)
+		}
+		return SigningKeyFromSeed(suite, raw)
+	case SuiteECDSAP384SHA384:
+		der := raw
+		if block, _ := pem.Decode(raw); block != nil {
+			if block.Type != "PRIVATE KEY" {
+				return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: ecdsa-p384-sha384 key file must be a PKCS#8 \"PRIVATE KEY\" block, got "+quote(block.Type), nil)
+			}
+			der = block.Bytes
+		}
+		k, err := ParseSigningKeyPKCS8(der)
+		if err != nil {
+			return nil, err
+		}
+		if k.Suite() != suite {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: key file holds a "+string(k.Suite())+" key, the configuration names "+string(suite), nil)
+		}
+		return k, nil
+	}
+	return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: unknown signature suite "+quote(string(suite)), nil)
+}
+
+// ParsePublicKeyFile reads a public key file as the daemons and acpctl
+// accept it: a PEM "PUBLIC KEY" block, whose algorithm names the suite,
+// or the raw 32 bytes of an Ed25519 key — the one form a raw file can
+// name without guessing. PKIX names the curve, not the use: an ECDH
+// P-384 key (an escrow key) has the form of an ECDSA P-384 key and is
+// accepted as one; pinned by mistake, it verifies nothing.
+func ParsePublicKeyFile(data []byte) (SuitePublicKey, error) {
+	if block, _ := pem.Decode(data); block != nil {
+		if block.Type != "PUBLIC KEY" {
+			return SuitePublicKey{}, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: expected a PEM \"PUBLIC KEY\" block, got "+quote(block.Type), nil)
+		}
+		suite, pub, err := ParsePublicKeyPKIX(block.Bytes)
+		if err != nil {
+			return SuitePublicKey{}, err
+		}
+		return SuitePublicKey{Suite: suite, Bytes: pub}, nil
+	}
+	if len(data) == ed25519.PublicKeySize {
+		return SuitePublicKey{Suite: SuiteEd25519, Bytes: append([]byte(nil), data...)}, nil
+	}
+	return SuitePublicKey{}, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+		"crypto: public key file must be PEM (Ed25519, ECDSA P-384 or ML-DSA-87) or exactly 32 raw bytes (Ed25519), got "+itoa(len(data))+" bytes", nil)
+}
+
+func itoa(n int) string { return strconv.Itoa(n) }

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -189,23 +190,24 @@ func TestReadSentinelSeed_RefusesWhatIsNotASeed(t *testing.T) {
 	otherName := sealAs("other.sealed", "other.seed", bytes.Repeat([]byte{7}, 32))
 	good := sealAs("good.sealed", sentinelSeedName, bytes.Repeat([]byte{7}, 32))
 
-	key, err := readSentinelSeed(good, tf, tee.ProviderSimulated, sim)
+	key, err := readSentinelSeed(good, crypto.SuiteEd25519, tf, tee.ProviderSimulated, sim)
 	require.NoError(t, err)
 	require.Equal(t, bytes.Repeat([]byte{7}, 32), key.Seed())
 
-	_, err = readSentinelSeed(shortSealed, tf, tee.ProviderSimulated, sim)
-	require.ErrorContains(t, err, shortSealed+": the sealed seed is 5 bytes, want 32")
+	_, err = readSentinelSeed(shortSealed, crypto.SuiteEd25519, tf, tee.ProviderSimulated, sim)
+	require.ErrorContains(t, err, shortSealed+": the sealed key:")
+	require.ErrorContains(t, err, "got 5 bytes")
 
-	_, err = readSentinelSeed(otherName, tf, tee.ProviderSimulated, sim)
+	_, err = readSentinelSeed(otherName, crypto.SuiteEd25519, tf, tee.ProviderSimulated, sim)
 	require.ErrorContains(t, err, `the file is "other.seed", read as "sentinel.seed"`)
 
-	_, err = readSentinelSeed(good, tf, "", nil)
+	_, err = readSentinelSeed(good, crypto.SuiteEd25519, tf, "", nil)
 	require.ErrorContains(t, err, "pass --tee to open it")
 
 	// Through the command: identity refuses the short one with exit 2.
 	code, _, stderr := runCmd(sentinelRun, "identity", "--tee", "simulated", "--tee-seed", teeSeed, "--key", shortSealed)
 	require.Equal(t, 2, code)
-	require.Contains(t, stderr, "acpctl sentinel identity: --key: "+shortSealed+": the sealed seed is 5 bytes, want 32")
+	require.Contains(t, stderr, "acpctl sentinel identity: --key: "+shortSealed+": the sealed key:")
 
 	// And seal-key proves a sealed file opens here without touching it.
 	code, stdout, stderr := runCmd(sentinelRun, "seal-key", "--key", good, "--tee", "simulated", "--tee-seed", teeSeed)

@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -191,7 +190,7 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 // loadFailoverPolicy verifies the policy under the operator key the stop
 // list is pinned to: one operator, one key, for both.
 func loadFailoverPolicy(op OperatorStopConfig, path string) (failover.Policy, error) {
-	pub, err := loadAttestorPubKey(op.PublicKeyPath)
+	pub, err := loadSigningPublicKey(op.PublicKeyPath)
 	if err != nil {
 		return failover.Policy{}, fmt.Errorf("failover: crosscloud.operator_stop.public_key_path: %w", err)
 	}
@@ -199,7 +198,7 @@ func loadFailoverPolicy(op OperatorStopConfig, path string) (failover.Policy, er
 	if err != nil {
 		return failover.Policy{}, fmt.Errorf("failover: -policy: %w", err)
 	}
-	return failover.Parse(raw, ed25519.PublicKey(pub), op.KeyID)
+	return failover.Parse(raw, pub, op.KeyID)
 }
 
 // primaryVerifier builds the verifier for the primary's TEE the policy

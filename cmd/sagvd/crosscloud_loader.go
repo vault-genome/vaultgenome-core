@@ -104,7 +104,7 @@ func (m *crossCloudMaterials) Close() error {
 // loadOperatorStop reads the operator's stop list and verifies it under
 // the pinned operator key.
 func loadOperatorStop(cfg OperatorStopConfig) (revocation.List, error) {
-	pub, err := loadAttestorPubKey(cfg.PublicKeyPath)
+	pub, err := loadSigningPublicKey(cfg.PublicKeyPath)
 	if err != nil {
 		return revocation.List{}, fmt.Errorf("public_key_path %q: %w", cfg.PublicKeyPath, err)
 	}
@@ -112,7 +112,7 @@ func loadOperatorStop(cfg OperatorStopConfig) (revocation.List, error) {
 	if err != nil {
 		return revocation.List{}, fmt.Errorf("list_path: %w (without a valid list nothing is released)", err)
 	}
-	return revocation.Parse(raw, ed25519.PublicKey(pub), cfg.KeyID)
+	return revocation.Parse(raw, pub, cfg.KeyID)
 }
 
 // verifierRegistryFile is the on-disk JSON schema for
@@ -211,13 +211,13 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 	// The durable audit log: opened and verified end to end under the
 	// stable audit key before anything is appended. A log that does not
 	// verify stops every release (fail closed).
-	auditSeed, err := readSecret(cfg.TEE, cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
+	auditKey, err := loadSigningKey(cfg.TEE, cfg.Keys.AuditSigning, "keys.audit_signing")
 	if err != nil {
 		return nil, err
 	}
 	auditKID := ids.KeyID(cfg.Keys.AuditSigning.KeyID)
 	auditStore := keys.NewInMemoryStore(clock)
-	if _, err := auditStore.RegisterSigningFromSeed(auditKID, keys.PurposeSigningAudit, auditSeed); err != nil {
+	if _, err := auditStore.RegisterSigningKey(auditKID, keys.PurposeSigningAudit, auditKey); err != nil {
 		return nil, fmt.Errorf("sagvd: register audit signing key: %w", err)
 	}
 	logStore, err := store.Open(cfg.CrossCloud.AuditLogPath)

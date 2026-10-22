@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -449,7 +450,7 @@ func (p PeerTEEConfig) ProviderKind() (tee.Provider, error) {
 
 // KeysConfig bundles the two key-material slots the worker uses.
 type KeysConfig struct {
-	// WorkerSigning is the Ed25519 key the worker uses to sign each
+	// WorkerSigning is the key the worker uses to sign each
 	// CandidateOutputFrame. The public half MUST be registered with
 	// sagvd's PublicKeyResolver out-of-band (operator config in
 	// Phase 1; attestation-bound in Phase 3).
@@ -461,10 +462,21 @@ type KeysConfig struct {
 	SessionSealing SealingKeyConfig `json:"session_sealing"`
 }
 
-// SigningKeyConfig points at a 32-byte Ed25519 seed file.
+// SigningKeyConfig names a signing key: its kid, its key file and its
+// signature suite (ADR 0031). SeedPath is the key file — the 32-byte seed
+// of an ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384
+// key — bare, or sealed in place by seal-keys (ADR 0023). Suite names
+// the suite the file is read under, never guessed from its length;
+// absent, it is ed25519, what every configuration before ADR 0031 meant.
 type SigningKeyConfig struct {
 	KeyID    string `json:"kid"`
 	SeedPath string `json:"seed_path"`
+	Suite    string `json:"suite,omitempty"`
+}
+
+// signatureSuite is the suite the configuration names: ed25519 when absent.
+func (k SigningKeyConfig) signatureSuite() (crypto.SignatureSuite, error) {
+	return crypto.SuiteOrDefault(k.Suite)
 }
 
 // SealingKeyConfig points at a 32-byte AES-256 key-material file.
@@ -806,6 +818,9 @@ func (c Config) Validate() error {
 	}
 	if c.Keys.WorkerSigning.SeedPath == "" {
 		errs = append(errs, errors.New("keys.worker_signing.seed_path required"))
+	}
+	if _, err := c.Keys.WorkerSigning.signatureSuite(); err != nil {
+		errs = append(errs, fmt.Errorf("keys.worker_signing.suite: %w", err))
 	}
 	if c.Keys.SessionSealing.KeyID == "" {
 		errs = append(errs, errors.New("keys.session_sealing.kid required"))

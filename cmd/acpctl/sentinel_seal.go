@@ -5,7 +5,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -32,7 +32,8 @@ const sentinelSeedName = "sentinel.seed"
 func sentinelSealKeyCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("sentinel seal-key", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	keyPath := fs.String("key", "", "The sentinel's seed file to seal in place (acpctl sentinel keygen)")
+	keyPath := fs.String("key", "", "The sentinel's key file to seal in place (acpctl sentinel keygen)")
+	suiteFlag := addSuiteFlag(fs)
 	tf := addTEEFlags(fs)
 	fs.Usage = func() {
 		fmt.Fprintln(stderr, "usage: acpctl sentinel seal-key --key SEED --tee gcp-sev-snp|simulated [--sev-guest-device DEV] [--tee-seed SEED --workload-descriptor D]")
@@ -43,6 +44,11 @@ func sentinelSealKeyCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	if *keyPath == "" || *tf.kind == "" {
 		fmt.Fprintln(stderr, "acpctl sentinel seal-key: --key and --tee are required")
+		return 2
+	}
+	suite, err := parseSuiteFlag(*suiteFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl sentinel seal-key: %v\n", err)
 		return 2
 	}
 	provider, producer, err := tf.producer()
@@ -63,18 +69,18 @@ func sentinelSealKeyCmd(args []string, stdout, stderr io.Writer) int {
 		AlreadySealed  bool   `json:"already_sealed,omitempty"`
 	}{TEE: string(provider), MeasurementHex: hex.EncodeToString(producer.Measurement()), Key: *keyPath}
 	if tee.IsSealedSecret(raw) {
-		key, err := readSentinelSeed(*keyPath, tf, provider, producer)
+		key, err := readSentinelSeed(*keyPath, suite, tf, provider, producer)
 		if err != nil {
 			fmt.Fprintf(stderr, "acpctl sentinel seal-key: %s is sealed, and this host cannot open it: %v\n", *keyPath, err)
 			return 1
 		}
-		zero(key)
+		key.Zeroize()
 		out.AlreadySealed = true
 		printJSON(stdout, out)
 		return 0
 	}
-	if len(raw) != ed25519.SeedSize {
-		fmt.Fprintf(stderr, "acpctl sentinel seal-key: %s holds %d bytes, not a %d-byte seed\n", *keyPath, len(raw), ed25519.SeedSize)
+	if _, err := crypto.LoadSigningKey(suite, raw); err != nil {
+		fmt.Fprintf(stderr, "acpctl sentinel seal-key: --key: %v\n", err)
 		return 2
 	}
 	defer zero(raw)
@@ -113,16 +119,18 @@ func sentinelSealKeyCmd(args []string, stdout, stderr io.Writer) int {
 // file sealed by `acpctl sentinel seal-key`, opened with the primary's
 // TEE named by --tee — so a seed sealed on the pinned chip is no seed
 // anywhere else. A file other users can read is refused either way.
-func readSentinelSeed(path string, tf teeFlags, provider tee.Provider, producer tee.Producer) (ed25519.PrivateKey, error) {
+func readSentinelSeed(path string, suite crypto.SignatureSuite, tf teeFlags, provider tee.Provider, producer tee.Producer) (*crypto.SigningKey, error) {
 	raw, err := readPrivateFile(path)
 	if err != nil {
 		return nil, err
 	}
 	if !tee.IsSealedSecret(raw) {
-		if len(raw) != ed25519.SeedSize {
-			return nil, fmt.Errorf("%s holds %d bytes, not a %d-byte seed", path, len(raw), ed25519.SeedSize)
+		defer zero(raw)
+		key, err := crypto.LoadSigningKey(suite, raw)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		return ed25519.NewKeyFromSeed(raw), nil
+		return key, nil
 	}
 	if producer == nil {
 		return nil, fmt.Errorf("%s is sealed to the primary's TEE (acpctl sentinel seal-key); pass --tee to open it", path)
@@ -139,10 +147,11 @@ func readSentinelSeed(path string, tf teeFlags, provider tee.Provider, producer 
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	defer zero(plain)
-	if len(plain) != ed25519.SeedSize {
-		return nil, fmt.Errorf("%s: the sealed seed is %d bytes, want %d", path, len(plain), ed25519.SeedSize)
+	key, err := crypto.LoadSigningKey(suite, plain)
+	if err != nil {
+		return nil, fmt.Errorf("%s: the sealed key: %w", path, err)
 	}
-	return ed25519.NewKeyFromSeed(plain), nil
+	return key, nil
 }
 
 // readPrivateFile reads a file, refusing one other users can read.

@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/exposure"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
@@ -835,7 +836,7 @@ func validateTEE(t TEEConfig) []error {
 
 // KeysConfig bundles the key-material slots sagvd uses.
 type KeysConfig struct {
-	// AuthoritySigning is the Ed25519 key sagvd uses to sign
+	// AuthoritySigning is the key sagvd uses to sign
 	// authority artifacts (ReconstructionJobManifest signatures,
 	// ReleaseDecision, AttestationResult). Phase 1 uses it only for
 	// provisioning parity with Phase 3; the investor demo does not
@@ -848,7 +849,7 @@ type KeysConfig struct {
 	// and extract the plaintext it will operate on.
 	SessionSealing SealingKeyConfig `json:"session_sealing"`
 
-	// AuditSigning is the Ed25519 key that signs the cross-cloud audit
+	// AuditSigning is the key that signs the cross-cloud audit
 	// log (keys.PurposeSigningAudit). It must stay the same across runs:
 	// the log is one hash-linked chain, verified end to end whenever it
 	// is opened. Required when crosscloud.enabled=true; its public half
@@ -856,10 +857,21 @@ type KeysConfig struct {
 	AuditSigning SigningKeyConfig `json:"audit_signing,omitempty"`
 }
 
-// SigningKeyConfig points at a 32-byte Ed25519 seed file.
+// SigningKeyConfig names a signing key: its kid, its key file and its
+// signature suite (ADR 0031). SeedPath is the key file — the 32-byte seed
+// of an ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384
+// key — bare, or sealed in place by seal-keys (ADR 0023). Suite names
+// the suite the file is read under, never guessed from its length;
+// absent, it is ed25519, what every configuration before ADR 0031 meant.
 type SigningKeyConfig struct {
 	KeyID    string `json:"kid"`
 	SeedPath string `json:"seed_path"`
+	Suite    string `json:"suite,omitempty"`
+}
+
+// signatureSuite is the suite the configuration names: ed25519 when absent.
+func (k SigningKeyConfig) signatureSuite() (crypto.SignatureSuite, error) {
+	return crypto.SuiteOrDefault(k.Suite)
 }
 
 // SealingKeyConfig points at a 32-byte AES-256 key-material file.
@@ -1353,6 +1365,12 @@ func (c Config) Validate() error {
 	}
 	if c.Keys.AuthoritySigning.SeedPath == "" {
 		errs = append(errs, errors.New("keys.authority_signing.seed_path required"))
+	}
+	if _, err := c.Keys.AuthoritySigning.signatureSuite(); err != nil {
+		errs = append(errs, fmt.Errorf("keys.authority_signing.suite: %w", err))
+	}
+	if _, err := c.Keys.AuditSigning.signatureSuite(); err != nil {
+		errs = append(errs, fmt.Errorf("keys.audit_signing.suite: %w", err))
 	}
 	if c.Keys.SessionSealing.KeyID == "" {
 		errs = append(errs, errors.New("keys.session_sealing.kid required"))

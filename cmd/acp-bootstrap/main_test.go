@@ -28,6 +28,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 	krt "github.com/vault-genome/vaultgenome-core/internal/contracts/key_release_token"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
@@ -388,7 +389,7 @@ func TestLoadAttestorPubKey(t *testing.T) {
 }
 
 func TestPubkeyResolver(t *testing.T) {
-	r := &pubkeyResolver{kid: "k1", purpose: keys.PurposeSigningAuthority, pub: make([]byte, 32)}
+	r := &pubkeyResolver{kid: "k1", purpose: keys.PurposeSigningAuthority, pub: crypto.SuitePublicKey{Suite: crypto.SuiteEd25519, Bytes: make([]byte, 32)}}
 	if _, err := r.Resolve("k1", keys.PurposeSigningAuthority); err != nil {
 		t.Fatal(err)
 	}

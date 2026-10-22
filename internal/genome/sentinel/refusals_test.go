@@ -6,8 +6,6 @@ package sentinel
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
 	"errors"
 	"os"
 	"path/filepath"
@@ -16,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -45,7 +44,8 @@ func goodRecord(id string, now time.Time) SealRecord {
 // Every field of a seal record is checked before the sentinel key signs it,
 // and again before a reader trusts it.
 func TestSealRecordRefusesEachDefect(t *testing.T) {
-	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := key.Public()
 	must(t, err)
 	id := KeyID(pub)
 	now := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
@@ -88,7 +88,8 @@ func TestSealRecordRefusesEachDefect(t *testing.T) {
 }
 
 func TestHeartbeatAndCompromiseRefuseEachDefect(t *testing.T) {
-	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := key.Public()
 	must(t, err)
 	id := KeyID(pub)
 	now := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
@@ -134,9 +135,11 @@ func TestHeartbeatAndCompromiseRefuseEachDefect(t *testing.T) {
 }
 
 func TestParsersRefuseWhatIsNotTheirRecord(t *testing.T) {
-	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := key.Public()
 	must(t, err)
-	otherPub, _, err := ed25519.GenerateKey(rand.Reader)
+	otherPubKey, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	otherPub := otherPubKey.Public()
 	must(t, err)
 	now := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
 	h, err := SignHeartbeat(Heartbeat{Sentinel: KeyID(pub), Seq: 1, At: now, StartedAt: now, Status: StatusWatching}, key)
@@ -169,7 +172,8 @@ func TestParsersRefuseWhatIsNotTheirRecord(t *testing.T) {
 }
 
 func TestAttestationRefusals(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	pubKey, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := pubKey.Public()
 	must(t, err)
 	id := KeyID(pub)
 	now := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
@@ -199,7 +203,8 @@ func TestAttestationRefusals(t *testing.T) {
 
 func TestReadChainSetsAsideWhatCannotBeRead(t *testing.T) {
 	dir := t.TempDir()
-	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	pubKey, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := pubKey.Public()
 	must(t, err)
 	write(t, filepath.Join(dir, "gen-99999999999999999999.seal.json"), "{}")
 	must(t, os.WriteFile(filepath.Join(dir, RecordName(1)), bytes.Repeat([]byte(" "), maxRecordBytes+1), 0o644))

@@ -5,7 +5,6 @@ package keys
 
 import (
 	"crypto/rand"
-	"fmt"
 	"io"
 	"sync"
 
@@ -97,25 +96,13 @@ func (vk VerifyingKey) Verify(msg, sig []byte) error {
 // over msg under it. A mismatch is an Integrity-classified error, as a
 // bad signature is.
 func (vk VerifyingKey) VerifyRecord(alg crypto.SignatureSuite, msg, sig []byte) error {
-	want, err := crypto.RecordSuite(alg)
-	if err != nil {
-		return err
-	}
-	if vk.Suite == "" {
-		return shared_errors.Structural(
-			shared_errors.CodeRequiredFieldMissing,
-			"keys: verifying key names no signature suite",
-			nil,
-		)
-	}
-	if want != vk.Suite {
-		return shared_errors.Integrity(
-			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("keys: record alg %q does not match the key's suite %q", want, vk.Suite),
-			nil,
-		)
-	}
-	return crypto.VerifySuite(vk.Suite, vk.PublicKey, msg, sig)
+	return crypto.VerifyRecord(vk.Suite, vk.PublicKey, alg, msg, sig)
+}
+
+// Public returns the key's public half named with its suite — what a
+// peer pins.
+func (vk VerifyingKey) Public() crypto.SuitePublicKey {
+	return crypto.SuitePublicKey{Suite: vk.Suite, Bytes: append([]byte(nil), vk.PublicKey...)}
 }
 
 // signingKey is the full key pair. It is never returned by the Resolver

@@ -91,16 +91,18 @@ func TestEvaluate_InfinityHandling(t *testing.T) {
 // and the verifying side. A verdict with finite errors round-trips.
 func TestSign_RefusesWhatItCannotSign(t *testing.T) {
 	t.Parallel()
-	pub, priv, err := crypto.GenerateEd25519(nil)
+	priv, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := priv.Public()
 	require.NoError(t, err)
 	fx := []Fixture{{ID: "a", Expected: f32t([]int{1}, 1)}}
 	finite, err := Evaluate("g", fx, map[string]Tensor{"a": f32t([]int{1}, 1.0004)}, looseTol, StrictPolicy())
 	require.NoError(t, err)
 	require.Equal(t, LevelEquivalent, finite.Level)
 
-	_, err = Sign(finite, pub, priv[:32])
+	_, err = Sign(finite, nil)
 	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
-	require.ErrorContains(t, err, "private key must be 64 bytes")
+	require.ErrorContains(t, err, "signing key required")
+	require.Equal(t, crypto.SuiteEd25519, pub.Suite)
 
 	unbounded, err := Evaluate("g", []Fixture{{ID: "a", Expected: f64t([]int{1}, math.NaN())}},
 		map[string]Tensor{"a": f64t([]int{1}, 1)}, looseTol, StrictPolicy())
@@ -108,7 +110,7 @@ func TestSign_RefusesWhatItCannotSign(t *testing.T) {
 	require.Equal(t, math.MaxFloat64, unbounded.MaxAbsErr, "a non-finite disagreement is the largest finite error, not infinity")
 	require.Equal(t, "non-finite value differs", unbounded.Results[0].Note)
 	require.False(t, unbounded.Passed())
-	signedNaN, err := Sign(unbounded, pub, priv)
+	signedNaN, err := Sign(unbounded, priv)
 	require.NoError(t, err, "the verdict of a run that produced NaN is signed, so it is on the record")
 	require.NoError(t, VerifySigned(signedNaN))
 
@@ -117,9 +119,9 @@ func TestSign_RefusesWhatItCannotSign(t *testing.T) {
 	_, err = infinite.CanonicalBytes()
 	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
 	require.ErrorContains(t, err, "non-finite")
-	_, err = Sign(infinite, pub, priv)
+	_, err = Sign(infinite, priv)
 	require.ErrorContains(t, err, "non-finite")
-	err = VerifySigned(SignedVerdict{Verdict: infinite, SignerPub: pub})
+	err = VerifySigned(SignedVerdict{Verdict: infinite, SignerPub: pub.Bytes})
 	require.ErrorContains(t, err, "non-finite")
 	perResult := unbounded
 	perResult.Results = append([]FixtureResult(nil), unbounded.Results...)
@@ -127,10 +129,10 @@ func TestSign_RefusesWhatItCannotSign(t *testing.T) {
 	_, err = perResult.CanonicalBytes()
 	require.ErrorContains(t, err, "result a carries a non-finite error")
 
-	sv, err := Sign(finite, pub, priv)
+	sv, err := Sign(finite, priv)
 	require.NoError(t, err)
 	require.NoError(t, VerifySigned(sv))
-	sv.SignerPub = pub[:31]
+	sv.SignerPub = pub.Bytes[:31]
 	require.Equal(t, shared_errors.CategoryIntegrity, shared_errors.CategoryOf(VerifySigned(sv)))
 }
 

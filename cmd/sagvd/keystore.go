@@ -40,10 +40,12 @@ type materials struct {
 	// authority-signing key is registered.
 	AuthoritySigningKeyID ids.KeyID
 
-	// AuthoritySigningPublicKey is the 32-byte Ed25519 public key
-	// corresponding to AuthoritySigningKeyID. Exposed only so the
-	// daemon can log it once at startup.
-	AuthoritySigningPublicKey crypto.PublicKey
+	// AuthoritySigningPublicKey is the raw public key corresponding to
+	// AuthoritySigningKeyID, under AuthoritySigningSuite (ADR 0031).
+	// Exposed so the daemon can log it once at startup and `identity`
+	// can print it.
+	AuthoritySigningPublicKey []byte
+	AuthoritySigningSuite     crypto.SignatureSuite
 
 	// SessionSealingKeyID is the kid under which the session-sealing
 	// material is registered. JobRequest.SealedMaterialRef.RecipientKeyID
@@ -136,7 +138,8 @@ func (m *materials) Close() error {
 // acp-compute uses):
 //
 //   - TEE seed file:              32 bytes (Ed25519 seed)
-//   - Authority signing seed:     32 bytes (Ed25519 seed)
+//   - Authority signing key:      the suite's file form (keys.authority_signing.suite):
+//     the 32-byte seed of an ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384 key
 //   - Session sealing key file:   32 bytes (AES-256 key, pre-shared with worker)
 //   - Peer (worker) TEE pubkey:   32 bytes (Ed25519 public key)
 //   - Peer (worker) TEE measure:  32 bytes (SHA-256 measurement)
@@ -161,14 +164,15 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 		return nil, err
 	}
 
-	// 3. Authority signing seed → register under cfg.Keys.AuthoritySigning.KeyID.
-	authSeed, err := readSecret(cfg.TEE, cfg.Keys.AuthoritySigning.SeedPath, crypto.Ed25519SeedSize, "keys.authority_signing.seed_path")
+	// 3. Authority signing key → register under cfg.Keys.AuthoritySigning.KeyID,
+	//    under the suite the configuration names.
+	authKey, err := loadSigningKey(cfg.TEE, cfg.Keys.AuthoritySigning, "keys.authority_signing")
 	if err != nil {
 		return nil, err
 	}
 	store := keys.NewInMemoryStore(clock)
 	authKID := ids.KeyID(cfg.Keys.AuthoritySigning.KeyID)
-	vk, err := store.RegisterSigningFromSeed(authKID, keys.PurposeSigningAuthority, authSeed)
+	vk, err := store.RegisterSigningKey(authKID, keys.PurposeSigningAuthority, authKey)
 	if err != nil {
 		return nil, fmt.Errorf("sagvd: register authority signing key: %w", err)
 	}
@@ -200,6 +204,7 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 		Store:                     store,
 		AuthoritySigningKeyID:     authKID,
 		AuthoritySigningPublicKey: vk.PublicKey,
+		AuthoritySigningSuite:     vk.Suite,
 		SessionSealingKeyID:       sealingKID,
 		Producer:                  producer,
 		Provider:                  provider,

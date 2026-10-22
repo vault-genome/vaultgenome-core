@@ -117,14 +117,14 @@ secrets/
     tls/ca.crt                private CA certificate (the CA key is never written)
   sagvd/
     tee_seed                  32 B Ed25519 seed (vault simulated TEE)
-    authority_signing_seed    32 B Ed25519 seed (authority signing)
+    authority_signing_seed    authority signing key file (Ed25519 seed; another suite with -signature-suite, ADR 0031)
     peer_worker_pubkey        pinned worker TEE public key
     peer_worker_measurement   pinned worker workload measurement
     api_token                 REST API bearer token (64 hex chars)
     tls/server.crt|.key       Return Path server certificate (sagvd, localhost, 127.0.0.1, ::1)
   acp-compute/
     tee_seed                  32 B Ed25519 seed (worker simulated TEE)
-    worker_signing_seed       32 B Ed25519 seed (CandidateOutput signing)
+    worker_signing_seed       worker signing key file (Ed25519 seed; another suite with -signature-suite)
     peer_vault_pubkey         pinned vault TEE public key
     peer_vault_measurement    pinned vault workload measurement
     tls/client.crt|.key       Return Path client certificate

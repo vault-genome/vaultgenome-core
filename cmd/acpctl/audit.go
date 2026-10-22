@@ -8,12 +8,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
@@ -230,7 +227,7 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	suite, pub, err := readSigningPublicKey(*pubKey)
+	pub, err := readSigningPublicKey(*pubKey)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl audit verify: %v\n", err)
 		return 1
@@ -250,12 +247,12 @@ func auditVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	resolver := newSinglePubkeyResolver(ids.KeyID(*pubKID), suite, pub)
+	resolver := newSinglePubkeyResolver(ids.KeyID(*pubKID), pub.Suite, pub.Bytes)
 	verified, verifyErr := verifyAuditLog(log, resolver, from)
 	res := auditVerifyResult{
 		AuditPath:  *auditPath,
 		ArchiveDir: log.archiveDir,
-		Suite:      string(suite),
+		Suite:      string(pub.Suite),
 		EventCount: verified.Count,
 		Segments:   verified.Segments,
 	}
@@ -401,39 +398,3 @@ var _ = strings.TrimSpace
 // build into chain package symbol pool so the import isn't dead in the
 // rare case the verifier path isn't taken
 var _ = chain.NewInMemoryChain
-
-// readSigningPublicKey reads the audit public key file and names its
-// suite: a PEM "PUBLIC KEY" block (as `sagvd identity` prints it; the
-// algorithm names the suite — Ed25519, ECDSA P-384 or ML-DSA-87) or the
-// raw 32 bytes of an Ed25519 key.
-func readSigningPublicKey(path string) (crypto.SignatureSuite, []byte, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", nil, fmt.Errorf("read pubkey: %w", err)
-	}
-	if block, _ := pem.Decode(data); block != nil {
-		suite, pub, err := crypto.ParsePublicKeyPEM(data)
-		if err != nil {
-			return "", nil, fmt.Errorf("parse pubkey PEM: %w", err)
-		}
-		return suite, pub, nil
-	}
-	if len(data) != crypto.Ed25519PublicKeySize {
-		return "", nil, errors.New("pubkey must be PEM (Ed25519, ECDSA P-384 or ML-DSA-87) or exactly 32 raw bytes (Ed25519)")
-	}
-	return crypto.SuiteEd25519, data, nil
-}
-
-// readEd25519PublicKey reads a public key file as readSigningPublicKey and
-// requires it to be Ed25519 — the commands whose records are not yet on
-// the signature suite (ADR 0031 part two) call it.
-func readEd25519PublicKey(path string) ([]byte, error) {
-	suite, pub, err := readSigningPublicKey(path)
-	if err != nil {
-		return nil, err
-	}
-	if suite != crypto.SuiteEd25519 {
-		return nil, fmt.Errorf("pubkey is %s, want an Ed25519 key", suite)
-	}
-	return pub, nil
-}

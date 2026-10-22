@@ -228,11 +228,11 @@ func TestSignAndVerify_Roundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("evaluate: %v", err)
 	}
-	pub, priv, err := crypto.GenerateEd25519(nil)
+	priv, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	if err != nil {
 		t.Fatalf("keygen: %v", err)
 	}
-	sv, err := Sign(v, pub, priv)
+	sv, err := Sign(v, priv)
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
@@ -245,8 +245,8 @@ func TestVerifySigned_DetectsTamper(t *testing.T) {
 	fx := []Fixture{{ID: "a", Expected: f32t([]int{1}, 1)}}
 	act := map[string]Tensor{"a": f32t([]int{1}, 1)}
 	v, _ := Evaluate("g", fx, act, looseTol, StrictPolicy())
-	pub, priv, _ := crypto.GenerateEd25519(nil)
-	sv, _ := Sign(v, pub, priv)
+	priv, _ := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	sv, _ := Sign(v, priv)
 
 	// Flip a FAIL onto a signed PASS verdict: signature must no longer verify.
 	sv.Verdict.Level = LevelFail

@@ -6,7 +6,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/failover"
 )
@@ -44,8 +44,9 @@ func TestPrimaryVerifierFromThePolicyAndTheRegistry(t *testing.T) {
 
 	// A record attested by the primary verifies; by the other measurement
 	// too (both pinned); by another key, not.
-	pub, key, err := ed25519.GenerateKey(nil)
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	require.NoError(t, err)
+	pub := key.Public()
 	now := time.Now().UTC()
 	h := sentinel.Heartbeat{Sentinel: sentinel.KeyID(pub), Seq: 1, At: now, StartedAt: now, Status: sentinel.StatusWatching}
 	h, err = sentinel.AttestHeartbeat(h, primary, tee.ProviderSimulated)
@@ -107,15 +108,15 @@ func TestPrimaryVerifierFromThePolicyAndTheRegistry(t *testing.T) {
 }
 
 // signedPolicy signs a policy to the simulated standby with key, mutated.
-func (f *failoverFixture) signedPolicy(t *testing.T, kind string, key ed25519.PrivateKey, mutate ...func(*failover.Policy)) failover.Policy {
+func (f *failoverFixture) signedPolicy(t *testing.T, kind string, key *crypto.SigningKey, mutate ...func(*failover.Policy)) failover.Policy {
 	t.Helper()
-	_, spub, err := ed25519.GenerateKey(nil)
+	spub, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	require.NoError(t, err)
 	p := failover.Policy{
 		Serial:            4,
 		IssuedAt:          time.Now().Add(-time.Minute).UTC(),
 		NotAfter:          time.Now().Add(time.Hour).UTC(),
-		SentinelPublicKey: spub.Public().(ed25519.PublicKey),
+		SentinelPublicKey: spub.Public().Bytes,
 		Standby:           failover.Standby{Kind: kind, Endpoint: "https://standby.example:8443", Measurements: []string{makeMeasurementHex(0x55)}},
 		Triggers:          failover.Triggers{CompromiseReport: true, HeartbeatTimeoutSeconds: 60},
 		RequireGate:       "EQUIVALENT",
