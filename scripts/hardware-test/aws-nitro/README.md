@@ -24,9 +24,14 @@ After running the kit end-to-end against one EC2 instance, you will have:
    COSE_Sign1) signed by the AWS Nitro hypervisor's per-instance certificate
 4. Verified cert chain: AWS Nitro Root CA → regional intermediate →
    per-instance leaf → COSE_Sign1 signature
-5. Workload binding: `user_data` field in the attestation = SHA-512 of a
-   manifest describing the enclave build — chip-signed proof that this
-   attestation describes *this* workload
+5. `user_data` in the attestation = SHA-512 of the build manifest the
+   image carries — the hypervisor signs those bytes. The running image is
+   identified by the PCRs the hypervisor measures, compared with
+   `describe-eif`; the manifest cannot name its own image's PCR0, and in the
+   May cohort its PCR fields are the debug build's (the production build
+   reused it). Freshness and a key's binding come from the verifier's
+   challenge in `nonce`, which this kit does not send
+   (`internal/shared/tee/testdata/aws-nitro/README.md`)
 6. Demo 1 evidence — full Llama 3.2 3B model sealed and restored
    byte-identical, with `acpctl genome verify` confirming every blob
    hash matches the envelope record
@@ -321,6 +326,24 @@ Raw material (the document itself, the build manifest and REPORT_DATA,
 the root certificate, the runner's log and the Terraform outputs) is in
 the founders' Desktop pack under `run-20261014T165832Z/`, as the May
 material is.
+
+## Re-validating captured evidence with the shipping verifier
+
+The daemons' own Nitro verifier (`internal/shared/tee`, ADR 0035) audits a
+captured document offline, at the document's own timestamp by default —
+the hypervisor's signing certificate expires three hours after it signed:
+
+```bash
+acpctl attest nitro --doc 04-attestation-document.bin \
+  --expected-pcr0 "$(jq -r .expected_pcr0 02d-expected-pcrs.json)" [--json]
+```
+
+Exit 0 and `VERIFIED at <capture time>` mean the envelope decoded, the
+chain reached the pinned AWS Nitro Enclaves Root G1, the ES384 signature
+held and PCR0 is the image's. `evidence/0N-*/07-go-verifier-audit.json`
+holds that output for the four production documents of May 2026; VM1's
+raw document is published at `internal/shared/tee/testdata/aws-nitro/`
+(VERIFIABLE-CLAIMS C49), the other three are under NDA.
 
 ## Re-validating captured evidence offline
 
