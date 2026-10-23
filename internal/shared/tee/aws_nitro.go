@@ -56,11 +56,15 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -102,6 +106,15 @@ type AWSNitroVerifierConfig struct {
 	// VerifierSpec.ExpectedMeasurement is used as a single-element set.
 	AcceptablePCRSet []Measurement
 
+	// PCRPins holds the document to PCRs beyond the measurement: by index,
+	// the value each must carry. PCR1 and PCR2 pin the kernel and the
+	// application, PCR3 the parent instance's IAM role, PCR4 the parent
+	// instance, PCR8 the image's signing certificate. Pins narrow what the
+	// measurement admits and never stand in for it: a debug-mode enclave
+	// keeps its parent's PCR3 and PCR4 (ADR 0036), and is refused by its
+	// zero PCR0 whatever the pins say.
+	PCRPins map[int][]byte
+
 	// MaxClockSkew is the largest acceptable difference between the
 	// timestamp in the attestation document and the local clock.
 	// Default 5 minutes. Tighter values reject delayed quotes.
@@ -131,10 +144,31 @@ type AWSNitroProducer struct {
 type AWSNitroVerifier struct {
 	expected     Measurement
 	acceptable   []Measurement // expanded set including expected
+	pins         map[int][]byte
+	pinOrder     []int
 	maxClockSkew time.Duration
 	pinnedRoots  [][]byte
 	pcrIndex     int
 	now          func() time.Time
+}
+
+// nitroDefinedPCRs are the PCRs a Nitro attestation document gives a
+// meaning: the image, the kernel and boot ramfs, the application, the
+// parent's IAM role, the parent instance, the image's signing certificate.
+var nitroDefinedPCRs = []int{0, 1, 2, 3, 4, 8}
+
+// NitroDocumentDetail is what the Nitro verifier read from an attestation
+// document beyond the measurement, for the record that admits the enclave
+// (ADR 0036): the enclave's module, the hypervisor's timestamp, the PCRs
+// the document defines, the ones the policy pinned, and the digest of the
+// user data when the enclave bound any. The hypervisor's own version is
+// not in the document, so it is not here either.
+type NitroDocumentDetail struct {
+	ModuleID       string            `json:"module_id"`
+	Timestamp      time.Time         `json:"timestamp"`
+	PCRs           map[string]string `json:"pcrs"`
+	Pinned         []int             `json:"pinned,omitempty"`
+	UserDataSHA256 string            `json:"user_data_sha256,omitempty"`
 }
 
 // ----------------------------------------------------------------------------
@@ -251,9 +285,32 @@ func NewAWSNitroVerifier(_ crypto.PublicKey, expected Measurement, cfg AWSNitroV
 	if len(acc) == 0 {
 		acc = []Measurement{expected}
 	}
+	pins := make(map[int][]byte, len(cfg.PCRPins))
+	var order []int
+	for i, value := range cfg.PCRPins {
+		var refusal string
+		switch {
+		case i == cfg.PCRIndex:
+			refusal = fmt.Sprintf("aws-nitro: PCR%d is the measurement itself; it is pinned as the expected measurement", i)
+		case !slices.Contains(nitroDefinedPCRs, i):
+			refusal = fmt.Sprintf("aws-nitro: PCR%d is not one a Nitro attestation document defines (0, 1, 2, 3, 4, 8)", i)
+		case len(value) != 48:
+			refusal = fmt.Sprintf("aws-nitro: the PCR%d pin is %d bytes; Nitro PCRs are SHA-384, 48 bytes", i, len(value))
+		case Measurement(value).IsZero():
+			refusal = fmt.Sprintf("aws-nitro: the PCR%d pin is zero, which measures nothing", i)
+		}
+		if refusal != "" {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, refusal, nil)
+		}
+		pins[i] = append([]byte(nil), value...)
+		order = append(order, i)
+	}
+	slices.Sort(order)
 	return &AWSNitroVerifier{
 		expected:     expected,
 		acceptable:   acc,
+		pins:         pins,
+		pinOrder:     order,
 		maxClockSkew: cfg.MaxClockSkew,
 		pinnedRoots:  cfg.PinnedRoots,
 		pcrIndex:     cfg.PCRIndex,
@@ -320,16 +377,41 @@ func (p *AWSNitroProducer) Close() error {
 // verifier's clock, verifies the COSE signature, checks freshness, and
 // compares the nonce and the PCR against the expected values.
 func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
+	m, _, err := v.verify(ev, nonce)
+	return m, err
+}
+
+// VerifyDetailed implements DetailedVerifier: the verdict and what the
+// document said beyond PCR0, for the record that admits the enclave.
+func (v *AWSNitroVerifier) VerifyDetailed(ev Evidence, nonce Nonce) (Measurement, *AttestationDetail, error) {
+	m, doc, err := v.verify(ev, nonce)
+	if err != nil {
+		return m, nil, err
+	}
+	d := &NitroDocumentDetail{ModuleID: doc.ModuleID, Timestamp: doc.Timestamp.UTC(), PCRs: map[string]string{}, Pinned: slices.Clone(v.pinOrder)}
+	for _, i := range nitroDefinedPCRs {
+		if p, ok := doc.PCRs[i]; ok {
+			d.PCRs[strconv.Itoa(i)] = hex.EncodeToString(p)
+		}
+	}
+	if len(doc.UserData) > 0 {
+		sum := sha256.Sum256(doc.UserData)
+		d.UserDataSHA256 = hex.EncodeToString(sum[:])
+	}
+	return m, &AttestationDetail{Provider: ProviderAWSNitro, Nitro: d}, nil
+}
+
+func (v *AWSNitroVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *nitroAttestationDoc, error) {
 	var zero Measurement
 	if len(nonce) < NonceMinBytes {
-		return zero, shared_errors.Structural(
+		return zero, nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"aws-nitro: challenger nonce too short",
 			nil,
 		)
 	}
 	if len(ev) < 64 {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			"aws-nitro: evidence too short for COSE_Sign1",
 			nil,
@@ -340,13 +422,13 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 	// 1–4. Envelope, document, chain at now, signature.
 	_, doc, _, err := verifyNitroEnvelope(ev, v.pinnedRoots, now)
 	if err != nil {
-		return zero, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "aws-nitro: the attestation document does not verify", err)
+		return zero, nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "aws-nitro: the attestation document does not verify", err)
 	}
 
 	// 5. Check freshness.
 	skew := now.Sub(doc.Timestamp).Abs()
 	if skew > v.maxClockSkew {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("aws-nitro: timestamp skew %v exceeds max %v", skew, v.maxClockSkew),
 			nil,
@@ -355,7 +437,7 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 
 	// 6. Check nonce binding.
 	if !nonceMatches(doc.Nonce, nonce) {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			"aws-nitro: nonce in attestation doc does not match challenger nonce",
 			nil,
@@ -365,7 +447,7 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 	// 7. Reject debug-mode attestations (PCR0 in debug mode is all-zeroes
 	//    or a sentinel value depending on enclave config).
 	if isDebugAttestation(doc) {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			"aws-nitro: debug-mode enclave rejected (production verifier)",
 			nil,
@@ -375,7 +457,7 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 	// 8. Extract selected PCR and check against acceptable set.
 	pcr, ok := doc.PCRs[v.pcrIndex]
 	if !ok {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("aws-nitro: attestation doc missing PCR%d", v.pcrIndex),
 			nil,
@@ -383,7 +465,7 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 	}
 	reported, mErr := MeasurementFromBytes(pcr)
 	if mErr != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("aws-nitro: unexpected PCR%d length: %v", v.pcrIndex, mErr),
 			nil,
@@ -398,13 +480,25 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 		}
 	}
 	if !matched {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("aws-nitro: PCR%d not in acceptable set (got %x)", v.pcrIndex, reported),
 			nil,
 		)
 	}
-	return reported, nil
+
+	// 9. The PCRs the policy pins beyond the measurement.
+	for _, i := range v.pinOrder {
+		got, ok := doc.PCRs[i]
+		if !ok || subtle.ConstantTimeCompare(got, v.pins[i]) != 1 {
+			return zero, nil, shared_errors.Integrity(
+				shared_errors.CodeSignatureInvalid,
+				fmt.Sprintf("aws-nitro: PCR%d is not the pinned value (got %x)", i, got),
+				nil,
+			)
+		}
+	}
+	return reported, doc, nil
 }
 
 // ----------------------------------------------------------------------------

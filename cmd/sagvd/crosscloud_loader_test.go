@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
@@ -189,12 +190,70 @@ func TestLoadVerifierRegistry_SEVSNP(t *testing.T) {
 	}
 }
 
+// A Nitro destination (ADR 0036): PCR0 is the expected measurement, the
+// registry's nitro section pins PCRs beyond it, and a pin that cannot mean
+// anything is refused where the registry loads.
+func TestLoadVerifierRegistry_Nitro(t *testing.T) {
+	dir := t.TempDir()
+	pcr0, pcr1, pcr2 := strings.Repeat("a0", 48), strings.Repeat("a1", 48), strings.Repeat("a2", 48)
+	n := 0
+	file := func(body string) string {
+		n++
+		return writeFile(t, dir, fmt.Sprintf("nitro-%d.json", n), []byte(body))
+	}
+	entry := func(extra string) string {
+		return file(`{"verifiers":[{"provider":"aws-nitro","expected_measurement_hex":"` + pcr0 + `"` + extra + `}]}`)
+	}
+
+	specs, err := loadVerifierSpecs(entry(`,"nitro":{"pcrs":{"1":"`+pcr1+`","2":"`+pcr2+`"},"max_clock_skew_seconds":120}`), false)
+	require.NoError(t, err)
+	require.Len(t, specs, 1)
+	require.Equal(t, tee.ProviderAWSNitro, specs[0].Provider)
+	require.Len(t, specs[0].Spec.AWSNitro.PCRPins, 2)
+	require.Equal(t, strings.Repeat("\xa1", 48), string(specs[0].Spec.AWSNitro.PCRPins[1]))
+	require.Equal(t, 120*time.Second, specs[0].Spec.AWSNitro.MaxClockSkew)
+	reg, err := loadVerifierRegistry(entry(`,"nitro":{"pcrs":{"1":"`+pcr1+`"}}`), false)
+	require.NoError(t, err)
+	require.True(t, reg.Has(tee.ProviderAWSNitro))
+	reg, err = loadVerifierRegistry(entry(""), false)
+	require.NoError(t, err, "PCR0 alone is a policy")
+	require.True(t, reg.Has(tee.ProviderAWSNitro))
+
+	for name, tc := range map[string]struct {
+		path string
+		want string
+	}{
+		"PCR0 of 32 bytes":       {file(`{"verifiers":[{"provider":"aws-nitro","expected_measurement_hex":"` + strings.Repeat("a0", 32) + `"}]}`), "a SHA-384 of 48 bytes (got 32)"},
+		"nitro on another kind":  {file(`{"verifiers":[{"provider":"gcp-tdx","expected_measurement_hex":"` + pcr0 + `","nitro":{}}]}`), "nitro applies to aws-nitro only, not gcp-tdx"},
+		"a key that is no index": {entry(`,"nitro":{"pcrs":{"pcr1":"` + pcr1 + `"}}`), `nitro.pcrs["pcr1"]: the key is a PCR's index`},
+		"not hex":                {entry(`,"nitro":{"pcrs":{"1":"zz"}}`), `nitro.pcrs["1"]: not hex`},
+		"a skew past an hour":    {entry(`,"nitro":{"max_clock_skew_seconds":7200}`), "nitro.max_clock_skew_seconds 7200"},
+		"an unknown field":       {entry(`,"nitro":{"pcr":{"1":"` + pcr1 + `"}}`), "unknown field"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := loadVerifierSpecs(tc.path, false)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+	// What the pins mean is the verifier's to check, when the registry is built.
+	for name, tc := range map[string]struct{ extra, want string }{
+		"an undefined PCR": {`,"nitro":{"pcrs":{"5":"` + pcr1 + `"}}`, "PCR5 is not one a Nitro attestation document defines"},
+		"PCR0 pinned":      {`,"nitro":{"pcrs":{"0":"` + pcr1 + `"}}`, "PCR0 is the measurement itself"},
+		"a short pin":      {`,"nitro":{"pcrs":{"8":"` + strings.Repeat("a8", 32) + `"}}`, "the PCR8 pin is 32 bytes"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := loadVerifierRegistry(entry(tc.extra), false)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
 // Fail closed: a family whose verifier this build cannot run end to end
 // is refused when the registry loads, not discovered at release time.
 func TestLoadVerifierRegistry_RefusesFamiliesWithoutAWorkingVerifier(t *testing.T) {
 	dir := t.TempDir()
 	pubPath := writeFile(t, dir, "attestor.pem", generateEd25519PubPEM(t))
-	for _, provider := range []string{"aws-nitro", "azure-sgx", "intel-sgx-dcap"} {
+	for _, provider := range []string{"azure-sgx", "intel-sgx-dcap"} {
 		reg := `{"verifiers":[{"provider":"` + provider + `","attestor_pubkey_path":"` + pubPath + `","expected_measurement_hex":"` + makeMeasurementHex(0x42) + `"}]}`
 		_, err := loadVerifierRegistry(writeFile(t, dir, provider+".json", []byte(reg)), true)
 		if err == nil || !strings.Contains(err.Error(), "no verifier this build can run end to end") {

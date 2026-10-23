@@ -1,0 +1,20 @@
+{
+  "status": "ok",
+  "decision_id": "nitro-decision-1",
+  "key_id": "genome-ca2448550aeb-g0-ea420ae1c5a1",
+  "destination_kind": "aws-nitro",
+  "destination_measurement_hex": "04af10770400f2ed82d88d91a76c49aff46b8641e9d776942a913f9332d358ce1ae0e58f7d430a95b8d83324868f7c84",
+  "bundle_sha256": "6d5f55646bbf6f49ae2ebe625e9bb2203ca884ab80c01b2e2773af452f7efd8d",
+  "payload_sha256": "sha256:ca2448550aeb3fc82f05a8e7e60e211980d5b8359d42d240270e18a67547ecc2",
+  "tree_sha256": "01a44c927a45938ebea117e3f24fe0e10aede9f8dc42ac71a1cfd14cc982e7cf",
+  "files": 3,
+  "bytes": 16777312,
+  "restore_seconds": 0.190714581,
+  "key_to_restored_seconds": 0.191056311,
+  "authorized_to_confirmed_seconds": 10.493357755,
+  "matched_operator_bundle": true,
+  "receipt_sha256": "cd49a7a769f045538afe49a08ea81fcf5f64852ba76e9df8e22b61a73295c0b8",
+  "audit_id": "xcc-evt-0000000000000004",
+  "audit_chain_length": 4,
+  "audit_tip": "f4165a58750aa8299576ba25910a5e2750f5ee07202bf40d9ff05cc31215d76f"
+}

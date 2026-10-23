@@ -1105,9 +1105,8 @@ type CrossCloudConfig struct {
 	//   {
 	//     "version": "xcc-2026-05-09",
 	//     "allowed": {
-	//       "aws-nitro":  ["<64-hex>", "<64-hex>"],
-	//       "azure-sgx":  ["<64-hex>"],
-	//       "gcp-sev-snp": []
+	//       "aws-nitro":   ["<PCR0: 96 hex>", "<the next image's PCR0>"],
+	//       "gcp-sev-snp": ["<launch measurement: 96 hex>"]
 	//     }
 	//   }
 	//
@@ -1122,13 +1121,13 @@ type CrossCloudConfig struct {
 	//     "verifiers": [
 	//       {
 	//         "provider": "aws-nitro",
-	//         "attestor_pubkey_path": "/etc/vg/aws-pca-root.pem",
-	//         "expected_measurement_hex": "<64-hex>"
+	//         "expected_measurement_hex": "<PCR0: 96 hex>",
+	//         "nitro": {"pcrs": {"1": "<96 hex>", "2": "<96 hex>"}}
 	//       },
 	//       {
-	//         "provider": "azure-sgx",
-	//         "attestor_pubkey_path": "/etc/vg/azure-sgx-pubkey.pem",
-	//         "expected_measurement_hex": "<64-hex>"
+	//         "provider": "gcp-sev-snp",
+	//         "expected_measurement_hex": "<96 hex>",
+	//         "amd_cert_chain_path": "/etc/vg/amd-milan-cert_chain.pem"
 	//       }
 	//     ]
 	//   }

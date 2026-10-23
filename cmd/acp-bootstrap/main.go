@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/bootstrap/crosscloud"
 	"github.com/vault-genome/vaultgenome-core/internal/bootstrap/restorer"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/awskms"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
@@ -59,7 +61,14 @@ func main() {
 			}
 			return
 		case "seal-keys":
-			if err := runSealKeys(os.Args[2:], os.Stdout, os.Stderr); err != nil {
+			// The operator's AWS credentials, read here at startup, seal a
+			// Nitro enclave's key files outside it (seal-keys -pcr0).
+			creds := awskms.StaticCredentials{
+				AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+				SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+				SessionToken:    os.Getenv("AWS_SESSION_TOKEN"),
+			}
+			if err := runSealKeys(os.Args[2:], os.Stdout, os.Stderr, creds); err != nil {
 				slog.New(slog.NewJSONHandler(os.Stderr, nil)).
 					Error("acp-bootstrap seal-keys: terminated with error", "err", err.Error())
 				os.Exit(1)
@@ -128,11 +137,39 @@ func run(args []string) error {
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("acp-bootstrap: config validation: %w", err)
 	}
+	logger := buildLogger(cfg.Log)
+	if cfg.Log.VsockPort != 0 {
+		// In a production-mode Nitro enclave no one reads stderr: the log,
+		// and the reason a start fails, go to the parent (ADR 0036).
+		w, err := logToParent(cfg.Log.VsockPort)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = w.Close() }()
+		logger = buildLoggerTo(cfg.Log, w)
+	}
+	if err := runDaemon(cfg, logger); err != nil {
+		if cfg.Log.VsockPort != 0 {
+			logger.Error("acp-bootstrap: terminated with error", "err", err.Error())
+		}
+		return err
+	}
+	return nil
+}
+
+// runDaemon takes the key files in when the parent hands them over,
+// resolves the secrets, builds the daemon and serves until a signal.
+func runDaemon(cfg Config, logger *slog.Logger) error {
+	if cfg.TEE.SecretFilesVsockPort != 0 {
+		if err := fetchSecretFiles(cfg); err != nil {
+			return err
+		}
+		logger.Info("acp-bootstrap: the key files came from the parent", "secret_files_vsock_port", cfg.TEE.SecretFilesVsockPort, "files", len(secretFiles(cfg)))
+	}
 	if err := cfg.ResolveSecrets(); err != nil {
 		return err
 	}
-
-	d, err := newDaemon(cfg, buildLogger(cfg.Log))
+	d, err := newDaemon(cfg, logger)
 	if err != nil {
 		return err
 	}
@@ -368,6 +405,9 @@ func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 		return tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
 	case string(tee.ProviderAzureCGPU):
 		return tee.NewAzureCGPUProducer(tee.AzureCGPUProducerConfig{GPUAttestCommand: cfg.GPUAttestCommand, TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
+	case string(tee.ProviderAWSNitro):
+		// The NSM device; the producer attests itself before it serves.
+		return tee.NewAWSNitroProducer(tee.AWSNitroProducerConfig{})
 	case string(tee.ProviderSimulated):
 		seed, err := readExactly(cfg.SeedPath, crypto.Ed25519SeedSize, "tee.seed_path")
 		if err != nil {
@@ -547,6 +587,11 @@ func buildHealthMux() *http.ServeMux {
 }
 
 func buildLogger(cfg LogConfig) *slog.Logger {
+	return buildLoggerTo(cfg, os.Stderr)
+}
+
+// buildLoggerTo is buildLogger writing to w.
+func buildLoggerTo(cfg LogConfig, w io.Writer) *slog.Logger {
 	level := slog.LevelInfo
 	switch strings.ToLower(cfg.Level) {
 	case "debug":
@@ -560,9 +605,9 @@ func buildLogger(cfg LogConfig) *slog.Logger {
 	}
 	opts := &slog.HandlerOptions{Level: level}
 	if strings.ToLower(cfg.Format) == "text" {
-		return slog.New(slog.NewTextHandler(os.Stderr, opts))
+		return slog.New(slog.NewTextHandler(w, opts))
 	}
-	return slog.New(slog.NewJSONHandler(os.Stderr, opts))
+	return slog.New(slog.NewJSONHandler(w, opts))
 }
 
 // readExactly reads a file and verifies it is exactly want bytes.

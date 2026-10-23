@@ -1,0 +1,1 @@
+{"time":"2026-10-23T18:26:07.086480984Z","level":"ERROR","msg":"sagvd crosscloud-restore: terminated with error","err":"integrity[attestation_denied]: kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key and suite under this nonce: integrity[signature_invalid]: aws-nitro: debug-mode enclave rejected (production verifier)"}

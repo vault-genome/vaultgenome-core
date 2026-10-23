@@ -105,12 +105,12 @@ refused; PCR selection and the acceptable set are as before.
 
 ### What stays refused
 
-The NSM producer (the `/dev/nsm` ioctl) and the KMS sealer are still the
-stubs they were: nothing here can be proven without an enclave. The
-verifier registry and `acp-bootstrap` keep refusing the `aws-nitro`
-family until a live enclave has attested to this code end to end and
-taken a key release — the drill in `scripts/hardware-test/aws-nitro`,
-once the quota exists. VERIFIABLE-CLAIMS says what is and is not claimed.
+Nothing, since ADR 0036: the NSM producer and the KMS sealer are written
+from their interfaces and proven in a production-mode enclave, and a
+live enclave has attested to this code end to end and taken a key
+release across clouds (C51, C52); the verifier registry and
+`acp-bootstrap` run the `aws-nitro` family. VERIFIABLE-CLAIMS says what
+is and is not claimed.
 
 ## Evidence
 

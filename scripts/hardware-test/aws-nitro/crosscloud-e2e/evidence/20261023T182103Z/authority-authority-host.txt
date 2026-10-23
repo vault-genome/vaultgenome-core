@@ -1,0 +1,3 @@
+kernel=7.0.0-1014-gcp
+machine=n2d-standard-2
+zone=us-central1-c

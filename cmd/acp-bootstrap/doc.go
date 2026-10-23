@@ -15,8 +15,9 @@
 //   - Local TEE producer: AMD SEV-SNP or Intel TDX through configfs-tsm
 //     ("gcp-sev-snp", "gcp-tdx"), an Azure confidential GPU VM through the
 //     vTPM and NVIDIA's attestation ("azure-cgpu"), an Azure SEV-SNP
-//     Confidential VM without a GPU ("azure-sev-snp"), or the simulated
-//     backend for development
+//     Confidential VM without a GPU ("azure-sev-snp"), a Nitro enclave
+//     through the NSM, reached over vsock, its key files opened through
+//     KMS ("aws-nitro", ADR 0036), or the simulated backend for development
 //   - Source-authority pubkey (pinned out-of-band from
 //     `sagvd identity`; identifies the source authority)
 //   - Local keystore (where released DEKs are registered)

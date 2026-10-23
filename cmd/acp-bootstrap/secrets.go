@@ -13,7 +13,8 @@ import (
 
 // hostSealer is the sealer of this destination's host (ADR 0023): the
 // vTPM on a TDX or Azure confidential GPU host (ADR 0022), the chip's
-// derived key on SEV-SNP, the simulated TEE's weak key off hardware.
+// derived key on SEV-SNP, KMS released to the enclave's attestation on a
+// Nitro enclave (ADR 0036), the simulated TEE's weak key off hardware.
 // The closer, when not nil, holds the device the sealer opened.
 func hostSealer(cfg TEEConfig) (tee.Sealer, io.Closer, tee.Provider, tee.SealerKind, error) {
 	provider, err := tee.ParseProvider(cfg.Provider)
@@ -36,7 +37,8 @@ func hostSealer(cfg TEEConfig) (tee.Sealer, io.Closer, tee.Provider, tee.SealerK
 	if err != nil {
 		return nil, nil, "", "", err
 	}
-	s, closer, kind, err := tee.SealerFor(producer, tee.SealerOptions{Mode: cfg.SealerMode(), SEVGuestDevice: cfg.SEVDevice(), TPM2ToolsDir: cfg.TPM2ToolsDir, VTPMSealPCRs: cfg.VTPMSealPCRs})
+	s, closer, kind, err := tee.SealerFor(producer, tee.SealerOptions{Mode: cfg.SealerMode(), SEVGuestDevice: cfg.SEVDevice(), TPM2ToolsDir: cfg.TPM2ToolsDir, VTPMSealPCRs: cfg.VTPMSealPCRs,
+		AWSKMS: cfg.AWSKMS.sealerOptions()})
 	if err != nil {
 		return nil, nil, "", "", fmt.Errorf("acp-bootstrap: %w", err)
 	}

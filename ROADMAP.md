@@ -2,7 +2,7 @@
 
 What is next, what is out of reach today and why, and what will never be
 claimed. The record of what is done is [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md)
-(C1–C51) and [`CHANGELOG.md`](CHANGELOG.md); the open limits are
+(C1–C52) and [`CHANGELOG.md`](CHANGELOG.md); the open limits are
 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md). Nothing here is a promise with a date.
 
 ## Next
@@ -19,15 +19,11 @@ claimed. The record of what is done is [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIM
   the same evidence (`gpu_evidence` carries a list) is untested.
 - **Operator-facing release notes per version**, and a `docs/` site built
   from the runbooks and the ADRs.
-- **A genome key released to a Nitro enclave, across clouds.** The
-  verifier is proven offline on AWS's own documents (ADR 0035); the NSM
-  producer and the KMS sealer run in a production-mode enclave against
-  KMS itself, every refusal with them and AWS's record of each call
-  ([C51](VERIFIABLE-CLAIMS.md#c51)). Next (ADR 0036): the source's Nitro
-  policy and record, `acp-bootstrap` in the enclave with its sealed key
-  files, and a release from a GCP SEV-SNP authority over the Internet,
-  the restore confirmed from the enclave's receipt; the registry refuses
-  the family until that has run.
+- **Nitro, past the first release.** A genome key has gone across clouds
+  into a production-mode enclave once ([C52](VERIFIABLE-CLAIMS.md#c52)):
+  next, a signed image with PCR8 pinned, a Graviton parent, a second
+  region, a gate inside the enclave, and the Nitro corpus held against
+  two outside readings (ADR 0036, part five).
 
 ## Blocked on hardware or quota
 

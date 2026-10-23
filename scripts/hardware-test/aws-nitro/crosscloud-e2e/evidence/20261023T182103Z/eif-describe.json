@@ -1,0 +1,73 @@
+{
+  "EifVersion": 4,
+  "Measurements": {
+    "HashAlgorithm": "Sha512_48 { .. }",
+    "PCR0": "04af10770400f2ed82d88d91a76c49aff46b8641e9d776942a913f9332d358ce1ae0e58f7d430a95b8d83324868f7c84",
+    "PCR1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+    "PCR2": "34d8e9d495d5e07e12d1a127be8ea71a2e4034396c40562ffd3f886560ac05679a31cca321427ca11909b72659e3ea9e"
+  },
+  "IsSigned": false,
+  "CheckCRC": true,
+  "ImageName": "vg-acp-bootstrap",
+  "ImageVersion": "8ca0171da485c6b5a0761685cecb1a0a0f94bfa6a5d490e7e597c08e71c936ba",
+  "Metadata": {
+    "BuildTime": "2026-10-23T18:24:56.994770080+00:00",
+    "BuildTool": "nitro-cli",
+    "BuildToolVersion": "1.5.0",
+    "OperatingSystem": "Linux",
+    "KernelVersion": "4.14.256",
+    "DockerInfo": {
+      "Architecture": "amd64",
+      "Author": "",
+      "Comment": "buildkit.dockerfile.v0",
+      "Config": {
+        "AttachStderr": false,
+        "AttachStdin": false,
+        "AttachStdout": false,
+        "Domainname": "",
+        "Entrypoint": [
+          "/acp-bootstrap",
+          "-config",
+          "/etc/vg/dest.json"
+        ],
+        "Env": [
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        ],
+        "Hostname": "",
+        "Image": "",
+        "OpenStdin": false,
+        "StdinOnce": false,
+        "Tty": false,
+        "User": "",
+        "WorkingDir": "/"
+      },
+      "Created": "2026-10-23T18:24:56.830378813Z",
+      "DockerVersion": "",
+      "GraphDriver": {
+        "Data": {
+          "MergedDir": "/var/lib/docker/overlay2/h3o9yz7t2v8m6ynkidt243omh/merged",
+          "UpperDir": "/var/lib/docker/overlay2/h3o9yz7t2v8m6ynkidt243omh/diff",
+          "WorkDir": "/var/lib/docker/overlay2/h3o9yz7t2v8m6ynkidt243omh/work"
+        },
+        "Name": "overlay2"
+      },
+      "Id": "sha256:8ca0171da485c6b5a0761685cecb1a0a0f94bfa6a5d490e7e597c08e71c936ba",
+      "Metadata": {
+        "LastTagTime": "2026-10-23T18:24:56.903899929Z"
+      },
+      "Os": "linux",
+      "Parent": "",
+      "RepoDigests": [],
+      "RepoTags": [
+        "vg-acp-bootstrap:latest"
+      ],
+      "RootFS": {
+        "Layers": [
+          "sha256:5afa94be56adb39e9838a5c3748c9eabc5a59af3e4e47994b702432392ac0cbd"
+        ],
+        "Type": "layers"
+      },
+      "Size": 9379668
+    }
+  }
+}

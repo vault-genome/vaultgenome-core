@@ -248,6 +248,75 @@ Exposure rules are enforced at startup; a config that breaks one does not start:
 
 The health listener answers `/healthz` and `/readyz` and exposes nothing else.
 
+### A Nitro enclave as the destination
+
+An enclave has no disk, no network and, in production mode, no console
+anyone can read; `acp-bootstrap` runs inside it from an image the operator
+builds, and the parent instance forwards bytes (ADR 0036). The
+configuration is in the image, under PCR0:
+
+```json
+"http": {
+  "listen_vsock_port": 5000,
+  "bearer_token_file": "/run/vg/keys/token",
+  "tls": { "enabled": true, "server_cert": "/etc/vg/tls/server.crt",
+           "server_key": "/run/vg/keys/server.key", "client_cas": "/etc/vg/tls/ca.crt" }
+},
+"tee": {
+  "provider": "aws-nitro",
+  "workload_descriptor": "acp-bootstrap-destination-v1",
+  "secret_files_vsock_port": 7000,
+  "aws_kms": { "key_arn": "arn:aws:kms:us-east-2:<account>:key/<id>",
+               "kms_vsock_port": 8000, "imds_vsock_port": 8002 }
+},
+"source_authority": { "kid": "sagvd-authority", "public_key_path": "/etc/vg/authority.pem" },
+"genome": { "bundle_dir": "/run/vg/bundles", "restore_dir": "/run/vg/restored" },
+"health": { "listen_address": "" },
+"log": { "level": "info", "format": "json", "vsock_port": 7001 }
+```
+
+- What is not secret goes into the image — the daemon, this file, the
+  source authority's public key, the TLS certificate and the CA — so PCR0
+  covers it. The key files (the TLS server key, the bearer token) do not:
+  they are sealed for the image's PCR0 on the operator's machine,
+  `acp-bootstrap seal-keys -config <this file> -pcr0 <PCR0 from nitro-cli
+  describe-eif> -root <the staged files>`, under the operator's AWS
+  credentials, with a KMS key whose policy allows `kms:Decrypt` to the
+  parent's role only when `kms:RecipientAttestation:ImageSha384` is that
+  PCR0 and denies it to every principal without an attestation document
+  (`key_policy` in `scripts/hardware-test/aws-nitro/crosscloud-e2e/run.sh`
+  is the reference). At start the parent hands the sealed files to the
+  enclave on `tee.secret_files_vsock_port` as `{"files": {"<path>":
+  "<base64>"}}` — exactly the paths this file names, nothing else, or the
+  enclave refuses them all — and the enclave opens them through KMS with
+  its own attestation document.
+- The parent runs four forwarders and reads none of the bytes: the
+  source's TLS from a TCP port to `http.listen_vsock_port`; the enclave's
+  TLS to `kms.<region>.amazonaws.com:443` on `kms_vsock_port`; its HTTP to
+  the instance metadata service on `imds_vsock_port`; the log on
+  `log.vsock_port`. `scripts/hardware-test/aws-nitro/crosscloud-e2e/parent`
+  is the reference. None of these may be port 9000, where nitro-cli takes
+  the enclave's boot heartbeat.
+- `health.listen_address` must be empty: the enclave has no loopback. The
+  restored genome lives in the enclave's memory (`/run`); give the enclave
+  memory for the bundle, the restore and the daemon.
+- `acp-bootstrap identity` cannot run outside an enclave; the measurement
+  the source pins is the image's PCR0 as `nitro-cli describe-eif` prints
+  it. The source's registry entry names it and may pin more:
+
+  ```json
+  { "provider": "aws-nitro",
+    "expected_measurement_hex": "<PCR0>",
+    "nitro": { "pcrs": { "1": "<PCR1>", "2": "<PCR2>" }, "max_clock_skew_seconds": 300 } }
+  ```
+
+  Pin PCR1 and PCR2 (the kernel and the application, both printed by
+  `describe-eif`) and PCR8 when the image is signed. PCR3 and PCR4 (the
+  parent's IAM role and instance) narrow further and never stand in for
+  PCR0: a debug-mode enclave keeps them, and the source refuses a
+  debug-mode document whatever the pins say. The AWS Nitro Enclaves root
+  is the binary's own; nothing in the entry names a certificate.
+
 ## Source configuration (`sagvd`)
 
 Add a `crosscloud` section, and the audit signing key, to the usual `sagvd`

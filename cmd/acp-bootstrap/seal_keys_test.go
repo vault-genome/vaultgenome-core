@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/awskms"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -45,7 +46,7 @@ func TestSealKeys_SealsTheTLSKeyAndTheTokenAndTheDaemonOpensThem(t *testing.T) {
 	configPath := writeConfigFile(t, dst.dir, cfg)
 
 	var stdout, stderr bytes.Buffer
-	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr); err != nil {
+	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr, awskms.StaticCredentials{}); err != nil {
 		t.Fatalf("seal-keys: %v\n%s", err, stderr.String())
 	}
 	var out sealKeysOutput
@@ -80,7 +81,7 @@ func TestSealKeys_SealsTheTLSKeyAndTheTokenAndTheDaemonOpensThem(t *testing.T) {
 
 	// Sealing again seals nothing: the files are proven to open and left.
 	stdout.Reset()
-	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr); err != nil {
+	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr, awskms.StaticCredentials{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
@@ -125,7 +126,7 @@ func TestSealKeys_Refusals(t *testing.T) {
 	cfg := dst.config()
 	configPath := writeConfigFile(t, dst.dir, cfg)
 	var stdout, stderr bytes.Buffer
-	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr); err != nil {
+	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr, awskms.StaticCredentials{}); err != nil {
 		t.Fatalf("nothing to seal: %v", err)
 	}
 	var out sealKeysOutput
@@ -133,22 +134,22 @@ func TestSealKeys_Refusals(t *testing.T) {
 		t.Fatalf("nothing to seal: %v %+v", err, out)
 	}
 
-	if err := runSealKeys(nil, &stdout, &stderr); err == nil || !strings.Contains(err.Error(), "-config is required") {
+	if err := runSealKeys(nil, &stdout, &stderr, awskms.StaticCredentials{}); err == nil || !strings.Contains(err.Error(), "-config is required") {
 		t.Fatalf("no -config: %v", err)
 	}
-	if err := runSealKeys([]string{"-config", filepath.Join(dst.dir, "absent.json")}, &stdout, &stderr); err == nil {
+	if err := runSealKeys([]string{"-config", filepath.Join(dst.dir, "absent.json")}, &stdout, &stderr, awskms.StaticCredentials{}); err == nil {
 		t.Fatal("a missing config file was accepted")
 	}
 
 	cfg.HTTP.BearerTokenFile = filepath.Join(dst.dir, "empty_token")
 	writeFile(t, cfg.HTTP.BearerTokenFile, nil)
 	configPath = writeConfigFile(t, dst.dir, cfg)
-	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr); err == nil || !strings.Contains(err.Error(), "is empty") {
+	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr, awskms.StaticCredentials{}); err == nil || !strings.Contains(err.Error(), "is empty") {
 		t.Fatalf("an empty token file was sealed: %v", err)
 	}
 	cfg.HTTP.BearerTokenFile = filepath.Join(dst.dir, "absent_token")
 	configPath = writeConfigFile(t, dst.dir, cfg)
-	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr); err == nil || !strings.Contains(err.Error(), "http.bearer_token_file") {
+	if err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr, awskms.StaticCredentials{}); err == nil || !strings.Contains(err.Error(), "http.bearer_token_file") {
 		t.Fatalf("a missing token file was sealed: %v", err)
 	}
 }

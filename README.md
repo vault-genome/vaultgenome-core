@@ -29,7 +29,7 @@ a computation problem third.
 ## Measured on real hardware
 
 Every number links to the claim, its evidence files and the command that
-reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C51).
+reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C52).
 The verifier itself is held to readings nobody here wrote on every
 genuine SEV-SNP report on record, and that corpus is published for any
 verifier to run ([`test/corpus/sev-snp/`](test/corpus/sev-snp/), C47;
@@ -193,11 +193,10 @@ receive side that bootstraps itself is deferred to V2. The full maturity
 summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
 
 - Real attestation is verified here for AMD SEV-SNP (GCP, Azure), Intel TDX
-  (GCP) and the Azure confidential GPU VM; the AWS Nitro verifier verifies
-  AWS's own production documents offline (ADR 0035), and in a
-  production-mode enclave the Nitro sealer opens a secret through KMS
-  itself (C51), but the registry refuses the Nitro and Intel SGX families
-  until an enclave has taken a key release end to end.
+  (GCP), the Azure confidential GPU VM and AWS Nitro Enclaves — a genome
+  key released across clouds into a production-mode enclave by a SEV-SNP
+  authority, once (C52); the Intel SGX family is refused until an enclave
+  has taken a key release end to end.
 - The largest model measured is 32B, on one confidential GPU; cross-device
   equivalence is measured at 0.5B and 7B; every failover number is at 0.5B.
 - Byte-identical float inference across CPUs and GPUs is not achievable, and

@@ -1,0 +1,4 @@
+instances of the run: terminated
+security group, key pair: deleted
+KMS key: scheduled for deletion in 7 days
+authority VM: deleted

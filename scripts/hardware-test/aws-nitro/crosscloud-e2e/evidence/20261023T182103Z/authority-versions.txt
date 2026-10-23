@@ -1,0 +1,2 @@
+sagvd 0.0.0-dev (commit b51d54bcfdfc) fips140=off module=latest enforced=false
+acpctl 0.0.0-dev (commit b51d54bcfdfc) fips140=off module=latest enforced=false

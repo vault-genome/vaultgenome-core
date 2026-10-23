@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -202,7 +203,45 @@ type TEEConfig struct {
 	// a gcp-tdx or azure-cgpu host (ADR 0022; default sha256:0-14, the
 	// boot the operator pins). Those providers only.
 	VTPMSealPCRs string `json:"vtpm_seal_pcrs,omitempty"`
+
+	// AWSKMS is the KMS key a Nitro enclave's key files are sealed under,
+	// and the vsock ports of the parent's forwarders to KMS and to the
+	// instance metadata service (ADR 0036): the enclave has no network of
+	// its own. aws-nitro only, and required there.
+	AWSKMS *AWSKMSConfig `json:"aws_kms,omitempty"`
+
+	// SecretFilesVsockPort is the parent's vsock port the enclave takes its
+	// key files from at start (ADR 0036): they are sealed to the image's
+	// PCR0, which the image itself makes, so they cannot be in it. Only the
+	// paths this config names as key files are written, in the enclave's
+	// memory. aws-nitro only, and required there.
+	SecretFilesVsockPort uint32 `json:"secret_files_vsock_port,omitempty"`
 }
+
+// AWSKMSConfig names a Nitro enclave's KMS key and the parent's vsock
+// ports that carry the enclave to KMS and to the instance metadata
+// service.
+type AWSKMSConfig struct {
+	// KeyARN is the key the operator sealed the key files under.
+	KeyARN string `json:"key_arn"`
+	// Endpoint is KMS's host; empty means kms.<the key's Region>.amazonaws.com.
+	Endpoint      string `json:"endpoint,omitempty"`
+	KMSVsockPort  uint32 `json:"kms_vsock_port"`
+	IMDSVsockPort uint32 `json:"imds_vsock_port"`
+}
+
+// sealerOptions is the configuration as the sealer's options; nil when
+// the section is absent.
+func (k *AWSKMSConfig) sealerOptions() *tee.AWSKMSSealerOptions {
+	if k == nil {
+		return nil
+	}
+	return &tee.AWSKMSSealerOptions{KeyARN: k.KeyARN, Endpoint: k.Endpoint, KMSVsockPort: k.KMSVsockPort, IMDSVsockPort: k.IMDSVsockPort}
+}
+
+// nitroHeartbeatPort is the parent's vsock port the enclave's init sends
+// its boot heartbeat to; nitro-cli listens there, so no forwarder can.
+const nitroHeartbeatPort = 9000
 
 // DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
 const DefaultSEVGuestDevice = "/dev/sev-guest"
@@ -216,7 +255,7 @@ func (t TEEConfig) SEVDevice() string {
 }
 
 // supportedProviders are the TEE backends this build can run.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderSimulated, tee.ProviderAuto}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderAWSNitro, tee.ProviderSimulated, tee.ProviderAuto}
 
 // SourceAuthorityConfig points at the source-authority signing
 // public key file. Used by the receiver to verify every handshake +
@@ -300,6 +339,10 @@ type HealthConfig struct {
 type LogConfig struct {
 	Level  string `json:"level"`
 	Format string `json:"format"`
+	// VsockPort sends the log to the parent on this vsock port instead of
+	// stderr: a production-mode Nitro enclave has no console anyone can
+	// read (ADR 0036). aws-nitro only.
+	VsockPort uint32 `json:"vsock_port,omitempty"`
 }
 
 // ReadHeaderTimeout returns HTTPConfig.ReadHeaderTimeoutSeconds as a
@@ -387,13 +430,36 @@ func LoadConfigFile(path string) (Config, error) {
 }
 
 // DecodeConfig decodes JSON from r into a Config on top of
-// DefaultConfig.
+// DefaultConfig. The two listen addresses have defaults for a host with
+// a network; a file that names a vsock port, or the aws-nitro provider,
+// is an enclave's, and a default the file did not write yields to it —
+// an enclave has no address to listen on, not even loopback (ADR 0036).
+// What the file wrote stands, and Validate judges it.
 func DecodeConfig(r io.Reader) (Config, error) {
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return Config{}, fmt.Errorf("acp-bootstrap: read config: %w", err)
+	}
 	c := DefaultConfig()
-	dec := json.NewDecoder(r)
+	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&c); err != nil {
 		return Config{}, fmt.Errorf("acp-bootstrap: decode config: %w", err)
+	}
+	var written struct {
+		HTTP struct {
+			ListenAddress *string `json:"listen_address"`
+		} `json:"http"`
+		Health struct {
+			ListenAddress *string `json:"listen_address"`
+		} `json:"health"`
+	}
+	_ = json.Unmarshal(raw, &written) // the strict decode above already accepted raw
+	if c.HTTP.ListenVsockPort != 0 && written.HTTP.ListenAddress == nil {
+		c.HTTP.ListenAddress = ""
+	}
+	if p, err := tee.ParseProvider(c.TEE.Provider); err == nil && p == tee.ProviderAWSNitro && written.Health.ListenAddress == nil {
+		c.Health.ListenAddress = ""
 	}
 	return c, nil
 }
@@ -542,6 +608,12 @@ func (c Config) Validate() error {
 		if len(c.TEE.GPUAttestCommand) == 0 {
 			errs = append(errs, errors.New("tee.gpu_attest_command required when tee.provider=azure-cgpu (the command that obtains NVIDIA's attestation tokens for a nonce)"))
 		}
+	case provider == tee.ProviderAWSNitro:
+		errs = append(errs, c.validateNitro()...)
+	}
+	if provider, err := tee.ParseProvider(c.TEE.Provider); err == nil && provider != tee.ProviderAWSNitro &&
+		(c.TEE.AWSKMS != nil || c.TEE.SecretFilesVsockPort != 0 || c.Log.VsockPort != 0) {
+		errs = append(errs, errors.New("tee.aws_kms, tee.secret_files_vsock_port and log.vsock_port apply to aws-nitro only"))
 	}
 	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderAzureCGPU && lp != tee.ProviderAzureSEVSNP && (len(c.TEE.GPUAttestCommand) > 0 || c.TEE.TPM2ToolsDir != "" || c.TEE.AKHandle != "") {
 		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu and azure-sev-snp only"))
@@ -594,6 +666,70 @@ func (c Config) Validate() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// validateNitro holds a Nitro enclave's configuration to what an enclave
+// is (ADR 0036): no network but vsock, so the API listens on a vsock port
+// and there is no health listener; the key files come from the parent and
+// open only through KMS, released to the enclave's attestation; the
+// parent's vsock ports it dials are distinct, and none is nitro-cli's
+// boot heartbeat.
+func (c Config) validateNitro() []error {
+	var errs []error
+	if c.TEE.SeedPath != "" || c.TEE.InsecureSimulation {
+		errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only"))
+	}
+	if c.TEE.TSMReportDir != "" {
+		errs = append(errs, errors.New("tee.tsm_report_dir does not apply to aws-nitro (the document comes from the NSM)"))
+	}
+	if _, err := tee.SealerKindForProvider(tee.ProviderAWSNitro, c.TEE.SealerMode()); err != nil {
+		errs = append(errs, err)
+	}
+	if c.HTTP.ListenVsockPort == 0 {
+		errs = append(errs, errors.New("tee.provider=aws-nitro: http.listen_vsock_port required (an enclave has no network interface; its parent forwards to the port)"))
+	}
+	if strings.TrimSpace(c.Health.ListenAddress) != "" {
+		errs = append(errs, errors.New(`tee.provider=aws-nitro: health.listen_address must be "" (an enclave has no network interface, not even loopback)`))
+	}
+	if c.TEE.SecretFilesVsockPort == 0 {
+		errs = append(errs, errors.New("tee.provider=aws-nitro: tee.secret_files_vsock_port required (the key files are sealed to the image, so they come from the parent, not in the image)"))
+	}
+	k := c.TEE.AWSKMS
+	if k == nil {
+		errs = append(errs, errors.New("tee.provider=aws-nitro: tee.aws_kms required (the key the files are sealed under, and the parent's vsock ports to KMS and the instance metadata service)"))
+	} else {
+		if _, err := tee.ParseAWSKMSKeyARN(k.KeyARN); err != nil {
+			errs = append(errs, fmt.Errorf("tee.aws_kms.key_arn: %w", err))
+		}
+		if k.KMSVsockPort == 0 || k.IMDSVsockPort == 0 {
+			errs = append(errs, errors.New("tee.aws_kms.kms_vsock_port and tee.aws_kms.imds_vsock_port required"))
+		}
+	}
+	dialed := map[string]uint32{"tee.secret_files_vsock_port": c.TEE.SecretFilesVsockPort, "log.vsock_port": c.Log.VsockPort}
+	if k != nil {
+		dialed["tee.aws_kms.kms_vsock_port"], dialed["tee.aws_kms.imds_vsock_port"] = k.KMSVsockPort, k.IMDSVsockPort
+	}
+	names := make([]string, 0, len(dialed))
+	for name := range dialed {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	seen := map[uint32]string{}
+	for _, name := range names {
+		port := dialed[name]
+		switch {
+		case port == 0:
+		case port == nitroHeartbeatPort:
+			errs = append(errs, fmt.Errorf("%s %d is the parent's port nitro-cli receives the enclave's boot heartbeat on; a forwarder cannot listen there", name, port))
+		case port == 0xFFFFFFFF:
+			errs = append(errs, fmt.Errorf("%s 4294967295 is VMADDR_PORT_ANY, not a port", name))
+		case seen[port] != "":
+			errs = append(errs, fmt.Errorf("%s and %s are the same vsock port %d; each forwarder on the parent has its own", seen[port], name, port))
+		default:
+			seen[port] = name
+		}
+	}
+	return errs
 }
 
 func (g GenomeConfig) validate() []error {
