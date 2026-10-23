@@ -205,11 +205,19 @@ given release can still open.
 
 ### Fixed
 
-- A refusal that wraps a cause prints it once. The sealed-secret frame
-  every family opens its key files through, and three Nitro refusals,
-  formatted their cause into the message, and the error printed it again
-  after it; a test holds each to one copy. KMS's refusals without a message
-  (InvalidCiphertextException among them) end at the request's ID.
+- A refusal that wraps a cause prints it once. Forty-one refusals across
+  the tree — the sealed-secret frame every family opens its key files
+  through, the SEV-SNP, TDX, Azure, SGX, NVIDIA and Nitro verifiers and
+  sealers, the ML-DSA suite, the worker's door, the Return Path client and
+  the reconstruction backends — carried their cause in the message as
+  well (formatted into it, through its Error(), or in a message built from
+  it), and the error printed it again after it. A test walks the module and
+  holds every caller to leaving the cause to the error, and is itself held
+  to each form it exists to catch; Semgrep rule `vg-error-cause-twice`
+  marks a new one in review. A reconstruction backend that wrote nothing
+  no longer leaves an empty ": " in its refusal, and KMS's refusals without
+  a message (InvalidCiphertextException among them) end at the request's
+  ID.
 
 ## [0.9.0] — 2026-10-22
 

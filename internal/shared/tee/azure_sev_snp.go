@@ -106,7 +106,7 @@ func (p *AzureSEVSNPProducer) Quote(nonce Nonce) (Evidence, error) {
 	}
 	quoteMsg, quoteSig, err := p.vtpm.quote(tpmQuoteExtraDataFor(nonce))
 	if err != nil {
-		return nil, shared_errors.Operational(shared_errors.CodeResourceExhausted, "azure-sev-snp: "+err.Error(), err)
+		return nil, shared_errors.Operational(shared_errors.CodeResourceExhausted, "azure-sev-snp: the vTPM's quote", err)
 	}
 	ev, err := json.Marshal(azureSEVSNPEvidence{Schema: AzureSEVSNPEvidenceSchema, HCLReport: p.vtpm.hcl.Raw, QuoteMessage: quoteMsg, QuoteSignature: quoteSig})
 	if err != nil {

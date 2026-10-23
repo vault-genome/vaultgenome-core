@@ -182,3 +182,33 @@ rules:
     paths:
       include:
         - "**/*.go"
+
+  # -------------------------------------------------------------------
+  # R-09: a classified error prints its cause once
+  # (mirror of internal/shared/errors/callers_test.go)
+  # -------------------------------------------------------------------
+  - id: vg-error-cause-twice
+    languages: [go]
+    severity: ERROR
+    message: |
+      A classified error prints its cause after its message
+      ("category[code]: message: cause"). This message carries the cause
+      as well, so the error says it twice. Say in the message what failed
+      and leave the cause to the error.
+    patterns:
+      - pattern-either:
+          - pattern: shared_errors.$CTOR($CODE, fmt.Sprintf($FMT, ..., $CAUSE, ...), $CAUSE)
+          - pattern: shared_errors.$CTOR($CODE, fmt.Sprintf($FMT, ..., $CAUSE.Error(), ...), $CAUSE)
+          - pattern: shared_errors.$CTOR($CODE, $PREFIX + $CAUSE.Error(), $CAUSE)
+          - pattern: shared_errors.$CTOR($CODE, $CAUSE.Error(), $CAUSE)
+          - patterns:
+              - pattern: shared_errors.$CTOR($CODE, $MSG, $CAUSE)
+              - pattern-inside: |
+                  $MSG := fmt.Sprintf($FMT, ..., $CAUSE, ...)
+                  ...
+      - metavariable-regex:
+          metavariable: $CTOR
+          regex: ^(Structural|Authority|Operational|Integrity|Incident)$
+    paths:
+      exclude:
+        - "*_test.go"

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
@@ -70,6 +71,9 @@ func TestExternalBackend_BrokenBackendFallsThrough(t *testing.T) {
 	}
 	if res.Attempts[0].Err == "" {
 		t.Fatal("errored door should carry an error message for the audit trail")
+	}
+	if got := res.Attempts[0].Err; strings.Count(got, "exit status 3") != 1 || strings.HasSuffix(got, ": ") {
+		t.Fatalf("the backend's exit status once, and no empty tail: %q", got)
 	}
 }
 

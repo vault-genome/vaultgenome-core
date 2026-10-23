@@ -108,7 +108,7 @@ func NewRegistry(specs []RegistrySpec) (*Registry, error) {
 		if err != nil {
 			return nil, shared_errors.Structural(
 				shared_errors.CodeFieldValueInvalid,
-				fmt.Sprintf("tee.NewRegistry: BuildVerifier failed for provider %q: %s", rs.Provider, err.Error()),
+				fmt.Sprintf("tee.NewRegistry: BuildVerifier failed for provider %q", rs.Provider),
 				err,
 			)
 		}

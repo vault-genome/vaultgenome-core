@@ -115,7 +115,7 @@ func NewIntelSGXProducer(cfg IntelSGXProducerConfig) (*IntelSGXProducer, error) 
 	if err != nil {
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("intel-sgx: load enclave: %v", err),
+			"intel-sgx: load enclave",
 			err,
 		)
 	}
@@ -252,7 +252,7 @@ func (v *IntelSGXVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 	if err != nil {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("intel-sgx: collateral: %v", err),
+			"intel-sgx: collateral",
 			err,
 		)
 	}
@@ -260,7 +260,7 @@ func (v *IntelSGXVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 	if err != nil {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("intel-sgx: dcap verify: %v", err),
+			"intel-sgx: dcap verify",
 			err,
 		)
 	}
@@ -348,7 +348,7 @@ func (s *IntelSGXSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 		if err != nil {
 			return nil, shared_errors.Integrity(
 				shared_errors.CodeSignatureInvalid,
-				fmt.Sprintf("intel-sgx-sealer: HSM unwrap: %v", err),
+				"intel-sgx-sealer: HSM unwrap",
 				err,
 			)
 		}
@@ -358,7 +358,7 @@ func (s *IntelSGXSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 	if err != nil {
 		return nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("intel-sgx-sealer: unseal: %v", err),
+			"intel-sgx-sealer: unseal",
 			err,
 		)
 	}

@@ -319,7 +319,7 @@ func (r *GenomeReconstructor) runDoor(ctx context.Context, deadline time.Time, r
 	start := r.clock.Now()
 	runErr := cmd.Run()
 	if runErr != nil {
-		msg := fmt.Sprintf("worker: door %q failed after %s: %v", r.cfg.Command[0], r.clock.Now().Sub(start).Round(time.Millisecond), runErr)
+		msg := fmt.Sprintf("worker: door %q failed after %s", r.cfg.Command[0], r.clock.Now().Sub(start).Round(time.Millisecond))
 		if runCtx.Err() != nil && ctx.Err() == nil {
 			msg = fmt.Sprintf("worker: door %q ran out of time after %s", r.cfg.Command[0], r.clock.Now().Sub(start).Round(time.Millisecond))
 		}

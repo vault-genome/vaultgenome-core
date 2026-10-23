@@ -218,7 +218,7 @@ func NewGCPTDXVerifier(_ crypto.PublicKey, expected Measurement, cfg GCPTDXVerif
 		}
 	}
 	if _, err := intelRootPool(cfg.IntelRootPEM); err != nil {
-		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-tdx: Intel root PEM: "+err.Error(), err)
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-tdx: Intel root PEM", err)
 	}
 	return &GCPTDXVerifier{
 		cfg:        cfg,

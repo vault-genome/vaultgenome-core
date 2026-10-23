@@ -166,7 +166,7 @@ func (s SignatureSuite) Available() error {
 		if _, err := mldsa.NewPublicKey(mldsa.MLDSA87(), make([]byte, mldsa.MLDSA87PublicKeySize)); err != nil {
 			return shared_errors.Structural(
 				shared_errors.CodeFieldValueInvalid,
-				"crypto: signature suite ml-dsa-87 is unavailable on this build: "+err.Error(),
+				"crypto: signature suite ml-dsa-87 is unavailable on this build",
 				err,
 			)
 		}
@@ -213,7 +213,7 @@ func GenerateSigningKey(suite SignatureSuite, rng io.Reader) (*SigningKey, error
 	case SuiteMLDSA87:
 		priv, err := mldsa.GenerateKey(mldsa.MLDSA87())
 		if err != nil {
-			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: ml-dsa-87 key generation failed: "+err.Error(), err)
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: ml-dsa-87 key generation failed", err)
 		}
 		return &SigningKey{suite: suite, ml: priv, seed: priv.Bytes()}, nil
 	}
@@ -237,7 +237,7 @@ func SigningKeyFromSeed(suite SignatureSuite, seed []byte) (*SigningKey, error) 
 		}
 		priv, err := mldsa.NewPrivateKey(mldsa.MLDSA87(), seed)
 		if err != nil {
-			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: ml-dsa-87 key from seed failed: "+err.Error(), err)
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: ml-dsa-87 key from seed failed", err)
 		}
 		return &SigningKey{suite: suite, ml: priv, seed: priv.Bytes()}, nil
 	case SuiteECDSAP384SHA384:
@@ -347,7 +347,7 @@ func (k *SigningKey) Sign(msg []byte) ([]byte, error) {
 	case k.ml != nil:
 		sig, err := k.ml.Sign(nil, msg, nil)
 		if err != nil {
-			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: ml-dsa-87 signing failed: "+err.Error(), err)
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "crypto: ml-dsa-87 signing failed", err)
 		}
 		return sig, nil
 	}

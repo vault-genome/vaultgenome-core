@@ -202,7 +202,7 @@ func newAzureSNPChecker(family string, amdRootPEM []byte, kdsURL, cacheDir strin
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, family+": AMDRootPEM (the product's ASK+ARK chain) required", nil)
 	}
 	if _, err := VerifyAMDCertChain(amdRootPEM); err != nil {
-		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, family+": AMDRootPEM: "+err.Error(), err)
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, family+": AMDRootPEM", err)
 	}
 	if kdsURL == "" {
 		kdsURL = "https://kdsintf.amd.com"
@@ -321,7 +321,7 @@ var amdKDSGetVCEKFor = func(baseURL, product string, chipID [64]byte, reportedTC
 func azureAcceptMeasurement(family string, report *sevSNPReport, acceptable []Measurement) (Measurement, error) {
 	m, err := MeasurementFromBytes(report.Measurement[:])
 	if err != nil {
-		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, family+": unexpected MEASUREMENT length: "+err.Error(), err)
+		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, family+": unexpected MEASUREMENT length", err)
 	}
 	for _, a := range acceptable {
 		if a.Equal(m) {

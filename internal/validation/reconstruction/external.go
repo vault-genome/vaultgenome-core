@@ -79,10 +79,11 @@ func (b ExternalBackend) Recompute(id string) (equivalence.Tensor, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &errb
 	if err := cmd.Run(); err != nil {
-		return equivalence.Tensor{}, shared_errors.Operational(
-			shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("reconstruction: external backend %q failed for fixture %q: %v: %s",
-				b.Argv[0], id, err, strings.TrimSpace(errb.String())), err)
+		msg := fmt.Sprintf("reconstruction: external backend %q failed for fixture %q", b.Argv[0], id)
+		if t := strings.TrimSpace(errb.String()); t != "" {
+			msg += ": " + t
+		}
+		return equivalence.Tensor{}, shared_errors.Operational(shared_errors.CodeFieldValueInvalid, msg, err)
 	}
 	var r extResponse
 	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &r); err != nil {
