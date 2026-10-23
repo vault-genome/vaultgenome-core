@@ -1,6 +1,9 @@
 # Commercial license
 
-This project is licensed **AGPL-3.0-or-later** ([LICENSE](LICENSE)). For
+This project is licensed **AGPL-3.0-or-later** ([LICENSE](LICENSE)); the
+published conformance corpus, its harness and the public conformance package
+(`test/corpus/sev-snp`, `tools/corpus-harness`, `pkg/teeconformance`) are
+Apache-2.0 and need no commercial licence for any use. For
 organisations whose deployment cannot satisfy AGPL §13, the same code is
 available under a separate commercial license.
 

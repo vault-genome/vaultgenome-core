@@ -32,7 +32,21 @@ given release can still open.
   (`tools/auditor/verify_audit.py` — pure Python, the bbolt file read as
   bytes, Ed25519 and ECDSA P-384 written out), held equal to `acpctl
   audit verify` on every genuine log on record, on logs under each suite
-  and on mutants by one test (C48, VG-041).
+  and on mutants by one test (C48, VG-041). Part four: the corpus
+  published whole — every report and VCEK in `test/corpus/sev-snp/`,
+  `expected.tsv` with what every verifier must read, a harness that runs
+  any verifier through a command (`tools/corpus-harness`, adapters for
+  the Google and VirTEE tools), and `teeconformance.RunSEVSNPCorpus` for
+  Go verifiers, the product's own reading its first user in the gate.
+- The published conformance corpus, its harness and the public
+  conformance package (`test/corpus/sev-snp`, `tools/corpus-harness`,
+  `pkg/teeconformance`) are licensed Apache-2.0, by the decision of both
+  copyright holders (ADR 0003, amendment of 2026-10-23): the licence of
+  the ecosystem's own tools, with its patent grant, so that any verifier
+  can take the corpus into its own tests. The product stays
+  AGPL-3.0-or-later with the commercial licence beside it; the header
+  check requires Apache-2.0 in those three directories and AGPL
+  everywhere else.
 - The attack record in the verifier's policy (ADR 0033, part one). A
   SEV-SNP report is read whole and put on the record — the chip's family,
   model and stepping, the guest policy and PLATFORM_INFO bit by bit, the

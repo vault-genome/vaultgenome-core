@@ -44,3 +44,10 @@ Trademarks referenced in documentation (AMD SEV-SNP, Intel SGX/TDX, AWS Nitro,
 NVIDIA, Azure, Google Cloud, Hugging Face, Qwen) belong to their respective
 owners and are used descriptively to identify measured hardware and software.
 Their mention is not an endorsement, affiliation or certification.
+
+Three directories are licensed under the Apache License, Version 2.0,
+instead (ADR 0003, amendment of 2026-10-23): pkg/teeconformance (the
+public conformance package), test/corpus/sev-snp (the published
+conformance corpus) and tools/corpus-harness (the harness any verifier
+runs). Each carries the licence text, and every source file in them the
+SPDX-License-Identifier: Apache-2.0 header.

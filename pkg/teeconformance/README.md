@@ -64,6 +64,28 @@ both as the suite's self-test (passing build = suite is wired
 correctly) and as a worked example of what a conformant adapter looks
 like.
 
+## The SEV-SNP corpus
+
+`RunSEVSNPCorpus` holds a SEV-SNP verifier to every genuine attestation
+report Vault Genome has on record (`test/corpus/sev-snp/` in the module:
+41 reports from 25 chips on 2026-10-23, Milan and Genoa, each with the
+VCEK it verifies under and AMD's chain for its product), to the fields
+every verifier must read from each (`expected.tsv`: version, policy,
+PLATFORM_INFO, the reported TCB, the measurement, the chip id), and to
+two mutants of every report, which must be refused:
+
+```go
+func TestMyVerifier_Corpus(t *testing.T) {
+    teeconformance.RunSEVSNPCorpus(t, "path/to/test/corpus/sev-snp", func(report, vcek, chain []byte) (teeconformance.SEVSNPReading, error) {
+        // verify report under vcek and AMD's chain; return what you read
+        return teeconformance.SEVSNPReading{Verified: true, Measurement: m, ChipID: c, ReportedTCB: tcb, Policy: p, PlatformInfo: pi, Version: v}, nil
+    })
+}
+```
+
+A field left zero or nil is not compared. A verifier in any other
+language runs the same corpus through `tools/corpus-harness` (ADR 0034).
+
 ## What this package does NOT cover
 
 - Wire-format conformance (CBOR field offsets, sgx_quote3_t binary
@@ -90,7 +112,9 @@ V1-conformant adapters indefinitely.
 
 ## License
 
-AGPL-3.0-or-later, same as the rest of the module. See
-[ADR-0003](../../docs/adr/0003-agpl-commercial-dual-licensing.md) for
-the licensing strategy. Commercial licenses available — contact
-ops@vaultgenome.com.
+Apache License 2.0 ([`LICENSE`](LICENSE) in this directory), unlike the
+rest of the module, which is AGPL-3.0-or-later with a commercial licence
+beside it: a conformance package exists to be run by others, so it is
+licensed the way the TEE ecosystem's own tools are. The decision and its
+reasons are the amendment of 2026-10-23 to
+[ADR-0003](../../docs/adr/0003-agpl-commercial-dual-licensing.md).

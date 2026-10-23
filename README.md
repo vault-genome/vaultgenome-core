@@ -30,6 +30,10 @@ a computation problem third.
 
 Every number links to the claim, its evidence files and the command that
 reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C39).
+The verifier itself is held to readings nobody here wrote on every
+genuine SEV-SNP report on record, and that corpus is published for any
+verifier to run ([`test/corpus/sev-snp/`](test/corpus/sev-snp/), C47;
+the audit log under an auditor's own tool, C48).
 
 | What | Result | Claim |
 | - | - | - |
@@ -244,7 +248,11 @@ current by Dependabot.
 - **License:** AGPL-3.0-or-later ([`LICENSE`](LICENSE), scope in
   [`NOTICE`](NOTICE)); the same code under a
   [commercial license](COMMERCIAL-LICENSE.md) for deployments that cannot
-  satisfy AGPL §13, with no feature gating between the two.
+  satisfy AGPL §13, with no feature gating between the two. The published
+  conformance corpus, its harness and the public conformance package
+  ([`test/corpus/sev-snp`](test/corpus/sev-snp/), [`tools/corpus-harness`](tools/corpus-harness/),
+  [`pkg/teeconformance`](pkg/teeconformance/)) are Apache-2.0, so that any
+  verifier can test against them.
 - **Cite:** [`CITATION.cff`](CITATION.cff).
 
 The architecture represented by this code is the product of the founders'
