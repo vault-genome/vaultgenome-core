@@ -15,13 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// NSM_IOCTL_RAW is _IOWR(0x0A, 0, struct nsm_raw): the direction bits
-// (read|write = 3) at 30, the 32-byte size at 16, the magic at 8, the
-// number at 0 (Linux include/uapi/asm-generic/ioctl.h, uapi/linux/nsm.h).
+// ioc is the kernel's _IOC(dir, type, nr, size): the direction at bit 30,
+// the size at 16, the type (the magic) at 8, the number at 0 (Linux
+// include/uapi/asm-generic/ioctl.h).
+func ioc(dir, typ, nr, size uint32) uint32 {
+	return dir<<30 | size<<16 | typ<<8 | nr
+}
+
+// NSM_IOCTL_RAW is _IOWR(0x0A, 0, struct nsm_raw) — read and write, the
+// magic 0x0A, the number 0, the 32 bytes of struct nsm_raw (Linux
+// include/uapi/linux/nsm.h).
 func TestNSM_IoctlNumber(t *testing.T) {
-	const iocRead, iocWrite = 2, 1
-	want := uint32((iocRead|iocWrite)<<30 | 32<<16 | 0x0A<<8 | 0)
-	require.Equal(t, want, uint32(nsmIoctlRaw))
+	const iocWrite, iocRead = 1, 2 // _IOC_WRITE, _IOC_READ
+	require.Equal(t, ioc(iocRead|iocWrite, 0x0A, 0, 32), uint32(nsmIoctlRaw))
+	require.Equal(t, uint32(0xC0200A00), uint32(nsmIoctlRaw))
 }
 
 // The ioctl goes to the kernel: on a file that is not the NSM the kernel
