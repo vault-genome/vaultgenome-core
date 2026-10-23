@@ -41,14 +41,14 @@ import (
 
 const (
 	differentialRoot   = "../../.."
-	differentialCorpus = "test/corpus/sev-snp/manifest.tsv"
+	differentialCorpus = "test/corpus/sev-snp"
 )
 
 type corpusRow map[string]string
 
 func readCorpus(t *testing.T) []corpusRow {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(differentialRoot, differentialCorpus))
+	b, err := os.ReadFile(filepath.Join(differentialRoot, differentialCorpus, "manifest.tsv"))
 	require.NoError(t, err, "the corpus manifest; build it with python3 -I test/corpus/sev-snp/build.py")
 	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
 	require.Greater(t, len(lines), 1)
@@ -243,11 +243,11 @@ func TestDifferential_SEVSNP(t *testing.T) {
 	for _, r := range rows {
 		r := r
 		t.Run(r["id"], func(t *testing.T) {
-			raw, err := os.ReadFile(filepath.Join(differentialRoot, r["report"]))
+			raw, err := os.ReadFile(filepath.Join(differentialRoot, differentialCorpus, r["report"]))
 			require.NoError(t, err)
-			vcek, err := os.ReadFile(filepath.Join(differentialRoot, r["vcek"]))
+			vcek, err := os.ReadFile(filepath.Join(differentialRoot, differentialCorpus, r["vcek"]))
 			require.NoError(t, err)
-			chain, err := os.ReadFile(filepath.Join(differentialRoot, r["chain"]))
+			chain, err := os.ReadFile(filepath.Join(differentialRoot, differentialCorpus, r["chain"]))
 			require.NoError(t, err)
 
 			// The product's reading: parse, AMD's chain, the chip's signature, the detail.
@@ -258,7 +258,7 @@ func TestDifferential_SEVSNP(t *testing.T) {
 			det := sevSNPReportDetail(rep)
 
 			// Google's reading.
-			out := runOracle(t, bin, filepath.Join(differentialRoot, r["report"]), filepath.Join(differentialRoot, r["vcek"]), filepath.Join(differentialRoot, r["chain"]), true)
+			out := runOracle(t, bin, filepath.Join(differentialRoot, differentialCorpus, r["report"]), filepath.Join(differentialRoot, differentialCorpus, r["vcek"]), filepath.Join(differentialRoot, differentialCorpus, r["chain"]), true)
 			require.True(t, out.Parsed, "go-sev-guest: parse: %s", out.ParseError)
 			require.True(t, out.Verified, "go-sev-guest: verify: %s", out.VerifyError)
 			require.Equal(t, r["product"], out.ProductLine, "product line")
@@ -311,11 +311,11 @@ func TestDifferential_SEVSNP(t *testing.T) {
 			virtee := "not run (VG_SNPGUEST unset)"
 			if snpguest != "" {
 				dir := snpguestCertsDir(t, vcek, chain)
-				for _, args := range [][]string{{"verify", "certs", dir}, {"verify", "attestation", dir, filepath.Join(differentialRoot, r["report"])}} {
+				for _, args := range [][]string{{"verify", "certs", dir}, {"verify", "attestation", dir, filepath.Join(differentialRoot, differentialCorpus, r["report"])}} {
 					o, err := exec.Command(snpguest, args...).CombinedOutput()
 					require.NoError(t, err, "snpguest %v: %s", args, o)
 				}
-				o, err := exec.Command(snpguest, "display", "report", filepath.Join(differentialRoot, r["report"])).CombinedOutput()
+				o, err := exec.Command(snpguest, "display", "report", filepath.Join(differentialRoot, differentialCorpus, r["report"])).CombinedOutput()
 				require.NoError(t, err, "snpguest display report: %s", o)
 				shown := strings.ToLower(strings.Map(func(c rune) rune {
 					if c == ' ' || c == '\n' || c == '\t' {

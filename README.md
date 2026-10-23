@@ -30,6 +30,10 @@ a computation problem third.
 
 Every number links to the claim, its evidence files and the command that
 reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C39).
+The verifier itself is held to readings nobody here wrote on every
+genuine SEV-SNP report on record, and that corpus is published for any
+verifier to run ([`test/corpus/sev-snp/`](test/corpus/sev-snp/), C47;
+the audit log under an auditor's own tool, C48).
 
 | What | Result | Claim |
 | - | - | - |

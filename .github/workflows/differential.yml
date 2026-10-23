@@ -36,6 +36,12 @@ jobs:
           VG_ORACLE="$RUNNER_TEMP/oracle" VG_SNPGUEST="$RUNNER_TEMP/snpguest/bin/snpguest" \
           VG_DIFFERENTIAL_RECORD="$RUNNER_TEMP/differential-ci.json" \
           go test -tags differential ./internal/shared/tee/ -run TestDifferential -count=1 -v 2>&1 | grep -v '^=== RUN'
+      - name: The corpus harness with both adapters (part four)
+        run: |
+          python3 -I tools/corpus-harness/run.py --corpus test/corpus/sev-snp --mutants 8 --record "$RUNNER_TEMP/harness-oracle.json" \
+            --cmd "python3 -I tools/corpus-harness/adapters/oracle.py --oracle $RUNNER_TEMP/oracle --report {report} --vcek {vcek} --chain {chain}" | tail -3
+          python3 -I tools/corpus-harness/run.py --corpus test/corpus/sev-snp --mutants 8 --record "$RUNNER_TEMP/harness-snpguest.json" \
+            --cmd "python3 -I tools/corpus-harness/adapters/snpguest.py --snpguest $RUNNER_TEMP/snpguest/bin/snpguest --report {report} --vcek {vcek} --chain {chain}" | tail -3
       - name: The auditor's own verifier of the audit log against acpctl audit verify (part three)
         run: |
           VG_AUDITOR_RECORD="$RUNNER_TEMP/auditor-ci.json" \
@@ -47,3 +53,5 @@ jobs:
           path: |
             ${{ runner.temp }}/differential-ci.json
             ${{ runner.temp }}/auditor-ci.json
+            ${{ runner.temp }}/harness-oracle.json
+            ${{ runner.temp }}/harness-snpguest.json

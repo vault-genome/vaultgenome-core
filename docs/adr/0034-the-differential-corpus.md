@@ -1,6 +1,6 @@
 # ADR 0034 — The verifier held to readings nobody here wrote: the differential corpus
 
-- **Status:** Accepted (2026-10-22) — part one (every genuine SEV-SNP report on record as a corpus; Google's go-sev-guest as a second reading through a module of its own; the test that calls both on the verdict, the fields and every single-byte mutant; the laxity it found on its first run, and the fix) and part two (VirTEE's `snpguest` as the third reading, on the record from Linux in the `differential` workflow's first green run) and part three (the auditor's own verifier of the audit log, in Python with no dependencies, held equal to `acpctl audit verify` on every log on record, on logs under each suite and on mutants) in the tree; claims C47 and C48. Part four (the corpus and the harness published for other verifiers to run) and part five (version-aware must-be-zero checks in the signed body; a hardware day adding a fresh report; the receipts under the auditor's tool) follow
+- **Status:** Accepted (2026-10-22) — part one (every genuine SEV-SNP report on record as a corpus; Google's go-sev-guest as a second reading through a module of its own; the test that calls both on the verdict, the fields and every single-byte mutant; the laxity it found on its first run, and the fix) and part two (VirTEE's `snpguest` as the third reading, on the record from Linux in the `differential` workflow's first green run) and part three (the auditor's own verifier of the audit log, in Python with no dependencies, held equal to `acpctl audit verify` on every log on record, on logs under each suite and on mutants) and part four (the corpus whole on its own with what every verifier must read, a harness any verifier runs through a command, and the corpus as part of the public conformance package for Go verifiers) in the tree; claims C47 and C48. Part five (version-aware must-be-zero checks in the signed body; a hardware day adding a fresh report; the receipts under the auditor's tool; the corpus as a release asset) follows
 - **Date:** 2026-10-22
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 
@@ -172,12 +172,31 @@ code.
   first run: `test/corpus/audit/results/auditor-20261022T233609Z.json`.
   Claim C48; control VG-041; `banking.md` (RTS Art. 12(2)(d)). The
   receipts stay with part five.
-- **Part four:** the corpus with expected results and the harness published
-  for other verifiers.
+- **Part four (2026-10-23):** the corpus is whole on its own — every
+  report and VCEK copied into `test/corpus/sev-snp/` (the manifest's
+  `source` column says where each was kept), AMD's chains, `SHA256SUMS`
+  — and `expected.tsv` holds what every verifier must read from each
+  report, taken from the raw bytes at the specification's offsets with no
+  verifier involved (the fields of C47; the three readings agree with
+  them). `tools/corpus-harness/run.py` runs any verifier given as a
+  command with `{report} {vcek} {chain} {product}` on every report, reads
+  one JSON object from it (`verified`, and the fields it chooses to
+  expose), holds the fields to `expected.tsv`, and with `--mutants N`
+  flips N bytes of each report across the signed body and the signature
+  and requires every one refused; adapters for Google's oracle and
+  VirTEE's `snpguest` come with it, and the first run on record
+  (`results/harness-oracle-<stamp>.json`: the Google reading, 41 reports,
+  11 fields each, 8 of 8 mutants refused on each) is in the tree. For Go
+  verifiers the corpus is part of the public conformance package:
+  `teeconformance.RunSEVSNPCorpus(t, dir, read)` loads the manifest and
+  the expected values and holds a reader to them and to two mutants per
+  report; the product's own reading is its first user
+  (`TestSEVSNPCorpus_ProductReading`, in the gate). The `differential`
+  workflow runs the harness with both adapters on every push.
 - **Part five:** must-be-zero in the signed body, version-aware, from the
   specification; a hardware day adding a fresh report to the corpus by the
   kit; the receipts (the restore receipt and the report quoted over it)
-  under the auditor's tool.
+  under the auditor's tool; the corpus directory as a release asset.
 
 ## References
 

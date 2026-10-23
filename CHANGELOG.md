@@ -32,7 +32,12 @@ given release can still open.
   (`tools/auditor/verify_audit.py` — pure Python, the bbolt file read as
   bytes, Ed25519 and ECDSA P-384 written out), held equal to `acpctl
   audit verify` on every genuine log on record, on logs under each suite
-  and on mutants by one test (C48, VG-041).
+  and on mutants by one test (C48, VG-041). Part four: the corpus
+  published whole — every report and VCEK in `test/corpus/sev-snp/`,
+  `expected.tsv` with what every verifier must read, a harness that runs
+  any verifier through a command (`tools/corpus-harness`, adapters for
+  the Google and VirTEE tools), and `teeconformance.RunSEVSNPCorpus` for
+  Go verifiers, the product's own reading its first user in the gate.
 - The attack record in the verifier's policy (ADR 0033, part one). A
   SEV-SNP report is read whole and put on the record — the chip's family,
   model and stepping, the guest policy and PLATFORM_INFO bit by bit, the
