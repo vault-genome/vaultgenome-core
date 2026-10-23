@@ -36,9 +36,20 @@ given release can still open.
 - Fuzz targets for the CBOR decoder and the whole Nitro verifier.
 - The AWS Nitro integration tests sign genuine CBOR/COSE_Sign1 documents
   with a synthetic five-certificate P-384 chain instead of a JSON fake, so
-  the production codec runs in CI. The NSM producer, the KMS sealer and
-  the registry's refusal of the `aws-nitro` family are unchanged: no
-  enclave has attested to this code live (KNOWN_ISSUES #1).
+  the production codec runs in CI. The KMS sealer and the registry's
+  refusal of the `aws-nitro` family are unchanged: no enclave has attested
+  to this code live (KNOWN_ISSUES #1).
+- The Nitro enclave as a key-release destination (ADR 0036, proposed;
+  part one). The NSM producer speaks the device from its interface —
+  `NSM_IOCTL_RAW` (`0xC0200A00`) through the `syscall` package, the
+  request encoded byte for byte as AWS's NSM API sends it (held by a test
+  vector written out per RFC 8949), the answer decoded by the attestation
+  document's own strict decoder, every NSM error code named, the device's
+  limits enforced before the call — and attests itself at start: a
+  document over a random nonce, verified whole against the pinned AWS
+  root, PCR0 taken from it. `DescribePCR` is not used: its answer carries
+  a boolean the document's decoder does not take. The family stays
+  refused until an enclave has taken a release on hardware.
 - The verifier held to readings nobody here wrote (ADR 0034, part one).
   Every genuine SEV-SNP report on record — 41 on 2026-10-22, 25 chips,
   Milan and Genoa — is a corpus (`test/corpus/sev-snp`, `build.py`, the

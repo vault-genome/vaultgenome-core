@@ -49,6 +49,7 @@ func TestIntegration_AWSNitro(t *testing.T) {
 		p, err := NewAWSNitroProducer(AWSNitroProducerConfig{
 			NSMDevicePath: "/fake/nsm",
 			UserData:      []byte("integration-userdata"),
+			pinnedRoots:   [][]byte{fh.nitro.rootDER},
 		})
 		require.NoError(t, err)
 		return p

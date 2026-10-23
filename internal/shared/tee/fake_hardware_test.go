@@ -242,8 +242,7 @@ func installAWSNitroFake(t testing.TB, fh *fakeHardware) {
 
 	// Save originals.
 	origOpenNSM := openNSMDevice
-	origNsmDescribePCR := nsmDescribePCR
-	origNsmGetAttestationDoc := nsmGetAttestationDoc
+	origNSMRawCall := nsmRawCall
 	origAwsKMSEncrypt := awsKMSEncrypt
 	origAwsKMSDecrypt := awsKMSDecrypt
 	origIsKMSAccessDenied := isKMSAccessDenied
@@ -257,20 +256,10 @@ func installAWSNitroFake(t testing.TB, fh *fakeHardware) {
 		t.Cleanup(func() { _ = os.Remove(f.Name()) })
 		return f, nil
 	}
-	nsmDescribePCR = func(_ *os.File, idx int) ([]byte, error) {
-		if pcr, ok := fh.pcrs[idx]; ok {
-			return pcr, nil
-		}
-		return nil, fmt.Errorf("fake-nsm: PCR%d not set", idx)
-	}
-	nsmGetAttestationDoc = func(_ *os.File, req nsmAttestationRequest) ([]byte, error) {
-		return fh.nitro.sign(t, nitroTestDoc{
-			ModuleID:  "i-fake-" + fh.label,
-			Timestamp: time.Now(),
-			PCRs:      fh.pcrs,
-			Nonce:     req.Nonce,
-			UserData:  req.UserData,
-		}), nil
+	// The fake NSM answers at the ioctl: the producer's request is encoded
+	// and the answer decoded by the code a daemon runs (ADR 0036).
+	nsmRawCall = func(_ *os.File, req []byte) ([]byte, error) {
+		return fh.nitroNSMAnswer(t, req)
 	}
 
 	// Fake KMS: AES-GCM with a key derived from the workload measurement;
@@ -309,13 +298,57 @@ func installAWSNitroFake(t testing.TB, fh *fakeHardware) {
 
 	t.Cleanup(func() {
 		openNSMDevice = origOpenNSM
-		nsmDescribePCR = origNsmDescribePCR
-		nsmGetAttestationDoc = origNsmGetAttestationDoc
+		nsmRawCall = origNSMRawCall
 		awsKMSEncrypt = origAwsKMSEncrypt
 		awsKMSDecrypt = origAwsKMSDecrypt
 		isKMSAccessDenied = origIsKMSAccessDenied
 		teeFakeMu.Unlock()
 	})
+}
+
+// nitroNSMAnswer is the fake NSM device: it reads the request the
+// producer encoded, signs a document with the synthetic chain over the
+// fields it carried, and answers the way the NSM does.
+func (fh *fakeHardware) nitroNSMAnswer(t testing.TB, req []byte) ([]byte, error) {
+	it, err := cborDecode(req)
+	if err != nil {
+		return nil, fmt.Errorf("fake-nsm: the request is not CBOR: %w", err)
+	}
+	att, dup := it.mapLookup("Attestation")
+	if att == nil || dup || att.kind != cborMap {
+		return nsmAnswerError("InvalidOperation"), nil
+	}
+	field := func(name string) []byte {
+		v, _ := att.mapLookup(name)
+		if v == nil || v.kind == cborNull {
+			return nil
+		}
+		return v.b
+	}
+	doc := fh.nitro.sign(t, nitroTestDoc{
+		ModuleID:  "i-fake-" + fh.label,
+		Timestamp: time.Now(),
+		PCRs:      fh.pcrs,
+		Nonce:     field("nonce"),
+		UserData:  field("user_data"),
+		PublicKey: field("public_key"),
+	})
+	var e cborEncoder
+	e.mapping(1)
+	e.text("Attestation")
+	e.mapping(1)
+	e.text("document")
+	e.bytes(doc)
+	return e.buf, nil
+}
+
+// nsmAnswerError is the NSM's Response::Error(code).
+func nsmAnswerError(code string) []byte {
+	var e cborEncoder
+	e.mapping(1)
+	e.text("Error")
+	e.text(code)
+	return e.buf
 }
 
 // =============================================================================

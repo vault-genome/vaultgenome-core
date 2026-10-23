@@ -183,8 +183,6 @@ func TestUnwiredSeamsFailClosed(t *testing.T) {
 	teeFakeMu.Lock()
 	t.Cleanup(teeFakeMu.Unlock)
 	refusals := map[string]func() error{
-		"nsmDescribePCR":       func() error { _, err := nsmDescribePCR(nil, 0); return err },
-		"nsmGetAttestationDoc": func() error { _, err := nsmGetAttestationDoc(nil, nsmAttestationRequest{}); return err },
 		"awsKMSEncrypt":        func() error { _, err := awsKMSEncrypt("", "", nil, nil); return err },
 		"awsKMSDecrypt":        func() error { _, err := awsKMSDecrypt("", "", nil, nil); return err },
 		"sgxCreateEnclave":     func() error { _, err := sgxCreateEnclave(""); return err },
@@ -215,27 +213,63 @@ func TestAWSNitroProducerVerifierAndSealerRefusals(t *testing.T) {
 	installAWSNitroFake(t, fh)
 	nonce := Nonce("a thirty-two byte challenger nonce!")
 
-	t.Run("producer construction", func(t *testing.T) {
-		describe := nsmDescribePCR
-		nsmDescribePCR = func(*os.File, int) ([]byte, error) { return nil, errors.New("pcr unavailable") }
-		_, err := NewAWSNitroProducer(AWSNitroProducerConfig{})
-		require.ErrorContains(t, err, "read PCR0")
-		nsmDescribePCR = func(*os.File, int) ([]byte, error) { return make([]byte, 16), nil }
+	pinned := [][]byte{fh.nitro.rootDER}
+	t.Run("producer construction: the self-attestation", func(t *testing.T) {
+		raw := nsmRawCall
+		t.Cleanup(func() { nsmRawCall = raw })
+		// The NSM refuses: the code is named.
+		nsmRawCall = func(*os.File, []byte) ([]byte, error) { return nsmAnswerError("InternalError"), nil }
+		_, err := NewAWSNitroProducer(AWSNitroProducerConfig{pinnedRoots: pinned})
+		requireIntegrityErr(t, err, "InternalError")
+		// The device fails.
+		nsmRawCall = func(*os.File, []byte) ([]byte, error) { return nil, errors.New("ioctl: no such device") }
+		_, err = NewAWSNitroProducer(AWSNitroProducerConfig{pinnedRoots: pinned})
+		require.ErrorContains(t, err, "self-attestation")
+		// The document is signed under the synthetic chain, and the
+		// producer holds it to AWS's root: refused.
+		nsmRawCall = raw
 		_, err = NewAWSNitroProducer(AWSNitroProducerConfig{})
-		requireIntegrityErr(t, err, "PCR0 shorter than 32 bytes")
-		nsmDescribePCR = describe
+		require.ErrorContains(t, err, "self-attestation does not verify")
+		// The NSM signs another nonce than the producer asked for.
+		nsmRawCall = func(f *os.File, req []byte) ([]byte, error) {
+			it, err := cborDecode(req)
+			require.NoError(t, err)
+			att, _ := it.mapLookup("Attestation")
+			n, _ := att.mapLookup("nonce")
+			n.b = bytes.Repeat([]byte{0x77}, len(n.b))
+			var e cborEncoder
+			e.mapping(1)
+			e.text("Attestation")
+			e.mapping(3)
+			e.text("user_data")
+			e.null()
+			e.text("nonce")
+			e.bytes(n.b)
+			e.text("public_key")
+			e.null()
+			return raw(f, e.buf)
+		}
+		_, err = NewAWSNitroProducer(AWSNitroProducerConfig{pinnedRoots: pinned})
+		requireIntegrityErr(t, err, "another nonce")
+		// PCR0 of another length than SHA-384's.
+		nsmRawCall = raw
+		pcrs := fh.pcrs
+		fh.pcrs = map[int][]byte{0: make([]byte, 32), 1: pcrs[1], 2: pcrs[2]}
+		_, err = NewAWSNitroProducer(AWSNitroProducerConfig{pinnedRoots: pinned})
+		require.Error(t, err)
+		fh.pcrs = pcrs
 	})
 
-	p, err := NewAWSNitroProducer(AWSNitroProducerConfig{UserData: []byte("sagvd")})
+	p, err := NewAWSNitroProducer(AWSNitroProducerConfig{UserData: []byte("sagvd"), pinnedRoots: pinned})
 	require.NoError(t, err)
 	require.True(t, p.Measurement().Equal(fh.measure))
 	_, err = p.Quote(Nonce("short"))
 	requireStructuralErr(t, err, "nonce")
-	getDoc := nsmGetAttestationDoc
-	nsmGetAttestationDoc = func(*os.File, nsmAttestationRequest) ([]byte, error) { return nil, errors.New("nsm busy") }
+	raw := nsmRawCall
+	nsmRawCall = func(*os.File, []byte) ([]byte, error) { return nil, errors.New("nsm busy") }
 	_, err = p.Quote(nonce)
 	require.ErrorContains(t, err, "NSM_GET_ATTESTATION_DOC")
-	nsmGetAttestationDoc = getDoc
+	nsmRawCall = raw
 	ev, err := p.Quote(nonce)
 	require.NoError(t, err)
 	require.NoError(t, p.Close())

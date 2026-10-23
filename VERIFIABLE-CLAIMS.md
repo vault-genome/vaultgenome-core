@@ -3358,8 +3358,9 @@ acpctl attest nitro --doc internal/shared/tee/testdata/aws-nitro/2026-05-08-vm1-
 
 **Scope.** Offline, at the document's own timestamp: the verifier's
 clock is pinned to the capture because the hypervisor's signing
-certificate lives three hours. The NSM producer and the KMS sealer are
-unproven, no Nitro enclave has attested to this code live, none has
+certificate lives three hours. The NSM producer (written from the
+device's interface, ADR 0036) and the KMS sealer (not yet written) are
+unproven in an enclave, no Nitro enclave has attested to this code live, none has
 received a key, and the verifier registry refuses the `aws-nitro` family
 until one has ([What we do not claim](#what-we-do-not-claim), 4). The
 `user_data` binds the bytes of the build manifest the image carries; the
