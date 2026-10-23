@@ -39,7 +39,7 @@ code.
    AMD's ASK+ARK chain for its product from KDS. `build.py`, the standard
    library only, writes the manifest, extracts the receipts' reports,
    fetches what is missing, and keeps `SHA256SUMS` over all of it. On
-   2026-10-22: 41 reports (17 files, 24 receipts), 25 distinct chips,
+   2026-10-23: 42 reports (17 files, 25 receipts), 25 distinct chips,
    Milan and Genoa, report versions 3 and 5, firmware from SNP 0x17 to
    0x1d. Two files of the demo kits of 2026-10-14/15 are not reports but
    the kernel's ioctl response with a 32-byte header and the signature cut;
@@ -184,8 +184,8 @@ code.
   expose), holds the fields to `expected.tsv`, and with `--mutants N`
   flips N bytes of each report across the signed body and the signature
   and requires every one refused; adapters for Google's oracle and
-  VirTEE's `snpguest` come with it, and the first run on record
-  (`results/harness-oracle-<stamp>.json`: the Google reading, 41 reports,
+  VirTEE's `snpguest` come with it, and the run on record
+  (`results/harness-oracle-<stamp>.json`: the Google reading, 42 reports,
   11 fields each, 8 of 8 mutants refused on each) is in the tree. For Go
   verifiers the corpus is part of the public conformance package:
   `teeconformance.RunSEVSNPCorpus(t, dir, read)` loads the manifest and

@@ -1,11 +1,11 @@
 {
-  "corpus": "/Users/serhiinikolaichuk/dev/vaultgenome-core-compliance/test/corpus/sev-snp",
-  "command": "python3 -I tools/corpus-harness/adapters/oracle.py --oracle /private/tmp/claude-501/-Users-serhiinikolaichuk-Desktop-STARTUPS/9ee42ac8-27f5-4766-b5f3-2457c982909b/scratchpad/oracle --report {report} --vcek {vcek} --chain {chain}",
-  "reports": 41,
+  "corpus": "/Users/serhiinikolaichuk/dev/vg-record-0100/test/corpus/sev-snp",
+  "command": "python3 -I tools/corpus-harness/adapters/oracle.py --oracle /Users/serhiinikolaichuk/dev/vg-record-0100/bin/oracle --report {report} --vcek {vcek} --chain {chain}",
+  "reports": 42,
   "failed": 0,
   "mutants_per_report": 8,
-  "generated_at": "2026-10-23T00:11:56Z",
-  "seconds": 16.8,
+  "generated_at": "2026-10-23T20:51:08Z",
+  "seconds": 16.4,
   "results": [
     {
       "id": "azure-cgpu-20260916T133506Z",
@@ -361,6 +361,17 @@
     },
     {
       "id": "gcp-sev-snp-keyrelease-e2e-20261022T193735Z",
+      "product": "Milan",
+      "verified": true,
+      "fields_checked": 11,
+      "mismatches": [],
+      "mutants_refused": 8,
+      "mutants_run": 8,
+      "mutants_accepted": [],
+      "ok": true
+    },
+    {
+      "id": "gcp-sev-snp-keyrelease-e2e-20261023T202813Z",
       "product": "Milan",
       "verified": true,
       "fields_checked": 11,
