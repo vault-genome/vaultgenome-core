@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Vault Genome, AWS Nitro Enclaves kit (ADR 0036, part four): the role the
+  kit assumes to run in one Region, and the role of the enclave's parent
+  instance. The parent's role has no permissions of its own; each run's KMS
+  key grants it Decrypt only for an attested enclave of the pinned image.
+  No long-lived keys are created.
+
+Parameters:
+  OperatorUserName:
+    Type: String
+    Default: rats-probe
+    Description: The IAM user in this account that runs the kit and may assume its role.
+  KitRegion:
+    Type: String
+    Default: us-east-2
+    AllowedPattern: "^[a-z]{2}(-[a-z]+)+-[0-9]$"
+    Description: The one Region the kit may act in.
+
+Resources:
+  ParentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: vaultgenome-nitro-parent
+      Description: >-
+        The Nitro enclave's parent instance. No permissions of its own: the
+        kit's per-run KMS key grants this role Decrypt only when the request
+        carries the attestation document of the pinned enclave image.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EC2Instances
+            Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Tags:
+        - Key: vaultgenome-kit
+          Value: nitro
+
+  ParentInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: vaultgenome-nitro-parent
+      Roles:
+        - !Ref ParentRole
+
+  KitRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: vaultgenome-nitro-kit
+      Description: >-
+        Assumed by the operator's user to run the Nitro kit: launch and tear
+        down the parent instance, make, use and retire the run's KMS key,
+        read the audit trail. No kms:Decrypt.
+      MaxSessionDuration: 7200
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: TheOperatorUser
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${OperatorUserName}"
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+      Policies:
+        - PolicyName: vaultgenome-nitro-kit
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadEC2AndTheAMI
+                Effect: Allow
+                Action:
+                  - ec2:Describe*
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref KitRegion
+              - Sid: LaunchTheParent
+                Effect: Allow
+                Action:
+                  - ec2:RunInstances
+                  - ec2:CreateSecurityGroup
+                  - ec2:CreateKeyPair
+                  - ec2:ImportKeyPair
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref KitRegion
+              - Sid: TagOnlyWhatItCreates
+                Effect: Allow
+                Action: ec2:CreateTags
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref KitRegion
+                    ec2:CreateAction:
+                      - RunInstances
+                      - CreateSecurityGroup
+                      - CreateKeyPair
+                      - ImportKeyPair
+              - Sid: OnlyTheNitroSizes
+                Effect: Deny
+                Action: ec2:RunInstances
+                Resource: "arn:aws:ec2:*:*:instance/*"
+                Condition:
+                  StringNotEquals:
+                    ec2:InstanceType:
+                      - m5.xlarge
+                      - m5.2xlarge
+              - Sid: ManageWhatTheKitMade
+                Effect: Allow
+                Action:
+                  - ec2:TerminateInstances
+                  - ec2:StopInstances
+                  - ec2:DeleteSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:DeleteKeyPair
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref KitRegion
+                    aws:ResourceTag/vaultgenome-kit: nitro
+              - Sid: DeleteTheKitsKeyPairs
+                Effect: Allow
+                Action: ec2:DeleteKeyPair
+                Resource: !Sub "arn:aws:ec2:${KitRegion}:${AWS::AccountId}:key-pair/vaultgenome-nitro-*"
+              - Sid: HandTheParentItsRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt ParentRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ec2.amazonaws.com
+              - Sid: CreateTheRunsKey
+                Effect: Allow
+                Action:
+                  - kms:CreateKey
+                  - kms:TagResource
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref KitRegion
+                    aws:RequestTag/vaultgenome-kit: nitro
+              - Sid: UseAndRetireTheRunsKey
+                Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                  - kms:GetKeyPolicy
+                  - kms:PutKeyPolicy
+                  - kms:ListResourceTags
+                  - kms:GenerateDataKey
+                  - kms:ScheduleKeyDeletion
+                  - kms:CancelKeyDeletion
+                Resource: !Sub "arn:aws:kms:${KitRegion}:${AWS::AccountId}:key/*"
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/vaultgenome-kit: nitro
+              - Sid: ListKeys
+                Effect: Allow
+                Action:
+                  - kms:ListKeys
+                  - kms:ListAliases
+                Resource: "*"
+              - Sid: ReadTheAuditTrail
+                Effect: Allow
+                Action: cloudtrail:LookupEvents
+                Resource: "*"
+              - Sid: ReadTheQuotas
+                Effect: Allow
+                Action:
+                  - servicequotas:GetServiceQuota
+                  - servicequotas:ListServiceQuotas
+                Resource: "*"
+      Tags:
+        - Key: vaultgenome-kit
+          Value: nitro
+
+Outputs:
+  KitRoleArn:
+    Description: The role the kit assumes.
+    Value: !GetAtt KitRole.Arn
+  ParentRoleArn:
+    Description: The parent instance's role; the run's KMS key names it.
+    Value: !GetAtt ParentRole.Arn
+  ParentInstanceProfileName:
+    Description: The instance profile the kit launches the parent with.
+    Value: !Ref ParentInstanceProfile
