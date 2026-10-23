@@ -366,6 +366,9 @@ func TestGenome_DoorFailuresAreOperational(t *testing.T) {
 			require.Equal(t, shared_errors.CategoryOperational, shared_errors.CategoryOf(err))
 			require.Equal(t, tc.code, shared_errors.CodeOf(err))
 			require.Contains(t, err.Error(), tc.msg)
+			if tc.code == worker.CodeDoorFailed {
+				require.Equal(t, 1, strings.Count(err.Error(), "exit status"), "the door's exit status is printed once: %v", err)
+			}
 		})
 	}
 }

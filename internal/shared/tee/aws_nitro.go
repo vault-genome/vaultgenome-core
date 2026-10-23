@@ -340,7 +340,7 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 	// 1–4. Envelope, document, chain at now, signature.
 	_, doc, _, err := verifyNitroEnvelope(ev, v.pinnedRoots, now)
 	if err != nil {
-		return zero, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, err.Error(), err)
+		return zero, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "aws-nitro: the attestation document does not verify", err)
 	}
 
 	// 5. Check freshness.

@@ -362,7 +362,7 @@ func (s *Session) ServeOneJob(ctx context.Context) error {
 		}
 		wrapped := shared_errors.Operational(
 			rc,
-			"returnpath/client: Reconstructor failed: "+err.Error(),
+			"returnpath/client: Reconstructor failed",
 			err)
 		_ = s.sendReject(req.ManifestID, wrapped)
 		return wrapped

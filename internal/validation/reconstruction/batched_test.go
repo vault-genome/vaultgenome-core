@@ -79,7 +79,8 @@ func TestBatchedBackend_FailuresErrorEveryFixture(t *testing.T) {
 
 	be := &BatchedExternalBackend{Argv: []string{"sh", "-c", "exit 3"}, IDs: []string{"a"}}
 	_, err := be.Recompute("a")
-	require.ErrorContains(t, err, "failed")
+	require.EqualError(t, err, `operational[field_value_invalid]: reconstruction: batched backend "sh" failed: exit status 3`,
+		"the exit status once, and no empty tail when the backend wrote nothing")
 
 	be = &BatchedExternalBackend{IDs: []string{"a"}}
 	_, err = be.Recompute("a")
