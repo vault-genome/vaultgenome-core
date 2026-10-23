@@ -28,12 +28,15 @@ YAML
 }
 
 build() {
-  mkdir -p "$VG/build" && cd "$VG/build" || return 1
-  cp "$VG/enclave" ./enclave && cp "$VG/enclave.json" ./enclave.json || return 1
+  rm -rf "$VG/build" && mkdir -p "$VG/build/rootfs" && cd "$VG/build" || return 1
+  # The enclave's init moves into the image's root and then mounts /dev,
+  # /proc, /run, /tmp and /sys there, which must exist (init.c of
+  # aws-nitro-enclaves-sdk-bootstrap); a scratch image has none of them.
+  mkdir -p rootfs/dev rootfs/proc rootfs/sys rootfs/run rootfs/tmp rootfs/etc/vg || return 1
+  cp "$VG/enclave" rootfs/enclave && cp "$VG/enclave.json" rootfs/etc/vg/enclave.json || return 1
   cat > Dockerfile <<'DOCKER'
 FROM scratch
-COPY enclave /enclave
-COPY enclave.json /etc/vg/enclave.json
+COPY rootfs/ /
 ENTRYPOINT ["/enclave"]
 DOCKER
   sudo docker build -q -t vg-sealer-e2e:latest . || return 1
@@ -55,7 +58,11 @@ run_enclave() {
   local label="$1"; shift
   local before after id
   before=$(ls "$OUT"/enclave-report-[0-9]*.json 2>/dev/null | wc -l)
-  sudo nitro-cli run-enclave --eif-path "$VG/vg-sealer-e2e.eif" --memory 1536 --cpu-count 2 --enclave-cid 16 "$@" > "$OUT/run-enclave-$label.json" || return 1
+  if ! sudo nitro-cli run-enclave --eif-path "$VG/vg-sealer-e2e.eif" --memory 1536 --cpu-count 2 --enclave-cid 16 "$@" > "$OUT/run-enclave-$label.json" 2> "$OUT/run-enclave-$label.err"; then
+    cat "$OUT/run-enclave-$label.err"
+    mkdir -p "$OUT/nitro-logs-$label" && sudo sh -c "cp /var/log/nitro_enclaves/*.log '$OUT/nitro-logs-$label/' 2>/dev/null; chown -R $(id -u):$(id -g) '$OUT/nitro-logs-$label'"
+    return 1
+  fi
   id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["EnclaveID"])' "$OUT/run-enclave-$label.json")
   sudo nitro-cli describe-enclaves > "$OUT/describe-enclaves-$label.json"
   if [ "${1:-}" = "--debug-mode" ]; then
@@ -68,6 +75,7 @@ run_enclave() {
   done
   sleep 2
   sudo nitro-cli terminate-enclave --enclave-id "$id" > "$OUT/terminate-enclave-$label.json" 2>&1 || true
+  mkdir -p "$OUT/nitro-logs-$label" && sudo sh -c "cp /var/log/nitro_enclaves/*.log '$OUT/nitro-logs-$label/' 2>/dev/null; chown -R $(id -u):$(id -g) '$OUT/nitro-logs-$label'"
   [ "$after" -gt "$before" ] || { echo "no report from the $label run"; return 1; }
   cp "$(ls -t "$OUT"/enclave-report-[0-9]*.json | head -1)" "$OUT/report-$label.json"
   cat "$OUT/report-$label.json"

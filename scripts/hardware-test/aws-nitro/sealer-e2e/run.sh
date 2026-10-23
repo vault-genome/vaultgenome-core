@@ -214,7 +214,8 @@ step "the evidence"
 cp "$WORK/eif-describe.json" "$EV/eif-describe.json"
 cp "$WORK/key-policy.json" "$EV/key-policy.json"; cp "$WORK/other-key-policy.json" "$EV/other-key-policy.json"
 for f in report-production.json report-debug.json describe-enclaves-production.json describe-enclaves-debug.json \
-         parent.log parent-decrypt.err parent-identity.txt console-debug.log nitro-cli-version.txt parent-kernel.txt image-sha256.txt eif-build.json; do
+         parent.log parent-decrypt.err parent-identity.txt console-debug.log nitro-cli-version.txt parent-kernel.txt image-sha256.txt eif-build.json \
+         run-enclave-production.err run-enclave-debug.err; do
   [ -f "$WORK/parent-out/$f" ] && cp "$WORK/parent-out/$f" "$EV/$f"
 done
 cp "$WORK/kit-decrypt.err" "$EV/kit-decrypt.err"
