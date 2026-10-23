@@ -1,6 +1,6 @@
 # ADR 0034 — The verifier held to readings nobody here wrote: the differential corpus
 
-- **Status:** Accepted (2026-10-22) — part one (every genuine SEV-SNP report on record as a corpus; Google's go-sev-guest as a second reading through a module of its own; the test that calls both on the verdict, the fields and every single-byte mutant; the laxity it found on its first run, and the fix) and part two (VirTEE's `snpguest` as the third reading, on the record from Linux in the `differential` workflow's first green run) in the tree; claim C47. Part three (the auditor's own verifier of the records, in Python, no dependencies), part four (the corpus and the harness published for other verifiers to run) and part five (version-aware must-be-zero checks in the signed body; a hardware day adding a fresh report) follow
+- **Status:** Accepted (2026-10-22) — part one (every genuine SEV-SNP report on record as a corpus; Google's go-sev-guest as a second reading through a module of its own; the test that calls both on the verdict, the fields and every single-byte mutant; the laxity it found on its first run, and the fix) and part two (VirTEE's `snpguest` as the third reading, on the record from Linux in the `differential` workflow's first green run) and part three (the auditor's own verifier of the audit log, in Python with no dependencies, held equal to `acpctl audit verify` on every log on record, on logs under each suite and on mutants) in the tree; claims C47 and C48. Part four (the corpus and the harness published for other verifiers to run) and part five (version-aware must-be-zero checks in the signed body; a hardware day adding a fresh report; the receipts under the auditor's tool) follow
 - **Date:** 2026-10-22
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 
@@ -151,14 +151,33 @@ code.
   no mutant verified by either library reading; the record
   `results/differential-ci-20261022T222534Z.json` is the workflow's
   artifact. Claim C47; control VG-040; `banking.md` (RTS Art. 16).
-- **Part three:** the auditor's verifier of the records (the audit chain's
-  hashes and signatures, the receipts), Python, standard library only, with
-  the test that calls it and `acpctl audit verify` on the same files.
+- **Part three (2026-10-22):** `tools/auditor/verify_audit.py` — the
+  standard library of Python only: the bbolt file read as pages, the
+  canonical JSON re-encoded as the Go side encodes it (keys sorted
+  bytewise, Go's HTML-safe string escaping), SHA-256 over it, the link to
+  the previous hash from the genesis or from a continued segment's
+  `prev_tip_hex`, and the signature over the hash under the audit public
+  key — Ed25519 after RFC 8032 and ECDSA P-384 after SEC 1 written out in
+  the file; ML-DSA-87 reported as not implemented, not as broken.
+  `internal/audit/chain/auditor_differential_test.go` (tag `differential`)
+  calls it and `acpctl audit verify` (built from the tree) on every
+  genuine log on record (the three authority logs of the region-loss
+  drills, five events each), on a log written under each suite with
+  payloads that exercise the encoding (`<`, `&`, quotes, U+2028, Cyrillic
+  and CJK, nested objects, an empty string, a zero), and on six mutants
+  (a byte of a kind, of a signature, of a prev_hash, in a written and in
+  a genuine log): the verdicts, the counts and the tips agree, every
+  mutant is refused by both, and the ML-DSA-87 log is verified by the
+  product and declined by the tool, as documented. The record of the
+  first run: `test/corpus/audit/results/auditor-20261022T233609Z.json`.
+  Claim C48; control VG-041; `banking.md` (RTS Art. 12(2)(d)). The
+  receipts stay with part five.
 - **Part four:** the corpus with expected results and the harness published
   for other verifiers.
 - **Part five:** must-be-zero in the signed body, version-aware, from the
   specification; a hardware day adding a fresh report to the corpus by the
-  kit.
+  kit; the receipts (the restore receipt and the report quoted over it)
+  under the auditor's tool.
 
 ## References
 

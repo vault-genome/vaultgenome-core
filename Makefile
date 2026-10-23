@@ -262,6 +262,7 @@ formal:
 .PHONY: differential
 differential:
 	$(GO) test -tags differential ./internal/shared/tee/ -run TestDifferential -count=1 -v
+	$(GO) test -tags differential ./internal/audit/chain/ -run TestDifferential_Auditor -count=1 -v
 
 .PHONY: cli-reference
 cli-reference:

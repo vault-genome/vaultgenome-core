@@ -1,0 +1,103 @@
+{
+  "cases": 12,
+  "generated_at": "2026-10-22T23:36:09Z",
+  "results": [
+    {
+      "case": "genuine:scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 5,
+      "product_acpctl": "ok (5 events, tip 3488b31cb8c4…)",
+      "auditor_python": "ok (5 events, tip 3488b31cb8c4…)",
+      "tips_equal": true
+    },
+    {
+      "case": "genuine:scripts/hardware-test/failover-region-loss/evidence/20261016T210544Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 5,
+      "product_acpctl": "ok (5 events, tip 16f6058b2db4…)",
+      "auditor_python": "ok (5 events, tip 16f6058b2db4…)",
+      "tips_equal": true
+    },
+    {
+      "case": "genuine:scripts/hardware-test/failover-region-loss/evidence/20261017T140018Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 5,
+      "product_acpctl": "ok (5 events, tip bf6fa91841c5…)",
+      "auditor_python": "ok (5 events, tip bf6fa91841c5…)",
+      "tips_equal": true
+    },
+    {
+      "case": "written:ed25519",
+      "suite": "ed25519",
+      "events": 9,
+      "product_acpctl": "ok (9 events, tip 6a89c9e74687…)",
+      "auditor_python": "ok (9 events, tip 6a89c9e74687…)",
+      "tips_equal": true
+    },
+    {
+      "case": "written:ecdsa-p384-sha384",
+      "suite": "ecdsa-p384-sha384",
+      "events": 9,
+      "product_acpctl": "ok (9 events, tip 36235f555835…)",
+      "auditor_python": "ok (9 events, tip 36235f555835…)",
+      "tips_equal": true
+    },
+    {
+      "case": "written:ml-dsa-87",
+      "suite": "ml-dsa-87",
+      "events": 9,
+      "product_acpctl": "ok (9 events, tip 204018ea9cba…)",
+      "auditor_python": "refused: public key: not implemented in this tool (unsupported public key algorithm)",
+      "tips_equal": false,
+      "note": "ML-DSA-87: the auditor's tool does not implement the suite and says so"
+    },
+    {
+      "case": "mutant:kind:written:ed25519",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #1: structural[field_value_invalid]: audit_event: unknown kind",
+      "auditor_python": "refused: event #1 (evt-0002): hash does not match the canonical bytes",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:signature:written:ed25519",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #0: integrity[signature_invalid]: crypto: ed25519 signature verification failed",
+      "auditor_python": "refused: event #0 (evt-0001): signature does not verify",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:prev_hash:written:ed25519",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #2: prev_hash does not link to event #1",
+      "auditor_python": "refused: event #2 (evt-0003): prev_hash does not link to the previous event",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:kind:genuine:scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #1: structural[field_value_invalid]: audit_event: unknown kind",
+      "auditor_python": "refused: event #1 (xcc-evt-0000000000000002): hash does not match the canonical bytes",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:signature:genuine:scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #0: integrity[signature_invalid]: crypto: ed25519 signature verification failed",
+      "auditor_python": "refused: event #0 (xcc-evt-0000000000000001): signature does not verify",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:prev_hash:genuine:scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #2: prev_hash does not link to event #1",
+      "auditor_python": "refused: event #2 (xcc-evt-0000000000000003): prev_hash does not link to the previous event",
+      "tips_equal": false
+    }
+  ]
+}

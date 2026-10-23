@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -3274,6 +3274,50 @@ is refused by all. The stage of a refusal differs and may: go-sev-guest
 refuses reserved and must-be-one bits at the parse where the product
 refuses at the signature. No Turin report; nothing for a report the corpus
 does not hold; the records (the audit chain, the receipts) are part three.
+
+### C48 — The audit log verifies under an auditor's own tool with nothing of the product in it: pure Python, the file read as bytes, the curves written out — equal to `acpctl audit verify` on every genuine log on record and on logs under each suite, every mutant refused by both
+
+**Claim.** `tools/auditor/verify_audit.py` replays an audit log the way the
+product's `acpctl audit verify` does, with none of the product's code: it
+reads the bbolt file as pages, re-encodes each event's canonical JSON as
+the daemons encode it, recomputes SHA-256, follows the links from the
+genesis (or from where a continued segment says it starts), and checks
+each signature under the audit public key `identity` printed — Ed25519
+(RFC 8032) and ECDSA P-384 (SEC 1) written out in the file, the standard
+library only ([ADR 0034](docs/adr/0034-the-differential-corpus.md), part
+three). One test (`internal/audit/chain/auditor_differential_test.go`,
+`make differential`) calls both on the same files: the three genuine
+authority logs on record (the region-loss drills of 2026-09-30,
+2026-10-16 and 2026-10-17, five events each, Ed25519), logs written
+under each suite with payloads that exercise the encoding, and six
+mutants. On every log both say the same — the verdict, the count and the
+tip — and every mutant is refused by both at the same event; the
+ML-DSA-87 log is verified by the product and declined by the tool, which
+says it does not implement the suite.
+
+**Evidence.**
+[`test/corpus/audit/results/auditor-20261022T233609Z.json`](test/corpus/audit/results/auditor-20261022T233609Z.json)
+— the run on record: twelve cases, each with both verdicts; the three
+genuine logs with their keys under
+`scripts/hardware-test/failover-region-loss/evidence/*/authority/`
+(`xcc-audit.db`, `audit.pem`, and `audit-verify.json` — the product's
+verdict the kit recorded at the time);
+[`tools/auditor/verify_audit.py`](tools/auditor/verify_audit.py).
+
+**Reproduce:**
+
+```bash
+python3 -I tools/auditor/verify_audit.py --audit scripts/hardware-test/failover-region-loss/evidence/20261017T140018Z/authority/xcc-audit.db \
+  --audit-pubkey scripts/hardware-test/failover-region-loss/evidence/20261017T140018Z/authority/audit.pem --audit-kid sagvd-audit-demo
+go test -tags differential ./internal/audit/chain/ -run TestDifferential_Auditor -v
+```
+
+**Scope.** The audit chain of one file (a continued segment's start is
+honoured; a log across several archived segments is replayed one file at
+a time); the receipts and the records' meaning are not read by the tool.
+ML-DSA-87 is not implemented in it. A tail cut off the log is invisible
+to both verifiers, as ADR 0027 says: the tip is compared to what was
+recorded elsewhere.
 
 ## What we do not claim
 

@@ -28,6 +28,11 @@ given release can still open.
   Part two, the same day: the `differential` workflow's first green run,
   with VirTEE's `snpguest` built from crates.io — 41 of 41 verified by
   all three readings, on the record (C47, VG-040); ADR 0034 Accepted.
+  Part three: the auditor's own verifier of the audit log
+  (`tools/auditor/verify_audit.py` — pure Python, the bbolt file read as
+  bytes, Ed25519 and ECDSA P-384 written out), held equal to `acpctl
+  audit verify` on every genuine log on record, on logs under each suite
+  and on mutants by one test (C48, VG-041).
 - The attack record in the verifier's policy (ADR 0033, part one). A
   SEV-SNP report is read whole and put on the record — the chip's family,
   model and stepping, the guest policy and PLATFORM_INFO bit by bit, the

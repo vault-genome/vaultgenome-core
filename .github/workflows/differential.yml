@@ -36,8 +36,14 @@ jobs:
           VG_ORACLE="$RUNNER_TEMP/oracle" VG_SNPGUEST="$RUNNER_TEMP/snpguest/bin/snpguest" \
           VG_DIFFERENTIAL_RECORD="$RUNNER_TEMP/differential-ci.json" \
           go test -tags differential ./internal/shared/tee/ -run TestDifferential -count=1 -v 2>&1 | grep -v '^=== RUN'
+      - name: The auditor's own verifier of the audit log against acpctl audit verify (part three)
+        run: |
+          VG_AUDITOR_RECORD="$RUNNER_TEMP/auditor-ci.json" \
+          go test -tags differential ./internal/audit/chain/ -run TestDifferential_Auditor -count=1 -v 2>&1 | grep -v '^=== RUN'
       - name: Keep the run
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: differential-record
-          path: ${{ runner.temp }}/differential-ci.json
+          path: |
+            ${{ runner.temp }}/differential-ci.json
+            ${{ runner.temp }}/auditor-ci.json
