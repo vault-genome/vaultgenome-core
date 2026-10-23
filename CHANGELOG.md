@@ -88,6 +88,29 @@ given release can still open.
   are refused by the service, an empty root pool fails the handshake
   (VERIFIABLE-CLAIMS C50). `acpctl recover` refuses a Nitro vault by
   name: only the enclave opens it.
+- A genome key released across clouds into a Nitro enclave (ADR 0036,
+  part four; VERIFIABLE-CLAIMS C52). The source's verifier registry takes
+  an `aws-nitro` destination: PCR0 as the measurement and, under `nitro`,
+  PCRs pinned by index and the clock skew; the verifier holds the
+  document to the pins — never in place of PCR0, since a debug-mode
+  enclave keeps its parent's PCR3 and PCR4 — and the release record names
+  the enclave's module, timestamp, PCRs and pins. `acp-bootstrap` runs in
+  the enclave: the API on a vsock port and no health listener, its key
+  files from the parent at start (exactly the paths the config names,
+  all or none) and opened through KMS with the enclave's own document,
+  the log to the parent; `acp-bootstrap seal-keys -pcr0 -root` seals the
+  files for the image outside it; the listen addresses' defaults yield to
+  an enclave's file. On hardware (`scripts/hardware-test/aws-nitro/crosscloud-e2e`,
+  run `20261023T182103Z`): `sagvd` on a GCP SEV-SNP Confidential VM, its key files
+  sealed to the chip, released a genome key over the Internet to the
+  enclave on an m5.xlarge after its document verified; the genome was
+  restored in the enclave's memory and the restore confirmed from the
+  NSM-signed receipt; an image the allow-list does not name, PCR2 pinned
+  to another value, the operator stop and the same image in debug mode
+  with its key files in the clear were refused on the record; the audit
+  log verified by `acpctl` and by the auditor's own verifier; CloudTrail
+  recorded the enclave's two Decrypts and no other. The family's refusal
+  in the registry and in `acp-bootstrap` is lifted.
 - The Nitro sealer on hardware, against KMS itself (ADR 0036, part four,
   stage one; VERIFIABLE-CLAIMS C51). `scripts/hardware-test/aws-nitro/sealer-e2e`
   works under the kit's role (`../iam/`, a CloudFormation stack the

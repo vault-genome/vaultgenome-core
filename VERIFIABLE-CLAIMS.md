@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -3369,10 +3369,9 @@ acpctl attest nitro --doc internal/shared/tee/testdata/aws-nitro/2026-05-08-vm1-
 clock is pinned to the capture because the hypervisor's signing
 certificate lives three hours. The NSM producer (written from the
 device's interface, ADR 0036) and the KMS sealer ([C50](#c50)) run in a
-production-mode enclave against KMS itself ([C51](#c51)), but no source has
-verified an enclave's document for a release, none has received a genome
-key, and the verifier registry refuses the `aws-nitro` family until one
-has ([What we do not claim](#what-we-do-not-claim), 4). The
+production-mode enclave against KMS itself ([C51](#c51)), and a SEV-SNP
+authority has verified an enclave's document for a release and released
+a genome key to it across clouds ([C52](#c52)). The
 `user_data` binds the bytes of the build manifest the image carries; the
 image is identified by its PCRs, and the manifest's own PCR fields are the
 debug build's, which the May kit reused for the production build — the
@@ -3506,6 +3505,62 @@ secret for the same image (ADR 0036, part three).
 
 ---
 
+<a id="c52"></a>
+### C52 — A genome key is released across clouds into a production-mode Nitro enclave, by a SEV-SNP authority that verified the enclave's document against its policy; the genome is restored inside and the restore confirmed from the NSM-signed receipt; the allow-list, a pinned PCR, the operator stop and a debug-mode enclave are refused on the record
+
+**Claim.** `sagvd` on a GCP AMD SEV-SNP Confidential VM (n2d-standard-2,
+Milan, its key files sealed to the chip) releases a genome key over the
+Internet to `acp-bootstrap` in a production-mode Nitro enclave on an
+m5.xlarge in us-east-2, through the parent instance, which forwards
+bytes and reads none. The enclave image holds the daemon, its
+configuration, the authority's public key, the TLS certificate and the
+CA; its two key files are sealed on the operator's machine for the
+image's PCR0 under a KMS key whose policy releases to that image alone,
+handed in by the parent at start and opened inside through KMS with the
+enclave's own attestation document (CloudTrail: two Decrypts, each with
+that document as Recipient, and no other). The sealed bundle goes into
+the enclave over the authenticated API. The key is released only after
+the document verified against the registry's policy — PCR0 as the
+measurement, PCR1 and PCR2 pinned, the AWS root pinned, debug mode
+refused, the nonce the key-binding challenge — and the
+`CROSS_CLOUD_ATTESTATION_VERIFIED` record names the enclave: its module,
+the hypervisor's timestamp, PCR0 to PCR4 and PCR8, the pins. The enclave
+restores the genome in its memory and signs a receipt with the NSM;
+`sagvd crosscloud-confirm` verifies it against the release and the
+operator's bundle. Refused, each a `KEY_RELEASE_DENIED` record: an image
+the allow-list does not name (the policy), PCR2 pinned to another value
+(the attestation, naming PCR2), the operator stop (the policy), and the
+same image in debug mode started with its key files in the clear, as an
+insider could (the attestation: the document's PCR0 is zero). The audit
+log verifies under the published audit key by `acpctl audit verify` and
+by the auditor's own verifier, to the same count.
+
+**Evidence.**
+[`scripts/hardware-test/aws-nitro/crosscloud-e2e/evidence/20261023T182103Z/`](scripts/hardware-test/aws-nitro/crosscloud-e2e/evidence/20261023T182103Z/)
+— the run on commit `b51d54bc`, a clean tree; the authority's steps,
+identity and records (`authority-*`), the enclave's logs in production
+and debug mode, nitro-cli's measurements of the image, the key policy,
+CloudTrail's two records, the verdict (`verdict.txt`, 26 of 26), the
+teardown of both clouds. Taken out: the account number, the three
+addresses, every IAM unique identifier, PCR3; the receipt's attestation
+document, which carries PCR3, is withheld with its SHA-256 kept in its
+place.
+
+**Reproduce:**
+
+```bash
+VG_GCP_PROJECT=<project> scripts/hardware-test/aws-nitro/crosscloud-e2e/run.sh   # under the kit's role (scripts/hardware-test/aws-nitro/iam/)
+```
+
+**Scope.** One region and instance type in each cloud; the image
+unsigned (PCR8 zero, no PCR8 pin); the general profile
+(`hpke-x25519-v2`, Ed25519); a 16 MiB genome and no gate inside the
+enclave. The parent can still hand the enclave an older sealed file of
+the same secret for the same image (ADR 0036, part three). The
+hypervisor's own version is not in the document and is not held.
+
+---
+
 ## What we do not claim
 
 This section is load-bearing. We would rather lose a deal than win one on a
@@ -3536,19 +3591,20 @@ sentence we cannot defend.
    its tokens carry. The GPU leg ran once, at 0.5B, with an EQUIVALENT
    gate, and so did the TDX leg ([C21](#c21)): each other-family standby
    has taken one key release, once, at 0.5B.
-4. **We do not claim a Nitro or SGX key release.** SEV-SNP and Intel TDX
-   only ([C15](#c15)). Adapter dispatch for others exists (ADR 0002). The
+4. **We do not claim an SGX key release, nor Nitro beyond one run.**
+   SEV-SNP and Intel TDX are proven many times over ([C15](#c15)).
+   Adapter dispatch for others exists (ADR 0002). The
    AWS Nitro verifier is written from AWS's specification and verifies
    the production-mode documents captured in May 2026 at their capture
    time ([C49](#c49), ADR 0035; one raw document is in the repository,
    three under NDA), and its sealer's KMS client is held to AWS's
    signing suite and accepted by KMS itself ([C50](#c50)); in a
    production-mode enclave its producer attests and its sealer opens a
-   secret sealed to the image through KMS itself, every refusal with it
-   ([C51](#c51)). But no genome key has been released to an enclave,
-   `acp-bootstrap` has not run in one, and the registry refuses the
-   family.
-   The SGX verifiers do not exist. A TDX host and an Azure confidential GPU host seal
+   secret sealed to the image through KMS itself ([C51](#c51)); a genome
+   key has been released across clouds into a production-mode enclave by
+   a SEV-SNP authority and the restore confirmed from the enclave's
+   receipt ([C52](#c52)), once, in one region and on one instance type,
+   with an unsigned image. The SGX verifiers do not exist. A TDX host and an Azure confidential GPU host seal
    the escrow key to their vTPM (ADR 0022) — a root the cloud provider
    virtualises inside the confidential VM, not the TEE's own; an operator
    who does not accept that root has no sealed escrow key on those hosts.

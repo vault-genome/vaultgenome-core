@@ -153,13 +153,17 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    `internal/shared/tee/testdata/aws-nitro/`, the reports on all four at
    `scripts/hardware-test/aws-nitro/evidence/0N-*/07-go-verifier-audit.json`,
    `acpctl attest nitro`). Its NSM producer, written from the device's
-   interface, attests itself in a production-mode enclave, and the KMS
+   interface, attests itself in a production-mode enclave, the KMS
    sealer (its signature accepted by KMS itself, C50) opens there a secret
-   sealed to the image through KMS itself, with every refusal and AWS's
-   own record of each call (ADR 0036, part four, stage one; C51). No
-   genome key has been released to an enclave and `acp-bootstrap` has not
-   run in one; the registry and `acp-bootstrap` keep refusing the family
-   until a release has run end to end across clouds.
+   sealed to the image through KMS itself (C51), and a SEV-SNP authority
+   has released a genome key across clouds into a production-mode enclave
+   running `acp-bootstrap`, the restore confirmed from the enclave's
+   NSM-signed receipt, the allow-list, a pinned PCR, the operator stop and
+   a debug-mode enclave refused on the record (ADR 0036, C52). The family
+   runs in the registry and in `acp-bootstrap`. Once, in us-east-2 on an
+   m5.xlarge, the image unsigned (no PCR8 pin), the general profile, a 16
+   MiB genome with no gate in the enclave; the Nitro corpus against two
+   outside readings (ADR 0036, part five) is not yet built.
    Still scaffolding: the Azure SGX and Intel SGX DCAP adapters —
    `sagvd`'s verifier registry and `acp-bootstrap` refuse those families
    rather than trust them. `sagvd` and `acp-compute` attest with SEV-SNP,
