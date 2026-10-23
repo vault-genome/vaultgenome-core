@@ -1,0 +1,85 @@
+{
+  "Version": "2012-10-17",
+  "Id": "vaultgenome-nitro-sealer-run",
+  "Statement": [
+    {
+      "Sid": "TheAccountAdministersOnly",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<account>:root"
+      },
+      "Action": [
+        "kms:Describe*",
+        "kms:Get*",
+        "kms:List*",
+        "kms:PutKeyPolicy",
+        "kms:ScheduleKeyDeletion",
+        "kms:CancelKeyDeletion",
+        "kms:TagResource",
+        "kms:UntagResource",
+        "kms:EnableKey",
+        "kms:DisableKey"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "TheKitAdministers",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<account>:role/vaultgenome-nitro-kit"
+      },
+      "Action": [
+        "kms:DescribeKey",
+        "kms:GetKeyPolicy",
+        "kms:PutKeyPolicy",
+        "kms:ListResourceTags",
+        "kms:ScheduleKeyDeletion",
+        "kms:CancelKeyDeletion"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "TheOperatorSeals",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<account>:role/vaultgenome-nitro-kit"
+      },
+      "Action": "kms:GenerateDataKey",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:EncryptionContext:vault-genome:sealed-secret": "v1"
+        }
+      }
+    },
+    {
+      "Sid": "NoDecryptWithoutAnEnclave",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "kms:Decrypt",
+      "Resource": "*",
+      "Condition": {
+        "Null": {
+          "kms:RecipientAttestation:ImageSha384": "true"
+        }
+      }
+    },
+    {
+      "Sid": "OnlyTheImageOpens",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<account>:role/vaultgenome-nitro-parent"
+      },
+      "Action": "kms:Decrypt",
+      "Resource": "*",
+      "Condition": {
+        "StringEqualsIgnoreCase": {
+          "kms:RecipientAttestation:ImageSha384": "932d541e9962b7a08c45a2def3ffd75efa0a932afe3eee006f3c690ebe393aa07df2d102a67ee1786271431c2d4f4e0a"
+        },
+        "StringEquals": {
+          "kms:EncryptionContext:vault-genome:pcr0": "932d541e9962b7a08c45a2def3ffd75efa0a932afe3eee006f3c690ebe393aa07df2d102a67ee1786271431c2d4f4e0a"
+        }
+      }
+    }
+  ]
+}
