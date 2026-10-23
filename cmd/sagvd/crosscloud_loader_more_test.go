@@ -90,7 +90,7 @@ func TestLoadVerifierSpecs_Refusals(t *testing.T) {
 		"azure bad digests":     {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `","pcr_digests":["zz"]`), "pcr_digests"},
 		"azure bad policy":      {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `","gpu_policy":{"evaluation":"trust-me"}`), "gpu_policy.evaluation"},
 		"azure root missing":    {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `","gpu_policy":{"evaluation":"both","nvidia_device_root_path":"` + absent + `"}`), "nvidia_device_root_path"},
-		"unsupported kind":      {entry(`"provider":"aws-nitro","expected_measurement_hex":"` + meas + `"`), "no verifier this build can run end to end"},
+		"unsupported kind":      {entry(`"provider":"azure-sgx","expected_measurement_hex":"` + meas + `"`), "no verifier this build can run end to end"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := loadVerifierSpecs(tc.path, true)

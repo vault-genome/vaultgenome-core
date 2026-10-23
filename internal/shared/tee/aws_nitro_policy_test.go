@@ -137,3 +137,29 @@ func TestAWSNitro_Verifier_PCRPinRefusals(t *testing.T) {
 	_, err := NewAWSNitroVerifier(nil, nitroPCR("image", 2), AWSNitroVerifierConfig{PCRIndex: 2, PCRPins: map[int][]byte{0: nitroPCR("image", 0)}})
 	require.NoError(t, err)
 }
+
+// TestAWSNitroPolicyConfig_VerifierConfig: the registry's nitro section
+// as the verifier's configuration; absent, the default policy.
+func TestAWSNitroPolicyConfig_VerifierConfig(t *testing.T) {
+	t.Parallel()
+	var absent *AWSNitroPolicyConfig
+	cfg, err := absent.VerifierConfig()
+	require.NoError(t, err)
+	require.Nil(t, cfg.PCRPins)
+	require.Zero(t, cfg.MaxClockSkew)
+
+	pcr8 := nitroPCR("signer", 8)
+	cfg, err = (&AWSNitroPolicyConfig{PCRs: map[string]string{"8": " " + hex.EncodeToString(pcr8) + " "}, MaxClockSkewSeconds: 60}).VerifierConfig()
+	require.NoError(t, err)
+	require.Equal(t, map[int][]byte{8: pcr8}, cfg.PCRPins)
+	require.Equal(t, time.Minute, cfg.MaxClockSkew)
+
+	for name, c := range map[string]AWSNitroPolicyConfig{
+		"negative skew": {MaxClockSkewSeconds: -1},
+		"a padded key":  {PCRs: map[string]string{"08": hex.EncodeToString(pcr8)}},
+		"not hex":       {PCRs: map[string]string{"8": "not hex"}},
+	} {
+		_, err := c.VerifierConfig()
+		require.Error(t, err, name)
+	}
+}

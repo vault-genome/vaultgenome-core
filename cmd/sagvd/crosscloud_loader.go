@@ -159,6 +159,11 @@ type verifierEntry struct {
 	NRASCacheDir string           `json:"nras_cache_dir,omitempty"`
 	GPUPolicy    *GPUPolicyConfig `json:"gpu_policy,omitempty"`
 	PCRDigests   []string         `json:"pcr_digests,omitempty"`
+
+	// Nitro (provider "aws-nitro", ADR 0036): expected_measurement_hex is
+	// the image's PCR0; this pins PCRs beyond it and bounds the document's
+	// timestamp. The AWS Nitro Enclaves root is the binary's own.
+	Nitro *tee.AWSNitroPolicyConfig `json:"nitro,omitempty"`
 }
 
 // allowListFile is the on-disk JSON schema for
@@ -328,6 +333,9 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
 		}
 		spec := tee.VerifierSpec{Provider: provider, ExpectedMeasurement: measurement}
+		if e.Nitro != nil && provider != tee.ProviderAWSNitro {
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].nitro applies to aws-nitro only, not %s", i, provider)
+		}
 		switch provider {
 		case tee.ProviderSimulated:
 			if !allowSimulated {
@@ -387,10 +395,19 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			if err := e.GPUPolicy.apply(&spec.AzureCGPU); err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
 			}
+		case tee.ProviderAWSNitro:
+			if len(measurementBytes) != 48 {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: aws-nitro's expected_measurement_hex is the image's PCR0, a SHA-384 of 48 bytes (got %d)", i, len(measurementBytes))
+			}
+			nitro, err := e.Nitro.VerifierConfig()
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
+			}
+			spec.AWSNitro = nitro
 		default:
 			// Fail closed: a family whose verifier this build cannot run
 			// end to end must not be trusted with key releases.
-			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx, azure-cgpu, azure-sev-snp)", i, provider)
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx, azure-cgpu, azure-sev-snp, aws-nitro)", i, provider)
 		}
 		specs = append(specs, tee.RegistrySpec{Provider: provider, Spec: spec})
 	}
