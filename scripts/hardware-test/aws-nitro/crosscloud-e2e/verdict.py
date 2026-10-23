@@ -90,13 +90,22 @@ def main():
     # The release.
     check("the bundle into the enclave over the API: the same bytes the source sealed", bool(step(r"^upload exit=0 key_id=" + re.escape(kid) + r" bundle_sha256=" + bundle_sha)))
     check("release: the genome key released (exit 0) under the general profile's suite", bool(step(r"^release exit=0$")) and bool(step(r"^release suite=hpke-\S+ profile=general recipient_key_sha256=[0-9a-f]{64}$")))
-    verified = [e for e in lines("authority-attestation-verified.jsonl") if (e.get("payload") or {}).get("destination_kind") == "aws-nitro"]
-    p = (verified[0].get("payload") or {}) if verified else {}
+    # CROSS_CLOUD_ATTESTATION_VERIFIED is written when the document verifies,
+    # before the policy decides (ADR 0033): the release has one, and so do
+    # the allow-list's and the stop's refusals, which come after a verified
+    # attestation; the pin's and the debug document's refusals come before
+    # one and have none.
+    verified = {str(p.get("decision_id")): p for p in ((e.get("payload") or {}) for e in lines("authority-attestation-verified.jsonl")) if p.get("destination_kind") == "aws-nitro"}
+    p = verified.get("nitro-decision-1") or {}
     nitro = ((p.get("destination_detail") or {}).get("nitro") or {})
+    detail = lambda q: ((q.get("destination_detail") or {}).get("nitro") or {})
     check("release: the CROSS_CLOUD_ATTESTATION_VERIFIED record names the enclave — kind aws-nitro, measurement PCR0, the document's PCR0/PCR1/PCR2, PCR1 and PCR2 pinned, the module this instance's",
-          len(verified) == 1 and b64hex(p.get("destination_measurement")) == pcr0 and (nitro.get("pcrs") or {}).get("0") == pcr0
+          bool(p) and b64hex(p.get("destination_measurement")) == pcr0 and (nitro.get("pcrs") or {}).get("0") == pcr0
           and (nitro.get("pcrs") or {}).get("1") == pcr1 and (nitro.get("pcrs") or {}).get("2") == pcr2 and nitro.get("pinned") == [1, 2]
           and str(nitro.get("module_id", "")).startswith(iid + "-enc"))
+    check("the attestation verified three times — for the release, and before the allow-list's and the stop's refusals — each time the same enclave; never for the pin or the debug document",
+          sorted(verified) == ["nitro-decision-1", "nitro-decision-2", "nitro-decision-4"]
+          and all(b64hex(q.get("destination_measurement")) == pcr0 and detail(q).get("module_id") == nitro.get("module_id") and detail(q).get("pinned") == [1, 2] for q in verified.values()))
     check("release: the record carries the document's hash, not the document", isinstance(p.get("evidence_hash"), str) and len(b64hex(p.get("evidence_hash"))) == 64)
 
     # The restore, confirmed from the receipt.
@@ -120,7 +129,7 @@ def main():
     dready = next((l for l in dbg if l.get("msg") == "acp-bootstrap ready"), {})
     check("debug: the same image in debug mode started with its key files in the clear (measurement zero) and served", dready.get("tee_provider") == "aws-nitro" and dready.get("measurement_hex") == "0" * 96)
     check("refused: the debug-mode enclave — KEY_RELEASE_DENIED at the attestation, the document's zero PCR0", refused("nitro-decision-5", "attestation", "debug-mode enclave rejected", "debug"))
-    check("no other refusal, and the one release, on the record", len(denied) == 4 and len(verified) == 1)
+    check("no other refusal on the record", sorted(denied) == ["nitro-decision-2", "nitro-decision-3", "nitro-decision-4", "nitro-decision-5"])
 
     # The audit log, twice.
     av, au = load("authority-audit-verify.json", {}), load("authority-auditor-verify.json", {})
