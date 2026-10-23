@@ -11,6 +11,35 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-10-23
+
+The release that makes AWS Nitro Enclaves a key-release destination
+(ADR 0035, 0036) and holds the verifier to readings nobody here wrote
+(ADR 0034). A genome key has gone across clouds into a production-mode
+enclave: `sagvd` on a SEV-SNP chip released it only after the enclave's
+document verified — PCR0 the measurement, further PCRs pinned, the AWS
+root pinned, debug mode refused — the genome was restored in the
+enclave's memory, and the restore was confirmed from the NSM-signed
+receipt; the allow-list, a pinned PCR, the operator stop and a debug-mode
+enclave given its key files in the clear were refused on the record
+(C52). The enclave's own secrets open through KMS only for its image,
+with Signature Version 4, KMS's CMS and the NSM spoken from their
+specifications, each held to the vendor's own suite or to KMS itself
+(C50, C51). The SEV-SNP reading is held to Google's and VirTEE's on
+every genuine report on record and on 1184 mutants of each — which found
+the reserved bytes of the signature block unchecked, now refused (C47) —
+and an auditor verifies the audit log with a pure-Python tool of their
+own, equal to `acpctl audit verify` on every log on record (C48); the
+corpus, its harness and the conformance package are Apache-2.0. A chip's
+report is read whole onto the record and held to the floors AMD's
+bulletins set, component by component over all four TCBs (ADR 0033,
+C46): a chip the floor table does not name is refused until the operator
+sets its floor. The three protocols — the cross-cloud release, the
+Return Path handshake, the sentinel and the failover — are in ProVerif,
+twenty-three models and 185 recorded verdicts (ADR 0032, C45). Every
+refusal prints its cause once. The bundle format (v4), the audit schema
+(v8) and the policy schema are unchanged.
+
 ### Added
 
 - **The AWS Nitro verifier is real (ADR 0035).** `internal/shared/tee`
