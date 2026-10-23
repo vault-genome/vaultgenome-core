@@ -204,3 +204,28 @@ func TestLoopbackErrorsAndAddresses(t *testing.T) {
 	require.NotZero(t, la.Port)
 	require.NotEqual(t, uint32(0xFFFFFFFF), la.Port, "a port, not VMADDR_PORT_ANY")
 }
+
+// A CID nobody has is refused at once — by connect(2), or by socket(2)
+// where the kernel has no vsock at all; either way Dial says so and
+// leaves no descriptor behind. Runs without the loopback transport.
+func TestDialRefusesACIDNobodyHas(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := Dial(ctx, 9999, 1)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "vsock: ")
+}
+
+// A dial whose deadline has already passed returns an error rather than
+// waiting: the connect fails outright or the wait for it times out.
+func TestDialHonoursAnExpiredDeadline(t *testing.T) {
+	ln := loopbackOrSkip(t, 47004)
+	_ = ln
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	c, err := Dial(ctx, CIDLocal, 47998)
+	if err == nil {
+		_ = c.Close()
+		t.Fatal("a dial to a port nobody listens on, with its deadline passed, succeeded")
+	}
+}
