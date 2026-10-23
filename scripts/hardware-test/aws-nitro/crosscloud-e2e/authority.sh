@@ -23,9 +23,9 @@
 # line of its own, last.
 set -uo pipefail
 W=/root/xcc; OUT=$W/out; S=$W/secrets; IN="${VG_IN:?VG_IN}"
-mkdir -p "$OUT" && cd "$W" 2>/dev/null || { mkdir -p "$W" "$OUT" && cd "$W"; }
+mkdir -p "$W" "$OUT" && cd "$W" || exit 1
 PHASE="${1:?phase}"; shift
-PROFILE=general; SIGSUITE=ed25519; KIDA=sagvd-authority-xcc; KIDU=sagvd-audit-xcc
+SIGSUITE=ed25519; KIDU=sagvd-audit-xcc
 step() { echo "== $*"; echo "== $*" >> "$OUT/steps.txt"; }
 
 sagvd_config() { # $1 = the crosscloud section's JSON or ""
