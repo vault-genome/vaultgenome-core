@@ -24,9 +24,14 @@ After running the kit end-to-end against one EC2 instance, you will have:
    COSE_Sign1) signed by the AWS Nitro hypervisor's per-instance certificate
 4. Verified cert chain: AWS Nitro Root CA → regional intermediate →
    per-instance leaf → COSE_Sign1 signature
-5. Workload binding: `user_data` field in the attestation = SHA-512 of a
-   manifest describing the enclave build — chip-signed proof that this
-   attestation describes *this* workload
+5. `user_data` in the attestation = SHA-512 of the build manifest the
+   image carries — the hypervisor signs those bytes. The running image is
+   identified by the PCRs the hypervisor measures, compared with
+   `describe-eif`; the manifest cannot name its own image's PCR0, and in the
+   May cohort its PCR fields are the debug build's (the production build
+   reused it). Freshness and a key's binding come from the verifier's
+   challenge in `nonce`, which this kit does not send
+   (`internal/shared/tee/testdata/aws-nitro/README.md`)
 6. Demo 1 evidence — full Llama 3.2 3B model sealed and restored
    byte-identical, with `acpctl genome verify` confirming every blob
    hash matches the envelope record
@@ -336,7 +341,9 @@ acpctl attest nitro --doc 04-attestation-document.bin \
 Exit 0 and `VERIFIED at <capture time>` mean the envelope decoded, the
 chain reached the pinned AWS Nitro Enclaves Root G1, the ES384 signature
 held and PCR0 is the image's. `evidence/0N-*/07-go-verifier-audit.json`
-holds that output for the four production documents of May 2026.
+holds that output for the four production documents of May 2026; VM1's
+raw document is published at `internal/shared/tee/testdata/aws-nitro/`
+(VERIFIABLE-CLAIMS C49), the other three are under NDA.
 
 ## Re-validating captured evidence offline
 

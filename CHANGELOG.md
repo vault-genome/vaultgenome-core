@@ -24,7 +24,10 @@ given release can still open.
   outside AWS's specification, a debug-mode PCR0 or a chain that does not
   reach the pinned root is refused. Proven offline on the four
   production-mode documents of the May 2026 cohort at their capture time
-  (`scripts/hardware-test/aws-nitro/evidence/0N-*/07-go-verifier-audit.json`).
+  (`scripts/hardware-test/aws-nitro/evidence/0N-*/07-go-verifier-audit.json`);
+  VM1's raw document is in the repository
+  (`internal/shared/tee/testdata/aws-nitro/`) and verified in CI
+  (VERIFIABLE-CLAIMS C49).
   `AWSNitroVerifierConfig.Now` sets the clock; `AuditAWSNitroDocument`
   audits a capture without a challenge.
 - `acpctl attest nitro --doc FILE [--at capture|now|RFC3339] [--expected-pcr0 HEX] [--root PEM] [--json]`:

@@ -1,0 +1,11 @@
+{
+  "vault_genome_version": "1.0.0",
+  "platform": "aws-nitro-enclaves",
+  "enclave_image_path": "/home/ec2-user/vg/enclave-build/vault-genome.eif",
+  "enclave_image_sha384_pcr0": "c7e271f9e4dca60c50a2fc149859dee6bf4af131a500d6d16c9680a975e2408ad30dd2ef39d0a324e3caa00529e50ece",
+  "enclave_kernel_pcr1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+  "enclave_application_pcr2": "5b0886879612707ca85464a9af0cf263b7e440d9d527572e5e6d384deaeee0924173def9261b1849adbf0b082e0d624c",
+  "build_date_utc": "2026-05-08T00:52:40Z",
+  "docker_image": "vault-genome/acpctl:enclave",
+  "build_host": "ip-172-31-0-99.us-east-2.compute.internal"
+}

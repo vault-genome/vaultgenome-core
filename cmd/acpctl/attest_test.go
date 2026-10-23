@@ -44,6 +44,39 @@ func TestAttestNitro_VerifiesFixtureAtCaptureTime(t *testing.T) {
 	require.Contains(t, out, "debug       false")
 }
 
+// The production document the Nitro hypervisor issued on 2026-05-08
+// (internal/shared/tee/testdata/aws-nitro, ADR 0035): the shipping
+// verifier verifies it at its capture time against the built-in AWS root.
+const (
+	genuineDoc  = "../../internal/shared/tee/testdata/aws-nitro/2026-05-08-vm1-us-east-2a-attestation-document.bin"
+	genuinePCR0 = "69d556eff8606bd9828baaac20612f03851f29ddd989387ce5ab3a9cde8917add48d78f1f84c53dc2aafedb9ecb8734e"
+)
+
+func TestAttestNitro_VerifiesGenuineProductionDocument(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := attestCmd([]string{"nitro", "--doc", genuineDoc, "--expected-pcr0", genuinePCR0, "--json"}, &stdout, &stderr)
+	require.Equal(t, 0, code, stderr.String())
+	var out nitroAuditOutput
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &out))
+	require.True(t, out.Verified)
+	require.Equal(t, "i-0e35190ae3157095d-enc019e0512a5715d4f", out.ModuleID)
+	require.Equal(t, "2026-05-08T00:52:52.755Z", out.VerifiedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"))
+	require.Equal(t, "CN=aws.nitro-enclaves,OU=AWS,O=Amazon,C=US", out.Chain[4])
+	require.Equal(t, genuinePCR0, out.PCRs["0"])
+	require.Len(t, out.PCRs, 16)
+	require.Empty(t, out.Nonce)
+	require.False(t, out.Debug)
+	require.NotNil(t, out.ExpectedPCR0Matches)
+	require.True(t, *out.ExpectedPCR0Matches)
+
+	// At today's clock the signing certificate has expired.
+	stdout.Reset()
+	code = attestCmd([]string{"nitro", "--doc", genuineDoc, "--at", "now"}, &stdout, &stderr)
+	require.Equal(t, 5, code)
+	require.Contains(t, stdout.String(), "NOT VERIFIED")
+	require.Contains(t, stdout.String(), "expired")
+}
+
 func TestAttestNitro_JSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := attestCmd([]string{"nitro", "--doc", fixtureDoc, "--root", fixtureRoot, "--at", fixtureAt, "--json"}, &stdout, &stderr)

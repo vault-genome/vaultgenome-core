@@ -121,11 +121,15 @@ once the quota exists. VERIFIABLE-CLAIMS says what is and is not claimed.
   SHA-512 of the build manifest, `nonce` absent, `debug` false; at
   2026-09-22: NOT VERIFIED, the signing certificate expired on
   2026-05-08T03:52:52Z — `scripts/hardware-test/aws-nitro/evidence/0N-*/07-go-verifier-audit.json`,
-  written by `acpctl attest nitro --json`. The raw documents are shared
-  under NDA; `TestAWSNitro_GenuineProductionCaptures` runs on them when
-  `VG_NITRO_CAPTURE_DIR` names their directory, and asserts all of the
-  above plus the Verifier's refusal for want of a nonce and the signature
-  check's refusal of a flipped byte.
+  written by `acpctl attest nitro --json`. VM1's raw document is in the
+  repository (`internal/shared/tee/testdata/aws-nitro/`, published
+  2026-09-22 by the founders' decision; it carries only what the
+  hypervisor signs for any relying party), so
+  `TestAWSNitro_GenuineProductionCaptures` runs on it in CI and asserts
+  all of the above plus the Verifier's refusal for want of a nonce and
+  the refusal of a flipped byte; the other three documents stay under
+  NDA and the test runs on them too when `VG_NITRO_CAPTURE_DIR` names
+  their directory. VERIFIABLE-CLAIMS C49 states the claim.
 - A synthetic five-certificate P-384 chain (`aws_nitro_fixture_test.go`)
   signs the documents the unit and integration tests verify, so every
   byte of the production codec runs in CI: twenty refusals one knob at a
@@ -135,7 +139,12 @@ once the quota exists. VERIFIABLE-CLAIMS says what is and is not claimed.
   PCR policy, PCR length), the rolling set and the PCR selector.
 - Fuzzing, 20 seconds each on 2026-09-22: `FuzzCBORDecode_NoPanic`
   1.3 million executions, `FuzzAWSNitroVerifier_Verify_NoPanic` 425
-  thousand, no panic.
+  thousand, no panic. The
+  `user_data` binds the manifest's bytes only: the May kit wrote the
+  manifest in its debug build and reused it for the production one, so its
+  PCR fields are not the attested image's; the image is the PCRs, and a
+  key's binding is the verifier's challenge, which the captures lack and
+  the daemons' Verify requires.
 
 ## Consequences
 

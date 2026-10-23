@@ -4,7 +4,10 @@ This directory contains **sanitized excerpts** from the May 2026 4-VM AWS Nitro
 Enclaves validation sprint, **production-mode** (auditor-grade). The full
 evidence pack (raw 4.5 KB COSE_Sign1 attestation documents, .eif build
 artifacts, vsock-attest binaries, console captures) is shared under NDA
-— see `SECURITY.md` in the repo root.
+— see `SECURITY.md` in the repo root — except VM1's raw attestation
+document, published on 2026-09-22 at
+`internal/shared/tee/testdata/aws-nitro/` so the shipping verifier is
+tested on it in CI (ADR 0035, VERIFIABLE-CLAIMS C49).
 
 ## What's here
 
@@ -44,6 +47,14 @@ All four cohort entries pass **all six production-grade checks**:
 
 The shared production-mode `.eif` PCR0:
 `69d556eff8606bd9828baaac20612f03851f29ddd989387ce5ab3a9cde8917add48d78f1f84c53dc2aafedb9ecb8734e`
+
+What the `user_data` check below means: the hypervisor signed the SHA-512 of
+the build manifest the image carries — the manifest's bytes, not the image.
+The image is identified by PCR0–2 against `02d-expected-pcrs.json`; the
+manifest's own PCR fields are the debug build's, which the production build
+reused, so they do not match the PCRs attested here (see
+`internal/shared/tee/testdata/aws-nitro/README.md`). The cross-VM matrices
+call this "workload binding"; it binds the manifest, not the workload.
 
 The shared workload `user_data` (SHA-512 of build manifest):
 `6775ac5075b68a5b48767c1cc1e11a28d761158adfd6236da96bac19450a6f2aa37096e477f134baf511368f4fd08135103ebfb2b12093b2e1044cbc3e15f5bb`

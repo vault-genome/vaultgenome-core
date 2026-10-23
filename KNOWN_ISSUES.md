@@ -149,7 +149,9 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    specification, the chain anchored at the pinned AWS Nitro Enclaves Root
    G1, ES384 checked over the Sig_structure — and proven offline on the
    four production-mode documents of the May 2026 cohort at their capture
-   time (`scripts/hardware-test/aws-nitro/evidence/0N-*/07-go-verifier-audit.json`,
+   time (VERIFIABLE-CLAIMS C49; one raw document is in the repository at
+   `internal/shared/tee/testdata/aws-nitro/`, the reports on all four at
+   `scripts/hardware-test/aws-nitro/evidence/0N-*/07-go-verifier-audit.json`,
    `acpctl attest nitro`). Its NSM producer and KMS sealer are still
    stubs, no Nitro enclave has attested to this code live, and the
    registry and `acp-bootstrap` keep refusing the family until one has.

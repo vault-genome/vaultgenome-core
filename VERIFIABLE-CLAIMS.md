@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -257,9 +257,9 @@ F12).
 confidential GPU destination — an SEV-SNP guest whose Evidence also carries
 the vTPM's quote and NVIDIA's tokens ([C18](#c18)) — and once to an Intel
 TDX destination, its quote verified to Intel's root with Intel's TCB word
-([C21](#c21)); the AWS Nitro verifier is shipped and proven on AWS's own
-documents offline (ADR 0035) but no Nitro enclave has taken a release,
-and the SGX verifiers are **not** shipped — see
+([C21](#c21)); the AWS Nitro verifier is shipped and proven on the
+hypervisor's own document offline ([C49](#c49)) but no Nitro enclave has
+taken a release, and the SGX verifiers are **not** shipped — see
 [What we do not claim](#what-we-do-not-claim).
 
 ---
@@ -3321,6 +3321,55 @@ ML-DSA-87 is not implemented in it. A tail cut off the log is invisible
 to both verifiers, as ADR 0027 says: the tip is compared to what was
 recorded elsewhere.
 
+### C49 — The AWS Nitro verifier, written from AWS's specification, verifies a production attestation document from the Nitro hypervisor
+
+**Claim.** `internal/shared/tee`'s Nitro verifier — a CBOR codec written
+from RFC 8949, the COSE_Sign1 envelope from RFC 9052, the document as AWS
+specifies it, the chain anchored at the pinned AWS Nitro Enclaves Root CA
+G1 (fingerprint `64:1A:03:21…8F:79:BB:5B`, as AWS publishes it), ECDSA
+P-384 over the Sig_structure — verifies the raw attestation document the
+Nitro hypervisor issued to a production-mode enclave on
+`i-0e35190ae3157095d` (us-east-2a) at 2026-05-08T00:52:52.755Z: five
+certificates to `CN=aws.nitro-enclaves`, signature valid, PCR0/1/2 equal
+to what `nitro-cli describe-eif` printed for the image, `user_data` equal
+to the SHA-512 of the build manifest, no nonce, not debug mode. The same
+document at today's clock is refused (the signing certificate expired on
+2026-05-08T03:52:52Z), a Verifier with a challenge refuses it for want of
+a nonce, and a flipped byte anywhere is refused. The other three
+documents of the cohort (two Ohio zones, Ireland) verify the same way
+under NDA (ADR 0035).
+
+**Evidence.**
+[`internal/shared/tee/testdata/aws-nitro/`](internal/shared/tee/testdata/aws-nitro/)
+— the raw document (4,523 bytes, SHA-256 `86a0e43d…8d3566`) and the
+manifest bound as `user_data`;
+[`scripts/hardware-test/aws-nitro/evidence/0N-*/07-go-verifier-audit.json`](scripts/hardware-test/aws-nitro/evidence/)
+— the shipping verifier's report on each of the four documents (`verified:
+true`, the chain, sixteen PCRs, `expected_pcr0_matches: true`).
+
+**Reproduce:**
+
+```bash
+go test ./internal/shared/tee/ -run 'TestAWSNitro_GenuineProductionCaptures|TestAWSNitro_PublishedCapture_Identity' -v
+acpctl attest nitro --doc internal/shared/tee/testdata/aws-nitro/2026-05-08-vm1-us-east-2a-attestation-document.bin \
+  --expected-pcr0 69d556eff8606bd9828baaac20612f03851f29ddd989387ce5ab3a9cde8917add48d78f1f84c53dc2aafedb9ecb8734e
+acpctl attest nitro --doc internal/shared/tee/testdata/aws-nitro/2026-05-08-vm1-us-east-2a-attestation-document.bin --at now   # exit 5: expired
+```
+
+**Scope.** Offline, at the document's own timestamp: the verifier's
+clock is pinned to the capture because the hypervisor's signing
+certificate lives three hours. The NSM producer and the KMS sealer are
+unproven, no Nitro enclave has attested to this code live, none has
+received a key, and the verifier registry refuses the `aws-nitro` family
+until one has ([What we do not claim](#what-we-do-not-claim), 4). The
+`user_data` binds the bytes of the build manifest the image carries; the
+image is identified by its PCRs, and the manifest's own PCR fields are the
+debug build's, which the May kit reused for the production build — the
+manifest is not evidence of which image ran
+(`internal/shared/tee/testdata/aws-nitro/README.md`).
+
+---
+
 ## What we do not claim
 
 This section is load-bearing. We would rather lose a deal than win one on a
@@ -3354,13 +3403,11 @@ sentence we cannot defend.
 4. **We do not claim a Nitro or SGX key release.** SEV-SNP and Intel TDX
    only ([C15](#c15)). Adapter dispatch for others exists (ADR 0002). The
    AWS Nitro verifier is written from AWS's specification and verifies
-   the four production-mode documents captured in May 2026 at their
-   capture time (ADR 0035; `scripts/hardware-test/aws-nitro/evidence/0N-*/07-go-verifier-audit.json`,
-   reproducible with `acpctl attest nitro` on the NDA-scoped raw
-   documents), but its producer and sealer are unproven, no enclave has
-   attested to this code live, and the registry refuses the family. The
-   SGX verifiers do not exist. A TDX host and an Azure host — a
-   confidential GPU VM or an SEV-SNP Confidential VM without a GPU — seal
+   the production-mode documents captured in May 2026 at their capture
+   time ([C49](#c49), ADR 0035; one raw document is in the repository,
+   three under NDA), but its producer and sealer are unproven, no enclave
+   has attested to this code live, and the registry refuses the family.
+   The SGX verifiers do not exist. A TDX host and an Azure confidential GPU host seal
    the escrow key to their vTPM (ADR 0022) — a root the cloud provider
    virtualises inside the confidential VM, not the TEE's own; an operator
    who does not accept that root has no sealed escrow key on those hosts.
