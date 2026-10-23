@@ -149,7 +149,43 @@ func TestValidate_ReportsEveryProblem(t *testing.T) {
 	}
 	c = minimalValidConfig()
 	c.HTTP.ListenAddress = ""
-	requireInvalid(t, c, "http.listen_address required")
+	requireInvalid(t, c, "http.listen_address or http.listen_vsock_port required")
+}
+
+// A vsock listener — the only way into a Nitro enclave (ADR 0036) — is
+// exposed like a non-loopback address: TLS and client authentication.
+func TestValidate_VsockListener(t *testing.T) {
+	vsockCfg := func() Config {
+		c := minimalValidConfig()
+		c.HTTP.ListenAddress = ""
+		c.HTTP.ListenVsockPort = 5005
+		c.HTTP.TLS = TLSServerConfig{Enabled: true, ServerCert: "server.crt", ServerKey: "server.key", ClientCAs: "ca.crt"}
+		return c
+	}
+	if err := vsockCfg().Validate(); err != nil {
+		t.Fatalf("a vsock listener with TLS and mTLS is valid: %v", err)
+	}
+
+	c := vsockCfg()
+	c.HTTP.ListenAddress = "127.0.0.1:8443"
+	requireInvalid(t, c, "set only one of listen_address and listen_vsock_port")
+
+	c = vsockCfg()
+	c.HTTP.ListenVsockPort = 0xFFFFFFFF
+	requireInvalid(t, c, "VMADDR_PORT_ANY")
+
+	c = vsockCfg()
+	c.HTTP.TLS = TLSServerConfig{}
+	requireInvalid(t, c, "http.tls.enabled required: listen_vsock_port 5005 is not loopback")
+
+	c = vsockCfg()
+	c.HTTP.TLS.ClientCAs = ""
+	requireInvalid(t, c, "http.tls.client_cas or http.bearer_token(_file) required: listen_vsock_port 5005")
+
+	c = vsockCfg()
+	c.HTTP.TLS.ClientCAs = ""
+	c.HTTP.BearerToken = "short"
+	requireInvalid(t, c, "http.bearer_token too short for non-loopback listen_vsock_port 5005")
 }
 
 func TestValidate_TEEProvider(t *testing.T) {

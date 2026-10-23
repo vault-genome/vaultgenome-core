@@ -14,9 +14,13 @@ For TEE-agnostic disaster recovery see
   AMI or enclave image for running `sagvd` on AWS, and no integration with
   AWS KMS, S3 or CloudWatch. The only packaged deployment is
   `deploy/compose/` (Docker Compose), which runs on any Linux host.
-- **No Nitro attestation in the shipped binaries.** The AWS Nitro adapter in
-  `internal/shared/tee` is scaffolding: `sagvd`'s cross-cloud verifier
-  registry and all three daemons refuse `aws-nitro` (KNOWN_ISSUES #1). The
+- **No Nitro key release in the shipped binaries yet.** The Nitro verifier
+  is written from AWS's specification and proven offline on AWS's own
+  documents (ADR 0035), the producer speaks the NSM from its interface and
+  `acp-bootstrap` can serve over vsock and take its bundle over the API (ADR
+  0036, parts one and two); `sagvd`'s cross-cloud verifier registry and all
+  three daemons still refuse `aws-nitro` until an enclave has taken a release
+  on hardware (KNOWN_ISSUES #1, ADR 0036 part four). The
   hardware families the binaries run on are AMD SEV-SNP on GCP
   ([real-tee-sev-snp.md](real-tee-sev-snp.md)), Intel TDX on GCP
   ([real-tee-tdx.md](real-tee-tdx.md)) and the Azure confidential GPU VM

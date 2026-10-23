@@ -209,7 +209,21 @@ Exposure rules are enforced at startup; a config that breaks one does not start:
   `restore_dir/<key id>.receipt.json`. Both are absolute and separate. Copy
   bundles in under another name and rename them to `*.genome`, so a
   half-written bundle is never picked up. A key that arrives before its bundle
-  waits for it (`rescan_seconds`, default 5).
+  waits for it (`rescan_seconds`, default 5). Where nobody else can write into
+  `bundle_dir` — inside a Nitro enclave, which has no disk of its own — the
+  source posts the sealed bundle to `POST /v1/genome/bundles` over the same
+  authenticated API (ADR 0036): at most `max_bundle_bytes` (default 1 GiB; a
+  large bundle also needs `http.write_timeout_seconds` long enough), refused
+  unless its header is a v3 bundle's, stored as `<sha256>.genome` by a rename,
+  and refused if another bundle for the same key is already there; the same
+  bytes again are answered as already there. The bundle is ciphertext without
+  its key, and the receipt names its digest, which the source checks.
+- `http.listen_vsock_port` (instead of `listen_address`) serves the API on an
+  AF_VSOCK port — the only channel into a Nitro enclave, which has no network
+  interface at all (ADR 0036). The parent instance forwards bytes to the port
+  and sees ciphertext: TLS terminates in the daemon, and a vsock listener is
+  held to the rules of a non-loopback address (TLS, and mTLS or a bearer token
+  of at least 32 characters).
 - `genome.gate` (optional) proves a restored model works before the receipt is
   signed. `command` runs the gate backend — the `vg_genome` door
   (`workers/genome`), with `{genome}` standing for the restored directory — which

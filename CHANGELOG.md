@@ -50,6 +50,17 @@ given release can still open.
   root, PCR0 taken from it. `DescribePCR` is not used: its answer carries
   a boolean the document's decoder does not take. The family stays
   refused until an enclave has taken a release on hardware.
+- `acp-bootstrap` inside a Nitro enclave (ADR 0036, part two). An enclave
+  has no network interface — not even loopback — so the daemon serves
+  over vsock: `http.listen_vsock_port`, held to the rules of a
+  non-loopback address (TLS, and mTLS or a bearer token), over
+  `internal/shared/vsock` — `AF_VSOCK` with the `syscall` package and the
+  runtime's poller. An enclave has no disk anyone else can write either,
+  so the bundle travels in over the API: `POST /v1/genome/bundles`
+  (`genome.max_bundle_bytes`, default 1 GiB) stages it under a name the
+  scan ignores, checks the v3 header, stores it as `<sha256>.genome` by a
+  rename and refuses a second bundle for the same key; the receipt's
+  digest remains the source's check.
 - The verifier held to readings nobody here wrote (ADR 0034, part one).
   Every genuine SEV-SNP report on record — 41 on 2026-10-22, 25 chips,
   Milan and Genoa — is a corpus (`test/corpus/sev-snp`, `build.py`, the

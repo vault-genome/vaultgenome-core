@@ -94,6 +94,13 @@ type HTTPConfig struct {
 	// /v1/crosscloud/handshake and /v1/crosscloud/token requests.
 	ListenAddress string `json:"listen_address"`
 
+	// ListenVsockPort is the AF_VSOCK port to listen on instead of
+	// ListenAddress: the only channel into a Nitro enclave, which has no
+	// network interface at all (ADR 0036). The parent instance forwards
+	// bytes to it and sees ciphertext. A vsock listener is exposed like a
+	// non-loopback address: TLS and client authentication are required.
+	ListenVsockPort uint32 `json:"listen_vsock_port,omitempty"`
+
 	// BearerToken, if non-empty, is enforced on every incoming
 	// request via constant-time compare. Defence-in-depth alongside
 	// the source authority's signatures on every payload. On a
@@ -245,6 +252,13 @@ type GenomeConfig struct {
 	// RescanSeconds is how often to look again for the bundle of a key
 	// that arrived first. Defaults to 5.
 	RescanSeconds int `json:"rescan_seconds,omitempty"`
+
+	// MaxBundleBytes bounds a bundle received over the API (POST
+	// /v1/genome/bundles, ADR 0036) — the way into a destination with no
+	// disk of its own, such as a Nitro enclave, where the bundle lives in
+	// memory. Defaults to 1 GiB. A large bundle also needs
+	// http.write_timeout_seconds long enough to receive it.
+	MaxBundleBytes int64 `json:"max_bundle_bytes,omitempty"`
 
 	// Gate, when set, proves each restored model works before the
 	// receipt is signed: Command (the vg_genome door) recomputes the
@@ -400,7 +414,7 @@ func (c *Config) ResolveSecrets() error {
 	if token == "" {
 		return fmt.Errorf("acp-bootstrap: http.bearer_token_file %q is empty", c.HTTP.BearerTokenFile)
 	}
-	if !exposure.IsLoopback(c.HTTP.ListenAddress) && len(token) < exposure.MinBearerTokenLen {
+	if (c.HTTP.ListenVsockPort != 0 || !exposure.IsLoopback(c.HTTP.ListenAddress)) && len(token) < exposure.MinBearerTokenLen {
 		return fmt.Errorf("acp-bootstrap: token in %q too short for non-loopback listen_address %q (need >= %d characters)",
 			c.HTTP.BearerTokenFile, c.HTTP.ListenAddress, exposure.MinBearerTokenLen)
 	}
@@ -423,13 +437,24 @@ func (c Config) Validate() error {
 		errs = append(errs, fmt.Errorf("crypto: %w", err))
 	}
 
-	listenOK := false
-	if strings.TrimSpace(c.HTTP.ListenAddress) == "" {
-		errs = append(errs, errors.New("http.listen_address required"))
-	} else if _, _, err := net.SplitHostPort(c.HTTP.ListenAddress); err != nil {
-		errs = append(errs, fmt.Errorf("http.listen_address invalid: %w", err))
-	} else {
-		listenOK = true
+	// exposed: the listener is reachable from outside this host — a
+	// non-loopback address, or vsock (the parent instance's side).
+	listenOK, exposed, where := false, false, fmt.Sprintf("listen_address %q", c.HTTP.ListenAddress)
+	switch {
+	case c.HTTP.ListenVsockPort != 0 && strings.TrimSpace(c.HTTP.ListenAddress) != "":
+		errs = append(errs, errors.New("http: set only one of listen_address and listen_vsock_port"))
+	case c.HTTP.ListenVsockPort == 0xFFFFFFFF:
+		errs = append(errs, errors.New("http.listen_vsock_port 4294967295 is VMADDR_PORT_ANY, not a port"))
+	case c.HTTP.ListenVsockPort != 0:
+		listenOK, exposed, where = true, true, fmt.Sprintf("listen_vsock_port %d", c.HTTP.ListenVsockPort)
+	case strings.TrimSpace(c.HTTP.ListenAddress) == "":
+		errs = append(errs, errors.New("http.listen_address or http.listen_vsock_port required"))
+	default:
+		if _, _, err := net.SplitHostPort(c.HTTP.ListenAddress); err != nil {
+			errs = append(errs, fmt.Errorf("http.listen_address invalid: %w", err))
+		} else {
+			listenOK, exposed = true, !exposure.IsLoopback(c.HTTP.ListenAddress)
+		}
 	}
 
 	if c.HTTP.TLS.Enabled {
@@ -445,22 +470,19 @@ func (c Config) Validate() error {
 	if c.HTTP.BearerToken != "" && c.HTTP.BearerTokenFile != "" {
 		errs = append(errs, errors.New("http: set only one of bearer_token and bearer_token_file"))
 	}
-	if listenOK && !exposure.IsLoopback(c.HTTP.ListenAddress) {
+	if listenOK && exposed {
 		if !c.HTTP.TLS.Enabled {
 			errs = append(errs, fmt.Errorf(
-				"http.tls.enabled required: listen_address %q is not loopback (key-release traffic across a network must be encrypted)",
-				c.HTTP.ListenAddress))
+				"http.tls.enabled required: %s is not loopback (key-release traffic across a network must be encrypted)", where))
 		}
 		hasToken := c.HTTP.BearerToken != "" || c.HTTP.BearerTokenFile != ""
 		if c.HTTP.TLS.ClientCAs == "" && !hasToken {
 			errs = append(errs, fmt.Errorf(
-				"http.tls.client_cas or http.bearer_token(_file) required: listen_address %q is not loopback",
-				c.HTTP.ListenAddress))
+				"http.tls.client_cas or http.bearer_token(_file) required: %s is not loopback", where))
 		}
 		if c.HTTP.BearerToken != "" && len(c.HTTP.BearerToken) < exposure.MinBearerTokenLen {
 			errs = append(errs, fmt.Errorf(
-				"http.bearer_token too short for non-loopback listen_address %q (need >= %d characters)",
-				c.HTTP.ListenAddress, exposure.MinBearerTokenLen))
+				"http.bearer_token too short for non-loopback %s (need >= %d characters)", where, exposure.MinBearerTokenLen))
 		}
 	}
 
@@ -591,6 +613,9 @@ func (g GenomeConfig) validate() []error {
 	}
 	if g.RescanSeconds < 0 {
 		errs = append(errs, errors.New("genome.rescan_seconds must not be negative"))
+	}
+	if g.MaxBundleBytes < 0 {
+		errs = append(errs, errors.New("genome.max_bundle_bytes must not be negative"))
 	}
 	if gate := g.Gate; gate != nil {
 		if len(gate.Command) == 0 || strings.TrimSpace(gate.Command[0]) == "" {
