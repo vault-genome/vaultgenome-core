@@ -14,7 +14,9 @@
 # without an enclave — and AWS's own record of each call (CloudTrail).
 # Everything the run makes is torn down at the end, whatever happened; the
 # keys are scheduled for deletion. The evidence holds no credential, no
-# account number and no address.
+# address, and nothing that names the account: not its number, not an IAM
+# unique identifier, not PCR3 (redact.py). The verdict (verdict.py) is
+# taken on the evidence before that, and kept with it.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -197,17 +199,7 @@ step "CloudTrail: the Decrypt calls on the run's keys (it can take up to 15 minu
 START_ISO="$(python3 -c 'import datetime,sys; print(datetime.datetime.strptime(sys.argv[1], "%Y%m%dT%H%M%SZ").strftime("%Y-%m-%dT%H:%M:%SZ"))' "$TS")"
 for i in $(seq 1 20); do
   aws cloudtrail lookup-events --start-time "$START_ISO" --lookup-attributes AttributeKey=EventName,AttributeValue=Decrypt --max-results 50 --output json > "$WORK/cloudtrail-decrypt.json" 2>/dev/null
-  n="$(python3 - "$WORK/cloudtrail-decrypt.json" "$KEY_ARN" "$OTHER_KEY_ARN" <<'PY'
-import json, sys
-ev = json.load(open(sys.argv[1])).get("Events", [])
-keys = set(sys.argv[2:])
-def on_keys(e):
-    if any(r.get("ResourceName") in keys for r in e.get("Resources", [])): return True
-    rp = json.loads(e.get("CloudTrailEvent", "{}")).get("requestParameters") or {}
-    return rp.get("keyId") in keys
-print(sum(1 for e in ev if on_keys(e)))
-PY
-)"
+  n="$(python3 "$HERE/cloudtrail.py" count "$WORK/cloudtrail-decrypt.json" "$KEY_ARN" "$OTHER_KEY_ARN")"
   echo "CloudTrail: $n Decrypt events on the run's keys"
   [ "${n:-0}" -ge 7 ] && break
   sleep 45
@@ -223,18 +215,7 @@ for f in report-production.json report-debug.json describe-enclaves-production.j
   [ -f "$WORK/parent-out/$f" ] && cp "$WORK/parent-out/$f" "$EV/$f"
 done
 cp "$WORK/kit-decrypt.err" "$EV/kit-decrypt.err"
-python3 - "$WORK/cloudtrail-decrypt.json" "$KEY_ARN" "$OTHER_KEY_ARN" > "$EV/cloudtrail-decrypt.json" <<'PY'
-import json, sys
-ev = json.load(open(sys.argv[1])).get("Events", [])
-keys = set(sys.argv[2:])
-out = []
-for e in ev:
-    ct = json.loads(e["CloudTrailEvent"])
-    rp = ct.get("requestParameters") or {}
-    if not (any(r.get("ResourceName") in keys for r in e.get("Resources", [])) or rp.get("keyId") in keys): continue
-    out.append({k: ct.get(k) for k in ("eventTime", "eventName", "userIdentity", "requestParameters", "additionalEventData", "errorCode", "errorMessage", "requestID", "eventID", "sourceIPAddress", "userAgent")})
-print(json.dumps(sorted(out, key=lambda x: x["eventTime"]), indent=2))
-PY
+python3 "$HERE/cloudtrail.py" extract "$WORK/cloudtrail-decrypt.json" "$KEY_ARN" "$OTHER_KEY_ARN" > "$EV/cloudtrail-decrypt.json"
 for c in opens another-image another-secret policy-refuses; do echo "$(shasum -a 256 "$WORK/$c.sealed.json" | cut -d' ' -f1)  $c.sealed.json"; done > "$EV/sealed-files.sha256"
 {
   echo "commit $(git -C "$ROOT" rev-parse HEAD)"
@@ -252,71 +233,13 @@ for c in opens another-image another-secret policy-refuses; do echo "$(shasum -a
   echo "other key $OTHER_KEY_ARN"
 } > "$EV/run.txt"
 
-python3 - "$EV" "$ACCT" "$MY_IP" "$PARENT_IP" <<'PY'
-import os, re, sys
-ev, acct, mine, parent = sys.argv[1:5]
-for name in os.listdir(ev):
-    p = os.path.join(ev, name)
-    t = open(p, encoding="utf-8", errors="replace").read()
-    t = t.replace(acct, "<account>")
-    if mine: t = t.replace(mine, "<operator-address>")
-    if parent and parent != "None": t = t.replace(parent, "<parent-address>")
-    t = re.sub(r"\b(ASIA|AKIA)[A-Z0-9]{16}\b", r"\1<redacted>", t)
-    open(p, "w", encoding="utf-8").write(t)
-PY
-python3 - "$EV" <<'PY'
-import os, re, sys
-ev = sys.argv[1]
-secrets = [os.environ.get(k, "") for k in ("AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN")]
-bad = False
-for name in os.listdir(ev):
-    t = open(os.path.join(ev, name), encoding="utf-8", errors="replace").read()
-    if any(s and s in t for s in secrets) or re.search(r"\b\d{12}\b", t) and "arn:aws" in t and re.search(r"arn:aws:[a-z0-9-]+:[a-z0-9-]*:\d{12}:", t):
-        print("a credential or an account number reached", name); bad = True
-sys.exit(1 if bad else 0)
-PY
-[ $? -eq 0 ] || { rm -rf "$EV"; die "the evidence was not clean; removed"; }
-(cd "$EV" && shasum -a 256 * > SHA256SUMS)
-
 step "the verdict"
-python3 - "$EV" "$PCR0" "$SECRET_SHA" <<'PY'
-import json, os, sys
-ev, pcr0, secret = sys.argv[1:4]
-ok = True
-def check(what, cond):
-    global ok
-    print(("PASS " if cond else "FAIL ") + what); ok = ok and cond
-prod = json.load(open(os.path.join(ev, "report-production.json")))
-dbg = json.load(open(os.path.join(ev, "report-debug.json")))
-check("production: the enclave attests itself, not debug, PCR0 = the image's",
-      prod.get("self_attestation", {}).get("debug") is False and prod["self_attestation"]["pcrs"]["0"] == pcr0)
-for c in prod["cases"]:
-    check(f"production: {c['case']}: {c['outcome']} (expected {c['expect']})", c["as_expected"])
-    if c["case"] == "opens":
-        check("production: what opened is the secret sealed here (sha256)", c.get("plaintext_sha256") == secret)
-check("debug: the enclave's own document says debug (PCR0 zero)", dbg.get("self_attestation", {}).get("debug") is True)
-for c in dbg["cases"]:
-    check(f"debug: {c['case']}: {c['outcome']} (expected {c['expect']})", c["as_expected"])
-pe = open(os.path.join(ev, "parent-decrypt.err")).read()
-ke = open(os.path.join(ev, "kit-decrypt.err")).read()
-check("the parent's role without an enclave: AccessDeniedException", "AccessDeniedException" in pe)
-check("the kit's role without an enclave: AccessDeniedException", "AccessDeniedException" in ke)
-import base64
-def digest_hex(v):
-    # CloudTrail writes the attestation's measurements in base64.
-    try:
-        return base64.b64decode(v, validate=True).hex()
-    except Exception:
-        return (v or "").lower()
-ct = json.load(open(os.path.join(ev, "cloudtrail-decrypt.json")))
-granted = [e for e in ct if not e.get("errorCode") and (e.get("additionalEventData") or {}).get("recipient")]
-check("CloudTrail: a Decrypt granted to an enclave whose image digest is the image's PCR0",
-      any(digest_hex(e["additionalEventData"]["recipient"].get("attestationDocumentEnclaveImageDigest", "")) == pcr0 for e in granted))
-denied = [e for e in ct if e.get("errorCode") == "AccessDeniedException"]
-check("CloudTrail: the denied Decrypts are on the record (the other key's policy, the debug document, the parent and the kit without an enclave)", len(denied) >= 4)
-print("VERDICT", "PASS" if ok else "FAIL")
-sys.exit(0 if ok else 1)
-PY
-RC=$?
+python3 "$HERE/verdict.py" "$EV" "$PCR0" "$SECRET_SHA" "$KEY_ARN" "$OTHER_KEY_ARN" "$ACCT" "$IID" | tee "$EV/verdict.txt"
+RC=${PIPESTATUS[0]}
+
+step "what names the account, taken out of the evidence"
+python3 "$HERE/redact.py" redact "$EV" "$ACCT" "$MY_IP" "$PARENT_IP" || { rm -rf "$EV"; die "the redaction failed; the evidence removed"; }
+python3 "$HERE/redact.py" check "$EV" "$ACCT" "$MY_IP" "$PARENT_IP" || { rm -rf "$EV"; die "the evidence was not clean; removed"; }
+(cd "$EV" && shasum -a 256 * > SHA256SUMS)
 echo "evidence: $EV"
 exit $RC
