@@ -365,17 +365,16 @@ func TestRequestRefusals(t *testing.T) {
 	require.Equal(t, "kms.us-east-2.amazonaws.com", c2.host)
 }
 
-func TestEnvironmentCredentials(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
-	_, err := EnvironmentCredentials{}.Retrieve(context.Background())
-	require.ErrorContains(t, err, "not both set")
-	t.Setenv("AWS_ACCESS_KEY_ID", "AKIDENV")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret")
-	t.Setenv("AWS_SESSION_TOKEN", "token")
-	c, err := EnvironmentCredentials{}.Retrieve(context.Background())
+func TestStaticCredentials(t *testing.T) {
+	_, err := StaticCredentials{AccessKeyID: "AKID"}.Retrieve(context.Background())
+	require.ErrorContains(t, err, "without an access key or its secret")
+	want := awssigv4.Credentials{AccessKeyID: "AKIDSTATIC", SecretAccessKey: "s3cr3t-value", SessionToken: "token-value"}
+	c, err := StaticCredentials(want).Retrieve(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, awssigv4.Credentials{AccessKeyID: "AKIDENV", SecretAccessKey: "secret", SessionToken: "token"}, c)
-	require.NotContains(t, StaticCredentials(c).String(), "secret")
-	require.NotContains(t, StaticCredentials(c).GoString(), "token\"")
+	require.Equal(t, want, c)
+	for _, s := range []string{StaticCredentials(c).String(), StaticCredentials(c).GoString()} {
+		require.Contains(t, s, "AKIDSTATIC")
+		require.NotContains(t, s, "s3cr3t-value")
+		require.NotContains(t, s, "token-value")
+	}
 }

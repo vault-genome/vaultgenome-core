@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/vault-genome/vaultgenome-core/internal/shared/awssigv4"
 )
 
 var accountInARN = regexp.MustCompile(`arn:aws:([a-z]+)::?(\d{12}):`)
@@ -35,8 +37,14 @@ func TestLiveKMS(t *testing.T) {
 		region = "us-east-2"
 	}
 	ctx := context.Background()
-	creds, err := EnvironmentCredentials{}.Retrieve(ctx)
-	require.NoError(t, err)
+	// The credentials come in through the environment, as run.sh exports
+	// them; a test may read it, the library does not.
+	creds := awssigv4.Credentials{
+		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		SessionToken:    os.Getenv("AWS_SESSION_TOKEN"),
+	}
+	require.True(t, creds.AccessKeyID != "" && creds.SecretAccessKey != "", "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set")
 	redact := func(s string) string {
 		s = strings.ReplaceAll(s, creds.AccessKeyID, creds.AccessKeyID[:4]+"…")
 		return accountInARN.ReplaceAllString(s, "arn:aws:$1::<account>:")

@@ -12,7 +12,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -20,7 +19,10 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/awssigv4"
 )
 
-// Credentials is where the signing credentials come from.
+// Credentials is where the signing credentials come from: given by the
+// caller (StaticCredentials — a command's main reads the operator's from
+// the environment at startup; the library reads no environment), or the
+// instance role's (IMDSCredentials).
 type Credentials interface {
 	Retrieve(ctx context.Context) (awssigv4.Credentials, error)
 }
@@ -42,24 +44,6 @@ func (s StaticCredentials) String() string { return awssigv4.Credentials(s).Stri
 
 // GoString is String.
 func (s StaticCredentials) GoString() string { return s.String() }
-
-// EnvironmentCredentials reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and
-// AWS_SESSION_TOKEN at each Retrieve — the variables AWS's tools set and
-// read.
-type EnvironmentCredentials struct{}
-
-// Retrieve reads the environment.
-func (EnvironmentCredentials) Retrieve(context.Context) (awssigv4.Credentials, error) {
-	c := awssigv4.Credentials{
-		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
-		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-		SessionToken:    os.Getenv("AWS_SESSION_TOKEN"),
-	}
-	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-		return awssigv4.Credentials{}, errors.New("awskms: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are not both set")
-	}
-	return c, nil
-}
 
 // IMDSCredentials are the instance role's credentials from the EC2
 // Instance Metadata Service, version 2 (the EC2 User Guide, "Use the
