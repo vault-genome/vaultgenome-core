@@ -31,6 +31,13 @@ paths = [
   # never used for anything else. gitleaks' private-key rule matches the
   # PEM blocks by shape; they protect nothing outside this file.
   '''internal/genome/escrow/testdata/escrow-v1-documents\.json''',
+  # internal/shared/cms/testdata/recipient-key.pem: the throwaway RSA-3072
+  # key OpenSSL 3 wrapped the CMS vectors to (ADR 0036, part three), made
+  # for those vectors by make-vectors.sh beside it and used for nothing
+  # else, so the CMS reader is held to an implementation nobody here
+  # wrote. gitleaks' private-key rule matches the PEM block by shape; it
+  # protects nothing.
+  '''internal/shared/cms/testdata/recipient-key\.pem''',
 ]
 regexes = [
   # `type PrivateKey = ed25519.PrivateKey` in internal/shared/crypto: a Go
