@@ -1,0 +1,5 @@
+release: v0.10.0
+verified at: 2026-10-23T20:28:11Z
+cosign: v3.1.3
+slsa-verifier: 
+crane: github.com/google/go-containerregistry/cmd/crane@v0.20.3
