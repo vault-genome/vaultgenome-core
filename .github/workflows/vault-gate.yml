@@ -179,11 +179,15 @@ jobs:
       # Certificate of Origin sign-off naming its author (CONTRIBUTING.md).
       # The range is the pull request's base..head, or the push's
       # before..after on main; checkout uses fetch-depth: 0, so both resolve.
+      # On a push to main a commit GitHub wrote by squash-merging a pull
+      # request is accepted with the sign-offs of the commits it squashed,
+      # which the pull request's run checked one by one (scripts/dco_check.sh).
       - name: dco
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: bash scripts/dco_check.sh "$BASE..$HEAD"
+          SQUASH: ${{ github.event_name == 'push' && '--accept-github-squash' || '' }}
+        run: bash scripts/dco_check.sh $SQUASH "$BASE..$HEAD"
 
       # 15 doctrine tests
       - name: doctrine tests
