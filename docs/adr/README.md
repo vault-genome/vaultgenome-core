@@ -48,6 +48,7 @@ ADRs interact with the test-enforced invariant system.
 | 0033 | [The attack record in the verifier's policy: TCB floors per chip, the platform's word, the guest's policy, the mitigation vector and the machine](0033-the-attack-record-in-the-policy.md) | Accepted | tee, sev-snp, policy |
 | 0034 | [The verifier held to readings nobody here wrote: the differential corpus](0034-the-differential-corpus.md) | Accepted | tee, sev-snp, testing |
 | 0035 | [The AWS Nitro verifier, from the specification](0035-the-aws-nitro-verifier-from-the-specification.md) | Accepted | tee, aws-nitro, cbor, cose, verifier, acpctl |
+| 0036 | [The Nitro enclave as a key-release destination: the NSM spoken from its interface, the enclave reached over vsock, its secrets released only to its measurement, the contour proven across clouds](0036-the-nitro-enclave-as-a-key-release-destination.md) | Proposed | tee, aws-nitro, nsm, vsock, kms, crosscloud |
 
 ## Adding an ADR
 

@@ -31,12 +31,16 @@
 //   7. Refuse a debug-mode enclave (PCR0 all zeroes)
 //   8. Compare PCR0 (or the configured PCR) with the acceptable set
 //
-// Sealing on Nitro is NOT a built-in NSM operation. The recommended
-// pattern is:
-//   - Generate ephemeral keys inside the enclave
-//   - Use AWS KMS with an IAM role that requires the CallerIdentity
-//     condition kms:RecipientAttestation:PCR0=<expected_pcr0>
-//   - KMS Decrypt() returns plaintext only to enclaves matching the PCR
+// The producer speaks the NSM from its interface (aws_nitro_nsm.go, ADR
+// 0036): NSM_IOCTL_RAW with the request AWS's NSM API sends, and it
+// attests itself at start — a document over a random nonce, verified
+// whole against the pinned root — before it serves.
+//
+// Sealing on Nitro is NOT a built-in NSM operation. ADR 0036 releases an
+// enclave's secrets through AWS KMS: Decrypt with the attestation document
+// as the recipient, under a key policy that requires the image
+// (kms:RecipientAttestation:ImageSha384); KMS answers with a ciphertext
+// only the enclave's key opens. The sealer below is still a stub.
 //
 // Production caveats this adapter wires for:
 //   - NSM device may be absent (running outside enclave) — Capability()
@@ -49,7 +53,9 @@
 package tee
 
 import (
+	"bytes"
 	"crypto"
+	"crypto/rand"
 	"crypto/subtle"
 	"crypto/x509"
 	"errors"
@@ -77,6 +83,11 @@ type AWSNitroProducerConfig struct {
 	// into the attestation. Use it to bind the attestation to a specific
 	// session or job.
 	UserData []byte
+
+	// pinnedRoots replaces the built-in AWS root for the producer's
+	// self-attestation. Unexported: only this package's tests set it, to
+	// sign with a synthetic chain; a daemon always checks against AWS's.
+	pinnedRoots [][]byte
 }
 
 // AWSNitroVerifierConfig configures a Nitro attestation document verifier.
@@ -176,20 +187,37 @@ func NewAWSNitroProducer(cfg AWSNitroProducerConfig) (*AWSNitroProducer, error) 
 	}
 	p.nsmHandle = nsm
 
-	// Read PCR0 once and cache it. PCR0 is the enclave image hash and is
-	// stable for the life of the enclave.
-	pcr0, err := nsmDescribePCR(nsm, 0)
+	// The producer attests itself before it serves (ADR 0036): a document
+	// over a random nonce, verified whole — the envelope, the chain to the
+	// pinned AWS root, the signature — carrying that nonce; PCR0, the
+	// image, is taken from it. A device that answers anything else stops
+	// the daemon here. A debug-mode enclave (PCR0 zero) still starts: the
+	// source's verifier refuses it, on the record.
+	selfNonce := make([]byte, 32)
+	if _, err := rand.Read(selfNonce); err != nil {
+		_ = nsm.Close()
+		return nil, fmt.Errorf("aws-nitro: self-attestation nonce: %w", err)
+	}
+	doc, err := nsmGetAttestationDoc(nsm, nsmAttestationRequest{Nonce: selfNonce})
 	if err != nil {
 		_ = nsm.Close()
-		return nil, fmt.Errorf("aws-nitro: read PCR0: %w", err)
+		return nil, fmt.Errorf("aws-nitro: self-attestation: %w", err)
 	}
-	if len(pcr0) < 32 {
+	report, err := AuditAWSNitroDocument(doc, cfg.pinnedRoots, time.Time{})
+	if err != nil {
 		_ = nsm.Close()
-		return nil, shared_errors.Integrity(
-			shared_errors.CodeSignatureInvalid,
-			"aws-nitro: PCR0 shorter than 32 bytes",
-			nil,
-		)
+		return nil, fmt.Errorf("aws-nitro: self-attestation does not verify: %w", err)
+	}
+	if !bytes.Equal(report.Nonce, selfNonce) {
+		_ = nsm.Close()
+		return nil, shared_errors.Integrity(shared_errors.CodeAttestationDenied,
+			"aws-nitro: self-attestation: the NSM signed another nonce", nil)
+	}
+	pcr0 := report.PCRs[0]
+	if len(pcr0) != 48 {
+		_ = nsm.Close()
+		return nil, shared_errors.Integrity(shared_errors.CodeAttestationDenied,
+			fmt.Sprintf("aws-nitro: self-attestation: PCR0 is %d bytes, not the 48 of SHA-384", len(pcr0)), nil)
 	}
 	p.measurement = append(Measurement(nil), pcr0...)
 	return p, nil
@@ -473,19 +501,8 @@ func awsNitroCapability() (bool, string) {
 }
 
 // ----------------------------------------------------------------------------
-// NSM device + KMS helper stubs
-//
-// These are isolated from the main adapter logic so that wiring the real
-// SDK in Phase 2 (when we have funded engineering time + an actual Nitro
-// instance to test against) is a single-file change. Each helper is
-// documented with the exact AWS SDK / NSM ioctl / library it should call.
+// The NSM device, and the KMS helper stubs (the sealer: ADR 0036, part three)
 // ----------------------------------------------------------------------------
-
-type nsmAttestationRequest struct {
-	Nonce     []byte
-	UserData  []byte
-	PublicKey crypto.PublicKey
-}
 
 // openNSMDevice opens /dev/nsm. In production this is a simple os.Open —
 // the NSM device is exposed inside Nitro Enclaves with character-device
@@ -495,29 +512,6 @@ type nsmAttestationRequest struct {
 // constructs an in-memory file pointer without touching the host.
 var openNSMDevice = func(path string) (*os.File, error) {
 	return os.OpenFile(path, os.O_RDWR, 0)
-}
-
-// nsmDescribePCR issues NSM_DESCRIBE_PCR for the requested PCR index.
-//
-// Phase 2 wiring: replace with calls into github.com/hf/nitrite or
-// the nsm-api-rs Rust crate via cgo. The wire format is CBOR over the
-// NSM ioctl interface; the response includes the PCR's lock state +
-// 32-byte SHA-256 value.
-//
-// Stored as a var (not func) so integration tests can inject a fake NSM
-// that returns synthetic but format-faithful PCR readings.
-var nsmDescribePCR = func(_ *os.File, _ int) ([]byte, error) {
-	return nil, errors.New("nsmDescribePCR: not yet wired to NSM SDK (Phase 2 — wire github.com/hf/nitrite or nitro-attestation-sdk)")
-}
-
-// nsmGetAttestationDoc issues NSM_GET_ATTESTATION_DOC.
-//
-// Phase 2 wiring: same as nsmDescribePCR. The response is a complete
-// COSE_Sign1 CBOR document; we return its raw bytes verbatim as Evidence
-// so the verifier sees the exact bytes the enclave's attestation key
-// signed.
-var nsmGetAttestationDoc = func(_ *os.File, _ nsmAttestationRequest) ([]byte, error) {
-	return nil, errors.New("nsmGetAttestationDoc: not yet wired to NSM SDK (Phase 2)")
 }
 
 // awsKMSEncrypt wraps aws-sdk-go-v2 kms.Client.Encrypt.
