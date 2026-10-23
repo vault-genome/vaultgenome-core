@@ -28,6 +28,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/vsock"
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
@@ -190,16 +191,17 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 	var rest *restorer.Restorer
 	if cfg.Genome.Enabled() {
 		rest, err = restorer.New(restorer.Config{
-			BundleDir:  cfg.Genome.BundleDir,
-			RestoreDir: cfg.Genome.RestoreDir,
-			Keys:       keystore,
-			Erase:      keystore.EraseSealing,
-			TEE:        producer,
-			Kind:       kind,
-			Logger:     logger,
-			Clock:      clock,
-			Rescan:     time.Duration(cfg.Genome.RescanSeconds) * time.Second,
-			Gate:       gateConfig(cfg.Genome.Gate),
+			BundleDir:      cfg.Genome.BundleDir,
+			RestoreDir:     cfg.Genome.RestoreDir,
+			Keys:           keystore,
+			Erase:          keystore.EraseSealing,
+			TEE:            producer,
+			Kind:           kind,
+			Logger:         logger,
+			Clock:          clock,
+			Rescan:         time.Duration(cfg.Genome.RescanSeconds) * time.Second,
+			MaxBundleBytes: cfg.Genome.MaxBundleBytes,
+			Gate:           gateConfig(cfg.Genome.Gate),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("acp-bootstrap: genome: %w", err)
@@ -465,6 +467,11 @@ func loadAttestorPubKey(path string) (crypto.PublicKey, error) {
 // With TLS enabled the listener speaks TLS 1.3 only; the server
 // certificate and (for mTLS) the client CA bundle are loaded here, so a
 // bad path fails startup instead of the first handshake.
+// listenVsock binds the API's vsock listener (ADR 0036). A variable: on a
+// platform without AF_VSOCK it always refuses, and the call through it
+// keeps that fact from turning the error check into dead code.
+var listenVsock = vsock.Listen
+
 func buildHTTPServer(teeCfg TEEConfig, cfg HTTPConfig, handler http.Handler, logger *slog.Logger) (*http.Server, net.Listener, error) {
 	var tlsCfg *tls.Config
 	if cfg.TLS.Enabled {
@@ -496,9 +503,21 @@ func buildHTTPServer(teeCfg TEEConfig, cfg HTTPConfig, handler http.Handler, log
 		}
 	}
 
-	ln, err := net.Listen("tcp", cfg.ListenAddress)
-	if err != nil {
-		return nil, nil, fmt.Errorf("acp-bootstrap: bind %s: %w", cfg.ListenAddress, err)
+	var (
+		ln  net.Listener
+		err error
+	)
+	if cfg.ListenVsockPort != 0 {
+		// Inside a Nitro enclave the only way in (ADR 0036).
+		ln, err = listenVsock(cfg.ListenVsockPort)
+		if err != nil {
+			return nil, nil, fmt.Errorf("acp-bootstrap: bind vsock port %d: %w", cfg.ListenVsockPort, err)
+		}
+	} else {
+		ln, err = net.Listen("tcp", cfg.ListenAddress)
+		if err != nil {
+			return nil, nil, fmt.Errorf("acp-bootstrap: bind %s: %w", cfg.ListenAddress, err)
+		}
 	}
 	if tlsCfg != nil {
 		ln = tls.NewListener(ln, tlsCfg)

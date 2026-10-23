@@ -41,6 +41,10 @@ import (
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 )
 
+// DefaultMaxBundleBytes bounds a bundle received over the API when the
+// configuration sets no bound: a gibibyte.
+const DefaultMaxBundleBytes int64 = 1 << 30
+
 // DefaultRescan is how often the Restorer looks again for the bundle of
 // a key that arrived before its bundle did.
 const DefaultRescan = 5 * time.Second
@@ -69,6 +73,10 @@ type Config struct {
 	Clock  shared_time.Clock
 	// Rescan: zero selects DefaultRescan.
 	Rescan time.Duration
+
+	// MaxBundleBytes bounds a bundle received over the API (POST
+	// /v1/genome/bundles); zero selects DefaultMaxBundleBytes.
+	MaxBundleBytes int64
 
 	// Gate, when set, runs the equivalence gate on every restored model
 	// before the receipt is signed, and puts its verdict in the receipt.
@@ -130,6 +138,10 @@ type Restorer struct {
 	order   []string // key IDs in arrival order
 	index   map[string]indexed
 	wake    chan struct{}
+
+	// uploadMu orders bundles received over the API: the check that no
+	// other bundle carries the same key, and the rename that stores one.
+	uploadMu sync.Mutex
 }
 
 // New validates cfg, creates the directories, and loads the receipts of
@@ -143,6 +155,12 @@ func New(cfg Config) (*Restorer, error) {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = shared_time.NewSystemClock()
+	}
+	if cfg.MaxBundleBytes < 0 {
+		return nil, errors.New("restorer: MaxBundleBytes must not be negative")
+	}
+	if cfg.MaxBundleBytes == 0 {
+		cfg.MaxBundleBytes = DefaultMaxBundleBytes
 	}
 	if cfg.Rescan <= 0 {
 		cfg.Rescan = DefaultRescan

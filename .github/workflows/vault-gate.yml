@@ -68,6 +68,11 @@ jobs:
         run: make build build-fips
 
       # 04 unit
+      # The vsock tests (ADR 0036) run over the kernel's loopback transport;
+      # without the module they skip, so it is loaded where the runner has it.
+      - name: vsock loopback for the vsock tests
+        run: sudo modprobe vsock_loopback && lsmod | grep -E '^vsock_loopback' || echo "vsock_loopback not available on this runner; the vsock loopback tests skip"
+
       - name: unit tests
         run: make test
 

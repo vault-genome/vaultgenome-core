@@ -1,6 +1,6 @@
 # ADR 0036 — The Nitro enclave as a key-release destination: the NSM spoken from its interface, the enclave reached over vsock, its secrets released only to its measurement, the contour proven across clouds
 
-- **Status:** Proposed (2026-10-23) — the design; part one (the producer: the NSM spoken from the kernel's and AWS's interface, a self-check at start) follows with it; parts two to five follow after
+- **Status:** Proposed (2026-10-23) — the design; part one (the producer: the NSM spoken from the kernel's and AWS's interface, a self-check at start) and part two (`acp-bootstrap` over vsock, the bundle into the enclave over the API) with it; parts three to five follow after
 - **Date:** 2026-10-23
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0035 (the Nitro verifier from the specification), ADR 0009 and 0029 (the cross-cloud key release), ADR 0011 (the restore receipt), ADR 0033 (the attack record in the policy), ADR 0034 (the corpus)
@@ -147,8 +147,30 @@ record. Nitro has to go the same way, and it is not the same place:
   ioctl), the producer's self-attestation at start, the fakes and tests on
   genuine CBOR — the encoding held byte for byte to AWS's, every NSM error
   code, every limit.
-- **Part two (code):** the vsock listener and dialer; `acp-bootstrap`
-  serving over vsock; the bundle endpoint.
+- **Part two (code):** `internal/shared/vsock` — `AF_VSOCK` with the
+  `syscall` package: socket, bind, accept4 and connect made raw on a
+  16-byte `struct sockaddr_vm` (the syscall package's `Accept4` closes a
+  descriptor whose peer family it does not know, and it does not know
+  vsock), the listener and the connections as `*os.File` on non-blocking
+  descriptors so the runtime's poller drives them, deadlines included,
+  and `Close` unblocks `Accept`; Linux on amd64 and arm64, a refusal
+  elsewhere. `acp-bootstrap`: `http.listen_vsock_port`, held to the rules
+  of a non-loopback address; `POST /v1/genome/bundles` with
+  `genome.max_bundle_bytes`, through `bundle.Store` in the package that
+  owns bundle files (the doctrine's no-raw-export check holds writes
+  there) — a staged file under a name the scan
+  ignores, the v3 header checked, `<sha256>.genome` by a rename, one
+  bundle per key. Tested on Linux over the kernel's vsock loopback
+  (`vsock_loopback`): bytes both ways, deadlines, `Close` unblocking
+  `Accept` with `net.ErrClosed`, TLS 1.3, and the daemon's own server
+  answering over vsock — five runs out of five on Ubuntu 24.04, kernel
+  7.0.0-1014-gcp (2026-10-23); the gate loads the module so CI runs them.
+  That run found two defects before any enclave did: a non-blocking
+  connect that answered "wait" on the first call lost the poller's
+  readiness, which preparing the wait clears, so `Dial` now asks SO_ERROR
+  and getpeername(2) on every wake, as Go's own `net` does; and the raw
+  read behind `Accept` reports a closed listener as the poller's "use of
+  closed file", so `Close` sets a flag `Accept` answers from.
 - **Part three (code):** the KMS sealer — SigV4, `Decrypt` with a recipient,
   the CMS EnvelopedData with RSA-OAEP-SHA-256 and AES-256-CBC, the
   envelope AES-256-GCM.
