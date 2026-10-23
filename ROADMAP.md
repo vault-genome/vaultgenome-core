@@ -24,7 +24,7 @@ claimed. The record of what is done is [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIM
 
 - **AWS Nitro Enclaves and Intel SGX.** The Nitro verifier is written from
   AWS's specification and proven offline on the four production documents
-  of May 2026 (ADR 0024, `acpctl attest nitro`); its NSM producer and KMS
+  of May 2026 (ADR 0035, `acpctl attest nitro`); its NSM producer and KMS
   sealer are unproven, and the registry refuses the family until a live
   enclave has attested to this code end to end and taken a key release.
   The SGX verifiers are not written. There is no Nitro capacity on our AWS

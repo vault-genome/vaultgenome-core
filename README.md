@@ -190,7 +190,7 @@ summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
 
 - Real attestation is verified here for AMD SEV-SNP (GCP, Azure), Intel TDX
   (GCP) and the Azure confidential GPU VM; the AWS Nitro verifier verifies
-  AWS's own production documents offline (ADR 0024), but the Nitro and
+  AWS's own production documents offline (ADR 0035), but the Nitro and
   Intel SGX adapters are refused until a live enclave has been verified.
 - The largest model measured is 32B, on one confidential GPU; cross-device
   equivalence is measured at 0.5B and 7B; every failover number is at 0.5B.

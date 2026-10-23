@@ -19,7 +19,7 @@ evidence/
     ├── 06-chain-validation.json          ← all 4 cryptographic checks + cert chain + production_grade
     ├── 06-pcr-binding-check.json         ← per-PCR captured-vs-expected delta
     └── 07-go-verifier-audit.json         ← the same document audited by the shipping verifier
-                                             (`acpctl attest nitro --json`, ADR 0024, 2026-09-22)
+                                             (`acpctl attest nitro --json`, ADR 0035, 2026-09-22)
 ```
 
 ## Cohort

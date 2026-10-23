@@ -258,7 +258,7 @@ confidential GPU destination — an SEV-SNP guest whose Evidence also carries
 the vTPM's quote and NVIDIA's tokens ([C18](#c18)) — and once to an Intel
 TDX destination, its quote verified to Intel's root with Intel's TCB word
 ([C21](#c21)); the AWS Nitro verifier is shipped and proven on AWS's own
-documents offline (ADR 0024) but no Nitro enclave has taken a release,
+documents offline (ADR 0035) but no Nitro enclave has taken a release,
 and the SGX verifiers are **not** shipped — see
 [What we do not claim](#what-we-do-not-claim).
 

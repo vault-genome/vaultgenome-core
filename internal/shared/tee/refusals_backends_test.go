@@ -183,28 +183,24 @@ func TestUnwiredSeamsFailClosed(t *testing.T) {
 	teeFakeMu.Lock()
 	t.Cleanup(teeFakeMu.Unlock)
 	refusals := map[string]func() error{
-		"nsmDescribePCR":            func() error { _, err := nsmDescribePCR(nil, 0); return err },
-		"nsmGetAttestationDoc":      func() error { _, err := nsmGetAttestationDoc(nil, nsmAttestationRequest{}); return err },
-		"awsKMSEncrypt":             func() error { _, err := awsKMSEncrypt("", "", nil, nil); return err },
-		"awsKMSDecrypt":             func() error { _, err := awsKMSDecrypt("", "", nil, nil); return err },
-		"parseCOSESign1":            func() error { _, err := parseCOSESign1(nil); return err },
-		"decodeNitroAttestationDoc": func() error { _, err := decodeNitroAttestationDoc(nil); return err },
-		"verifyNitroCertChain":      func() error { _, err := verifyNitroCertChain(nil, nil, nil); return err },
-		"verifyCOSESignature":       func() error { return verifyCOSESignature(nil, nil) },
-		"sgxCreateEnclave":          func() error { _, err := sgxCreateEnclave(""); return err },
-		"sgxDestroyEnclave":         func() error { return sgxDestroyEnclave(0) },
-		"sgxGetMREnclave":           func() error { _, err := sgxGetMREnclave(0); return err },
-		"sgxECallCreateReport":      func() error { _, err := sgxECallCreateReport(0, nil); return err },
-		"dcapGetQuote":              func() error { _, err := dcapGetQuote(nil); return err },
-		"dcapVerifyQuote":           func() error { _, err := dcapVerifyQuote(nil, nil); return err },
-		"pccsFetchCollateral":       func() error { _, err := pccsFetchCollateral("", nil); return err },
-		"sgxECallSealData":          func() error { _, err := sgxECallSealData(0, nil, nil, SGXSealMRENCLAVE); return err },
-		"sgxECallUnsealData":        func() error { _, err := sgxECallUnsealData(0, nil, nil); return err },
-		"maaSubmitQuote":            func() error { _, err := maaSubmitQuote("", nil, nil); return err },
-		"verifyMAAJWT":              func() error { _, err := verifyMAAJWT(nil, nil, 0); return err },
-		"httpGetWithCacheBust":      func() error { _, err := httpGetWithCacheBust(""); return err },
-		"hsmWrap":                   func() error { _, err := hsmWrap("", nil); return err },
-		"hsmUnwrap":                 func() error { _, err := hsmUnwrap("", nil); return err },
+		"nsmDescribePCR":       func() error { _, err := nsmDescribePCR(nil, 0); return err },
+		"nsmGetAttestationDoc": func() error { _, err := nsmGetAttestationDoc(nil, nsmAttestationRequest{}); return err },
+		"awsKMSEncrypt":        func() error { _, err := awsKMSEncrypt("", "", nil, nil); return err },
+		"awsKMSDecrypt":        func() error { _, err := awsKMSDecrypt("", "", nil, nil); return err },
+		"sgxCreateEnclave":     func() error { _, err := sgxCreateEnclave(""); return err },
+		"sgxDestroyEnclave":    func() error { return sgxDestroyEnclave(0) },
+		"sgxGetMREnclave":      func() error { _, err := sgxGetMREnclave(0); return err },
+		"sgxECallCreateReport": func() error { _, err := sgxECallCreateReport(0, nil); return err },
+		"dcapGetQuote":         func() error { _, err := dcapGetQuote(nil); return err },
+		"dcapVerifyQuote":      func() error { _, err := dcapVerifyQuote(nil, nil); return err },
+		"pccsFetchCollateral":  func() error { _, err := pccsFetchCollateral("", nil); return err },
+		"sgxECallSealData":     func() error { _, err := sgxECallSealData(0, nil, nil, SGXSealMRENCLAVE); return err },
+		"sgxECallUnsealData":   func() error { _, err := sgxECallUnsealData(0, nil, nil); return err },
+		"maaSubmitQuote":       func() error { _, err := maaSubmitQuote("", nil, nil); return err },
+		"verifyMAAJWT":         func() error { _, err := verifyMAAJWT(nil, nil, 0); return err },
+		"httpGetWithCacheBust": func() error { _, err := httpGetWithCacheBust(""); return err },
+		"hsmWrap":              func() error { _, err := hsmWrap("", nil); return err },
+		"hsmUnwrap":            func() error { _, err := hsmUnwrap("", nil); return err },
 	}
 	for name, call := range refusals {
 		err := call()
@@ -247,7 +243,7 @@ func TestAWSNitroProducerVerifierAndSealerRefusals(t *testing.T) {
 	_, err = p.Quote(nonce)
 	requireStructuralErr(t, err, "closed")
 
-	v, err := NewAWSNitroVerifier(nil, fh.measure, AWSNitroVerifierConfig{})
+	v, err := NewAWSNitroVerifier(nil, fh.measure, AWSNitroVerifierConfig{PinnedRoots: [][]byte{fh.nitro.rootDER}})
 	require.NoError(t, err)
 	m, err := v.Verify(ev, nonce)
 	require.NoError(t, err)
@@ -263,48 +259,17 @@ func TestAWSNitroProducerVerifierAndSealerRefusals(t *testing.T) {
 		_, err = v.Verify(ev, Nonce("another thirty-two byte challenge!!"))
 		requireIntegrityErr(t, err, "nonce")
 
-		decode := decodeNitroAttestationDoc
-		t.Cleanup(func() { decodeNitroAttestationDoc = decode })
-		decodeNitroAttestationDoc = func([]byte) (*nitroAttestationDoc, error) { return nil, errors.New("cbor broken") }
-		_, err = v.Verify(ev, nonce)
-		requireIntegrityErr(t, err, "decode attestation doc")
-		edit := func(f func(d *nitroAttestationDoc)) {
-			decodeNitroAttestationDoc = func(b []byte) (*nitroAttestationDoc, error) {
-				d, err := decode(b)
-				if err != nil {
-					return nil, err
-				}
-				f(d)
-				return d, nil
-			}
-		}
-		edit(func(d *nitroAttestationDoc) { d.Timestamp = d.Timestamp.Add(-time.Hour) })
-		_, err = v.Verify(ev, nonce)
-		requireIntegrityErr(t, err, "timestamp skew")
-		edit(func(d *nitroAttestationDoc) { d.PCRs = map[int][]byte{0: make([]byte, 32)} })
-		_, err = v.Verify(ev, nonce)
-		requireIntegrityErr(t, err, "debug-mode")
-		edit(func(d *nitroAttestationDoc) { d.PCRs = map[int][]byte{0: bytes.Repeat([]byte{1}, 10)} })
-		_, err = v.Verify(ev, nonce)
-		requireIntegrityErr(t, err, "unexpected PCR0 length")
-		decodeNitroAttestationDoc = decode
+		// The codec's own refusals — a broken document, a stale timestamp, a
+		// debug-mode PCR0, a PCR of the wrong length, a chain that does not
+		// reach a pinned root, a signature that does not verify — are real
+		// documents with one knob turned in TestAWSNitro_Verifier_Refusals
+		// (ADR 0035), not seams overridden here.
 
-		chain := verifyNitroCertChain
-		verifyNitroCertChain = func([]byte, [][]byte, [][]byte) ([]byte, error) { return nil, errors.New("unknown root") }
-		_, err = v.Verify(ev, nonce)
-		requireIntegrityErr(t, err, "cert chain")
-		verifyNitroCertChain = chain
-		cose := verifyCOSESignature
-		verifyCOSESignature = func(*coseSign1, []byte) error { return errors.New("bad signature") }
-		_, err = v.Verify(ev, nonce)
-		requireIntegrityErr(t, err, "COSE signature")
-		verifyCOSESignature = cose
-
-		pcr7, err := NewAWSNitroVerifier(nil, fh.measure, AWSNitroVerifierConfig{PCRIndex: 7})
+		pcr7, err := NewAWSNitroVerifier(nil, fh.measure, AWSNitroVerifierConfig{PCRIndex: 7, PinnedRoots: [][]byte{fh.nitro.rootDER}})
 		require.NoError(t, err)
 		_, err = pcr7.Verify(ev, nonce)
 		requireIntegrityErr(t, err, "missing PCR7")
-		other, err := NewAWSNitroVerifier(nil, MeasurementOf([]byte("another workload")), AWSNitroVerifierConfig{})
+		other, err := NewAWSNitroVerifier(nil, MeasurementOf([]byte("another workload")), AWSNitroVerifierConfig{PinnedRoots: [][]byte{fh.nitro.rootDER}})
 		require.NoError(t, err)
 		_, err = other.Verify(ev, nonce)
 		requireIntegrityErr(t, err, "not in acceptable set")

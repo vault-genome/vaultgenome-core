@@ -1,4 +1,4 @@
-# ADR 0024 — The AWS Nitro verifier, from the specification
+# ADR 0035 — The AWS Nitro verifier, from the specification
 
 **Status:** Accepted — implemented (2026-09-22)
 **Date:** 2026-09-22

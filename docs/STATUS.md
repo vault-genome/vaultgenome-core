@@ -149,7 +149,7 @@ Intel Xeon CPUs for the determinism measurements.
   refuses to start without `tee.insecure_simulation: true`.
 - No AWS Nitro or Intel SGX adapter attests. The Nitro verifier is written
   from AWS's specification and proven offline on the four production
-  documents of May 2026 (ADR 0024, `acpctl attest nitro`); its producer and
+  documents of May 2026 (ADR 0035, `acpctl attest nitro`); its producer and
   sealer are unproven, the SGX verifiers do not exist, and the registry
   refuses both families until a live enclave has been verified end to end
   ([ROADMAP.md](../ROADMAP.md)).

@@ -144,7 +144,7 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    the `TRUST_EVALUATED` event that admitted the worker; the cross-cloud
    drill's `CROSS_CLOUD_ATTESTATION_VERIFIED` record likewise,
    `scripts/hardware-test/failover-cgpu/evidence/20260916T233717Z/`).
-   **Amended 2026-09-22 (ADR 0024):** the AWS Nitro *verifier* is now real
+   **Amended 2026-09-22 (ADR 0035):** the AWS Nitro *verifier* is now real
    — a CBOR/COSE_Sign1 codec written from RFC 8949/9052 and AWS's document
    specification, the chain anchored at the pinned AWS Nitro Enclaves Root
    G1, ES384 checked over the Sig_structure — and proven offline on the
