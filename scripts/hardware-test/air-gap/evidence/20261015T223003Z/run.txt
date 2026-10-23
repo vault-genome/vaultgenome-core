@@ -1,0 +1,7 @@
+tree bedc604
+stamp 20261015T222812Z
+tee sev-snp
+zone us-central1-c
+firewall_rule vg-airgap-deny-egress-20261015t222812z
+tag vg-airgap-20261015t222812z
+release v0.4.3-rc2

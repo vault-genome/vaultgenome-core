@@ -1,0 +1,38 @@
+{
+  "authority_kid": "sagvd-authority-e2e",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEAaTg7CT5kIQFFjBkPW2Tvr6wHN7OWRCE\nCJ0jYmPzP4Lkg921f5TrNxy/OidQNz5OBvNw4QCk/O1ildD3X9LKLXSAbSsqv1j/\nnAmmvCQjTSWM7gQAwswZBfu/v1glTitq\n-----END PUBLIC KEY-----\n",
+  "authority_signature_suite": "ecdsa-p384-sha384",
+  "tee_provider": "azure-cgpu",
+  "tee_measurement_hex": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+  "sealer": "tpm2",
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "0d7dabe9c46b0039425824ef1374eb39554a964ef38b0a8794197ab264d6074a"
+  },
+  "audit_kid": "sagvd-audit-e2e",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEOrQKCn09c/Wda+MdFDoNXSdvwZFvsq/H\nKiAgtbp4cdZMUH1JS1XAVSWwZo7zFXI/gFVqIKfTeeMwUuLFvJeGJn31eE2oXR/v\n9yNtlBhFTeTJtghgjtw//TkgO8cNFOz/\n-----END PUBLIC KEY-----\n",
+  "audit_signature_suite": "ecdsa-p384-sha384",
+  "policy_version": "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0",
+  "policy_profiles": [
+    "gate"
+  ],
+  "crypto_profile": "fips",
+  "kem_suites": [
+    "hpke-p384-v2",
+    "hpke-mlkem768-v2",
+    "hpke-mlkem1024-p384-v2"
+  ],
+  "signature_suite": "ecdsa-p384-sha384",
+  "signature_suites": [
+    "ed25519",
+    "ecdsa-p384-sha384"
+  ],
+  "fips140": {
+    "enabled": true,
+    "enforced": true,
+    "version": "v1.0.0",
+    "build": "v1.0.0-c2097c7c"
+  }
+}

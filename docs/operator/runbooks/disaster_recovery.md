@@ -271,8 +271,68 @@ Does /healthz answer on the health listener?
    list (`sagvd: config validation: …`), a key file of the wrong length
    (`… must be exactly 32 bytes (got N)`), or a bind error
    (`sagvd: listen …`, `sagvd: HTTP API listen …`, `sagvd: health server: …`).
-3. **After a restart**: jobs that were queued or running are gone (the queue
-   is in memory) — resubmit them. Workers reconnect by themselves.
+3. **After a restart**: with `queue.path` set (ADR 0026) the jobs that
+   were queued or in flight are admitted again by the daemon itself —
+   `REQUEST_RECEIVED` on the record with a `resumed` detail, the counts in
+   `sagvd_jobs_resumed_total` and `sagvd_jobs_resume_failed_total`, a job
+   that could not be admitted again failed with its reason — and a job
+   finished before the restart still answers `GET /v1/jobs/{id}`.
+   Without `queue.path` the queue is in memory: the jobs are gone, and
+   the operator resubmits them. Workers reconnect by themselves.
+4. **If the host itself is gone** — deleted, dead, or not to be trusted
+   again — a fresh host becomes the authority. In this order (the
+   authority-loss drill, `scripts/hardware-test/authority-loss`, does
+   exactly this on real SEV-SNP and measured it):
+   1. The operator's copies of the key material `acp-keygen` made — the
+      seeds, the TLS identities, the API token, the worker registry — from
+      the safe they were put in before the host sealed its own copies
+      (ADR 0023: the plaintext is the operator's to keep, off every release
+      host). On the new host, `sagvd seal-keys` and `acp-compute seal-keys`
+      seal them to its chip.
+   2. The last replica of the audit log — the live file and the closed
+      segments in `audit.archive_dir` (ADR 0027) — of the genome bundles
+      and of the job store (`queue.path`, ADR 0026) — the operator's
+      replication; the
+      authority-loss drill copies them to a private bucket the moment a
+      job is accepted and again when it is done, so the replica carries
+      the job in flight. Verify the
+      replica before the daemon touches it:
+      `acpctl audit verify --audit <replica> --audit-pubkey audit.pem
+      --audit-kid <keys.audit_signing.kid>`.
+   3. The escrow key, through the recovery ceremony: `acpctl escrow
+      recover --in <envelope> --key <recovery key> | sagvd escrow-provision
+      -config sagvd.json -out <sealed> -pub <pem> -stdin` (ADR 0016). The
+      recovery key's file must be `0600`.
+   4. `sagvd identity` and `acp-compute identity` on the new host: the
+      launch measurement is the new host's; the worker's pin of the
+      authority changes to it (and the authority's pin of the worker, if
+      the worker moved too).
+   5. Start `sagvd` over the replica — it opens the audit file and
+      continues the chain from its last event (`sagvd audit log open …
+      events=N tip=…` in the log), and admits again what the replicated
+      job store holds as queued or in flight (item 3) — then the worker.
+
+   The same authority comes back: the same signing key, the same audit
+   key, the same escrow key, the chain continued from the replica's tip.
+   Measured (the drill's runs of 2026-10-15; `evidence/*/timeline.txt`):
+   a standby that already has the runtime and the binaries needs
+   **49–50 s** in all four runs: the replica restored in a second, the
+   key files sealed in 10 s, the ceremony 11 s, both daemons up with the
+   session open 22 s, the first verdict 5 s later. From the moment the
+   old host's deletion was issued to that verdict on a host created on
+   demand, **233–237 s** in three runs — about 80 s the VM's creation
+   and boot, about 80 s the worker's runtime from the locks — and
+   **489 s** in the fourth, whose package mirror took 330 s for the same
+   runtime: the cold number is the mirror's and the image's, which is
+   what a standby with the runtime in place removes. What is lost: the
+   audit events the old host appended after its last replica. The job in
+   flight is not, once the replica carries the job store: in the run
+   `20261015T204339Z` the new host's `sagvd` admitted the lost job again
+   by itself (`sagvd job resumed after a restart`, attempt 2, the same
+   job id and request id, `resumed` on its audit record) and signed its
+   verdict EXACT 49.1 s after the runtime was ready, 233.5 s from the
+   deletion; the three runs before it lacked the job store in the replica
+   and resubmitted the job.
 
 ---
 
@@ -335,6 +395,10 @@ Any break in the chain is detected whenever it is verified.
 - `acpctl audit verify` prints `audit chain BROKEN: …` naming
   `event #N: prev_hash does not link to event #N-1` (or `event #N: …` for a
   bad signature) and exits 4.
+- With segments (ADR 0027) it also names a segment that does not continue
+  the one before it, an archive that `is not the file the chain recorded`,
+  or a history it cannot reach (`the segments before it are not in …`);
+  exit 4 as well.
 - Its event count or tip no longer matches the latest kept report (a cut-off
   tail still verifies; only this comparison shows it — 04 §2.2).
 - bbolt file size changes in unexplained ways; `auditd` reports
@@ -344,9 +408,11 @@ Any break in the chain is detected whenever it is verified.
 
 1. **Run no releases.** sagvd will not append to a log that does not verify,
    so they fail anyway.
-2. Copy the file off the host before anything else touches it
-   (`scp <audit log> forensics-host:/...`). Run acpctl on the copy: it opens
-   the file read-write.
+2. Copy the file off the host before anything else touches it, and the
+   closed segments in its archive directory with it
+   (`scp -r <audit log> <archive dir> forensics-host:/...`). Run acpctl on
+   the copy: it opens every file read-only (`--archive-dir` names the
+   copied segments).
 3. There is no repair command, by design — keep the corruption visible for
    investigation.
 
@@ -454,7 +520,7 @@ signatures only from the kids in `workers.registry_path`.
 ### Recovery
 
 1. Give the rebuilt worker a new TEE seed and a new worker signing seed
-   (`tee.seed_path`, `keys.worker_signing`; `deploy/compose/keygen` shows how
+   (`tee.seed_path`, `keys.worker_signing`; ``acp-keygen` (a release binary; `cmd/acp-keygen`)` shows how
    the pinned files are produced).
 2. Put its TEE public key and measurement at sagvd's `tee.peer.public_key_path`
    and `tee.peer.measurement_path`, and its new kid and public key (from the
@@ -508,7 +574,8 @@ own TLS terminator.
 ### Detection
 
 - Releases appear without corresponding signed tags
-- `cosign verify-blob` against released binaries fails
+- `cosign verify-blob` against released binaries fails — the pair or
+  the bundle (from 0.4.3; with `--trusted-root` on a host without a route)
 - SLSA provenance attestation references a workflow run that doesn't
   exist in the GitHub Actions log
 

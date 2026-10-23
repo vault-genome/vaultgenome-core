@@ -1,0 +1,15 @@
+job in flight when the deletion was issued (runner's view): 5
+job lost with A (submitted, never completed, by A's markers): 6
+RTO cold (A's deletion issued -> B's first verdict):      237.2 s
+  of which B's VM creation (create issued -> created):    10.6 s
+  of which B's boot until its script started:            70.3 s
+RTO from B's first line (script start -> first verdict):  128.6 s
+RTO warm (runtime ready -> first verdict):                49.3 s
+  state restored at +1.1 s, ceremony 10.8 s, daemons ready at +44.0 s (from runtime ready)
+jobs A completed before the loss: 5
+authority signing key A vs B: same
+audit signing key A vs B:     same
+launch measurement A vs B:    same (7dc7c12e55999ef4… / 7dc7c12e55999ef4…)
+escrow key A -> ceremony -> B: same (ad0f082e6a3f8350)
+replica: after job 5 (tip dc821f49f4a10782…) ok=True events=80
+final chain on B (A's events + B's): ok=None events=None tip=…

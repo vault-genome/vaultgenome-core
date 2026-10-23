@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package kms
@@ -7,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
@@ -70,6 +72,7 @@ type Coordinator struct {
 	clock       shared_time.Clock
 	signingKID  ids.KeyID
 	receipts    ReceiptFetcher
+	suites      SuitePolicy
 }
 
 // Config bundles the Coordinator's dependencies. Every field is
@@ -77,10 +80,10 @@ type Coordinator struct {
 // Coordinator explicitly so missing wiring fails at startup, not
 // mid-flight.
 //
-// There is no key-wrapping option: every DEK is encapsulated with the
-// X25519 KEM to the key the destination TEE attested in this handshake
-// (ADR 0009). The measurement-derived symmetric wrap (defect b) no
-// longer exists.
+// There is no key-wrapping option: every DEK is encapsulated, under a
+// KEM suite the profile accepts (ADR 0029), to the key the destination
+// TEE attested in this handshake (ADR 0009). The measurement-derived
+// symmetric wrap (defect b) no longer exists.
 type Config struct {
 	AuditChain  AuditEmitter
 	Signer      keys.Signer
@@ -100,6 +103,12 @@ type Config struct {
 	// ConfirmRestore. Optional: without it, releases work and
 	// confirmation is refused.
 	Receipts ReceiptFetcher
+
+	// Suites is the deployment's cryptographic profile as a policy (ADR
+	// 0029): the KEM suites this authority offers a destination, in its
+	// order of preference, and the only ones it accepts an answer under.
+	// Zero selects the general profile.
+	Suites SuitePolicy
 }
 
 // NewCoordinator validates the Config and returns a ready-to-use
@@ -133,6 +142,10 @@ func NewCoordinator(cfg Config) (*Coordinator, error) {
 	if cfg.SigningKeyID.IsZero() {
 		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.NewCoordinator: SigningKeyID required", nil)
 	}
+	suites := cfg.Suites
+	if suites.IsZero() {
+		suites = DefaultSuitePolicy()
+	}
 	return &Coordinator{
 		auditChain:  cfg.AuditChain,
 		keySigner:   cfg.Signer,
@@ -144,13 +157,12 @@ func NewCoordinator(cfg Config) (*Coordinator, error) {
 		clock:       cfg.Clock,
 		signingKID:  cfg.SigningKeyID,
 		receipts:    cfg.Receipts,
+		suites:      suites,
 	}, nil
 }
 
-// DeliveryModeX25519KEM names, in audit records, how DEKs reached the
-// destination: X25519 + HKDF-SHA256 + AES-256-GCM to a per-handshake key
-// the destination TEE attested.
-const DeliveryModeX25519KEM = "x25519-kem-v1"
+// Suites returns the policy the Coordinator offers and accepts suites under.
+func (c *Coordinator) Suites() SuitePolicy { return c.suites }
 
 // KeyMaterial is the plaintext-DEK input the operator supplies to the
 // Coordinator. The Coordinator encapsulates each entry to the key the
@@ -205,9 +217,12 @@ type CoordinationResult struct {
 	// RecipientKeySHA256 identifies the attested per-handshake key the
 	// DEKs were encapsulated to; the destination logs the same digest.
 	RecipientKeySHA256 []byte
-	PolicyVersion      string
-	TokenID            ids.DecisionID
-	DispatchedAt       time.Time
+	// RecipientKeySuite is the KEM suite the key is under and the DEKs
+	// were encapsulated with; the destination logs the same suite.
+	RecipientKeySuite Suite
+	PolicyVersion     string
+	TokenID           ids.DecisionID
+	DispatchedAt      time.Time
 }
 
 // --- Audit payload types -------------------------------------------
@@ -238,6 +253,7 @@ type attestationVerifiedPayload struct {
 	DestinationDetail  *tee.AttestationDetail `json:"destination_detail,omitempty"`
 	EvidenceHash       []byte                 `json:"evidence_hash"`
 	RecipientKeySHA256 []byte                 `json:"recipient_key_sha256"`
+	RecipientKeySuite  string                 `json:"recipient_key_suite"`
 	VerifiedAt         time.Time              `json:"verified_at"`
 }
 
@@ -295,11 +311,14 @@ type keyReleaseAuthorizedPayload struct {
 	DestinationKind        tee.Provider   `json:"destination_kind"`
 	DestinationMeasurement []byte         `json:"destination_measurement"`
 	KeyIDs                 []ids.KeyID    `json:"key_ids"`
-	DeliveryMode           string         `json:"delivery_mode"`
-	RecipientKeySHA256     []byte         `json:"recipient_key_sha256"`
-	PolicyVersion          string         `json:"policy_version"`
-	PolicyReason           string         `json:"policy_reason"`
-	AuthorizedAt           time.Time      `json:"authorized_at"`
+	// DeliveryMode is the KEM suite the DEKs were encapsulated under
+	// (ADR 0029); CryptoProfile the profile that chose it.
+	DeliveryMode       string    `json:"delivery_mode"`
+	CryptoProfile      string    `json:"crypto_profile"`
+	RecipientKeySHA256 []byte    `json:"recipient_key_sha256"`
+	PolicyVersion      string    `json:"policy_version"`
+	PolicyReason       string    `json:"policy_reason"`
+	AuthorizedAt       time.Time `json:"authorized_at"`
 }
 
 // --- Coordinator main logic ----------------------------------------
@@ -390,6 +409,7 @@ func (c *Coordinator) CoordinateRestore(
 		DestinationTEEKind:  req.DestinationKind,
 		DestinationEndpoint: req.DestinationEndpoint,
 		HandshakeNonce:      nonce,
+		KEMSuites:           c.suites.SuiteIDs(),
 		SourceEvidence:      req.SourceEvidence,
 		SourceMeasurement:   req.SourceMeasurement,
 		InitiatedAt:         now,
@@ -423,18 +443,35 @@ func (c *Coordinator) CoordinateRestore(
 			)
 	}
 
-	// 4. The destination must present the X25519 key its TEE generated for
-	// this handshake, and the Evidence must have been quoted over
-	// RecipientChallenge(key, nonce). Verifying under that challenge proves,
-	// in one check and for every TEE family, a genuine TEE with the attested
-	// measurement, freshness, and that the key is the TEE's own rather than
-	// one substituted in transit. Without such a key there is nothing safe to
-	// wrap to, so there is no fallback.
+	// 4. The destination must name the KEM suite it chose from the
+	// request's list — one this policy accepts — and present the key its
+	// TEE generated under it for this handshake; the Evidence must have
+	// been quoted over RecipientChallengeV2(suite, key, nonce). Verifying
+	// under that challenge proves, in one check and for every TEE family,
+	// a genuine TEE with the attested measurement, freshness, and that
+	// the suite and the key are the TEE's own rather than substituted in
+	// transit. Without such a key there is nothing safe to wrap to, so
+	// there is no fallback.
 	early := CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID}
-	if err := ValidateRecipientPublicKey(hsResp.RecipientPublicKey); err != nil {
+	if hsResp.RecipientKeySuite == "" {
 		return early, c.deny(req, requestID, denialAttestation, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
-			"kms.CoordinateRestore: destination presented no usable X25519 recipient key",
+			"kms.CoordinateRestore: destination named no KEM suite for its recipient key (ADR 0029: both daemons move together)",
+			nil,
+		))
+	}
+	suite := Suite(hsResp.RecipientKeySuite)
+	if !c.suites.Allows(suite) {
+		return early, c.deny(req, requestID, denialAttestation, nil, shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			fmt.Sprintf("kms.CoordinateRestore: destination answered under KEM suite %q, which the %s profile does not accept (offered %v)", hsResp.RecipientKeySuite, c.suites.Profile(), c.suites.SuiteIDs()),
+			nil,
+		))
+	}
+	if err := suite.ValidateRecipientPublicKey(hsResp.RecipientPublicKey); err != nil {
+		return early, c.deny(req, requestID, denialAttestation, nil, shared_errors.Integrity(
+			shared_errors.CodeAttestationDenied,
+			fmt.Sprintf("kms.CoordinateRestore: destination presented no usable %s recipient key", suite),
 			err,
 		))
 	}
@@ -445,11 +482,11 @@ func (c *Coordinator) CoordinateRestore(
 	if err != nil {
 		return early, err
 	}
-	measurement, detail, err := tee.VerifyDetailed(verifier, hsResp.Evidence, RecipientChallenge(recipientPub, nonce))
+	measurement, detail, err := tee.VerifyDetailed(verifier, hsResp.Evidence, RecipientChallengeV2(suite, recipientPub, nonce))
 	if err != nil {
 		return early, c.deny(req, requestID, denialAttestation, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
-			"kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key under this nonce",
+			"kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key and suite under this nonce",
 			err,
 		))
 	}
@@ -465,6 +502,7 @@ func (c *Coordinator) CoordinateRestore(
 		DestinationDetail:      detail,
 		EvidenceHash:           evidenceHash[:],
 		RecipientKeySHA256:     recipientKeyHash[:],
+		RecipientKeySuite:      string(suite),
 		VerifiedAt:             c.clock.Now().UTC(),
 	})
 	if err != nil {
@@ -535,13 +573,14 @@ func (c *Coordinator) CoordinateRestore(
 				)
 		}
 		aad := canonicalWrapAAD(tokenID, measurementBytes, m.KeyID)
-		ct, err := X25519KeyWrapper{}.Wrap(m.Plaintext, recipientPub, aad)
+		ct, err := suite.Wrap(PurposeCrossCloudDEK, m.Plaintext, recipientPub, aad)
 		if err != nil {
 			return CoordinationResult{HandshakeRequestID: requestID, HandshakeAuditID: hsAuditID, AttestationAuditID: avAuditID, DestinationMeasurement: measurementBytes}, err
 		}
 		wrappedKeys = append(wrappedKeys, krt.WrappedKey{
 			KeyID:      m.KeyID,
 			Purpose:    m.Purpose,
+			Suite:      string(suite),
 			Ciphertext: ct,
 			AAD:        aad,
 		})
@@ -557,7 +596,8 @@ func (c *Coordinator) CoordinateRestore(
 		DestinationKind:        req.DestinationKind,
 		DestinationMeasurement: measurementBytes,
 		KeyIDs:                 keyIDs,
-		DeliveryMode:           DeliveryModeX25519KEM,
+		DeliveryMode:           string(suite),
+		CryptoProfile:          string(c.suites.Profile()),
 		RecipientKeySHA256:     recipientKeyHash[:],
 		PolicyVersion:          c.policy.PolicyVersion(),
 		PolicyReason:           verdict.Reason,
@@ -615,6 +655,7 @@ func (c *Coordinator) CoordinateRestore(
 		KeyReleaseAuditID:      krAuditID,
 		DestinationMeasurement: measurementBytes,
 		RecipientKeySHA256:     recipientKeyHash[:],
+		RecipientKeySuite:      suite,
 		PolicyVersion:          c.policy.PolicyVersion(),
 		TokenID:                tokenID,
 		DispatchedAt:           authorizedAt,
@@ -670,10 +711,8 @@ func (c *Coordinator) validateRequest(req CoordinationRequest) error {
 // || KeyID), encoded as raw bytes. Both source-side wrapping and
 // destination-side unwrapping derive identical AAD.
 func canonicalWrapAAD(tokenID ids.DecisionID, destinationMeasurement []byte, keyID ids.KeyID) []byte {
-	buf := make([]byte, 0, len(tokenID)+len(destinationMeasurement)+len(keyID))
-	buf = append(buf, []byte(tokenID)...)
-	buf = append(buf, destinationMeasurement...)
-	buf = append(buf, []byte(keyID)...)
-	h := crypto.SHA256(buf)
+	// slices.Concat sizes the join itself, so no size arithmetic stands
+	// in front of the allocation (CodeQL go/allocation-size-overflow).
+	h := crypto.SHA256(slices.Concat([]byte(tokenID), destinationMeasurement, []byte(keyID)))
 	return h[:]
 }

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Command fakedoor stands in for the vg_genome door in the live-daemon
@@ -21,6 +22,8 @@ import (
 	"io"
 	"math"
 	"os"
+	"strconv"
+	"time"
 )
 
 type request struct {
@@ -45,14 +48,22 @@ type tensor struct {
 }
 
 func main() {
-	if err := run(); err != nil {
+	// FAKEDOOR_SLEEP_MS makes the door slow, so a test can catch a job in
+	// flight (a restore of a real model takes seconds).
+	if ms, err := strconv.Atoi(os.Getenv("FAKEDOOR_SLEEP_MS")); err == nil && ms > 0 {
+		time.Sleep(time.Duration(ms) * time.Millisecond)
+	}
+	if err := run(os.Stdin, os.Stdout, os.Getenv("FAKEDOOR_EXPECT_GENOME")); err != nil {
 		fmt.Fprintln(os.Stderr, "fakedoor:", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
-	raw, err := io.ReadAll(os.Stdin)
+// run answers the gate job on stdin with the arithmetic model; when
+// expectGenome is set, a job for any other genome is refused, as a door
+// that serves one genome would refuse it.
+func run(stdin io.Reader, stdout io.Writer, expectGenome string) error {
+	raw, err := io.ReadAll(stdin)
 	if err != nil {
 		return err
 	}
@@ -68,8 +79,8 @@ func run() error {
 			return fmt.Errorf("request lacks %s", p)
 		}
 	}
-	if want := os.Getenv("FAKEDOOR_EXPECT_GENOME"); want != "" && req.GenomeID != want {
-		return fmt.Errorf("asked to restore %s, this door serves %s", req.GenomeID, want)
+	if expectGenome != "" && req.GenomeID != expectGenome {
+		return fmt.Errorf("asked to restore %s, this door serves %s", req.GenomeID, expectGenome)
 	}
 	var ps prompts
 	if err := json.Unmarshal(req.Files["prompts.json"], &ps); err != nil {
@@ -90,5 +101,5 @@ func run() error {
 		}
 		outputs[p.ID] = tensor{DType: "f32", Shape: []int{len(p.TopKIndex)}, RawB64: base64.StdEncoding.EncodeToString(b)}
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{"outputs": outputs})
+	return json.NewEncoder(stdout).Encode(map[string]any{"outputs": outputs})
 }

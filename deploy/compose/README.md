@@ -19,7 +19,7 @@ deployment runs on any machine. For real AMD SEV-SNP attestation see
 
 ```
 make build         # acpctl seals the demo genome
-make demo-certs    # provision deploy/compose/secrets with keygen
+make demo-certs    # provision deploy/compose/secrets with acp-keygen
 make demo-genome   # fine-tune a tiny model, seal its genome into deploy/compose/genomes
 make demo-up       # docker compose build + up, wait for sagvd /readyz
 make demo-submit   # POST /v1/jobs naming the genome, poll the gate's verdict
@@ -27,16 +27,87 @@ make demo-down     # stop and remove
 ```
 
 `make demo-test` adds a health probe of both services around the
-round trip. `make demo-genome` needs the worker runtime on the host
-(`pip install --index-url https://download.pytorch.org/whl/cpu torch==2.7.1`,
-then `pip install -r workers/genome/requirements.txt`); it builds a tiny
-random model locally and downloads nothing. To restore a real model, seal
+round trip. `make demo-genome` needs the worker runtime on the host: on a
+Linux x86_64 host with CPython 3.12, from the hash-pinned locks the way
+CI, the image and the hardware kits install it —
+
+```
+python -m pip install --require-hashes --only-binary=:all: --index-url https://pypi.org/simple -r workers/genome/requirements-ci.lock
+python -m pip install --require-hashes --only-binary=:all: --no-deps --index-url https://download.pytorch.org/whl/cpu -r workers/genome/requirements-torch-cpu.lock
+```
+
+— and on any other platform (a macOS laptop, say), where those wheels do
+not apply, from the pins of `workers/genome/requirements.txt` with the torch
+wheel of the PyTorch CPU index (`pip install --index-url
+https://download.pytorch.org/whl/cpu torch==2.14.1`, then `pip install -r
+workers/genome/requirements.txt`). It builds a tiny random model locally and
+downloads nothing. To restore a real model, seal
 its genome with `acpctl genome seal --content-dir` into `genomes/` and mount
 its base directory into the worker with `ACP_BASE_MODEL=/path/to/base`.
 
-## What keygen provisions
+## Run the released images instead of building
 
-`deploy/compose/keygen` is a standalone, stdlib-only Go tool. It writes:
+From 0.6.1 the images are on `ghcr.io`, signed by digest
+(`docs/security/supply_chain.md`); from 0.8.0 the `-fips` images
+`sagvd-fips` and `acp-compute-fips` — the same images over the binaries
+built on the certified Go Cryptographic Module v1.0.0 (ADR 0030), the
+binary at the same path inside, so an override file names one or the
+other — are beside them, lines three and four of the list. Take the
+digests from the release's `images-<tag>.txt` (verify it like any asset
+first), verify each image,
+then point the services at them with an override file instead of
+`build:`:
+
+```
+cosign verify ghcr.io/vault-genome/sagvd@sha256:… \
+  --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+```yaml
+# deploy/compose/docker-compose.release.yml
+services:
+  sagvd:
+    image: ghcr.io/vault-genome/sagvd@sha256:…
+    build: !reset null
+  acp-compute:
+    image: ghcr.io/vault-genome/acp-compute@sha256:…
+    build: !reset null
+```
+
+`docker compose -f docker-compose.yml -f docker-compose.release.yml up`.
+The rest — keys, certificates, the genome, the mounts — is the same.
+
+The images carry the daemons; the TEE they attest with is the host's.
+On a GCP SEV-SNP guest (Ubuntu 24.04, Docker 29, measured 2026-10-21 on
+a throwaway guest) a daemon's container reaches the chip only like this:
+
+- the whole `configfs` bound read-write — `-v /sys/kernel/config:/sys/kernel/config:rw`
+  (a bind of `/sys/kernel/config/tsm` alone does not mount);
+- Docker's default AppArmor profile set aside — `--security-opt apparmor=unconfined` —
+  because `docker-default` denies every write under `/sys` and the report
+  request is a `mkdir` there;
+- the devices — `--device /dev/sev-guest --device /dev/tpmrm0`;
+- **as root** (`--user 0:0`), although the images run as `nonroot` by
+  default: `configfs` creates the request's attribute files owned by
+  root, so a non-root process can make the request directory but cannot
+  write `inblob` — a limit of `configfs`, not of Docker; a `chown` of the
+  report directory on the host does not change it.
+
+With those four, a container requested and received a 1184-byte SEV-SNP
+report through `configfs-tsm` as root; without the AppArmor change the
+`mkdir` is refused even for root. The hardware kit for the images
+(`scripts/hardware-test/release-deploy-images/`, the next pull request)
+runs the Return Path this way from the released images and keeps the
+record. The families that seal to a vTPM (`gcp-tdx`, `azure-sev-snp`,
+`azure-cgpu`) call `tpm2-tools`, which these images do not carry: the
+release images serve `gcp-sev-snp` today, and the other families run
+from the released binaries on the host as the operator pages describe.
+
+## What acp-keygen provisions
+
+`cmd/acp-keygen` (a release binary since 0.4.2, signed and attested like
+the daemons; stdlib-only) writes:
 
 ```
 secrets/
@@ -46,14 +117,14 @@ secrets/
     tls/ca.crt                private CA certificate (the CA key is never written)
   sagvd/
     tee_seed                  32 B Ed25519 seed (vault simulated TEE)
-    authority_signing_seed    32 B Ed25519 seed (authority signing)
+    authority_signing_seed    authority signing key file (Ed25519 seed; another suite with -signature-suite, ADR 0031)
     peer_worker_pubkey        pinned worker TEE public key
     peer_worker_measurement   pinned worker workload measurement
     api_token                 REST API bearer token (64 hex chars)
     tls/server.crt|.key       Return Path server certificate (sagvd, localhost, 127.0.0.1, ::1)
   acp-compute/
     tee_seed                  32 B Ed25519 seed (worker simulated TEE)
-    worker_signing_seed       32 B Ed25519 seed (CandidateOutput signing)
+    worker_signing_seed       worker signing key file (Ed25519 seed; another suite with -signature-suite)
     peer_vault_pubkey         pinned vault TEE public key
     peer_vault_measurement    pinned vault workload measurement
     tls/client.crt|.key       Return Path client certificate
@@ -61,7 +132,7 @@ secrets/
 
 `secrets/` is git-ignored and docker-ignored, and so are `genomes/` (the
 sealed bundles and their key files), `models/` (the base model) and
-`audit/` (the Return Path audit log sagvd writes). keygen
+`audit/` (the Return Path audit log sagvd writes, and its job store `sagvd-jobs.db`, from which a restarted sagvd admits again what was queued or in flight — ADR 0026). acp-keygen
 refuses to overwrite an existing tree without `-force`, because regenerating
 under a running pair desynchronises it (sealed material stops opening,
 evidence stops pinning, TLS stops verifying). Files are mode 0644 so the
@@ -72,7 +143,7 @@ a key file other users can read.
 
 The workload descriptors (`sagvd-phase1-demo-v1`,
 `acp-compute-phase1-demo-v1`) must match between the two `config.json`
-files and `keygen/main.go`: peer measurements are SHA-256 of those strings.
+files and `cmd/acp-keygen/main.go`: peer measurements are SHA-256 of those strings.
 
 ## What a job does
 
@@ -174,6 +245,5 @@ real torch runs in the `genome-worker` workflow.
   pinned CPU torch and `vg_genome`, running as uid 65532: the worker needs a
   door.
 - `sagvd/config.json`, `acp-compute/config.json` — in-container configs.
-- `keygen/` — the provisioning tool (own module, stdlib only).
 - `scripts/make_genome.sh` — fine-tunes and seals the demo genome.
 - `scripts/submit_job.sh` — submit-and-poll helper (needs curl, jq).

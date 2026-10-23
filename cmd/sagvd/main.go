@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -9,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -23,6 +25,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/incident"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/jobstore"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/orchestration"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/trust"
 )
@@ -43,7 +46,8 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
-			fmt.Printf("sagvd %s (commit %s)\n", version, commit)
+			fips := shared_crypto.FIPSStatus()
+			fmt.Printf("sagvd %s (commit %s) fips140=%s module=%s enforced=%t\n", version, commit, fipsMode(fips), fips.Version, fips.Enforced)
 			return
 		case "help", "--help", "-h":
 			printUsage()
@@ -170,10 +174,15 @@ func runDaemon(args []string) error {
 	logger.Info("sagvd session sealing identity",
 		"kid", string(mat.SessionSealingKeyID),
 	)
+	if cfg.TEE.AutoResolvedFrom != "" {
+		logger.Info("sagvd tee.provider auto: the family is the host's to say",
+			"resolved_from", cfg.TEE.AutoResolvedFrom, "tee_provider", cfg.TEE.Provider)
+	}
 	logger.Info("sagvd TEE identity",
 		"tee_provider", string(mat.Provider),
 		"measurement_hex", hex.EncodeToString(mat.Producer.Measurement()),
 		"peer_provider", string(mat.PeerProvider),
+		"peer_verifier", tee.DescribeVerifier(mat.Verifier),
 	)
 	if mat.Provider == tee.ProviderSimulated {
 		logger.Warn("SIMULATED TEE: no hardware isolation — this vault's Return Path Evidence is signed by a key read from a file; development and tests only")
@@ -197,15 +206,35 @@ func runDaemon(args []string) error {
 
 	registry := metrics.NewRegistry()
 	teeRec := teemetrics.New(registry)
-	mat.InstrumentTEE(teeRec, string(mat.Provider))
+	mat.InstrumentTEE(teeRec)
 	teeRec.RecordCapability(string(mat.Provider), true)
 
 	queue := NewJobQueue(clock, cfg.Runtime.QueuePoll())
 
+	// The job store (ADR 0026): on disk when queue.path is set, so that
+	// a restart resumes what was accepted and still answers for what was
+	// finished; in memory otherwise, and the daemon says what that loses.
+	if cfg.Queue.Path != "" {
+		jobs, err := jobstore.Open(cfg.Queue.Path)
+		if err != nil {
+			return fmt.Errorf("sagvd: open queue.path: %w", err)
+		}
+		defer func() { _ = jobs.Close() }()
+		queue.AttachStore(jobs, cfg.Queue.MaxResume(), logger)
+		queue.SetRetention(cfg.Queue.RetainFinished(), registry.NewCounter("sagvd_jobs_swept_total",
+			"Finished jobs whose record and view expired from queue.path after queue.retain_finished_seconds (ADR 0027)."))
+		records, _ := jobs.Len()
+		finished, _ := jobs.Finished()
+		logger.Info("sagvd job queue on disk", "path", cfg.Queue.Path, "records", records, "finished", finished,
+			"max_resume_attempts", cfg.Queue.MaxResume(), "retain_finished_seconds", cfg.Queue.RetainFinishedSeconds)
+	} else if cfg.Genome.Enabled() {
+		logger.Warn("sagvd job queue is in memory: jobs queued or in flight do not survive a restart, and every finished job stays in memory (set queue.path)")
+	}
+
 	// The Return Path audit log: opened and verified before anything is
 	// decided. Without it (no gate jobs configured) trust decisions are
 	// not on record, and the daemon says so.
-	audit, err := openReturnPathAudit(cfg, clock, registry)
+	audit, err := openReturnPathAudit(cfg, clock, registry, logger)
 	if err != nil {
 		return err
 	}
@@ -214,6 +243,10 @@ func runDaemon(args []string) error {
 		logger.Info("sagvd audit log open",
 			"path", cfg.Audit.LogPath,
 			"events", audit.Len(),
+			"live_segment_events", audit.Len()-audit.Base(),
+			"segment_events", cfg.Audit.SegmentEvents,
+			"segment_max_age_seconds", cfg.Audit.SegmentMaxAgeSeconds,
+			"archive_dir", cfg.Audit.ArchiveDirectory(),
 			"tip", audit.Tip(),
 			"audit_kid", cfg.Keys.AuditSigning.KeyID,
 		)
@@ -231,7 +264,11 @@ func runDaemon(args []string) error {
 	if genomes != nil {
 		var stopList trust.StopListSource
 		if cfg.OperatorStopEnabled() {
-			src, serial, err := newOperatorStopSource(cfg.OperatorStop)
+			sigPol, err := cfg.Crypto.SignaturePolicy()
+			if err != nil {
+				return fmt.Errorf("sagvd: crypto: %w", err)
+			}
+			src, serial, err := newOperatorStopSource(cfg.OperatorStop, sigPol)
 			if err != nil {
 				return err
 			}
@@ -281,6 +318,13 @@ func runDaemon(args []string) error {
 	)
 	if err != nil {
 		return err
+	}
+	// What a previous process left queued or in flight is admitted again
+	// before anything new is accepted or dispatched (ADR 0026).
+	if resumed, failed, err := httpAPI.ResumeJobs(); err != nil {
+		return fmt.Errorf("sagvd: resume the jobs of queue.path: %w", err)
+	} else if resumed+failed > 0 {
+		logger.Info("sagvd jobs from before the restart", "resumed", resumed, "failed", failed)
 	}
 	if err := httpAPI.Start(); err != nil {
 		return err
@@ -377,4 +421,16 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Flags:")
 	fmt.Println("  -config PATH   JSON config file; see cmd/sagvd/doc.go for schema.")
+}
+
+// fipsMode is the word the version line prints for the cryptographic
+// module's state (ADR 0030).
+func fipsMode(st shared_crypto.FIPS140) string {
+	if st.Enforced {
+		return "only"
+	}
+	if st.Enabled {
+		return "on"
+	}
+	return "off"
 }

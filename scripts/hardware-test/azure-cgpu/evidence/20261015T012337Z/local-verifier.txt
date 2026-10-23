@@ -1,0 +1,49 @@
+Use the provided nonce for attestation: e60de4be95a50ede79afde1a6857f411392f2a5cd67e8e5702d6c9e7a0e71c25
+Number of GPUs available : 1
+Fetching GPU 0 information from GPU driver.
+All GPU Evidences fetched successfully
+-----------------------------------
+Verifying GPU: GPU-a0dd1450-fc2b-7dcc-bd13-fcea8f070598
+	Driver version fetched : 595.91.07
+	VBIOS version fetched : 96.00.9f.00.04
+	Validating GPU certificate chains.
+		The firmware ID in the device certificate chain is matching with the one in the attestation report.
+		GPU attestation report certificate chain validation successful.
+			The certificate chain revocation status verification successful.
+	Authenticating attestation report
+		The nonce in the SPDM GET MEASUREMENT request message is matching with the generated nonce.
+		Driver version fetched from the attestation report : 595.91.07
+		VBIOS version fetched from the attestation report : 96.00.9f.00.04
+		Attestation report signature verification successful.
+		Attestation report verification successful.
+	Authenticating the RIMs.
+		Authenticating Driver RIM
+			Fetching the driver RIM from the RIM service.
+			RIM Schema validation passed.
+			driver RIM certificate chain verification successful.
+			The certificate chain revocation status verification successful.
+			driver RIM signature verification successful.
+			Driver RIM verification successful
+		Authenticating VBIOS RIM.
+			Fetching the VBIOS RIM from the RIM service.
+			RIM Schema validation passed.
+			vbios RIM certificate chain verification successful.
+			The certificate chain revocation status verification successful.
+			vbios RIM signature verification successful.
+			VBIOS RIM verification successful
+	Comparing measurements (runtime vs golden)
+			The runtime measurements are matching with the golden measurements.                            
+		GPU is in expected state.
+	GPU 0 with UUID GPU-a0dd1450-fc2b-7dcc-bd13-fcea8f070598 verified successfully.
+GPU Attestation is Successful.
+
+Entity Attestation Token:
+[
+  [
+    "JWT",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJOVklESUEtUExBVEZPUk0tQVRURVNUQVRJT04iLCJuYmYiOjE3OTIwMjc4ODUsImV4cCI6MTc5MjAzMTYwNSwiaWF0IjoxNzkyMDI4MDA1LCJqdGkiOiI2M2FmZjc0Yy02NmJhLTRmZjktYmMzMS02ZjExYTc5MGQ4YjIiLCJ4LW52aWRpYS12ZXIiOiIyLjAiLCJpc3MiOiJMT0NBTF9HUFVfVkVSSUZJRVIiLCJ4LW52aWRpYS1vdmVyYWxsLWF0dC1yZXN1bHQiOnRydWUsInN1Ym1vZHMiOnsiR1BVLTAiOlsiRElHRVNUIixbIlNIQTI1NiIsIjlkOGQ3YzRmZTVkMWJlNjJlMDUyMGRmMTdlN2E4ODUzYjViOGM0MWUyMWJlY2I1ODRhZTQwZTg0Zjg2Y2EwYmYiXV19LCJlYXRfbm9uY2UiOiJlNjBkZTRiZTk1YTUwZWRlNzlhZmRlMWE2ODU3ZjQxMTM5MmYyYTVjZDY3ZThlNTcwMmQ2YzllN2EwZTcxYzI1In0.Lv6AXlqFNirSY14vizJQDW5wsaKAoztajNqjwhThDQ4"
+  ],
+  {
+    "GPU-0": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZWFzcmVzIjoic3VjY2VzcyIsIngtbnZpZGlhLWdwdS1hcmNoLWNoZWNrIjp0cnVlLCJ4LW52aWRpYS1ncHUtZHJpdmVyLXZlcnNpb24iOiI1OTUuOTEuMDciLCJ4LW52aWRpYS1ncHUtdmJpb3MtdmVyc2lvbiI6Ijk2LjAwLjlGLjAwLjA0IiwieC1udmlkaWEtZ3B1LWF0dGVzdGF0aW9uLXJlcG9ydC1jZXJ0LWNoYWluLXZhbGlkYXRlZCI6dHJ1ZSwieC1udmlkaWEtZ3B1LWF0dGVzdGF0aW9uLXJlcG9ydC1wYXJzZWQiOnRydWUsIngtbnZpZGlhLWdwdS1hdHRlc3RhdGlvbi1yZXBvcnQtbm9uY2UtbWF0Y2giOnRydWUsIngtbnZpZGlhLWdwdS1hdHRlc3RhdGlvbi1yZXBvcnQtc2lnbmF0dXJlLXZlcmlmaWVkIjp0cnVlLCJ4LW52aWRpYS1ncHUtZHJpdmVyLXJpbS1mZXRjaGVkIjp0cnVlLCJ4LW52aWRpYS1ncHUtZHJpdmVyLXJpbS1zY2hlbWEtdmFsaWRhdGVkIjp0cnVlLCJ4LW52aWRpYS1ncHUtZHJpdmVyLXJpbS1jZXJ0LXZhbGlkYXRlZCI6dHJ1ZSwieC1udmlkaWEtZ3B1LWRyaXZlci1yaW0tc2lnbmF0dXJlLXZlcmlmaWVkIjp0cnVlLCJ4LW52aWRpYS1ncHUtZHJpdmVyLXJpbS1tZWFzdXJlbWVudHMtYXZhaWxhYmxlIjp0cnVlLCJ4LW52aWRpYS1ncHUtdmJpb3MtcmltLWZldGNoZWQiOnRydWUsIngtbnZpZGlhLWdwdS12Ymlvcy1yaW0tc2NoZW1hLXZhbGlkYXRlZCI6dHJ1ZSwieC1udmlkaWEtZ3B1LXZiaW9zLXJpbS1jZXJ0LXZhbGlkYXRlZCI6dHJ1ZSwieC1udmlkaWEtZ3B1LXZiaW9zLXJpbS1zaWduYXR1cmUtdmVyaWZpZWQiOnRydWUsIngtbnZpZGlhLWdwdS12Ymlvcy1yaW0tbWVhc3VyZW1lbnRzLWF2YWlsYWJsZSI6dHJ1ZSwieC1udmlkaWEtZ3B1LXZiaW9zLWluZGV4LW5vLWNvbmZsaWN0Ijp0cnVlLCJzZWNib290Ijp0cnVlLCJkYmdzdGF0IjoiZGlzYWJsZWQiLCJlYXRfbm9uY2UiOiJlNjBkZTRiZTk1YTUwZWRlNzlhZmRlMWE2ODU3ZjQxMTM5MmYyYTVjZDY3ZThlNTcwMmQ2YzllN2EwZTcxYzI1IiwiaHdtb2RlbCI6IkdIMTAwIEEwMSBHU1AgQlJPTSIsInVlaWQiOiI1MzE2Njk1MjUxNTk1ODY4ODUyMjQxMDQ2NDU3OTM5Njg3NzQ2ODE2MjMyNjU3NTEiLCJvZW1pZCI6IjU3MDMiLCJpc3MiOiJMT0NBTF9HUFVfVkVSSUZJRVIiLCJuYmYiOjE3OTIwMjc4ODUsImV4cCI6MTc5MjAzMTYwNSwiaWF0IjoxNzkyMDI4MDA1LCJqdGkiOiI1YWRjNTQwMS1kMDY2LTQzY2UtOTRlOS04MWJlNGIzM2Q5NGYifQ.bXmXETWex2MEJ6g4EFYAv6eBRmEvVGXCgNE8VlIACME"
+  }
+]

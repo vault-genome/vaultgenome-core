@@ -36,7 +36,18 @@ ADRs interact with the test-enforced invariant system.
 | 0021 | [The verifier's own evaluation of the GPU's report](0021-the-verifiers-own-evaluation-of-the-gpu.md) | Accepted | tee, gpu, nvidia, attestation, azure |
 | 0022 | [The escrow key sealed to the guest's vTPM where the TEE gives no sealing key](0022-the-escrow-key-sealed-to-the-vtpm.md) | Accepted | tee, tdx, azure, vtpm, escrow, sealing |
 | 0023 | [The daemons' key files sealed to the host](0023-the-daemons-key-files-sealed-to-the-host.md) | Accepted | keys, sealing, tee, sagvd, acp-compute |
-| 0024 | [The AWS Nitro verifier, from the specification](0024-the-aws-nitro-verifier-from-the-specification.md) | Accepted | tee, aws-nitro, cbor, cose, verifier, acpctl |
+| 0024 | [Vendor trust anchors are pinned in the binary](0024-vendor-trust-anchors-pinned-in-the-binary.md) | Accepted | tee, attestation, amd, sev-snp, azure-cgpu, trust-anchors |
+| 0025 | [Any hardware: the daemons are RATS roles, not cloud adapters](0025-any-hardware-rats-roles-not-cloud-adapters.md) | Accepted | tee, attestation, rats, cmw, ear, verifier, configfs-tsm, tpm, portability |
+| 0026 | [The job queue is on disk: a restart resumes what was accepted](0026-the-job-queue-on-disk.md) | Accepted | sagvd, queue, durability, restart, bbolt, audit |
+| 0027 | [The audit log in closed segments: retention is archival, and the views expire](0027-the-audit-log-in-closed-segments.md) | Accepted | sagvd, audit, retention, bbolt, acpctl, disk |
+| 0028 | [Provisioning across two hosts: the authority writes the worker's bundle, the worker joins, the authority pins](0028-provisioning-across-two-hosts.md) | Accepted | acpctl, provision, deployment, keys, pins, two-hosts |
+| 0029 | [KEM suites and the cryptographic profile](0029-kem-suites-and-the-cryptographic-profile.md) | Accepted | crypto, kms, escrow, crosscloud, fips, post-quantum, profile |
+| 0030 | [The FIPS 140-3 build](0030-the-fips-140-3-build.md) | Accepted | crypto, fips, build, release, aead, bundle, hkdf, assessment |
+| 0031 | [The signature suite](0031-the-signature-suite.md) | Accepted | crypto, signatures, audit, profile, fips, x9, cnsa, post-quantum |
+| 0032 | [The protocols in ProVerif: the proofs, the attacks and the assumptions](0032-the-protocols-in-proverif.md) | Accepted | formal, protocol, verification |
+| 0033 | [The attack record in the verifier's policy: TCB floors per chip, the platform's word, the guest's policy, the mitigation vector and the machine](0033-the-attack-record-in-the-policy.md) | Accepted | tee, sev-snp, policy |
+| 0034 | [The verifier held to readings nobody here wrote: the differential corpus](0034-the-differential-corpus.md) | Accepted | tee, sev-snp, testing |
+| 0035 | [The AWS Nitro verifier, from the specification](0035-the-aws-nitro-verifier-from-the-specification.md) | Accepted | tee, aws-nitro, cbor, cose, verifier, acpctl |
 
 ## Adding an ADR
 

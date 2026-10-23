@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package returnpath_test
@@ -299,6 +300,7 @@ func TestIntegration_HappyPath_EndToEnd(t *testing.T) {
 			return
 		}
 		sess, aerr := server.Accept(server.SessionConfig{
+			LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 			Conn:              c,
 			Producer:          peers.serverProducer,
 			Verifier:          peers.serverVerifier,
@@ -343,6 +345,7 @@ func TestIntegration_HappyPath_EndToEnd(t *testing.T) {
 	t.Cleanup(func() { _ = dialed.Close() })
 
 	clientSess, err := client.Dial(client.SessionConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Conn:              dialed,
 		Producer:          peers.clientProducer,
 		Verifier:          peers.clientVerifier,
@@ -432,6 +435,7 @@ func TestIntegration_TamperedSignature_RejectedByServer(t *testing.T) {
 			return
 		}
 		sess, aerr := server.Accept(server.SessionConfig{
+			LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 			Conn:              c,
 			Producer:          peers.serverProducer,
 			Verifier:          peers.serverVerifier,
@@ -464,6 +468,7 @@ func TestIntegration_TamperedSignature_RejectedByServer(t *testing.T) {
 	_ = dialed.SetDeadline(time.Now().Add(integrationTimeout))
 
 	state, err := transport.DoHandshake(transport.HandshakeConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Role:              transport.RoleClient,
 		Conn:              dialed,
 		Producer:          peers.clientProducer,
@@ -561,6 +566,7 @@ func TestIntegration_ComponentIDSynthesis_Matches(t *testing.T) {
 			return
 		}
 		sess, aerr := server.Accept(server.SessionConfig{
+			LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 			Conn:              c,
 			Producer:          peers.serverProducer,
 			Verifier:          peers.serverVerifier,
@@ -587,6 +593,7 @@ func TestIntegration_ComponentIDSynthesis_Matches(t *testing.T) {
 	r, err := worker.NewDeterministicReconstructor(peers.clock)
 	require.NoError(t, err)
 	clientSess, err := client.Dial(client.SessionConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Conn:             dialed,
 		Producer:         peers.clientProducer,
 		Verifier:         peers.clientVerifier,
@@ -635,6 +642,7 @@ func TestIntegration_ContextCancellation(t *testing.T) {
 		defer c.Close()
 		_ = c.SetDeadline(time.Now().Add(integrationTimeout))
 		_, _ = transport.DoHandshake(transport.HandshakeConfig{
+			LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 			Role:     transport.RoleServer,
 			Conn:     c,
 			Producer: peers.serverProducer,
@@ -652,6 +660,7 @@ func TestIntegration_ContextCancellation(t *testing.T) {
 	r, err := worker.NewDeterministicReconstructor(peers.clock)
 	require.NoError(t, err)
 	clientSess, err := client.Dial(client.SessionConfig{
+		LocalProvider: tee.ProviderSimulated, PeerProvider: tee.ProviderSimulated,
 		Conn:             dialed,
 		Producer:         peers.clientProducer,
 		Verifier:         peers.clientVerifier,

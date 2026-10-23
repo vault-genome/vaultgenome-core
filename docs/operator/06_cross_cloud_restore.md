@@ -45,22 +45,92 @@ What the shipping binaries do today, stated exactly:
 
 ```
  source: sagvd crosscloud-restore                    destination: acp-bootstrap
- ────────────────────────────────                    ──────────────────────────
- signed handshake, fresh nonce N   ── TLS 1.3 ──▶    verify authority signature
-                                                     new X25519 key pair (sk, pk)
-                                   ◀── Evidence ──   quote over C = H(label ‖ pk ‖ N)
- verify Evidence under C                             (sk stays in memory, 5 min,
- (genuine TEE + measurement +                         one token)
-  freshness + pk is the TEE's own)
+ ────────────────────────────────                    ───────────
+ signed handshake, fresh nonce N,  ── TLS 1.3 ──▶    verify authority signature
+ the KEM suites it accepts                           pick the first suite it accepts,
+                                                     new key pair (sk, pk) under it
+                                   ◀── Evidence ──   quote over C = H(label ‖ suite ‖ pk ‖ N)
+ the suite is on its list?                           (sk stays in memory, 5 min,
+ verify Evidence under C                              one token)
+ (genuine TEE + measurement +
+  freshness + suite and pk are the TEE's own)
  allow-list policy on measurement
- encapsulate DEKs to pk
- signed key-release token          ── TLS 1.3 ──▶    take sk (single use), open DEKs,
+ encapsulate DEKs to pk under the suite
+ signed key-release token          ── TLS 1.3 ──▶    take sk (single use), open DEKs
+ (each key names its suite)                          under the handshake's suite,
                                                      register, zeroize sk
 ```
 
-A destination that presents no attested key, an Evidence that does not verify
-for the presented key, or a measurement that is not on the allow-list gets no
-token. There is no fallback path.
+A destination that presents no attested key, one that answers under a suite
+the source does not accept, an Evidence that does not verify for the
+presented suite and key, or a measurement that is not on the allow-list gets
+no token. There is no fallback path, and no negotiation below either side's
+list.
+
+### The cryptographic profile
+
+Which KEM suites the two sides use is the `crypto` section of each daemon's
+configuration (ADR 0029). `crypto.profile` is one of:
+
+| Profile | The daemon writes | It accepts |
+| - | - | - |
+| `general` (default) | `hpke-x25519-v2` | every suite of the build: X25519, P-384, ML-KEM-768, the MLKEM1024-P384 hybrid, X-Wing |
+| `fips` | `hpke-p384-v2` | `hpke-p384-v2`, `hpke-mlkem768-v2`, `hpke-mlkem1024-p384-v2` — the primitives the Go Cryptographic Module (CMVP #5247) lists as approved |
+| `cnsa` | `hpke-mlkem1024-p384-v2` | that hybrid only |
+
+The suites are the v2 ones of ADR 0030: HPKE opened export-only derives
+the key, and the cryptographic module's AES-256-GCM seals under it with
+the nonce it generates. The v1 suites of 0.7.0 (the AEAD inside HPKE)
+still open on a build without enforcement; nothing writes them, and a
+0.7.0 peer and a 0.8 peer release nothing to each other.
+`crypto.kem_suites` narrows a profile's list to the suites named, in that
+order of preference (the first is written); it never widens one. The source
+offers its list in the handshake, the destination takes the first entry its
+own list accepts, and both record the result: `recipient_key_suite` in the
+destination's log and in the source's report, `delivery_mode` and
+`crypto_profile` in the audit chain. A `fips` source and a `general`
+destination meet on P-384; a `cnsa` source and a `fips` destination on the
+hybrid; a source that offers nothing the destination accepts is refused at
+the handshake, on the source's record. Both daemons must run a release that
+knows suites: a request or an answer that names none is refused.
+
+The same profile decides the signature suite (ADR 0031) — what the
+authority signs its verdicts, tokens, manifests and audit events with,
+and what a destination accepts them under:
+
+| Profile | The daemon signs with | It accepts |
+| - | - | - |
+| `general` (default) | `ed25519` | `ed25519`, `ecdsa-p384-sha384`, `ml-dsa-87` |
+| `fips` | `ed25519` | `ed25519`, `ecdsa-p384-sha384` — the two on the certificate of the Go Cryptographic Module v1.0.0 |
+| `cnsa` | `ecdsa-p384-sha384` | `ecdsa-p384-sha384`, `ml-dsa-87` |
+
+`crypto.signature_suite` picks the signing suite within the profile's
+list and never widens it — `fips` with `ecdsa-p384-sha384` is the
+deployment a bank held to X9 SD-34 runs. The keys must be of that suite:
+`acp-keygen -signature-suite` makes them, `keys.<name>.suite` in each
+config names the suite the key file is read under (the 32-byte seed of
+an `ed25519` or `ml-dsa-87` key, the PKCS#8 PEM of an
+`ecdsa-p384-sha384` key; `ed25519` when absent), and a key of another
+suite than the profile signs with stops the daemon at startup with the
+reason. A key the profile does not accept is refused where it is pinned,
+with the reason: a worker registry entry, the operator's stop key, the
+sentinel key a failover policy pins, the source authority key the
+destination pins. Every record names its suite (`alg`, absent for
+`ed25519`), `identity` prints `signature_suite` and `signature_suites`
+beside the KEM suites and the suite of each key beside its PEM, and
+`acpctl audit verify` reports the suite of the key the chain verified
+under. `ml-dsa-87` is the standard library's: on the `-fips` build it is
+refused with the module's reason.
+
+Both daemons' `identity` and every command's `version` also report
+`fips140` — whether the build runs the certified Go Cryptographic Module
+(`enabled`), whether enforcement is on (`enforced`, the `fips140=only`
+assessment mode, never a production setting), the module version and
+the build setting (ADR 0030). Under enforcement a configuration that
+names `general` is refused at startup, because its first suite is
+X25519, which the module cannot make, and a configuration that names no
+profile runs as `fips`; a deployment assessed that way names `fips` or
+`cnsa`.
 
 ---
 
@@ -91,6 +161,7 @@ Compare the SHA-256 of each file over a second channel before pinning it.
 
 ```json
 {
+  "crypto": { "profile": "general" },
   "http": {
     "listen_address": "0.0.0.0:8443",
     "bearer_token_file": "/etc/acp/secrets/acp-bootstrap/api_token",
@@ -173,6 +244,7 @@ config:
   "audit_signing": { "kid": "sagvd-audit", "seed_path": "/etc/acp/secrets/sagvd/audit_signing_seed" },
   "…": "authority_signing, session_sealing as before"
 },
+"crypto": { "profile": "general" },
 "crosscloud": {
   "enabled": true,
   "audit_log_path": "/var/lib/acp/xcc-audit.db",
@@ -263,18 +335,26 @@ is kept (`key_escrow_storage: sealed:gcp-sev-snp`):
 
 ```bash
 # On the operator's machine, once: the recovery key. Its private half never goes to the release host.
-acpctl escrow recovery-keygen --out recovery.seed --pub recovery.pem
-# On the release host: the escrow key, sealed to this host, wrapped to the recovery key.
+# --suite names its KEM suite (ADR 0029): the one your profile writes, here P-384 for a fips deployment.
+acpctl escrow recovery-keygen --suite hpke-p384-v2 --out recovery.seed --pub recovery.pem
+# On the release host: the escrow key, made under the suite crypto.profile writes (or -suite),
+# sealed to this host, wrapped to the recovery key.
 sagvd escrow-provision -config /etc/acp/sagvd.json -out /etc/acp/secrets/sagvd/escrow.sealed -pub escrow.pem \
   -recovery-to recovery.pem -recovery-out /etc/acp/secrets/sagvd/escrow.recovery
 # On the sealing machine:
 acpctl genome seal --content-dir=./adapter --output=gen-1.genome --escrow-to=escrow.pem --json > seal.json
 ```
 
-The sealer encapsulates the fresh key to the escrow key (the X25519 KEM of ADR
-0009) in `gen-1.genome.escrow` and writes no key file. The envelope travels with
-the bundle and opens only on the release host, which releases the key with
-`-key-escrow gen-1.genome.escrow` instead of `-key-file`.
+The sealer encapsulates the fresh key to the escrow key — RFC 9180 HPKE under
+the key's suite, which `escrow.pem` names: PKIX for an X25519 or P-384 key,
+the product's own `VAULT GENOME HPKE PUBLIC KEY` block for an ML-KEM or
+hybrid key — in `gen-1.genome.escrow` and writes no key file. The envelope
+names the suite and travels with the bundle; it opens only on the release
+host, which releases the key with `-key-escrow gen-1.genome.escrow` instead of
+`-key-file`. `sagvd identity` prints the escrow key's tag, its PEM and its
+suite (`key_escrow_suite`). Envelopes, sealed keys and recovery envelopes of
+releases before 0.7 (the X25519 KEM of ADR 0009) still open with the same
+X25519 key.
 
 The sealed key opens only for the same code on the same chip at the same
 measurement. A restart that lands on another host, a new VM image, a dead
@@ -288,7 +368,9 @@ acpctl escrow recover --in escrow.recovery --key recovery.seed \
   | ssh release-host sagvd escrow-provision -config /etc/acp/sagvd.json -out /etc/acp/secrets/sagvd/escrow.sealed -pub escrow.pem -stdin
 ```
 
-The same key, the same tag; sealers pinned to `escrow.pem` need no change.
+The same key, the same tag, the same suite; sealers pinned to `escrow.pem`
+need no change. What crosses the pipe is a PEM naming the key's suite; the
+new host's profile must accept that suite.
 Under `tee.insecure_simulation` a plaintext key from `acpctl escrow keygen`
 is still accepted, for development and tests, and the daemon logs
 `PLAINTEXT ESCROW KEY`; on a hardware TEE it is refused.
@@ -321,6 +403,8 @@ one JSON report and exits 0 on success, 1 on any refusal:
   "key_release_audit_id": "…",
   "destination_measurement_hex": "…",
   "recipient_key_sha256": "…",
+  "recipient_key_suite": "hpke-x25519-v2",
+  "crypto_profile": "general",
   "policy_version": "xcc-2026-09-14",
   "token_id": "…",
   "dispatched_at": "2026-09-14T12:00:00.000Z",
@@ -337,9 +421,10 @@ the vTPM quote's PCR selection and digest, each GPU with who vouched for it,
 and the verifier's own evaluations of the GPUs' reports (ADR 0021, amended).
 
 **Confirm it landed.** The destination logs `crosscloud handshake answered` with
-a `recipient_key_sha256`, then `crosscloud token accepted` with the same
-`request_id` and `registered_keys`. The digest must equal the report's
-`recipient_key_sha256`: it identifies the one key the DEKs were sealed to.
+a `recipient_key_sha256` and a `recipient_key_suite`, then `crosscloud token
+accepted` with the same `request_id` and `registered_keys`. The digest and the
+suite must equal the report's `recipient_key_sha256` and `recipient_key_suite`:
+they identify the one key the DEKs were sealed to, and under what.
 
 **Audit it.** Anyone holding the audit public key can verify the log offline:
 
@@ -464,6 +549,9 @@ fleet may do.
 
 - Holding a token — with or without the measurement it names — reveals no DEK.
 - A destination key opens exactly one token and dies after five minutes.
+- The KEM suite is what the profiles of both sides accept, never less: a
+  suite outside the source's list, or one swapped in transit, is refused
+  before anything is verified or wrapped, and the record names the suite.
 - A replayed handshake cannot replace an outstanding key; a forged token is
   rejected before it can use one up.
 - Every release is preceded by the three audit events, in order, persisted to
@@ -490,3 +578,4 @@ fleet may do.
 | 2026-05-09 | Initial Phase 4 runbook |
 | 2026-09-14 | Rewritten against the shipping binaries: X25519 KEM delivery (ADR 0009), `identity` subcommands, TLS 1.3 and fail-closed exposure; removed commands that do not exist |
 | 2026-09-14 | Genome v3 sealing, `-key-file` releases, destination restore and `crosscloud-confirm` (ADR 0011) |
+| 2026-10-21 | KEM suites and the cryptographic profile (ADR 0029): `crypto.profile`, the suite in the handshake, the token, the report, the log and the audit chain |

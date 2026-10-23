@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package key_release_token
@@ -27,6 +28,7 @@ func validFixture() KeyReleaseToken {
 			{
 				KeyID:      ids.KeyID("seal-key-1"),
 				Purpose:    PurposeSealing,
+				Suite:      "hpke-x25519-v2",
 				Ciphertext: []byte{0x01, 0x02, 0x03, 0x04},
 				AAD:        []byte{0xAA, 0xBB, 0xCC},
 			},
@@ -210,9 +212,9 @@ func TestKeyReleaseToken_MultipleWrappedKeysOK(t *testing.T) {
 	t.Parallel()
 	tok := validFixture()
 	tok.Wrapped = []WrappedKey{
-		{KeyID: ids.KeyID("k1"), Purpose: PurposeSealing, Ciphertext: []byte{1}, AAD: []byte{1}},
-		{KeyID: ids.KeyID("k2"), Purpose: PurposeSealing, Ciphertext: []byte{2}, AAD: []byte{2}},
-		{KeyID: ids.KeyID("k3"), Purpose: PurposeSealing, Ciphertext: []byte{3}, AAD: []byte{3}},
+		{KeyID: ids.KeyID("k1"), Purpose: PurposeSealing, Suite: "hpke-x25519-v2", Ciphertext: []byte{1}, AAD: []byte{1}},
+		{KeyID: ids.KeyID("k2"), Purpose: PurposeSealing, Suite: "hpke-x25519-v2", Ciphertext: []byte{2}, AAD: []byte{2}},
+		{KeyID: ids.KeyID("k3"), Purpose: PurposeSealing, Suite: "hpke-x25519-v2", Ciphertext: []byte{3}, AAD: []byte{3}},
 	}
 	require.NoError(t, tok.Validate())
 }

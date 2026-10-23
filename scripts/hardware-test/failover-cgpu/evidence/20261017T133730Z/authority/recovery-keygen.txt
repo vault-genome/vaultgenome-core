@@ -1,0 +1,1 @@
+recovery key 366264e42d5b90ca: private /root/recovery.seed (keep it off the release host), public /root/recovery.pem (for sagvd escrow-provision -recovery-to)

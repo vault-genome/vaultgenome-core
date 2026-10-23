@@ -1,0 +1,24 @@
+{
+  "schema": "vault-genome/acpctl-worker-bundle/v1",
+  "authority": {
+    "provider": "gcp-sev-snp",
+    "measurement_hex": "7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc",
+    "vault_address": "34.41.169.228:9443",
+    "vault_server_name": "localhost",
+    "amd_cert_chain": "amd-milan-cert_chain.pem"
+  },
+  "worker": {
+    "provider": "azure-sev-snp",
+    "descriptor": "acp-compute-two-hosts-v1",
+    "simulated": false
+  },
+  "files": {
+    "amd-milan-cert_chain.pem": "22e62f8d2c21a156470145fc75f7b5a377cb053ced3e97f0bd3f8d8ca5941ce6",
+    "pins/vault.measurement": "9b2fa0feed753b70344f97c7c4bb5f453e01f578c9203e5f2981c21421d2b205",
+    "secrets/acp-compute/sealing.key": "f9b27b07ebb5d501ddc8ffa1e30430b35305379f70ebeb65799919bc27aae49e",
+    "secrets/acp-compute/tls/client.crt": "2dee66c58d96a64a70f5b980e002caf867b91cc4b37490de7951a7f321bf434b",
+    "secrets/acp-compute/tls/client.key": "d0dfbe051c0dcae1d17c9ba1a037eeaccaa4d126c759be4aacb0f2b18161a012",
+    "secrets/acp-compute/worker_signing_seed": "6883aa7ecd991339703a8cce4c55e332dde649a7af830244d9dd2fffaa2e7c4f",
+    "secrets/shared/tls/ca.crt": "3a6c0e005d0dc7980e301e87e25ce85589d3e4545099e5329ecb20b58faf8c60"
+  }
+}

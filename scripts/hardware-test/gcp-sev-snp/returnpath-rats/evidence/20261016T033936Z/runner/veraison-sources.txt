@@ -1,0 +1,3 @@
+veraison-services f997c5275c3039caf1976139c726ceffe7d273b5 (+ working tree)
+go-gen-ref aa3740de6b00db6d80266f0b30acf2c5470f8a4d
+veraison-src.tgz: 847 files, 1.8M

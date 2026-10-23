@@ -1,0 +1,45 @@
+{
+  "status": "declined",
+  "policy_serial": 3,
+  "policy_sha256": "be71bb42f29108a7f8ad111bc430527782e06118c8da3259a1e285aa6695060c",
+  "sentinel": "sentinel-33f00501326931ee",
+  "trigger": {
+    "kind": "compromise-report",
+    "at": "2026-10-17T13:13:36.904998789Z",
+    "observed_at": "2026-10-17T13:14:03.094272499Z",
+    "evidence_sha256": "8d87be413fe018163155e8c639b7a95c441be213a52f530bbc86ec2c96c1e262",
+    "primary_measurement_hex": "10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519",
+    "tripped": [
+      {
+        "wire": "path",
+        "target": "/root/canary",
+        "want": "e91a347f5d68f56c7ab031b9dcbed288f4cb929c401c315c1d270e3ba7fcda7d",
+        "got": "45bb370196d1e59e368ab5f98cd6e27353963d8607d93e47e13bb418db172170"
+      }
+    ],
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "c06f68a676c9996d1d629d2be96399d0646ddfd3dd725a20464d8dae0e0b4db7",
+      "sealed_at": "2026-10-17T13:13:27.907572381Z"
+    }
+  },
+  "decision": {
+    "decision": "declined",
+    "reason": "no genome in the verified chain was sealed by 2026-10-16T13:13:36.904998789Z and checks out",
+    "audit_id": "xcc-evt-0000000000000003",
+    "decided_at": "2026-10-17T13:14:13.371101828Z"
+  },
+  "set_aside": [
+    {
+      "file": "gen-000001.seal.json",
+      "reason": "sealed at 2026-10-17T13:13:27.907572381Z, after the cutoff 2026-10-16T13:13:36.904998789Z"
+    },
+    {
+      "file": "gen-000000.seal.json",
+      "reason": "sealed at 2026-10-17T13:09:06.907700749Z, after the cutoff 2026-10-16T13:13:36.904998789Z"
+    }
+  ],
+  "audit_chain_length": 3,
+  "audit_tip": "89e189428bcea4f3632c2b52e6f9e98486bb562b434f7628cde967e60ce2568b",
+  "operator_stop_serial": 1
+}

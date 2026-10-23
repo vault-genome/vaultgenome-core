@@ -1,0 +1,4 @@
+sagvd 0.0.0-dev (commit fb7883367e4e-dirty)
+acp-compute 0.0.0-dev (commit fb7883367e4e-dirty)
+acpctl 0.0.0-dev (commit fb7883367e4e-dirty)
+acp-keygen 0.0.0-dev (commit fb7883367e4e-dirty)

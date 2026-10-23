@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -5,7 +6,6 @@ package main
 import (
 	"archive/tar"
 	"bytes"
-	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -164,7 +164,7 @@ type genomeJobs struct {
 	cfg GenomeConfig
 	// escrow is the authority's escrow private key, held in memory (it
 	// was unsealed from the TEE at start, ADR 0016); nil when none.
-	escrow     *ecdh.PrivateKey
+	escrow     *escrow.PrivateKey
 	maxPayload uint64
 	clock      shared_time.Clock
 }
@@ -172,7 +172,7 @@ type genomeJobs struct {
 // newGenomeJobs wires an opener; nil when gate jobs are not configured.
 // escrowKey opens <bundle>.escrow envelopes; nil when the authority has
 // no escrow key.
-func newGenomeJobs(cfg Config, clock shared_time.Clock, escrowKey *ecdh.PrivateKey) *genomeJobs {
+func newGenomeJobs(cfg Config, clock shared_time.Clock, escrowKey *escrow.PrivateKey) *genomeJobs {
 	if !cfg.Genome.Enabled() {
 		return nil
 	}
@@ -699,11 +699,15 @@ func gateDimension(gate GateView) validation_result.DimensionVerdict {
 }
 
 // signVerdict signs a passing verdict with the authority's signing key.
-func signVerdict(view *GateView, signer keys.Signer, kid ids.KeyID, pub crypto.PublicKey) error {
+func signVerdict(view *GateView, signer keys.Signer, kid ids.KeyID, pub []byte) error {
 	if view.SignedVerdict == nil {
 		return nil
 	}
 	msg, err := view.SignedVerdict.Verdict.CanonicalBytes()
+	if err != nil {
+		return err
+	}
+	alg, err := keys.RecordAlg(signer, kid)
 	if err != nil {
 		return err
 	}
@@ -713,6 +717,7 @@ func signVerdict(view *GateView, signer keys.Signer, kid ids.KeyID, pub crypto.P
 	}
 	view.SignedVerdict.Signature = sig
 	view.SignedVerdict.SignerPub = append([]byte(nil), pub...)
+	view.SignedVerdict.Alg = alg
 	view.SignerKeyID = string(kid)
 	return nil
 }

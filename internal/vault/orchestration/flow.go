@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package orchestration
@@ -534,6 +535,14 @@ type Component struct {
 // messages are returned in order; the machine stays at disclosure until
 // the manifest is issued.
 func (f *Flow) Disclose(components []Component) ([]disclosure_message.DisclosureMessage, error) {
+	// The caller's plaintext is wiped on every exit: when the sequencer ran
+	// it has wiped it already, and when a refusal came first (a session that
+	// cannot continue, a policy that rotated) nothing else would.
+	defer func() {
+		for i := range components {
+			clear(components[i].Plaintext)
+		}
+	}()
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.mustBe(StateDisclosure); err != nil {

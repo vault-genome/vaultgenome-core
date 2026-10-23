@@ -1,0 +1,9 @@
+run=20261017T123635Z
+tree=e0d7b31f933199f6ee6f31918f5fa05a72e5cdd9
+verifier_url=https://localhost:8443
+go=go version go1.27.0 darwin/arm64
+vts=running
+provisioning=running
+verification=running
+management=running
+corim_sha256=77c4da9cec5c9213a8b5a8f9522cbafe7dc8c3cd762172dcc3d421040042166d

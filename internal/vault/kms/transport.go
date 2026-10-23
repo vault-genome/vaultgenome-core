@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package kms
@@ -31,11 +32,18 @@ type HandshakeResponse struct {
 	// diagnostic mismatch detection.
 	MeasurementHint []byte
 
-	// RecipientPublicKey is the X25519 key the destination TEE generated
-	// for this handshake. It is trusted only because the Evidence was
-	// quoted over RecipientChallenge(RecipientPublicKey, nonce); the
-	// Coordinator verifies exactly that before wrapping anything to it.
+	// RecipientPublicKey is the key the destination TEE generated for
+	// this handshake, under RecipientKeySuite. It is trusted only because
+	// the Evidence was quoted over RecipientChallengeV2(suite, key,
+	// nonce); the Coordinator verifies exactly that before wrapping
+	// anything to it.
 	RecipientPublicKey []byte
+
+	// RecipientKeySuite is the KEM suite (ADR 0029) the destination chose
+	// from the request's KEMSuites and generated RecipientPublicKey
+	// under. The Coordinator refuses an answer under a suite its policy
+	// does not accept, and one that names no suite at all.
+	RecipientKeySuite string
 }
 
 // Transport is the wire-delivery abstraction the Coordinator uses to

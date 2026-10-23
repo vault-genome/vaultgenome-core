@@ -1,0 +1,29 @@
+primary=vg-rl-primary-20261017t140018z zone=us-central1-c project=rats-probe
+powered_off_at (the primary's clock, written just before sysrq o)=2026-10-17T14:18:37.079889167Z
+2026-10-17T14:18:45.895071000Z status=RUNNING
+2026-10-17T14:18:48.955571000Z status=RUNNING
+2026-10-17T14:18:52.081886000Z status=RUNNING
+2026-10-17T14:18:55.189600000Z status=RUNNING
+2026-10-17T14:18:58.219704000Z status=RUNNING
+2026-10-17T14:19:01.370391000Z status=RUNNING
+2026-10-17T14:19:04.793867000Z status=RUNNING
+2026-10-17T14:19:07.999845000Z status=STOPPING
+2026-10-17T14:19:11.000018000Z status=STOPPING
+2026-10-17T14:19:14.118450000Z status=STOPPING
+2026-10-17T14:19:17.192032000Z status=TERMINATED
+Google's record of the machine before it is deleted:
+  confidentialInstanceConfig:
+    confidentialInstanceType: SEV_SNP
+  cpuPlatform: Unknown CPU Platform
+  creationTimestamp: '2026-10-17T07:00:56.539-07:00'
+  lastStartTimestamp: '2026-10-17T07:01:05.029-07:00'
+  lastStopTimestamp: '2026-10-17T07:19:14.579-07:00'
+  machineType: n2d-standard-8
+  name: vg-rl-primary-20261017t140018z
+  status: TERMINATED
+  zone: us-central1-c
+2026-10-17T14:19:18.129411000Z delete: the machine and its boot disk
+  Deleted [https://www.googleapis.com/compute/v1/projects/rats-probe/zones/us-central1-c/instances/vg-rl-primary-20261017t140018z].
+2026-10-17T14:19:25.440218000Z delete returned
+2026-10-17T14:19:26.409892000Z after delete: ERROR: (gcloud.compute.instances.describe) Could not fetch resource:  - The resource 'projects/rats-probe/zones/us-central1-c/instances/vg-rl-primary-20261017t140018z' was not found  
+2026-10-17T14:19:27.538125000Z disks named vg-rl-primary-20261017t140018z left: none

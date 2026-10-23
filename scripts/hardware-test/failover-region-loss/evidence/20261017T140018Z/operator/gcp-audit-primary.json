@@ -1,0 +1,58 @@
+[
+ {
+  "timestamp": "2026-10-17T14:00:55.523049Z",
+  "log": "activity",
+  "method": "v1.compute.instances.insert",
+  "resource": "projects/rats-probe/zones/us-central1-c/instances/vg-rl-primary-20261017t140018z",
+  "operation": {
+   "first": true,
+   "id": "operation-1792245655475-65e09b5a51613-b38ccb73-e2b5d333"
+  },
+  "severity": "NOTICE"
+ },
+ {
+  "timestamp": "2026-10-17T14:01:05.165677Z",
+  "log": "activity",
+  "method": "v1.compute.instances.insert",
+  "resource": "projects/rats-probe/zones/us-central1-c/instances/vg-rl-primary-20261017t140018z",
+  "operation": {
+   "id": "operation-1792245655475-65e09b5a51613-b38ccb73-e2b5d333",
+   "last": true
+  },
+  "severity": "NOTICE"
+ },
+ {
+  "timestamp": "2026-10-17T14:19:04.252404Z",
+  "log": "system_event",
+  "method": "compute.instances.guestTerminate",
+  "resource": "projects/rats-probe/zones/us-central1-c/instances/vg-rl-primary-20261017t140018z",
+  "operation": {
+   "first": true,
+   "id": "systemevent-1792246719607-65e09f5127209-3ce2f335-5b2544ae",
+   "last": true
+  },
+  "severity": "INFO"
+ },
+ {
+  "timestamp": "2026-10-17T14:19:18.944172Z",
+  "log": "activity",
+  "method": "v1.compute.instances.delete",
+  "resource": "projects/rats-probe/zones/us-central1-c/instances/vg-rl-primary-20261017t140018z",
+  "operation": {
+   "first": true,
+   "id": "operation-1792246758973-65e09f76b1e76-70b2fc38-793c2f20"
+  },
+  "severity": "NOTICE"
+ },
+ {
+  "timestamp": "2026-10-17T14:19:25.272821Z",
+  "log": "activity",
+  "method": "v1.compute.instances.delete",
+  "resource": "projects/rats-probe/zones/us-central1-c/instances/vg-rl-primary-20261017t140018z",
+  "operation": {
+   "id": "operation-1792246758973-65e09f76b1e76-70b2fc38-793c2f20",
+   "last": true
+  },
+  "severity": "NOTICE"
+ }
+]

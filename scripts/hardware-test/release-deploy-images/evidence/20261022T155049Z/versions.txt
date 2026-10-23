@@ -1,0 +1,4 @@
+acpctl v0.9.0 (commit 0428a5a634e41fcc0e3e65b9445023780a063493) fips140=off module=latest enforced=false
+acp-keygen v0.9.0 (commit 0428a5a634e41fcc0e3e65b9445023780a063493)
+sagvd v0.9.0 (commit 0428a5a634e41fcc0e3e65b9445023780a063493) fips140=off module=latest enforced=false
+acp-compute v0.9.0 (commit 0428a5a634e41fcc0e3e65b9445023780a063493) fips140=off module=latest enforced=false

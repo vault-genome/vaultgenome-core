@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package sentinel
@@ -5,11 +6,9 @@ package sentinel
 import (
 	"bytes"
 	"context"
-	"crypto/ecdh"
-	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"io"
 	"os"
 	"os/exec"
@@ -21,6 +20,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/contentdir"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 )
 
 // dirSource is the sentinel's view of a directory, as acpctl builds it.
@@ -69,17 +69,18 @@ type rig struct {
 	t      *testing.T
 	state  string
 	outbox string
-	key    ed25519.PrivateKey
-	pub    ed25519.PublicKey
-	escrow *ecdh.PrivateKey
+	key    *crypto.SigningKey
+	pub    crypto.SuitePublicKey
+	escrow *escrow.PrivateKey
 	clock  *clock
 }
 
 func newRig(t *testing.T) *rig {
 	t.Helper()
-	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := key.Public()
 	must(t, err)
-	esc, err := escrow.GenerateKey()
+	esc, err := escrow.GenerateKey(kms.PolicyForThisProcess().Writes())
 	must(t, err)
 	r := &rig{t: t, state: t.TempDir(), outbox: filepath.Join(t.TempDir(), "outbox"), key: key, pub: pub, escrow: esc, clock: newClock()}
 	write(t, filepath.Join(r.state, "adapter.safetensors"), "weights v1")
@@ -449,7 +450,7 @@ func TestNewRefusesIncompleteConfig(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){
 		"no source":   func(c *Config) { c.Source = nil },
 		"no outbox":   func(c *Config) { c.Outbox = "" },
-		"no escrow":   func(c *Config) { c.Escrow = nil },
+		"no escrow":   func(c *Config) { c.Escrow = escrow.PublicKey{} },
 		"no key":      func(c *Config) { c.Key = nil },
 		"no interval": func(c *Config) { c.Interval = 0 },
 		"bad settle":  func(c *Config) { c.Settle = -1 },
@@ -569,7 +570,8 @@ func TestCheckGenomeTrustsOnlyTheRecord(t *testing.T) {
 }
 
 func TestRecordsVerifyOnlyAsSigned(t *testing.T) {
-	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := key.Public()
 	must(t, err)
 	id := KeyID(pub)
 	now := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
@@ -593,7 +595,8 @@ func TestRecordsVerifyOnlyAsSigned(t *testing.T) {
 			t.Errorf("heartbeat with %s edited verified", name)
 		}
 	}
-	otherPub, _, err := ed25519.GenerateKey(rand.Reader)
+	otherPubKey, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	otherPub := otherPubKey.Public()
 	must(t, err)
 	if _, err := ParseHeartbeat(raw, otherPub); err == nil {
 		t.Error("heartbeat verified under another key")
@@ -631,7 +634,8 @@ func TestRecordsVerifyOnlyAsSigned(t *testing.T) {
 
 func TestReadersRefuseWhatIsNotARecord(t *testing.T) {
 	dir := t.TempDir()
-	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	pubKey, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := pubKey.Public()
 	must(t, err)
 	if _, _, err := ReadHeartbeat(dir, pub); !errors.Is(err, ErrAbsent) {
 		t.Fatalf("absent heartbeat: %v", err)

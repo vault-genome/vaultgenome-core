@@ -1,0 +1,16 @@
+{
+  "status": "failed",
+  "error": {
+    "category": "authority",
+    "code": "attestation_denied",
+    "message": "authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: operator stop in force (revocation serial 2): rd01: operator stop"
+  },
+  "handshake_request_id": "xcc-req-2d361e0c02382f35c52f6184549ef469",
+  "handshake_audit_id": "xcc-evt-0000000000000008",
+  "attestation_audit_id": "xcc-evt-0000000000000009",
+  "destination_measurement_hex": "0e017d2fba7c4964575fdd8c770061abf07f0753148d030f94e969a2d1fa5a5747ba0ced9174f2d44b5f6663fa2de00f",
+  "crypto_profile": "general",
+  "audit_chain_length": 10,
+  "audit_tip": "be68c3449507970ef81669d80cb6ec379554f44f7c6d60115ecc7820cc867f55",
+  "operator_stop_serial": 2
+}

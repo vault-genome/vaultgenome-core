@@ -1,0 +1,10 @@
+total 0
+drwxr-xr-x 2 root root 0 Oct 16 03:38 .
+drwxr-xr-x 3 root root 0 Oct 16 03:38 ..
+[    0.661381] Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP
+[    0.662318] SEV: Status: SEV SEV-ES SEV-SNP 
+[    0.781327] SEV: APIC: wakeup_secondary_cpu() replaced with wakeup_cpu_via_vmgexit()
+[    0.871403] SEV: Using SNP CPUID table, 57 entries present.
+[    0.871405] SEV: SNP running at VMPL0.
+[    1.211122] SEV: SNP guest platform devices initialized.
+[    1.382081] sev-guest sev-guest: Initialized SEV guest driver (using VMPCK0 communication key)

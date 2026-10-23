@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package transport
@@ -26,7 +27,7 @@ const (
 	// WireMajor and WireMinor are the wire-format version, embedded in
 	// the two low bytes of MAGIC. v1.0 is frozen.
 	WireMajor uint8 = 1
-	WireMinor uint8 = 0
+	WireMinor uint8 = 1 // 1.1: Evidence travels as a CMW record (RFC 9999), not bytes
 
 	// MaxFrameSize is the hard cap on a single frame's PAYLOAD length.
 	// A peer announcing LEN > MaxFrameSize is treated as an Integrity

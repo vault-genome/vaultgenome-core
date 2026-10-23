@@ -1,0 +1,2 @@
+the caches are empty
+acpctl tee cache-status: the caches are empty: `acpctl tee prefetch --config` fills them while the vendors are reachable

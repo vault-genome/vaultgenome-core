@@ -1,0 +1,6 @@
+Hostname: vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal
+VM ID:    vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal
+Zone:     us-central1-c
+Region:   us-central1
+Kernel:   7.0.0-1014-gcp
+Captured: 2026-10-14T23:14:59Z

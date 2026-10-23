@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -105,9 +106,9 @@ func TestSentinel_SealKeySealsTheSeedToThePrimarysTEE(t *testing.T) {
 	code, _, stderr = runCmd(sentinelRun, append([]string{"watch", "--content-dir", state, "--outbox", outbox, "--escrow-to", escrowPEM, "--key", seed,
 		"--tripwire", canary, "--interval", "20ms", "--settle", "0s"}, teeArgs...)...)
 	require.Equal(t, 3, code, stderr)
-	pk, err := readEd25519PublicKey(pub)
+	pk, err := readSigningPublicKey(pub)
 	require.NoError(t, err)
-	chain, _, err := sentinel.ReadChain(outbox, ed25519.PublicKey(pk))
+	chain, _, err := sentinel.ReadChain(outbox, pk)
 	require.NoError(t, err)
 	require.Len(t, chain, 1)
 }
@@ -126,7 +127,7 @@ func TestSentinel_SealKeyRefusesBadArguments(t *testing.T) {
 	require.NoError(t, os.WriteFile(short, []byte("short"), 0o600))
 	code, _, stderr = runCmd(sentinelRun, "seal-key", "--key", short, "--tee", "simulated", "--tee-seed", teeSeed)
 	require.Equal(t, 2, code)
-	require.Contains(t, stderr, "not a 32-byte seed")
+	require.Contains(t, stderr, "32-byte seed")
 
 	require.NoError(t, os.Chmod(seed, 0o644))
 	code, _, stderr = runCmd(sentinelRun, "seal-key", "--key", seed, "--tee", "simulated", "--tee-seed", teeSeed)

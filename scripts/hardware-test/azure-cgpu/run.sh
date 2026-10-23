@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # A confidential GPU on Azure: one Standard_NCC40ads_H100_v5 Confidential VM
@@ -23,11 +24,34 @@
 # evidence has been read back and checked.
 #
 # Usage: run.sh [resource-group] [location]      (about 60 minutes; ~$9/h): the capture, then the Return Path
+#
+# VG_FIPS=1 (ADR 0030): every binary is built on the certified Go
+# Cryptographic Module v1.0.0 (GOFIPS140=v1.0.0) and every Go process on
+# the guest — sagvd, acp-compute, acpctl, keygen — runs under
+# GODEBUG=fips140=only, the assessment mode in which a non-approved
+# service fails instead of succeeding; the record must show the module on
+# both daemons and the tools. VG_PROFILE is the cryptographic profile of
+# ADR 0029 (general by default; fips under VG_FIPS=1, since general's
+# first suite is X25519, unavailable under enforcement). VG_SIGSUITE is
+# the signature suite of ADR 0031 within what the profile accepts (the
+# profile's own when unset).
 set -euo pipefail
 RG="${1:-vg-cgpu-weu}"
 LOC="${2:-westeurope}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
+VG_FIPS="${VG_FIPS:-}"
+PROFILE="${VG_PROFILE:-}"
+if [ "$VG_FIPS" = 1 ]; then
+  [ -n "$PROFILE" ] || PROFILE=fips
+  [ "$PROFILE" != general ] || { echo "VG_FIPS=1 needs the fips or cnsa profile: general's first suite is X25519, unavailable under enforcement"; exit 2; }
+  export GOFIPS140=v1.0.0
+fi
+[ -n "$PROFILE" ] || PROFILE=general
+case "$PROFILE" in general|fips|cnsa) ;; *) echo "VG_PROFILE must be general, fips or cnsa; got $PROFILE"; exit 2;; esac
+case "$PROFILE" in cnsa) SIGSUITE_DEFAULT=ecdsa-p384-sha384;; *) SIGSUITE_DEFAULT=ed25519;; esac
+SIGSUITE="${VG_SIGSUITE:-$SIGSUITE_DEFAULT}"
+case "$SIGSUITE" in ed25519|ecdsa-p384-sha384|ml-dsa-87) ;; *) echo "VG_SIGSUITE must be ed25519, ecdsa-p384-sha384 or ml-dsa-87; got $SIGSUITE"; exit 2;; esac
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOW="$(echo "$STAMP" | tr 'A-Z' 'a-z')"
 VM="vg-cgpu-$LOW"
@@ -43,6 +67,7 @@ CREATED=0
 OK=0
 
 cleanup() {
+  git -C "$ROOT" worktree prune >/dev/null 2>&1 || true
   if [ "$CREATED" = 1 ] && [ "$OK" = 0 ] && [ -n "${VG_KEEP_ON_FAILURE:-}" ]; then
     echo "cleanup: VG_KEEP_ON_FAILURE is set and the run failed — $VM is left running for a look; delete it yourself (az group delete -n $RG)"
     rm -rf "$BUILD"; return
@@ -73,9 +98,23 @@ wait_ssh() { # wait_ssh <minutes>
   echo "no ssh after $1 minutes"; return 1
 }
 
-echo "build acpctl (linux/amd64) and pack workers/genome"
-( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/acpctl" ./cmd/acpctl )
-COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt examples
+echo "build sagvd, acp-compute, acpctl, acp-keygen (linux/amd64${GOFIPS140:+, GOFIPS140=$GOFIPS140}) and pack workers/genome"
+# All four binaries are built here, before anything of this run lands in
+# the tree, and from a clean checkout of HEAD when the tracked files are
+# clean, so their VCS stamp is the commit's: on 2026-10-22 the daemons of
+# the first run under the module were built after the capture's record
+# had been read into the tree and came out "-dirty" for that reason. A
+# tree with modified tracked files builds from the working tree, stamped so.
+SRC="$ROOT"
+if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]; then
+  SRC="$BUILD/src"; git -C "$ROOT" worktree add -q --detach "$SRC" HEAD
+fi
+( cd "$SRC" && for b in sagvd acp-compute acpctl; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
+( cd "$SRC" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
+[ "$SRC" = "$ROOT" ] || git -C "$ROOT" worktree remove --force "$SRC"
+for b in sagvd acp-compute acpctl keygen; do echo "$b: $(go version -m "$BUILD/$b" | awk '$1=="build" && ($2 ~ /^GOFIPS140=/ || $2 ~ /^vcs.revision=/ || $2 ~ /^vcs.modified=/) {printf "%s ", $2}')"; done > "$BUILD/build.txt"
+{ echo "tree $(git -C "$ROOT" rev-parse HEAD)"; echo "stamp $STAMP"; echo "profile $PROFILE"; echo "signature_suite $SIGSUITE"; echo "fips ${VG_FIPS:-0}"; echo "gofips140 ${GOFIPS140:-}"; echo "go $(go version | awk '{print $3}')"; } > "$BUILD/run.txt"
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt requirements-ci.lock requirements-cuda.lock requirements-torch-cpu.lock requirements-torch-cu126.lock examples
 echo "Microsoft's onboarding package V4.4.1 (pinned by SHA-256)"
 curl -fsSL "$PKG_URL" -o "$BUILD/cgpu-onboarding-package.tar.gz"
 echo "$PKG_SHA  $BUILD/cgpu-onboarding-package.tar.gz" | shasum -a 256 -c - >/dev/null
@@ -131,7 +170,7 @@ echo "capture + the genome path on the confidential GPU (${VG_BASE_REPO:-Qwen/Qw
 # step (seen 2026-09-16: a banner-exchange timeout right after step 2);
 # wait for it rather than fail the run on the first dropped connection.
 wait_ssh 5 || { echo "the guest did not answer SSH before the capture"; exit 1; }
-ssh_vm "sudo env VG_STAMP=$STAMP VG_BASE_REPO=${VG_BASE_REPO:-} VG_BASE_REV=${VG_BASE_REV:-} bash cgpu-capture.sh 2>&1 | tail -60"
+ssh_vm "sudo env VG_STAMP=$STAMP VG_BASE_REPO=${VG_BASE_REPO:-} VG_BASE_REV=${VG_BASE_REV:-} VG_FIPS=${VG_FIPS:-0} bash cgpu-capture.sh 2>&1 | tail -60"
 
 echo "read the evidence back"
 mkdir -p "$EVIDENCE"
@@ -144,11 +183,9 @@ for f in gate-gpu.json nras-response.json snp-report.bin quote1.msg; do [ -s "$E
 echo "capture evidence: $EVIDENCE"
 
 echo "the Return Path on the guest: sagvd and acp-compute as azure-cgpu, the escrow key sealed to the vTPM, the handshake under gpu_policy.evaluation both"
-( cd "$ROOT" && for b in sagvd acp-compute; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
-( cd "$ROOT/deploy/compose/keygen" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" . )
 wait_ssh 5 || { echo "the guest did not answer SSH before the Return Path"; exit 1; }
 scp_to "$BUILD/sagvd" "$BUILD/acp-compute" "$BUILD/keygen" "$HERE/returnpath-cgpu.sh" "$HERE/gpu-token.py"
-ssh_vm "sudo env VG_STAMP=$STAMP VG_CAPTURE_STAMP=$STAMP bash returnpath-cgpu.sh 2>&1 | tail -40"
+ssh_vm "sudo env VG_STAMP=$STAMP VG_CAPTURE_STAMP=$STAMP VG_FIPS=${VG_FIPS:-0} VG_PROFILE=$PROFILE VG_SIGSUITE=$SIGSUITE bash returnpath-cgpu.sh 2>&1 | tail -40"
 wait_ssh 5 || { echo "the guest did not answer SSH after the Return Path"; exit 1; }
 mkdir -p "$EVIDENCE-returnpath"
 scp -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -q "$ADMIN@$IP:out/$STAMP-returnpath.tgz" "$BUILD/"
@@ -156,5 +193,24 @@ tar -xzf "$BUILD/$STAMP-returnpath.tgz" -C "$EVIDENCE-returnpath" --strip-compon
 ( cd "$EVIDENCE-returnpath" && grep -v ' sha256sums.txt$' sha256sums.txt | shasum -a 256 -c --quiet ) && echo "return path checksums: ok"
 grep -q 'RETURNPATH DONE' "$EVIDENCE-returnpath/steps.txt" || { echo "the Return Path did not finish cleanly"; cat "$EVIDENCE-returnpath/steps.txt"; exit 1; }
 for f in escrow-provision.json escrow-reprovision.json job.json audit-verify.json; do [ -s "$EVIDENCE-returnpath/$f" ] || { echo "the Return Path run has no $f"; exit 1; }; done
+cp "$BUILD/run.txt" "$EVIDENCE-returnpath/run.txt"; cp "$BUILD/build.txt" "$EVIDENCE-returnpath/build.txt"   # the runner's, outside the guest's sums
+STEPS="$EVIDENCE-returnpath/steps.txt"
+echo "== the record"; grep -E 'profile=|suite=|fips|exit=|gate_level|rogue|session opened|job status' "$STEPS" | sed 's|^|  |'
+# The verdict (ADR 0030, 0031): the job EXACT on the H100, the rogue refused,
+# the escrow provisioned and re-provisioned on the vTPM, the audit log
+# verified under the suite; under VG_FIPS=1 every Go process on the record
+# of the certified module with enforcement on.
+VERDICT_OK=1
+grep -q 'gate_level=EXACT' "$STEPS" && grep -q 'rogue refused after' "$STEPS" && grep -q 'job status=succeeded' "$STEPS" \
+  && grep -q 'escrow-provision exit=0' "$STEPS" && grep -q 'escrow re-provision exit=0' "$STEPS" && grep -q 'audit verify exit=0' "$STEPS" \
+  && grep -q "sagvd signature_suite=$SIGSUITE " "$STEPS" && grep -q "audit suite=$SIGSUITE" "$STEPS" && grep -q "profile=$PROFILE" "$STEPS" || VERDICT_OK=0
+if [ "$VG_FIPS" = 1 ]; then
+  grep -q 'fips=1 GODEBUG=fips140=only' "$STEPS" && grep -q 'sagvd fips140 enabled=true enforced=true version=v1.0.0' "$STEPS" \
+    && grep -q 'acp-compute fips140 enabled=true enforced=true version=v1.0.0' "$STEPS" \
+    && [ "$(grep -c 'fips140=only module=v1.0.0 enforced=true' "$EVIDENCE-returnpath/versions.txt")" = 3 ] \
+    && grep -q 'fips=1 GODEBUG=fips140=only' "$EVIDENCE/steps.txt" && grep -q 'fips140=only module=v1.0.0 enforced=true' "$EVIDENCE/versions.txt" || VERDICT_OK=0
+fi
+[ "$VERDICT_OK" = 1 ] || { echo "FAIL: the record lacks a mark (profile $PROFILE, signatures $SIGSUITE${VG_FIPS:+, VG_FIPS=1}); see $STEPS"; exit 1; }
 OK=1
+echo "PASS: the confidential GPU under $PROFILE (signatures $SIGSUITE)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on, every Go process}: the 7B genome EXACT on the H100, the rogue refused, the escrow sealed to the vTPM, the audit log verified ($STAMP)"
 echo "evidence: $EVIDENCE and $EVIDENCE-returnpath"

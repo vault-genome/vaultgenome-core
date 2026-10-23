@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package crypto
@@ -110,7 +111,7 @@ func TestGCM_SealOpen_RoundTrip(t *testing.T) {
 	aad := []byte("manifest-id|session-id")
 	pt := []byte("sealed component material")
 
-	nonce, ct, err := Seal(key, pt, aad, nil)
+	nonce, ct, err := Seal(key, pt, aad)
 	require.NoError(t, err)
 	require.Len(t, nonce, GCMNonceSize)
 	require.NotEqual(t, pt, ct)
@@ -126,7 +127,7 @@ func TestGCM_Open_TamperedCiphertextRejected(t *testing.T) {
 	t.Parallel()
 	key := bytes.Repeat([]byte{0xCC}, AES256KeySize)
 	pt := []byte("secret")
-	nonce, ct, err := Seal(key, pt, nil, nil)
+	nonce, ct, err := Seal(key, pt, nil)
 	require.NoError(t, err)
 
 	bad := append([]byte(nil), ct...)
@@ -139,7 +140,7 @@ func TestGCM_Open_TamperedCiphertextRejected(t *testing.T) {
 func TestGCM_Open_WrongAADRejected(t *testing.T) {
 	t.Parallel()
 	key := bytes.Repeat([]byte{0x11}, AES256KeySize)
-	nonce, ct, err := Seal(key, []byte("pt"), []byte("aad-1"), nil)
+	nonce, ct, err := Seal(key, []byte("pt"), []byte("aad-1"))
 	require.NoError(t, err)
 	_, err = Open(key, nonce, ct, []byte("aad-2"))
 	require.Error(t, err)
@@ -148,7 +149,7 @@ func TestGCM_Open_WrongAADRejected(t *testing.T) {
 
 func TestGCM_Seal_WrongKeyLength(t *testing.T) {
 	t.Parallel()
-	_, _, err := Seal([]byte{0x01}, []byte("pt"), nil, nil)
+	_, _, err := Seal([]byte{0x01}, []byte("pt"), nil)
 	require.Error(t, err)
 	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
 }
@@ -158,7 +159,7 @@ func TestGCM_NoncesAreDistinct(t *testing.T) {
 	key := bytes.Repeat([]byte{0x33}, AES256KeySize)
 	seen := map[string]struct{}{}
 	for i := 0; i < 64; i++ {
-		nonce, _, err := Seal(key, []byte("x"), nil, nil)
+		nonce, _, err := Seal(key, []byte("x"), nil)
 		require.NoError(t, err)
 		_, dup := seen[string(nonce)]
 		require.False(t, dup, "nonce reuse in 64 seals is a sign of a broken RNG")

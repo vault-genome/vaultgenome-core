@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # demo-genome.sh — narrated end-to-end demo of model continuity over real bytes.
@@ -86,10 +87,13 @@ run_silent() {
 }
 
 inference() {
-    local port=$1
+    local port=$1 reply
+    reply=$(mktemp)
     curl -s "http://127.0.0.1:${port}/api/generate" \
         -d "{\"model\":\"${MODEL}\",\"prompt\":$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$PROMPT"),\"stream\":false,\"options\":{\"seed\":42,\"temperature\":0}}" \
-        | python3 -c "import sys,json; r=json.load(sys.stdin); print(r.get('response',''))"
+        -o "$reply"
+    python3 -c "import sys,json; r=json.load(open(sys.argv[1])); print(r.get('response',''))" "$reply"
+    rm -f "$reply"
 }
 
 cleanup() {

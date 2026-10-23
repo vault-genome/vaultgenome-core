@@ -1,0 +1,7 @@
+tree f694ad7
+stamp 20261017T130102Z
+tee sev-snp
+zone us-central1-c
+firewall_rule vg-airgap-deny-egress-20261017t130102z
+tag vg-airgap-20261017t130102z
+release none

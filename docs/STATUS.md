@@ -81,6 +81,14 @@ Intel Xeon CPUs for the determinism measurements.
     their own stated reason — two of them *after* the standby's chip
     verified — and the one move went to the generation whose bytes matched
     the sentinel's word.
+  - The authority's own host taken away in the middle of a job
+    ([authority-loss](../scripts/hardware-test/authority-loss)): a fresh
+    SEV-SNP host became the same authority — the same keys sealed to its
+    chip, the same escrow key through the recovery ceremony, the audit
+    chain continued from the replica — first verdict **49–50 s** after
+    its runtime was in place, in all three runs (236 s, 237 s and 489 s
+    from the deletion with the host created on demand, the third on a
+    slow package mirror); the job in flight resubmitted.
 - **No secret file bare on a host** — the authority's escrow key is made in
   its own process and written only sealed to its chip
   ([ADR 0016](adr/0016-escrow-key-sealed-to-the-release-host.md)), or to the

@@ -1,0 +1,3 @@
+instance=vg-drill-gpu-20261015t043402z
+zone=us-east4-c
+machine=g2-standard-4

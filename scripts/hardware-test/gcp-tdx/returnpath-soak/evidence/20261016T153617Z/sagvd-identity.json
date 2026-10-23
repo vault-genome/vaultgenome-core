@@ -1,0 +1,22 @@
+{
+  "authority_kid": "sagvd-authority-e2e",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAEwXE2tvFdsBF+Gb6eM2HqreyknYQsHGo9C0wr0PkaCM=\n-----END PUBLIC KEY-----\n",
+  "tee_provider": "gcp-tdx",
+  "tee_measurement_hex": "7c09aa71575f3eeb556eb0ea924a674f1467cd73f60c9d8a8690ca2e79d903b03712a1bddcdaeb6de3db29c08d99e9ab",
+  "sealer": "tpm2",
+  "tdx": {
+    "mrtd_hex": "c1ee9c16e3afc506cfe042c5b846a368528f3b37618eafb27469bc114cf914e9222c91618470e7f2b28ac360968270a5",
+    "rtmr_hex": [
+      "7ad8ab28424100487607845f02ccf3845bc5a194f1ac1ac5eb00701a8cdee557fe63695bee1bfd7adb6c6204b23ddbac",
+      "500452a4a6031b3bd6eb006bb124ad0c3d713da72c1a8be43ac652e10c6d9f28d959e3ddcd59631033441160bcea2905",
+      "66078c505f9a35774eb39403e4edaab70e863b1013faccc9240fa3dd10750eb8193cc2daab31d1cfc4e11cf5743a3532",
+      "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    ]
+  },
+  "audit_kid": "sagvd-audit-e2e",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAj3oVH48V1/DCj2YKo8jfhgha90l5ACoo5DsRd7PRn1E=\n-----END PUBLIC KEY-----\n",
+  "policy_version": "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0",
+  "policy_profiles": [
+    "gate"
+  ]
+}

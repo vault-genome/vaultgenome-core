@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package equivalence
@@ -183,6 +184,9 @@ func compare(f Fixture, act Tensor, tol Tolerance) FixtureResult {
 	for i := range exp {
 		a, e := got[i], exp[i]
 		abs, rel := elemErr(a, e)
+		if abs == math.MaxFloat64 && r.Note == "" {
+			r.Note = "non-finite value differs"
+		}
 		if abs > r.MaxAbsErr {
 			r.MaxAbsErr = abs
 		}
@@ -202,7 +206,10 @@ func elemErr(a, e float64) (abs, rel float64) {
 		if a == e || (math.IsNaN(a) && math.IsNaN(e)) {
 			return 0, 0
 		}
-		return math.Inf(1), math.Inf(1)
+		// A non-finite value that differs is the largest error there is;
+		// reported as the largest finite float so the verdict stays
+		// encodable and signable (infinity has no JSON encoding).
+		return math.MaxFloat64, math.MaxFloat64
 	}
 	abs = math.Abs(a - e)
 	rel = abs / (math.Abs(e) + 1e-30)
@@ -281,27 +288,47 @@ func fixturesHash(fixtures []Fixture) string {
 
 // CanonicalBytes is the deterministic serialisation signed by the authority.
 func (v Verdict) CanonicalBytes() ([]byte, error) {
+	// Infinity and NaN have no JSON encoding; compare never produces them
+	// (a non-finite disagreement is reported as the largest finite error),
+	// so a verdict that carries one was not produced by Evaluate.
+	if !finite(v.MaxAbsErr) || !finite(v.MaxRelErr) {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "equivalence: verdict carries a non-finite error", nil)
+	}
+	for _, r := range v.Results {
+		if !finite(r.MaxAbsErr) || !finite(r.MaxRelErr) {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "equivalence: result "+r.ID+" carries a non-finite error", nil)
+		}
+	}
 	return json.Marshal(v)
 }
+
+func finite(x float64) bool { return !math.IsNaN(x) && !math.IsInf(x, 0) }
 
 // SignedVerdict binds a verdict to an Ed25519 signature by the release authority.
 type SignedVerdict struct {
 	Verdict   Verdict `json:"verdict"`
 	Signature []byte  `json:"signature"`
-	SignerPub []byte  `json:"signer_pub"`
+	// SignerPub is the raw public key of the signer under Alg.
+	SignerPub []byte `json:"signer_pub"`
+	// Alg is the signature suite the verdict was signed under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
 }
 
 // Sign produces a SignedVerdict over the canonical bytes of v.
-func Sign(v Verdict, pub crypto.PublicKey, priv crypto.PrivateKey) (SignedVerdict, error) {
+func Sign(v Verdict, key *crypto.SigningKey) (SignedVerdict, error) {
+	if key == nil {
+		return SignedVerdict{}, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "equivalence: signing key required", nil)
+	}
 	msg, err := v.CanonicalBytes()
 	if err != nil {
 		return SignedVerdict{}, err
 	}
-	sig, err := crypto.Sign(priv, msg)
+	sig, err := key.Sign(msg)
 	if err != nil {
 		return SignedVerdict{}, err
 	}
-	return SignedVerdict{Verdict: v, Signature: sig, SignerPub: append([]byte(nil), pub...)}, nil
+	return SignedVerdict{Verdict: v, Signature: sig, SignerPub: key.PublicKeyBytes(), Alg: crypto.RecordAlg(key.Suite())}, nil
 }
 
 // VerifySigned recomputes the canonical bytes and verifies the signature.
@@ -310,7 +337,11 @@ func VerifySigned(sv SignedVerdict) error {
 	if err != nil {
 		return err
 	}
-	if err := crypto.Verify(crypto.PublicKey(sv.SignerPub), msg, sv.Signature); err != nil {
+	suite, err := crypto.RecordSuite(sv.Alg)
+	if err != nil {
+		return err
+	}
+	if err := crypto.VerifySuite(suite, sv.SignerPub, msg, sv.Signature); err != nil {
 		return shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "equivalence: verdict signature invalid", err)
 	}
 	return nil

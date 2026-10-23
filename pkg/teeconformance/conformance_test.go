@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package teeconformance_test
@@ -16,7 +17,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/binary"
@@ -149,16 +149,14 @@ func (s *refSealer) Seal(plaintext, aad []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	aead, err := cipher.NewGCM(block)
+	// The module generates the 96-bit nonce and writes it in front of
+	// the ciphertext (ADR 0030): the same shape the explicit-nonce sealer
+	// of earlier releases produced.
+	aead, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
 		return nil, err
 	}
-	nonce := make([]byte, aead.NonceSize())
-	if _, err := rand.Read(nonce); err != nil {
-		return nil, err
-	}
-	ct := aead.Seal(nil, nonce, plaintext, aad)
-	return append(nonce, ct...), nil
+	return aead.Seal(nil, nil, plaintext, aad), nil
 }
 
 func (s *refSealer) Unseal(sealed, aad []byte) ([]byte, error) {
@@ -166,16 +164,14 @@ func (s *refSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	aead, err := cipher.NewGCM(block)
+	aead, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
 		return nil, err
 	}
-	if len(sealed) < aead.NonceSize() {
+	if len(sealed) < aead.Overhead() {
 		return nil, errors.New("ref: sealed truncated")
 	}
-	nonce := sealed[:aead.NonceSize()]
-	ct := sealed[aead.NonceSize():]
-	return aead.Open(nil, nonce, ct, aad)
+	return aead.Open(nil, nil, sealed, aad)
 }
 
 // ---- conformance harness invocation ---------------------------------------

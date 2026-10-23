@@ -1,0 +1,49 @@
+{"time":"2026-10-15T02:58:16.435969683Z","level":"INFO","msg":"failover escrow key","escrow_key":"6fa99f703622a7b7","storage":"sealed:gcp-sev-snp"}
+{"time":"2026-10-15T02:58:16.458380276Z","level":"INFO","msg":"failover armed","policy_serial":3,"sentinel":"sentinel-3cb9a100304cd567","primary_tee":"gcp-sev-snp 69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790","stopped_grace_seconds":0,"standby":"gcp-sev-snp https://127.0.0.1:8443","outbox":"/root/replica"}
+{"time":"2026-10-15T02:58:16.462416664Z","level":"WARN","msg":"failover triggered","trigger":"compromise-report","at":"2026-10-15T02:57:45.445312994Z"}
+{"time":"2026-10-15T02:58:26.740446559Z","level":"WARN","msg":"failover declined","policy_serial":3,"sentinel":"sentinel-3cb9a100304cd567","reason":"no genome in the verified chain was sealed by 2026-10-14T02:57:45.445312994Z and checks out"}
+{
+  "status": "declined",
+  "policy_serial": 3,
+  "policy_sha256": "5ff405ae8dff3b538000beba69c3dd1c2aefedfa0022f5e55b5120e0bc660514",
+  "sentinel": "sentinel-3cb9a100304cd567",
+  "trigger": {
+    "kind": "compromise-report",
+    "at": "2026-10-15T02:57:45.445312994Z",
+    "observed_at": "2026-10-15T02:58:16.458417146Z",
+    "evidence_sha256": "e64ab1ff4f2d483472442c18e73ad998fc6f57326f6bf1bf7339eb1da71fda92",
+    "primary_measurement_hex": "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790",
+    "tripped": [
+      {
+        "wire": "path",
+        "target": "/root/canary",
+        "want": "e91a347f5d68f56c7ab031b9dcbed288f4cb929c401c315c1d270e3ba7fcda7d",
+        "got": "45bb370196d1e59e368ab5f98cd6e27353963d8607d93e47e13bb418db172170"
+      }
+    ],
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "c4d3ab9b86c2fff3cba7ab4fd32147cc337590c3f76497682de5affccebf917b",
+      "sealed_at": "2026-10-15T02:57:36.447459559Z"
+    }
+  },
+  "decision": {
+    "decision": "declined",
+    "reason": "no genome in the verified chain was sealed by 2026-10-14T02:57:45.445312994Z and checks out",
+    "audit_id": "xcc-evt-0000000000000003",
+    "decided_at": "2026-10-15T02:58:26.73706827Z"
+  },
+  "set_aside": [
+    {
+      "file": "gen-000001.seal.json",
+      "reason": "sealed at 2026-10-15T02:57:36.447459559Z, after the cutoff 2026-10-14T02:57:45.445312994Z"
+    },
+    {
+      "file": "gen-000000.seal.json",
+      "reason": "sealed at 2026-10-15T02:53:18.448567297Z, after the cutoff 2026-10-14T02:57:45.445312994Z"
+    }
+  ],
+  "audit_chain_length": 3,
+  "audit_tip": "a609994a6577633f125c1a73bd7ce5bc7acb25a98403cf9f3b32726b15288105",
+  "operator_stop_serial": 1
+}

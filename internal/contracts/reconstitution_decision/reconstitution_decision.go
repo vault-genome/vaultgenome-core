@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Package reconstitution_decision defines the ReconstitutionDecision
@@ -45,6 +46,7 @@ package reconstitution_decision
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
@@ -116,7 +118,10 @@ type ReconstitutionDecision struct {
 	DecidedAt time.Time `json:"decided_at"`
 
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
-	Signature    []byte    `json:"signature"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature"`
 
 	// AuditEventID points at the RECONSTITUTION_DECIDED audit event
 	// that immutably records this decision in the receive-side audit

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tee
@@ -124,7 +125,7 @@ func (s *Simulated) Quote(nonce Nonce) (Evidence, error) {
 // Seal implements Sealer. AAD binds sealed material to external context
 // (session, manifest, component identity).
 func (s *Simulated) Seal(plaintext, aad []byte) ([]byte, error) {
-	nonce, ct, err := crypto.Seal(s.sealingKey, plaintext, aad, nil)
+	nonce, ct, err := crypto.Seal(s.sealingKey, plaintext, aad)
 	if err != nil {
 		return nil, err
 	}

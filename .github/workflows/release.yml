@@ -1,7 +1,7 @@
 # AI Continuity Platform — release workflow
 #
 # Triggered by a signed semver tag matching v*. Produces:
-#   - four binaries (sagvd, acp-compute, acpctl, acp-bootstrap), built
+#   - five binaries (sagvd, acp-compute, acpctl, acp-bootstrap, acp-keygen), built
 #     reproducibly,
 #   - an SBOM per artifact (syft, SPDX-JSON),
 #   - cosign keyless signatures + transparency-log entries,
@@ -17,18 +17,26 @@ on:
     tags:
       - 'v*.*.*'
 
+# The workflow's own token is read-only; each job names the write
+# permissions it needs (Scorecard Token-Permissions reads the top level).
 permissions:
-  contents: write       # publish release assets
-  id-token: write       # keyless cosign + SLSA OIDC
-  packages: read
-  actions: read
+  contents: read
 
 jobs:
   build-and-sign:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write       # publish release assets (gh release create / upload)
+      id-token: write       # keyless cosign
+      packages: read
+      actions: read
     env:
-      RELEASE_BINARIES: sagvd acp-compute acpctl acp-bootstrap
+      RELEASE_BINARIES: sagvd acp-compute acpctl acp-bootstrap acp-keygen
+      # The same five on the certified Go Cryptographic Module (ADR 0030),
+      # named by the module version, never an alias.
+      RELEASE_BINARIES_FIPS: sagvd-fips acp-compute-fips acpctl-fips acp-bootstrap-fips acp-keygen-fips
+      FIPS_MODULE: v1.0.0
     defaults:
       run:
         working-directory: .
@@ -69,7 +77,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.0'
+          go-version: '1.27.3'
           cache: true
           cache-dependency-path: go.sum
 
@@ -80,53 +88,134 @@ jobs:
         run: |
           # SOURCE_DATE_EPOCH = the tagged commit's timestamp, so anything
           # in the build chain that consults it produces deterministic output.
-          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
-          make build
-          make verify-reproducible
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"; export SOURCE_DATE_EPOCH
+          make build build-fips FIPS_MODULE="$FIPS_MODULE"
+          make verify-reproducible FIPS_MODULE="$FIPS_MODULE"
+          # The -fips binaries name the module they were built on, in their
+          # build settings and in their version line.
+          for b in $RELEASE_BINARIES_FIPS; do
+            go version -m "bin/$b" | grep -E '^\s*build\s+GOFIPS140=' | grep -q "GOFIPS140=${FIPS_MODULE}" || { echo "$b: not built on GOFIPS140=${FIPS_MODULE}"; exit 1; }
+          done
+          line="$(./bin/sagvd-fips version)"; echo "$line"
+          case "$line" in *"fips140=on module=${FIPS_MODULE} "*) ;; *) echo "sagvd-fips does not report the module"; exit 1;; esac
+
+      # The worker package: workers/genome (vg_genome, its locks, the
+      # examples) as one reproducible tarball — sorted names, the tagged
+      # commit's time as every mtime, numeric owner 0, gzip without its
+      # timestamp — packed twice and compared, then signed and attested
+      # with the binaries. Until 0.4.2 a deployment took it from the
+      # tag's source tree.
+      - name: Pack the worker package (reproducible)
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"; export SOURCE_DATE_EPOCH
+          mkdir -p dist
+          pack() {
+            tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" --owner=0 --group=0 --numeric-owner \
+                --exclude='__pycache__' --exclude='.pytest_cache' \
+                -C workers -cf - genome | gzip -n > "$1"
+          }
+          pack "dist/genome-worker-${VERSION}.tar.gz"
+          pack "/tmp/genome-worker-again.tar.gz"
+          cmp "dist/genome-worker-${VERSION}.tar.gz" /tmp/genome-worker-again.tar.gz
+          sha256sum "dist/genome-worker-${VERSION}.tar.gz"
 
       - name: Install syft
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+        id: syft
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          syft-version: v1.54.1
+      - name: Put syft on PATH
+        run: sudo ln -sf "${{ steps.syft.outputs.cmd }}" /usr/local/bin/syft
 
       - name: SBOM per artifact
+        env:
+          VERSION: ${{ github.ref_name }}
         run: |
           mkdir -p dist
-          for b in $RELEASE_BINARIES; do
+          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS; do
             syft "bin/$b" -o spdx-json="dist/${b}.sbom.spdx.json"
           done
+          syft "dir:workers/genome" -o spdx-json="dist/genome-worker-${VERSION}.sbom.spdx.json"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           # cosign 3 signs a blob into one Sigstore bundle by default and ignores
           # --output-signature / --output-certificate; the 0.3.0 run failed on it
-          # after the installer moved to v4. The release's assets and every
-          # documented verification command are the .sig + .cert pair, so the
-          # pin stays until the move to bundles is made together with the
-          # documents that describe verification (KNOWN_ISSUES #15).
+          # after the installer moved to v4. Pinned to 2.6.5: every asset gets
+          # the .sig + .cert pair the documents of earlier releases verify
+          # with, and beside it the Sigstore bundle (<asset>.sigstore.json,
+          # the new bundle format: signature, certificate and the Rekor
+          # entry in one file) that `cosign verify-blob --new-bundle-format
+          # --bundle … --trusted-root trusted_root.json` checks with no route
+          # at all — what an air-gapped site needs (KNOWN_ISSUES #15).
+          # Measured on 2.6.5: `--offline` is not that; it still reaches for
+          # the TUF mirror and fails without a route.
           cosign-release: 'v2.6.5'
 
-      - name: Sign binaries (keyless)
+      - name: Sign binaries and the worker package (keyless)
+        env:
+          VERSION: ${{ github.ref_name }}
         run: |
-          for b in $RELEASE_BINARIES; do
-            cosign sign-blob --yes "bin/$b" \
+          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS; do
+            cosign sign-blob --yes --new-bundle-format "bin/$b" \
               --output-signature "dist/${b}.sig" \
-              --output-certificate "dist/${b}.cert"
+              --output-certificate "dist/${b}.cert" \
+              --bundle "dist/${b}.sigstore.json"
           done
+          cosign sign-blob --yes --new-bundle-format "dist/genome-worker-${VERSION}.tar.gz" \
+            --output-signature "dist/genome-worker-${VERSION}.tar.gz.sig" \
+            --output-certificate "dist/genome-worker-${VERSION}.tar.gz.cert" \
+            --bundle "dist/genome-worker-${VERSION}.tar.gz.sigstore.json"
 
       - name: Sign SBOMs (keyless)
+        env:
+          VERSION: ${{ github.ref_name }}
         run: |
-          for b in $RELEASE_BINARIES; do
-            cosign sign-blob --yes "dist/${b}.sbom.spdx.json" \
+          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS; do
+            cosign sign-blob --yes --new-bundle-format "dist/${b}.sbom.spdx.json" \
               --output-signature "dist/${b}.sbom.sig" \
-              --output-certificate "dist/${b}.sbom.cert"
+              --output-certificate "dist/${b}.sbom.cert" \
+              --bundle "dist/${b}.sbom.sigstore.json"
           done
+          cosign sign-blob --yes --new-bundle-format "dist/genome-worker-${VERSION}.sbom.spdx.json" \
+            --output-signature "dist/genome-worker-${VERSION}.sbom.sig" \
+            --output-certificate "dist/genome-worker-${VERSION}.sbom.cert" \
+            --bundle "dist/genome-worker-${VERSION}.sbom.sigstore.json"
+
+      # The image job builds on another runner: it takes these exact bytes,
+      # with their Sigstore bundles, and verifies them before packing.
+      - name: Keep the signed binaries for the image job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-binaries
+          path: |
+            bin/sagvd
+            bin/acp-compute
+            bin/sagvd-fips
+            bin/acp-compute-fips
+            dist/sagvd.sigstore.json
+            dist/acp-compute.sigstore.json
+            dist/sagvd-fips.sigstore.json
+            dist/acp-compute-fips.sigstore.json
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Emit hashes for SLSA provenance
         id: hash
+        env:
+          VERSION: ${{ github.ref_name }}
         run: |
-          cd bin
-          HASHES=$(sha256sum $RELEASE_BINARIES | base64 -w0)
+          # The subjects are the ten binaries (five and their -fips variants)
+          # and the worker package, by the names they are uploaded under.
+          mkdir -p subjects
+          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS; do cp "bin/$b" subjects/; done
+          cp "dist/genome-worker-${VERSION}.tar.gz" subjects/
+          cd subjects
+          # shellcheck disable=SC2086
+          HASHES=$(sha256sum $RELEASE_BINARIES $RELEASE_BINARIES_FIPS "genome-worker-${VERSION}.tar.gz" | base64 -w0)
           echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
 
       # Uploaded one at a time, by gh, on purpose. The action that used to do
@@ -147,8 +236,9 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 \
             || gh release create "$TAG" --title "$TAG" --notes "See CHANGELOG.md for $TAG." --draft=false
           uploaded=0
-          for f in bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap \
-                   dist/*.sbom.spdx.json dist/*.sig dist/*.cert; do
+          for f in bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen \
+                   bin/sagvd-fips bin/acp-compute-fips bin/acpctl-fips bin/acp-bootstrap-fips bin/acp-keygen-fips \
+                   dist/genome-worker-*.tar.gz dist/*.sbom.spdx.json dist/*.sig dist/*.cert dist/*.sigstore.json; do
             [ -f "$f" ] || { echo "missing artifact: $f"; exit 1; }
             for attempt in 1 2 3; do
               if gh release upload "$TAG" "$f" --clobber; then
@@ -159,8 +249,10 @@ jobs:
             done
           done
           echo "uploaded $uploaded assets"
-          # 4 binaries + 4 SBOMs + 8 signatures + 8 certificates
-          [ "$uploaded" -eq 24 ] || { echo "expected 24 assets, uploaded $uploaded"; exit 1; }
+          # 5 binaries + their 5 -fips variants + the worker package = 11
+          # artifacts, each with an SBOM, and for each of those twenty-two
+          # files a signature, a certificate and a Sigstore bundle: 88 assets
+          [ "$uploaded" -eq 88 ] || { echo "expected 88 assets, uploaded $uploaded"; exit 1; }
 
   slsa-provenance:
     needs: [build-and-sign]
@@ -172,3 +264,236 @@ jobs:
     with:
       base64-subjects: ${{ needs.build-and-sign.outputs.hashes }}
       upload-assets: true
+
+  # The four container images of the release: sagvd on distroless static,
+  # acp-compute on python-slim with the worker's hash-locked runtime
+  # (deploy/image/*/Dockerfile), and sagvd-fips and acp-compute-fips —
+  # the same Dockerfiles over the -fips binaries (ADR 0030), the binary
+  # at the same path inside, so a -fips image is a drop-in. Nothing is
+  # compiled here: the binaries are the ones build-and-sign produced,
+  # verified against their Sigstore bundles before they are packed, so
+  # the image carries the bytes the release assets carry. Each image is
+  # pushed by digest, signed keyless by digest, given an SBOM attestation,
+  # and named with its digest in images-<tag>.txt among the release
+  # assets; slsa-images attests how each was built.
+  images:
+    needs: [build-and-sign]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write       # images-<tag>.txt as a release asset
+      packages: write       # ghcr.io
+      id-token: write       # keyless cosign
+    outputs:
+      sagvd_digest: ${{ steps.sagvd.outputs.digest }}
+      worker_digest: ${{ steps.worker.outputs.digest }}
+      sagvd_fips_digest: ${{ steps.sagvd_fips.outputs.digest }}
+      worker_fips_digest: ${{ steps.worker_fips.outputs.digest }}
+    env:
+      REGISTRY: ghcr.io
+      OWNER: ${{ github.repository_owner }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The signed binaries from the build job
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-binaries
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v2.6.5'
+
+      # The artifact is this workflow's own, but the check costs nothing
+      # and makes the image job stand on the signatures, not on the
+      # artifact store: each binary must verify under this workflow's
+      # identity on this tag before it is packed.
+      - name: The binaries are the signed ones
+        run: |
+          set -euo pipefail
+          for b in sagvd acp-compute sagvd-fips acp-compute-fips; do
+            cosign verify-blob --new-bundle-format --bundle "dist/${b}.sigstore.json" \
+              --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${TAG}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              "bin/${b}"
+          done
+          chmod 0755 bin/sagvd bin/acp-compute bin/sagvd-fips bin/acp-compute-fips
+          sha256sum bin/sagvd bin/acp-compute bin/sagvd-fips bin/acp-compute-fips
+
+      # The repository's .dockerignore excludes bin/, so the root cannot be a
+      # build context that carries a binary: each image gets a staged
+      # context of its own under dist/image-context/ — the verified binary,
+      # and for the worker the package's locks and code.
+      - name: Stage the image contexts
+        run: |
+          set -euo pipefail
+          mkdir -p dist/image-context/sagvd dist/image-context/acp-compute/genome \
+                   dist/image-context/sagvd-fips dist/image-context/acp-compute-fips/genome
+          cp bin/sagvd dist/image-context/sagvd/sagvd
+          cp bin/acp-compute dist/image-context/acp-compute/acp-compute
+          # The -fips contexts carry the -fips binary under the binary's own
+          # name: the Dockerfile and the path inside the image are the same.
+          cp bin/sagvd-fips dist/image-context/sagvd-fips/sagvd
+          cp bin/acp-compute-fips dist/image-context/acp-compute-fips/acp-compute
+          for ctx in acp-compute acp-compute-fips; do
+            cp workers/genome/requirements-ci.lock workers/genome/requirements-torch-cpu.lock "dist/image-context/$ctx/genome/"
+            cp -R workers/genome/vg_genome "dist/image-context/$ctx/genome/vg_genome"
+          done
+          find dist/image-context -name '__pycache__' -prune -exec rm -rf {} +
+          find dist/image-context -type f | sort | xargs sha256sum
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # provenance and sbom off: buildx would otherwise push an attestation
+      # manifest list and the digest would name that list, not the image;
+      # the provenance comes from slsa-images and the SBOM from cosign attest.
+      - name: Build and push sagvd
+        id: sagvd
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: dist/image-context/sagvd
+          file: deploy/image/sagvd/Dockerfile
+          push: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ github.repository_owner }}/sagvd:${{ github.ref_name }}
+
+      - name: Build and push acp-compute
+        id: worker
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: dist/image-context/acp-compute
+          file: deploy/image/acp-compute/Dockerfile
+          push: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ github.repository_owner }}/acp-compute:${{ github.ref_name }}
+
+      - name: Build and push sagvd-fips
+        id: sagvd_fips
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: dist/image-context/sagvd-fips
+          file: deploy/image/sagvd/Dockerfile
+          push: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ github.repository_owner }}/sagvd-fips:${{ github.ref_name }}
+
+      - name: Build and push acp-compute-fips
+        id: worker_fips
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: dist/image-context/acp-compute-fips
+          file: deploy/image/acp-compute/Dockerfile
+          push: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ github.repository_owner }}/acp-compute-fips:${{ github.ref_name }}
+
+      - name: Sign the images (keyless, by digest)
+        env:
+          SAGVD_DIGEST: ${{ steps.sagvd.outputs.digest }}
+          WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
+          SAGVD_FIPS_DIGEST: ${{ steps.sagvd_fips.outputs.digest }}
+          WORKER_FIPS_DIGEST: ${{ steps.worker_fips.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${REGISTRY}/${OWNER}/sagvd@${SAGVD_DIGEST}"
+          cosign sign --yes "${REGISTRY}/${OWNER}/acp-compute@${WORKER_DIGEST}"
+          cosign sign --yes "${REGISTRY}/${OWNER}/sagvd-fips@${SAGVD_FIPS_DIGEST}"
+          cosign sign --yes "${REGISTRY}/${OWNER}/acp-compute-fips@${WORKER_FIPS_DIGEST}"
+
+      - name: Install syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          syft-version: v1.54.1
+
+      - name: SBOM per image, attested to the image
+        env:
+          SAGVD_DIGEST: ${{ steps.sagvd.outputs.digest }}
+          WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
+          SAGVD_FIPS_DIGEST: ${{ steps.sagvd_fips.outputs.digest }}
+          WORKER_FIPS_DIGEST: ${{ steps.worker_fips.outputs.digest }}
+        run: |
+          set -euo pipefail
+          SYFT="${{ steps.syft.outputs.cmd }}"
+          mkdir -p dist
+          for pair in "sagvd:${SAGVD_DIGEST}" "acp-compute:${WORKER_DIGEST}" "sagvd-fips:${SAGVD_FIPS_DIGEST}" "acp-compute-fips:${WORKER_FIPS_DIGEST}"; do
+            name="${pair%%:*}"; digest="${pair#*:}"
+            "$SYFT" "registry:${REGISTRY}/${OWNER}/${name}@${digest}" -o spdx-json="dist/${name}.image.sbom.spdx.json"
+            cosign attest --yes --type spdxjson --predicate "dist/${name}.image.sbom.spdx.json" "${REGISTRY}/${OWNER}/${name}@${digest}"
+          done
+
+      # One small asset names the images by digest, so a deployment that
+      # starts from the release page pulls exactly what was signed; its
+      # Sigstore bundle verifies offline like the others'.
+      - name: Record the digests as a release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SAGVD_DIGEST: ${{ steps.sagvd.outputs.digest }}
+          WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
+          SAGVD_FIPS_DIGEST: ${{ steps.sagvd_fips.outputs.digest }}
+          WORKER_FIPS_DIGEST: ${{ steps.worker_fips.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          {
+            echo "${REGISTRY}/${OWNER}/sagvd@${SAGVD_DIGEST}"
+            echo "${REGISTRY}/${OWNER}/acp-compute@${WORKER_DIGEST}"
+            echo "${REGISTRY}/${OWNER}/sagvd-fips@${SAGVD_FIPS_DIGEST}"
+            echo "${REGISTRY}/${OWNER}/acp-compute-fips@${WORKER_FIPS_DIGEST}"
+          } > "dist/images-${TAG}.txt"
+          cosign sign-blob --yes --new-bundle-format "dist/images-${TAG}.txt" \
+            --output-signature "dist/images-${TAG}.txt.sig" \
+            --output-certificate "dist/images-${TAG}.txt.cert" \
+            --bundle "dist/images-${TAG}.txt.sigstore.json"
+          for f in "dist/images-${TAG}.txt" "dist/images-${TAG}.txt.sig" "dist/images-${TAG}.txt.cert" "dist/images-${TAG}.txt.sigstore.json" \
+                   dist/sagvd.image.sbom.spdx.json dist/acp-compute.image.sbom.spdx.json \
+                   dist/sagvd-fips.image.sbom.spdx.json dist/acp-compute-fips.image.sbom.spdx.json; do
+            for attempt in 1 2 3; do
+              if gh release upload "$TAG" "$f" --clobber; then break; fi
+              [ "$attempt" = 3 ] && { echo "failed to upload $f after 3 attempts"; exit 1; }
+              sleep $((attempt * 5))
+            done
+          done
+          cat "dist/images-${TAG}.txt"
+
+  slsa-images:
+    needs: [images]
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: sagvd
+            digest: ${{ needs.images.outputs.sagvd_digest }}
+          - image: acp-compute
+            digest: ${{ needs.images.outputs.worker_digest }}
+          - image: sagvd-fips
+            digest: ${{ needs.images.outputs.sagvd_fips_digest }}
+          - image: acp-compute-fips
+            digest: ${{ needs.images.outputs.worker_fips_digest }}
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0   # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag -- the SLSA generator must be referenced by tag: slsa-verifier checks the builder id against the tag, and a hash-pinned reference does not verify
+    with:
+      image: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+      digest: ${{ matrix.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}

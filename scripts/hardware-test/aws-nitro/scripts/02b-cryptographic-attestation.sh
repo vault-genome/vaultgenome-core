@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # 02b-cryptographic-attestation.sh — verify the AWS Nitro Enclaves
@@ -46,33 +47,31 @@ done
 echo
 echo "=== Step 1 — fetch AWS Nitro Root CA ==="
 mkdir -p 06-certificates
+# Two published values, checked separately (02c-fetch-nitro-root-ca.sh is
+# the same check as a script of its own): the archive's SHA-256 from
+# https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html and the
+# root certificate's SHA-256 fingerprint. An earlier revision compared the
+# archive's hash with the certificate's fingerprint and only warned.
 ROOT_CA_URL="https://aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip"
-ROOT_CA_SHA256_EXPECTED="641a0321a3e244efe456463195d606317ed7cdcc3c1756e09893f3c68f79bb5b"
+ROOT_CA_ZIP_SHA256="8cf60e2b2efca96c6a9e71e851d00c1b6991cc09eadbe64a6a1d1b1eb9faff7c"
+ROOT_CA_CERT_FINGERPRINT="641a0321a3e244efe456463195d606317ed7cdcc3c1756e09893f3c68f79bb5b"
 
 if [ ! -f 06-certificates/aws-nitro-root.pem ]; then
   curl -fsSL "$ROOT_CA_URL" -o 06-certificates/aws-nitro-root.zip
-  cd 06-certificates
-  ACTUAL_SHA=$(sha256sum aws-nitro-root.zip | awk '{print $1}')
-  if [ "$ACTUAL_SHA" != "$ROOT_CA_SHA256_EXPECTED" ]; then
-    echo "WARNING: Root CA zip SHA256 mismatch."
-    echo "  expected: $ROOT_CA_SHA256_EXPECTED"
-    echo "  actual:   $ACTUAL_SHA"
-    echo "AWS may have rotated the root cert. See https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html"
+  echo "${ROOT_CA_ZIP_SHA256}  06-certificates/aws-nitro-root.zip" | sha256sum -c -
+  python3 -c 'import zipfile,sys; z=zipfile.ZipFile("06-certificates/aws-nitro-root.zip"); n=[i for i in z.namelist() if i.endswith("root.pem")]; assert len(n)==1, z.namelist(); open("06-certificates/aws-nitro-root.pem","wb").write(z.read(n[0]))'
+  ACTUAL_FP=$(openssl x509 -in 06-certificates/aws-nitro-root.pem -noout -fingerprint -sha256 | sed 's/^.*=//; s/://g' | tr 'A-F' 'a-f')
+  if [ "$ACTUAL_FP" != "$ROOT_CA_CERT_FINGERPRINT" ]; then
+    echo "ERROR: root certificate fingerprint $ACTUAL_FP, expected $ROOT_CA_CERT_FINGERPRINT"
+    exit 1
   fi
-  unzip -o aws-nitro-root.zip
-  # The zip contains root.pem
-  if [ -f root.pem ]; then
-    mv root.pem aws-nitro-root.pem
-  fi
-  cd "$EVIDENCE_DIR"
 fi
 ls -la 06-certificates/
 
 echo
 echo "=== Step 2 — parse attestation document + extract cabundle + leaf cert ==="
-# We use acpctl's built-in verifier if available; otherwise fall back to
-# a Python-based parser. The acpctl path is preferred because it's the
-# same code that runs in production sagvd.
+# acpctl's built-in verifier — the same code that runs in production sagvd.
+# There is no other path: the kit does not install an unpinned Python verifier.
 if command -v acpctl >/dev/null 2>&1 || \
    [ -x /usr/local/bin/acpctl ] || \
    [ -x "$HOME/go/bin/acpctl" ]; then
@@ -88,51 +87,8 @@ if command -v acpctl >/dev/null 2>&1 || \
     --json-out 09-verify-attestation.json \
     | tee 08-verify-certs.txt
 else
-  # Python fallback path. Requires: python3, pycryptodome, cbor2, cose.
-  echo "acpctl not found, attempting Python-based verification..."
-  pip3 install --quiet --user cbor2 pycryptodome cose 2>/dev/null || true
-  python3 - <<'PYEOF' | tee 08-verify-certs.txt
-import sys, base64, json
-try:
-    import cbor2
-    from cose.messages import Sign1Message
-    from cose.keys import EC2Key
-except ImportError:
-    print("ERROR: missing python deps. pip3 install cbor2 pycryptodome cose")
-    sys.exit(1)
-
-with open("04-attestation-document.bin", "rb") as f:
-    raw = f.read()
-print(f"Attestation document size: {len(raw)} bytes")
-
-# COSE_Sign1 is the outer envelope
-msg = Sign1Message.decode(raw)
-payload = cbor2.loads(msg.payload)
-print(f"Module ID:    {payload.get('module_id')}")
-print(f"Digest:       {payload.get('digest')}")
-print(f"Timestamp:    {payload.get('timestamp')}")
-print(f"PCRs (count): {len(payload.get('pcrs', {}))}")
-for k, v in sorted(payload.get('pcrs', {}).items())[:3]:
-    print(f"  PCR{k}: {v.hex()[:48]}...")
-print(f"Public Key:   {payload.get('public_key')}")
-print(f"User Data:    {payload.get('user_data', b'').hex()[:48]}...")
-print(f"Nonce:        {payload.get('nonce')}")
-print(f"Cabundle len: {len(payload.get('cabundle', []))} certs")
-
-# Save extracted fields for downstream verification scripts
-with open("08-verify-attestation-parsed.json", "w") as f:
-    json.dump({
-        "module_id": payload.get("module_id"),
-        "timestamp": payload.get("timestamp"),
-        "pcr0": payload.get("pcrs", {}).get(0, b"").hex(),
-        "pcr1": payload.get("pcrs", {}).get(1, b"").hex(),
-        "pcr2": payload.get("pcrs", {}).get(2, b"").hex(),
-        "user_data": payload.get("user_data", b"").hex(),
-        "cabundle_count": len(payload.get("cabundle", []))
-    }, f, indent=2)
-
-print("\n=== parsed fields written to 08-verify-attestation-parsed.json ===")
-PYEOF
+  echo "ERROR: acpctl not found — 01-bootstrap-vm.sh installs it; the kit has no other verifier"
+  exit 1
 fi
 
 echo

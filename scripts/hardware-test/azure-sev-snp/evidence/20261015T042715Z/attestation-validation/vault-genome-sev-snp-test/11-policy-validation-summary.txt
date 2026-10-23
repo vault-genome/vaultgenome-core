@@ -1,0 +1,26 @@
+Vault Genome SEV-SNP Attestation Validation — Azure vault-genome-sev-snp-test
+=================================================
+
+Date (UTC): 2026-10-15T04:37:20Z
+VM:         vault-genome-sev-snp-test (Azure westeurope, zone , Standard_DC4as_v5)
+Tool:       snpguest 0.10.0
+Chip:       AMD EPYC Genoa (SEV-SNP)
+
+POLICY CHECKS
+✓ Report from the vTPM's HCL report (Azure paravisor, NV 0x1400001; real silicon)
+✓ Cert chain valid (ARK self-signed → ASK signed by ARK → VCEK signed by ASK)
+✓ VEK signed attestation report
+✓ TCB values match (cert ↔ report) — Microcode/SNP/TEE/Boot Loader
+✓ Chip ID matches (cert ↔ report)
+✓ REPORT_DATA = SHA-256(vTPM runtime data) || 0^32 — Azure's binding, checked
+✓ VCEK from Azure THIM: same key and chip id as AMD KDS's, chains to the same ARK
+✓ Workload manifest bound through the vTPM: the attestation key the report's
+  runtime data names (HCLAkPub) signed a quote whose qualifying data is
+  SHA-256(manifest) (14-manifest-quote.*, checked by tpm2_checkquote);
+  the manifest names what Demo 1 sealed, as measured
+
+RESULT: AMD CHAIN VALIDATION PASSED
+
+NOTE: Run 02f-capture-maa-jwt.sh additionally to capture the Microsoft
+MAA JWT — Azure's independent 2nd verifier. Both chains together produce
+production_grade: true.

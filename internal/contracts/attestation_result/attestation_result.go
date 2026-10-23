@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Package attestation_result defines the AttestationResult canonical
@@ -16,6 +17,7 @@ package attestation_result
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
@@ -52,5 +54,8 @@ type AttestationResult struct {
 	TTL      time.Duration `json:"ttl"`
 
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
-	Signature    []byte    `json:"signature"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature"`
 }

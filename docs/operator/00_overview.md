@@ -13,7 +13,7 @@ the shipped binaries run today.*
 
 | Binary | What it does | Built by `make build` |
 | - | - | - |
-| `sagvd` (daemon) | Return Path listener for `acp-compute` workers (mTLS required off loopback); operator REST API (`POST /v1/jobs` names a sealed genome in `genome.bundle_dir`, `GET /v1/jobs/{id}` shows the gate's signed verdict); health listener (`/healthz`, `/readyz`, `/metrics`). Attests with AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`) or the simulated TEE. Writes every decision about a job to its signed audit log (`audit.log_path`, ADR 0014). | yes |
+| `sagvd` (daemon) | Return Path listener for `acp-compute` workers (mTLS required off loopback); operator REST API (`POST /v1/jobs` names a sealed genome in `genome.bundle_dir`, `GET /v1/jobs/{id}` shows the gate's signed verdict); health listener (`/healthz`, `/readyz`, `/metrics`). Attests with AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`) or the simulated TEE. Writes every decision about a job to its signed audit log (`audit.log_path`, ADR 0014) and keeps its accepted jobs on disk (`queue.path`, ADR 0026), so a restart admits again what was queued or in flight. | yes |
 | `sagvd identity`, `sagvd crosscloud-restore`, `sagvd crosscloud-confirm`, `sagvd failover` | Print the keys other hosts pin; release genome keys to an attested destination and confirm its restore ([06](06_cross_cloud_restore.md)); carry out the operator's failover policy when the primary is compromised or dies ([07](07_failover.md)). The cross-cloud subcommands write the only audit log any binary writes (`crosscloud.audit_log_path`). | same binary |
 | `acp-compute` | Worker: dials sagvd's Return Path and runs one gate job per session — restores the sealed genome's model in memory through the `vg_genome` door named by `genome.door.command` and answers the genome's prompts (ADR 0013). Needs Python, the pinned torch and the public base model on its host. Attests with AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`) or the simulated TEE (ADR 0014). | yes |
 | `acp-bootstrap` | Cross-cloud destination: attests with AMD SEV-SNP (or the simulator), receives genome keys, restores genomes, signs receipts. | yes |
@@ -21,7 +21,9 @@ the shipped binaries run today.*
 | `acp-demo` | Self-contained cross-hardware regeneration demo. | yes |
 
 The nine-stage flow in §2 is library code under `internal/`, and `sagvd`
-drives it for every gate job (ADR 0015): `POST /v1/jobs` is a RecoveryRequest
+drives it for every gate job (ADR 0015), for `runtime.max_sessions`
+workers at once (one unless set; `sagvd_sessions_active` says how many
+now): `POST /v1/jobs` is a RecoveryRequest
 admitted at intake, and a worker's session carries it through trust, session,
 disclosure, manifest, candidate, validation, decision and audit. The
 vertical-slice tests (`make demo`, `internal/integration`) remain the
@@ -82,7 +84,11 @@ issue a ReleaseDecision; sagvd judges what it returns.
 AMD SEV-SNP guest (the chip signs; see
 [runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md)), `"gcp-tdx"`
 on an Intel TDX guest (a TDX quote; see
-[runbooks/real-tee-tdx.md](runbooks/real-tee-tdx.md)), `"azure-cgpu"` on
+[runbooks/real-tee-tdx.md](runbooks/real-tee-tdx.md)), `"azure-sev-snp"`
+on an Azure SEV-SNP Confidential VM (the chip's report from the vTPM and a
+TPM quote; see
+[runbooks/real-tee-azure-sev-snp.md](runbooks/real-tee-azure-sev-snp.md)),
+`"azure-cgpu"` on
 an Azure confidential GPU VM (the chip, the vTPM and the H100; see
 [runbooks/real-tee-azure-cgpu.md](runbooks/real-tee-azure-cgpu.md)), or `"simulated"`
 with `tee.insecure_simulation: true` on a laptop or in CI; a pin of the
@@ -184,6 +190,8 @@ avoided:
 - `07_failover.md` — the sentinel on the primary, the operator's failover
   policy, and the executor that moves a genome to the standby.
 - `triage_table.md` — from an observed signal to the first action.
+- `08_upgrading.md` — which releases are supported, the compatibility ledger
+  release by release, how to move a deployment and how to go back.
 - `runbooks/` — disaster recovery, AWS and Azure notes, real AMD SEV-SNP.
 
 If you find yourself wanting to take an action this runbook does not cover,

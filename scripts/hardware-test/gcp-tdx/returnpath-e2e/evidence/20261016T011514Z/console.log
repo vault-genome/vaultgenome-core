@@ -1,0 +1,17 @@
+== binaries from gs://rats-probe-vg-tdxrp-20261016t011411z/e2e
+== the Trust Domain: configfs-tsm (tdx_guest)
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== the host's vTPM: tee.sealer auto resolves to tpm2 on a Trust Domain (tpm2-tools)
+== provision (acp-keygen, private modes; every key file is sealed to this host below)
+== identities: each daemon reads MRTD and RTMR0..3 from a quote of this Trust Domain
+== the key files sealed to this host (ADR 0023; tee.sealer unset — auto, which is tpm2 here, ADR 0025 step 1b)
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 610.97it/s]
+== sagvd on TDX
+== a thief with the sealed key files, off this host: they do not open (ADR 0023; the vTPM's seal)
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+== acp-compute on TDX, the real door
+== the gate job over the Return Path
+== metrics
+== stop both; verify the audit log with the published key
+== the Intel PCS documents both verifiers fetched (public), for offline re-verification

@@ -1,0 +1,19 @@
+== 04:35:58 inputs
+== 04:35:58 python runtime (CPU)
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+== 04:37:12 base model Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:01,  7.15it/s]Fetching 10 files:  40%|████      | 4/10 [00:00<00:00, 18.61it/s]Fetching 10 files:  90%|█████████ | 9/10 [00:00<00:00, 29.91it/s]Fetching 10 files: 100%|██████████| 10/10 [00:09<00:00,  1.03it/s]
+== 04:37:22 fine-tune (deterministic, 8 threads, inside the SEV-SNP guest)
+== 04:41:32 seal
+== 04:41:32 restore here from the bundle, gate, measure, replay
+== 04:43:33 hand off the bundle and its key

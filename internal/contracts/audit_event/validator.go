@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package audit_event
@@ -38,6 +39,8 @@ var validKinds = map[Kind]struct{}{
 	KindKeyReleaseDenied: {},
 	// Policy-driven failover (SchemaVersion 6). See ADR 0012.
 	KindFailoverDecided: {},
+	// The closing of a log segment (SchemaVersion 7). See ADR 0027.
+	KindAuditSegmentClosed: {},
 }
 
 // Validate runs static consistency checks. Chain continuity (PrevHash

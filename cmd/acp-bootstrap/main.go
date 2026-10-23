@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -43,7 +44,8 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
-			fmt.Printf("acp-bootstrap %s (commit %s)\n", version, commit)
+			fips := crypto.FIPSStatus()
+			fmt.Printf("acp-bootstrap %s (commit %s) fips140=%s module=%s enforced=%t\n", version, commit, fipsMode(fips), fips.Version, fips.Enforced)
 			return
 		case "help", "--help", "-h":
 			printUsage()
@@ -161,11 +163,19 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 	if err != nil {
 		return nil, fmt.Errorf("acp-bootstrap: tee.provider: %w", err)
 	}
+	if cfg.TEE.AutoResolvedFrom != "" {
+		logger.Info("acp-bootstrap tee.provider auto: the family is the kernel's to say",
+			"tsm_provider", cfg.TEE.AutoResolvedFrom, "tee_provider", cfg.TEE.Provider)
+	}
 	producer, err := buildTEEProducer(cfg.TEE)
 	if err != nil {
 		return nil, err
 	}
-	sourceResolver, err := loadSourceAuthorityResolver(cfg.SourceAuthority, clock)
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return nil, fmt.Errorf("acp-bootstrap: crypto: %w", err)
+	}
+	sourceResolver, err := loadSourceAuthorityResolver(cfg.SourceAuthority, sigPol, clock)
 	if err != nil {
 		return nil, err
 	}
@@ -195,12 +205,17 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 			return nil, fmt.Errorf("acp-bootstrap: genome: %w", err)
 		}
 	}
+	suites, err := cfg.Crypto.Policy()
+	if err != nil {
+		return nil, fmt.Errorf("acp-bootstrap: crypto: %w", err)
+	}
 	rcfg := crosscloud.Config{
 		SourceAuthorityKeys: sourceResolver,
 		LocalTEE:            producer,
 		Kind:                kind,
 		Registrar:           keystore,
 		Clock:               clock,
+		Suites:              suites,
 	}
 	if rest != nil {
 		rcfg.OnDelivery = rest.Delivered
@@ -256,7 +271,8 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 		"tee_provider", string(kind),
 		"measurement_hex", fmt.Sprintf("%x", producer.Measurement()),
 		"source_authority_kid", cfg.SourceAuthority.KeyID,
-		"key_delivery", kms.DeliveryModeX25519KEM,
+		"crypto_profile", string(receiver.Suites().Profile()),
+		"kem_suites", receiver.Suites().SuiteIDs(),
 		"genome_restore", rest != nil,
 		"genome_gate", cfg.Genome.Gate != nil,
 		"genome_bundle_dir", cfg.Genome.BundleDir,
@@ -329,11 +345,25 @@ func gateConfig(g *GateConfig) *restorer.GateConfig {
 
 // buildTEEProducer constructs the local TEE producer per cfg.Provider.
 func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
-	switch cfg.Provider {
+	provider := cfg.Provider
+	if p, err := tee.ParseProvider(provider); err == nil {
+		provider = string(p)
+	}
+	if provider == string(tee.ProviderAuto) {
+		// The kernel names the family (ADR 0025).
+		family, _, err := tee.ResolveAuto(cfg.TSMReportDir)
+		if err != nil {
+			return nil, fmt.Errorf("acp-bootstrap: tee.provider=auto: %w", err)
+		}
+		provider = string(family)
+	}
+	switch provider {
 	case string(tee.ProviderGCPSEVSNP):
 		return tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})
 	case string(tee.ProviderGCPTDX):
 		return tee.NewGCPTDXProducer(tee.GCPTDXProducerConfig{TSMReportDir: cfg.TSMReportDir})
+	case string(tee.ProviderAzureSEVSNP):
+		return tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
 	case string(tee.ProviderAzureCGPU):
 		return tee.NewAzureCGPUProducer(tee.AzureCGPUProducerConfig{GPUAttestCommand: cfg.GPUAttestCommand, TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
 	case string(tee.ProviderSimulated):
@@ -355,7 +385,7 @@ func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 type pubkeyResolver struct {
 	kid     ids.KeyID
 	purpose keys.Purpose
-	pub     crypto.PublicKey
+	pub     crypto.SuitePublicKey
 	created int64
 }
 
@@ -369,18 +399,30 @@ func (r *pubkeyResolver) Resolve(kid ids.KeyID, want keys.Purpose) (keys.Verifyi
 	return keys.VerifyingKey{
 		KeyID:     r.kid,
 		Purpose:   r.purpose,
-		PublicKey: r.pub,
+		Suite:     r.pub.Suite,
+		PublicKey: r.pub.Bytes,
 		CreatedAt: r.created,
 	}, nil
 }
 
 // loadSourceAuthorityResolver loads the source-authority public key
-// from disk (raw or PEM) and wraps it in a verify-only resolver
-// keyed by cfg.KeyID under keys.PurposeSigningAuthority.
-func loadSourceAuthorityResolver(cfg SourceAuthorityConfig, clock shared_time.Clock) (keys.Resolver, error) {
-	pub, err := loadAttestorPubKey(cfg.PublicKeyPath)
+// from disk — PEM, whose algorithm names its signature suite (ADR
+// 0031), or the raw 32 bytes of an Ed25519 key — and wraps it in a
+// verify-only resolver keyed by cfg.KeyID under
+// keys.PurposeSigningAuthority.
+func loadSourceAuthorityResolver(cfg SourceAuthorityConfig, sigPol kms.SignaturePolicy, clock shared_time.Clock) (keys.Resolver, error) {
+	data, err := os.ReadFile(cfg.PublicKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("acp-bootstrap: load source authority pubkey: %w", err)
+	}
+	pub, err := crypto.ParsePublicKeyFile(data)
+	if err != nil {
+		return nil, fmt.Errorf("acp-bootstrap: source authority pubkey %q: %w", cfg.PublicKeyPath, err)
+	}
+	// A source whose key the profile does not accept would have every
+	// handshake and token refused; it is refused here, with the reason.
+	if err := sigPol.CheckAcceptedKey("source authority key "+cfg.KeyID, pub.Suite); err != nil {
+		return nil, fmt.Errorf("acp-bootstrap: source authority pubkey %q: %w", cfg.PublicKeyPath, err)
 	}
 	return &pubkeyResolver{
 		kid:     ids.KeyID(cfg.KeyID),
@@ -519,4 +561,16 @@ func readExactly(path string, want int, label string) ([]byte, error) {
 		return nil, fmt.Errorf("acp-bootstrap: %s %q: %d bytes, want %d", label, path, len(data), want)
 	}
 	return data, nil
+}
+
+// fipsMode is the word the version line prints for the cryptographic
+// module's state (ADR 0030).
+func fipsMode(st crypto.FIPS140) string {
+	if st.Enforced {
+		return "only"
+	}
+	if st.Enabled {
+		return "on"
+	}
+	return "off"
 }

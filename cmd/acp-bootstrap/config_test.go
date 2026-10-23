@@ -1,8 +1,11 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
 
 import (
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +23,7 @@ func minimalValidConfig() Config {
 	c.TEE.InsecureSimulation = true
 	c.TEE.SeedPath = "/etc/acp/secrets/acp-bootstrap/tee_seed"
 	c.SourceAuthority = SourceAuthorityConfig{KeyID: "authority-1", PublicKeyPath: "/etc/acp/secrets/authority.pub"}
+	c.Crypto.Profile = string(kms.PolicyForThisProcess().Profile())
 	return c
 }
 
@@ -293,5 +297,44 @@ func TestValidate_GenomeGate(t *testing.T) {
 			c.Genome = GenomeConfig{BundleDir: "/a", RestoreDir: "/b", Gate: &g}
 			requireInvalid(t, c, tc.want)
 		})
+	}
+}
+
+// tee.provider "auto" (ADR 0025): accepted for the destination's own
+// provider and resolved from configfs-tsm at load.
+func TestTEEConfig_Auto(t *testing.T) {
+	c := DefaultConfig()
+	c.TEE.Provider = "auto"
+	c.TEE.SeedPath = ""
+	c.TEE.InsecureSimulation = false
+	if err := c.Validate(); err != nil && (strings.Contains(err.Error(), "tee.provider") || strings.Contains(err.Error(), "tee.seed_path")) {
+		t.Fatalf("auto refused for the destination's own provider: %v", err)
+	}
+	tc := TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}
+	if err := tc.ResolveAuto(); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("ResolveAuto off a confidential VM: %v", err)
+	}
+	if _, err := buildTEEProducer(TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("buildTEEProducer with auto off a confidential VM: %v", err)
+	}
+}
+
+// tee.sealer (ADR 0025, step 1b): auto by default, tee or tpm2 by choice,
+// anything else refused.
+func TestTEEConfig_SealerMode(t *testing.T) {
+	c := DefaultConfig()
+	if c.TEE.SealerMode() != tee.SealerModeAuto {
+		t.Fatalf("default sealer mode %q, want auto", c.TEE.SealerMode())
+	}
+	c.TEE.Sealer = "tpm2"
+	if err := c.Validate(); err != nil && strings.Contains(err.Error(), "tee.sealer") {
+		t.Fatalf("tpm2 refused: %v", err)
+	}
+	if c.TEE.SealerMode() != tee.SealerModeTPM2 {
+		t.Fatalf("sealer mode %q, want tpm2", c.TEE.SealerMode())
+	}
+	c.TEE.Sealer = "hsm"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "tee.sealer \"hsm\"") {
+		t.Fatalf("an unknown sealer was not refused: %v", err)
 	}
 }

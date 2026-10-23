@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # full-test-run.sh — orchestrate the entire Azure SGX kit end-to-end
@@ -25,8 +26,13 @@ fi
 
 echo "=== 1. provision Azure DCsv3 SGX VM ==="
 cd "$KIT_DIR/terraform"
-export TF_VAR_admin_ssh_public_key="$(cat "${SSH_KEY}.pub")"
-terraform init -upgrade -input=false
+TF_VAR_admin_ssh_public_key="$(cat "${SSH_KEY}.pub")"
+export TF_VAR_admin_ssh_public_key
+# The azurerm provider needs the subscription named explicitly; take the
+# one the az login selected unless ARM_SUBSCRIPTION_ID is already set.
+ARM_SUBSCRIPTION_ID="${ARM_SUBSCRIPTION_ID:-$(az account show --query id -o tsv)}"
+export ARM_SUBSCRIPTION_ID
+terraform init -input=false
 terraform apply -auto-approve
 
 VM_NAME="$(terraform output -raw instance_name)"
@@ -46,22 +52,29 @@ SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${SSH_KE
 SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${SSH_KEY}"
 
 echo
-echo "=== 2. upload scripts + acpctl to VM ==="
+echo "=== 2. upload scripts, the quote-binding sources and acpctl to VM ==="
 ${SCP} -r "$KIT_DIR/scripts" "azureuser@${PUBLIC_IP}:~/scripts"
+# 02b builds the enclave and verifier from these on the VM.
+${SCP} -r "$KIT_DIR/sgx-quote-binding" "azureuser@${PUBLIC_IP}:~/sgx-quote-binding"
 ${SCP} "$ACPCTL" "azureuser@${PUBLIC_IP}:~/acpctl"
 
 echo
 echo "=== 3-9. run all phases on the VM ==="
 ${SSH} '
   set -e
+  # A non-interactive ssh shell does not read ~/.bashrc, so the tools the
+  # bootstrap installs are put on PATH here for every later step.
+  export PATH="$PATH:/usr/local/go/bin:$HOME/.cargo/bin"
   chmod +x ~/scripts/*.sh
   cd ~ && mkdir -p vg && cd vg && cp ~/acpctl ./acpctl && chmod +x ./acpctl
 
   ~/scripts/01-bootstrap-vm.sh
   ~/scripts/02-capture-attestation.sh
+  # Demo 1 runs before the chain steps: the manifest 02b writes names what
+  # Demo 1 sealed, as acpctl measured it.
+  ~/scripts/03-demo1-single-bundle.sh
   ~/scripts/02b-cryptographic-attestation.sh
   ~/scripts/02f-capture-maa-jwt.sh
-  ~/scripts/03-demo1-single-bundle.sh
   ~/scripts/04-demo2-chain.sh
   ~/scripts/05-inference-test.sh || echo "(inference skipped — non-fatal)"
   ~/scripts/06-pack-evidence.sh

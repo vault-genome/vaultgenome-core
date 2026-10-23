@@ -1,0 +1,16 @@
+== binaries from gs://rats-probe-vg-rp-20261021t002526z/e2e
+== the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== provision (acp-keygen, private modes; every key file is sealed to the chip below)
+== identities: each daemon reads its launch measurement from the chip
+== the key files sealed to this host (ADR 0023; the sealer is tee.sealer=auto, ADR 0025 step 1b)
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 494.67it/s]
+== sagvd on SEV-SNP
+== a thief with the sealed key files, off the chip: they do not open (ADR 0023; tee.sealer=auto)
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+== acp-compute on SEV-SNP, the real door
+== the gate job over the Return Path
+== metrics
+== stop both; verify the audit log with the published key

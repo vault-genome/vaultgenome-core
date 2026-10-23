@@ -1,11 +1,10 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package sentinel
 
 import (
 	"context"
-	"crypto/ecdh"
-	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -35,11 +35,12 @@ type Config struct {
 	Source Source
 	// Outbox is the directory everything is written to.
 	Outbox string
-	// Escrow is the release authority's escrow public key: every genome's
-	// key is encapsulated to it and nothing else keeps it.
-	Escrow *ecdh.PublicKey
+	// Escrow is the release authority's escrow public key, under its KEM
+	// suite (ADR 0029): every genome's key is encapsulated to it and
+	// nothing else keeps it.
+	Escrow escrow.PublicKey
 	// Key signs every record.
-	Key ed25519.PrivateKey
+	Key *crypto.SigningKey
 	// Attestor, when set, is the primary's TEE: every record also carries
 	// its report, bound to the record's content, and AttestorKind names
 	// it (ADR 0017). A policy that pins the primary's measurement accepts
@@ -96,7 +97,7 @@ type Sentinel struct {
 // closed or whose newest genome does not check out.
 func New(cfg Config) (*Sentinel, error) {
 	switch {
-	case cfg.Source == nil || cfg.Outbox == "" || cfg.Escrow == nil || len(cfg.Key) != ed25519.PrivateKeySize:
+	case cfg.Source == nil || cfg.Outbox == "" || cfg.Escrow.IsZero() || cfg.Key == nil || !cfg.Key.Suite().Valid():
 		return nil, errors.New("sentinel: source, outbox, escrow key and sentinel key required")
 	case cfg.Interval <= 0:
 		return nil, errors.New("sentinel: interval must be positive")
@@ -111,7 +112,7 @@ func New(cfg Config) (*Sentinel, error) {
 	if cfg.Log == nil {
 		cfg.Log = slog.New(slog.DiscardHandler)
 	}
-	pub := cfg.Key.Public().(ed25519.PublicKey)
+	pub := cfg.Key.Public()
 	s := &Sentinel{cfg: cfg, id: KeyID(pub), log: cfg.Log.With(slog.String("sentinel", KeyID(pub))), started: cfg.Clock().UTC()}
 
 	if err := os.MkdirAll(cfg.Outbox, 0o755); err != nil {

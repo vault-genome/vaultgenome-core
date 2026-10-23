@@ -2,7 +2,8 @@
 #
 # Runs Go benchmarks on every PR + pushes to main. Compares the PR's
 # benchmark numbers against the main-branch baseline using benchstat;
-# significant regressions surface as a sticky comment on the PR.
+# the report goes to the job summary and the run's artifact, and, for a
+# pull request from this repository, to a sticky comment on the PR.
 #
 # Why this exists: a single dropped sync.Mutex.RLock on a hot path can
 # make attestation 5x slower without breaking any unit test. The
@@ -42,12 +43,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.27.0"
+          go-version: "1.27.3"
           cache: true
           cache-dependency-path: go.sum
 
       - name: Install benchstat
-        run: go install golang.org/x/perf/cmd/benchstat@latest
+        run: go install golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
 
       - name: Benchmark current ref
         run: |
@@ -89,15 +90,24 @@ jobs:
             echo 'COMMENT_EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Post comparison comment
+      - name: Write the report to the job summary
         if: github.event_name == 'pull_request'
+        run: printf '%s\n' "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          REPORT: ${{ steps.benchstat.outputs.comment }}
+
+      # A pull request from a fork runs with a read-only token, so the
+      # sticky comment cannot be posted there; the summary above and the
+      # artifact below carry the same report for every pull request.
+      - name: Post comparison comment
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
           header: bench-regression-report
           message: ${{ steps.benchstat.outputs.comment }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bench-${{ github.sha }}
           path: |

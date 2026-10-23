@@ -1,0 +1,30 @@
+== 19:45:20 inputs
+== 19:45:23 configfs-tsm (the sentinel attests with this chip)
+== 19:45:23 python runtime (CPU) and base model
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart polkit.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart networkd-dispatcher.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 23.89it/s]Fetching 10 files: 100%|██████████| 10/10 [00:12<00:00,  1.21s/it]
+== 19:46:53 wait for the release authority's escrow key
+== 19:46:54 the sentinel's key and this chip's identity; the operator pins both
+== 19:46:56 seal the sentinel's seed to this chip (ADR 0023): the file the sentinel runs from is no seed elsewhere
+== 19:46:58 fine-tune generation 0 (120 steps)
+== 19:51:33 arm a tripwire and start the sentinel
+== 19:51:33 wait for generation 0 to be sealed
+== 19:51:41 wait for the authority to arm its failover watch (the GPU standby is onboarded first)
+== 19:56:38 keep training: fine-tune generation 1 (160 steps)
+== 20:01:29 wait for generation 1 to be sealed and replicated
+== 20:01:45 keep training: fine-tune generation 2 — the work the region takes with it
+== 20:02:00 THE REGION GOES DARK: no tripwire, no report — this machine is switched off while it trains

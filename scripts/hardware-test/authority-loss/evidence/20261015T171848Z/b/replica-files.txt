@@ -1,0 +1,12 @@
+/root/w/audit:
+total 264
+drwxr-xr-x 2 root root   4096 Oct 15 17:22 .
+drwxr-xr-x 7 root root   4096 Oct 15 17:26 ..
+-rw------- 1 root root 262144 Oct 15 17:23 returnpath-audit.db
+
+/root/w/genomes:
+total 40
+drwxr-xr-x 2 root root  4096 Oct 15 17:21 .
+drwxr-xr-x 7 root root  4096 Oct 15 17:26 ..
+-rw-r--r-- 1 root root 24730 Oct 15 17:21 gen-0.genome
+-rw------- 1 root root    32 Oct 15 17:21 gen-0.key

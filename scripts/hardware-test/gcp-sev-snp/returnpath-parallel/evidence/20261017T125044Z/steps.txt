@@ -1,0 +1,35 @@
+workers=3
+== binaries from gs://rats-probe-vg-par-20261017t124911z/e2e
+== the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+sealer=auto
+== provision (acp-keygen, private modes; every key file is sealed to the chip below)
+== identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519
+worker_measurement=10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519
+== the key files sealed to this host (ADR 0023; the sealer is tee.sealer=auto, ADR 0025 step 1b)
+sagvd seal-keys exit=0 sealer=sev-snp-derived-key sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+acp-compute seal-keys exit=0 sealer=sev-snp-derived-key sealed=keys.worker_signing.seed_path,vault.tls.client_key
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-dd10ca3b2e1c-g0-1032d9aca960
+== round max_sessions=1: 3 workers, 6 jobs
+sagvd ready after 11s limit=1
+sessions_active_before_jobs=1
+round_max1: workers=3 jobs=6 done=6 exact=6 wall_s=28.7 per_job_s=4.8 peak_sessions_active=1 max_queue_depth=4 refused_busy=0 handshake_ms=[10481,25,25,22,21,21,22]
+load after round 1:
+ 12:53:27 up 3 min,  0 user,  load average: 1.53, 1.26, 0.57
+== round max_sessions=3: 3 workers, 6 jobs
+sagvd ready after 7s limit=3
+sessions_active_before_jobs=3
+round_max3: workers=3 jobs=6 done=6 exact=6 wall_s=17.5 per_job_s=2.9 peak_sessions_active=3 max_queue_depth=3 refused_busy=0 handshake_ms=[10290,10294,10292,32,50,45,21,21,22]
+load after round 3:
+ 12:54:16 up 4 min,  0 user,  load average: 2.41, 1.54, 0.70
+== verify the audit log of both rounds with the published key
+audit verify exit=0
+audit query exit=0
+elapsed_seconds=212.0

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Package audit_event defines the AuditEvent canonical contract —
@@ -20,6 +21,7 @@ package audit_event
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
@@ -53,12 +55,24 @@ const (
 	//            authority's decision, under an operator-signed failover
 	//            policy, to move a genome to the standby — or to decline.
 	//            Struct shape unchanged.
+	//   v6 → v7: ADR 0027 added KindAuditSegmentClosed: the daemon's
+	//            record, as the first event of a fresh segment of its
+	//            log, of the segment it closed — name, indices, tip,
+	//            length and SHA-256 of the archived file. Struct shape
+	//            unchanged.
+	//   v7 → v8: ADR 0031 added the optional alg field beside
+	//            signing_key_id and signature: the signature suite the
+	//            event was signed under, absent for ed25519 (what every
+	//            event before v8 carried) and named for
+	//            ecdsa-p384-sha384 and ml-dsa-87. Kind set unchanged.
+	//            A v7 reader refuses a v8 event; a v8 reader verifies
+	//            every earlier event as it did.
 	// See docs/doctrine/bootstrap-contracts.md §5 (contract-frozen
 	// discipline), the Stage F.2 / Stage G doctrine notes in
 	// docs/internal/status-journal.md, ADR 0006 (cross-cloud KMS-mediated
 	// restore) and ADR 0010 (operator stop and recorded refusals).
-	SchemaVersionMax     uint16 = 6
-	SchemaVersionCurrent uint16 = 6
+	SchemaVersionMax     uint16 = 8
+	SchemaVersionCurrent uint16 = 8
 
 	// HashSize is the length in bytes of PrevHash and Hash (SHA-256).
 	HashSize = 32
@@ -216,6 +230,13 @@ const (
 	// authorisation and restore that follow link back to it. At most one
 	// failover is decided per policy serial.
 	KindFailoverDecided Kind = "FAILOVER_DECIDED"
+	// KindAuditSegmentClosed (v7, ADR 0027) is the first event of every
+	// segment of a daemon's log after the first: the segment it closed —
+	// the archive's file name, the indices of its first and last events,
+	// its tip, its length and the SHA-256 of the file. Appended under the
+	// chain's lock before any other writer, so that the live file alone
+	// names the file it continues and what that file must hash to.
+	KindAuditSegmentClosed Kind = "AUDIT_SEGMENT_CLOSED"
 )
 
 // AuditEvent is one record in the hash-chained audit log.
@@ -248,5 +269,8 @@ type AuditEvent struct {
 	Hash []byte `json:"hash"`
 
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
-	Signature    []byte    `json:"signature"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature"`
 }

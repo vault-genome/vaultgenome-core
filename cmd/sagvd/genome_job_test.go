@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -5,7 +6,6 @@ package main
 import (
 	"archive/tar"
 	"bytes"
-	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -35,7 +35,7 @@ func newTestGenomeJobs(t *testing.T, bundleDir, escrowKey string) *genomeJobs {
 	cfg := DefaultConfig()
 	cfg.Genome.BundleDir = bundleDir
 	cfg.Runtime.MaxPayloadBytes = 1 << 20
-	var priv *ecdh.PrivateKey
+	var priv *escrow.PrivateKey
 	if escrowKey != "" {
 		var err error
 		priv, err = escrow.ReadPrivate(escrowKey)

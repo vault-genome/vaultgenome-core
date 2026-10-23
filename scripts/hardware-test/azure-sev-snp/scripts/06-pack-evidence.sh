@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # 06-pack-evidence.sh — collect every captured artefact into a single
@@ -47,7 +48,7 @@ ls -lh "$OUT"
 
 echo
 echo "=== contents ==="
-tar tzf "$OUT" | head -40
+tar tzf "$OUT" | head -40 || true  # the writer may be cut short by head/tail; not a failure
 echo "..."
 tar tzf "$OUT" | wc -l
 echo "(total entries shown above)"

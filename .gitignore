@@ -7,6 +7,7 @@
 /acp-bootstrap
 /acp-demo
 /acpctl
+/acp-keygen
 *.exe
 *.test
 *.out
@@ -22,6 +23,8 @@ coverage.txt
 *.sbom.json
 *.sbom.spdx.json
 *.sig
+# the vTPM quote signatures in the hardware kits' records are evidence, not CI output
+!scripts/hardware-test/**/evidence/**/*.sig
 *.cert
 *.intoto.jsonl
 
@@ -37,6 +40,7 @@ coverage.txt
 # public AMD KDS certificate chains captured as hardware attestation evidence
 # (X.509 certs, not keys) — needed by the SEV-SNP verification tests.
 !scripts/hardware-test/**/*.pem
+!test/corpus/sev-snp/chains/*.pem
 
 # Key material provisioned by deploy/compose/keygen (NEVER commit)
 /deploy/compose/secrets/
@@ -47,6 +51,8 @@ coverage.txt
 *.bolt
 *.db
 *.wal
+# ...except a drill's audit log, kept as evidence so it can be verified offline
+!scripts/hardware-test/**/evidence/**/xcc-audit.db
 
 # Editor / OS
 .vscode/

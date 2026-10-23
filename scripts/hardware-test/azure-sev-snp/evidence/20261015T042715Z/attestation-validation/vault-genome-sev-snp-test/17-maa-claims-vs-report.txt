@@ -1,0 +1,5 @@
+x-ms-attestation-type              OK
+x-ms-sevsnpvm-reportdata           OK
+x-ms-sevsnpvm-launchmeasurement    OK
+x-ms-sevsnpvm-is-debuggable        OK
+x-ms-compliance-status             azure-compliant-cvm

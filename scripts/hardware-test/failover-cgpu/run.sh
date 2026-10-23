@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # The continuity drill with a confidential GPU as the standby: a model
@@ -51,6 +52,8 @@ EVIDENCE="$HERE/evidence/$STAMP"
 AZ_CREATED=0; GCP_CREATED=0; OK=0; SYNC=""
 
 cleanup() {
+  # A machine that never booted has no zone file: run every step, whatever the one before returned.
+  set +e
   [ -n "$SYNC" ] && kill "$SYNC" 2>/dev/null || true
   if [ "$GCP_CREATED" = 1 ]; then
     echo "cleanup: deleting $PRIMARY, $AUTHORITY and gs://$BUCKET"
@@ -81,8 +84,8 @@ wait_marker() { # wait_marker <leg> <minutes>
 
 echo "build sagvd, acp-bootstrap, acpctl, keygen (linux/amd64); pack workers/genome"
 ( cd "$ROOT" && for b in sagvd acp-bootstrap acpctl; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
-( cd "$ROOT/deploy/compose/keygen" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" . )
-COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt examples
+( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt requirements-ci.lock requirements-cuda.lock requirements-torch-cpu.lock requirements-torch-cu126.lock examples
 curl -fsSL "$PKG_URL" -o "$BUILD/cgpu-onboarding-package.tar.gz"; echo "$PKG_SHA  $BUILD/cgpu-onboarding-package.tar.gz" | shasum -a 256 -c - >/dev/null
 
 echo "bucket gs://$BUCKET"

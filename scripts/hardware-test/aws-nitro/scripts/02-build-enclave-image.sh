@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # 02-build-enclave-image.sh — build the Vault Genome enclave image (.eif)
@@ -34,7 +35,7 @@ echo "=== building Vault Genome enclave Docker image ==="
 # hardware test, we build it from acpctl source on the fly.
 cat > Dockerfile.enclave <<'EOF'
 # Stage 1: build acpctl from source
-FROM golang:1.25-alpine AS builder
+FROM golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS builder
 RUN apk add --no-cache git build-base
 WORKDIR /src
 # Copy our acpctl source. In a real workflow this is mounted in.
@@ -44,7 +45,7 @@ RUN cd cmd/acpctl && \
     go build -trimpath -ldflags="-s -w" -o /out/acpctl .
 
 # Stage 2: minimal runtime
-FROM alpine:3.20
+FROM alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 RUN apk add --no-cache ca-certificates openssl
 COPY --from=builder /out/acpctl /usr/local/bin/acpctl
 # Enclave entrypoint: capture attestation report on demand from /dev/nsm
@@ -102,7 +103,7 @@ cat 01-vaultgenome-enclave-build-manifest.json
 # the attestation document's user_data field, so the chip's signature
 # covers a hash of THIS specific build.
 sha512sum 01-vaultgenome-enclave-build-manifest.json | awk '{print $1}' > 02-report-data.hex
-xxd -r -p 02-report-data.hex 02-report-data.bin
+python3 -c 'import sys; open("02-report-data.bin", "wb").write(bytes.fromhex(open("02-report-data.hex").read().strip()))'
 
 echo
 echo "=== REPORT_DATA (SHA-512 of manifest) ==="

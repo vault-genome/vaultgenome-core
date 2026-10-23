@@ -1,0 +1,15 @@
+{
+  "vault_genome_version": "1.0.0",
+  "payload_sha256": "c42f7c25e88d55660cf9754884333ff6a13dc1b4d9def8fd406066d410e1f074",
+  "payload_size_bytes": 2019402752,
+  "payload_description": "ollama llama3.2:3b, as sealed by acpctl genome seal into demo1-bundle.genome",
+  "payload_measured_by": "acpctl genome inspect --json of demo1-bundle.genome: sha256 over the sealed components, measured in this run",
+  "bundle_sha256": "359206958eceff21b8f241b2def82f59330dce0ef24a67c373a80e0b1c6322e9",
+  "bundle_size_bytes": 2019436684,
+  "sealed_at": "2026-10-15T00:50:29Z",
+  "demo": "vault-genome-cross-vm-attestation",
+  "vm_id": "vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal",
+  "tee_backend": "amd-sev-snp",
+  "region": "us-central1",
+  "zone": "us-central1-c"
+}

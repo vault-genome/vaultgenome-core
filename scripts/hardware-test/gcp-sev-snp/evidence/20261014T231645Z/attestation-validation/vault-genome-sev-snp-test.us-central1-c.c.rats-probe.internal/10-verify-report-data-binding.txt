@@ -1,0 +1,7 @@
+Expected REPORT_DATA: bc5339ce3983091a394c50cf01560590ef247d57ddb7a0e15ede3eb82e05bcbc5054f1b184109594b4c6d27c57c2fb8ad8b19ee703d9cb7b38b9d11671ef7f51
+Reported TCB Boot Loader from certificate matches the attestation report.
+Reported TCB TEE from certificate matches the attestation report.
+Reported TCB SNP from certificate matches the attestation report.
+Reported TCB Microcode from certificate matches the attestation report.
+VEK signed the Attestation Report!
+Report Data verified successfully.

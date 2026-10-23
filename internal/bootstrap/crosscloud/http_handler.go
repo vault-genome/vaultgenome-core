@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package crosscloud
@@ -123,18 +124,21 @@ func (h *HTTPHandler) HandleHandshake(w http.ResponseWriter, r *http.Request) {
 
 	keyHash := sha256OfBytes(resp.RecipientPublicKey)
 	h.log.Info("crosscloud handshake answered",
-		slog.String("request_id", string(req.RequestID)),
-		slog.String("decision_id", string(req.DecisionID)),
+		slog.String("request_id", logSafe(string(req.RequestID))),
+		slog.String("decision_id", logSafe(string(req.DecisionID))),
 		slog.String("recipient_key_sha256", hex.EncodeToString(keyHash[:])),
+		slog.String("recipient_key_suite", logSafe(resp.RecipientKeySuite)),
 	)
 	wire := struct {
 		Evidence           []byte `json:"evidence"`
 		MeasurementHint    []byte `json:"measurement_hint,omitempty"`
 		RecipientPublicKey []byte `json:"recipient_public_key"`
+		RecipientKeySuite  string `json:"recipient_key_suite"`
 	}{
 		Evidence:           resp.Evidence,
 		MeasurementHint:    resp.MeasurementHint,
 		RecipientPublicKey: resp.RecipientPublicKey,
+		RecipientKeySuite:  resp.RecipientKeySuite,
 	}
 	writeJSON(w, http.StatusOK, wire)
 }
@@ -180,9 +184,9 @@ func (h *HTTPHandler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log.Info("crosscloud token accepted",
-		slog.String("token_id", string(token.TokenID)),
-		slog.String("request_id", string(token.RequestID)),
-		slog.String("decision_id", string(token.DecisionID)),
+		slog.String("token_id", logSafe(string(token.TokenID))),
+		slog.String("request_id", logSafe(string(token.RequestID))),
+		slog.String("decision_id", logSafe(string(token.DecisionID))),
 		slog.Int("registered_keys", registered),
 	)
 	writeJSON(w, http.StatusOK, struct {
@@ -294,4 +298,11 @@ func categoryString(err error) string {
 		}
 		return "unknown"
 	}
+}
+
+// logSafe keeps a request-supplied identifier on one log line: a carriage
+// return or newline inside it would otherwise let a caller forge a record
+// in the daemon's log (CodeQL go/log-injection).
+func logSafe(s string) string {
+	return strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
 }

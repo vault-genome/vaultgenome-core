@@ -1,10 +1,10 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package kms
 
 import (
 	"context"
-	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
@@ -75,23 +75,29 @@ func (g *fakeIDGen) NewDecisionID() (ids.DecisionID, error) {
 }
 
 // producerBackedTransport simulates a destination by holding a real
-// tee.Producer. By default it behaves like an honest ADR-0009
-// destination: it generates an X25519 key per handshake and quotes over
-// RecipientChallenge(key, nonce). The remaining knobs model destinations
-// and networks that must be refused.
+// tee.Producer. By default it behaves like an honest destination of ADR
+// 0009 and ADR 0029 under the general profile: it takes the first suite
+// the source offers that the general profile accepts, generates a key
+// under it per handshake and quotes over RecipientChallengeV2(suite,
+// key, nonce). The remaining knobs model destinations and networks that
+// must be refused.
 type producerBackedTransport struct {
 	producer      tee.Producer
 	handshakeErr  error
 	tokenErr      error
 	emptyEvidence bool // destination returns no Evidence
 
-	withholdKey    bool   // destination presents no recipient key (pre-ADR-0009)
-	quoteBareNonce bool   // destination quotes over the bare nonce, not the challenge
-	substituteKey  []byte // a man in the middle replaces the presented key
-	chosenKey      []byte // the destination itself presents (and quotes over) this key
+	withholdKey    bool        // destination presents no recipient key (pre-ADR-0009)
+	withholdSuite  bool        // destination presents a key but names no suite (pre-ADR-0029)
+	answerSuite    string      // destination labels its answer with this suite instead of the real one
+	suites         SuitePolicy // the destination's own policy; zero = general
+	quoteBareNonce bool        // destination quotes over the bare nonce, not the challenge
+	substituteKey  []byte      // a man in the middle replaces the presented key
+	chosenKey      []byte      // the destination itself presents (and quotes over) this key
 
 	recipientPriv  []byte // private half of the key the destination generated
 	recipientPub   []byte // the key the destination presented
+	recipientSuite Suite  // the suite the destination generated the key under
 	sentTokens     []krt.KeyReleaseToken
 	sentHandshakes []cchr.CrossCloudHandshakeRequest
 }
@@ -108,15 +114,23 @@ func (t *producerBackedTransport) SendHandshakeRequest(
 	if t.emptyEvidence {
 		return HandshakeResponse{}, nil
 	}
-	k, err := ecdh.X25519().GenerateKey(rand.Reader)
+	policy := t.suites
+	if policy.IsZero() {
+		policy = PolicyForThisProcess()
+	}
+	suite, ok := policy.Choose(req.KEMSuites)
+	if !ok {
+		return HandshakeResponse{}, fmt.Errorf("fake destination: none of %v is accepted under %s", req.KEMSuites, policy.Profile())
+	}
+	priv, pub, err := suite.GenerateRecipientKey()
 	if err != nil {
 		return HandshakeResponse{}, err
 	}
-	t.recipientPriv, t.recipientPub = k.Bytes(), k.PublicKey().Bytes()
+	t.recipientPriv, t.recipientPub, t.recipientSuite = priv, pub, suite
 	if t.chosenKey != nil {
 		t.recipientPriv, t.recipientPub = nil, t.chosenKey
 	}
-	challenge := RecipientChallenge(t.recipientPub, req.HandshakeNonce)
+	challenge := RecipientChallengeV2(suite, t.recipientPub, req.HandshakeNonce)
 	if t.quoteBareNonce {
 		challenge = req.HandshakeNonce
 	}
@@ -125,12 +139,18 @@ func (t *producerBackedTransport) SendHandshakeRequest(
 		return HandshakeResponse{}, err
 	}
 	m := t.producer.Measurement()
-	resp := HandshakeResponse{Evidence: evidence, MeasurementHint: m[:], RecipientPublicKey: t.recipientPub}
+	resp := HandshakeResponse{Evidence: evidence, MeasurementHint: m[:], RecipientPublicKey: t.recipientPub, RecipientKeySuite: string(suite)}
 	switch {
 	case t.withholdKey:
 		resp.RecipientPublicKey = nil
 	case t.substituteKey != nil:
 		resp.RecipientPublicKey = t.substituteKey
+	}
+	if t.withholdSuite {
+		resp.RecipientKeySuite = ""
+	}
+	if t.answerSuite != "" {
+		resp.RecipientKeySuite = t.answerSuite
 	}
 	return resp, nil
 }
@@ -189,10 +209,18 @@ func makeFixture(t *testing.T) *fixture {
 	return makeFixtureWith(t, nil)
 }
 
+// makeFixtureUnder builds the fixture with the source under the given
+// suite policy (the destination keeps the general profile unless the
+// test sets f.transport.suites).
+func makeFixtureUnder(t *testing.T, suites SuitePolicy) *fixture {
+	t.Helper()
+	return makeFixtureWith(t, nil, func(c *Config) { c.Suites = suites })
+}
+
 // makeFixtureWith builds the fixture with the destination's verifier
 // wrapped — a verifier that says more than the measurement, for the
 // audit record tests — or as it is when wrap is nil.
-func makeFixtureWith(t *testing.T, wrap func(tee.Verifier) tee.Verifier) *fixture {
+func makeFixtureWith(t *testing.T, wrap func(tee.Verifier) tee.Verifier, tune ...func(*Config)) *fixture {
 	t.Helper()
 	clock := shared_time.NewFakeClock(stdtime.Date(2026, 5, 9, 12, 0, 0, 0, stdtime.UTC))
 
@@ -230,7 +258,7 @@ func makeFixtureWith(t *testing.T, wrap func(tee.Verifier) tee.Verifier) *fixtur
 	idGen := &fakeIDGen{}
 	transport := &producerBackedTransport{producer: destProducer}
 
-	coord, err := NewCoordinator(Config{
+	ccfg := Config{
 		AuditChain:   auditChain,
 		Signer:       keyStore,
 		Verifiers:    registry,
@@ -240,7 +268,11 @@ func makeFixtureWith(t *testing.T, wrap func(tee.Verifier) tee.Verifier) *fixtur
 		NonceSource:  deterministicNonceSource(0xA0),
 		Clock:        clock,
 		SigningKeyID: sourceKID,
-	})
+	}
+	for _, f := range tune {
+		f(&ccfg)
+	}
+	coord, err := NewCoordinator(ccfg)
 	require.NoError(t, err)
 
 	return &fixture{
@@ -398,15 +430,102 @@ func TestCoordinateRestore_TokenUnwrapsAtDestination(t *testing.T) {
 
 	require.Len(t, f.transport.sentTokens, 1)
 	tok := f.transport.sentTokens[0]
-	otherPriv, _ := newX25519(t)
+	require.Equal(t, DefaultSuitePolicy().Writes(), res.RecipientKeySuite, "a source and a destination of the default profile meet on its first suite")
+	require.Equal(t, uint16(2), tok.SchemaVersion)
+	otherPriv, _, err := f.transport.recipientSuite.GenerateRecipientKey()
+	require.NoError(t, err)
 	for i, w := range tok.Wrapped {
-		plain, err := X25519KeyUnwrapper{}.Unwrap(w.Ciphertext, f.transport.recipientPriv, w.AAD)
+		require.Equal(t, string(f.transport.recipientSuite), w.Suite, "wrapped key #%d names the handshake's suite", i)
+		plain, err := Suite(w.Suite).Unwrap(PurposeCrossCloudDEK, w.Ciphertext, f.transport.recipientPriv, w.AAD)
 		require.NoError(t, err, "wrapped key #%d must open with the attested key", i)
 		require.Equal(t, req.KeysToRelease[i].Plaintext, plain, "round-trip plaintext must match")
 
-		_, err = X25519KeyUnwrapper{}.Unwrap(w.Ciphertext, otherPriv, w.AAD)
+		_, err = Suite(w.Suite).Unwrap(PurposeCrossCloudDEK, w.Ciphertext, otherPriv, w.AAD)
 		require.Error(t, err, "wrapped key #%d opened with a key the destination never attested", i)
 	}
+}
+
+// Under the fips profile the source offers only the suites the profile
+// accepts, the destination meets it on P-384, every wrapped key says so,
+// and the audit chain records the profile.
+func TestCoordinateRestore_FIPSProfileMeetsOnP384(t *testing.T) {
+	t.Parallel()
+	fips, err := NewSuitePolicy(ProfileFIPS, nil)
+	require.NoError(t, err)
+	f := makeFixtureUnder(t, fips)
+	res, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	require.NoError(t, err)
+	require.Equal(t, SuiteHPKEP384, res.RecipientKeySuite)
+	require.Len(t, f.transport.sentHandshakes, 1)
+	require.Equal(t, uint16(2), f.transport.sentHandshakes[0].SchemaVersion)
+	require.Equal(t, fips.SuiteIDs(), f.transport.sentHandshakes[0].KEMSuites)
+	require.Len(t, f.transport.recipientPub, SuiteHPKEP384.PublicKeySize())
+	for _, w := range f.transport.sentTokens[0].Wrapped {
+		require.Equal(t, "hpke-p384-v2", w.Suite)
+		plain, err := SuiteHPKEP384.Unwrap(PurposeCrossCloudDEK, w.Ciphertext, f.transport.recipientPriv, w.AAD)
+		require.NoError(t, err)
+		require.NotEmpty(t, plain)
+	}
+	var released keyReleaseAuthorizedPayload
+	require.NoError(t, json.Unmarshal(f.auditChain.events[2].Payload, &released))
+	require.Equal(t, "hpke-p384-v2", released.DeliveryMode)
+	require.Equal(t, "fips", released.CryptoProfile)
+}
+
+// A destination that answers under a suite the source's profile does not
+// accept is refused before anything is verified or wrapped, on the record.
+func TestCoordinateRestore_RefusesSuiteOutsideProfile(t *testing.T) {
+	t.Parallel()
+	fips, err := NewSuitePolicy(ProfileFIPS, nil)
+	require.NoError(t, err)
+	f := makeFixtureUnder(t, fips)
+	f.transport.answerSuite = "hpke-x25519-v2"
+	_, err = f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	requireRefusedBeforeRelease(t, f, err)
+	require.ErrorContains(t, err, "does not accept")
+}
+
+// A destination that names no suite — one of an earlier release — is
+// refused: both daemons move together (ADR 0029).
+func TestCoordinateRestore_RefusesAnswerWithoutSuite(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	f.transport.withholdSuite = true
+	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	requireRefusedBeforeRelease(t, f, err)
+	require.ErrorContains(t, err, "named no KEM suite")
+}
+
+// A suite label swapped in transit for one of another key size is refused
+// as a key that is no key of that suite; the challenge commits to the
+// label as well, for the day two suites share a key size.
+func TestCoordinateRestore_RefusesSwappedSuiteLabel(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	// the key was generated, and quoted, under the profile's first suite;
+	// the answer labels it with another suite the policy accepts
+	swapped := SuiteHPKEP384
+	if DefaultSuitePolicy().Writes() == swapped {
+		swapped = SuiteHPKEMLKEM768
+	}
+	f.transport.answerSuite = string(swapped)
+	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	requireRefusedBeforeRelease(t, f, err)
+}
+
+// The two sides meet on the hybrid when the source is cnsa and the
+// destination fips: the only suite both accept.
+func TestCoordinateRestore_CNSASourceMeetsFIPSDestinationOnTheHybrid(t *testing.T) {
+	t.Parallel()
+	cnsa, err := NewSuitePolicy(ProfileCNSA, nil)
+	require.NoError(t, err)
+	f := makeFixtureUnder(t, cnsa)
+	f.transport.suites, err = NewSuitePolicy(ProfileFIPS, nil)
+	require.NoError(t, err)
+	res, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
+	require.NoError(t, err)
+	require.Equal(t, SuiteHPKEMLKEM1024P384, res.RecipientKeySuite)
+	require.Len(t, f.transport.recipientPub, 1665)
 }
 
 // TestCoordinateRestore_DefectB_TokenPlusMeasurementRevealsNothing is the
@@ -431,7 +550,9 @@ func TestCoordinateRestore_DefectB_TokenPlusMeasurementRevealsNothing(t *testing
 		_, err = aeadOpen(oldKey[:], w.Ciphertext[RecipientKeySize:], w.AAD)
 		require.Error(t, err, "wrapped key #%d opened under the old key past the ephemeral share", i)
 		_, err = X25519KeyUnwrapper{}.Unwrap(w.Ciphertext, measurement, w.AAD)
-		require.Error(t, err, "wrapped key #%d opened with the measurement as an X25519 key", i)
+		require.Error(t, err, "wrapped key #%d opened with the measurement as an X25519 key (legacy ECIES)", i)
+		_, err = DefaultSuitePolicy().Writes().Unwrap(PurposeCrossCloudDEK, w.Ciphertext, measurement, w.AAD)
+		require.Error(t, err, "wrapped key #%d opened with the measurement as a recipient key (HPKE)", i)
 		require.NotContains(t, string(w.Ciphertext), string(req.KeysToRelease[i].Plaintext))
 	}
 }
@@ -475,7 +596,7 @@ func TestCoordinateRestore_RefusesDestinationWithoutRecipientKey(t *testing.T) {
 func TestCoordinateRestore_RefusesSubstitutedRecipientKey(t *testing.T) {
 	t.Parallel()
 	f := makeFixture(t)
-	_, attackerPub := newX25519(t)
+	_, attackerPub := newDefaultRecipient(t)
 	f.transport.substituteKey = attackerPub
 	_, err := f.coord.CoordinateRestore(context.Background(), validRequest(f))
 	requireRefusedBeforeRelease(t, f, err)
@@ -517,7 +638,9 @@ func TestCoordinateRestore_AuditRecordsRecipientKey(t *testing.T) {
 	var released keyReleaseAuthorizedPayload
 	require.NoError(t, json.Unmarshal(f.auditChain.events[2].Payload, &released))
 	require.Equal(t, want[:], released.RecipientKeySHA256)
-	require.Equal(t, DeliveryModeX25519KEM, released.DeliveryMode)
+	require.Equal(t, string(DefaultSuitePolicy().Writes()), released.DeliveryMode)
+	require.Equal(t, string(DefaultSuitePolicy().Profile()), released.CryptoProfile)
+	require.Equal(t, string(DefaultSuitePolicy().Writes()), verified.RecipientKeySuite)
 }
 
 // --- CoordinateRestore error paths ---------------------------------

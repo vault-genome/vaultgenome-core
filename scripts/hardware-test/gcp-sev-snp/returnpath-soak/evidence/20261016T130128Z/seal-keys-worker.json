@@ -1,0 +1,21 @@
+{
+  "tee": "gcp-sev-snp",
+  "measurement_hex": "10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519",
+  "sealer": "sev-snp-derived-key",
+  "sealed": [
+    {
+      "name": "keys.worker_signing.seed_path",
+      "path": "/root/e2e/secrets/acp-compute/worker_signing_seed"
+    },
+    {
+      "name": "vault.tls.client_key",
+      "path": "/root/e2e/secrets/acp-compute/tls/client.key"
+    }
+  ],
+  "already_sealed": [
+    {
+      "name": "keys.session_sealing.material_path",
+      "path": "/root/e2e/secrets/shared/sealing.key"
+    }
+  ]
+}

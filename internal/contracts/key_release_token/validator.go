@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package key_release_token
@@ -19,6 +20,7 @@ import (
 //   - Each WrappedKey:
 //   - KeyID non-zero
 //   - Purpose == PurposeSealing (Phase 4 admits only sealing)
+//   - Suite non-empty from schema 2, empty in schema 1 (ADR 0029)
 //   - Ciphertext non-empty
 //   - AAD non-empty (binds wrap to token)
 //   - PolicyVersion is non-empty (audit payload requires it).
@@ -85,6 +87,20 @@ func (t KeyReleaseToken) Validate() error {
 			return shared_errors.Structural(
 				shared_errors.CodeFieldValueInvalid,
 				fmt.Sprintf("key_release_token: wrapped[%d].purpose must be %d (sealing); got %d", i, PurposeSealing, w.Purpose),
+				nil,
+			)
+		}
+		if t.SchemaVersion >= 2 && w.Suite == "" {
+			return shared_errors.Structural(
+				shared_errors.CodeRequiredFieldMissing,
+				fmt.Sprintf("key_release_token: wrapped[%d].suite required from schema 2 (ADR 0029)", i),
+				nil,
+			)
+		}
+		if t.SchemaVersion < 2 && w.Suite != "" {
+			return shared_errors.Structural(
+				shared_errors.CodeCrossFieldInconsistent,
+				fmt.Sprintf("key_release_token: wrapped[%d].suite is a schema-2 field; a schema-1 token names no suite", i),
 				nil,
 			)
 		}

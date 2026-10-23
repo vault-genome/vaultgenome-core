@@ -1,0 +1,12 @@
+total 270624
+drwxr-xr-x  2 root root     4096 Oct 16 03:47 .
+drwxr-xr-x 11 root root     4096 Oct 16 03:47 ..
+-rwxr-xr-x  1 root root 30166341 Oct 16 03:47 coserv-amd-kds.plugin
+-rwxr-xr-x  1 root root 31131215 Oct 16 03:47 coserv-nvidia.plugin
+-rwxr-xr-x  1 root root 30813679 Oct 16 03:47 scheme-arm-cca.plugin
+-rwxr-xr-x  1 root root 30805834 Oct 16 03:47 scheme-parsec-cca.plugin
+-rwxr-xr-x  1 root root 30605003 Oct 16 03:47 scheme-parsec-tpm.plugin
+-rwxr-xr-x  1 root root 30650464 Oct 16 03:47 scheme-psa-iot.plugin
+-rwxr-xr-x  1 root root 30423655 Oct 16 03:47 scheme-riot.plugin
+-rwxr-xr-x  1 root root 32019690 Oct 16 03:47 scheme-sevsnp.plugin
+-rwxr-xr-x  1 root root 30480493 Oct 16 03:47 scheme-tpm-enacttrust.plugin

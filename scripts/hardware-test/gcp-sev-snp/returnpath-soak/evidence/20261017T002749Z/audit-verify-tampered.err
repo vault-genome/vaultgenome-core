@@ -1,0 +1,1 @@
+acpctl audit verify: chain BROKEN — integrity[signature_invalid]: returnpath-audit.db: returnpath-audit.0000020000-0000024999.db is not the file the chain recorded: sha256 88150f9d905a9608bcba6dd0775314f2125c258765b0e4f2c2cf580065e6b72d, 16777217 bytes on disk; 7543a20de055557fb2a202dd84b4bc8a10f34bf74f7c56e72c5f0172ad22b7c6, 16777216 bytes on the record

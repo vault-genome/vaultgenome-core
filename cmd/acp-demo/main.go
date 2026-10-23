@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Command acp-demo runs the cross-hardware AI-regeneration flagship end to end,
@@ -34,7 +35,7 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
+	"math/rand" // nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used -- seeded, reproducible demo data; nothing here is a key, nonce or secret
 	"os"
 
 	"github.com/vault-genome/vaultgenome-core/internal/canonical"
@@ -200,7 +201,7 @@ func run(w io.Writer, modelPath string) (outcome, error) {
 		return out, err
 	}
 
-	pub, priv, err := crypto.GenerateEd25519(nil)
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	if err != nil {
 		return out, fmt.Errorf("generate verdict signing key: %w", err)
 	}
@@ -210,7 +211,7 @@ func run(w io.Writer, modelPath string) (outcome, error) {
 		if err != nil {
 			return res, fmt.Errorf("regenerate: %w", err)
 		}
-		if !p.report(res, pub, priv) {
+		if !p.report(res, key) {
 			out.SignaturesVerified = false
 		}
 		return res, nil
@@ -245,13 +246,13 @@ func run(w io.Writer, modelPath string) (outcome, error) {
 
 // report narrates one descent. It returns false if an opened door's signed
 // verdict failed to verify.
-func (p printer) report(res reconstruction.LadderResult, pub crypto.PublicKey, priv crypto.PrivateKey) bool {
+func (p printer) report(res reconstruction.LadderResult, key *crypto.SigningKey) bool {
 	if res.Opened {
-		sv, err := equivalence.Sign(res.Verdict, pub, priv)
+		sv, err := equivalence.Sign(res.Verdict, key)
 		verified := err == nil && equivalence.VerifySigned(sv) == nil
 		p.ok("door opened: %q (rung %d, kind=%s) → verdict %s", res.Name, res.Rung, res.Kind, res.Verdict.Level)
 		if err == nil {
-			p.info("Ed25519-signed verdict %x… (signature verifies: %v)", sv.Signature[:10], verified)
+			p.info("%s-signed verdict %x… (signature verifies: %v)", key.Suite(), sv.Signature[:10], verified)
 		}
 		p.info("reconstitution decision: %s — model goes live", reconstruction.Reason(res.Verdict))
 		return verified

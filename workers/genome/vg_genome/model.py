@@ -1,3 +1,4 @@
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Loading a base model with an adapter, and the two measurements a fixture
 takes: last-position logits and a greedy continuation."""
@@ -26,7 +27,7 @@ def load_base(base_dir: str, dtype: str = DEFAULT_DTYPE):
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(base_dir, local_files_only=True)
-    model = AutoModelForCausalLM.from_pretrained(base_dir, local_files_only=True, torch_dtype=torch_dtype(dtype))
+    model = AutoModelForCausalLM.from_pretrained(base_dir, local_files_only=True, dtype=torch_dtype(dtype))
     model.eval()
     return model, tokenizer
 

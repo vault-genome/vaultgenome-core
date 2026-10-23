@@ -1,3 +1,4 @@
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """A tiny random Llama and a word-level tokenizer, built locally: the tests
 download nothing and run in seconds."""
@@ -18,6 +19,13 @@ EXAMPLES = [
     {"prompt": "where does the key go ?", "completion": "only to an attested destination"},
     {"prompt": "what is sealed in the bundle ?", "completion": "the adapter delta and its recipe"},
 ]
+
+
+# The tiny model's rotary base: Qwen2.5's, not transformers' default of
+# 10 000, so a door that assumed the default instead of reading the model's
+# would compute the wrong tables here, as it did on the raised runtime
+# (scripts/hardware-test/integer-door, run 20261014T012445Z).
+ROPE_THETA = 1_000_000.0
 
 
 def _vocab():
@@ -42,6 +50,7 @@ def make_base(d) -> str:
         vocab_size=len(vocab), hidden_size=32, intermediate_size=64, num_hidden_layers=2,
         num_attention_heads=4, num_key_value_heads=2, max_position_embeddings=128,
         eos_token_id=vocab["[EOS]"], pad_token_id=vocab["[PAD]"], bos_token_id=None, tie_word_embeddings=False,
+        rope_parameters={"rope_type": "default", "rope_theta": ROPE_THETA},
     )
     LlamaForCausalLM(cfg).save_pretrained(d, safe_serialization=True)
     return str(d)

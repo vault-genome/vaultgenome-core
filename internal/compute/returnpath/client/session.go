@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package client
@@ -94,6 +95,12 @@ type SessionConfig struct {
 
 	// Verifier verifies the server's TEE evidence. Required.
 	Verifier tee.Verifier
+
+	// LocalProvider is the family of Producer's Evidence; PeerProvider the
+	// family Verifier reads (the CMW record on the wire names it). Both
+	// required.
+	LocalProvider tee.Provider
+	PeerProvider  tee.Provider
 
 	// NonceReader supplies entropy for the client nonce. Optional;
 	// defaults to crypto/rand.Reader inside the handshake.
@@ -233,6 +240,8 @@ func Dial(cfg SessionConfig) (*Session, error) {
 		Conn:              cfg.Conn,
 		Producer:          cfg.Producer,
 		Verifier:          cfg.Verifier,
+		LocalProvider:     cfg.LocalProvider,
+		PeerProvider:      cfg.PeerProvider,
 		NonceReader:       cfg.NonceReader,
 		Clock:             cfg.Clock,
 		ProposedChallenge: cfg.ProposedChallenge,
@@ -370,6 +379,15 @@ func (s *Session) ServeOneJob(ctx context.Context) error {
 		WorkerSigningKeyID: string(s.cfg.SigningKeyID),
 		// WorkerSignature filled in below once CoverBytes is built.
 	}
+	// The suite the worker's key signs under goes on the frame before the
+	// cover bytes are taken (ADR 0031): absent for ed25519, named otherwise.
+	alg, err := keys.RecordAlg(s.cfg.Signer, s.cfg.SigningKeyID)
+	if err != nil {
+		return shared_errors.Integrity(
+			CodeSignFailure,
+			"returnpath/client: Signer.Suite failed", err)
+	}
+	frame.WorkerSignatureAlg = alg
 	cover, err := frame.CoverBytes()
 	if err != nil {
 		return err

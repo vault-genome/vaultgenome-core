@@ -1,0 +1,3 @@
+instance=vg-authority-a-20261021t152535z
+zone=us-central1-c
+machine=n2d-standard-4

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package doctrine
@@ -917,8 +918,8 @@ func TestInvariant_07c_AuthorityLinksNoMaterialisation(t *testing.T) {
 			}
 		}
 	}
-	if checked < 4 {
-		t.Fatalf("checked %d binaries; expected sagvd, acp-compute, acp-bootstrap and acpctl at least", checked)
+	if checked < 5 {
+		t.Fatalf("checked %d binaries; expected sagvd, acp-compute, acp-bootstrap, acpctl and acp-keygen at least", checked)
 	}
 }
 
@@ -1372,10 +1373,15 @@ func TestInvariant_11_SupplyChainAttested(t *testing.T) {
 		"release workflow must verify the tag's signature before building")
 
 	// Binary coverage — every operational binary participates in the supply chain.
-	for _, bin := range []string{"sagvd", "acp-compute", "acpctl", "acp-bootstrap"} {
+	for _, bin := range []string{"sagvd", "acp-compute", "acpctl", "acp-bootstrap", "acp-keygen"} {
 		require.Containsf(t, content, bin,
 			"release workflow must include binary %q in the signed/SBOM'd set", bin)
 	}
+	// The worker package ships as a release artifact, signed, with an SBOM
+	// and in the provenance's subjects, so a deployment needs nothing from
+	// the source tree.
+	require.Containsf(t, content, "genome-worker-",
+		"release workflow must pack, sign and attest the worker package (workers/genome)")
 }
 
 // parsePackageFiles parses every non-test .go file in pkgDir and returns
@@ -1727,4 +1733,62 @@ func runScript(t *testing.T, script, dir string) (string, error) {
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	return string(out), err
+}
+
+// TestInvariant_09b_SignedContractsCarryAlg — every contract struct that
+// carries a signature (a SigningKeyID field) carries, beside it, the
+// signature suite the signature was made under: Alg of type
+// crypto.SignatureSuite (ADR 0031), absent on the wire for ed25519 and
+// named for every other suite. A verifier checks the suite a record names
+// against the key it resolves before any signature is checked, so a
+// record cannot choose an algorithm its key was not made for.
+func TestInvariant_09b_SignedContractsCarryAlg(t *testing.T) {
+	t.Parallel()
+	root := locateModuleRoot(t)
+	contractsRoot := filepath.Join(root, "internal/contracts")
+	entries, err := os.ReadDir(contractsRoot)
+	require.NoError(t, err, "read %s", contractsRoot)
+
+	signed := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		pkgDir := filepath.Join(contractsRoot, e.Name())
+		_, files := parsePackageFiles(t, pkgDir)
+		for _, f := range files {
+			ast.Inspect(f, func(n ast.Node) bool {
+				ts, ok := n.(*ast.TypeSpec)
+				if !ok {
+					return true
+				}
+				st, ok := ts.Type.(*ast.StructType)
+				if !ok {
+					return true
+				}
+				hasKID, hasSig, algType := false, false, ""
+				for _, fl := range structFields(st) {
+					switch fl.Name {
+					case "SigningKeyID":
+						hasKID = true
+					case "Signature":
+						hasSig = true
+					case "Alg":
+						algType = fl.Type
+					}
+				}
+				if !hasKID {
+					return true
+				}
+				signed++
+				require.Truef(t, hasSig,
+					"%s.%s carries signing_key_id but no signature", e.Name(), ts.Name.Name)
+				require.Equalf(t, "crypto.SignatureSuite", algType,
+					"%s.%s must carry Alg crypto.SignatureSuite beside SigningKeyID (ADR 0031)", e.Name(), ts.Name.Name)
+				return true
+			})
+		}
+	}
+	require.GreaterOrEqual(t, signed, 17,
+		"the signed contracts are counted, so a contract that lost its signature is noticed")
 }

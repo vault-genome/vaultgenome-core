@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # 02-capture-attestation.sh — capture an AMD SEV-SNP attestation report
@@ -35,8 +36,9 @@ xxd -l 96 evidence/snp-attestation-report.bin | tee evidence/snp-attestation-rep
 
 echo
 echo "=== capture kernel SEV log too ==="
-journalctl -k --no-pager 2>/dev/null | grep -iE "sev|memory encryption" | head -10 \
-  > evidence/kernel-sev.txt
+# Needs root to read the kernel log on Ubuntu; an empty log is recorded, not fatal.
+sudo journalctl -k --no-pager 2>/dev/null | grep -iE "sev|memory encryption" | head -10 \
+  > evidence/kernel-sev.txt || true
 cat evidence/kernel-sev.txt
 
 echo

@@ -1,10 +1,13 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package transport
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
@@ -119,7 +122,7 @@ func (h HelloClient) Validate() error {
 	if h.WireMajor != WireMajor || h.WireMinor != WireMinor {
 		return shared_errors.Structural(
 			CodeUnsupportedWireVersion,
-			"returnpath/transport: HelloClient declares unsupported wire version",
+			fmt.Sprintf("returnpath/transport: HelloClient declares wire %d.%d; this side speaks %d.%d (1.1 carries Evidence as a CMW record, RFC 9999)", h.WireMajor, h.WireMinor, WireMajor, WireMinor),
 			nil,
 		)
 	}
@@ -146,7 +149,7 @@ type HelloServer struct {
 	Type            FrameType `json:"type"`
 	ClientNonceEcho []byte    `json:"client_nonce_echo"`
 	ServerNonce     []byte    `json:"server_nonce"`
-	ServerEvidence  []byte    `json:"server_evidence"`
+	ServerEvidence  CMWRecord `json:"server_evidence"`
 
 	// DerivationContext is the HKDF info-string both sides feed into
 	// the session-key derivation (see session.go). It is public on the
@@ -159,7 +162,7 @@ type HelloServer struct {
 // CodeNonceTooShort when either nonce fails the minimum-length check;
 // clientNonceEcho must match the HelloClient.ClientNonce this server
 // just received.
-func NewHelloServer(clientNonceEcho, serverNonce, serverEvidence, derivationContext []byte) (HelloServer, error) {
+func NewHelloServer(clientNonceEcho, serverNonce []byte, serverEvidence CMWRecord, derivationContext []byte) (HelloServer, error) {
 	if len(clientNonceEcho) < NonceMinBytes {
 		return HelloServer{}, shared_errors.Structural(
 			CodeNonceTooShort,
@@ -174,11 +177,14 @@ func NewHelloServer(clientNonceEcho, serverNonce, serverEvidence, derivationCont
 			nil,
 		)
 	}
+	if err := serverEvidence.check(); err != nil {
+		return HelloServer{}, err
+	}
 	return HelloServer{
 		Type:              FrameTypeHelloServer,
 		ClientNonceEcho:   append([]byte(nil), clientNonceEcho...),
 		ServerNonce:       append([]byte(nil), serverNonce...),
-		ServerEvidence:    append([]byte(nil), serverEvidence...),
+		ServerEvidence:    CMWRecord{Type: serverEvidence.Type, Value: append([]byte(nil), serverEvidence.Value...), Ind: serverEvidence.Ind},
 		DerivationContext: append([]byte(nil), derivationContext...),
 	}, nil
 }
@@ -206,12 +212,8 @@ func (h HelloServer) Validate() error {
 			nil,
 		)
 	}
-	if len(h.ServerEvidence) == 0 {
-		return shared_errors.Structural(
-			CodeProtocolViolation,
-			"returnpath/transport: HelloServer.ServerEvidence required",
-			nil,
-		)
+	if err := h.ServerEvidence.check(); err != nil {
+		return err
 	}
 	if len(h.DerivationContext) == 0 {
 		return shared_errors.Structural(
@@ -236,22 +238,18 @@ func (h HelloServer) Validate() error {
 // other that they are TEE-bound before any sealed material moves.
 type AttestClient struct {
 	Type           FrameType `json:"type"`
-	ClientEvidence []byte    `json:"client_evidence"`
+	ClientEvidence CMWRecord `json:"client_evidence"`
 }
 
 // NewAttestClient constructs an AttestClient. Evidence must be
 // non-empty.
-func NewAttestClient(evidence []byte) (AttestClient, error) {
-	if len(evidence) == 0 {
-		return AttestClient{}, shared_errors.Structural(
-			CodeProtocolViolation,
-			"returnpath/transport: AttestClient.ClientEvidence required",
-			nil,
-		)
+func NewAttestClient(evidence CMWRecord) (AttestClient, error) {
+	if err := evidence.check(); err != nil {
+		return AttestClient{}, err
 	}
 	return AttestClient{
 		Type:           FrameTypeAttestClient,
-		ClientEvidence: append([]byte(nil), evidence...),
+		ClientEvidence: CMWRecord{Type: evidence.Type, Value: append([]byte(nil), evidence.Value...), Ind: evidence.Ind},
 	}, nil
 }
 
@@ -264,12 +262,8 @@ func (a AttestClient) Validate() error {
 			nil,
 		)
 	}
-	if len(a.ClientEvidence) == 0 {
-		return shared_errors.Structural(
-			CodeProtocolViolation,
-			"returnpath/transport: AttestClient.ClientEvidence required",
-			nil,
-		)
+	if err := a.ClientEvidence.check(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -559,7 +553,11 @@ type CandidateOutputFrame struct {
 	Bytes              []byte    `json:"bytes"`
 	ProducedAt         time.Time `json:"produced_at"`
 	WorkerSigningKeyID string    `json:"worker_signing_key_id"`
-	WorkerSignature    []byte    `json:"worker_signature"`
+	// WorkerSignatureAlg is the signature suite the frame was signed
+	// under (ADR 0031): absent for ed25519, the suite id otherwise. Under
+	// the signature (CoverBytes keeps it), so the suite cannot be swapped.
+	WorkerSignatureAlg crypto.SignatureSuite `json:"worker_signature_alg,omitempty"`
+	WorkerSignature    []byte                `json:"worker_signature"`
 }
 
 // Validate structural-checks a CandidateOutputFrame. Does NOT verify

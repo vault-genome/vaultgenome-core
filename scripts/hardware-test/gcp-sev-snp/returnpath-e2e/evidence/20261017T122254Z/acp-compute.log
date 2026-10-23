@@ -1,0 +1,8 @@
+{"time":"2026-10-17T12:26:02.917122121Z","level":"INFO","msg":"acp-compute starting","version":"0.0.0-dev","commit":"b18630c3d71b","config_path":"worker.json","vault_address":"127.0.0.1:9443","workload_descriptor":"acp-compute-returnpath-e2e-v1"}
+{"time":"2026-10-17T12:26:02.951059515Z","level":"INFO","msg":"worker signing identity","kid":"acp-compute-worker-demo","pubkey_hex":"2f747c66b5fdaa6dc3a23378bcf2add150dfc44a90b9ca528bec91e91528163b"}
+{"time":"2026-10-17T12:26:02.951089385Z","level":"INFO","msg":"acp-compute tee.provider auto: the family is the host's to say","resolved_from":"sev_guest","tee_provider":"gcp-sev-snp"}
+{"time":"2026-10-17T12:26:02.951144335Z","level":"INFO","msg":"worker TEE identity","tee_provider":"gcp-sev-snp","measurement_hex":"7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc","peer_provider":"gcp-sev-snp","peer_verifier":"builtin"}
+{"time":"2026-10-17T12:26:02.951153065Z","level":"INFO","msg":"genome door","command":["/root/e2e/venv/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/root/e2e/base","--device","cpu"],"timeout_seconds":300}
+{"time":"2026-10-17T12:26:02.96210068Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9082"}
+{"time":"2026-10-17T12:26:11.166141786Z","level":"INFO","msg":"return-path session opened","peer_measurement":"7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc","peer_evidence_type":"application/vnd.veraison.tsm-report+json","peer_evidence_bytes":7980,"handshake_ms":8200,"ready_at":"2026-10-17T12:26:11.165703726Z"}
+{"time":"2026-10-17T12:26:17.238026141Z","level":"INFO","msg":"acp-compute stopped"}

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package failover
@@ -5,8 +6,6 @@ package failover
 import (
 	"bytes"
 	"context"
-	"crypto/ecdh"
-	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -34,6 +33,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
@@ -166,9 +166,9 @@ type drill struct {
 	restores string
 	canary   string
 
-	sentinelKey ed25519.PrivateKey
-	escrow      *ecdh.PrivateKey
-	operator    ed25519.PrivateKey
+	sentinelKey *crypto.SigningKey
+	escrow      *escrow.PrivateKey
+	operator    *crypto.SigningKey
 	standby     *tee.Simulated
 	srv         *httptest.Server
 	audit       *memAudit
@@ -184,11 +184,11 @@ func newDrill(t *testing.T, gateVals ...float32) *drill {
 	d.canary = filepath.Join(t.TempDir(), "canary")
 	must(t, os.WriteFile(d.canary, []byte("no process reads this"), 0o600))
 	var err error
-	_, d.sentinelKey, err = ed25519.GenerateKey(rand.Reader)
+	d.sentinelKey, err = crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	must(t, err)
-	d.escrow, err = escrow.GenerateKey()
+	d.escrow, err = escrow.GenerateKey(kms.PolicyForThisProcess().Writes())
 	must(t, err)
-	_, d.operator, err = ed25519.GenerateKey(rand.Reader)
+	d.operator, err = crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	must(t, err)
 	clock := shared_time.NewSystemClock()
 
@@ -267,7 +267,7 @@ func (d *drill) policy() Policy {
 		Serial:            7,
 		IssuedAt:          time.Now().Add(-time.Minute).UTC(),
 		NotAfter:          time.Now().Add(time.Hour).UTC(),
-		SentinelPublicKey: d.sentinelKey.Public().(ed25519.PublicKey),
+		SentinelPublicKey: d.sentinelKey.Public().Bytes,
 		Standby:           Standby{Kind: string(tee.ProviderSimulated), Endpoint: d.srv.URL, Measurements: []string{hex.EncodeToString(m[:])}},
 		Triggers:          Triggers{CompromiseReport: true, HeartbeatTimeoutSeconds: 1},
 		RequireGate:       "EQUIVALENT",
@@ -317,7 +317,7 @@ func (d *drill) runSentinelOn(ctx context.Context, src sentinel.Source) <-chan s
 // waitChain waits for the outbox chain to reach n generations.
 func (d *drill) waitChain(n int) []sentinel.SealRecord {
 	d.t.Helper()
-	pub := d.sentinelKey.Public().(ed25519.PublicKey)
+	pub := d.sentinelKey.Public()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		chain, _, err := sentinel.ReadChain(d.outbox, pub)
@@ -494,9 +494,9 @@ func TestForgedReportIsIgnored(t *testing.T) {
 	defer cancel()
 	d.runSentinel(ctx)
 	d.waitChain(1)
-	_, forger, err := ed25519.GenerateKey(rand.Reader)
+	forger, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	must(t, err)
-	fake, err := sentinel.SignCompromise(sentinel.Compromise{Sentinel: sentinel.KeyID(forger.Public().(ed25519.PublicKey)),
+	fake, err := sentinel.SignCompromise(sentinel.Compromise{Sentinel: sentinel.KeyID(forger.Public()),
 		DetectedAt: time.Now().UTC(), Tripped: []sentinel.Trip{{Wire: "path", Target: "/etc/passwd", Got: "changed"}}}, forger)
 	must(t, err)
 	raw, err := json.Marshal(fake)

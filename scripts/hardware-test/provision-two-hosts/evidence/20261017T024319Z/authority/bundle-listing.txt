@@ -1,0 +1,8 @@
+-rw------- 0/0            1240 1970-01-01 00:00 bundle.json
+-rw------- 0/0              32 1970-01-01 00:00 secrets/acp-compute/worker_signing_seed
+-rw------- 0/0              32 1970-01-01 00:00 secrets/acp-compute/sealing.key
+-rw------- 0/0             656 1970-01-01 00:00 secrets/acp-compute/tls/client.crt
+-rw------- 0/0             241 1970-01-01 00:00 secrets/acp-compute/tls/client.key
+-rw------- 0/0             680 1970-01-01 00:00 secrets/shared/tls/ca.crt
+-rw------- 0/0              48 1970-01-01 00:00 pins/vault.measurement
+-rw------- 0/0            4602 1970-01-01 00:00 amd-milan-cert_chain.pem

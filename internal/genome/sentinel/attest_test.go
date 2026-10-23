@@ -1,11 +1,10 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package sentinel
 
 import (
 	"bytes"
-	"crypto/ed25519"
-	"crypto/rand"
 	"errors"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -28,7 +28,8 @@ func simulatedPrimary(t *testing.T, descriptor string) (*tee.Simulated, tee.Veri
 // changed — even re-signed with the sentinel key, as a thief of the seed
 // would.
 func TestAttestedRecordsBindTheChipToTheContent(t *testing.T) {
-	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := key.Public()
 	must(t, err)
 	id := KeyID(pub)
 	now := time.Date(2026, 9, 16, 12, 0, 0, 0, time.UTC)

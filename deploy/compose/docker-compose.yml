@@ -10,16 +10,16 @@
 #                 restores the model in memory through the vg_genome door
 #
 # Run order (from the repository root):
-#   make demo-certs    # provision ./deploy/compose/secrets with keygen
+#   make demo-certs    # provision ./deploy/compose/secrets with acp-keygen
 #   make demo-genome   # fine-tune a tiny model and seal its genome into ./deploy/compose/genomes
 #   make demo-up       # build + start, wait for sagvd /readyz
 #   make demo-submit   # POST /v1/jobs naming the genome, poll the gate's verdict
 #   make demo-down     # stop and remove
 #
 # Security posture: every channel is authenticated. The Return Path is
-# mutual TLS 1.3 against a private CA from keygen, and on top of that the
+# mutual TLS 1.3 against a private CA from acp-keygen, and on top of that the
 # worker must present TEE evidence signed by the pinned key before it is
-# given work. The REST API requires the bearer token keygen wrote to
+# given work. The REST API requires the bearer token acp-keygen wrote to
 # secrets/sagvd/api_token. Only loopback host ports are published. The TEE
 # backend is the simulated one (this is a local deployment); confidential
 # hardware is covered by docs/operator/runbooks/real-tee-sev-snp.md.

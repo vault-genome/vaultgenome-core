@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tee
@@ -31,32 +32,49 @@ type SealedSecret struct {
 	Schema         string `json:"schema"`
 	TEE            string `json:"tee"`
 	MeasurementHex string `json:"measurement_hex"`
+	// Sealer names the sealer the file was made with (SealerKind): the
+	// chip's derived key, a TPM 2.0, the simulated key. Files from before
+	// tee.sealer carry none and open with the host's sealer as before.
+	Sealer string `json:"sealer,omitempty"`
 	// Name is what the secret is — the config field it is read as.
 	Name   string `json:"name"`
 	Sealed []byte `json:"sealed"`
 }
 
-func sealedSecretAAD(provider Provider, measurementHex, name string) []byte {
+func sealedSecretAAD(provider Provider, measurementHex, name string, kind SealerKind) []byte {
 	aad := []byte(sealedSecretAADLabel)
 	aad = append(aad, provider...)
 	aad = append(aad, 0)
 	aad = append(aad, measurementHex...)
 	aad = append(aad, 0)
-	return append(aad, name...)
+	aad = append(aad, name...)
+	if kind != "" {
+		aad = append(aad, 0)
+		aad = append(aad, "sealer:"...)
+		aad = append(aad, kind...)
+	}
+	return aad
 }
 
 // SealSecret seals plain as the secret called name to the host the sealer
-// belongs to, and returns the file to write.
+// belongs to, and returns the file to write. The file names no sealer;
+// SealSecretWith is the form the daemons use.
 func SealSecret(plain []byte, sealer Sealer, provider Provider, measurement Measurement, name string) ([]byte, error) {
+	return SealSecretWith(plain, sealer, "", provider, measurement, name)
+}
+
+// SealSecretWith is SealSecret with the sealer's kind written into the
+// file and bound into the seal, so the file opens only with that sealer.
+func SealSecretWith(plain []byte, sealer Sealer, kind SealerKind, provider Provider, measurement Measurement, name string) ([]byte, error) {
 	if len(plain) == 0 || sealer == nil || provider == "" || measurement.IsZero() || name == "" {
 		return nil, errors.New("sealed secret: plaintext, sealer, provider, measurement and name required")
 	}
 	mh := hex.EncodeToString(measurement)
-	sealed, err := sealer.Seal(plain, sealedSecretAAD(provider, mh, name))
+	sealed, err := sealer.Seal(plain, sealedSecretAAD(provider, mh, name, kind))
 	if err != nil {
 		return nil, fmt.Errorf("sealed secret %q: seal to %s: %w", name, provider, err)
 	}
-	raw, err := json.MarshalIndent(SealedSecret{Schema: SealedSecretSchema, TEE: string(provider), MeasurementHex: mh, Name: name, Sealed: sealed}, "", "  ")
+	raw, err := json.MarshalIndent(SealedSecret{Schema: SealedSecretSchema, TEE: string(provider), MeasurementHex: mh, Sealer: string(kind), Name: name, Sealed: sealed}, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +103,13 @@ func ParseSealedSecret(raw []byte) (SealedSecret, error) {
 // at is the file's own word, bound into the AEAD: the sealer (the chip's
 // derived key, or the vTPM's policy) is what refuses another host.
 func OpenSecret(raw []byte, sealer Sealer, provider Provider, name string) ([]byte, error) {
+	return OpenSecretWith(raw, sealer, "", provider, name)
+}
+
+// OpenSecretWith is OpenSecret for a host whose sealer is kind: a file that
+// names another sealer is refused before the sealer is asked, and a file
+// that names none (from before tee.sealer) opens as it did.
+func OpenSecretWith(raw []byte, sealer Sealer, kind SealerKind, provider Provider, name string) ([]byte, error) {
 	s, err := ParseSealedSecret(raw)
 	if err != nil {
 		return nil, err
@@ -95,10 +120,13 @@ func OpenSecret(raw []byte, sealer Sealer, provider Provider, name string) ([]by
 	if s.TEE != string(provider) {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, fmt.Sprintf("sealed secret %q: sealed to %s, this host is %s", name, s.TEE, provider), nil)
 	}
+	if s.Sealer != "" && kind != "" && s.Sealer != string(kind) {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, fmt.Sprintf("sealed secret %q: sealed with %s; this host's sealer is %s (tee.sealer)", name, s.Sealer, kind), nil)
+	}
 	if sealer == nil {
 		return nil, errors.New("sealed secret: no sealer on this host")
 	}
-	plain, err := sealer.Unseal(s.Sealed, sealedSecretAAD(provider, s.MeasurementHex, s.Name))
+	plain, err := sealer.Unseal(s.Sealed, sealedSecretAAD(provider, s.MeasurementHex, s.Name, SealerKind(s.Sealer)))
 	if err != nil {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("sealed secret %q: this host does not open it (sealed at %s on %s): %v", name, s.MeasurementHex[:min(16, len(s.MeasurementHex))]+"…", s.TEE, err), err)

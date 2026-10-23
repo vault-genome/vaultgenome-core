@@ -1,11 +1,12 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
 
 import (
-	"crypto/ecdh"
 	"errors"
 	"fmt"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
 	"io"
 	"os"
 
@@ -39,10 +40,12 @@ type materials struct {
 	// authority-signing key is registered.
 	AuthoritySigningKeyID ids.KeyID
 
-	// AuthoritySigningPublicKey is the 32-byte Ed25519 public key
-	// corresponding to AuthoritySigningKeyID. Exposed only so the
-	// daemon can log it once at startup.
-	AuthoritySigningPublicKey crypto.PublicKey
+	// AuthoritySigningPublicKey is the raw public key corresponding to
+	// AuthoritySigningKeyID, under AuthoritySigningSuite (ADR 0031).
+	// Exposed so the daemon can log it once at startup and `identity`
+	// can print it.
+	AuthoritySigningPublicKey []byte
+	AuthoritySigningSuite     crypto.SignatureSuite
 
 	// SessionSealingKeyID is the kid under which the session-sealing
 	// material is registered. JobRequest.SealedMaterialRef.RecipientKeyID
@@ -79,12 +82,19 @@ type materials struct {
 	// from the sealed file key_escrow_path names (ADR 0016); nil when
 	// no escrow key is configured. EscrowSource says how it was kept
 	// on disk: "sealed:<tee>" or "plaintext" (simulation only).
-	Escrow       *ecdh.PrivateKey
+	Escrow       *escrow.PrivateKey
 	EscrowSource string
 
-	tee     TEEConfig
-	sealer  tee.Sealer
-	closers []io.Closer
+	tee        TEEConfig
+	sealer     tee.Sealer
+	sealerKind tee.SealerKind
+	closers    []io.Closer
+}
+
+// SealerKind says which sealer TEESealer builds on this host, without
+// touching it: the chip's derived key, a TPM 2.0, the simulated key.
+func (m *materials) SealerKind() (tee.SealerKind, error) {
+	return tee.SealerKindFor(m.Producer, m.tee.SealerMode())
 }
 
 // TEESealer is the sealer of this host's TEE: the simulated one, or the
@@ -96,14 +106,14 @@ func (m *materials) TEESealer() (tee.Sealer, error) {
 	// The chip's derived key on SEV-SNP (ADR 0016), the guest's vTPM under a
 	// policy of this boot's PCRs on TDX and the Azure confidential GPU host
 	// (ADR 0022), the simulated TEE's weak key off hardware.
-	s, closer, err := tee.SealerFor(m.Producer, tee.SealerOptions{SEVGuestDevice: m.tee.SEVDevice(), TPM2ToolsDir: m.tee.TPM2ToolsDir, VTPMSealPCRs: m.tee.VTPMSealPCRs})
+	s, closer, kind, err := tee.SealerFor(m.Producer, tee.SealerOptions{Mode: m.tee.SealerMode(), SEVGuestDevice: m.tee.SEVDevice(), TPM2ToolsDir: m.tee.TPM2ToolsDir, VTPMSealPCRs: m.tee.VTPMSealPCRs})
 	if err != nil {
-		return nil, fmt.Errorf("sagvd: tee.provider %s (tee.sev_guest_device, tee.tpm2_tools_dir, tee.vtpm_seal_pcrs): %w", m.Provider, err)
+		return nil, fmt.Errorf("sagvd: tee.provider %s, tee.sealer %s (tee.sev_guest_device, tee.tpm2_tools_dir, tee.vtpm_seal_pcrs): %w", m.Provider, m.tee.SealerMode(), err)
 	}
 	if closer != nil {
 		m.closers = append(m.closers, closer)
 	}
-	m.sealer = s
+	m.sealer, m.sealerKind = s, kind
 	return m.sealer, nil
 }
 
@@ -128,7 +138,8 @@ func (m *materials) Close() error {
 // acp-compute uses):
 //
 //   - TEE seed file:              32 bytes (Ed25519 seed)
-//   - Authority signing seed:     32 bytes (Ed25519 seed)
+//   - Authority signing key:      the suite's file form (keys.authority_signing.suite):
+//     the 32-byte seed of an ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384 key
 //   - Session sealing key file:   32 bytes (AES-256 key, pre-shared with worker)
 //   - Peer (worker) TEE pubkey:   32 bytes (Ed25519 public key)
 //   - Peer (worker) TEE measure:  32 bytes (SHA-256 measurement)
@@ -153,14 +164,15 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 		return nil, err
 	}
 
-	// 3. Authority signing seed → register under cfg.Keys.AuthoritySigning.KeyID.
-	authSeed, err := readSecret(cfg.TEE, cfg.Keys.AuthoritySigning.SeedPath, crypto.Ed25519SeedSize, "keys.authority_signing.seed_path")
+	// 3. Authority signing key → register under cfg.Keys.AuthoritySigning.KeyID,
+	//    under the suite the configuration names.
+	authKey, err := loadSigningKey(cfg.TEE, cfg.Keys.AuthoritySigning, "keys.authority_signing")
 	if err != nil {
 		return nil, err
 	}
 	store := keys.NewInMemoryStore(clock)
 	authKID := ids.KeyID(cfg.Keys.AuthoritySigning.KeyID)
-	vk, err := store.RegisterSigningFromSeed(authKID, keys.PurposeSigningAuthority, authSeed)
+	vk, err := store.RegisterSigningKey(authKID, keys.PurposeSigningAuthority, authKey)
 	if err != nil {
 		return nil, fmt.Errorf("sagvd: register authority signing key: %w", err)
 	}
@@ -183,7 +195,14 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 
 	// 5. Worker registry → PublicKeyResolver for CandidateOutputFrame
 	//    signature verification.
-	resolver, entries, err := LoadWorkerRegistry(cfg.Workers.RegistryPath)
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: crypto: %w", err)
+	}
+	if err := sigPol.CheckSigningKey("keys.authority_signing", vk.Suite); err != nil {
+		return nil, fmt.Errorf("sagvd: %w", err)
+	}
+	resolver, entries, err := LoadWorkerRegistry(cfg.Workers.RegistryPath, sigPol)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +211,7 @@ func LoadMaterials(cfg Config, clock shared_time.Clock) (*materials, error) {
 		Store:                     store,
 		AuthoritySigningKeyID:     authKID,
 		AuthoritySigningPublicKey: vk.PublicKey,
+		AuthoritySigningSuite:     vk.Suite,
 		SessionSealingKeyID:       sealingKID,
 		Producer:                  producer,
 		Provider:                  provider,
@@ -221,6 +241,16 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("sagvd: tee.provider: %w", err)
 	}
+	if provider == tee.ProviderAuto {
+		// The kernel names the family (ADR 0025): configfs-tsm's provider
+		// attribute, mapped to what this build runs for it. The daemon then
+		// is that family — in its identity, its logs and its audit records.
+		family, _, err := tee.ResolveAuto(cfg.TSMReportDir)
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: tee.provider=auto: %w", err)
+		}
+		provider = family
+	}
 	switch provider {
 	case tee.ProviderGCPSEVSNP:
 		p, err := tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})
@@ -232,6 +262,12 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 		p, err := tee.NewGCPTDXProducer(tee.GCPTDXProducerConfig{TSMReportDir: cfg.TSMReportDir})
 		if err != nil {
 			return "", nil, fmt.Errorf("sagvd: tee.provider=gcp-tdx: %w", err)
+		}
+		return provider, p, nil
+	case tee.ProviderAzureSEVSNP:
+		p, err := tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: tee.provider=azure-sev-snp: %w", err)
 		}
 		return provider, p, nil
 	case tee.ProviderAzureCGPU:
@@ -259,6 +295,10 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 // cfg.Provider, pinned to the measurement file: by attestation key for a
 // simulated peer, by the AMD certificate chain for a SEV-SNP peer.
 func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
+	snpPol, err := cfg.SEVSNP.Policy()
+	if err != nil {
+		return "", nil, fmt.Errorf("sagvd: tee.peer.%w", err)
+	}
 	provider, err := cfg.ProviderKind()
 	if err != nil {
 		return "", nil, fmt.Errorf("sagvd: tee.peer.provider: %w", err)
@@ -266,6 +306,13 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 	measurement, err := readMeasurement(cfg.MeasurementPath, "tee.peer.measurement_path")
 	if err != nil {
 		return "", nil, err
+	}
+	if cfg.Verifier.delegated() {
+		v, err := buildDelegatedVerifier(provider, measurement, cfg.Verifier)
+		if err != nil {
+			return "", nil, err
+		}
+		return provider, v, nil
 	}
 	spec := tee.VerifierSpec{Provider: provider, ExpectedMeasurement: measurement}
 	switch provider {
@@ -287,13 +334,26 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 			AMDRootPEM:     chain,
 			AMDKDSURL:      cfg.AMDKDSURL,
 			VCEKCacheDir:   cfg.VCEKCacheDir,
-			MinReportedTCB: cfg.MinReportedTCB,
+			MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol,
 		}
 	case tee.ProviderGCPTDX:
 		if len(measurement) != 48 {
 			return "", nil, fmt.Errorf("sagvd: tee.peer.measurement_path (%q) must hold the 48-byte TDX measurement (SHA-384 of MRTD and RTMR0..3, as `identity` prints it; got %d bytes)", cfg.MeasurementPath, len(measurement))
 		}
 		spec.GCPTDX = tee.GCPTDXVerifierConfig{PCSURL: cfg.PCSURL, PCSCacheDir: cfg.PCSCacheDir, AcceptableTCBStatuses: cfg.AcceptableTCBStatuses}
+	case tee.ProviderAzureSEVSNP:
+		if len(measurement) != 48 {
+			return "", nil, fmt.Errorf("sagvd: tee.peer.measurement_path (%q) must hold a 48-byte SEV-SNP launch measurement (got %d bytes)", cfg.MeasurementPath, len(measurement))
+		}
+		chain, err := os.ReadFile(cfg.AMDCertChainPath)
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: read tee.peer.amd_cert_chain_path (%q): %w", cfg.AMDCertChainPath, err)
+		}
+		digests, err := pcrDigests(cfg.PCRDigests)
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: tee.peer.%w", err)
+		}
+		spec.AzureSEVSNP = tee.AzureSEVSNPVerifierConfig{AMDRootPEM: chain, AMDKDSURL: cfg.AMDKDSURL, VCEKCacheDir: cfg.VCEKCacheDir, MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol, AcceptablePCRDigests: digests}
 	case tee.ProviderAzureCGPU:
 		if len(measurement) != 48 {
 			return "", nil, fmt.Errorf("sagvd: tee.peer.measurement_path (%q) must hold a 48-byte SEV-SNP launch measurement (got %d bytes)", cfg.MeasurementPath, len(measurement))
@@ -306,7 +366,7 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 		if err != nil {
 			return "", nil, fmt.Errorf("sagvd: tee.peer.%w", err)
 		}
-		spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: cfg.AMDKDSURL, VCEKCacheDir: cfg.VCEKCacheDir, MinReportedTCB: cfg.MinReportedTCB,
+		spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: cfg.AMDKDSURL, VCEKCacheDir: cfg.VCEKCacheDir, MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol,
 			NRASJWKSURL: cfg.NRASJWKSURL, NRASCacheDir: cfg.NRASCacheDir, GPU: cfg.GPUPolicy.policy(), AcceptablePCRDigests: digests}
 		if err := cfg.GPUPolicy.apply(&spec.AzureCGPU); err != nil {
 			return "", nil, fmt.Errorf("sagvd: tee.peer.%w", err)
@@ -327,20 +387,63 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 // daemon startup after the metrics registry has been created and
 // before the daemon takes ownership of the materials.
 //
-// The provider label is "simulated" in Phase 1; when the daemon's
-// keystore loader supports the real-hardware backends (AWS Nitro,
-// Azure SGX, GCP SEV-SNP, Intel SGX bare metal), the value moves to
-// the configured tee.Provider name and the wrapper is identical.
-func (m *materials) InstrumentTEE(rec *teemetrics.Recorder, provider string) {
+// The provider label is the family of what was attested: this daemon's
+// (m.Provider) for the Evidence it produces, the peer's (m.PeerProvider)
+// for the Evidence it verifies — an authority on SEV-SNP verifying an
+// Azure worker counts that under azure-sev-snp.
+func (m *materials) InstrumentTEE(rec *teemetrics.Recorder) {
 	if rec == nil || m == nil {
 		return
 	}
 	if m.Producer != nil {
-		m.Producer = rec.WrapProducer(provider, m.Producer)
+		m.Producer = rec.WrapProducer(string(m.Provider), m.Producer)
 	}
 	if m.Verifier != nil {
-		m.Verifier = rec.WrapVerifier(provider, m.Verifier)
+		peer := m.PeerProvider
+		if peer == "" {
+			peer = m.Provider
+		}
+		m.Verifier = rec.WrapVerifier(string(peer), m.Verifier)
 	}
+}
+
+// buildDelegatedVerifier builds the RATS verifier of tee.peer.verifier
+// (mode rats): the Verifier's EAR key and, when given, the CA its TLS
+// certificate must chain to, read here; the pin held by the verifier.
+func buildDelegatedVerifier(provider tee.Provider, measurement tee.Measurement, c *PeerVerifierConfig) (tee.Verifier, error) {
+	keyRaw, err := os.ReadFile(c.EARPublicKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: read tee.peer.verifier.ear_public_key_path (%q): %w", c.EARPublicKeyPath, err)
+	}
+	key, err := tee.ParseEARPublicKey(keyRaw)
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: tee.peer.verifier.ear_public_key_path (%q): %w", c.EARPublicKeyPath, err)
+	}
+	var caPEM, clientCert, clientKey []byte
+	if c.CAPath != "" {
+		caPEM, err = os.ReadFile(c.CAPath)
+		if err != nil {
+			return nil, fmt.Errorf("sagvd: read tee.peer.verifier.ca_path (%q): %w", c.CAPath, err)
+		}
+	}
+	if c.ClientCertPath != "" {
+		clientCert, err = os.ReadFile(c.ClientCertPath)
+		if err != nil {
+			return nil, fmt.Errorf("sagvd: read tee.peer.verifier.client_cert_path (%q): %w", c.ClientCertPath, err)
+		}
+		clientKey, err = os.ReadFile(c.ClientKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("sagvd: read tee.peer.verifier.client_key_path (%q): %w", c.ClientKeyPath, err)
+		}
+	}
+	v, err := tee.NewRATSVerifier(provider, measurement, tee.RATSVerifierConfig{
+		URL: c.URL, EARPublicKey: key, CAPEM: caPEM, ClientCertPEM: clientCert, ClientKeyPEM: clientKey,
+		PolicyID: c.PolicyID, Submod: c.Submod, Accept: c.Accept, Timeout: c.timeout(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: tee.peer.verifier: %w", err)
+	}
+	return v, nil
 }
 
 // readExactly reads path and returns its contents if and only if the

@@ -57,10 +57,12 @@ the AMD KDS. The clouds differ only in **how the raw report is obtained**.
 Azure mediates SNP through the paravisor and the **vTPM**, so there is **no
 `/dev/sev-guest`** and the `configfs-tsm` provider does not apply. The AMD-signed
 report is embedded in the **HCL report** stored in vTPM NV index `0x1400001`.
-The shipping daemons take this path as `tee.provider: "azure-cgpu"` (ADR 0019,
-[real-tee-azure-cgpu.md](real-tee-azure-cgpu.md)): the HCL report from the
-vTPM, a TPM quote by the vTPM's attestation key binding the handshake's
-challenge, and — on an NCC H100 v5 — NVIDIA's tokens for the GPU.
+The shipping daemons take this path as `tee.provider: "azure-sev-snp"`
+([real-tee-azure-sev-snp.md](real-tee-azure-sev-snp.md)) — the HCL report
+from the vTPM and a TPM quote by the vTPM's attestation key binding the
+handshake's challenge — and, on an NCC H100 v5, as `"azure-cgpu"` (ADR
+0019, [real-tee-azure-cgpu.md](real-tee-azure-cgpu.md)), which adds
+NVIDIA's tokens for the GPU.
 
 1. Launch a confidential VM (only the `jammy` CVM image is offered in East US):
 
@@ -154,9 +156,31 @@ family in `sagvd`'s verifier registry with the AMD chain the VCEK must chain to
   "expected_measurement_hex": "<measurement_hex from acp-bootstrap identity>",
   "amd_cert_chain_path": "/etc/acp/crosscloud/amd-milan-cert_chain.pem",
   "vcek_cache_dir": "/var/lib/acp/vcek-cache",
-  "min_reported_tcb": 0
+  "min_reported_tcb": 0,
+  "sev_snp": { "tcb_floor": { "snp": 27, "microcode": 222 }, "chip_ids": [ "<chip_id_hex from the destination's record>" ] }
 } ] }
 ```
+
+`sev_snp` is optional (ADR 0033). Without it the verifier holds the chip's
+report to the floors AMD's bulletins printed when they were read — per chip
+variant, over the current, reported, committed and launch TCB versions,
+component by component (`docs/compliance/sev-snp-tcb-floors.md`; `identity`
+prints `sev_snp_policy` with the day they were read) — requires the platform's
+`ALIAS_CHECK_COMPLETE` and the mitigation vector bit the bulletins name, and
+refuses a guest policy with a migration agent. `tcb_floor` replaces the
+table's floor (a floor below it needs `accept_below_bulletin: true`, which the
+records then say); `chip_ids` names the only chips the destination may be;
+`require_smt_disallowed`, `require_iommu_write_safe` and
+`require_page_swap_disable` add the predicates their names say. A chip the
+table does not name (a stepping AMD has not printed a floor for) is refused
+until `tcb_floor` names one.
+
+`vcek_cache_dir` keeps every VCEK fetched from AMD KDS (`<chip id>-<tcb>.der`),
+checked against the pinned chain on every use like a fresh one. A host that
+will lose its route to KDS fills it first — `acpctl tee prefetch --config
+<daemon config>` verifies this host's own report as the peer verifier would,
+with KDS reachable — and `acpctl tee cache-status --config` says what is
+there and until when ([air_gap.md](air_gap.md)).
 
 Set `vcek_cache_dir`: AMD KDS answers bursts with HTTP 429, and every
 `crosscloud-restore` run is a new process. With the cache each chip's VCEK is
@@ -168,8 +192,11 @@ and put the same measurement on the allow-list under `"gcp-sev-snp"`. The
 verifier fetches each chip's VCEK from AMD KDS, checks
 the ECDSA-P384 signature and the VCEK → ASK → ARK chain, and refuses a report
 that is not VCEK-signed, comes from a DEBUG-enabled guest, was requested at a
-VMPL other than 0, carries a TCB below `min_reported_tcb`, or does not bind the
-ADR 0009 key-binding challenge.
+VMPL other than 0, carries a TCB below `min_reported_tcb` or, in any of its four
+TCB versions, below the per-chip floor of ADR 0033, lacks the platform's alias
+check or the mitigation vector bit the bulletins name, allows a migration agent,
+comes from a chip `chip_ids` does not name, or does not bind the ADR 0009
+key-binding challenge; what it read is on the record (`sev_snp` in the detail).
 
 With a `genome` section in its config (`bundle_dir`, `restore_dir`; see
 [06](../06_cross_cloud_restore.md)) the SEV-SNP destination also restores a
@@ -205,7 +232,10 @@ the chip signs, and the verifier fetches the VCEK from AMD KDS (cached in
 `vcek_cache_dir`), checks the ECDSA-P384 signature, the VCEK → ASK → ARK
 chain, no DEBUG, VMPL 0, the TCB floor, and REPORT_DATA binding the
 handshake's transcript challenge. A peer whose Evidence does not verify never
-receives a job, and the refusal is on `audit.log_path`.
+receives a job, and the refusal is on `audit.log_path`. A site that runs one
+RATS Verifier for its estate can delegate this appraisal to it and keep the
+pin here — `tee.peer.verifier.mode: rats`,
+[delegated-verifier.md](delegated-verifier.md).
 
 This exact configuration has run end to end on a GCP SEV-SNP Confidential VM
 — both daemons on the chip, the real `vg_genome` door, a genome fine-tuned on
@@ -220,9 +250,11 @@ escrow-provision`) and, since ADR 0023, every secret file the daemons
 read — seeds, TLS keys, tokens (`sagvd seal-keys`, `acp-compute
 seal-keys`, `acp-bootstrap seal-keys`, `acpctl sentinel seal-key` — run
 once after provisioning; the kits do). Families other than SEV-SNP, Intel TDX
-([real-tee-tdx.md](real-tee-tdx.md)) and the Azure confidential GPU VM
-([real-tee-azure-cgpu.md](real-tee-azure-cgpu.md)) are refused by the
-registry and by all three daemons until their verifiers run end to end.
+([real-tee-tdx.md](real-tee-tdx.md)), the Azure SEV-SNP Confidential VM
+([real-tee-azure-sev-snp.md](real-tee-azure-sev-snp.md)) and the Azure
+confidential GPU VM ([real-tee-azure-cgpu.md](real-tee-azure-cgpu.md)) are
+refused by the registry and by all three daemons until their verifiers
+run end to end.
 
 ## Cleanup (cost hygiene)
 

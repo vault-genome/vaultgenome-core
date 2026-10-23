@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -102,16 +103,19 @@ func (m *crossCloudMaterials) Close() error {
 
 // loadOperatorStop reads the operator's stop list and verifies it under
 // the pinned operator key.
-func loadOperatorStop(cfg OperatorStopConfig) (revocation.List, error) {
-	pub, err := loadAttestorPubKey(cfg.PublicKeyPath)
+func loadOperatorStop(cfg OperatorStopConfig, pol kms.SignaturePolicy) (revocation.List, error) {
+	pub, err := loadSigningPublicKey(cfg.PublicKeyPath)
 	if err != nil {
+		return revocation.List{}, fmt.Errorf("public_key_path %q: %w", cfg.PublicKeyPath, err)
+	}
+	if err := pol.CheckAcceptedKey("operator key "+cfg.KeyID, pub.Suite); err != nil {
 		return revocation.List{}, fmt.Errorf("public_key_path %q: %w", cfg.PublicKeyPath, err)
 	}
 	raw, err := os.ReadFile(cfg.ListPath)
 	if err != nil {
 		return revocation.List{}, fmt.Errorf("list_path: %w (without a valid list nothing is released)", err)
 	}
-	return revocation.Parse(raw, ed25519.PublicKey(pub), cfg.KeyID)
+	return revocation.Parse(raw, pub, cfg.KeyID)
 }
 
 // verifierRegistryFile is the on-disk JSON schema for
@@ -130,11 +134,14 @@ type verifierEntry struct {
 
 	// SEV-SNP (provider "gcp-sev-snp"): the AMD ASK+ARK certificate
 	// chain the VCEK must chain to (PEM, as AMD KDS serves it at
-	// /vcek/v1/<product>/cert_chain), an optional KDS mirror, and the
-	// minimum REPORTED_TCB to accept.
+	// /vcek/v1/<product>/cert_chain; `acpctl tee fetch-amd-chain`), whose
+	// root must be one the binary pins (ADR 0024); an optional KDS mirror;
+	// and the minimum REPORTED_TCB to accept.
 	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
 	AMDKDSURL        string `json:"amd_kds_url,omitempty"`
 	MinReportedTCB   uint64 `json:"min_reported_tcb,omitempty"`
+	// SEVSNP holds the destination's report to the attack record (ADR 0033).
+	SEVSNP *tee.SEVSNPPolicyConfig `json:"sev_snp,omitempty"`
 	// VCEKCacheDir keeps fetched VCEK certificates between runs so each
 	// chip's certificate is asked of AMD KDS once (KDS rate-limits).
 	VCEKCacheDir string `json:"vcek_cache_dir,omitempty"`
@@ -209,13 +216,13 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 	// The durable audit log: opened and verified end to end under the
 	// stable audit key before anything is appended. A log that does not
 	// verify stops every release (fail closed).
-	auditSeed, err := readSecret(cfg.TEE, cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize, "keys.audit_signing.seed_path")
+	auditKey, err := loadSigningKey(cfg.TEE, cfg.Keys.AuditSigning, "keys.audit_signing")
 	if err != nil {
 		return nil, err
 	}
 	auditKID := ids.KeyID(cfg.Keys.AuditSigning.KeyID)
 	auditStore := keys.NewInMemoryStore(clock)
-	if _, err := auditStore.RegisterSigningFromSeed(auditKID, keys.PurposeSigningAudit, auditSeed); err != nil {
+	if _, err := auditStore.RegisterSigningKey(auditKID, keys.PurposeSigningAudit, auditKey); err != nil {
 		return nil, fmt.Errorf("sagvd: register audit signing key: %w", err)
 	}
 	logStore, err := store.Open(cfg.CrossCloud.AuditLogPath)
@@ -244,7 +251,11 @@ func LoadCrossCloudMaterials(cfg Config, clock shared_time.Clock) (*crossCloudMa
 	// The operator stop: a valid list signed by the operator key is
 	// required, and a list older than one already applied (per the
 	// verified audit log) is refused, so a stop cannot be rolled back.
-	stopList, err := loadOperatorStop(cfg.CrossCloud.OperatorStop)
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return nil, fmt.Errorf("sagvd: crypto: %w", err)
+	}
+	stopList, err := loadOperatorStop(cfg.CrossCloud.OperatorStop, sigPol)
 	if err == nil {
 		err = revocation.CheckNotRolledBack(stopList, auditChain.Events())
 	}
@@ -312,6 +323,10 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 		if err != nil {
 			return nil, fmt.Errorf("sagvd: verifier_registry[%d].expected_measurement_hex must be a 32-, 48- or 64-byte measurement: %w", i, err)
 		}
+		snpPol, err := e.SEVSNP.Policy()
+		if err != nil {
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
+		}
 		spec := tee.VerifierSpec{Provider: provider, ExpectedMeasurement: measurement}
 		switch provider {
 		case tee.ProviderSimulated:
@@ -334,11 +349,24 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			spec.GCPSEV = tee.GCPSEVVerifierConfig{
 				AMDRootPEM:     chain,
 				AMDKDSURL:      e.AMDKDSURL,
-				MinReportedTCB: e.MinReportedTCB,
-				VCEKCacheDir:   e.VCEKCacheDir,
+				MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol,
+				VCEKCacheDir: e.VCEKCacheDir,
 			}
 		case tee.ProviderGCPTDX:
 			spec.GCPTDX = tee.GCPTDXVerifierConfig{PCSURL: e.PCSURL, PCSCacheDir: e.PCSCacheDir, AcceptableTCBStatuses: e.AcceptableTCBStatuses}
+		case tee.ProviderAzureSEVSNP:
+			if e.AMDCertChainPath == "" {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: azure-sev-snp requires amd_cert_chain_path (the AMD ASK+ARK chain of the chip's product, Milan or Genoa as the report says)", i)
+			}
+			chain, err := os.ReadFile(e.AMDCertChainPath)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].amd_cert_chain_path: %w", i, err)
+			}
+			digests, err := pcrDigests(e.PCRDigests)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
+			}
+			spec.AzureSEVSNP = tee.AzureSEVSNPVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol, AcceptablePCRDigests: digests}
 		case tee.ProviderAzureCGPU:
 			if e.AMDCertChainPath == "" {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: azure-cgpu requires amd_cert_chain_path (the AMD ASK+ARK chain of the chip's product, Genoa for NCC H100 v5)", i)
@@ -351,7 +379,7 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			if err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
 			}
-			spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB,
+			spec.AzureCGPU = tee.AzureCGPUVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, VCEKCacheDir: e.VCEKCacheDir, MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol,
 				NRASJWKSURL: e.NRASJWKSURL, NRASCacheDir: e.NRASCacheDir, GPU: e.GPUPolicy.policy(), AcceptablePCRDigests: digests}
 			if err := e.GPUPolicy.validate(); err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
@@ -362,7 +390,7 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 		default:
 			// Fail closed: a family whose verifier this build cannot run
 			// end to end must not be trusted with key releases.
-			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx, azure-cgpu)", i, provider)
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx, azure-cgpu, azure-sev-snp)", i, provider)
 		}
 		specs = append(specs, tee.RegistrySpec{Provider: provider, Spec: spec})
 	}

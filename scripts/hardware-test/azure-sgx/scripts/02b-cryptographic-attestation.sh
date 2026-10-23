@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # 02b-cryptographic-attestation.sh — full Intel SGX Quote → PCK →
@@ -32,9 +33,24 @@ LOCATION=$(echo "${IMDS_JSON}" | jq -r '.location // "unknown"')
 ZONE=$(echo "${IMDS_JSON}"     | jq -r '.zone     // "unknown"')
 VM_SIZE=$(echo "${IMDS_JSON}"  | jq -r '.vmSize   // "unknown"')
 
-PAYLOAD_SHA256="${PAYLOAD_SHA256:-d9387aa0a249fc8516c65c3c86b399a46a636409586ea171658457f7b6bd1869}"
-PAYLOAD_SIZE="${PAYLOAD_SIZE:-2019400732}"
-PAYLOAD_DESCRIPTION="${PAYLOAD_DESCRIPTION:-Llama 3.2 3B base model GGUF Q4_K_M}"
+# The workload manifest names what Demo 1 sealed, as acpctl measured it
+# (03-demo1-single-bundle.sh writes evidence/demo1-inspect.json): the
+# payload digest over the sealed components, the sizes, the content
+# reference and the sealing time. A constant would name a file no run
+# measured; the report binds the manifest, so the manifest is measured.
+INSPECT_JSON="${INSPECT_JSON:-${HOME}/vg/evidence/demo1-inspect.json}"
+[ -s "${INSPECT_JSON}" ] || { echo "ERROR: ${INSPECT_JSON} missing — run 03-demo1-single-bundle.sh before 02b"; exit 1; }
+read -r PAYLOAD_SHA256 PAYLOAD_SIZE BUNDLE_SHA256 BUNDLE_SIZE SEALED_AT CONTENT_REF < <(python3 - "${INSPECT_JSON}" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+digest = str(d.get("payload_sha256", "")).removeprefix("sha256:")
+size = d.get("payload_bytes")
+if len(digest) != 64 or not isinstance(size, int):
+    sys.exit("demo1-inspect.json carries no measured payload digest and size")
+print(digest, size, str(d.get("bundle_sha256", "")).removeprefix("sha256:"), d.get("bundle_bytes"), d.get("sealed_at"), d.get("content_ref"))
+PYEOF
+)
+PAYLOAD_DESCRIPTION="ollama ${CONTENT_REF}, as sealed by acpctl genome seal into demo1-bundle.genome"
 
 OUT_DIR="${HOME}/vg/attestation-validation/${VM_ID}"
 mkdir -p "${OUT_DIR}"
@@ -66,6 +82,10 @@ cat > 01-vaultgenome-payload-manifest.json <<EOF
   "payload_sha256": "${PAYLOAD_SHA256}",
   "payload_size_bytes": ${PAYLOAD_SIZE},
   "payload_description": "${PAYLOAD_DESCRIPTION}",
+  "payload_measured_by": "acpctl genome inspect --json of demo1-bundle.genome: sha256 over the sealed components, measured in this run",
+  "bundle_sha256": "${BUNDLE_SHA256}",
+  "bundle_size_bytes": ${BUNDLE_SIZE},
+  "sealed_at": "${SEALED_AT}",
   "demo": "vault-genome-cross-vm-attestation",
   "vm_id": "${VM_ID}",
   "tee_backend": "intel-sgx",
@@ -172,24 +192,29 @@ echo "=== Step 6: verifier #1 — libsgx-dcap-quote-verify (Intel canonical) ===
 # walking the same Quote → PCK → Intel SGX Root chain via OE's bundled
 # verifier. The OE-wrapped form is what `legacy_report_remote` consumes.
 echo
-echo "=== Step 7: verifier #2 — oeutil verify-evidence (OE) ==="
-if command -v oeutil >/dev/null 2>&1; then
-  oeutil verify-evidence \
-    -f legacy_report_remote \
-    -r 04-sgx-quote.bin.oe 2>&1 | tee 07-oe-verify.txt | tail -10 \
-    || echo "(oeutil verify-evidence non-zero — see 07-oe-verify.txt)"
+# Open Enclave 0.19 verifies an existing evidence file with `oeverify`
+# (oeutil has no verify-evidence or dump-evidence command; the May 2026
+# captures carry those "Invalid option" errors). The OE-wrapped report from
+# oe_get_report is LEGACY_REPORT_REMOTE; the raw quote is RAW_SGX_QUOTE_ECDSA.
+echo "=== Step 7: verifier #2 — oeverify (Open Enclave) ==="
+if command -v oeverify >/dev/null 2>&1; then
+  {
+    echo "--- oeverify -r 04-sgx-quote.bin.oe -f LEGACY_REPORT_REMOTE ---"
+    oeverify -r 04-sgx-quote.bin.oe -f LEGACY_REPORT_REMOTE 2>&1 || echo "(oeverify non-zero on the OE report)"
+    echo "--- oeverify -r 04-sgx-quote.bin -f RAW_SGX_QUOTE_ECDSA ---"
+    oeverify -r 04-sgx-quote.bin -f RAW_SGX_QUOTE_ECDSA 2>&1 || echo "(oeverify non-zero on the raw quote)"
+  } | tee 07-oe-verify.txt | tail -12
 else
-  echo "(oeutil not on PATH — skipping OE verifier; Intel verifier above is canonical)"
+  echo "(oeverify not on PATH — skipping OE verifier; Intel verifier above is canonical)"
   : > 07-oe-verify.txt
 fi
 
 # ---------------------------------------------------------------- step 8
 echo
-echo "=== Step 8: oeutil dump-evidence (informational) ==="
-if command -v oeutil >/dev/null 2>&1; then
-  ( cd "${OUT_DIR}" && \
-    oeutil dump-evidence -e 04-sgx-quote.bin.oe 2>&1 | tee 05-quote-dump.txt | head -50 ) \
-    || echo "(dump-evidence failed — quote captured raw)"
+echo "=== Step 8: the claims oeverify reads from the 02 evidence (informational) ==="
+if command -v oeverify >/dev/null 2>&1 && [ -s "${HOME}/vg/evidence/sgx-quote.bin" ]; then
+  oeverify -r "${HOME}/vg/evidence/sgx-quote.bin" -e "${HOME}/vg/evidence/sgx-endorsements.bin" -f SGX_ECDSA 2>&1 \
+    | tee 05-quote-dump.txt | head -50 || echo "(oeverify on the 02 evidence non-zero — see 05-quote-dump.txt)"
 else
   : > 05-quote-dump.txt
 fi
@@ -198,15 +223,20 @@ fi
 echo
 echo "=== Step 9: write policy validation summary ==="
 INTEL_BIND_OK=$(grep -q "workload binding verified" 06-intel-chain-verify.txt 2>/dev/null && echo "PASS" || echo "FAIL")
-# Note: sgx_qv_verify_quote() local-host chain validation is currently
-# blocked by an az-dcap-client 1.13 ↔ libsgx-dcap-quote-verify 1.26
-# version-skew bug (returns SGX_QL_NO_QUOTE_COLLATERAL_DATA / 0xE03A
-# even when collateral is fetched and explicitly passed). MAA (02f) is
-# the canonical chain validator on Azure — it walks the same Quote →
-# PCK → Intel SGX Root CA chain on Microsoft's side and signs an
-# independent JWT. We treat MAA as the chain-of-record and capture
-# the local verifier output as "best-effort, may need lib upgrade."
-INTEL_CHAIN_OK=$(grep -q "chain VALIDATED" 06-intel-chain-verify.txt 2>/dev/null && echo "PASS" || echo "best-effort (MAA is canonical)")
+# The kit's own caller of sgx_qv_verify_quote (sgx-quote-binding/host/
+# verify-quote.c) through Intel's QPL configured for Azure (01): PASS with
+# the TCB status Intel's collateral gives the platform (OK, or an advisory
+# such as SW_HARDENING_NEEDED with the chain valid). Until 2026-10-15 this
+# caller returned 0xE03A through the Azure DCAP client; 01 says what was
+# measured and what changed.
+INTEL_CHAIN_OK=$(grep -q "chain VALIDATED" 06-intel-chain-verify.txt 2>/dev/null \
+  && echo "PASS ($(grep -m1 '^verification result:' 06-intel-chain-verify.txt | sed 's/^verification result: *//'))" \
+  || echo "not validated by the kit's QVL caller — see 06")
+# oeverify walks the same Quote -> PCK -> Intel SGX Root CA chain through
+# Open Enclave's verifier with the collateral the same provider serves: a
+# second, independent local verifier on the same quote.
+OE_CHAIN_OK=$(grep -c "Evidence verification succeeded" 07-oe-verify.txt 2>/dev/null || true)
+OE_CHAIN_OK=$([ "${OE_CHAIN_OK:-0}" -ge 1 ] && echo "PASS (oeverify, ${OE_CHAIN_OK} of 2 forms)" || echo "FAIL")
 
 cat > 11-policy-validation-summary.txt <<EOF
 Vault Genome SGX Attestation Validation — Azure ${VM_ID}
@@ -220,15 +250,22 @@ POLICY CHECKS (Intel chain — local-host)
   /dev/sgx_enclave + /dev/sgx_provision present:   PASS
   Quote generated via custom OE enclave (oe_get_report): PASS
   Workload binding (REPORT_DATA[0..31] == SHA-256(manifest)): ${INTEL_BIND_OK}
-  Chain Quote → PCK → Intel SGX Root CA (local):   ${INTEL_CHAIN_OK}
+  Chain Quote → PCK → Intel SGX Root CA (oeverify, local): ${OE_CHAIN_OK}
+  Chain via the kit's libsgx-dcap-quote-verify caller:     ${INTEL_CHAIN_OK}
 
 REPORT_DATA layout (64 bytes total):
   bytes 0..31:   $(cat 02-report-data.hex)   ← SHA-256(manifest)
   bytes 32..63:  0000...0000 (32-byte zero pad — MAA convention)
 
-RESULT: $( [ "${INTEL_BIND_OK}" = "PASS" ] \
-            && echo "WORKLOAD BINDING CRYPTOGRAPHICALLY ESTABLISHED" \
-            || echo "WORKLOAD BINDING NOT VERIFIED — see 06-intel-chain-verify.txt" )
+RESULT: $( if [ "${INTEL_BIND_OK}" = "PASS" ] && [ "${INTEL_CHAIN_OK%% *}" = "PASS" ] && [ "${OE_CHAIN_OK%% *}" = "PASS" ]; then
+              echo "CHAIN VALIDATED BY BOTH LOCAL VERIFIERS (QVL AND oeverify) AND WORKLOAD BINDING ESTABLISHED"
+            elif [ "${INTEL_BIND_OK}" = "PASS" ] && [ "${OE_CHAIN_OK%% *}" = "PASS" ]; then
+              echo "CHAIN VALIDATED LOCALLY (oeverify) AND WORKLOAD BINDING ESTABLISHED; the kit's QVL caller did not validate — see 06"
+            elif [ "${INTEL_BIND_OK}" = "PASS" ]; then
+              echo "WORKLOAD BINDING ESTABLISHED; LOCAL CHAIN NOT VALIDATED — see 06/07"
+            else
+              echo "WORKLOAD BINDING NOT VERIFIED — see 06-intel-chain-verify.txt"
+            fi )
 
 CHAIN OF RECORD: Microsoft Azure Attestation (MAA), captured by
 02f-capture-maa-jwt.sh — independent Microsoft-rooted PKI sign-off

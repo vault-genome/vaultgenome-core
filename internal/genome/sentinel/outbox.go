@@ -1,9 +1,9 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package sentinel
 
 import (
-	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 )
 
 // maxRecordBytes bounds what the reader accepts as one record file.
@@ -32,7 +33,7 @@ type Rejected struct {
 // and records that do not verify, are returned as rejected. Records say
 // what the bundles hash to, but ReadChain does not open the bundles —
 // CheckGenome does, for the genome actually chosen.
-func ReadChain(dir string, pub ed25519.PublicKey) ([]SealRecord, []Rejected, error) {
+func ReadChain(dir string, pub crypto.SuitePublicKey) ([]SealRecord, []Rejected, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil, err
@@ -120,7 +121,7 @@ var ErrAbsent = errors.New("sentinel: no such record")
 
 // ReadHeartbeat reads the outbox's heartbeat and its raw bytes. A heartbeat
 // that is present but does not verify is an error, never ErrAbsent.
-func ReadHeartbeat(dir string, pub ed25519.PublicKey) (Heartbeat, []byte, error) {
+func ReadHeartbeat(dir string, pub crypto.SuitePublicKey) (Heartbeat, []byte, error) {
 	raw, err := readRecord(dir, HeartbeatFile)
 	if err != nil {
 		return Heartbeat{}, nil, err
@@ -130,7 +131,7 @@ func ReadHeartbeat(dir string, pub ed25519.PublicKey) (Heartbeat, []byte, error)
 }
 
 // ReadCompromise reads the outbox's compromise report and its raw bytes.
-func ReadCompromise(dir string, pub ed25519.PublicKey) (Compromise, []byte, error) {
+func ReadCompromise(dir string, pub crypto.SuitePublicKey) (Compromise, []byte, error) {
 	raw, err := readRecord(dir, CompromiseFile)
 	if err != nil {
 		return Compromise{}, nil, err

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -6,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"io"
 	"net"
 	"os"
@@ -49,6 +51,41 @@ type Config struct {
 
 	// Log controls structured-logging format and verbosity.
 	Log LogConfig `json:"log"`
+
+	// Crypto is the cryptographic profile (ADR 0029): the KEM suites this
+	// destination generates a handshake key under, chosen in the source's
+	// order of preference from what the source offers. Omitted, the
+	// general profile.
+	Crypto CryptoConfig `json:"crypto,omitempty"`
+}
+
+// CryptoConfig is the deployment's cryptographic profile (ADR 0029): the
+// KEM suite this daemon encapsulates under and the suites it accepts.
+type CryptoConfig struct {
+	// Profile is "general" (the default: X25519 written, every suite of
+	// the build accepted), "fips" (P-384 written; P-384, ML-KEM-768 and
+	// the MLKEM1024-P384 hybrid accepted — the primitives the Go
+	// Cryptographic Module lists as approved) or "cnsa" (the
+	// MLKEM1024-P384 hybrid only).
+	Profile string `json:"profile,omitempty"`
+
+	// KEMSuites narrows the profile's list to these suites, in this
+	// order of preference (the first is written). Every name must be
+	// one the profile accepts; a profile is never widened here.
+	KEMSuites []string `json:"kem_suites,omitempty"`
+}
+
+// Policy returns the configuration as the policy the kms package applies.
+func (c CryptoConfig) Policy() (kms.SuitePolicy, error) {
+	return kms.NewSuitePolicyFromNames(c.Profile, c.KEMSuites)
+}
+
+// SignaturePolicy returns the profile's signature policy (ADR 0031): the
+// suites this destination accepts the source authority's signatures
+// under. The destination signs nothing under a suite of its own — its
+// receipts are the chip's — so the profile's own pick stands.
+func (c CryptoConfig) SignaturePolicy() (kms.SignaturePolicy, error) {
+	return kms.NewSignaturePolicyFromNames(c.Profile, "")
 }
 
 // HTTPConfig controls the destination's HTTP listener.
@@ -98,7 +135,9 @@ type TLSServerConfig struct {
 // TEEConfig holds the destination's local TEE producer
 // configuration.
 type TEEConfig struct {
-	// Provider names the TEE backend: "gcp-sev-snp" (AMD SEV-SNP
+	// Provider names the TEE backend: "auto" (the family the kernel's
+	// configfs-tsm serves on this host, resolved when the file is loaded,
+	// ADR 0025), "gcp-sev-snp" (AMD SEV-SNP
 	// reports through the kernel's configfs-tsm, on any SEV-SNP
 	// Confidential VM running Linux 6.7 or later) or "simulated" (a
 	// seed-derived stand-in for development and tests). The provider is
@@ -124,6 +163,19 @@ type TEEConfig struct {
 	// destination has no hardware isolation — its "Evidence" is signed
 	// by a key read from a file — and is for development and tests.
 	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
+
+	// Sealer is how the daemon seals its key files to this host (ADR 0025,
+	// step 1b): "auto" (the TEE's own key where it has one — SEV-SNP's
+	// derived key — else the host's TPM 2.0, else the simulated key),
+	// "tee" (the TEE's own key only; refused on TDX and Azure, which have
+	// none), or "tpm2" (the host's TPM 2.0 through tpm2-tools, whatever
+	// the TEE). Every sealed file names the sealer it was made with.
+	Sealer string `json:"sealer,omitempty"`
+
+	// AutoResolvedFrom is set by ResolveAuto when Provider was "auto": the
+	// configfs-tsm provider name the family was taken from (ADR 0025).
+	// Not read from the file.
+	AutoResolvedFrom string `json:"-"`
 
 	// GPUAttestCommand, TPM2ToolsDir and AKHandle configure the
 	// azure-cgpu producer: the command that obtains NVIDIA's signed
@@ -157,7 +209,7 @@ func (t TEEConfig) SEVDevice() string {
 }
 
 // supportedProviders are the TEE backends this build can run.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderSimulated, tee.ProviderAuto}
 
 // SourceAuthorityConfig points at the source-authority signing
 // public key file. Used by the receiver to verify every handshake +
@@ -256,6 +308,33 @@ func (h HTTPConfig) WriteTimeout() time.Duration {
 
 // DefaultConfig returns sensible defaults that operators can
 // override field-by-field via JSON.
+// SealerMode is tee.sealer with the default applied.
+func (t TEEConfig) SealerMode() tee.SealerMode {
+	m, err := tee.ParseSealerMode(t.Sealer)
+	if err != nil {
+		return tee.SealerModeAuto
+	}
+	return m
+}
+
+// ResolveAuto replaces tee.provider "auto" with the family the kernel's
+// configfs-tsm serves on this host (ADR 0025), keeping the kernel's name
+// in AutoResolvedFrom; any other provider is left as it is. It runs when
+// the file is loaded, before validation, so that the family's own rules
+// apply to the rest of the section.
+func (t *TEEConfig) ResolveAuto() error {
+	p, err := tee.ParseProvider(t.Provider)
+	if err != nil || p != tee.ProviderAuto {
+		return nil
+	}
+	family, name, err := tee.ResolveAuto(t.TSMReportDir)
+	if err != nil {
+		return fmt.Errorf("tee.provider=auto: %w", err)
+	}
+	t.Provider, t.AutoResolvedFrom = string(family), name
+	return nil
+}
+
 func DefaultConfig() Config {
 	return Config{
 		HTTP: HTTPConfig{
@@ -283,7 +362,14 @@ func LoadConfigFile(path string) (Config, error) {
 		return Config{}, fmt.Errorf("acp-bootstrap: open config %q: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()
-	return DecodeConfig(f)
+	c, err := DecodeConfig(f)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := c.TEE.ResolveAuto(); err != nil {
+		return Config{}, fmt.Errorf("acp-bootstrap: %w", err)
+	}
+	return c, nil
 }
 
 // DecodeConfig decodes JSON from r into a Config on top of
@@ -333,6 +419,10 @@ func (c *Config) ResolveSecrets() error {
 func (c Config) Validate() error {
 	var errs []error
 
+	if _, err := c.Crypto.Policy(); err != nil {
+		errs = append(errs, fmt.Errorf("crypto: %w", err))
+	}
+
 	listenOK := false
 	if strings.TrimSpace(c.HTTP.ListenAddress) == "" {
 		errs = append(errs, errors.New("http.listen_address required"))
@@ -374,6 +464,9 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if _, err := tee.ParseSealerMode(c.TEE.Sealer); err != nil {
+		errs = append(errs, err)
+	}
 	switch provider, err := tee.ParseProvider(c.TEE.Provider); {
 	case strings.TrimSpace(c.TEE.Provider) == "":
 		errs = append(errs, errors.New("tee.provider required"))
@@ -391,12 +484,31 @@ func (c Config) Validate() error {
 		if c.TEE.TSMReportDir != "" {
 			errs = append(errs, errors.New("tee.tsm_report_dir applies to gcp-sev-snp and gcp-tdx only"))
 		}
+	case provider == tee.ProviderAuto:
+		if c.TEE.SeedPath != "" || c.TEE.InsecureSimulation {
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only; tee.provider=auto runs the family configfs-tsm serves"))
+		}
+		if c.TEE.VTPMSealPCRs != "" {
+			if err := tee.ValidatePCRSelection(c.TEE.VTPMSealPCRs); err != nil {
+				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+			}
+		}
 	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
 		if c.TEE.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
 		}
 		if c.TEE.InsecureSimulation {
 			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
+		}
+	case provider == tee.ProviderAzureSEVSNP:
+		if c.TEE.SeedPath != "" || c.TEE.InsecureSimulation {
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only"))
+		}
+		if c.TEE.TSMReportDir != "" {
+			errs = append(errs, errors.New("tee.tsm_report_dir does not apply to azure-sev-snp (the report comes from the vTPM)"))
+		}
+		if len(c.TEE.GPUAttestCommand) > 0 {
+			errs = append(errs, errors.New("tee.gpu_attest_command applies to azure-cgpu only (azure-sev-snp has no GPU)"))
 		}
 	case provider == tee.ProviderAzureCGPU:
 		if c.TEE.SeedPath != "" || c.TEE.InsecureSimulation {
@@ -409,8 +521,8 @@ func (c Config) Validate() error {
 			errs = append(errs, errors.New("tee.gpu_attest_command required when tee.provider=azure-cgpu (the command that obtains NVIDIA's attestation tokens for a nonce)"))
 		}
 	}
-	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderAzureCGPU && (len(c.TEE.GPUAttestCommand) > 0 || c.TEE.TPM2ToolsDir != "" || c.TEE.AKHandle != "") {
-		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu only"))
+	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderAzureCGPU && lp != tee.ProviderAzureSEVSNP && (len(c.TEE.GPUAttestCommand) > 0 || c.TEE.TPM2ToolsDir != "" || c.TEE.AKHandle != "") {
+		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu and azure-sev-snp only"))
 	}
 	if strings.TrimSpace(c.TEE.WorkloadDescriptor) == "" {
 		errs = append(errs, errors.New("tee.workload_descriptor required"))
@@ -450,12 +562,12 @@ func (c Config) Validate() error {
 		}
 		if c.TEE.VTPMSealPCRs != "" {
 			switch provider {
-			case tee.ProviderGCPTDX, tee.ProviderAzureCGPU:
+			case tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP:
 				if err := tee.ValidatePCRSelection(c.TEE.VTPMSealPCRs); err != nil {
 					errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
 				}
 			default:
-				errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies to gcp-tdx and azure-cgpu only"))
+				errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies to gcp-tdx, azure-cgpu and azure-sev-snp only"))
 			}
 		}
 	}

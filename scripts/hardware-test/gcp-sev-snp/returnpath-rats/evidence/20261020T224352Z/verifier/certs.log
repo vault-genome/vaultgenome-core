@@ -1,0 +1,17 @@
+Installed /opt/veraison/certs/rootCA.crt
+Certificate request self-signature ok
+subject=CN = vts-service
+Created /opt/veraison/certs/vts.crt
+Certificate request self-signature ok
+subject=CN = provisioning-service
+Created /opt/veraison/certs/provisioning.crt
+Certificate request self-signature ok
+subject=CN = verification-service
+Created /opt/veraison/certs/verification.crt
+Certificate request self-signature ok
+subject=CN = management-service
+Created /opt/veraison/certs/management.crt
+Certificate request self-signature ok
+subject=CN = coserv-service
+Created /opt/veraison/certs/coserv.crt
+rm -f -- *.csr *.srl

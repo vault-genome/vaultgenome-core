@@ -1,0 +1,27 @@
+== 14:21:51 inputs
+== 14:21:53 provision (keygen), operator stop key, operator recovery key
+== 14:21:53 python runtime (CPU) and base model — the gate runs the model here
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:00,  9.33it/s]Fetching 10 files:  50%|█████     | 5/10 [00:00<00:00, 23.70it/s]Fetching 10 files:  90%|█████████ | 9/10 [00:00<00:00, 20.59it/s]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.06s/it]
+== 14:23:25 configfs-tsm (real SEV-SNP reports)
+== 14:23:25 sagvd on SEV-SNP: identity from the chip
+== 14:23:36 the escrow key: made in the authority's process, sealed to this chip, wrapped to the recovery key
+== 14:23:46 the recovery ceremony: the envelope opened with the recovery key, the key re-sealed on this chip
+== 14:23:57 acp-bootstrap on SEV-SNP (destination + gate)
+== 14:24:08 sagvd failover config: verifier registry, allow-list, operator stop, the sealed escrow key
+== 14:24:18 wait for the primary's sentinel key and chip identity, then sign the failover policy pinning both
+== 14:24:19 pull the primary's outbox replica, continuously
+== 14:24:19 arm: sagvd failover watches the replica
+== 14:32:34 audit log verify (offline, as an auditor would)
+== 14:32:34 NEGATIVE: the sentinel seed stolen, off the primary's chip
+== 14:33:15 NEGATIVE: the sentinel's sealed seed file, off the primary's chip

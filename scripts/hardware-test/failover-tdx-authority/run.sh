@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # The continuity drill with an Intel TDX Trust Domain as the RELEASE
@@ -47,6 +48,8 @@ EVIDENCE="$HERE/evidence/$STAMP"
 CREATED=0
 
 cleanup() {
+  # A machine that never booted has no zone file: run every step, whatever the one before returned.
+  set +e
   if [ "$CREATED" = 1 ]; then
     echo "cleanup: deleting $PRIMARY, $AUTHORITY, $STANDBY and gs://$BUCKET"
     for n in "$PRIMARY" "$AUTHORITY" "$STANDBY"; do z="$(cat "$BUILD/zone.$n" 2>/dev/null)"; [ -n "$z" ] && gcloud compute instances delete "$n" --project "$PROJECT" --zone "$z" --quiet >/dev/null 2>&1 || true; done
@@ -66,8 +69,8 @@ wait_marker() { # wait_marker <leg> <minutes>
 
 echo "build sagvd, acp-bootstrap, acpctl, keygen (linux/amd64); pack workers/genome"
 ( cd "$ROOT" && for b in sagvd acp-bootstrap acpctl; do CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
-( cd "$ROOT/deploy/compose/keygen" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" . )
-COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt examples
+( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt requirements-ci.lock requirements-cuda.lock requirements-torch-cpu.lock requirements-torch-cu126.lock examples
 
 echo "bucket gs://$BUCKET"
 gcloud storage buckets create "gs://$BUCKET" --project "$PROJECT" --location us-central1 --uniform-bucket-level-access >/dev/null

@@ -5,13 +5,18 @@ The shipping binaries, run end to end on a Google Confidential VM
 
 - `acpctl genome seal` seals a genome (v3: its key in a separate file).
 - `acp-bootstrap` attests with the chip — `tee.provider: "gcp-sev-snp"`,
-  reports requested through the kernel's configfs-tsm — and generates an X25519
-  key per handshake, quoting over the ADR 0009 key-binding challenge.
+  reports requested through the kernel's configfs-tsm — and generates a key
+  per handshake under the KEM suite the two sides' profiles settle on (ADR
+  0029), quoting over the key-binding challenge that commits to the suite,
+  the key and the nonce.
 - `sagvd crosscloud-restore` verifies that Evidence (VCEK fetched from AMD KDS,
-  ECDSA-P384 signature, VCEK → ASK → ARK-Milan chain, TCB, guest policy with no
-  DEBUG, VMPL 0, REPORT_DATA binding the challenge), applies its allow-list and
-  the operator stop, and only then encapsulates the genome key to the attested
-  key.
+  ECDSA-P384 signature, VCEK → ASK → ARK-Milan chain, the TCB against the
+  floors AMD's security bulletins set for the chip's variant together with
+  the platform's alias check and the mitigation vector — the attack record
+  of ADR 0033, read 2026-10-22 — guest policy with no DEBUG and no
+  MIGRATE_MA, VMPL 0, REPORT_DATA binding the challenge), applies its
+  allow-list and the operator stop, and only then encapsulates the genome
+  key to the attested key.
 - `acp-bootstrap` finds the bundle the key opens, restores it all or nothing,
   and has the chip sign a receipt; `sagvd crosscloud-confirm` verifies that
   receipt against the release and the operator's bundle and records the restore
@@ -19,6 +24,143 @@ The shipping binaries, run end to end on a Google Confidential VM
 
 Both processes run inside the same guest here; what the run proves is that the
 destination's Evidence is genuine hardware and that the whole chain accepts it.
+
+## Results — run `20261022T193735Z`: the chip on the record, and the release refused under a floor one above it (ADR 0033, part two)
+
+The kit on the tree of ADR 0033 part one (`be37c6f`), one `n2d-standard-2`
+SEV-SNP guest in us-central1-c (launch measurement `ccdc5cf0…`, the image
+of the runs below), `fips` with `VG_SIGSUITE=ecdsa-p384-sha384` under
+`VG_FIPS=1`: both daemons `commit be37c6f6b98a`, `fips140=only
+module=v1.0.0 enforced=true`. The verifier now holds the destination's
+report to the attack record and the record says what it read; the kit
+then raises the floor one above the chip and is refused.
+
+| | `20261022T193735Z` |
+| - | - |
+| The chip, from the `CROSS_CLOUD_ATTESTATION_VERIFIED` record (`attestation-verified.jsonl`) | Milan (CPUID 0x19/0x01/0x01), report version 5; SNP firmware SVN **0x1d**, microcode **0xde**, boot loader 0x04, TEE 0x00 — the current, reported, committed and launch TCBs all the same; firmware 1.58.1 current and committed; guest policy `0x30000` (SMT allowed, nothing else); PLATFORM_INFO `0x25` (SMT on, ECC, the alias check complete); mitigation vector `0xb` at launch and now; chip id `c3cd3d65…` |
+| The floor it was held to | SNP 0x1b, microcode 0xde — the Milan row of AMD's bulletins as read 2026-10-22 (`floor_from=AMD bulletins read 2026-10-22 for Milan`) |
+| Release, restore, `genome verify` | **ok**: `hpke-p384-v2`, recipient key `3b2c1342…`; the restore confirmed from the chip-signed receipt; `genome verify` ok |
+| Unlisted guest; operator stop | refused; refused — `KEY_RELEASE_DENIED`, stage `policy`, each |
+| **The floor one above the chip** | the stop lifted (list serial 3), the registry entry's `sev_snp.tcb_floor.snp` = 0x1e: **refused** — `integrity[attestation_denied]: kms.CoordinateRestore: destination Evidence does not verify … gcp-sev: TCB floor: reported TCB snp 0x1d below 0x1e (tee.peer.sev_snp.tcb_floor)`; `KEY_RELEASE_DENIED` at the stage `attestation` naming it (`key-release-denied.jsonl`, the third record; `release-floor.err`, `release-floor.json`) |
+| `acpctl audit verify` | **ok — 12 events**, `ecdsa-p384-sha384`, tip `d8c3445c…` |
+| The whole kit | 3 min 40 s, the runner's start to the record decoded |
+
+## Results — the signature suite on the record: `cnsa` with ECDSA P-384, and `fips` with ECDSA P-384 on the certified module (ADR 0031, part three)
+
+The same kit on the tree of ADR 0031 part three (`1a41568`, with the
+Return Path frame naming its suite), two guests `n2d-standard-2`
+SEV-SNP in us-central1-c (launch measurement `ccdc5cf0…`, the image of
+the runs below), a minute apart. The profile
+now decides the signature suite: `cnsa` signs with `ecdsa-p384-sha384`
+and accepts `ml-dsa-87` beside it; `fips` signs with `ed25519` unless
+`VG_SIGSUITE` picks `ecdsa-p384-sha384`, which it accepts — the
+deployment a bank held to X9 SD-34 runs. `acp-keygen -signature-suite`
+made every key under the suite (the authority's and the audit log's as
+PKCS#8 PEM), every config named it (`keys.<name>.suite`,
+`crypto.signature_suite`), and the verdict requires it on the record:
+the authority's `identity` (`signature_suite`, `signature_suites`,
+`authority_signature_suite`, `audit_signature_suite`), the destination's
+(`signature_suites`), and `acpctl audit verify` (`signature_suite`), all
+in `steps.txt`. The second run is also under `VG_FIPS=1`: every binary
+on the certified module v1.0.0 (`build.txt`, `GOFIPS140=v1.0.0-c2097c7c`)
+and both daemons under `fips140=only` (`versions.txt`), the ECDSA
+signatures the module's own.
+
+| Profile | Run | The suite both sides met on | Signatures | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
+|---|---|---|---|---|---|---|---|---|---|
+| `cnsa` | `evidence/20261022T120736Z` | `hpke-mlkem1024-p384-v2` | `ecdsa-p384-sha384` on the authority and the audit log; accepted: `ecdsa-p384-sha384`, `ml-dsa-87` | **ok**, recipient key `830b38d5…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
+| `fips`, `VG_SIGSUITE=ecdsa-p384-sha384`, `VG_FIPS=1` | `evidence/20261022T120821Z` | `hpke-p384-v2` | `ecdsa-p384-sha384` on the authority and the audit log; accepted: `ed25519`, `ecdsa-p384-sha384`; both daemons `fips140=only module=v1.0.0 enforced=true` | **ok**, recipient key `6b656ce7…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
+
+## Results — `VG_FIPS=1`: the certified module with enforcement on, under `cnsa` and `fips` (ADR 0030, part two)
+
+The same kit with every binary built on the certified Go Cryptographic
+Module v1.0.0 (`GOFIPS140=v1.0.0`) and every Go process on the guest
+under `GODEBUG=fips140=only`, in which a non-approved service fails
+instead of succeeding. Guests `n2d-standard-2` SEV-SNP in us-central1-c
+on the image of the runs below, the tree `a6b33a2`. The verdict requires
+the record of the module: both daemons' version lines
+(`fips140=only module=v1.0.0 enforced=true`) and identities
+(`fips140 enabled=true enforced=true version=v1.0.0`), the guest's
+`fips=1 GODEBUG=fips140=only`, and `build.txt` — the runner's note of
+what it built, every binary `GOFIPS140=v1.0.0-c2097c7c`, outside the
+guest's sums. The `fips` run's record is named by the runner's stamp —
+the kit's `vg-stamp`, new: an earlier `fips` guest booted in the same
+second as the `cnsa` one, both named their record by their own clock,
+and the later decode overwrote the earlier record, so the guests now
+take the runner's stamp, unique per run; the `cnsa` run's record keeps
+the guest's clock, as before. The third row is the released commit:
+the kit run from a clean checkout of the tag `v0.8.0` twenty minutes
+after the release was published, both daemons reporting `v0.8.0` at
+`20dc289` with `fips140=only module=v1.0.0 enforced=true`
+(`versions.txt`), every binary `GOFIPS140=v1.0.0-c2097c7c` at that
+commit (`build.txt`). The fourth row is the kit's own proof of the
+clean-checkout build (2026-10-22): run while the two §5 kits wrote their
+records into the tree, the binaries stamped `commit e784bab3e688` with no
+`-dirty` (`versions.txt`). The fifth row is the released commit
+`v0.9.0` under `fips` with `VG_SIGSUITE=ecdsa-p384-sha384` — the
+deployment a bank held to X9 runs, on the released commit: the kit run
+from a clean checkout of the tag eighteen minutes after the release was
+published, both daemons reporting `v0.9.0` at `0428a5a` with
+`fips140=only module=v1.0.0 enforced=true` (`versions.txt`), every
+binary `GOFIPS140=v1.0.0-c2097c7c` at that commit (`build.txt`), the
+authority signing under ECDSA P-384 and the audit log verified under it
+(C42 and C43 on the released commit).
+
+| Profile | Run | The suite both sides met on | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
+|---|---|---|---|---|---|---|---|---|
+| `cnsa` | `evidence/20261021T213940Z` | `hpke-mlkem1024-p384-v2` | **ok**, recipient key `a84b1616…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips` | `evidence/20261021T214501Z` | `hpke-p384-v2` | **ok**, recipient key `d834fdc8…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips`, the release `v0.8.0` | `evidence/20261021T234401Z` | `hpke-p384-v2` | **ok**, recipient key `a39ddae5…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips`, the clean build beside other kits | `evidence/20261022T001059Z` | `hpke-p384-v2` | **ok**, recipient key `7640b822…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips` with `ecdsa-p384-sha384`, the release `v0.9.0` | `evidence/20261022T155613Z` | `hpke-p384-v2` | **ok**, recipient key `9a746824…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
+
+## Results — runs `20261021T202413Z`, `20261021T202422Z`, `20261021T202423Z`: the three profiles under the v2 suites (ADR 0030)
+
+The same kit on the tree of ADR 0030 part one, three guests
+`n2d-standard-2` SEV-SNP in us-central1-c, the same launch measurement
+`ccdc5cf0…` as the runs below, minutes apart. The suites are v2: HPKE
+opened export-only derives the key and the cryptographic module's
+AES-256-GCM seals under it with the nonce it generates — the AEAD inside
+Go's HPKE, which the module refuses under `fips140=only`, is no longer
+on the path.
+
+| Profile | Run | The suite both sides met on | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
+|---|---|---|---|---|---|---|---|---|
+| `general` | `evidence/20261021T202413Z` | `hpke-x25519-v2` | **ok**, recipient key `7d51664c…` | **ok**, key to restored 0.097 s | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips` | `evidence/20261021T202422Z` | `hpke-p384-v2` | **ok**, recipient key `534ea09f…` | **ok**, 0.085 s | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `cnsa` | `evidence/20261021T202423Z` | `hpke-mlkem1024-p384-v2` | **ok**, recipient key `82ae329c…` | **ok**, 0.086 s | **ok** | **refused** | **refused** | **ok**, 10 events |
+
+## Results — runs `20261021T144756Z`, `20261021T144804Z`, `20261021T144806Z`: the three cryptographic profiles (the v1 suites of 0.7.0)
+
+The kit's third argument is the profile of ADR 0029, written into both
+daemons' configurations on the guest (`crypto.profile`). Three guests,
+`n2d-standard-2` SEV-SNP in us-central1-c, the same launch measurement
+`ccdc5cf0…`, the binaries of commit `b98a34264140`, each run about three
+minutes end to end; each guest and bucket deleted by its run.
+
+| Profile | Run | The suite both sides met on | Release | Restore confirmed (chip receipt) | `genome verify` | Unlisted guest | Operator stop | Audit |
+|---|---|---|---|---|---|---|---|---|
+| `general` | `evidence/20261021T144756Z` | `hpke-x25519-v1` — X25519, the first of five the general profile offers | **ok**, recipient key `ea46db11…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `fips` | `evidence/20261021T144804Z` | `hpke-p384-v1` — P-384, the first of the three fips offers | **ok**, recipient key `5931880a…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+| `cnsa` | `evidence/20261021T144806Z` | `hpke-mlkem1024-p384-v1` — the ML-KEM-1024 + P-384 hybrid, the one cnsa offers | **ok**, recipient key `cf191bd8…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events |
+
+`20261021T164918Z` is the `fips` run on the binaries of the tag `v0.7.0`
+(commit `28fa01506f43`, built by the kit from the tree at the tag;
+release procedure §5), ten minutes after the release was published: both
+daemons `crypto_profile=fips`, the release under `hpke-p384-v1` to
+recipient key `f5eb716d…`, the restore confirmed, `genome verify` ok,
+the unlisted guest and the operator stop refused, the audit log verified
+(10 events); the measurement `ccdc5cf0…`, the same guest image as the
+three runs above.
+
+What each record holds beyond the earlier runs': `steps.txt` names the
+profile, both daemons' `crypto_profile` and `kem_suites` as `identity`
+printed them, and the release's `recipient_key_suite` and `crypto_profile`
+as `sagvd crosscloud-restore` reported them; `release.json` carries the
+same; the audit log's `KEY_RELEASE_AUTHORIZED` event records the suite as
+`delivery_mode` and the profile as `crypto_profile`. The kit's verdict
+requires the release's suite to be the profile's first — a run that met on
+another suite, or on none, fails.
 
 ## Result — run `20260914T223735Z` (evidence/20260914T223735Z): seal → release → self-restore → confirm
 
@@ -81,6 +223,24 @@ not show the policy gate. That is why the verifier now keeps fetched VCEKs on
 disk (`vcek_cache_dir`) and waits out a 429 a few times before failing; the run
 above used both.
 
+## The chip on the record, and a floor one above it (ADR 0033, part one)
+
+Since ADR 0033 the kit reads back what the verifier held the chip to
+beyond its measurement, and refuses a fourth release. After the first
+release it queries the `CROSS_CLOUD_ATTESTATION_VERIFIED` record
+(`attestation-verified.jsonl`) and prints one `chip` line into
+`steps.txt`: the product and variant by CPUID, the TCB the chip reported
+(`snp`, `microcode`, `bootloader`), the firmware, whether the platform's
+alias check completed (BadRAM), the current mitigation vector, and the
+floor the report was held to with where it came from (the bulletins' row
+for this variant, or the operator's). After the operator stop it lifts
+the stop (a third list that stops nothing) and releases once more under
+a registry entry whose `sev_snp.tcb_floor.snp` is this chip's own SNP
+firmware SVN plus one: the verdict requires `floor exit=1`, the reason
+`TCB floor: …` out of `sagvd`, and the `KEY_RELEASE_DENIED` record that
+names it (`key-release-denied.jsonl`, `denied_on_record=1`). The first run
+under it is `20261022T193735Z`, the first of the results above.
+
 ## What this does not show
 
 - The two processes share one guest. A source on another host changes only the
@@ -92,7 +252,7 @@ above used both.
 ## Reproduce
 
 ```bash
-scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <gcp-project> [zone]
+scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/run.sh <gcp-project> [zone] [profile]
 ```
 
 `run.sh` builds the four binaries from this tree for linux/amd64, uploads them
@@ -100,6 +260,27 @@ with the AMD Milan chain to a fresh private bucket, boots the VM with
 `cvm-keyrelease.sh` as its startup script, reads the results back from the serial
 console (`decode-results.sh` checks their size and SHA-256), and deletes the VM
 and the bucket — also on failure. About ten minutes of one `n2d-standard-2`.
+The third argument is the cryptographic profile of ADR 0029 (`general`,
+`fips` or `cnsa`) both daemons run under. `VG_FIPS=1` builds every binary
+on the certified Go Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`) and
+runs every Go process on the guest under `GODEBUG=fips140=only`, in which
+a non-approved service fails instead of succeeding (ADR 0030, part two);
+`general` is refused, its first suite being X25519; the verdict then
+requires the record of the module on both daemons, and `build.txt` (the
+runner's, outside the guest's sums) notes what was built. `VG_SIGSUITE`
+picks the signature suite (ADR 0031) within what the profile accepts —
+`ed25519`, `ecdsa-p384-sha384` or `ml-dsa-87`; the profile's own when
+unset (`ecdsa-p384-sha384` under `cnsa`, `ed25519` otherwise) — and the
+kit makes every key under it with `acp-keygen -signature-suite`, names
+it in every config, and refuses a record that does not show it on the
+authority's identity, the destination's and `acpctl audit verify`.
+The binaries are built from a clean checkout of `HEAD` when the tree's
+tracked files are clean, so their VCS stamp is the commit's even while
+other kits write their records into the tree (untracked files mark a
+build modified; on 2026-10-21 the binaries of a release record came out
+`-dirty` for that reason); a tree with modified tracked files builds from
+the working tree, stamped so. The guest writes its sums last, so `steps.txt`
+is under them.
 
 The results carry reports and logs only; keys, seeds, tokens and configs stay on
 the VM and die with it. The raw serial captures (whole boot logs) are kept

@@ -1,0 +1,43 @@
+measurement start 19:10:22Z at 8c14ee3
+== go version (toolchain auto): go version go1.27.3 darwin/arm64
+== build under GOFIPS140=v1.0.0:
+  sagvd: built; build	GOFIPS140=v1.0.0-c2097c7c
+  acp-compute: built; build	GOFIPS140=v1.0.0-c2097c7c
+  acp-bootstrap: built; build	GOFIPS140=v1.0.0-c2097c7c
+  acpctl: built; build	GOFIPS140=v1.0.0-c2097c7c
+  acp-keygen: built; build	GOFIPS140=v1.0.0-c2097c7c
+== go test under GOFIPS140=v1.0.0 GODEBUG=fips140=only (unit, no live tags): 19:10:29Z
+go test exit=1
+-- packages: ok=57 FAIL=48 no-test=9
+-- failing packages:
+FAIL	github.com/vault-genome/vaultgenome-core/cmd/acp-bootstrap	0.511s
+FAIL	github.com/vault-genome/vaultgenome-core/cmd/acp-compute	1.009s
+FAIL	github.com/vault-genome/vaultgenome-core/cmd/acp-demo	0.935s
+FAIL	github.com/vault-genome/vaultgenome-core/cmd/acpctl	23.528s
+FAIL	github.com/vault-genome/vaultgenome-core/cmd/sagvd	3.027s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/bootstrap	1.032s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/bootstrap/crosscloud	1.280s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/bootstrap/restorer	1.938s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/compute/returnpath	2.303s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/client	2.330s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/genome/bundle	1.925s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/genome/escrow	2.240s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/genome/restore	2.096s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/genome/sentinel	2.282s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/integration	1.864s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/observability/teemetrics	1.827s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/reassembly	2.004s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/shared/crypto	2.020s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/shared/tee	3.880s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/vault/disclosure	1.898s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/vault/failover	1.710s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/vault/keys	1.760s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/vault/kms	2.143s
+FAIL	github.com/vault-genome/vaultgenome-core/internal/vault/orchestration	1.755s
+FAIL	github.com/vault-genome/vaultgenome-core/pkg/teeconformance	2.143s
+-- distinct error reasons (first 25):
+ 428 FIPS 140-only mode, use NewGCMWithRandomNonce
+ 164 FIPS 140-only mode
+  14 FIPS 140-only mode, use NewGCMWithRandomNonce [recovered, repanicked]
+   2 FIPS 140-only mode [recovered, repanicked]
+measurement end 19:10:58Z

@@ -1,11 +1,12 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package crypto
 
 import (
+	"crypto/hkdf"
 	"crypto/hmac"
 	"crypto/sha256"
-	"hash"
 
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
@@ -77,6 +78,12 @@ func HMACSHA256Verify(key, msg, tag []byte) error {
 // Returns the derived bytes, or a Structural error if length is out of
 // range. The function never returns an Integrity error — every step is
 // a stdlib call over well-formed inputs.
+// HKDFSHA256 is HKDF (RFC 5869) with HMAC-SHA-256, computed by the
+// cryptographic module's own crypto/hkdf (ADR 0030): the module keys the
+// extract step's HMAC with the salt, which the Security Policy allows to
+// be shorter than a MAC key (CMVP #5247 §2.7, IG C.M); an HMAC keyed with
+// a short salt outside the module is refused under fips140=only. The
+// output is the one RFC 5869 defines, whatever computes it.
 func HKDFSHA256(salt, ikm, info []byte, length int) ([]byte, error) {
 	if length < 0 {
 		return nil, shared_errors.Structural(
@@ -95,29 +102,13 @@ func HKDFSHA256(salt, ikm, info []byte, length int) ([]byte, error) {
 	if length == 0 {
 		return []byte{}, nil
 	}
-
-	// Extract step: PRK = HMAC(salt, IKM). Per §2.2 an empty salt is
-	// treated as HashSize zero bytes.
-	if len(salt) == 0 {
-		salt = make([]byte, HashSize)
+	okm, err := hkdf.Key(sha256.New, ikm, salt, string(info), length)
+	if err != nil {
+		return nil, shared_errors.Integrity(
+			shared_errors.CodeFieldValueInvalid,
+			"crypto: HKDF failed",
+			err,
+		)
 	}
-	prk := HMACSHA256(salt, ikm)
-
-	// Expand step: T(i) = HMAC(PRK, T(i-1) || info || byte(i)).
-	// OKM = first `length` bytes of (T(1) || T(2) || ...).
-	var (
-		okm  = make([]byte, 0, length)
-		prev []byte
-		n    = (length + HashSize - 1) / HashSize
-		h    hash.Hash
-	)
-	for i := 1; i <= n; i++ {
-		h = hmac.New(sha256.New, prk)
-		h.Write(prev)
-		h.Write(info)
-		h.Write([]byte{byte(i)})
-		prev = h.Sum(nil)
-		okm = append(okm, prev...)
-	}
-	return okm[:length], nil
+	return okm, nil
 }

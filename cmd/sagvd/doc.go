@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Package main (cmd/sagvd) is the entry point for the Secure AI Genome
@@ -63,7 +64,9 @@
 //   - http_api.bearer_token     optional Bearer token for POST /v1/jobs
 //   - tee.provider              "gcp-sev-snp" (the chip signs, reports through
 //     configfs-tsm), "gcp-tdx" (a TDX quote through configfs-tsm; the
-//     measurement is SHA-384 of MRTD and RTMR0..3, ADR 0018), "azure-cgpu"
+//     measurement is SHA-384 of MRTD and RTMR0..3, ADR 0018), "azure-sev-snp"
+//     (an Azure SEV-SNP Confidential VM: the chip's report from the vTPM's
+//     HCL report, bound to the nonce by a TPM quote), "azure-cgpu"
 //     (an Azure confidential GPU VM: the SEV-SNP report from the vTPM, a
 //     TPM quote binding the challenge, NVIDIA's tokens for the H100;
 //     gpu_attest_command required, ADR 0019) or "simulated"
@@ -72,8 +75,9 @@
 //   - tee.seed_path             32-byte Ed25519 seed (simulated only)
 //   - tee.peer.*                the worker's TEE pin: provider, measurement
 //     (48 bytes for SEV-SNP and TDX), amd_cert_chain_path
-//     (vcek_cache_dir, amd_kds_url, min_reported_tcb) for
-//     a SEV-SNP peer, pcs_cache_dir (pcs_url,
+//     (vcek_cache_dir, amd_kds_url, min_reported_tcb, sev_snp — the
+//     TCB floors, the platform's word, the guest's policy, the
+//     mitigation vector, chip_ids; ADR 0033) for a SEV-SNP peer, pcs_cache_dir (pcs_url,
 //     acceptable_tcb_statuses) for a TDX peer, the AMD
 //     fields plus nras_cache_dir (nras_jwks_url, gpu_policy)
 //     for an azure-cgpu peer, or public_key_path for a
@@ -90,7 +94,8 @@
 //   - genome.bundle_dir         the .genome bundles a job may name, with
 //     their key files or escrow envelopes beside them
 //   - genome.key_escrow_path    the escrow private key that opens <bundle>.escrow,
-//     as `sagvd escrow-provision` wrote it: sealed to this host's TEE and
+//     as `sagvd escrow-provision` wrote it (under the KEM suite crypto.profile
+//     writes, or -suite; ADR 0029): sealed to this host's TEE and
 //     unsealed in memory at start (ADR 0016); a plaintext key is accepted
 //     under tee.insecure_simulation only (falls back to
 //     crosscloud.key_escrow_path)
@@ -105,6 +110,12 @@
 //     bounds the model side of one job; evidence_max_age_seconds is how
 //     old a worker's Evidence may be when it is handed a job (default: the
 //     attestation TTL, 5 min)
+//   - crypto.profile            the cryptographic profile (ADR 0029): general
+//     (default; X25519 written, every suite accepted), fips (P-384 written;
+//     P-384, ML-KEM-768 and the MLKEM1024-P384 hybrid accepted) or cnsa (the
+//     hybrid only) — the KEM suite the authority encapsulates keys under
+//     across clouds and the suites it accepts a destination's answer under;
+//     crypto.kem_suites narrows the profile's list, in order of preference
 //   - health.listen_address     HTTP listener for /healthz /readyz /metrics
 //   - log.level, log.format     debug|info|warn|error, json|text
 //

@@ -1,0 +1,5 @@
+instance=vg-rd01-standby-20261021t202252z
+zone=europe-west4-b
+machine=n2d-standard-2
+internal_ip=10.164.0.2
+captured=20261021T202443Z

@@ -1,0 +1,92 @@
+INFO	Initializing Verification Service	{"version": "+"}
+INFO	initializing session manager
+INFO	initializing VTS client
+INFO	vts connection established	{"server-version": "+"}
+INFO	initializing verifier
+INFO	initializing verification API HTTPS service	{"address": "0.0.0.0:8443"}
+INFO	gin	[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+INFO	gin	 - using env:	export GIN_MODE=release
+INFO	gin	 - using code:	gin.SetMode(gin.ReleaseMode)
+INFO	gin	
+INFO	gin	
+INFO	gin	[GIN-debug] POST   /challenge-response/v1/newSession --> github.com/veraison/services/verification/api.IHandler.NewChallengeResponse-fm (3 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] POST   /challenge-response/v1/session/:id --> github.com/veraison/services/verification/api.IHandler.SubmitEvidence-fm (3 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] GET    /challenge-response/v1/session/:id --> github.com/veraison/services/verification/api.IHandler.GetSession-fm (3 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] DELETE /challenge-response/v1/session/:id --> github.com/veraison/services/verification/api.IHandler.DelSession-fm (3 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] GET    /.well-known/veraison/verification --> github.com/veraison/services/verification/api.IHandler.GetWellKnownVerificationInfo-fm (3 handlers)
+INFO	gin	
+INFO	verification API takes only callers with a certificate of the client CA	{"client-ca": "/opt/veraison/certs/rootCA.crt"}
+2026/10/17 12:43:46 http: TLS handshake error from 127.0.0.1:36612: unexpected EOF
+INFO	gin	[GIN] 2026/10/17 - 12:43:46 | 200 |    6.772644ms |             ::1 | GET      "/.well-known/veraison/verification"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:43:57 | 200 |    6.388246ms |   104.14.24.198 | GET      "/.well-known/veraison/verification"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:04 | 200 |    8.101582ms |   10.128.15.196 | GET      "/.well-known/veraison/verification"
+INFO	gin	
+INFO	session requested	{"caller": ["worker-20261017t123540z"]}
+INFO	gin	[GIN] 2026/10/17 - 12:44:15 | 201 |    5.256532ms |   10.128.15.196 | POST     "/challenge-response/v1/newSession?nonce=DXDIwlHXT6gMd0MQGeGpCXGPtYNyOgX_lM_SU5TFAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%3D%3D"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:16 | 200 |  240.414588ms |   10.128.15.196 | POST     "/challenge-response/v1/session/766c29f5-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:16 | 204 |         8.8µs |   10.128.15.196 | DELETE   "/challenge-response/v1/session/766c29f5-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	session requested	{"caller": ["worker-20261017t123540z"]}
+INFO	gin	[GIN] 2026/10/17 - 12:44:25 | 201 |    4.296418ms |   10.128.15.196 | POST     "/challenge-response/v1/newSession?nonce=cGgsT02s_-IUf9kWIFXqhL1zwuQnRiCmJEiuusfrGWQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%3D%3D"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:25 | 200 |   30.123832ms |   10.128.15.196 | POST     "/challenge-response/v1/session/7be9ac7e-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:25 | 204 |       9.578µs |   10.128.15.196 | DELETE   "/challenge-response/v1/session/7be9ac7e-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	session requested	{"caller": ["sagvd-20261017t123540z"]}
+INFO	gin	[GIN] 2026/10/17 - 12:44:25 | 201 |    4.471434ms |   10.128.15.196 | POST     "/challenge-response/v1/newSession?nonce=bdj4tQ-x2J6JE4NyJ_hvNaV4rGA0gyrqTIXtr69kIecAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%3D%3D"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:25 | 200 |   29.347304ms |   10.128.15.196 | POST     "/challenge-response/v1/session/7bf23299-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:25 | 204 |        8.36µs |   10.128.15.196 | DELETE   "/challenge-response/v1/session/7bf23299-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	session requested	{"caller": ["worker-20261017t123540z"]}
+INFO	gin	[GIN] 2026/10/17 - 12:44:30 | 201 |    4.658515ms |   10.128.15.196 | POST     "/challenge-response/v1/newSession?nonce=7LifJ9lRL0DxF3K3lzwcMZvFNpIxaa2g6WJa5B6dz1kAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%3D%3D"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:30 | 200 |   35.009559ms |   10.128.15.196 | POST     "/challenge-response/v1/session/7f3b61c3-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:30 | 204 |      10.115µs |   10.128.15.196 | DELETE   "/challenge-response/v1/session/7f3b61c3-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	session requested	{"caller": ["sagvd-20261017t123540z"]}
+INFO	gin	[GIN] 2026/10/17 - 12:44:30 | 201 |    4.752846ms |   10.128.15.196 | POST     "/challenge-response/v1/newSession?nonce=zZDRUG-cYXbz-C6oOcMrRZF6zkBa5hQxegLpw_dcEOkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%3D%3D"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:30 | 200 |   31.977304ms |   10.128.15.196 | POST     "/challenge-response/v1/session/7f43c0bc-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:30 | 204 |      11.502µs |   10.128.15.196 | DELETE   "/challenge-response/v1/session/7f43c0bc-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	session requested	{"caller": ["worker-20261017t123540z"]}
+INFO	gin	[GIN] 2026/10/17 - 12:44:46 | 201 |    4.222696ms |   10.128.15.196 | POST     "/challenge-response/v1/newSession?nonce=7OIaA24JDnYGlWFh-F7pHZJrR5wfe0fGDKMfLjA0tKMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%3D%3D"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:46 | 200 |   32.739848ms |   10.128.15.196 | POST     "/challenge-response/v1/session/88a341f4-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:46 | 204 |      11.857µs |   10.128.15.196 | DELETE   "/challenge-response/v1/session/88a341f4-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	session requested	{"caller": ["sagvd-20261017t123540z"]}
+INFO	gin	[GIN] 2026/10/17 - 12:44:46 | 201 |    4.175127ms |   10.128.15.196 | POST     "/challenge-response/v1/newSession?nonce=aLT2Okq26NPtasOIVbS44pm3Kt8wZjQsCFj4jsAndiwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%3D%3D"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:46 | 200 |   36.494703ms |   10.128.15.196 | POST     "/challenge-response/v1/session/88acd316-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:44:46 | 204 |      11.492µs |   10.128.15.196 | DELETE   "/challenge-response/v1/session/88acd316-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	session requested	{"caller": ["worker-20261017t123540z"]}
+INFO	gin	[GIN] 2026/10/17 - 12:45:08 | 201 |    4.465684ms |   10.128.15.196 | POST     "/challenge-response/v1/newSession?nonce=TzJrHTVy7cxcN2ngKdB20DmfbyV9zzU6plvNqF2pI-wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%3D%3D"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:45:08 | 200 |   31.300914ms |   10.128.15.196 | POST     "/challenge-response/v1/session/95c5c48b-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:45:08 | 204 |      15.797µs |   10.128.15.196 | DELETE   "/challenge-response/v1/session/95c5c48b-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	session requested	{"caller": ["worker-20261017t123540z"]}
+INFO	gin	[GIN] 2026/10/17 - 12:45:19 | 201 |    5.484766ms |   10.128.15.196 | POST     "/challenge-response/v1/newSession?nonce=MW3PM6-_HPlD9B1jXJecF6JmpQ6U7Fv9tXclFi58AcwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%3D%3D"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:45:19 | 200 |   31.737053ms |   10.128.15.196 | POST     "/challenge-response/v1/session/9c33b6b8-ca28-11f1-b99c-356466353466"
+INFO	gin	
+INFO	gin	[GIN] 2026/10/17 - 12:45:19 | 204 |      16.728µs |   10.128.15.196 | DELETE   "/challenge-response/v1/session/9c33b6b8-ca28-11f1-b99c-356466353466"
+INFO	gin	

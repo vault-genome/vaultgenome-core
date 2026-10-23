@@ -1,0 +1,11 @@
+{
+  "tee_provider": "azure-cgpu",
+  "measurement_hex": "aa7c9da55c1386e5b1653b125978beda7b3f95a85aeb0f9ddbbdb783ce056a28c9d021da239c34a58c3a657654270eef",
+  "sealer": "tpm2",
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "5fdb97ac624fb88a8f28d1fd1ed6a8d74ba91b8fd6b64526abd713a5e7180cd6"
+  }
+}

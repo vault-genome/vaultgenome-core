@@ -1,0 +1,153 @@
+[2m2026-10-22T14:11:42.146210Z[0m [32m INFO[0m [2mguest_attest[0m[2m:[0m tracing initialized
+Auto-selected MAA endpoint: https://sharedweu.weu.attest.azure.net
+[2m2026-10-22T14:11:42.155080Z[0m [32m INFO[0m [2mguest_attest[0m[2m:[0m attestation timing [3mstage[0m[2m=[0m"resolve_pcrs" [3mstage_ms[0m[2m=[0m0 [3mtotal_ms[0m[2m=[0m0
+[2m2026-10-22T14:11:42.239084Z[0m [32m INFO[0m [2mguest_attest[0m[2m:[0m attestation timing [3mstage[0m[2m=[0m"cvm_evidence" [3mstage_ms[0m[2m=[0m83 [3mtotal_ms[0m[2m=[0m83
+[2m2026-10-22T14:11:42.697184Z[0m [32m INFO[0m [2mguest_attest[0m[2m:[0m attestation timing [3mstage[0m[2m=[0m"device_evidence" [3mstage_ms[0m[2m=[0m458 [3mtotal_ms[0m[2m=[0m542
+[2m2026-10-22T14:11:42.706537Z[0m [32m INFO[0m [2mguest_attest[0m[2m:[0m attestation timing [3mstage[0m[2m=[0m"build_report" [3mstage_ms[0m[2m=[0m9 [3mtotal_ms[0m[2m=[0m551
+[2m2026-10-22T14:11:42.706631Z[0m [32m INFO[0m [2mguest_attest[0m[2m:[0m MAA provider created [3mprovider[0m[2m=[0m"MAA" [3mraw_endpoint[0m[2m=[0mhttps://sharedweu.weu.attest.azure.net [3mresolved_endpoint[0m[2m=[0mhttps://sharedweu.weu.attest.azure.net/attest/AzureGuest?api-version=2020-10-01
+[2m2026-10-22T14:11:42.707248Z[0m [32m INFO[0m [2mazure_guest_attestation_sdk::guest_attest::provider[0m[2m:[0m [3mtarget[0m[2m=[0m"guest_attest" [3mprovider[0m[2m=[0m"MAA" [3mendpoint[0m[2m=[0mhttps://sharedweu.weu.attest.azure.net/attest/AzureGuest?api-version=2020-10-01 [3mheader[0m[2m=[0mcontent-type [3mvalue[0m[2m=[0mapplication/json
+[2m2026-10-22T14:11:42.755817Z[0m [32m INFO[0m [2mazure_guest_attestation_sdk::guest_attest::provider[0m[2m:[0m [3mtarget[0m[2m=[0m"guest_attest" [3mprovider[0m[2m=[0m"MAA" [3mendpoint[0m[2m=[0mhttps://sharedweu.weu.attest.azure.net/attest/AzureGuest?api-version=2020-10-01 [3mresponse_header[0m[2m=[0mcontent-length [3mvalue[0m[2m=[0m13588
+[2m2026-10-22T14:11:42.755845Z[0m [32m INFO[0m [2mazure_guest_attestation_sdk::guest_attest::provider[0m[2m:[0m [3mtarget[0m[2m=[0m"guest_attest" [3mprovider[0m[2m=[0m"MAA" [3mendpoint[0m[2m=[0mhttps://sharedweu.weu.attest.azure.net/attest/AzureGuest?api-version=2020-10-01 [3mresponse_header[0m[2m=[0mcontent-type [3mvalue[0m[2m=[0mapplication/json; charset=utf-8
+[2m2026-10-22T14:11:42.755848Z[0m [32m INFO[0m [2mazure_guest_attestation_sdk::guest_attest::provider[0m[2m:[0m [3mtarget[0m[2m=[0m"guest_attest" [3mprovider[0m[2m=[0m"MAA" [3mendpoint[0m[2m=[0mhttps://sharedweu.weu.attest.azure.net/attest/AzureGuest?api-version=2020-10-01 [3mresponse_header[0m[2m=[0mdate [3mvalue[0m[2m=[0mThu, 22 Oct 2026 14:11:42 GMT
+[2m2026-10-22T14:11:42.755851Z[0m [32m INFO[0m [2mazure_guest_attestation_sdk::guest_attest::provider[0m[2m:[0m [3mtarget[0m[2m=[0m"guest_attest" [3mprovider[0m[2m=[0m"MAA" [3mendpoint[0m[2m=[0mhttps://sharedweu.weu.attest.azure.net/attest/AzureGuest?api-version=2020-10-01 [3mresponse_header[0m[2m=[0mserver [3mvalue[0m[2m=[0mKestrel
+[2m2026-10-22T14:11:42.755854Z[0m [32m INFO[0m [2mazure_guest_attestation_sdk::guest_attest::provider[0m[2m:[0m [3mtarget[0m[2m=[0m"guest_attest" [3mprovider[0m[2m=[0m"MAA" [3mendpoint[0m[2m=[0mhttps://sharedweu.weu.attest.azure.net/attest/AzureGuest?api-version=2020-10-01 [3mresponse_header[0m[2m=[0mx-ms-request-id [3mvalue[0m[2m=[0m00-c5a818efbdaf2e18bf367425349fb981-0000000000000000-00
+[2m2026-10-22T14:11:42.755857Z[0m [32m INFO[0m [2mazure_guest_attestation_sdk::guest_attest::provider[0m[2m:[0m [3mtarget[0m[2m=[0m"guest_attest" [3mprovider[0m[2m=[0m"MAA" [3mendpoint[0m[2m=[0mhttps://sharedweu.weu.attest.azure.net/attest/AzureGuest?api-version=2020-10-01 [3mresponse_header[0m[2m=[0mx-ms-maa-service-version [3mvalue[0m[2m=[0m1.11.03568.6445
+[2m2026-10-22T14:11:42.756239Z[0m [32m INFO[0m [2mguest_attest[0m[2m:[0m attestation timing [3mstage[0m[2m=[0m"provider_submit" [3mstage_ms[0m[2m=[0m49 [3mtotal_ms[0m[2m=[0m601
+Token (raw/envelope b64url): eyJhbGciOiJSUzI1NiIsImprdSI6Imh0dHBzOi8vc2hhcmVkd2V1LndldS5hdHRlc3QuYXp1cmUubmV0L2NlcnRzIiwia2lkIjoiZFJLaCtoQmNXVWZRaW1TbDNJdjZaaFN0VzNUU090MFRod2lUZ1VVcVpBbz0iLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE3OTI3MDcxMDIsImlhdCI6MTc5MjY3ODMwMiwiaXNzIjoiaHR0cHM6Ly9zaGFyZWR3ZXUud2V1LmF0dGVzdC5henVyZS5uZXQiLCJqdGkiOiIxN2YyZTdmMjEzNzhjZWMxYjljMDU4NWRmNWI1YTJjMzUwMzhhOGZlZWIyZDRmM2RiZjNkMDU3Mjk3YWE0MTEyIiwibmJmIjoxNzkyNjc4MzAyLCJzZWN1cmVib290Ijp0cnVlLCJ4LW1zLWF0dGVzdGF0aW9uLXR5cGUiOiJhenVyZXZtIiwieC1tcy1henVyZXZtLWF0dGVzdGF0aW9uLXByb3RvY29sLXZlciI6IjIuMCIsIngtbXMtYXp1cmV2bS1hdHRlc3RlZC1wY3ItdmFsdWVzIjp7InBjcjAiOiJOeXZ6UTBORkE1WWlvQWw0UzFCS1NJNzlKcVRTMVZIUkxqblRySDNpTXRzPSIsInBjcjEiOiJLaUJvLzFWWnhJMHZnaUlINGJhdEtMT0hDNmdlQmYzN1lObzJjbzZlTGdJPSIsInBjcjIiOiJNYnF5Mmh5YWltQlo2c1dhUzM1ZDdBWlJrS2cwL09HTDZ6Uy9YTTArTkVNPSIsInBjcjMiOiJQVVdNL2xYTUErb2ZSRDhWWXI3c2pmVWNkZUZLbjgrYWNqU2hQeG1PZVdrPSIsInBjcjQiOiJ1R1BNRWtVZEVKMERPY1BzNDh2MHVnYlZMckJQV2drNSthaFVWY0UwZUtVPSIsInBjcjUiOiJJamo4MkVGdFBnY3VhY0lxeDc3c1MxajFyS1llUURkUG1hcDBkeDhFSXRBPSIsInBjcjYiOiJHK1ZaN3ZFMHV0RUhBSjUzaXpza2xoUTA2bFMxNXdzOW81UjZpbEo4a1c4PSIsInBjcjciOiI4QlRseS9vcGZ1ZUhxWGFyeFJ2QjFuNGo0Ym5rcGdFb29SQnQwSzN2REZzPSJ9LCJ4LW1zLWF6dXJldm0tYXR0ZXN0ZWQtcGNycyI6WzAsMSwyLDMsNCw1LDYsN10sIngtbXMtYXp1cmV2bS1ib290ZGVidWctZW5hYmxlZCI6ZmFsc2UsIngtbXMtYXp1cmV2bS1kYnZhbGlkYXRlZCI6dHJ1ZSwieC1tcy1henVyZXZtLWRieHZhbGlkYXRlZCI6dHJ1ZSwieC1tcy1henVyZXZtLWRlYnVnZ2Vyc2Rpc2FibGVkIjp0cnVlLCJ4LW1zLWF6dXJldm0tZGVmYXVsdC1zZWN1cmVib290a2V5c3ZhbGlkYXRlZCI6dHJ1ZSwieC1tcy1henVyZXZtLWVsYW0tZW5hYmxlZCI6ZmFsc2UsIngtbXMtYXp1cmV2bS1mbGlnaHRzaWduaW5nLWVuYWJsZWQiOmZhbHNlLCJ4LW1zLWF6dXJldm0taHZjaS1wb2xpY3kiOjAsIngtbXMtYXp1cmV2bS1oeXBlcnZpc29yZGVidWctZW5hYmxlZCI6ZmFsc2UsIngtbXMtYXp1cmV2bS1pcy13aW5kb3dzIjpmYWxzZSwieC1tcy1henVyZXZtLWtlcm5lbGRlYnVnLWVuYWJsZWQiOmZhbHNlLCJ4LW1zLWF6dXJldm0tbWFjaGluZWFyY2hpdGVjdHVyZSI6Ing2NCIsIngtbXMtYXp1cmV2bS1vc2J1aWxkIjoiTm90QXBwbGljYXRpb24iLCJ4LW1zLWF6dXJldm0tb3NkaXN0cm8iOiJVYnVudHUiLCJ4LW1zLWF6dXJldm0tb3N0eXBlIjoiTGludXgiLCJ4LW1zLWF6dXJldm0tb3N2ZXJzaW9uLW1ham9yIjoyNCwieC1tcy1henVyZXZtLW9zdmVyc2lvbi1taW5vciI6NCwieC1tcy1henVyZXZtLXNpZ25pbmdkaXNhYmxlZCI6dHJ1ZSwieC1tcy1henVyZXZtLXRlc3RzaWduaW5nLWVuYWJsZWQiOmZhbHNlLCJ4LW1zLWF6dXJldm0tdm1pZCI6Ijk2N0I1QjdGLTU3QjctNEFCQi1BRkEzLUUzMUEwMUJDNUU1RSIsIngtbXMtaXNvbGF0aW9uLXRlZSI6eyJ4LW1zLWF0dGVzdGF0aW9uLXR5cGUiOiJzZXZzbnB2bSIsIngtbXMtY29tcGxpYW5jZS1zdGF0dXMiOiJhenVyZS1jb21wbGlhbnQtY3ZtIiwieC1tcy1ydW50aW1lIjp7ImtleXMiOlt7ImUiOiJBUUFCIiwia2V5X29wcyI6WyJzaWduIl0sImtpZCI6IkhDTEFrUHViIiwia3R5IjoiUlNBIiwibiI6InN5bFVvUUFCRW1fX2lhQUx3UGt6dEdWVTRDTzVrWUNZLURhUE9GWTdBLTROYlRLdE1PeW4wSFY0ZWw2a3U3QjdjVE9YcEJQLUF6TEphNFNzcHdsNm81ZkhlNDBFc1FkX2FVSDdLNFRUa3ZycV8zU3Ftdzh0akxQLXRfUl9JSHhBMXBFVnJlMTVqaU9qcG9uRnpvR2VHU1MwMk9yUnllRmNGdU1tcjdyXzUxLWNrc1FjTDlrbTM0ZVpVTVlyUl9aRFYwZjVKdFBrenl1UDcyMm85NWwzbk90elMzOXY3em9vZkNPaEdCSnYxTDdXM1VsNm9COFZHblNDMk1kTXl0V0k5U21BSU5jOU1URmhLSTBBQ0NSNm1MQ0tqdHkwWDJlM2VsdXoxSlh3ckd3UkZ2bHJjUmRVeWRIeVJ1TlR2MkZMd09qd1Nqd2V5T1VEeXlzeExfdjR0USJ9LHsiZSI6IkFRQUIiLCJrZXlfb3BzIjpbImVuY3J5cHQiXSwia2lkIjoiSENMRWtQdWIiLCJrdHkiOiJSU0EiLCJuIjoiNjB0eEFBQUFaUzlXZDVpRjFJbDNNWTl3eWM1TG1qSkcyUDI3Y3hpckFCWU4welphNHJQODZRMGlLcWx3RWNOaGs4bDJfY2Itd2h5ajhsVC1uLWlTR1k5bkl3cXU5THhNRDJBN1pJTWl5d3gxcDBDempzbElDTVRRSElyUk5Vdm1pYnViNzEzRk1nUnRsMDZfUEw5dEluM0EzdVQ4UTZCNlZOc2FzaWJTVmlsZ2tDdy1jRWtHUGJTclZnam93bXZkTEVJVmZUb21jOFlUZEtWWUQ3M1lybXh3TGdnSkp4Q21MR1lIeDQyVWdyMlBTeWtianBaMll3TV9IM0RONEo2ZFZLME5hb3J0dHQ3RjhSaTUzaEpTbXJpWlc1eGNGdDdCbWtydS0teldZUFlfeDRYVjRxb09RN2k1WEM3enlsZEZoMW9rZTJrcFl3bWpVbTlrMms3Z0ZRIn1dLCJ1c2VyLWRhdGEiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsInZtLWNvbmZpZ3VyYXRpb24iOnsiY29uc29sZS1lbmFibGVkIjp0cnVlLCJoYXJkd2FyZS1zZWFsaW5nLXBvbGljeSI6Imhhc2giLCJyb290LWNlcnQtdGh1bWJwcmludCI6IjZuWlpuWWFKYzRLcVVaX3l2QS1tdWNGZFlOb3V2bFBuSVRuTk1Yc0hsLTAiLCJzZWN1cmUtYm9vdCI6dHJ1ZSwidHBtLWVuYWJsZWQiOnRydWUsInRwbS1wZXJzaXN0ZWQiOnRydWUsInZtVW5pcXVlSWQiOiI5NjdCNUI3Ri01N0I3LTRBQkItQUZBMy1FMzFBMDFCQzVFNUUifX0sIngtbXMtc2V2c25wdm0tYXV0aG9ya2V5ZGlnZXN0IjoiMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwieC1tcy1zZXZzbnB2bS1ib290bG9hZGVyLXN2biI6MTAsIngtbXMtc2V2c25wdm0tY2hpcC1mYW1pbHkiOiJHZW5vYSIsIngtbXMtc2V2c25wdm0tY2hpcGlkIjoiMDkzZjMxYjM5NGZjYjdhYjY0MzgzOTgxNGFhZmI4OTIyNzJhOGM4ZDIzYjM1NmZiZDc4MWNmMmIyNGUzZmQ5OWE1NTQxZmQ3ZmU5ODI3OGI5NzZlYjM5ZDAwOTIzMGJmYWE1OWU0ZTBlNTUyYjBhNzc5Mjg1YzZhNmU2ODc3MTkiLCJ4LW1zLXNldnNucHZtLWNpcGhlcnRleHQtaGlkaW5nLWRyYW0tZW5hYmxlZCI6ZmFsc2UsIngtbXMtc2V2c25wdm0tY3hsLWFsbG93ZWQiOmZhbHNlLCJ4LW1zLXNldnNucHZtLWZhbWlseUlkIjoiMDAyNTIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJ4LW1zLXNldnNucHZtLWd1ZXN0c3ZuIjozLCJ4LW1zLXNldnNucHZtLWhvc3RkYXRhIjoiMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsIngtbXMtc2V2c25wdm0taWRrZXlkaWdlc3QiOiI5NDJmZDkzZWJkZTZlYTdhOTZlZmFkZWFmYzYwZjFjNmIzZDEwZTcwM2IxZGFmZDc1NTViOTJmN2YzZDMyZDBlMDA2NzY3NjQ4Y2JhNWIxMDJhZjNkNjU3NTZhZjQxNzciLCJ4LW1zLXNldnNucHZtLWltYWdlSWQiOiIwMjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsIngtbXMtc2V2c25wdm0taXMtZGVidWdnYWJsZSI6ZmFsc2UsIngtbXMtc2V2c25wdm0tbGF1bmNobWVhc3VyZW1lbnQiOiIxMTkyMGY2MWRlZjg1MDk0YjM0M2UxMmUzMDYyMTdlOTVkYWNlM2IxOWUxYWFmOWQxMTY3NDllMzY1NWVlNzNhMTg1ZjUxN2IwOGE1ZmQ5MzJhMDQyOTVhNTU5NTkxYzQiLCJ4LW1zLXNldnNucHZtLW1lbS1hZXMyNTYteHRzLXJlcXVpcmVkIjpmYWxzZSwieC1tcy1zZXZzbnB2bS1taWNyb2NvZGUtc3ZuIjo4OCwieC1tcy1zZXZzbnB2bS1taWdyYXRpb24tYWxsb3dlZCI6ZmFsc2UsIngtbXMtc2V2c25wdm0tcGFnZS1zd2FwLWRpc2FibGVkIjpmYWxzZSwieC1tcy1zZXZzbnB2bS1yYXBsLWRpc2FibGVkIjpmYWxzZSwieC1tcy1zZXZzbnB2bS1yZXBvcnRkYXRhIjoiMDczZDM2ZTViY2Y0NjUzMzhmNzllN2JiMzZhZGZmYWQwOWRmMWUxNjVlMjZkNjQ4Nzc0OTlhYjNiODhkYTNkNTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJ4LW1zLXNldnNucHZtLXJlcG9ydGlkIjoiZjg1ZWM1ODY2YTk3ODhlYmY2OTMzYjRjNGFhOGZjMDM0ZDU3ZjNiNGVkNDlkOTNhZjg5NzY5MzMyOTVmMTk0MyIsIngtbXMtc2V2c25wdm0tc2luZ2xlc29ja2V0IjpmYWxzZSwieC1tcy1zZXZzbnB2bS1zbXQtYWxsb3dlZCI6dHJ1ZSwieC1tcy1zZXZzbnB2bS1zbnBmdy1zdm4iOjI3LCJ4LW1zLXNldnNucHZtLXRlZS1zdm4iOjAsIngtbXMtc2V2c25wdm0tdm1wbCI6MH0sIngtbXMtcG9saWN5LWhhc2giOiJRc05pOVVFMzY1U2djc2t1Vl9hNHAtdUZReUdsTmNJbFFrcnNpMFVJeTdvIiwieC1tcy1ydW50aW1lIjp7ImtleXMiOlt7ImUiOiJBUUFCIiwia2V5X29wcyI6WyJlbmNyeXB0IiwidmVyaWZ5Il0sImtpZCI6IlRwbUVwaGVtZXJhbEVuY3J5cHRpb25LZXkiLCJrdHkiOiJSU0EiLCJuIjoiMDZtVTFBQUE3d0N4U0N0bEExSUFNbF9MNEwyUVRHcEhNS192OG9UZm1YQjV4aDdHbmx6dFJOQTZQT2JEZ0VfZUdET3UzWU5XYXNsOS1zcHNBNV9uaEpETkk1bGoxY3ZfUDJSbTR6TnRLbnh2d1ZqUFltTWdlQWtJczFDQklsNXhiZlNieVdpUE1ZUVV2UmhXT0pSYUhMbkNQSkwtN1JWUFZ1MG9GaEdja0tldExsdmpqRVBlZVcyOFp5bFU4LUR1WDZuUFRsazh2SEFqNmFKNXVTOVc2Z0ZUUG9CLURjRlB0RVhXaGQtbHpsYVdWeU1ORnpfM3Y3d0toajJDYXhxZ1N4elAtSnBEWWdWUGFIeTJndzU3X0dySVNic1lCTGw5cUVkQXFKNEl2aVpHaDNKWE1sZ0NhTHdWclk4RmhuWWRIM3NISy13QXNJQURuTjlycEJvU3lRIn1dfSwieC1tcy12ZXIiOiIxLjAifQ.HDFjGWwSRQQzI5cEweAvE11zlP_Wjfr19xWSP_J7mw7ERSnfTTOYgIOAMFxeR_VcuKLSCRsvyy2c7D0XPMzm6qKpZ5fj9A8t-3zBgSmnwJFx9GuABV8rFePmMuKoeza6TSEl5W1DGgZo_Pi_fVL5484XEnvmnl7b-gXLMfpQWvcOqEbpy8IVBqQfQYgwj2s29GsCw0bUPcIye1mkAVRVlPiXX7aPjGIuh1pQVdhwjz-0x8qCqJ3mD6-pk-53M11lI0t_E9NjGRPS_zAqFxYdtXXlgraBeabLBDAIwu4ZhWEf8SyeEWtZrPPJS0_lKaLVvG4EhzvPxDM782n5HCXcsw
+Token (decoded):
+JWT Header:
+{
+  "alg": "RS256",
+  "jku": "https://sharedweu.weu.attest.azure.net/certs",
+  "kid": "dRKh+hBcWUfQimSl3Iv6ZhStW3TSOt0ThwiTgUUqZAo=",
+  "typ": "JWT"
+}
+JWT Payload:
+{
+  "exp": 1792707102,
+  "iat": 1792678302,
+  "iss": "https://sharedweu.weu.attest.azure.net",
+  "jti": "17f2e7f21378cec1b9c0585df5b5a2c35038a8feeb2d4f3dbf3d057297aa4112",
+  "nbf": 1792678302,
+  "secureboot": true,
+  "x-ms-attestation-type": "azurevm",
+  "x-ms-azurevm-attestation-protocol-ver": "2.0",
+  "x-ms-azurevm-attested-pcr-values": {
+    "pcr0": "NyvzQ0NFA5YioAl4S1BKSI79JqTS1VHRLjnTrH3iMts=",
+    "pcr1": "KiBo/1VZxI0vgiIH4batKLOHC6geBf37YNo2co6eLgI=",
+    "pcr2": "Mbqy2hyaimBZ6sWaS35d7AZRkKg0/OGL6zS/XM0+NEM=",
+    "pcr3": "PUWM/lXMA+ofRD8VYr7sjfUcdeFKn8+acjShPxmOeWk=",
+    "pcr4": "uGPMEkUdEJ0DOcPs48v0ugbVLrBPWgk5+ahUVcE0eKU=",
+    "pcr5": "Ijj82EFtPgcuacIqx77sS1j1rKYeQDdPmap0dx8EItA=",
+    "pcr6": "G+VZ7vE0utEHAJ53izsklhQ06lS15ws9o5R6ilJ8kW8=",
+    "pcr7": "8BTly/opfueHqXarxRvB1n4j4bnkpgEooRBt0K3vDFs="
+  },
+  "x-ms-azurevm-attested-pcrs": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "x-ms-azurevm-bootdebug-enabled": false,
+  "x-ms-azurevm-dbvalidated": true,
+  "x-ms-azurevm-dbxvalidated": true,
+  "x-ms-azurevm-debuggersdisabled": true,
+  "x-ms-azurevm-default-securebootkeysvalidated": true,
+  "x-ms-azurevm-elam-enabled": false,
+  "x-ms-azurevm-flightsigning-enabled": false,
+  "x-ms-azurevm-hvci-policy": 0,
+  "x-ms-azurevm-hypervisordebug-enabled": false,
+  "x-ms-azurevm-is-windows": false,
+  "x-ms-azurevm-kerneldebug-enabled": false,
+  "x-ms-azurevm-machinearchitecture": "x64",
+  "x-ms-azurevm-osbuild": "NotApplication",
+  "x-ms-azurevm-osdistro": "Ubuntu",
+  "x-ms-azurevm-ostype": "Linux",
+  "x-ms-azurevm-osversion-major": 24,
+  "x-ms-azurevm-osversion-minor": 4,
+  "x-ms-azurevm-signingdisabled": true,
+  "x-ms-azurevm-testsigning-enabled": false,
+  "x-ms-azurevm-vmid": "967B5B7F-57B7-4ABB-AFA3-E31A01BC5E5E",
+  "x-ms-isolation-tee": {
+    "x-ms-attestation-type": "sevsnpvm",
+    "x-ms-compliance-status": "azure-compliant-cvm",
+    "x-ms-runtime": {
+      "keys": [
+        {
+          "e": "AQAB",
+          "key_ops": [
+            "sign"
+          ],
+          "kid": "HCLAkPub",
+          "kty": "RSA",
+          "n": "sylUoQABEm__iaALwPkztGVU4CO5kYCY-DaPOFY7A-4NbTKtMOyn0HV4el6ku7B7cTOXpBP-AzLJa4Sspwl6o5fHe40EsQd_aUH7K4TTkvrq_3Sqmw8tjLP-t_R_IHxA1pEVre15jiOjponFzoGeGSS02OrRyeFcFuMmr7r_51-cksQcL9km34eZUMYrR_ZDV0f5JtPkzyuP722o95l3nOtzS39v7zoofCOhGBJv1L7W3Ul6oB8VGnSC2MdMytWI9SmAINc9MTFhKI0ACCR6mLCKjty0X2e3eluz1JXwrGwRFvlrcRdUydHyRuNTv2FLwOjwSjweyOUDyysxL_v4tQ"
+        },
+        {
+          "e": "AQAB",
+          "key_ops": [
+            "encrypt"
+          ],
+          "kid": "HCLEkPub",
+          "kty": "RSA",
+          "n": "60txAAAAZS9Wd5iF1Il3MY9wyc5LmjJG2P27cxirABYN0zZa4rP86Q0iKqlwEcNhk8l2_cb-whyj8lT-n-iSGY9nIwqu9LxMD2A7ZIMiywx1p0CzjslICMTQHIrRNUvmibub713FMgRtl06_PL9tIn3A3uT8Q6B6VNsasibSVilgkCw-cEkGPbSrVgjowmvdLEIVfTomc8YTdKVYD73YrmxwLggJJxCmLGYHx42Ugr2PSykbjpZ2YwM_H3DN4J6dVK0Naorttt7F8Ri53hJSmriZW5xcFt7Bmkru--zWYPY_x4XV4qoOQ7i5XC7zyldFh1oke2kpYwmjUm9k2k7gFQ"
+        }
+      ],
+      "user-data": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "vm-configuration": {
+        "console-enabled": true,
+        "hardware-sealing-policy": "hash",
+        "root-cert-thumbprint": "6nZZnYaJc4KqUZ_yvA-mucFdYNouvlPnITnNMXsHl-0",
+        "secure-boot": true,
+        "tpm-enabled": true,
+        "tpm-persisted": true,
+        "vmUniqueId": "967B5B7F-57B7-4ABB-AFA3-E31A01BC5E5E"
+      }
+    },
+    "x-ms-sevsnpvm-authorkeydigest": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "x-ms-sevsnpvm-bootloader-svn": 10,
+    "x-ms-sevsnpvm-chip-family": "Genoa",
+    "x-ms-sevsnpvm-chipid": "093f31b394fcb7ab643839814aafb892272a8c8d23b356fbd781cf2b24e3fd99a5541fd7fe98278b976eb39d009230bfaa59e4e0e552b0a779285c6a6e687719",
+    "x-ms-sevsnpvm-ciphertext-hiding-dram-enabled": false,
+    "x-ms-sevsnpvm-cxl-allowed": false,
+    "x-ms-sevsnpvm-familyId": "00252000000000000000000000000000",
+    "x-ms-sevsnpvm-guestsvn": 3,
+    "x-ms-sevsnpvm-hostdata": "0000000000000000000000000000000000000000000000000000000000000000",
+    "x-ms-sevsnpvm-idkeydigest": "942fd93ebde6ea7a96efadeafc60f1c6b3d10e703b1dafd7555b92f7f3d32d0e006767648cba5b102af3d65756af4177",
+    "x-ms-sevsnpvm-imageId": "02000000000000000000000000000000",
+    "x-ms-sevsnpvm-is-debuggable": false,
+    "x-ms-sevsnpvm-launchmeasurement": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+    "x-ms-sevsnpvm-mem-aes256-xts-required": false,
+    "x-ms-sevsnpvm-microcode-svn": 88,
+    "x-ms-sevsnpvm-migration-allowed": false,
+    "x-ms-sevsnpvm-page-swap-disabled": false,
+    "x-ms-sevsnpvm-rapl-disabled": false,
+    "x-ms-sevsnpvm-reportdata": "073d36e5bcf465338f79e7bb36adffad09df1e165e26d64877499ab3b88da3d50000000000000000000000000000000000000000000000000000000000000000",
+    "x-ms-sevsnpvm-reportid": "f85ec5866a9788ebf6933b4c4aa8fc034d57f3b4ed49d93af8976933295f1943",
+    "x-ms-sevsnpvm-singlesocket": false,
+    "x-ms-sevsnpvm-smt-allowed": true,
+    "x-ms-sevsnpvm-snpfw-svn": 27,
+    "x-ms-sevsnpvm-tee-svn": 0,
+    "x-ms-sevsnpvm-vmpl": 0
+  },
+  "x-ms-policy-hash": "QsNi9UE365SgcskuV_a4p-uFQyGlNcIlQkrsi0UIy7o",
+  "x-ms-runtime": {
+    "keys": [
+      {
+        "e": "AQAB",
+        "key_ops": [
+          "encrypt",
+          "verify"
+        ],
+        "kid": "TpmEphemeralEncryptionKey",
+        "kty": "RSA",
+        "n": "06mU1AAA7wCxSCtlA1IAMl_L4L2QTGpHMK_v8oTfmXB5xh7GnlztRNA6PObDgE_eGDOu3YNWasl9-spsA5_nhJDNI5lj1cv_P2Rm4zNtKnxvwVjPYmMgeAkIs1CBIl5xbfSbyWiPMYQUvRhWOJRaHLnCPJL-7RVPVu0oFhGckKetLlvjjEPeeW28ZylU8-DuX6nPTlk8vHAj6aJ5uS9W6gFTPoB-DcFPtEXWhd-lzlaWVyMNFz_3v7wKhj2CaxqgSxzP-JpDYgVPaHy2gw57_GrISbsYBLl9qEdAqJ4IviZGh3JXMlgCaLwVrY8FhnYdH3sHK-wAsIADnN9rpBoSyQ"
+      }
+    ]
+  },
+  "x-ms-ver": "1.0"
+}
+Attested Guest Successfully

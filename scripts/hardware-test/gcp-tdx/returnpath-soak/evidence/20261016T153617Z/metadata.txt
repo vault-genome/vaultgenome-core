@@ -1,0 +1,4 @@
+instance=vg-tdx-soak-20261016t153518z
+zone=us-central1-a
+machine=c3-standard-8
+captured=20261016T153617Z

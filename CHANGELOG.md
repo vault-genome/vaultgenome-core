@@ -13,7 +13,7 @@ given release can still open.
 
 ### Added
 
-- **The AWS Nitro verifier is real (ADR 0024).** `internal/shared/tee`
+- **The AWS Nitro verifier is real (ADR 0035).** `internal/shared/tee`
   parses the COSE_Sign1 envelope and the attestation document with a
   CBOR codec written from RFC 8949 (definite and indefinite lengths, the
   document's subset and nothing else), verifies the certificate chain to
@@ -31,14 +31,1320 @@ given release can still open.
   the offline audit of a captured Nitro attestation document with the
   daemons' own verifier; exit 0 when it verifies, 5 when it does not.
 - Fuzz targets for the CBOR decoder and the whole Nitro verifier.
-
-### Changed
-
 - The AWS Nitro integration tests sign genuine CBOR/COSE_Sign1 documents
   with a synthetic five-certificate P-384 chain instead of a JSON fake, so
   the production codec runs in CI. The NSM producer, the KMS sealer and
   the registry's refusal of the `aws-nitro` family are unchanged: no
   enclave has attested to this code live (KNOWN_ISSUES #1).
+- The verifier held to readings nobody here wrote (ADR 0034, part one).
+  Every genuine SEV-SNP report on record — 41 on 2026-10-22, 25 chips,
+  Milan and Genoa — is a corpus (`test/corpus/sev-snp`, `build.py`, the
+  VCEKs from AMD KDS by chip id and TCB), and one test (`make
+  differential`) runs the product's reading and Google's go-sev-guest
+  (`tools/oracle`, a module of its own) on each: both must verify,
+  nineteen fields must be equal, and of the 1184 single-byte mutants of
+  each report neither may verify one; VirTEE's `snpguest` is the third
+  reading on Linux. The first run found the product verifying 416 mutants
+  per report that Google's library refused — the reserved bytes of the
+  signature block, not under the signature — and the parser now refuses
+  any non-zero byte there (`TestSEVSNPParse_RefusesANonZeroSignatureReserve`).
+  Part two, the same day: the `differential` workflow's first green run,
+  with VirTEE's `snpguest` built from crates.io — 41 of 41 verified by
+  all three readings, on the record (C47, VG-040); ADR 0034 Accepted.
+  Part three: the auditor's own verifier of the audit log
+  (`tools/auditor/verify_audit.py` — pure Python, the bbolt file read as
+  bytes, Ed25519 and ECDSA P-384 written out), held equal to `acpctl
+  audit verify` on every genuine log on record, on logs under each suite
+  and on mutants by one test (C48, VG-041).
+- The attack record in the verifier's policy (ADR 0033, part one). A
+  SEV-SNP report is read whole and put on the record — the chip's family,
+  model and stepping, the guest policy and PLATFORM_INFO bit by bit, the
+  current, reported, committed and launch TCB versions by component, the
+  firmware version, both mitigation vectors, the chip id — in
+  `AttestationDetail.sev_snp` on every admission and release record; the
+  `gcp-sev-snp` verifier gains `VerifyDetailed`. The report is held to
+  floors per chip variant, component by component over all four TCBs:
+  the SNP firmware and microcode levels AMD's bulletins printed when they
+  were read (2026-10-22; RMPocalypse, StackWarp; `docs/compliance/sev-snp-tcb-floors.md`,
+  held to the code by a test), the alias check of BadRAM, the mitigation
+  vector bit, no migration agent; a chip the table does not name is
+  refused until the operator sets `tee.peer.sev_snp.tcb_floor`, a floor
+  below the bulletins' needs `accept_below_bulletin` on the record, and
+  `chip_ids` names the machines a peer may be. `tee.peer.sev_snp` in
+  `sagvd` and `acp-compute`, `sev_snp` on a `verifier_registry`
+  destination; `identity` prints `sev_snp_policy`. The chips on record —
+  a GCP Milan at SNP 0x1d and microcode 0xde, the Azure Genoa of the
+  confidential-GPU record at 0x1b and 0x58 — pass the default policy.
+  The GCP kits (`keyrelease-e2e`, `returnpath-e2e`) print the chip as
+  the record saw it and refuse a fourth release under a floor one above
+  the chip. Part two, the same day: both kits on GCP Milan hosts on the
+  tree of the change, under `fips` on the certified module — the chip on
+  the `CROSS_CLOUD_ATTESTATION_VERIFIED` record at SNP 0x1d and
+  microcode 0xde with the alias check complete and mitigation vector
+  0xb, the release refused under a floor of 0x1e with the
+  `KEY_RELEASE_DENIED` record naming it, the Return Path's admitted
+  worker with its chip on the `TRUST_EVALUATED` record and the policy on
+  `sagvd identity` (C46). ADR 0033 Accepted.
+- The protocols in ProVerif (ADR 0032, Accepted; claim C45). Part one,
+  the cross-cloud key release: eight models under `formal/`, written by `gen.py` from one
+  template — the release as the daemons run it, and seven variants that
+  each remove one protection or leak one key (the key binding, the suite
+  in the binding, a shared recipient key, the stop list's no-rollback
+  rule, the decision in the receipt, the chips' attestation key, the
+  authority's signing key) — with seven queries each: the released key's
+  secrecy, the authenticity of what the destination opens, the binding of
+  the authorization to the key the destination generated, one opening per
+  release, no release after the operator's stop, one confirmation per
+  chip-vouched restore, no release to an unlisted chip. The recorded run
+  (`formal/results/`) reproduces query by query under ProVerif 2.05
+  (`make formal-check`; the `formal` workflow builds the tool from the
+  official tarball by digest). Part two, the Return Path handshake (ADR
+  0014, 0025): nine models — the handshake over mutual TLS as the daemons
+  run it, the same on an open channel, without the nonces in the chips'
+  challenges, and with the session sealing key, the worker's registry
+  key, the vault's TLS key or the chips' key leaked — with eight queries
+  each: the sealed material's and the candidate's secrecy, the frame MAC
+  keys not the attacker's, one admission per quote the worker's chip
+  made over the session, no admission of an unlisted chip, one acceptance
+  per quote the vault's chip made, one verdict per candidate the worker
+  produced, one candidate per job issued. Part three, the sentinel and
+  the failover (ADR 0012, 0017): six models — as the daemons run them,
+  the sentinel's seed leaked and used off the chip, the same without
+  the primary's chip pinned, the primary itself in the attacker's hands,
+  the same with the executor taking the standby from the report instead
+  of the policy, and the chips' key leaked — with seven queries each: the
+  genome key's secrecy, a policy behind every failover, the key released
+  only to the measurement the policy names, the trigger and the chosen
+  generation the sentinel's word on its chip, a decision behind every
+  opening, no release after the stop. Twenty-three models, 185 recorded
+  verdicts; the two rules the symbolic model does not establish — one
+  failover per policy serial, an older serial refused — are named as the
+  authority's record.
+
+## [0.9.0] — 2026-10-22
+
+The release that names the signature suite on every record and lets
+the profile decide it (ADR 0031), and that brings the confidential-GPU
+path under the certified module's claim (ADR 0030, part four). Every
+signed record carries `alg`, the suite it was signed under — absent for
+`ed25519`, so every byte written so far is unchanged — and the keys
+follow the suite: `acp-keygen -signature-suite`, `keys.<name>.suite`,
+the suite beside every PEM `identity` prints. The profile decides:
+`general` and `fips` sign with Ed25519, `cnsa` with ECDSA P-384, and
+`crypto.signature_suite` picks within what the profile accepts — `fips`
+with `ecdsa-p384-sha384` is the deployment a bank held to X9 SD-34
+runs. Measured, not asserted: on real SEV-SNP under `cnsa` and under
+`fips` with ECDSA on the module with enforcement on (C43), and on a
+real NCC H100 v5 the confidential-GPU path under the same enforcement
+with both suites, neither SHA-1 use ADR 0030 had named invoked (C44).
+The audit schema is v8 and readers go first: a reader of an earlier
+release refuses a record signed under another suite than Ed25519, and a
+`cnsa` deployment re-keys under ECDSA P-384 and moves both daemons
+together. Finding F2b of the banking map is closed.
+
+### Added
+
+- The signature suite on every record (ADR 0031, part one). The `keys`
+  package signs and verifies under a named suite — `ed25519`,
+  `ecdsa-p384-sha384`, `ml-dsa-87` — and every signed contract carries
+  `alg` beside `signing_key_id` and `signature`: absent for ed25519, so
+  the bytes of every record written so far are unchanged, and named for
+  the other two. A verifier checks the suite a record names against the
+  key it resolves before any signature is checked. `acpctl audit verify`
+  reads the suite from the key's PEM (Ed25519, ECDSA P-384 or ML-DSA-87,
+  as `sagvd identity` prints it) and reports it as `signature_suite`.
+  Audit chains and release decisions signed under each suite are kept as
+  fixtures and verified from the file in every test run; the doctrine
+  suite checks that every signed contract carries `alg`.
+- The keys follow the suite (ADR 0031, part two). `acp-keygen
+  -signature-suite` makes the authority, audit and worker signing keys
+  under one suite in the suite's file form — the 32-byte seed of an
+  ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384 key —
+  under the same file names; `keys.<name>.suite` in the sagvd and
+  acp-compute configs names the suite the file is read under (ed25519
+  when absent; never guessed from its length), and `seal-keys` seals the
+  file whatever its form. `sagvd identity` and `acp-compute identity`
+  print `*_signature_suite` beside each PEM; the worker registry names
+  each worker's `suite` beside its raw key; acp-bootstrap pins the source
+  authority's key from a PEM of any suite. The sentinel's records, the
+  failover policy (which pins the sentinel key with `sentinel_alg`), the
+  operator's stop list and the signed gate verdict carry `alg` and are
+  signed through the same key type: `acpctl sentinel keygen`, `stop
+  keygen` and `failover issue` take `--signature-suite`, and every
+  verifier reads the suite from the PEM.
+- The profile decides the suite (ADR 0031, part three; the ADR is
+  Accepted). `general` signs with `ed25519` and accepts every suite the
+  build has; `fips` signs with `ed25519` and accepts `ed25519` and
+  `ecdsa-p384-sha384`, the two on the certificate of the Go
+  Cryptographic Module v1.0.0; `cnsa` signs with `ecdsa-p384-sha384` and
+  accepts `ml-dsa-87` beside it. `crypto.signature_suite` picks the
+  signing suite within the profile's list — `fips` with
+  `ecdsa-p384-sha384` is the deployment a bank held to X9 runs — and
+  never widens it. A signing key of another suite than the profile signs
+  with stops the daemon at validation; a key the profile does not accept
+  is refused where it is pinned, with the reason: a worker registry
+  entry, the operator's stop key, the sentinel key a failover policy
+  pins, the source authority key acp-bootstrap pins. `sagvd identity`
+  prints `signature_suite` and `signature_suites`, `acp-bootstrap
+  identity` `signature_suites`. The kits `keyrelease-e2e` and
+  `reference-design-01` take `VG_SIGSUITE` (the profile's own by
+  default), make every key under it and refuse a record that does not
+  show it on the authority, the destination and the audit logs; proven
+  on SEV-SNP under `cnsa` and under `fips` with ECDSA P-384 on the
+  certified module (C43). Finding F2b of the banking map is closed.
+
+- `VG_FIPS=1`, `VG_PROFILE` and `VG_SIGSUITE` in the `azure-cgpu` kit
+  (ADR 0030, part four: the confidential-GPU measurement). The four
+  binaries are built on the certified Go Cryptographic Module v1.0.0
+  from a clean checkout of HEAD before anything is written to the tree —
+  the stamps say `vcs.modified=false` whatever the tree holds untracked —
+  and every Go process on the confidential GPU VM runs under
+  `GODEBUG=fips140=only` in both stages; the record says so (`build.txt`,
+  `versions.txt`, `steps.txt`, `run.txt`) and the verdict requires it,
+  with the profile and the suite on every party. Two runs on an NCC
+  H100 v5 under `fips`, with Ed25519 and with ECDSA P-384 (C44): neither
+  SHA-1 use ADR 0030 had named on this path is invoked — the quote is
+  over the `sha256` bank, the OCSP exchange is SHA-256 end to end — and
+  the path is under the module claim on the same terms as SEV-SNP;
+  `banking.md` §6 and §9 and `controls.md` VG-038 say so.
+
+- ADR 0031 (accepted; parts one to three in this release): the signature
+  suite — `ed25519`, `ecdsa-p384-sha384` and `ml-dsa-87` named, the
+  profile naming what a daemon signs with and accepts
+  (`crypto.signature_suite` within it), `alg` beside every signature on
+  the record (audit schema v8), key material by suite under the same
+  sealed files, the `-fips` build's availability reported; finding F2b
+  of the banking map is closed; with the measurement of 2026-10-22
+  (ML-DSA-87 in the default build, unavailable in the certified module
+  v1.0.0). Part four — ML-DSA-87 as the `cnsa` default — waits for a
+  certified module that carries it.
+
+### Changed
+
+- Audit event schema v8: the optional `alg` field (ADR 0031). A v7 reader
+  refuses a v8 event; a v8 reader verifies every earlier event as it did.
+  The text line of `acpctl audit verify` names the suite
+  (`… events verified under ed25519, tip …`).
+- ML-DSA-87 is the standard library's and unavailable on the `-fips`
+  build (the Go Cryptographic Module v1.0.0): a key of that suite is
+  refused there with the module's reason, and a record signed under it
+  cannot be verified there — reported, never assumed. Zeroize wipes the
+  Ed25519 private key and the seeds; the ECDSA scalar and the expanded
+  ML-DSA key live in representations the standard library does not
+  expose for wiping and are dropped for the collector.
+- The Return Path handshake classifies its I/O errors: a peer that
+  closes or loses its connection mid-handshake is `peer_disconnected`
+  (Operational — nothing was evaluated, the retry is the peer's), a
+  deadline that passed is `deadline_exceeded`, any other failure of the
+  connection is `transport_failure`; no raw socket error leaves the
+  handshake. On the authority's audit a hang-up is a `TRUST_EVALUATED`
+  deny with that code and category instead of `write: broken pipe` under
+  category `unknown`, so a refusal and a disconnect are told apart on the
+  record (`docs/operator/triage_table.md`).
+
+## [0.8.0] — 2026-10-21
+
+The release that puts the product on the certified cryptographic
+module and proves it. Every build is approved-mode clean — AES-GCM with
+the module's own nonces, the module's HKDF, the KEM suites v2 (HPKE
+export-only, the module's AES-256-GCM), the genome bundle v4 — and the
+release carries a `-fips` variant of the five binaries and both images,
+built on the Go Cryptographic Module v1.0.0 (CMVP #5247) from the same
+commit by the same reproducible build; `version` and `identity` name
+the module. The claim is measured, not asserted: under `fips140=only`,
+the module's enforcement, the three hardware kits pass on real SEV-SNP
+under the `fips` and `cnsa` profiles (C42), and reference design 01 — a
+bank, a standby in another region, a third party — plays end to end by
+one command under each profile (C41). Both daemons move together: the
+suites are v2 and the bundle is v4, and what 0.7.0 wrote still opens;
+a 0.7.0 reader cannot open a v4 bundle, so readers upgrade before
+writers. Finding F2 of the banking map is closed.
+
+### Added
+
+- **The `-fips` release variant** (ADR 0030, part three): `make build-fips`
+  builds the five binaries on the certified Go Cryptographic Module v1.0.0
+  (`GOFIPS140=v1.0.0`, CMVP #5247; the version named, never an alias) as
+  `bin/<name>-fips`; `verify-reproducible` covers both builds; the gate
+  builds both. `release.yml` ships them beside the default ones — each with
+  its SBOM, signature, certificate and Sigstore bundle, in the SLSA
+  provenance (88 build assets), and as the images `sagvd-fips` and
+  `acp-compute-fips` (signed by digest, SBOM-attested, a provenance each;
+  `images-<tag>.txt` names four) — and refuses a `-fips` binary whose
+  build settings do not name the module. The `-fips` binaries run the
+  module in its approved mode: `version` ends `fips140=on module=v1.0.0`.
+  The §5 kits verify the `-fips` assets and images too. `banking.md`
+  closes finding F2 and names what remains (F2b); `controls.md` gains
+  VG-038.
+- `VG_FIPS=1` in the hardware kits `keyrelease-e2e`, `returnpath-e2e` and
+  `reference-design-01` (ADR 0030, part two): the binaries built on the
+  certified Go Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`), every Go
+  process on the guests — and design 01's third party — under
+  `GODEBUG=fips140=only`, in which a non-approved service fails instead of
+  succeeding; the record says so on every party and the verdict requires
+  it; `returnpath-e2e` takes the profile as its third argument and has a
+  verdict. Runs under `fips` and `cnsa` on SEV-SNP (C42). The guests of
+  `keyrelease-e2e` and `returnpath-e2e` name their record by the runner's
+  stamp (`vg-stamp`), unique per run: two guests booted in the same
+  second shared a name and the later decode overwrote the earlier record.
+- `scripts/hardware-test/reference-design-01`: reference design 01 played
+  end to end on real SEV-SNP in two regions by one command — the bank's
+  job EXACT, the genome's key released to the attested standby under the
+  profile's suite, the restore gated EXACT on the standby's chip, four
+  refusals with their reasons, both audit logs verified by a third party
+  with acpctl alone; the design's figures table written from the run;
+  on record under `general`, `fips` and `cnsa` (C41; design 01, "Prove
+  it").
+- ADR 0030 (accepted; all three parts in this release): the FIPS 140-3 build —
+  the certified Go Cryptographic Module v1.0.0 (CMVP #5247) as a release
+  variant, approved-mode discipline in every build (AES-GCM nonces
+  generated by the module, bundle format v4, the module's HKDF), and
+  `fips140=only` as the assessment on the record; with the measurement
+  of 2026-10-21.
+- `identity` and `version` of every daemon and of `acpctl` report the
+  cryptographic module (`fips140`: enabled, enforced, the module version,
+  the build setting); `make test-fips140-only` runs the unit tests on the
+  certified module with enforcement on, in the vault gate.
+
+### Changed
+
+- ADR 0030, part one — approved-mode discipline in every build: AES-GCM
+  is constructed with the module's own nonce generation
+  (`cipher.NewGCMWithRandomNonce`) everywhere, with every sealed thing —
+  key files, session material, tokens, escrow documents, continuity
+  proofs — byte-identical on disk and on the wire; HKDF is the module's
+  `crypto/hkdf` (the same RFC 5869 output). Under `fips140=only` a
+  configuration that names the `general` profile is refused at startup
+  with the reason (its first suite is X25519), one that names no profile
+  runs as `fips`, and the legacy `x25519-kem-v1` wrapper and the v1
+  suites name their refusal instead of failing inside the module.
+- **The KEM suites are v2** (`hpke-x25519-v2`, `hpke-p384-v2`,
+  `hpke-mlkem768-v2`, `hpke-mlkem1024-p384-v2`, `hpke-xwing-v2`): HPKE
+  opened export-only derives the key and the cryptographic module's
+  AES-256-GCM seals under it with the nonce it generates — the
+  assessment found Go's HPKE AEAD takes its nonce from outside the module,
+  which the module's approved mode does not allow (ADR 0030, 3f). The
+  recipient keys are unchanged: a 0.7.0 escrow key writes and opens v2 as
+  it is, and 0.7.0's escrow documents and sealed key files open by the
+  suite they record. The v1 suites are read-only, refused by name under
+  `fips140=only`. The profiles list v2 only, so a 0.7.0 peer and a 0.8
+  peer release nothing to each other (both daemons move together);
+  `acpctl escrow keygen --suite` and `sagvd escrow-provision -suite` take
+  the v2 names; `identity`, the handshake answer, the token, the audit
+  chain and the restore report name the v2 suite.
+- **The genome bundle is `vault-genome-v4`:** the 12-byte nonce the
+  module generated is stored before each segment's ciphertext, and the
+  segment's index and last flag move from the nonce into the additional
+  data; v3 bundles (every release before this one) still open everywhere;
+  every writer writes v4. A reader of 0.7.0 cannot open a v4 bundle — a
+  deployment upgrades its readers (`acpctl`, `sagvd`, the sentinel,
+  `acp-bootstrap`) before its writers (`docs/operator/08_upgrading.md`).
+
+## [0.7.0] — 2026-10-21
+
+The release that lets a deployment choose its cryptography and says so in
+every record. Every key encapsulation across clouds and in escrow is RFC
+9180 HPKE under a named KEM suite — X25519, P-384, ML-KEM-768, the
+ML-KEM-1024 + P-384 hybrid, X-Wing — and a profile on both daemons,
+`general`, `fips` or `cnsa`, pins what each writes and accepts, with no
+negotiation below either side's list. The suite is in the handshake
+answer and in the key-binding challenge, beside each wrapped key in the
+token, in the escrow documents, in the audit chain and in `identity`.
+The three profiles are on record on real SEV-SNP: a key released across
+clouds and restored under each, an escrow key carried through the
+recovery ceremony under X25519 and P-384 (C40). Both daemons move
+together: the cross-cloud wire is schema 2 and the escrow documents are
+v2, and what earlier releases wrote still opens.
+
+### Added
+
+- KEM suites and the cryptographic profile (ADR 0029). Every key
+  encapsulation across clouds is RFC 9180 HPKE through `crypto/hpke` of
+  the standard library, under a named suite: `hpke-x25519-v1`,
+  `hpke-p384-v1`, `hpke-mlkem768-v1`, `hpke-mlkem1024-p384-v1` (the
+  PQ/T hybrid) or `hpke-xwing-v1`. A new configuration section on both
+  daemons, `crypto`, names the profile — `general` (the default: X25519
+  written, every suite accepted), `fips` (P-384 written; P-384,
+  ML-KEM-768 and the hybrid accepted — the primitives the Go
+  Cryptographic Module lists as approved) or `cnsa` (the hybrid only) —
+  and may narrow it with `kem_suites`. The source offers its list in
+  the handshake request, the destination generates its key under the
+  first it accepts and names it in its answer, the source refuses an
+  answer outside its list, and the suite is in the key-binding
+  challenge, in the token beside each wrapped key, in the audit chain
+  (`delivery_mode`, `crypto_profile`), in both daemons' `identity`
+  output and in `sagvd crosscloud-restore`'s report.
+
+- Escrow under the suites (ADR 0029, part two). The authority's escrow
+  key and the operator's recovery key are KEM keys of a suite:
+  `sagvd escrow-provision` makes the escrow key under the suite the
+  profile writes (or `-suite`), `acpctl escrow keygen` and
+  `recovery-keygen` take `--suite`, and the documents name it — the
+  escrow envelope beside a bundle (`vault-genome/key-escrow/v2`), the
+  sealed key file (`sealed-escrow-key/v2`), the recovery envelope
+  (`escrow-recovery/v2`). A P-384 key travels as PKIX PEM like an X25519
+  key; an ML-KEM or hybrid key as the product's own PEM block, which
+  names its suite; a private key file is that PEM too, and `acpctl
+  escrow recover` prints it for the pipe. `sagvd identity` prints
+  `key_escrow_suite`. Every v1 document — the X25519 envelopes, sealed
+  keys and recovery envelopes of 0.1.0 to 0.6.1 — still opens with the
+  same X25519 key, and the raw 32-byte key files still read.
+
+### Changed
+
+- The cross-cloud wire moves to schema 2: `CrossCloudHandshakeRequest`
+  carries `kem_suites`, `KeyReleaseToken` carries `suite` beside each
+  wrapped key, the handshake answer carries `recipient_key_suite`. Both
+  daemons move together: a request or an answer that names no suite is
+  refused, on the record, and the ECIES of ADR 0009 (`x25519-kem-v1`)
+  is no longer written across clouds. The hardware kits
+  `gcp-sev-snp/keyrelease-e2e` and `authority-loss` take the profile as
+  their third argument.
+
+Doctrine and invariants are unchanged since 0.6.1: nothing under
+`docs/doctrine/` or `test/doctrine/` changed. No dependency changed:
+`go.mod` and `go.sum` are those of 0.6.1 (the suites come from the
+standard library's `crypto/hpke`), the workflows and their actions too.
+The compliance map's cryptography rows and finding F2 record where the
+suites stand (`docs/compliance/banking.md` §6, §9).
+
+## [0.6.1] — 2026-10-21
+
+The release built with Go 1.27.3 and shipped as container images too. A
+security release first: `crypto/x509` refuses the known compromised
+intermediate certificates (GO-2026-6809), on a path the product reaches
+when it verifies NVIDIA's RIM chains. The same release is the first to
+carry its two container images, built from its own signed binaries and
+signed by digest — and the first whose pipeline was rehearsed on two tags
+and proven by two hardware kits on SEV-SNP before the real tag, which
+found what no green job shows: the packages a first push creates are
+private, and `cosign verify` prints a different line than `verify-blob`.
+On record with it: the acceptance trial of October 2026 (22 of 22), the
+control catalogue and the banking map, the first reference design, and
+the operator REST API reference checked against a run.
+
+### Security
+
+- Go 1.27.3. GO-2026-6809 (CVE-2026-111943): `crypto/x509` now refuses
+  the known compromised intermediate certificates when verifying a
+  chain; `govulncheck` finds the call reachable from the verification of
+  NVIDIA's RIM certificate chains (`tee.VerifyRIMCertChain`). The
+  toolchain, the six workflows and the two builder images move together;
+  the next release's binaries are built with it.
+
+### Added
+
+- `tee.provider: "auto"` on an Azure confidential VM: where the kernel has
+  no configfs-tsm — under Azure's paravisor — the family is read from the
+  vTPM's HCL report (`azure-sev-snp`; a report of another type is refused
+  by its number). `acpctl provision join --provider auto` works there too.
+
+- The release carries its two container images: `ghcr.io/vault-genome/sagvd`
+  (distroless static) and `ghcr.io/vault-genome/acp-compute` (python-slim
+  with the worker's hash-locked runtime), built from the release's own
+  signed binaries — nothing compiled in the image build — pushed by
+  digest, signed keyless by digest, each with an SBOM attestation and a
+  SLSA provenance of its own; `images-<tag>.txt` among the release assets
+  names both by digest, with its Sigstore bundle. `deploy/image/` holds
+  the two Dockerfiles; `deploy/compose/` keeps the lab images that
+  compile from source.
+
+- `docs/TRIAL-2026-10.md`: the acceptance trial of the whole stand on the
+  released code — twenty-two results on real hardware (GCP SEV-SNP and
+  TDX, the confidential GPU, Azure SEV-SNP), each with its evidence
+  directory under `scripts/hardware-test/`.
+
+- `docs/compliance/`: the control catalogue (`controls.md`, VG-001 to
+  VG-037) and the banking map (`banking.md`: DORA and its RTS 2024/1774,
+  NYDFS Part 500, PCI DSS 4.0.1 by requirement number, FFIEC, X9 SD-34
+  against FIPS 186-5 and CMVP #5247, BCBS d516), each requirement mapped
+  to what the software contributes and to its evidence; and
+  `docs/reference-designs/01-tier1-bank-model-continuity.md`, the first
+  reference design, re-based on what is measured.
+
+- `docs/reference/api.md`: the operator REST API for an integrator — the
+  two endpoints, the bearer token, the error envelope, the health
+  listener — checked against the code by `scripts/check-api-reference.py`
+  and against a run on SEV-SNP.
+
+- `scripts/hardware-test/release-deploy-images`: the kit that deploys the
+  Return Path on SEV-SNP from the release's container images, after
+  verifying them by digest on the runner (signature, SBOM attestation,
+  SLSA provenance, the binary inside equal to the release asset) and
+  tying the guest's loaded images to the signed manifests.
+
+### Changed
+
+- `release.yml`: the images job builds each image from a staged context
+  under `dist/image-context/` (the repository's `.dockerignore` excludes
+  `bin/`); a release is 55 assets — 48 from the build job, the SLSA
+  provenance, 6 from the images job. The release procedure (§4.1)
+  records the two rehearsals, `v0.6.1-rc1` and `v0.6.1-rc2`, and the
+  one-time step that makes the packages public.
+
+- Actions: `codeql-action` 4.39.0, `osv-scanner-action` 2.7.0; the six
+  workflows and the two compose builder images on Go 1.27.3.
+
+- `TestDaemon_ServesSessionsInParallelUpToTheLimit` waits for the
+  sessions gauge instead of reading it once (a flake under the race
+  detector).
+
+- `docs/operator/01_preflight.md`: the host clock row names the commands
+  and what they must show; `docs/security/assurance_case.md` §4 says
+  what keeps secrets out of the logs as the code has it — the counter
+  to log injection is `logSafe`, identifiers reach the log through
+  `fmt.Stringer`.
+
+### Fixed
+
+- The client that calls a RATS Verifier (`tee.peer.verifier.mode: rats`)
+  speaks TLS 1.3 only, as every listener of the product does; it accepted
+  TLS 1.2 before. A Verifier that offers no more than 1.2 gets no session
+  (`verifier_unavailable`).
+- `vg_tee_attestation_total` and `vg_tee_attestation_duration_seconds`
+  label the `verify` role with the peer's family, not the daemon's own —
+  an authority on SEV-SNP verifying an Azure worker counted it under
+  `gcp-sev-snp`.
+
+Doctrine and invariants are unchanged since 0.6.0: nothing under `docs/doctrine/` or `test/doctrine/` changed. Dependencies: the Go toolchain
+1.27.2 → 1.27.3 in `go.mod`; no module dependency changed (`go.sum` is
+the same); in CI, `codeql-action` 4.38.3 → 4.39.0 and
+`osv-scanner-action` 2.6.0 → 2.7.0; the release images are built on
+`gcr.io/distroless/static-debian12:nonroot` and
+`python:3.12-slim-bookworm`, pinned by digest.
+
+## [0.6.0] — 2026-10-17
+
+The release that keeps its record for years and stands up across two
+hosts. The audit log is written in closed segments (ADR 0027): at a count
+or an age the live file moves into the archive directory under the
+indices of its events, its closing is the next segment's first event with
+the archive's SHA-256, and nothing in the daemon deletes an archive —
+retention of the record is archival, a file whose hash is on the chain;
+finished jobs expire from the job store after the window the operator
+sets; `acpctl audit verify` walks the archives and the live file as one
+chain, in constant memory, and names an archive that is not the file the
+chain recorded. Measured on real SEV-SNP: an hour of 1609 jobs at the
+rate of C33 closed five segments, kept the live file within 16 MiB and
+the views flat at 16 MiB, and verified across six files in 2.5 s; a
+shipped archive was refused without the operator's word and accepted
+with it (C38). A deployment across two hosts is three commands (ADR
+0028): `acpctl provision authority` writes everything but the worker's
+pin and a bundle of the worker's side under a manifest of hashes, and
+keeps none of the worker's secrets; `provision join` on the worker's host
+refuses a bundle that does not match and reads the worker's identity from
+its chip; `provision pin-worker` completes it. Run across two clouds and
+two chips — the authority on GCP SEV-SNP (Milan), the worker on Azure
+SEV-SNP (Genoa) — the session opened across the Internet 5 s after the
+authority was ready and the gate job came back EXACT in 6 s (C39). The
+audit schema is v7, the first change since 0.1.0: one kind added
+(`AUDIT_SEGMENT_CLOSED`), no field changed; a chain written by any
+earlier release verifies under 0.6.0, and a chain 0.6.0 wrote verifies
+under an earlier `acpctl` too — hashes and signatures do not depend on
+the kind, which it reports as a name it does not know. Bundle, policy and
+the Return Path wire (1.1) unchanged; every new configuration key is
+optional and off, so a 0.5.0 deployment behaves as before until it sets
+them — `acpctl provision` sets them for a new one.
+
+### Added
+
+- The audit log in closed segments (ADR 0027): `audit.segment_events` and
+  `audit.segment_max_age_seconds` close the live file into
+  `audit.archive_dir` under the indices of its events, the closing on the
+  record as the next segment's first event (`AUDIT_SEGMENT_CLOSED`, audit
+  schema v7) with the archive's SHA-256 and length; a start finishes a
+  rotation a crash interrupted, and verifies the live segment only.
+  Nothing in the daemon deletes an archive. `sagvd_audit_segments_closed_total`,
+  `sagvd_audit_segment_events`. Measured under load on real SEV-SNP (C38).
+- Finished jobs expire from the job store after
+  `queue.retain_finished_seconds`: record and view, in batches, at most once
+  a minute, through an index by completion time (a store from before it is
+  indexed when opened); `GET` answers 404 for them, and the audit log keeps
+  the decision under the request id. `sagvd_jobs_swept_total`.
+- `acpctl audit verify --archive-dir`, `--from-tip`: the archives and the
+  live file verified as one chain, each archive against the record that
+  closed it, in constant memory; `query`, `status` and `lineage` read the
+  archives too, and `query --request` filters by request id.
+- `acpctl provision` writes a bounded deployment: segments of 100 000
+  events or a day, finished jobs kept thirty days.
+- Provisioning across two hosts (ADR 0028): `acpctl provision authority`
+  on the authority's host writes everything but the worker's pin and
+  `worker-bundle.tar` — the worker's secrets, the CA, the authority's
+  measurement and, for a SEV-SNP authority, its product's AMD chain,
+  under a manifest of SHA-256s; the worker's secrets then leave the
+  authority's host. `acpctl provision join --bundle` on the worker's host
+  refuses a bundle that does not match its manifest or a host of another
+  family, writes `acp-compute.json` for the authority the bundle names,
+  reads the worker's identity and seals its key files. `acpctl provision
+  pin-worker --identity` on the authority's host pins the worker and
+  completes the deployment; `provision.json` carries the role and the
+  phase. The one-host `acpctl provision` is unchanged. Run across GCP
+  SEV-SNP (Milan) and Azure SEV-SNP (Genoa): C39.
+
+### Changed
+
+- `acpctl` opens audit logs read-only, so verifying an archive leaves its
+  hash as the chain recorded it; a mistyped `--audit` path is refused
+  rather than created empty.
+
+## [0.5.0] — 2026-10-16
+
+The release that is proven under load and stood up in one command. One
+authority served three workers for an hour on real TDX and on real
+SEV-SNP — 2429 and 1607 jobs, every one EXACT — and the soak found the
+authority keeping about 110 KB of every job it had ever served; the three
+retentions are gone, and two more hours on each chip show its private
+memory flat at 9–15 MB (C33, C34, KNOWN_ISSUES #18). Sessions run in
+parallel (`runtime.max_sessions`), measured on both chips, and the
+measurement found the SEV-SNP host's own limit: a burst of attestation
+requests waits about 10 s (C32, KNOWN_ISSUES #17). The Return Path wire
+is 1.1 — Evidence names its format on the wire as a RATS record — and
+either daemon can delegate the appraisal to a RATS Verifier, proven
+against a live Veraison with a real SEV-SNP report and with the Verifier
+on its own VM over mutual TLS (C30, C31). A new family: an Azure SEV-SNP
+Confidential VM without a GPU attests with the chip and the vTPM
+(`azure-sev-snp`, C36). The region-loss drill is on record twice — a
+primary that goes dark without a word, the model back on an attested H100
+in 26 s on silence alone (C35, Drill VII). And `acpctl provision` stands
+a deployment up in one command, proven on real SEV-SNP in 10.6 s (C37).
+Bundle, audit and policy schemas unchanged; the Return Path wire is 1.1,
+so both daemons move together — a 1.0 peer is refused at the first frame,
+naming both versions; every new configuration key is optional, and files
+sealed by 0.4.x open as before.
+
+### Added
+
+- **`acpctl provision`: one command stands up a deployment.** The
+  first-deployment procedure's steps 2 and 3
+  (`docs/operator/09_first_deployment.md`) done by the release's own
+  binaries from one place: `acp-keygen` writes the key material, both
+  daemons' configurations are written for the family named
+  (`gcp-sev-snp`, `gcp-tdx`, `azure-sev-snp`, `auto`, or `simulated` for
+  development), the AMD chain of the chip's product fetched and verified
+  on request, each daemon's `identity` read from the hardware and pinned
+  on the other side, the operator's copy of the REST token and the audit
+  public key kept under `operator/`, each daemon's key files sealed by its
+  own `seal-keys` (the worker seals its own copy of the session sealing
+  key, as a worker on another host would), and `provision.json` recording
+  what was written and learned — never a secret. Proven in process with a
+  stub release and live with the real binaries: the daemons start on what
+  it wrote, a job comes back EXACT, the audit log verifies under the key
+  it kept. Proven on hardware
+  (`scripts/hardware-test/gcp-sev-snp/provision-e2e`, run
+  `20261016T222951Z`, C37): on an n2d-standard-4 the command took 10.6 s
+  — the Milan chain from KDS, both identities from the chip, eight key
+  files sealed to its derived key — and the deployment it wrote served a
+  gate job EXACT six seconds after submission, sixteen audit events
+  verified under the key it kept.
+
+- **The `azure-sev-snp` provider: an Azure SEV-SNP Confidential VM without
+  a GPU attests with the chip and the vTPM (ADR 0025, plan item 4).** The
+  paravisor gives an Azure guest no `/dev/sev-guest`: the SNP report is
+  issued at boot and kept in the vTPM's NV index as the HCL report, whose
+  REPORT_DATA names the vTPM's attestation key, and a TPM quote by that
+  key binds a challenger's nonce to it. `azure-cgpu` carried this and
+  NVIDIA's tokens; `azure-sev-snp` is this alone, for DCasv5, ECasv5 and
+  their kin, and the chip-and-vTPM half is one piece of code for both
+  families (`internal/shared/tee/azure_vtpm.go`). One row of every table:
+  the factory, the media type
+  `application/vnd.vault-genome.azure-sev-snp-evidence` on the wire, the
+  vTPM as the sealer (`tpm2`), the capability check; `sagvd`,
+  `acp-compute` and `acp-bootstrap` accept it as `tee.provider` and as
+  `tee.peer.provider` (the AMD chain of the chip's product, the VCEK
+  cache, the TCB floor, `pcr_digests`; no GPU fields), and the cross-cloud
+  verifier registry takes it. Runbook:
+  `docs/operator/runbooks/real-tee-azure-sev-snp.md`. Proven on hardware
+  (`scripts/hardware-test/azure-sev-snp/returnpath-e2e`, run
+  `20261016T215807Z` on a `Standard_DC4as_v5` in West Europe, Genoa;
+  C36): the handshake 104 ms with 4515 bytes of evidence, the gate job
+  EXACT seven seconds after submission, every key file sealed to the
+  vTPM, a thief's copy of the sealed files refused off this vTPM, a
+  worker of another attestation refused at the handshake by evidence
+  type, seventeen audit events verified.
+
+- **A delegated Verifier: `tee.peer.verifier.mode: rats` (ADR 0025, step
+  2b).** Either daemon can send the peer's Evidence record to a RATS
+  Verifier over Veraison's challenge-response API instead of appraising
+  it itself: the session is opened with what the Evidence carries for the
+  challenge (the 64-byte REPORT_DATA for SEV-SNP and TDX), the record is
+  posted under its media type, the attestation result (an EAR, a compact
+  JWS signed ES256) is verified under the Verifier's key on file and
+  judged by the policy here — `accept` (affirming; warning on purpose),
+  `policy_id`, `submod`. The pin stays the daemon's: the launch
+  measurement is read from the message it posted, by its own parser, and
+  held against `measurement_path`; the family stays its policy too. The
+  admission on the record carries the EAR (`peer_detail.verifier`),
+  re-verifiable offline; a refusal carries the Verifier's word, and a
+  Verifier that cannot be asked refuses the peer (`verifier_unavailable`).
+  The family's own inputs (the AMD chain, Intel's PCS) are not required in
+  this mode. `internal/shared/tee/ratstest` is the API as a test double;
+  the integration suite runs both daemons against it with the simulated
+  family, the rogue contraindicated and the unreachable Verifier refused
+  on the record. Runbook: `docs/operator/runbooks/delegated-verifier.md`.
+  A Verifier that takes only known callers is answered with a client
+  certificate (`client_cert_path`, `client_key_path`). Proven against a
+  live Veraison with a real GCP SEV-SNP report — the bench's deployment,
+  the `sevsnp` scheme, the report's REPORT_DATA as the session nonce, the
+  EAR `affirming` under Veraison's published key, the pin read from the
+  report: run `20261016T024628Z`
+  (`scripts/hardware-test/veraison-live/evidence/`, kit `veraison-live`,
+  claim C30). And on real SEV-SNP with the Verifier on another VM — the
+  bank's topology: Veraison built and deployed natively on a VM of its
+  own under the kit's root CA, its verification API on mutual TLS, the
+  operator provisioning it with AMD's root and the chip's launch before
+  the session; both daemons delegating by name; handshake 145/146 ms
+  delegated beside 219/220 ms builtin on the same chip; the job EXACT; the
+  EAR on the admission, re-verified offline; a worker of another family,
+  a policy naming another appraisal and an unreachable Verifier refused
+  on the record: run `20261016T033936Z`
+  (`scripts/hardware-test/gcp-sev-snp/returnpath-rats/evidence/`, kit
+  `returnpath-rats`, claim C31). Both daemons log `handshake_ms` on the
+  session-opened line.
+
+- **Sessions in parallel: `runtime.max_sessions`.** The authority
+  serves that many Return Path sessions at once (one by default, the
+  behaviour until now): every accepted connection takes a session slot
+  in its own goroutine; the queue hands each job to exactly one session,
+  the audit chain appends under its own lock, each job's flow is its own
+  object, and shutdown waits for the sessions in flight. A worker that
+  connects while every slot is taken waits up to
+  `handshake_timeout_seconds` for one, then is closed before any
+  handshake — counted as `sagvd_sessions_refused_total{reason="busy"}`,
+  not a trust decision — and dials again after its backoff. New gauges
+  `sagvd_sessions_active` and `sagvd_sessions_limit`. Proven in process
+  (two sessions inside their jobs while a third waits; the busy refusal
+  with the job unaffected) and live (two workers attested at once, two
+  jobs EXACT on one verified chain). Measured on real SEV-SNP
+  (`scripts/hardware-test/gcp-sev-snp/returnpath-parallel`, run
+  `20261016T122044Z`, C32): three workers on one n2d-standard-8, six
+  jobs per round, all EXACT — 28.7 s at one session at a time, 17.2 s
+  at three (`docs/operator/limits.md`). The run found the chip's own
+  limit: a burst of attestation requests on one GCP SEV-SNP guest is
+  rate-limited by the host, all but the first answered about 10 s later
+  (KNOWN_ISSUES #17). The TDX twin (`gcp-tdx/returnpath-parallel`, run
+  `20261016T123114Z`, c3-standard-8): 23.7 s at one, 9.6 s at three,
+  no throttling — three sessions at once at 90–165 ms each.
+
+- **The soak: one authority and three workers for an hour on real TDX
+  and SEV-SNP** (`scripts/hardware-test/gcp-tdx/returnpath-soak`, run
+  `20261016T130106Z`; `gcp-sev-snp/returnpath-soak`, run
+  `20261016T130128Z`; C33). 2429 jobs on the c3-standard-8 Trust Domain
+  — 40 a minute, steady from the first minute to the last, p50 8.6 s and
+  p99 9.3 s from submission to verdict, handshakes p50 94 ms and none
+  above half a second — and 1607 on the n2d-standard-8 SEV-SNP guest —
+  27 a minute, p50 11.3 s and p99 17.7 s, half of the handshakes held
+  1–7 s by the host's throttle (KNOWN_ISSUES #17, now measured over an
+  hour). Every job EXACT, no refusal, no handshake failure, no warning in
+  any log; 38,864 and 25,712 audit events on one chain each, verified at
+  the end in 3.2 s and 2.4 s. The soak found that the authority's memory
+  grows about 110 KB for every job served — the in-memory job map keeps
+  every finished job's flow and the persistent audit chain keeps every
+  sealed event in memory — 16 → 280 MB over the hour, while the workers'
+  memory and the authority's descriptors stayed flat (KNOWN_ISSUES #18).
+  `docs/operator/limits.md` has the tables; the kit's `summarize.py`
+  derives every number from the evidence.
+
+- `scripts/hardware-test/failover-region-loss`: the continuity drill with
+  the failure that gives no warning. The primary (GCP SEV-SNP, us-central1)
+  switches itself off while it trains — no shutdown, no report, no
+  `stopped` — and the operator deletes it; the authority (europe-west4)
+  acts on a policy whose only trigger is 15 s without a heartbeat and
+  releases the key to the attested Azure H100. The orchestrator records
+  Google's status, `lastStopTimestamp`, the deletion and Google's audit log
+  for the primary; the authority keeps the audit log file, its public key
+  and the primary's last heartbeat for an offline check; `timeline.py`
+  merges a run's evidence into one timeline; `VERIFY.md` says how to check
+  a run without us. Run `20260930T194321Z`: RTO 25.97 s, RPO 21.01 s, the
+  gate EQUIVALENT on the H100; run `20261016T210544Z` on the tree of 16
+  October: RTO 26.24 s, RPO 21.00 s, EQUIVALENT again, the model confirmed
+  back 5.4 s before Google logged the guest's termination
+  (VERIFIABLE-CLAIMS C35, CONTINUITY-DRILL Drill VII).
+
+### Changed
+
+- **Return Path wire 1.1: Evidence names its format (ADR 0025, step
+  2a).** The two evidence fields of the handshake (`server_evidence`,
+  `client_evidence`) are RATS Conceptual Message Wrapper records
+  (RFC 9999 §3.1, the json-record): the media type of the family's
+  Evidence, its bytes as base64url, the indicator saying Evidence. The
+  configfs-tsm families (SEV-SNP, TDX) send the TSM report ratsd defines
+  and Veraison accepts — the kernel's outblob, the auxblob it shows
+  beside the report (on SEV-SNP the certificate table the host wrote,
+  the VCEK among them; the producers now read it) and the provider's
+  name — as `application/vnd.veraison.tsm-report+json`; the other
+  families send their bytes under a provisional
+  `application/vnd.vault-genome.*` type. A record whose type is not the
+  configured peer family's, or a TSM report of another provider, is
+  refused by name before any verifier runs; the builtin verifiers read
+  the outblob as before. A 1.0 peer is refused at the first frame with
+  both versions in the reason. Each side's family is required in the
+  handshake configuration (`auto` resolves before it). `sagvd` logs what
+  the peer's record carried (`peer_evidence_type`, `peer_evidence_bytes`).
+  Proven on hardware, outcome unchanged: SEV-SNP run `20261016T011546Z` (n2d,
+  `sev_guest`; the worker's record a TSM report of 7980 bytes — the
+  1184-byte report and the host's 4763-byte certificate table inside; session
+  opened, gate job EXACT, the rogue simulated worker refused by name
+  before any verifier ran: «evidence type
+  application/vnd.vault-genome.simulated-evidence, this peer verifier is
+  gcp-sev-snp and reads application/vnd.veraison.tsm-report+json»), TDX
+  run `20261016T011514Z` (c3, `tdx_guest`; a TSM report of 10704 bytes around the
+  8000-byte quote, no auxblob; same outcome) — `scripts/hardware-test/gcp-sev-snp/returnpath-e2e/evidence/20261016T011546Z`,
+  `scripts/hardware-test/gcp-tdx/returnpath-e2e/evidence/20261016T011514Z`.
+
+### Fixed
+
+- **The authority's memory no longer grows with every job it has served
+  (KNOWN_ISSUES #18).** The soak (C33) found about 110 KB retained a
+  job. Three things kept every job and are fixed: a finished job leaves
+  the queue's memory as soon as the store has its view (`GET
+  /v1/jobs/{id}` reads it from disk; a view the store refuses keeps the
+  job in memory; without `queue.path` nothing changes and the daemon's
+  warning at start says so); the persistent audit chain keeps its tip
+  and its length instead of every event — the store gained `Walk` and
+  `At`, opening and `Verify` walk the store one event at a time,
+  `EventAt` and `Events` read it; the session issuer forgets a session
+  once it has been expired for as long as it lived. Proven by the soak
+  run for two hours on both chips (C34): the authority's anonymous
+  memory 9–15 MB through 4901 jobs on TDX and 3223 on SEV-SNP, every
+  one EXACT, where the first soak's rate would have put 540 MB; what
+  still grows is the two bbolt files on disk, 48–52 KB a job, which
+  nothing rotates yet. The soak kit now snapshots the resident set by
+  kind (anonymous, file-backed) and the files' sizes.
+
+- **The metrics wrapper around sagvd's producer dropped the certificate
+  table.** `teemetrics.WrapProducer` had no `QuoteWithAux`, so the vault's
+  record went on the wire as the report alone; the builtin verifier
+  never needed the table (it fetches the VCEK), a delegated Verifier
+  does — Veraison answered «evidence missing certificate chain» and the
+  worker refused the vault. Found on hardware, fixed with a test; the
+  wire now carries the table both ways (7980 bytes each, measured).
+
+## [0.4.3] — 2026-10-16
+
+The release that runs with no route. A host that will be air-gapped
+fills its verifiers' caches with `acpctl tee prefetch` while it still has
+one and reads their expiry with `acpctl tee cache-status`; the Return
+Path then verifies its peers from the cache alone, and refuses, naming
+the vendor, when the cache is gone — proven on SEV-SNP and on TDX behind
+an egress-deny rule. The release verifies itself without a route too:
+every signed file carries a Sigstore bundle in the new format, checked
+with a trusted-root file (`--offline` is not that; measured). The job
+queue is on disk: a restarted authority admits again what it had
+accepted, and a fresh host resumes the job the lost one had in flight,
+from the replica (ADR 0026). The daemons take their TEE family from the
+kernel (`tee.provider: "auto"`) and seal their key files by what the host
+has (`tee.sealer`): the first two steps of ADR 0025, any hardware. Bundle,
+audit and policy schemas unchanged; every new configuration key is
+optional, and files sealed by earlier releases open as before.
+
+### Added
+
+- The release workflow writes a Sigstore bundle in the new bundle format
+  (`<asset>.sigstore.json`) beside each asset's `.sig` + `.cert` pair —
+  the signature, the certificate and the Rekor entry in one file — for
+  `cosign verify-blob --new-bundle-format --bundle … --trusted-root
+  trusted_root.json` on a host with no route at all; 48 signed assets and
+  the provenance per release. Rehearsed as `v0.4.3-rc1` and `v0.4.3-rc2`:
+  the first showed that `--offline` on cosign 2.6.5 still reaches for the
+  TUF mirror and fails without a route; the second's twelve bundles
+  verified with the network denied, and on the air-gap drill's guest with
+  egress denied. The README, the first-deployment guide, the release
+  procedure, the supply-chain page, the disaster-recovery runbook and the
+  release-deploy kit give the bundle check beside the pair
+  (KNOWN_ISSUES #15 resolved).
+- `acpctl tee prefetch --config <daemon config>`: a host that will have no
+  route to the hardware vendors fills its peer verifier's caches while it
+  has one — the VCEK of its chip from AMD KDS into `tee.peer.vcek_cache_dir`,
+  the TCB info of its platform and the QE identity from Intel PCS into
+  `tee.peer.pcs_cache_dir` — by verifying its own report as that verifier
+  would, pinned to its own measurement; `acpctl tee cache-status --config`
+  lists every cached document (VCEKs, PCS documents, the NRAS key set, RIM
+  manifests, OCSP answers) with its validity and the earliest expiry, exit
+  1 when anything is expired or missing. The air-gap runbook
+  (`docs/operator/runbooks/air_gap.md`) says what reaches out, how to fill
+  the caches before the route goes, and what the daemons do without them
+  (they refuse, naming the vendor); the air-gap drill
+  (`scripts/hardware-test/air-gap/`) does it on a SEV-SNP host behind an
+  egress-deny rule.
+- `tee.sealer` (ADR 0025, step 1b): how a daemon seals its key files to
+  its host — `auto` (the TEE's own key where it has one, SEV-SNP's derived
+  key; else the host's TPM 2.0; else the simulated key), `tee` (the TEE's
+  own key only, refused on TDX and Azure, which have none) or `tpm2` (the
+  host's TPM 2.0 through tpm2-tools, whatever the TEE — a vTPM or a
+  discrete TPM). Every file `seal-keys` writes names the sealer it was
+  made with, bound into the seal, and a file sealed one way is refused as
+  another before the sealer is asked; files from before open as they did.
+  `seal-keys` and `identity` print the sealer; `acpctl sentinel seal-key`
+  names it in the sealed seed. Proven on hardware: the SEV-SNP Return Path
+  kit with `VG_SEALER=tpm2` (the guest's vTPM beside the chip's key) and
+  the TDX kit with no sealer named (`auto` chose the vTPM); both kits now
+  seal both daemons' key files and show a thief with the sealed files
+  refused off the TEE, and the unpinned worker refused at the handshake.
+- The authority-loss drill replicates the job store (ADR 0026) beside the
+  audit log and the genomes, the moment a job is accepted and again when
+  it is done, and the runner takes the host away only once the replica
+  has the job in flight. Run `20261015T204339Z` on SEV-SNP: the new
+  host's `sagvd` admitted the lost job again by itself — the same job id
+  and request id, `resumed` on its audit record — and signed it EXACT
+  49.1 s after its runtime was ready, 233.5 s from the deletion with the
+  host created on demand; the chain ran on from the replica's 81 events
+  to 113, verified offline; nothing was resubmitted. The runbook's
+  scenario 4, KNOWN_ISSUES #16, C28 and Drill VI say so.
+- `tee.provider: "auto"` (ADR 0025, step 1): a daemon on a Linux
+  confidential VM takes its family from the kernel's configfs-tsm
+  `provider` attribute when the configuration is loaded — `sev_guest`
+  runs as `gcp-sev-snp`, `tdx_guest` as `gcp-tdx`, `arm_cca_guest` is
+  recognised and refused by name until a producer exists — and names the
+  family in its identity, logs and audit records; the start log names the
+  kernel's answer. The family names `sev-snp`, `tdx`, `nitro` and
+  `sgx-dcap` are accepted wherever a provider is named, beside the names
+  this tree has used, which stay the canonical values until the wire
+  names the family. A peer's provider cannot be `auto`.
+- The authority-loss drill (`scripts/hardware-test/authority-loss`): the
+  release authority's host is deleted in the middle of a job on real
+  SEV-SNP, and a fresh host becomes the same authority — its key material
+  from the operator's safe sealed to the new chip, its escrow key through
+  the recovery ceremony, its audit chain continued from the replica — and
+  signs the next verdict. Three runs measured: 49–50 s from the host's
+  runtime being ready to the first verdict; 236 s, 237 s and 489 s from
+  the deletion with the host created on demand (the third on a slow
+  package mirror); the job in flight is lost and resubmitted. The
+  disaster-recovery runbook's scenario 4 carries the procedure and the
+  numbers; KNOWN_ISSUES #16 states what the in-memory queue loses.
+- ADR 0025: any hardware. Providers will name evidence formats and
+  attestation families — `sev-snp`, `tdx`, `cca`, `nitro`, `sgx-dcap`,
+  `azure-sev-snp`, `azure-cgpu`, `tpm2` — not clouds; `tee.provider:
+  "auto"` will take the family from the kernel's configfs-tsm; the
+  Verifier becomes a RATS role with a built-in and a delegated
+  implementation (a CMW on the wire, an EAR appraised against the
+  operator's policy, Veraison first); sealing follows what the host has
+  (the TEE's key, else a TPM 2.0). The decision and its plan; the first
+  step is the next code change.
+- The job queue is on disk (ADR 0026): `queue.path` names a bbolt file of
+  the daemon's own in which every accepted job is recorded with its
+  status, and every finished job with its view. At start, what a previous
+  process left queued or in flight is admitted again under the same job
+  id and request id — `REQUEST_RECEIVED` on the record with a `resumed`
+  detail — and runs; what cannot be admitted again (the bundle gone, the
+  request not recorded, `queue.max_resume_attempts` reached) is failed on
+  the record with the reason; a job finished before the restart still
+  answers `GET /v1/jobs/{id}`. `sagvd_jobs_resumed_total` and
+  `sagvd_jobs_resume_failed_total` count it. Proven by an integration
+  test that kills `sagvd` with SIGKILL in the middle of a job and
+  restarts it. Without `queue.path` the queue is in memory as before, and
+  the daemon says so at start.
+
+### Changed
+
+- The package rebuild of the release procedure (§5.4) and of the
+  reference-deployment kit names GNU gzip beside GNU tar, and the kit
+  stops before the rebuild when the gzip it finds is not GNU's. The
+  rehearsal of 0.4.2 repacked the worker package on macOS with Apple's
+  gzip and got an identical tar inside a different file: the deflate
+  stream is the compressor's, not the archive's.
+
+## [0.4.2] — 2026-10-15
+
+The release that is enough on its own, on the runtime of 0.4.1. A first
+deployment needs nothing from the source tree: the key-material helper
+`acp-keygen` is the fifth signed, attested binary, the worker package is a
+reproducible, signed release asset, and the AMD chain a verifier needs is
+fetched by `acpctl tee fetch-amd-chain` and checked against the roots the
+binary now pins — ARK-Milan, ARK-Genoa, ARK-Turin (ADR 0024); a chain
+that ends anywhere else is refused at start. The reference deployment
+takes everything from the release. The hardware kits install every Python
+package from hash-pinned locks (the security review's F10 closed), the
+Azure kits bind the workload manifest through the vTPM and validate the
+SGX chain with Intel's own verifier, branch coverage of the wire contracts
+is reported in CI, the first-deployment guide walks an operator through
+the reference's numbers, and a Return Path cancellation is reported in the
+phase the worker was in.
+
+### Security
+
+- The AMD roots are pinned in the binary (ADR 0024): ARK-Milan, ARK-Genoa
+  and ARK-Turin, byte for byte as AMD KDS serves them, with fingerprints
+  read from three independent sources. The SEV-SNP and confidential-GPU
+  verifiers accepted any self-signed root at the end of the operator's
+  `amd_cert_chain_path`; now the chain must end in a pinned root, a wrong
+  file is refused when a verifier is constructed and at every
+  verification, and `acpctl tee fetch-amd-chain` fetches a product line's
+  chain from KDS or a mirror and verifies it the same way before writing
+  it. Every recorded run had used AMD's chain from KDS or THIM
+  (`docs/security/review-2026-10.md`, F12).
+
+### Added
+
+- `acp-keygen` (`cmd/acp-keygen`): the key-material helper is a release
+  binary, built reproducibly, signed and attested like the four daemons —
+  the former `deploy/compose/keygen` module, with `-out` required, a
+  `-private` mode (0600 files, 0700 directories) and `-version`. The
+  worker package ships as a release asset too: `genome-worker-<tag>.tar.gz`
+  (`workers/genome`, packed reproducibly with GNU tar from the tagged
+  commit's time, packed twice and compared), with its SBOM, its keyless
+  signature and its hash in the SLSA provenance. A release has 36 assets.
+- `.github/workflows/branch-coverage.yml` (`make branch-coverage`,
+  `scripts/branch_coverage.sh`): branch coverage of the wire contracts
+  (`internal/contracts/...`), measured by gobco — installed at a commit,
+  v1.3.4 — and reported per package and in total in the job summary and as
+  an artifact, with the conditions never seen on one side listed. A reading,
+  not a gate: no threshold yet (1365 of 1402 branches, 97.4%, on
+  2026-10-15). Closes #68; `docs/doctrine/ci-security-policy.md` §8.
+- `docs/operator/09_first_deployment.md`: the first deployment of a
+  release, step by step against the reference deployment's record
+  (`scripts/hardware-test/release-deploy/evidence/20261015T014459Z`) —
+  the release verified before it runs, the host chosen among the attested
+  ones, the keys sealed in place, the pins from the chips, the refusal of
+  an unpinned worker, the gate job and the verified audit log, each with
+  the number the reference produced.
+- `workers/genome/requirements-cuda.lock` and `requirements-torch-cu126.lock`:
+  the CUDA 12.6 libraries the torch cu126 wheel needs, hash-pinned from
+  PyPI (the same files NVIDIA publishes on its own index, sha256 equal), and
+  the torch cu126 wheel with its triton from the PyTorch cu126 index —
+  resolved on Linux x86_64 / CPython 3.12 with pip's `--report`.
+- `scripts/hardware-test/release-deploy/`: the reference deployment. One
+  command downloads a release's assets, verifies every signature, the SLSA
+  provenance and the tag's signature, rebuilds the binaries from the tag
+  and requires the hashes to match the released files, then runs the
+  Return Path on a fresh SEV-SNP Confidential VM with the released
+  daemons — the same guest script as `gcp-sev-snp/returnpath-e2e` — and
+  records the verification and the guest's results next to each other.
+
+### Fixed
+
+- `internal/compute/returnpath/server`: cancellation of the job context
+  is noticed at each Heartbeat between frames, after a frame the worker
+  already sent has been read — a JobAccept that arrived ahead of the
+  cancellation is an accept, not a cancelled wait. Before, the check ran
+  before every read, so the phase a cancellation was reported in depended
+  on scheduling, and `TestServeOneJob_ContextCancelledWhileWaiting` failed
+  now and then in CI; the two cases pass 200 times under the race
+  detector.
+
+### Changed
+
+- `scripts/hardware-test/release-deploy`: everything the guest runs comes
+  from the release — the five binaries and the worker package, every one
+  verified (twelve signatures, six provenances, the tag) and rebuilt from
+  the tag to the released hashes — and nothing from the source tree; the
+  guest fetches the AMD Milan chain from KDS with the released `acpctl`,
+  which verifies it against the pinned roots (ADR 0024). The shared guest
+  script (`gcp-sev-snp/returnpath-e2e/cvm-returnpath.sh`) provisions with
+  `acp-keygen -private`; the kits build `./cmd/acp-keygen`.
+- `scripts/hardware-test/azure-sev-snp`: the workload manifest is bound
+  through the vTPM — the attestation key the chip's report names (through
+  the runtime data in its REPORT_DATA) quotes PCRs 0–14 with SHA-256 of the
+  manifest as the qualifying data, and the kit verifies the quote with that
+  key; the TPM tools run with sudo and hand their files to the user. Run on
+  a DC4as_v5 (Genoa) on 2026-10-15 (`evidence/20261015T042715Z`): the key
+  found at `0x81000003`, the quote `VERIFIED`, both chains PASSED.
+- The ten hardware drills ran again on the tree of 0.4.1 (main after #81,
+  #82 and #84; 2026-10-15 01:23Z–03:43Z), every one passing with its
+  record committed beside the earlier ones and cited by the claims it
+  supports: `gpu-exact` (CPU against the L4: float32 1.48e-4, float64
+  9.99e-6, top-1 16/16), `integer-door` (0.5B and 7B byte-identical on
+  both devices, EXACT at zero tolerance), `gpu-7b` (EXACT on the L4 and
+  on the CPU through the integer door), `gcp-failover` (14.26 s, gate
+  EXACT, the negatives refused), `failover-negatives` (the eight runs as
+  before), `failover-tdx` (11.76 s, EQUIVALENT), `failover-tdx-authority`
+  (13.51 s, EQUIVALENT), `azure-cgpu` (capture and Return Path on the H100,
+  gate EXACT 16/16), `failover-cgpu` (15.06 s to the H100, EQUIVALENT) and
+  `gcp-drill` (the fine-tune sealed inside the SEV-SNP guest, EXACT on the sealing CPU, restored byte-exact on the L4 VM and gated EQUIVALENT there, 1.61e-4).
+- `scripts/hardware-test/azure-sgx`: the kit's binding enclave is a release
+  enclave (`Debug=0`, created without the debug flag) and `02f` checks the
+  MAA token's MRENCLAVE, MRSIGNER, REPORT_DATA and debug flag against the
+  quote's own bytes; the kit's QVL caller tries the quote provider's
+  collateral before fetching its own. Run on a DC4s_v3 on 2026-10-15
+  (`evidence/20261015T035830Z`): attributes `INIT | MODE64BIT`, MAA
+  `x-ms-sgx-is-debuggable: false`, five claims OK, `oeverify` two of two;
+  the QVL caller still `0xE03A` with the Azure DCAP client. Then the kit's
+  quote provider is Intel's QPL configured as Microsoft documents it for
+  Azure (the PCK certificate from THIM, the rest of the collateral from
+  Intel PCS) and the Azure DCAP client is not installed: in the run of
+  04:36Z (`evidence/20261015T043607Z`) the kit's QVL caller validates the
+  chain (`SW_HARDENING_NEEDED`, within the collateral's validity) next to
+  `oeverify` and MAA; `qpl-selection.txt` there measures five provider
+  configurations on one quote.
+
+- The hardware kits install every Python package from the hash-pinned
+  locks, each from its own index with `--require-hashes
+  --only-binary=:all:`: the drills (`gcp-drill`, `gcp-failover`, `gpu-7b`,
+  `gpu-exact`, `integer-door`), the confidential-GPU scripts (`azure-cgpu`,
+  `failover-cgpu`) and the Return Path guests (`gcp-sev-snp`, `gcp-tdx`)
+  take `requirements-ci.lock` from PyPI, a GPU host adds
+  `requirements-cuda.lock`, then the torch wheel for the host alone from
+  the PyTorch index that carries it; the runners pack the locks with the
+  worker; the Return Path guests log what pip installed. The three
+  inference tests and the demo script save Ollama's reply to a file and
+  parse it; the AWS Nitro kit's unpinned Python fallback is an error
+  (`acpctl` is the verifier). On hardware, 2026-10-15: `gcp-drill`
+  (`evidence/20261015T043402Z`: EXACT on the SEV-SNP source, EQUIVALENT on
+  the L4 and on its CPU), `gcp-sev-snp/returnpath-e2e`
+  (`evidence/20261015T043703Z`, `20261015T044521Z`: EXACT 6/6, the audit
+  log verified) and `azure-cgpu` (`evidence/20261015T043702Z` and
+  `-returnpath`: the 7B genome EXACT on the H100 in the capture and over
+  the Return Path, the audit log verified). Closes F10 of the security
+  review.
+
+## [0.4.1] — 2026-10-15
+
+A hardening and evidence release on the runtime of 0.4.0. Two findings of
+the new refusal tables are fixed: the disclosure flow wipes every plaintext
+on every exit, and an equivalence verdict is always finite and signable.
+The product's statement coverage is 95.5% behind a 90% floor; every commit
+certifies the Developer Certificate of Origin; the governance, assurance
+case, upgrading guide and a security review are written down. The hardware
+kits check every download before it runs, the Azure SEV-SNP kit captures
+the report the way Azure exposes it (the vTPM), and the GCP SEV-SNP (Milan),
+Azure SEV-SNP (Genoa) and Azure SGX kits each ran end to end on a fresh VM
+with the evidence committed; the AWS Nitro kit ran on the release toolchain.
+
+### Security
+
+- The AWS Nitro kit's toolchain is the release's: the parent host installs
+  Go 1.27.2 with the tarball checked against its go.dev sha256, the enclave
+  image builder (golang 1.27.2-alpine) and runtime (alpine 3.24.2) are
+  pinned by digest, and `vsock-attest` builds on current dependencies from
+  a committed `go.sum` with `-mod=readonly` (the host's Go environment is
+  no longer rewritten with `go env -w`). The helper's indirect
+  `golang.org/x/net` 0.10.0 and `golang.org/x/sys` 0.8.0 had carried the 23
+  OSV advisories Scorecard reported for the tree — none reachable from the
+  helper's code (govulncheck, symbol and binary mode); on `x/net` 0.61.0,
+  `x/sys` 0.49.0, `mdlayher/vsock` 1.3.0 and `hf/nsm` 2022-09-30 the module
+  carries none. An enclave image built from this tree measures differently
+  (PCR0–PCR2) from the May 2026 cohort; the recorded documents stand for
+  the tree they name (`scripts/hardware-test/aws-nitro/README.md`).
+- The GCP SEV-SNP, Azure SEV-SNP and Azure SGX kits check every download
+  before it runs: Go 1.27.2 against its go.dev sha256; the Ollama installer
+  against a recorded sha256, no longer piped into a shell; rustup-init
+  1.29.1 against its published sha256 with the Rust toolchain at 1.99.0;
+  snpguest v0.10.0 by commit, built `--locked`; the Intel SGX and Microsoft
+  apt signing keys by fingerprint; Open Enclave 0.19.19 against its package
+  sha256; and the MAA verifier's Python from the image's own packages or
+  from wheels pinned by hash (`requirements-maa.txt`). The Azure CLI is no
+  longer installed on the VMs: the MAA token comes from the managed
+  identity through the instance metadata service. The one-command runners
+  authenticate Terraform from the signed-in gcloud or az account, honour
+  the provider lock instead of upgrading it on every run, and the GCP
+  runner moves to the next zone when one has no capacity for the machine
+  type. Of review item F10's twenty-one unpinned installs
+  (`docs/security/review-2026-10.md`), the ones left are the drills'
+  PyTorch wheels and the demo script's Ollama installer.
+- The Azure SEV-SNP kit captures the report the way Azure exposes it. Its
+  scripts asked `/dev/sev-guest`, which an Azure Confidential VM does not
+  have (the kit's README said so; the scripts had never run there). The
+  kit now reads the HCL report from the vTPM (NV index 0x1400001), parses
+  the layout read on the live VM, refuses a report whose REPORT_DATA is
+  not SHA-256(runtime data), records the VCEK Azure THIM serves and
+  requires it to equal AMD KDS's, sends MAA the SevSnpVm request the API
+  defines, and checks the token's claims against the report. Findings of
+  the first end-to-end runs, fixed in both SEV-SNP kits: snpguest reads
+  `--report-data` as hex only with a `0x` prefix (the binding check had
+  compared characters); the Ollama installer leaves the model store
+  unreadable to the login user; Demo 2 selected two "middle" generations;
+  a non-interactive ssh session does not read `~/.bashrc`, so the runners
+  put the bootstrap's tools on PATH; the Ubuntu 24.04 kernel log is not
+  readable without root; checks that piped a multi-line writer into
+  `grep -q` could be failed by SIGPIPE under `pipefail`; the GCP evidence
+  archive now carries the chain validation; the GCP runner tries the next
+  zone when one has no capacity and stops on a chain failure instead of
+  calling it a KDS outage.
+- The hardware kits' workload manifest names what Demo 1 sealed, as acpctl
+  measured it (#83). The GCP SEV-SNP, Azure SEV-SNP and Azure SGX kits wrote
+  a manifest whose payload digest was a built-in constant for the Llama 3.2
+  3B GGUF — two different constants between kits, and neither the digest of
+  what the run sealed — and, on GCP and SGX, bound that manifest into the
+  hardware report. Demo 1 now runs before the chain step and writes
+  `demo1-inspect.json` (`acpctl genome inspect --json`); the chain step
+  takes the payload digest, the sizes, the bundle digest and the sealing
+  time from it, names the measurement method in the manifest, and refuses
+  to run without the record. On GCP the report's REPORT_DATA binds the
+  measured manifest; on Azure SGX the quote's REPORT_DATA and the MAA token
+  do; on Azure SEV-SNP the manifest is recorded next to the report, which
+  cannot carry a caller's REPORT_DATA.
+- A security review (`docs/security/review-2026-10.md`): eleven findings,
+  eight closed on the day (the tag-object pin, the Nitro kit's root check,
+  the helper module's dependencies, the release token, the site's CSP, the
+  threat model's missing backends, the missed quarterly review, the single
+  reviewer), three open as tracked items. The threat model now covers
+  `gcp-tdx` and `azure-cgpu` with their trust boundaries and threat tables,
+  the control-plane decisions since May, marks the kit-only backends, and
+  names the next review (2027-01-14).
+- The release workflow's token is read-only at the workflow level; the
+  build-and-sign job names the write permissions it needs (contents,
+  id-token). Rehearsed as `v0.4.1-rc1`: 25 assets, signatures, SBOMs and
+  provenance verified, the rehearsal's release deleted and the tag kept;
+  the rehearsal rule is §4.1 of the release procedure.
+
+### Added
+
+- Refusal tables for every product package: each validator, decoder, signer,
+  state machine, backend seam and command now has a test that walks what it
+  must refuse, with the error category and code the doctrine assigns, on the
+  captured evidence in the repository (Azure confidential-GPU, TDX and SEV-SNP
+  reports) and on generated keys and certificate chains, with the network
+  replaced by local test servers. Statement coverage of the product rose from
+  83.2% to 95.5% (`make coverage`, 18 109 statements in 78 packages); the
+  Phase-2 hardware seams are shown to fail closed until they are wired.
+
+- Every commit certifies the Developer Certificate of Origin 1.1
+  (`CONTRIBUTING.md`): a `Signed-off-by` trailer with the author's email,
+  checked on every pull request by `scripts/dco_check.sh` in the gate
+  (`make dco`); commits before 2026-10-14 are covered by the founders'
+  copyright and assignment agreements.
+- `GOVERNANCE.md`: the roles and their responsibilities, how decisions are
+  made (ADRs, review by both maintainers on governed paths, doctrine tests,
+  design documents), who may sign a release, and how the project continues
+  within a week without either maintainer. Both founders are organisation
+  owners since 2026-10-14.
+- `docs/security/assurance_case.md`: why the security requirements are met,
+  with the requirements, the five trust boundaries, the design principles
+  and where each is applied, the weakness classes and their counters, and
+  what the argument does not cover.
+- `docs/operator/08_upgrading.md`: what is supported, the compatibility
+  ledger release by release, how to move a deployment and how to go back.
+
+### Changed
+
+- The benchmark workflow writes its comparison report to the job summary and
+  the run's artifact for every pull request, and posts the sticky comment only
+  for pull requests from this repository: a pull request from a fork runs with
+  a read-only token, and the comment step used to fail the required `bench`
+  check there.
+
+- Every Go, Python and shell file carries the copyright statement of
+  `NOTICE` beside its SPDX identifier, and `scripts/license_header_check.sh`
+  requires both in all three languages (four scripts had carried no SPDX
+  line).
+- `make build DEBUG=1` keeps the symbol table and DWARF (no `-s -w`) for a
+  debugger or profiler; `-trimpath` and the stamped version stay, so the
+  debug build is reproducible like the stripped one, which remains the
+  default and the release build.
+- The AWS Nitro kit ran on this tree (2026-10-14, one m5.xlarge in
+  us-east-2a, EC2-only rights): a production-mode attestation document over
+  vsock with PCR0–PCR2 equal to the built image's, the five-certificate chain
+  to AWS Nitro Root CA G1, the seal/open/verify round trip, the tamper
+  refusal, the chain of six and byte-identical inference; the records are in
+  `scripts/hardware-test/aws-nitro/evidence/2026-10-14`. The kit was made to
+  run on this tree: the runner uploads the tree once and calls the scripts
+  from it (their paths had resolved to the filesystem root), the instance
+  role is optional, the standard Amazon Linux 2023 image is named, the root
+  CA is checked by the archive's SHA-256 and the certificate's fingerprint
+  (the earlier check compared one with the other and only warned), cbor2 is
+  installed by hash, the production capture ends when the enclave does and
+  writes the VM identity, and the laptop step derives that identity from
+  the instance's records when a capture predates it. The cohort recorded in
+  `evidence/` is May 2026; 0.4.0's notes had dated it September.
+
+- The coverage gate's floors rose: the product total from 83% to 90%, and the
+  class targets to 90% for wire contracts, operational validation and
+  orchestration and 80% for every other product package
+  (`scripts/coverage_check.sh`, `scripts/coverage_floors.txt`, policy §8).
+
+## [0.4.0] — 2026-10-14
+
+The runtime underneath the measurements was raised and every measurement
+was taken again. Go 1.27.2 closes ten standard-library advisories that
+were reachable from this code; the worker's Python runtime goes from torch
+2.7.1 / transformers 4.53.2 to 2.14.1 / 5.19.0 and is installed by hash
+from two locks, each from its own index; every tool and image CI depends on
+is pinned, and the gate's lint and scanners run on builds that can read Go
+1.27's export data. Then the hardware kits ran again on the new runtime —
+eleven runs on GCP L4s, SEV-SNP and TDX guests and the Azure confidential
+H100 — and every record is in the tree beside its September one, every
+claim citing both. One defect came out of that and not out of any test:
+under transformers 5 the integer door read a config's rotary base with a
+silent default and computed the wrong model, exactly, on every device;
+the fidelity record showed it, the reader now has no default and the door
+checks its tables against the model's own. Bundle format, audit schema and
+policy schema: unchanged.
+
+### Security
+
+- Go toolchain raised to 1.27.2 (`go.mod`, every workflow). `govulncheck`
+  reported ten vulnerabilities in the standard library reachable from this
+  code on go 1.27.0 — GO-2026-6603, 6604, 6605, 6607, 6608, 6610, 6611,
+  6612, 6613, 6617 (`net/http`, `net/http/internal/http2`, `net/textproto`,
+  `crypto/tls`, `os`) — and three more in the standard library not reached
+  (GO-2026-6599, 6600, 6609). All are fixed in go1.27.2; the scan on this
+  tree now reports none reachable. `golang.org/x/crypto` v0.57.0 → v0.58.0
+  and `github.com/beevik/etree` v1.8.0 → v1.8.1 (`golang.org/x/sys`
+  indirect, v0.48.0 → v0.49.0). The one advisory left in the module graph,
+  GO-2026-5932 (`golang.org/x/crypto/openpgp`, no fix planned), names a
+  package this module does not import (`go mod why` confirms); see
+  `docs/dependencies/x-crypto.md`. The gate's osv-scanner step is
+  presence-based, as the doctrine's §5 says (`--no-call-analysis=go`: the
+  action's container carries a Go older than `go.mod` names and its call
+  analysis cannot run there), and ignores that one advisory by id
+  (`osv-scanner.toml`, reason on the record, expiring 2027-01-31) under
+  the exception §5 now spells out; `make vuln` on the tree's own toolchain
+  does the call analysis.
+- The worker's Python runtime raised: `torch` 2.7.1 → 2.14.1, `transformers`
+  4.53.2 → 5.19.0, `tokenizers` 0.21.2 → 0.23.3, `safetensors` 0.5.3 →
+  0.8.0, `numpy` 2.3.1 → 2.5.4 (OSV: 28 advisories against the old pins,
+  none against the new; KNOWN_ISSUES #14 records which of them the worker
+  could reach, and which measurements still name the old runtime;
+  re-measured on it so far: C19, `integer-door` run `20261014T020420Z`,
+  and C16, `gpu-7b` run `20261014T022551Z` — the 7B recipe replays bit
+  for bit on the L4, and the gate on the host CPU opens at rung 2 through
+  the integer door; C6, `gpu-exact` run `20261014T032040Z`, the same
+  divergence at the first block and the same integer bytes; and C1–C5,
+  `gcp-drill` run `20261014T032714Z`, bit for bit on the SEV-SNP source
+  and equivalent on the L4 and the Intel CPU; and C8, C14, C24–C25,
+  `gcp-failover` run `20261014T034337Z`, generation 1 restored and gated
+  EXACT in 18.69 s with both negatives refused; and C22,
+  `failover-negatives` run `20261014T035731Z`, the same seven refusals and
+  the one move; and C21, `failover-tdx` run `20261014T041150Z`, the key
+  released on Intel's word to a Trust Domain on the current image,
+  EQUIVALENT in 20.42 s; and C23, `failover-tdx-authority` run
+  `20261014T042457Z`, the authority itself a Trust Domain with its escrow
+  key in the vTPM, EQUIVALENT in 20.42 s; and C17, C20 and C26,
+  `azure-cgpu` run `20261014T113334Z`, the confidential H100 on the day's
+  driver 595.91.07, the 32B genome restored and gated EXACT over the Return
+  Path in 238 s; and C18, `failover-cgpu` run `20261014T121030Z`, the
+  cross-cloud failover to the H100 under that driver, EQUIVALENT in
+  19.86 s — every hardware record now taken on the raised runtime). CI now
+  installs the runtime from the hash-pinned locks with `pip
+  --require-hashes` — `workers/genome/requirements-ci.lock` from PyPI and
+  the torch wheel in `requirements-torch-cpu.lock` from the PyTorch CPU
+  index, each from its own `--index-url` (no `--extra-index-url`: no index
+  can stand in for another) — every wheel checked against its sha256.
+- Workflows: every tool installed in CI is pinned — `govulncheck` v1.9.0,
+  `benchstat` and `go-mutesting` by commit, `syft` v1.54.1 through the
+  `anchore/sbom-action/download-syft` action pinned by commit (the
+  `curl … | sh` of an unversioned install script is gone from the release
+  and gate workflows), the Semgrep container by image digest. The
+  `security-events: write` permission moved from workflow level to the one
+  job that uploads SARIF (CodeQL, Semgrep).
+
+### Fixed
+
+- The integer door read the rotary base as `getattr(cfg, "rope_theta",
+  10000.0)`; under transformers 5 the base lives in `rope_parameters`, and
+  the door computed Qwen2.5 (base 1 000 000) with the tables of base
+  10 000 — the same bytes on every device, so every exactness check
+  passed while its fidelity to the float model fell (the integer-door kit
+  on the raised runtime, run `20261014T012445Z`: top-1 the same on 13 of
+  16 fixtures at 0.5B for 16, max abs err 7.29 for 2.72). The base is now
+  read from where the config keeps it and never assumed; a config that
+  names none, and scaled, partial or per-layer rotary embeddings, are
+  refused; and the door refuses a model whose own rotary module does not
+  hold the default tables over that base, one whose projections do not
+  have the shape its head counts imply, or one with any layer type but
+  full attention. The tests' tiny model carries Qwen2.5's base, and the
+  door's tables are checked against the model's. The kit on the raised
+  runtime with the fix (run `20261014T020420Z`): the same bytes on the
+  Xeon and the L4 at 0.5B and 7B, top-1 16/16 at both sizes, max abs err
+  2.70 at 0.5B (September: 2.72) and 0.79 at 7B.
+
+### Added
+
+- `docs/reference/cli.md`: every command and flag of the five binaries,
+  generated from their own usage text by `make cli-reference`
+  (`scripts/gen_cli_reference.sh`), so the reference cannot drift from
+  the code.
+- `docs/compliance/openssf-best-practices.md`: where each criterion of the
+  OpenSSF Best Practices badge (passing level) is met in this repository.
 
 ## [0.3.2] — 2026-09-17
 

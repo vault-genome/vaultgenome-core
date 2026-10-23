@@ -1,10 +1,9 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
 
 import (
-	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
 
@@ -52,8 +50,9 @@ func stopCmd(args []string, stdout, stderr io.Writer) int {
 func stopKeygenCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("stop keygen", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	seedPath := fs.String("out", "", "Where to write the 32-byte operator seed (required; created 0600, never overwritten)")
+	seedPath := fs.String("out", "", "Where to write the operator key file (required; created 0600, never overwritten): the 32-byte seed of an ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384 key")
 	pubPath := fs.String("pub", "", "Where to write the PEM public key the release host pins (required)")
+	suiteFlag := addSuiteFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -61,34 +60,18 @@ func stopKeygenCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "acpctl stop keygen: --out and --pub are required")
 		return 2
 	}
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	suite, err := parseSuiteFlag(*suiteFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl stop keygen: %v\n", err)
+		return 2
+	}
+	key, err := generateSigningKeyFiles(suite, *seedPath, *pubPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl stop keygen: %v\n", err)
 		return 1
 	}
-	f, err := os.OpenFile(*seedPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl stop keygen: %v\n", err)
-		return 1
-	}
-	if _, err := f.Write(priv.Seed()); err != nil {
-		_ = f.Close()
-		fmt.Fprintf(stderr, "acpctl stop keygen: write seed: %v\n", err)
-		return 1
-	}
-	if err := f.Close(); err != nil {
-		fmt.Fprintf(stderr, "acpctl stop keygen: write seed: %v\n", err)
-		return 1
-	}
-	pemBytes, err := crypto.PublicKeyPEM(crypto.PublicKey(pub))
-	if err == nil {
-		err = os.WriteFile(*pubPath, pemBytes, 0o644)
-	}
-	if err != nil {
-		fmt.Fprintf(stderr, "acpctl stop keygen: write public key: %v\n", err)
-		return 1
-	}
-	fmt.Fprintf(stdout, "operator key written: seed %s (keep it off the release host), public key %s\n", *seedPath, *pubPath)
+	key.Zeroize()
+	fmt.Fprintf(stdout, "operator key written (%s): key file %s (keep it off the release host), public key %s\n", suite, *seedPath, *pubPath)
 	return 0
 }
 
@@ -102,7 +85,8 @@ func stopIssueCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("stop issue", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var revoke repeatedFlag
-	seedPath := fs.String("key", "", "Operator seed file (required)")
+	seedPath := fs.String("key", "", "Operator key file (required)")
+	suiteFlag := addSuiteFlag(fs)
 	kid := fs.String("kid", "", "Operator key ID the release host trusts (required)")
 	serial := fs.Uint64("serial", 0, "List serial; must be higher than any list issued before (required)")
 	all := fs.Bool("all", false, "Stop every cross-cloud key release")
@@ -116,11 +100,17 @@ func stopIssueCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "acpctl stop issue: --key, --kid, --serial (>= 1) and --out are required")
 		return 2
 	}
-	seed, err := os.ReadFile(*seedPath)
-	if err != nil || len(seed) != ed25519.SeedSize {
-		fmt.Fprintf(stderr, "acpctl stop issue: --key must be a %d-byte seed file (%v)\n", ed25519.SeedSize, err)
+	suite, err := parseSuiteFlag(*suiteFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl stop issue: %v\n", err)
+		return 2
+	}
+	key, err := readSigningKeyFile(*seedPath, suite)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl stop issue: --key: %v\n", err)
 		return 1
 	}
+	defer key.Zeroize()
 	l := revocation.List{
 		Serial:       *serial,
 		IssuedAt:     time.Now().UTC().Truncate(time.Second),
@@ -139,7 +129,7 @@ func stopIssueCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		l.RevokedMeasurements[provider] = append(l.RevokedMeasurements[provider], strings.ToLower(measurement))
 	}
-	signed, err := revocation.Sign(l, ed25519.NewKeyFromSeed(seed))
+	signed, err := revocation.Sign(l, key)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl stop issue: %v\n", err)
 		return 1
@@ -160,7 +150,7 @@ func stopVerifyCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("stop verify", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	in := fs.String("in", "", "Signed list (required)")
-	pubPath := fs.String("pubkey", "", "Operator public key: PEM or 32 raw bytes (required)")
+	pubPath := fs.String("pubkey", "", "Operator public key: PEM (its algorithm names the suite) or 32 raw bytes (Ed25519) (required)")
 	kid := fs.String("kid", "", "Operator key ID (required)")
 	jsonOut := fs.Bool("json", false, "Emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
@@ -175,12 +165,12 @@ func stopVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl stop verify: %v\n", err)
 		return 1
 	}
-	pub, err := readEd25519PublicKey(*pubPath)
+	pub, err := readSigningPublicKey(*pubPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl stop verify: %v\n", err)
 		return 1
 	}
-	l, err := revocation.Parse(raw, ed25519.PublicKey(pub), *kid)
+	l, err := revocation.Parse(raw, pub, *kid)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl stop verify: %v\n", err)
 		return 4

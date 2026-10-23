@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package probe_battery
@@ -67,6 +68,9 @@ type ProbeAttestation struct {
 	// SigningKeyID identifies the runner's signing key. Binds under
 	// keys.PurposeSigningAuthority.
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
 
 	// Signature is the Ed25519 signature over CanonicalBytes (which
 	// excludes Signature itself).
@@ -219,6 +223,11 @@ func (a *ProbeAttestation) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, a.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	a.Alg = alg
 	cp := *a
 	cp.Signature = nil
 	cb, err := crypto.CanonicalJSON(&cp)
@@ -255,7 +264,7 @@ func (a *ProbeAttestation) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, a.Signature)
+	return vk.VerifyRecord(a.Alg, cb, a.Signature)
 }
 
 // UnmarshalJSON rejects unknown fields and gates SchemaVersion.

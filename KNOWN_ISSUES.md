@@ -63,9 +63,12 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    2026-09-16).**
    The SEV-SNP producer requests reports through the kernel's configfs-tsm
    and `acp-bootstrap` can run on it (`tee.provider: "gcp-sev-snp"`); the
-   verifier checks the ECDSA-P384 signature, the VCEK → ASK → ARK chain, TCB,
-   guest policy (no DEBUG), VMPL and the challenge binding, and is proven
-   offline against genuine GCP and Azure reports. The TDX producer and
+   verifier checks the ECDSA-P384 signature, the VCEK → ASK → ARK chain, the
+   four TCB versions against per-chip floors from AMD's bulletins, the
+   platform's alias check, the mitigation vector, the guest policy (no
+   DEBUG, no migration agent), VMPL and the challenge binding (ADR 0033),
+   and is proven offline against genuine GCP and Azure reports and on GCP
+   Milan hosts in both kits (2026-10-22, C46). The TDX producer and
    verifier (ADR 0018, `tee.provider: "gcp-tdx"`) do the same for a TDX
    quote: the attestation key and the PCK chain to the pinned Intel SGX Root
    CA, Intel's signed TCB info and QE identity verified before use, the
@@ -74,6 +77,22 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    sealing key; since ADR 0022 the escrow key is sealed to the guest's vTPM
    under a policy of this boot's PCRs (tpm2-tools; proven on a c3 Trust
    Domain, `scripts/hardware-test/failover-tdx-authority`).
+   Since 2026-10-15 the sealer is the operator's choice by what the host
+   has (`tee.sealer`, ADR 0025 step 1b): the TEE's own key, the host's TPM
+   2.0 — virtual or discrete, on any TEE or none — or the simulated key;
+   every sealed file names its sealer. Since 2026-10-16 (ADR 0025 step
+   2a, wire 1.1) the Evidence on the Return Path names its format: a CMW
+   record (RFC 9999) whose type is the family's media type — ratsd's TSM
+   report for SEV-SNP and TDX, the certificate table beside the SEV-SNP
+   report — and a peer of another family is refused by name before any
+   verifier runs. Since 2026-10-16 (step 2b) the appraisal can be
+   delegated: `tee.peer.verifier.mode: rats` sends the record to a RATS
+   Verifier (Veraison's API) and judges the returned EAR; the pin and
+   the family stay the daemon's; proven on the bench against the test
+   double with the simulated family, against a live Veraison with a real
+   GCP SEV-SNP report (C30), and on real SEV-SNP with the Verifier on a
+   VM of its own, both daemons delegating by name over mutual TLS (C31,
+   `delegated-verifier.md`).
    The Azure confidential GPU adapter (ADR 0019, `tee.provider:
    "azure-cgpu"`, NCC H100 v5) carries the SEV-SNP report from the vTPM's
    HCL report, a TPM quote by the vTPM's attestation key binding the
@@ -152,6 +171,19 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    confidential GPU VM with the door on the H100
    (`scripts/hardware-test/azure-cgpu/`); the older captures under
    `evidence/` were produced by standalone tooling.
+   The path to every other hardware — providers named after families, not
+   clouds; the family taken from the kernel's configfs-tsm; the Verifier as
+   a RATS role that can be delegated to a Verifier the customer runs; a
+   TPM 2.0 floor for servers without a TEE — is ADR 0025; its first step is in the tree:
+   Since 2026-10-15 a daemon need not name its hardware: `tee.provider:
+   "auto"` takes the family from the kernel's configfs-tsm `provider`
+   attribute (`sev_guest`, `tdx_guest`; `arm_cca_guest` is recognised and
+   refused by name until a producer exists), and the family names
+   `sev-snp` and `tdx` are accepted beside `gcp-sev-snp` and `gcp-tdx`
+   (ADR 0025, step 1). Since 2026-10-17 a host without configfs-tsm is
+   asked a second way: an Azure confidential VM keeps its SEV-SNP report
+   in the vTPM's NV index, and `auto` reads it there (`azure-sev-snp`);
+   an HCL report of another type is refused by its number.
 2. **RESOLVED (ADR 0013, 2026-09-15).** The acp-compute worker's
    "reconstruction" was a placeholder: SHA-256 digest expansion (V1), then a
    byte-level order-3 Markov chain (V2), both self-documented as "not a
@@ -218,7 +250,20 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    open, but only with `--allow-v2`, so they can be resealed.
 8. **`evidence/` posture:** AWS Nitro (production cohort) and GCP SEV-SNP
    (3 real chips) attestation captures are genuine and offline-verifiable.
-   Azure SGX cohort ran in **DEBUG mode** (`x-ms-sgx-is-debuggable: true`).
+   The Azure SGX cohort of May 2026 ran in **DEBUG mode**
+   (`x-ms-sgx-is-debuggable: true`); since 2026-10-15 the kit's binding
+   enclave is signed as a release enclave (`Debug=0`; the quote's attributes
+   `INIT | MODE64BIT`, no `DEBUG`) and the run of 03:58Z
+   (`scripts/hardware-test/azure-sgx/evidence/20261015T035830Z`) carries
+   MAA's `x-ms-sgx-is-debuggable: false` with the token's claims checked
+   against the quote's own bytes. The kit's Intel QVL caller reported
+   `0xE03A` (TCB-info chain) through the Azure DCAP client's collateral;
+   since the run of 04:36Z the same day
+   (`scripts/hardware-test/azure-sgx/evidence/20261015T043607Z`) the kit
+   uses Intel's quote provider as Microsoft documents it for Azure and both
+   local verifiers validate the chain — the QVL with Intel's current TCB
+   status for the platform (`SW_HARDENING_NEEDED`, an advisory), `oeverify`
+   two of two — next to MAA's token.
    Cross-Cloud Phase 4 is fully **simulated** (`provider: "simulated"`).
    The GCP "four physical chips" is actually 3 distinct chips (two captures
    share a CHIP_ID).
@@ -308,6 +353,14 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     - A verifier that cannot verify (the VCEK cache empty, AMD KDS
       unreachable) makes every heartbeat silence and fails over on a healthy
       primary; the runbook says to fill the cache at arm time.
+    - The lost-heartbeat trigger alone has run twice on hardware
+      (`scripts/hardware-test/failover-region-loss`, VERIFIABLE-CLAIMS C35):
+      a primary switched off from inside without a word, the failover on
+      15 s of silence to the attested H100, RTO 25.97 s and 26.24 s. Silence cannot tell
+      a primary that died from one cut off from the replica: after such a
+      failover the primary may still hold and run its copy, and fencing it is
+      the operator's (the policy moves the model at most once, and only to
+      the standby it names).
     - An attested GPU standby has run once
       (`scripts/hardware-test/failover-cgpu`, ADR 0019: the chip, the vTPM
       and the H100 in one evidence, in the release and in the receipt): RTO
@@ -347,26 +400,92 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
     EXACT through the integer door — each the honest reading of the
     tensors, not a defect of the gate.
 
-14. **The worker's Python runtime is pinned, and OSV reports advisories
-   against those pins (2026-09-17).**
-   `workers/genome/requirements.txt` pins `torch==2.7.1`,
+14. **The worker's Python runtime was raised on 2026-10-13; the cross-hardware
+   measurements made on the previous runtime are re-measured before a
+   release claims them for the new one.**
+   `workers/genome/requirements.txt` pinned `torch==2.7.1`,
    `transformers==4.53.2`, `tokenizers==0.21.2`, `safetensors==0.5.3` and
-   `numpy==2.3.1`, because the determinism the genome path claims — EXACT
-   on the pinned runtime, the recipe replaying bit for bit (C16), the same
+   `numpy==2.3.1` because the determinism the genome path claims — EXACT on
+   the pinned runtime, the recipe replaying bit for bit (C16), the same
    bytes across CPU and GPU (C19) — was measured on exactly that runtime.
-   Queried on 2026-09-17, OSV lists 10 advisories against `torch` 2.7.1 and
-   16 against `transformers` 4.53.2, none against the other three; these
-   are what the OpenSSF Scorecard's *Vulnerabilities* check counts.
-   `govulncheck ./...` on the Go tree at the same date reports no
-   vulnerability reachable from this code. The pins are not raised in
-   passing: a newer `torch` or `transformers` changes numerics, so a bump
-   is a re-measurement of C16 and C19 on the new runtime, recorded as
-   evidence, and then the pin. Until then an operator who runs the worker
-   should read the advisories against how the worker is deployed — the
-   daemon starts it as a subprocess (`python3 -m vg_genome door
-   --stdin-genome`) and hands it the genome on stdin; it opens no network
-   listener — and decide for their own deployment; this file does not
-   decide it for them.
+   Queried on 2026-09-17, OSV listed 10 advisories against `torch` 2.7.1 and
+   16 against `transformers` 4.53.2; by 2026-10-13 the count was 10 and 18,
+   among them remote code execution in `transformers` model loading paths
+   (GHSA-29pf-2h5f-8g72, GHSA-fgcw-684q-jj6r, fixed in 5.3.0 and 5.5.0) and
+   a path traversal in `save_pretrained` (GHSA-xrqw-3rrv-vx5w, fixed in
+   5.10.0). The worker loads local files only (`local_files_only=True`, no
+   `trust_remote_code`, adapters as safetensors) and opens no network
+   listener, so none of the loading-path advisories was reachable as the
+   worker is deployed; the pins were still raised, to `torch==2.14.1`,
+   `transformers==5.19.0`, `tokenizers==0.23.3`, `safetensors==0.8.0`,
+   `numpy==2.5.4`, against which OSV lists nothing (queried 2026-10-13).
+   The worker's own suite passes on the new runtime (35 tests, CPU). C19
+   (the integer door's identical bytes on a Xeon and an L4) is re-measured
+   on it: `scripts/hardware-test/integer-door/evidence/20261014T020420Z`
+   — the same bytes at 0.5B and 7B, the fidelity where September had it.
+   The first run on the new runtime (`20261014T012445Z`) held byte
+   identity while the door computed the wrong model: transformers 5 keeps
+   a config's rotary base in `rope_parameters`, and the door's reader had
+   defaulted it to 10 000; the fidelity record showed it, the reader now
+   has no default and the door checks its tables against the model's. C16
+   (bit-for-bit replay of the recipe on one GPU) is re-measured too:
+   `scripts/hardware-test/gpu-7b/evidence/20261014T022551Z` — the 7B recipe
+   replays bit for bit on the L4 under torch 2.14.1 (which warns that
+   flash attention's backward may not be deterministic under `warn_only`;
+   the replay measured that it was, at these shapes), the gate EXACT on
+   the pinned runtime, and on the host CPU EXACT at rung 2 through the
+   integer door. C6 (where CPU↔GPU float divergence enters a real model)
+   too: `scripts/hardware-test/gpu-exact/evidence/20261014T032040Z`, the
+   same table to the rounding and the same integer bytes. C1–C5 (the
+   measurement leg of the drill, SEV-SNP to GPU) too:
+   `scripts/hardware-test/gcp-drill/evidence/20261014T032714Z`, bit for bit
+   on the pinned runtime, equivalent on the L4 and the Intel CPU, the gate
+   saying which. C8, C14 and C24–C25 (the failover drill on two SEV-SNP
+   guests) too: `scripts/hardware-test/gcp-failover/evidence/20261014T034337Z`,
+   generation 1 restored and gated EXACT in 18.69 s, both negatives
+   refused; C11's record is the worker workflow on the pinned runtime,
+   which runs green on the raised one. C22 (the negatives drill) too:
+   `scripts/hardware-test/failover-negatives/evidence/20261014T035731Z`, the
+   same seven refusals and the one move. C21 (the failover to a TDX Trust
+   Domain) too: `scripts/hardware-test/failover-tdx/evidence/20261014T041150Z`,
+   EQUIVALENT on the Trust Domain, RTO 20.42 s. C23 (the authority itself a
+   Trust Domain, its escrow key in the vTPM) too:
+   `scripts/hardware-test/failover-tdx-authority/evidence/20261014T042457Z`,
+   EQUIVALENT, RTO 20.42 s. C17, C20 and C26 (the confidential H100: the
+   capture, the Return Path under `both`, the 32B genome) too:
+   `scripts/hardware-test/azure-cgpu/evidence/20261014T113334Z` and its
+   `-returnpath` — the day's driver 595.91.07, its manifests fetched during the
+   handshake, the 32B genome EXACT on the H100 in 238 s. C18 (the
+   cross-cloud failover to the H100) too:
+   `scripts/hardware-test/failover-cgpu/evidence/20261014T121030Z`, generation
+   1 restored on the H100 under driver 595.91.07 and gated EQUIVALENT, RTO
+   19.86 s. No record names the previous runtime any more: every kit has run
+   on the raised one, and each claim cites both records. CI and the acp-compute image install the runtime from the
+   hash-pinned locks — `requirements-ci.lock` from PyPI, the torch wheel in
+   `requirements-torch-cpu.lock` from the PyTorch CPU index — each with its
+   own `--index-url` under `pip --require-hashes`, every wheel checked
+   against its sha256 and no index standing in for another; since
+   2026-10-15 so do the hardware kits, a GPU host adding the CUDA 12.6
+   libraries from `requirements-cuda.lock` (PyPI, the same files NVIDIA
+   publishes on its own index) and the torch cu126 wheel with its triton
+   from `requirements-torch-cu126.lock` (the PyTorch cu126 index), proven
+   on the drill's two legs, the Return Path guest and the confidential
+   H100 that day. The AWS Nitro
+   kit is the one kit the runtime raise does not reach: its records
+   (`scripts/hardware-test/aws-nitro/evidence`, May 2026) are attestation
+   documents and certificate chains, not the worker's arithmetic. Its own
+   toolchain was brought to the release's on 2026-10-14 — Go 1.27.2 on the
+   parent host and in the enclave builder, images pinned by digest,
+   `vsock-attest` on current dependencies with a committed `go.sum` (the
+   indirect `golang.org/x/net` 0.10.0 and `x/sys` 0.8.0 had carried 23 OSV
+   advisories, none reachable from the helper's code by govulncheck) — and
+   an enclave image built from this tree measures differently (PCR0–PCR2)
+   from the May 2026 cohort's. The kit ran on this tree on 2026-10-14
+   (`scripts/hardware-test/aws-nitro/evidence/2026-10-14`, one m5.xlarge in
+   us-east-2a): a production-mode document over vsock with PCR0–PCR2 equal
+   to the built image's, the chain to AWS Nitro Root CA G1, the seal/open/
+   verify round trip, the tamper refusal, the chain of six and byte-identical
+   inference, as in May.
 
 15. **Release signatures are the `.sig` + `.cert` pair, on cosign 2.x pinned
    (2026-09-17).**
@@ -379,3 +498,129 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    (`--bundle <asset>.sigstore.json`, `cosign verify-blob --bundle`) changes
    the assets and all of those documents together and is made as one
    release, not in passing.
+   **RESOLVED (2026-10-15, from 0.4.3):** `release.yml` writes a Sigstore
+   bundle in the new bundle format (`<asset>.sigstore.json`: the
+   signature, the certificate and the Rekor entry in one file) beside
+   each `.sig` + `.cert` pair — 48 signed assets and the provenance. The
+   check that needs no route is `cosign verify-blob --new-bundle-format
+   --bundle <asset>.sigstore.json --trusted-root trusted_root.json`, the
+   trust root a file from `cosign initialize`'s cache on a connected
+   machine; `--offline` is not it — on cosign 2.6.5 it still updates TUF
+   from the mirror and fails without a route (measured on the rehearsal
+   `v0.4.3-rc1`, whose bundles were the old format). The rehearsal
+   `v0.4.3-rc2` verified all twelve bundles with the network denied, and
+   on the air-gap drill's guest with egress denied; the README, the
+   first-deployment guide, the release procedure §5, the supply-chain
+   page, the disaster-recovery runbook and the release-deploy kit give the
+   bundle check beside the pair. cosign stays pinned at 2.6.5.
+18. **The authority's memory grew with every job served, about 110 KB a
+   job, without bound — found by the soak and fixed the same day
+   (2026-10-16).** The soak (C33) ran one sagvd at
+   `runtime.max_sessions: 3` with three workers for an hour: its
+   resident memory went from 16 to 280 MB over 2429 jobs on TDX (108 KB
+   a job) and from 17 to 205 MB over 1607 jobs on SEV-SNP (117 KB a
+   job), linearly, while its open descriptors stayed at 13–14 and the
+   workers' memory at 39–51 MB. Three things kept every job. The
+   in-memory job map (`cmd/sagvd/job_queue.go`, `jobs`) held each
+   finished job's flow, verdict and candidate so that `GET /v1/jobs/{id}`
+   could answer from memory, although the store on disk already kept the
+   view (ADR 0026) and `GetRaw` already read it; now a finished job
+   leaves the map as soon as the store has accepted its view, and `GET`
+   answers from disk (a view the store refuses keeps the job in memory;
+   without `queue.path` nothing changes, and the daemon's warning at
+   start says so). The persistent audit chain
+   (`internal/audit/chain/persistent.go`) appended every sealed event to
+   an in-memory slice and loaded every stored event when it opened; now
+   it keeps its tip and its length, the store gained `Walk` and `At`,
+   opening and `Verify` walk the store one event at a time, `EventAt`
+   and `Events` read it. The session issuer
+   (`internal/vault/session/issuer.go`) kept every session it ever
+   issued, about a kilobyte each, with nothing to drop it — found by the
+   two-hour soaks after the first two fixes, which still rose that much
+   a job; now a session is forgotten once it has been expired for as
+   long as it lived. Proven by the same soak run for two hours on the
+   finished code (C34): the authority's anonymous memory — its heap and
+   stacks — went from 6.5 to 12.2 MB over 4901 jobs on TDX and never
+   above 14.6 MB, from 6.0 to 11.4 MB over 3223 jobs on SEV-SNP and
+   never above 13.8 MB, the last hour within 10–15 MB on both: flat
+   within the garbage collector's swing, where the first soak would have
+   put 540 MB. What still grows is on disk, by design: the audit log at
+   about 34 KB a job (sixteen events of 2.1 KB) and the job views at
+   about 14 KB a job, 48–52 KB a job in all, 2.8 GB a day at 40 jobs a
+   minute; the pages of those two bbolt files that the daemon has
+   touched show in its resident set as file-backed memory (10 → 103 MB
+   over the two hours on TDX) and are the kernel's to reclaim, not the
+   process's to keep. Since ADR 0027 the audit log closes into segments
+   — the live file moves into `audit.archive_dir` at
+   `audit.segment_events` events or `audit.segment_max_age_seconds`,
+   its closing on the record as the next segment's first event, and
+   nothing in the daemon deletes an archive — and finished jobs expire
+   from the job store after `queue.retain_finished_seconds` (that file
+   plateaus at the window's high-water mark; bbolt reuses its pages).
+   Both are off unless set; `acpctl provision` sets them. `acpctl audit
+   verify` walks the archives and the live file as one chain and checks
+   every archive against the record that closed it. Measured on SEV-SNP
+   (C38): with segments of 5000 events and a window of twenty minutes,
+   an hour of 1609 jobs left five archives of 16 MiB, a live file of
+   0.25–16 MiB and a views file flat at 16 MiB from the 22nd minute; the
+   six files verified as one chain in 2.5 s.
+
+17. **A burst of attestation requests on one GCP SEV-SNP guest is
+   rate-limited by the host: all but the first wait about 10 s
+   (2026-10-16).** Every Return Path session makes the authority quote
+   once (its report over the session's challenge) and the worker quote
+   once; a daemon's start makes one for its identity. Measured in
+   `scripts/hardware-test/gcp-sev-snp/returnpath-parallel` (run
+   `20261016T122044Z`, C32): with three workers starting at the same
+   second, their identity reports all came 10.3 s later; with three
+   sessions opening at once, one handshake took 49 ms and two 10.3 s;
+   the authority's quote histogram shows the same (one 10.2-s quote of
+   seven, two slow of nine). Spaced out, a handshake costs about 25 ms.
+   The kernel's sev-guest driver retries the host's «busy» answer on
+   its own schedule and logs nothing; the host's exact policy is not
+   published in our library. Consequence: `runtime.max_sessions`
+   parallelises the authority's work, but a burst of N handshakes on one
+   SEV-SNP guest still serialises on the chip at about 10 s per
+   throttled request. Spread the workers' dials
+   (`dial_backoff_initial_ms`, `idle_between_jobs_ms`) and expect the
+   first handshake after a quiet period to be the fast one. Intel TDX on
+   GCP does not throttle this way: the kit's TDX twin (run
+   `20261016T123114Z`, c3-standard-8) opened three sessions at once at
+   90–165 ms each and the authority's nine quotes took 0.52 s together.
+   Over an hour under steady load (the soak, C33: three workers dialing
+   as fast as they finish, 27 handshakes a minute) 767 of the authority's
+   1609 handshakes waited between one and seven seconds (p50 58 ms, p90
+   6.16 s, two of 10.3 s; 2610 s of waiting in the hour across the three
+   workers), and the host did 1607 jobs where the TDX twin did 2429.
+   Not yet known: Azure's SEV-SNP hosts; whether a quote could cover
+   several sessions is a wire question for ADR 0025's successor.
+
+16. **The job queue is in memory: a job in flight when the authority's
+   host is lost is lost with it (2026-10-15).**
+   `sagvd` keeps accepted jobs in memory (`cmd/sagvd/job_queue.go`); the
+   audit log is on disk. The authority-loss drill
+   (`scripts/hardware-test/authority-loss`) deleted the authority's VM in
+   the middle of a job on real SEV-SNP, three times: a fresh host became
+   the same authority — its key material from the operator's safe sealed
+   to the new chip, its escrow key through the recovery ceremony, its
+   audit chain continued from the replica — and signed the next verdict
+   49–50 s after the host had its runtime, in all three runs (236 s, 237 s
+   and 489 s from the deletion with the host created on demand, the third
+   on a slow package mirror); the job in flight had to be resubmitted,
+   and the audit events the old host appended for it after its last
+   replica died with the host. The disaster-recovery runbook's scenario 4
+   carries the procedure and the numbers.
+   **REDUCED (2026-10-15, ADR 0026):** with `queue.path` the queue is on
+   disk, and a restarted `sagvd` admits again what it had queued or in
+   flight by itself, on the record; what the host loses is what its last
+   replica lacks. The drill's next run replicates the job store beside
+   the audit log, so that the new host resumes the lost job instead of an
+   operator resubmitting it; a continuous replica is the remaining step.
+   **The host-loss case proven (2026-10-15, run `20261015T204339Z`):**
+   the drill replicates the job store the moment a job is accepted; the
+   new host's `sagvd` admitted the lost job again by itself (`resumed`,
+   attempt 2, the same job id and request id) and signed its verdict
+   EXACT 49.1 s after its runtime was ready, 233.5 s from the deletion;
+   nothing was resubmitted, and the chain ran on from the replica's 81
+   events to 113, verified offline. What remains is a continuous replica
+   in place of the drill's per-job copies.

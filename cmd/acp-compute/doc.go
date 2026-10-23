@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Package main (cmd/acp-compute) is the entry point for the external
@@ -46,6 +47,8 @@
 //   - vault.tls              mTLS material when TLS is enabled
 //   - tee.provider           "gcp-sev-snp" (the chip signs), "gcp-tdx" (a
 //     TDX quote; the measurement is SHA-384 of MRTD and RTMR0..3),
+//     "azure-sev-snp" (an Azure SEV-SNP Confidential VM: the chip's report
+//     from the vTPM's HCL report, bound to the nonce by a TPM quote),
 //     "azure-cgpu" (an Azure confidential GPU VM: the SEV-SNP report from
 //     the vTPM, a TPM quote binding the challenge, NVIDIA's tokens for
 //     the H100; gpu_attest_command required) or "simulated"

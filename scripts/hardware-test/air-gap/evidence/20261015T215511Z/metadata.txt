@@ -1,0 +1,6 @@
+instance=vg-airgap-tdx-20261015t215401z
+zone=us-central1-a
+machine=c3-standard-4
+captured=20261015T215511Z
+tee=tdx
+airgap_tag=vg-airgap-20261015t215401z

@@ -1,0 +1,4 @@
+instance=vg-returnpath-20261015t142856z
+zone=us-central1-c
+machine=n2d-standard-4
+captured=20261015T143033Z

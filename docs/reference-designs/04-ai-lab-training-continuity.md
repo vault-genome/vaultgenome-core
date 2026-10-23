@@ -135,7 +135,7 @@ chain, not silently retried.
   exercised quarterly. Scenario 3 (TEE root rotation) added to the
   exercise set after the 2026 AMD KDS rotation event.
 - **Compliance**: SOC 2 Type II + ISO 27001 + ad-hoc internal
-  policy. See compliance crosswalk for the controls map.
+  policy. See `docs/compliance/controls.md` for the controls.
 - **Lineage queries**: `acpctl lineage --audit <log> --session-id <id>`
   is a first-class operator command; the lab's research team integrates
   it into the model card publication pipeline.

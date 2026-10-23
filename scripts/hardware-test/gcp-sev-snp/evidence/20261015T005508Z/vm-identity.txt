@@ -1,0 +1,4 @@
+vm_name:     vault-genome-sev-snp-test
+zone:        us-central1-c
+uname:       Linux vault-genome-sev-snp-test.us-central1-c.c.rats-probe.internal 7.0.0-1014-gcp #14~24.04.1-Ubuntu SMP PREEMPT Thu Sep 17 19:52:35 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+captured_at: 2026-10-15T00:55:08Z

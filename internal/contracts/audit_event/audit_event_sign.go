@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package audit_event
@@ -38,6 +39,11 @@ func (e *AuditEvent) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, e.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	e.Alg = alg
 	cp := *e
 	cp.Hash = nil
 	cp.Signature = nil
@@ -63,7 +69,7 @@ func (e *AuditEvent) SignWith(signer keys.Signer) error {
 //
 //   - Hash correctly summarizes the canonical bytes of the event
 //     (i.e. no field was mutated after Hash was taken).
-//   - Signature is a valid Ed25519 signature over Hash under the key
+//   - Signature is a valid signature over Hash, under the suite the event's alg names (absent: ed25519), under the key
 //     identified by SigningKeyID and bound to PurposeSigningAudit.
 //
 // Either failure is returned as an Integrity-classified error.
@@ -91,5 +97,5 @@ func (e *AuditEvent) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, e.Hash, e.Signature)
+	return vk.VerifyRecord(e.Alg, e.Hash, e.Signature)
 }

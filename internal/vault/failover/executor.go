@@ -1,10 +1,10 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package failover
 
 import (
 	"context"
-	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -43,8 +43,8 @@ type Config struct {
 	Policy Policy
 	// Outbox is the primary's outbox, as replicated to the release authority.
 	Outbox string
-	// Escrow is the release authority's escrow key.
-	Escrow *ecdh.PrivateKey
+	// Escrow is the release authority's escrow key, under its KEM suite.
+	Escrow *escrow.PrivateKey
 	// Primary verifies the primary TEE's reports on the outbox's records;
 	// required when the policy pins the primary (ADR 0017).
 	Primary tee.Verifier

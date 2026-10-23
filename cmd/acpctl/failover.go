@@ -1,9 +1,9 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
 
 import (
-	"crypto/ed25519"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/genome/sentinel"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/failover"
 )
 
@@ -45,10 +46,11 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	var measurements, primaryMeasurements repeatedFlag
 	var (
-		seedPath    = fs.String("key", "", "Operator seed file (acpctl stop keygen) (required)")
+		seedPath    = fs.String("key", "", "Operator key file (acpctl stop keygen) (required)")
+		suiteFlag   = addSuiteFlag(fs)
 		kid         = fs.String("kid", "", "Operator key ID the release host trusts (required)")
 		serial      = fs.Uint64("serial", 0, "Policy serial; higher than any failover policy issued before (required)")
-		sentinelPub = fs.String("sentinel-pub", "", "The primary's sentinel public key: PEM or 32 raw bytes (required)")
+		sentinelPub = fs.String("sentinel-pub", "", "The primary's sentinel public key: PEM (its algorithm names the suite) or 32 raw bytes (Ed25519) (required)")
 		kind        = fs.String("standby-kind", "", "The standby's TEE kind, e.g. gcp-sev-snp (required)")
 		endpoint    = fs.String("standby-endpoint", "", "The standby's acp-bootstrap URL, https (required)")
 		timeout     = fs.Duration("heartbeat-timeout", 0, "Fail over when no heartbeat rises for this long (0: not a trigger)")
@@ -94,12 +96,18 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 	if *gate == "none" {
 		*gate = ""
 	}
-	seed, err := os.ReadFile(*seedPath)
-	if err != nil || len(seed) != ed25519.SeedSize {
-		fmt.Fprintf(stderr, "acpctl failover issue: --key must be a %d-byte seed file (%v)\n", ed25519.SeedSize, err)
+	suite, err := parseSuiteFlag(*suiteFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl failover issue: %v\n", err)
+		return 2
+	}
+	key, err := readSigningKeyFile(*seedPath, suite)
+	if err != nil {
+		fmt.Fprintf(stderr, "acpctl failover issue: --key: %v\n", err)
 		return 1
 	}
-	spub, err := readEd25519PublicKey(*sentinelPub)
+	defer key.Zeroize()
+	spub, err := readSigningPublicKey(*sentinelPub)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl failover issue: --sentinel-pub: %v\n", err)
 		return 1
@@ -112,7 +120,8 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 		Serial:            *serial,
 		IssuedAt:          now,
 		NotAfter:          now.Add(*validFor),
-		SentinelPublicKey: spub,
+		SentinelPublicKey: spub.Bytes,
+		SentinelAlg:       crypto.RecordAlg(spub.Suite),
 		Primary:           primary,
 		Standby:           failover.Standby{Kind: *kind, Endpoint: *endpoint, Measurements: measurements},
 		Triggers:          failover.Triggers{CompromiseReport: !*noReport, HeartbeatTimeoutSeconds: int64(timeout.Seconds()), StoppedGraceSeconds: int64(stopGrace.Seconds())},
@@ -121,7 +130,7 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 		RequireGate:       *gate,
 		Reason:            *reason,
 		SigningKeyID:      *kid,
-	}, ed25519.NewKeyFromSeed(seed))
+	}, key)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl failover issue: %v\n", err)
 		return 1
@@ -134,8 +143,8 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl failover issue: write: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "failover policy serial %d written to %s: sentinel %s -> %s %s, until %s\n",
-		p.Serial, *out, sentinel.KeyID(spub), p.Standby.Kind, p.Standby.Endpoint, p.NotAfter.Format(time.RFC3339))
+	fmt.Fprintf(stdout, "failover policy serial %d written to %s: sentinel %s (%s) -> %s %s, until %s\n",
+		p.Serial, *out, sentinel.KeyID(spub), spub.Suite, p.Standby.Kind, p.Standby.Endpoint, p.NotAfter.Format(time.RFC3339))
 	return 0
 }
 
@@ -143,7 +152,7 @@ func failoverVerifyCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("failover verify", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	in := fs.String("in", "", "Signed failover policy (required)")
-	pubPath := fs.String("pubkey", "", "Operator public key: PEM or 32 raw bytes (required)")
+	pubPath := fs.String("pubkey", "", "Operator public key: PEM (its algorithm names the suite) or 32 raw bytes (Ed25519) (required)")
 	kid := fs.String("kid", "", "Operator key ID (required)")
 	jsonOut := fs.Bool("json", false, "Emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
@@ -158,12 +167,12 @@ func failoverVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl failover verify: %v\n", err)
 		return 1
 	}
-	pub, err := readEd25519PublicKey(*pubPath)
+	pub, err := readSigningPublicKey(*pubPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl failover verify: %v\n", err)
 		return 1
 	}
-	p, err := failover.Parse(raw, ed25519.PublicKey(pub), *kid)
+	p, err := failover.Parse(raw, pub, *kid)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl failover verify: %v\n", err)
 		return 4

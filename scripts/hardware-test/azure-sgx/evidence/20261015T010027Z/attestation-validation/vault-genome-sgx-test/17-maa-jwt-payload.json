@@ -1,0 +1,53 @@
+{
+  "aas-ehd": "ewogICJ2YXVsdF9nZW5vbWVfdmVyc2lvbiI6ICIxLjAuMCIsCiAgInBheWxvYWRfc2hhMjU2IjogImM0MmY3YzI1ZTg4ZDU1NjYwY2Y5NzU0ODg0MzMzZmY2YTEzZGMxYjRkOWRlZjhmZDQwNjA2NmQ0MTBlMWYwNzQiLAogICJwYXlsb2FkX3NpemVfYnl0ZXMiOiAyMDE5NDAyNzUyLAogICJwYXlsb2FkX2Rlc2NyaXB0aW9uIjogIm9sbGFtYSBsbGFtYTMuMjozYiwgYXMgc2VhbGVkIGJ5IGFjcGN0bCBnZW5vbWUgc2VhbCBpbnRvIGRlbW8xLWJ1bmRsZS5nZW5vbWUiLAogICJwYXlsb2FkX21lYXN1cmVkX2J5IjogImFjcGN0bCBnZW5vbWUgaW5zcGVjdCAtLWpzb24gb2YgZGVtbzEtYnVuZGxlLmdlbm9tZTogc2hhMjU2IG92ZXIgdGhlIHNlYWxlZCBjb21wb25lbnRzLCBtZWFzdXJlZCBpbiB0aGlzIHJ1biIsCiAgImJ1bmRsZV9zaGEyNTYiOiAiMWZjMDBjMWE1ZjIyOWFjYjliMzkzMGY5ZDQ5MzQ1MjBjYmU0MzgwYzI3NzkxNjE4ZTE1ODNjNDNlZDA5YzY2ZiIsCiAgImJ1bmRsZV9zaXplX2J5dGVzIjogMjAxOTQzNjY4NCwKICAic2VhbGVkX2F0IjogIjIwMjYtMTAtMTVUMDA6NTg6NTZaIiwKICAiZGVtbyI6ICJ2YXVsdC1nZW5vbWUtY3Jvc3Mtdm0tYXR0ZXN0YXRpb24iLAogICJ2bV9pZCI6ICJ2YXVsdC1nZW5vbWUtc2d4LXRlc3QiLAogICJ0ZWVfYmFja2VuZCI6ICJpbnRlbC1zZ3giLAogICJjbG91ZCI6ICJhenVyZSIsCiAgImxvY2F0aW9uIjogImVhc3R1czIiLAogICJ6b25lIjogIiIsCiAgInZtX3NpemUiOiAiU3RhbmRhcmRfREM0c192MyIKfQo",
+  "exp": 1792054793,
+  "iat": 1792025993,
+  "is-debuggable": true,
+  "iss": "https://sharedeus2.eus2.attest.azure.net",
+  "jti": "bf43d18014b23fcb41b6387e63740030e44b2b56ac19332287ff981cb54ee2fb",
+  "maa-attestationcollateral": {
+    "qeidcertshash": "1b2a7cd5966929aec1e061f47aba03ae422c11e9f8dce4212c2bb3609222f324",
+    "qeidcrlhash": "d00fa4be5c6af07e694f732cef47cab92ab35cdd557ebbddffd91c3f7f9f6133",
+    "qeidhash": "513315bff092fb62ae8dff910823e92b2b820ca78e6f6738578491bab2f65c8b",
+    "quotehash": "1b6322a778d224061daf214a47df8d9fa5599ed80b3a3c35c68a46c6e97c2e33",
+    "tcbinfocertshash": "1b2a7cd5966929aec1e061f47aba03ae422c11e9f8dce4212c2bb3609222f324",
+    "tcbinfocrlhash": "d00fa4be5c6af07e694f732cef47cab92ab35cdd557ebbddffd91c3f7f9f6133",
+    "tcbinfohash": "31b19de465a85f70210428732761baffc01e4213b722e4631100f6056f45390e"
+  },
+  "maa-ehd": "ewogICJ2YXVsdF9nZW5vbWVfdmVyc2lvbiI6ICIxLjAuMCIsCiAgInBheWxvYWRfc2hhMjU2IjogImM0MmY3YzI1ZTg4ZDU1NjYwY2Y5NzU0ODg0MzMzZmY2YTEzZGMxYjRkOWRlZjhmZDQwNjA2NmQ0MTBlMWYwNzQiLAogICJwYXlsb2FkX3NpemVfYnl0ZXMiOiAyMDE5NDAyNzUyLAogICJwYXlsb2FkX2Rlc2NyaXB0aW9uIjogIm9sbGFtYSBsbGFtYTMuMjozYiwgYXMgc2VhbGVkIGJ5IGFjcGN0bCBnZW5vbWUgc2VhbCBpbnRvIGRlbW8xLWJ1bmRsZS5nZW5vbWUiLAogICJwYXlsb2FkX21lYXN1cmVkX2J5IjogImFjcGN0bCBnZW5vbWUgaW5zcGVjdCAtLWpzb24gb2YgZGVtbzEtYnVuZGxlLmdlbm9tZTogc2hhMjU2IG92ZXIgdGhlIHNlYWxlZCBjb21wb25lbnRzLCBtZWFzdXJlZCBpbiB0aGlzIHJ1biIsCiAgImJ1bmRsZV9zaGEyNTYiOiAiMWZjMDBjMWE1ZjIyOWFjYjliMzkzMGY5ZDQ5MzQ1MjBjYmU0MzgwYzI3NzkxNjE4ZTE1ODNjNDNlZDA5YzY2ZiIsCiAgImJ1bmRsZV9zaXplX2J5dGVzIjogMjAxOTQzNjY4NCwKICAic2VhbGVkX2F0IjogIjIwMjYtMTAtMTVUMDA6NTg6NTZaIiwKICAiZGVtbyI6ICJ2YXVsdC1nZW5vbWUtY3Jvc3Mtdm0tYXR0ZXN0YXRpb24iLAogICJ2bV9pZCI6ICJ2YXVsdC1nZW5vbWUtc2d4LXRlc3QiLAogICJ0ZWVfYmFja2VuZCI6ICJpbnRlbC1zZ3giLAogICJjbG91ZCI6ICJhenVyZSIsCiAgImxvY2F0aW9uIjogImVhc3R1czIiLAogICJ6b25lIjogIiIsCiAgInZtX3NpemUiOiAiU3RhbmRhcmRfREM0c192MyIKfQo",
+  "nbf": 1792025993,
+  "nonce": "1792025992477675761",
+  "product-id": 1,
+  "sgx-mrenclave": "2715763f2271e40703b0a1b3f7e37bb635d3aba9565797f43337c0f35db0d72a",
+  "sgx-mrsigner": "68a0989eed606a6eb39bc168e8c391f28a494075e1b7fb9f91df83e61636dc96",
+  "svn": 1,
+  "tee": "sgx",
+  "x-ms-attestation-type": "sgx",
+  "x-ms-policy": {
+    "is-debuggable": true,
+    "product-id": 1,
+    "sgx-mrenclave": "2715763f2271e40703b0a1b3f7e37bb635d3aba9565797f43337c0f35db0d72a",
+    "sgx-mrsigner": "68a0989eed606a6eb39bc168e8c391f28a494075e1b7fb9f91df83e61636dc96",
+    "svn": 1,
+    "tee": "sgx"
+  },
+  "x-ms-policy-hash": "OwEvpSVEWA5eisCEncBt8NSZFLYDRKoLaoONPrZgoeY",
+  "x-ms-sgx-collateral": {
+    "qeidcertshash": "1b2a7cd5966929aec1e061f47aba03ae422c11e9f8dce4212c2bb3609222f324",
+    "qeidcrlhash": "d00fa4be5c6af07e694f732cef47cab92ab35cdd557ebbddffd91c3f7f9f6133",
+    "qeidhash": "513315bff092fb62ae8dff910823e92b2b820ca78e6f6738578491bab2f65c8b",
+    "quotehash": "1b6322a778d224061daf214a47df8d9fa5599ed80b3a3c35c68a46c6e97c2e33",
+    "tcbinfocertshash": "1b2a7cd5966929aec1e061f47aba03ae422c11e9f8dce4212c2bb3609222f324",
+    "tcbinfocrlhash": "d00fa4be5c6af07e694f732cef47cab92ab35cdd557ebbddffd91c3f7f9f6133",
+    "tcbinfohash": "31b19de465a85f70210428732761baffc01e4213b722e4631100f6056f45390e"
+  },
+  "x-ms-sgx-ehd": "ewogICJ2YXVsdF9nZW5vbWVfdmVyc2lvbiI6ICIxLjAuMCIsCiAgInBheWxvYWRfc2hhMjU2IjogImM0MmY3YzI1ZTg4ZDU1NjYwY2Y5NzU0ODg0MzMzZmY2YTEzZGMxYjRkOWRlZjhmZDQwNjA2NmQ0MTBlMWYwNzQiLAogICJwYXlsb2FkX3NpemVfYnl0ZXMiOiAyMDE5NDAyNzUyLAogICJwYXlsb2FkX2Rlc2NyaXB0aW9uIjogIm9sbGFtYSBsbGFtYTMuMjozYiwgYXMgc2VhbGVkIGJ5IGFjcGN0bCBnZW5vbWUgc2VhbCBpbnRvIGRlbW8xLWJ1bmRsZS5nZW5vbWUiLAogICJwYXlsb2FkX21lYXN1cmVkX2J5IjogImFjcGN0bCBnZW5vbWUgaW5zcGVjdCAtLWpzb24gb2YgZGVtbzEtYnVuZGxlLmdlbm9tZTogc2hhMjU2IG92ZXIgdGhlIHNlYWxlZCBjb21wb25lbnRzLCBtZWFzdXJlZCBpbiB0aGlzIHJ1biIsCiAgImJ1bmRsZV9zaGEyNTYiOiAiMWZjMDBjMWE1ZjIyOWFjYjliMzkzMGY5ZDQ5MzQ1MjBjYmU0MzgwYzI3NzkxNjE4ZTE1ODNjNDNlZDA5YzY2ZiIsCiAgImJ1bmRsZV9zaXplX2J5dGVzIjogMjAxOTQzNjY4NCwKICAic2VhbGVkX2F0IjogIjIwMjYtMTAtMTVUMDA6NTg6NTZaIiwKICAiZGVtbyI6ICJ2YXVsdC1nZW5vbWUtY3Jvc3Mtdm0tYXR0ZXN0YXRpb24iLAogICJ2bV9pZCI6ICJ2YXVsdC1nZW5vbWUtc2d4LXRlc3QiLAogICJ0ZWVfYmFja2VuZCI6ICJpbnRlbC1zZ3giLAogICJjbG91ZCI6ICJhenVyZSIsCiAgImxvY2F0aW9uIjogImVhc3R1czIiLAogICJ6b25lIjogIiIsCiAgInZtX3NpemUiOiAiU3RhbmRhcmRfREM0c192MyIKfQo",
+  "x-ms-sgx-is-debuggable": true,
+  "x-ms-sgx-mrenclave": "2715763f2271e40703b0a1b3f7e37bb635d3aba9565797f43337c0f35db0d72a",
+  "x-ms-sgx-mrsigner": "68a0989eed606a6eb39bc168e8c391f28a494075e1b7fb9f91df83e61636dc96",
+  "x-ms-sgx-product-id": 1,
+  "x-ms-sgx-report-data": "085524d5f8456cffc2ed0e43d6eb4dc018aacbda6000323b7c9fd0e0839b3b130000000000000000000000000000000000000000000000000000000000000000",
+  "x-ms-sgx-svn": 1,
+  "x-ms-sgx-tcbidentifier": "10",
+  "x-ms-ver": "1.0"
+}

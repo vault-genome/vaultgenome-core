@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -174,7 +175,7 @@ func TestIdentity_PrintsTheAuthorityKeyDestinationsPin(t *testing.T) {
 func TestLoadMaterials_SEVSNPPeerVerifier(t *testing.T) {
 	f := newMaterialFixture(t)
 	chain := filepath.Join(f.dir, "amd-chain.pem")
-	if err := os.WriteFile(chain, []byte("-----BEGIN CERTIFICATE-----\nMA==\n-----END CERTIFICATE-----\n"), 0o644); err != nil {
+	if err := os.WriteFile(chain, genuineAMDChain(t, "Milan"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	f.rewrite(t, f.cfg.TEE.Peer.MeasurementPath, bytes.Repeat([]byte{0x77}, 48))

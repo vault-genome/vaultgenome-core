@@ -1,0 +1,48 @@
+{
+  "status": "failed",
+  "error": "authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: failover policy serial 5 releases only to its standby (gcp-sev-snp, measurement [69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790]); gcp-sev-snp 21199b36f500cc26a5d26c92c699fe2820ce217458bf219be18efd761f636b4145fdecbd7249c4b566797b4afd339546 is not it",
+  "policy_serial": 5,
+  "policy_sha256": "ffb1798c533dfcf5465ed24347bddb5c40c01f5dc08b0e2ce773c97411440619",
+  "sentinel": "sentinel-3cb9a100304cd567",
+  "trigger": {
+    "kind": "compromise-report",
+    "at": "2026-10-15T02:57:45.445312994Z",
+    "observed_at": "2026-10-15T02:58:48.006233988Z",
+    "evidence_sha256": "e64ab1ff4f2d483472442c18e73ad998fc6f57326f6bf1bf7339eb1da71fda92",
+    "primary_measurement_hex": "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790",
+    "tripped": [
+      {
+        "wire": "path",
+        "target": "/root/canary",
+        "want": "e91a347f5d68f56c7ab031b9dcbed288f4cb929c401c315c1d270e3ba7fcda7d",
+        "got": "45bb370196d1e59e368ab5f98cd6e27353963d8607d93e47e13bb418db172170"
+      }
+    ],
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "c4d3ab9b86c2fff3cba7ab4fd32147cc337590c3f76497682de5affccebf917b",
+      "sealed_at": "2026-10-15T02:57:36.447459559Z"
+    }
+  },
+  "decision": {
+    "decision": "failover",
+    "reason": "compromise-report under failover policy serial 5: restore generation 1 on the standby",
+    "decision_id": "xcc-dec-f4f8ba0eeb0c02b5a067df2d3b4c4f32",
+    "audit_id": "xcc-evt-0000000000000008",
+    "decided_at": "2026-10-15T02:58:58.285539611Z"
+  },
+  "genome": {
+    "generation": 1,
+    "bundle": "gen-000001.genome",
+    "bundle_sha256": "c4d3ab9b86c2fff3cba7ab4fd32147cc337590c3f76497682de5affccebf917b",
+    "bundle_bytes": 2216819,
+    "key_id": "genome-4594181f1b30-g1-1dd4d41d615e",
+    "payload_sha256": "sha256:4594181f1b30c3cfbd3e4b6fa4c2df0ac9395358d90cc8fd34028a1a4c7e3342",
+    "tree_sha256": "a4648645262da0a65b59999a3715ae4483e652d4a7eecbcb13c4be650dbb4055",
+    "sealed_at": "2026-10-15T02:57:36.447459559Z",
+    "chain_end": 1
+  },
+  "audit_chain_length": 11,
+  "audit_tip": "221fde907a303eddddfc1a4e50365243afd6929ac8cc76ef2bce7084b2c4dd45",
+  "operator_stop_serial": 3
+}

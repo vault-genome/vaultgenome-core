@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # submit_job.sh — POST a gate job to the running sagvd and poll the
@@ -22,7 +23,7 @@
 #   POLL_INTERVAL  seconds between GET polls (default 1)
 #   POLL_TIMEOUT   total seconds to wait before giving up (default 600)
 #   BEARER_TOKEN   REST API token; defaults to the contents of
-#                  $SECRETS_DIR/sagvd/api_token (written by keygen)
+#                  $SECRETS_DIR/sagvd/api_token (written by acp-keygen)
 #   SECRETS_DIR    secrets tree (default: ../secrets relative to this script)
 #
 # Exit codes:
@@ -62,7 +63,7 @@ POLL_TIMEOUT="${POLL_TIMEOUT:-600}"
 # never produces double slashes (which sagvd's router would 404).
 SAGVD_URL="${SAGVD_URL%/}"
 
-# The REST API requires a bearer token. Default to the one keygen wrote.
+# The REST API requires a bearer token. Default to the one acp-keygen wrote.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SECRETS_DIR="${SECRETS_DIR:-${SCRIPT_DIR}/../secrets}"
 if [[ -z "${BEARER_TOKEN:-}" && -r "${SECRETS_DIR}/sagvd/api_token" ]]; then

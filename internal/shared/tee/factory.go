@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tee
@@ -65,6 +66,13 @@ const (
 	// the chip named, and NVIDIA's signed attestation tokens for the GPU.
 	// See azure_cgpu.go.
 	ProviderAzureCGPU Provider = "azure-cgpu"
+
+	// ProviderAzureSEVSNP is the Azure Confidential VM on AMD SEV-SNP
+	// without a GPU (DCasv5, ECasv5 and their kin): the SEV-SNP report from
+	// the vTPM's HCL report bound to a caller's nonce through a TPM quote by
+	// the attestation key the chip named — azure-cgpu without the GPU half.
+	// See azure_sev_snp.go.
+	ProviderAzureSEVSNP Provider = "azure-sev-snp"
 )
 
 // AllProviders returns every Provider compiled into this binary, in
@@ -78,6 +86,7 @@ func AllProviders() []Provider {
 		ProviderIntelSGXDCAP,
 		ProviderGCPTDX,
 		ProviderAzureCGPU,
+		ProviderAzureSEVSNP,
 	}
 }
 
@@ -90,9 +99,17 @@ func ParseProvider(s string) (Provider, error) {
 			return p, nil
 		}
 	}
+	// The family names of ADR 0025, and "auto": accepted on input, mapped
+	// to the names this build runs (provider_auto.go).
+	if canonical, ok := providerAliases[norm]; ok {
+		return canonical, nil
+	}
+	if norm == ProviderAuto {
+		return ProviderAuto, nil
+	}
 	return "", shared_errors.Structural(
 		shared_errors.CodeFieldValueInvalid,
-		fmt.Sprintf("tee: unknown provider %q (valid: %v)", s, AllProviders()),
+		fmt.Sprintf("tee: unknown provider %q (valid: %v; also %v and %q)", s, AllProviders(), ProviderAliases(), ProviderAuto),
 		nil,
 	)
 }
@@ -120,12 +137,13 @@ type ProducerSpec struct {
 
 	// AWS Nitro / Azure / GCP / Intel-specific configuration. Each backend
 	// inspects only its own fields.
-	AWSNitro  AWSNitroProducerConfig
-	AzureSGX  AzureSGXProducerConfig
-	GCPSEV    GCPSEVProducerConfig
-	IntelSGX  IntelSGXProducerConfig
-	GCPTDX    GCPTDXProducerConfig
-	AzureCGPU AzureCGPUProducerConfig
+	AWSNitro    AWSNitroProducerConfig
+	AzureSGX    AzureSGXProducerConfig
+	GCPSEV      GCPSEVProducerConfig
+	IntelSGX    IntelSGXProducerConfig
+	GCPTDX      GCPTDXProducerConfig
+	AzureCGPU   AzureCGPUProducerConfig
+	AzureSEVSNP AzureSEVSNPProducerConfig
 }
 
 // VerifierSpec is the verifier-side counterpart to ProducerSpec.
@@ -141,12 +159,13 @@ type VerifierSpec struct {
 	// Mismatches return Integrity errors.
 	ExpectedMeasurement Measurement
 
-	AWSNitro  AWSNitroVerifierConfig
-	AzureSGX  AzureSGXVerifierConfig
-	GCPSEV    GCPSEVVerifierConfig
-	IntelSGX  IntelSGXVerifierConfig
-	GCPTDX    GCPTDXVerifierConfig
-	AzureCGPU AzureCGPUVerifierConfig
+	AWSNitro    AWSNitroVerifierConfig
+	AzureSGX    AzureSGXVerifierConfig
+	GCPSEV      GCPSEVVerifierConfig
+	IntelSGX    IntelSGXVerifierConfig
+	GCPTDX      GCPTDXVerifierConfig
+	AzureCGPU   AzureCGPUVerifierConfig
+	AzureSEVSNP AzureSEVSNPVerifierConfig
 }
 
 // BuildProducer constructs a Producer for the given Provider. This is the
@@ -182,6 +201,8 @@ func BuildProducer(spec ProducerSpec) (Producer, error) {
 		return NewGCPTDXProducer(spec.GCPTDX)
 	case ProviderAzureCGPU:
 		return NewAzureCGPUProducer(spec.AzureCGPU)
+	case ProviderAzureSEVSNP:
+		return NewAzureSEVSNPProducer(spec.AzureSEVSNP)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -213,6 +234,8 @@ func BuildVerifier(spec VerifierSpec) (Verifier, error) {
 		return NewGCPTDXVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.GCPTDX)
 	case ProviderAzureCGPU:
 		return NewAzureCGPUVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.AzureCGPU)
+	case ProviderAzureSEVSNP:
+		return NewAzureSEVSNPVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.AzureSEVSNP)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -233,6 +256,15 @@ func BuildVerifier(spec VerifierSpec) (Verifier, error) {
 // override the Capability() return for that provider.
 func Capability(p Provider) (available bool, reason string) {
 	switch p {
+	case ProviderAuto:
+		family, name, err := ResolveAuto("")
+		if err != nil {
+			return false, "auto: " + err.Error()
+		}
+		if name == AutoResolvedFromAzureHCL {
+			return true, fmt.Sprintf("auto: the vTPM's HCL report is SEV-SNP (no configfs-tsm under the paravisor), this build runs it as %s", family)
+		}
+		return true, fmt.Sprintf("auto: configfs-tsm serves %s, this build runs it as %s", name, family)
 	case ProviderSimulated:
 		return true, "simulated TEE always available (software-only)"
 	case ProviderAWSNitro:
@@ -247,6 +279,8 @@ func Capability(p Provider) (available bool, reason string) {
 		return gcpTDXCapability()
 	case ProviderAzureCGPU:
 		return azureCGPUCapability()
+	case ProviderAzureSEVSNP:
+		return azureSEVSNPCapability()
 	default:
 		return false, fmt.Sprintf("unknown provider %q", p)
 	}

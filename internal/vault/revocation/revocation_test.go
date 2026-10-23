@@ -1,10 +1,9 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package revocation
 
 import (
-	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
@@ -20,14 +20,15 @@ import (
 
 var measured = make([]byte, 48) // an SEV-SNP-sized measurement
 
-func operatorKey(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {
+func operatorKey(t *testing.T) (crypto.SuitePublicKey, *crypto.SigningKey) {
 	t.Helper()
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	priv, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	pub := priv.Public()
 	require.NoError(t, err)
 	return pub, priv
 }
 
-func signed(t *testing.T, priv ed25519.PrivateKey, l List) []byte {
+func signed(t *testing.T, priv *crypto.SigningKey, l List) []byte {
 	t.Helper()
 	if l.IssuedAt.IsZero() {
 		l.IssuedAt = time.Date(2026, 9, 14, 21, 0, 0, 0, time.UTC)
@@ -67,7 +68,7 @@ func TestParse_RefusesWhatTheOperatorDidNotSign(t *testing.T) {
 
 	for name, tc := range map[string]struct {
 		raw []byte
-		pub ed25519.PublicKey
+		pub crypto.SuitePublicKey
 		kid string
 	}{
 		"edited after signing":   {lifted, pub, "operator-1"},

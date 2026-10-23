@@ -1,0 +1,5 @@
+release: v0.4.1
+verified at: 2026-10-15T01:45:11Z
+cosign: v3.1.3
+slsa-verifier: 2.7.1
+  source for keygen, the worker package and the AMD chain: tag v0.4.1 (09bb0999cff2)

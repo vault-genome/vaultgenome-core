@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -11,7 +12,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/vault-genome/vaultgenome-core/internal/audit/store"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 )
 
@@ -32,10 +32,11 @@ func statusCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	var (
 		auditPath = fs.String("audit", "", "Path to the audit bbolt file (required)")
+		archive   = fs.String("archive-dir", "", "Directory of the log's closed segments, read before the live file (default: \"archive\" beside --audit; ADR 0027)")
 		jsonOut   = fs.Bool("json", false, "Emit machine-readable JSON output")
 	)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: acpctl status --audit PATH [--json]")
+		fmt.Fprintln(stderr, "usage: acpctl status --audit PATH [--archive-dir DIR] [--json]")
 		fmt.Fprintln(stderr)
 		fmt.Fprintln(stderr, "Print a read-only summary of the audit log: event count, time range,")
 		fmt.Fprintln(stderr, "kinds histogram, and the most recent event's metadata.")
@@ -49,14 +50,12 @@ func statusCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	s, err := store.Open(*auditPath)
+	log, err := openAuditLog(*auditPath, *archive)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl status: open audit store: %v\n", err)
 		return 1
 	}
-	defer func() { _ = s.Close() }()
-
-	events, err := s.Load()
+	events, err := log.load()
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl status: load events: %v\n", err)
 		return 1

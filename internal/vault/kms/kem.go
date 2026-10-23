@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package kms
@@ -63,6 +64,9 @@ func RecipientChallenge(recipientPub, nonce []byte) []byte {
 // key: exactly 32 bytes and not a low-order point (which would give every
 // encapsulation an all-zero shared secret).
 func ValidateRecipientPublicKey(pub []byte) error {
+	if crypto.FIPSOnly() {
+		return legacyX25519Refusal("ValidateRecipientPublicKey")
+	}
 	if len(pub) != RecipientKeySize {
 		return shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
 			"kms: recipient public key must be a 32-byte X25519 key", nil)
@@ -83,6 +87,14 @@ func ValidateRecipientPublicKey(pub []byte) error {
 }
 
 // X25519KeyWrapper encapsulates a DEK to a recipient X25519 public key.
+// legacyX25519Refusal names why the legacy ECIES wrapper is unavailable
+// under fips140=only: the module refuses X25519 (ADR 0030). A caller sees
+// the reason, not a panic from inside crypto/ecdh.
+func legacyX25519Refusal(op string) error {
+	return shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+		"kms: "+op+": x25519-kem-v1 is unavailable under fips140=only (the module refuses X25519); re-encapsulate under a suite of the fips or cnsa profile on a build without enforcement", nil)
+}
+
 type X25519KeyWrapper struct{}
 
 // NewX25519KeyWrapper returns a stateless wrapper.
@@ -91,6 +103,9 @@ func NewX25519KeyWrapper() *X25519KeyWrapper { return &X25519KeyWrapper{} }
 // Wrap encapsulates plaintext to recipientPub (a 32-byte X25519 public key).
 // aad is bound into the AES-GCM tag.
 func (X25519KeyWrapper) Wrap(plaintext, recipientPub, aad []byte) ([]byte, error) {
+	if crypto.FIPSOnly() {
+		return nil, legacyX25519Refusal("Wrap")
+	}
 	if len(plaintext) == 0 {
 		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing, "kms.Wrap: plaintext required", nil)
 	}
@@ -130,6 +145,9 @@ func NewX25519KeyUnwrapper() *X25519KeyUnwrapper { return &X25519KeyUnwrapper{} 
 // Unwrap recovers plaintext using recipientPriv (a 32-byte X25519 private key),
 // which exists only inside the destination TEE, for one handshake.
 func (X25519KeyUnwrapper) Unwrap(wrapped, recipientPriv, aad []byte) ([]byte, error) {
+	if crypto.FIPSOnly() {
+		return nil, legacyX25519Refusal("Unwrap")
+	}
 	if len(wrapped) < 32 {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "kms.Unwrap: wrapped material too short", nil)
 	}
@@ -166,20 +184,19 @@ func deriveKEMKey(shared, ephPub, recipientPub []byte) ([]byte, error) {
 	return k, nil
 }
 
+// aeadSeal is AES-256-GCM with the nonce generated inside the module
+// (ADR 0030); the output is nonce ‖ ciphertext ‖ tag, the shape the
+// legacy wrapper always wrote.
 func aeadSeal(key, plaintext, aad []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "kms: aes init failed", err)
 	}
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "kms: gcm init failed", err)
 	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := rand.Read(nonce); err != nil {
-		return nil, shared_errors.Operational(shared_errors.CodeResourceExhausted, "kms: nonce generation failed", err)
-	}
-	return append(nonce, gcm.Seal(nil, nonce, plaintext, aad)...), nil
+	return gcm.Seal(nil, nil, plaintext, aad), nil
 }
 
 func aeadOpen(key, blob, aad []byte) ([]byte, error) {
@@ -187,14 +204,14 @@ func aeadOpen(key, blob, aad []byte) ([]byte, error) {
 	if err != nil {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "kms: aes init failed", err)
 	}
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "kms: gcm init failed", err)
 	}
-	if len(blob) < gcm.NonceSize() {
+	if len(blob) < gcm.Overhead() {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "kms: ciphertext too short", nil)
 	}
-	plain, err := gcm.Open(nil, blob[:gcm.NonceSize()], blob[gcm.NonceSize():], aad)
+	plain, err := gcm.Open(nil, nil, blob, aad)
 	if err != nil {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "kms: tag verification failed (wrong key, AAD, or tampering)", err)
 	}

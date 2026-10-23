@@ -1,0 +1,8 @@
+== binaries from gs://rats-probe-vg-rd01-20261021t184052z/in
+== configfs-tsm
+== the bank's hand-off: the standby's TLS material and token, the base model, the sealed genome (opaque without its key), the authority's public key
+== acp-bootstrap on SEV-SNP: identity from this chip, published for the bank's allow-list
+== the worker runtime, for the gate on this chip (the door needs it)
+== the key arrives only after this chip attested to the bank: wait for the restore (the receipt signed with the chip)
+== the restored model gated on this chip against the sealed fixtures, through the real door (acpctl genome gate)
+== wait for the bank to finish (its refusals go through this guest too), then stop

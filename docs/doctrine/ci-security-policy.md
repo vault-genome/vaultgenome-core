@@ -12,14 +12,16 @@ renumber with care.
 ## 1. The gate
 
 Every push and pull request to `main` runs `.github/workflows/vault-gate.yml`,
-an 18-step gate; a merge is allowed only when all of it is green: format, vet,
+a 19-step gate; a merge is allowed only when all of it is green: format, vet,
 build, unit tests, race detector, integration tests, coverage (§8), lint
 (golangci-lint), terminology (§4), govulncheck (§5), osv-scanner (§5), gitleaks
-(§10), SBOM (§6), license headers (§7), doctrine tests, dependency allowlist
-(§3.1), dependency depth (§3.2), and reproducible build (§9). `make
-vault-gate` runs 14 of them locally; integration tests, the SBOM and the
-reproducible build have their own targets (`make test-integration`, `make
-sbom`, `make verify-reproducible`), and osv-scanner runs only in CI.
+(§10), SBOM (§6), license headers (§7), the Developer Certificate of Origin
+sign-off on every commit under review (`scripts/dco_check.sh`,
+CONTRIBUTING.md), doctrine tests, dependency allowlist (§3.1), dependency
+depth (§3.2), and reproducible build (§9). `make vault-gate` runs 15 of them
+locally; integration tests, the SBOM and the reproducible build have their
+own targets (`make test-integration`, `make sbom`, `make verify-reproducible`),
+and osv-scanner runs only in CI.
 
 ## 2. Toolchain
 
@@ -73,11 +75,17 @@ but deliberately not gated.
 Two scanners run on every gate:
 
 - **govulncheck** — call-graph aware. It fails only on advisories the code can
-  actually reach, across both module dependencies and the standard library. A
-  reachable stdlib advisory is fixed by the toolchain bump of §2.
-- **osv-scanner** — presence-based over the dependency manifest. It fails on a
+  actually reach, across both module dependencies and the standard library,
+  in the root module and in the one helper module with its own go.mod and
+  go.sum (the AWS Nitro kit's `vsock-attest`). A reachable stdlib advisory is
+  fixed by the toolchain bump of §2.
+- **osv-scanner** — presence-based over the same two dependency manifests. It fails on a
   known-vulnerable dependency version regardless of reachability, the stricter,
-  defence-in-depth complement to govulncheck.
+  defence-in-depth complement to govulncheck. One exception is allowed, and
+  only in the open: an advisory that no release of the dependency fixes, for
+  a package the module does not import (`go mod why`; govulncheck: required,
+  not called), may be ignored by id in `osv-scanner.toml` with the reason and
+  an expiry date — the expiry re-asks the question.
 
 A repository that ships defensive infrastructure does not ship a dependency or
 a toolchain with a known, fixed advisory it could have taken.
@@ -100,10 +108,12 @@ three pillars, so dropping one trips CI.
 
 ## 7. License headers
 
-Every source file carries an `SPDX-License-Identifier: AGPL-3.0-or-later`
-header, enforced by `scripts/license_header_check.sh`. A file without it fails
-the gate. This keeps the licence unambiguous at the granularity of a single
-file, however the code is later copied or vendored.
+Every source file (Go, Python, shell) carries, within its first ten lines,
+the copyright statement of `NOTICE` (`Copyright (C) 2026 Serhii Nikolaichuk,
+Rodion Sorokin`) and the `SPDX-License-Identifier: AGPL-3.0-or-later`
+header, enforced by `scripts/license_header_check.sh`. A file without either
+fails the gate. This keeps the holder and the licence unambiguous at the
+granularity of a single file, however the code is later copied or vendored.
 
 ## 8. Coverage thresholds
 
@@ -125,10 +135,14 @@ What is required. Each package reaches its class target:
 
 | Class | Target |
 |---|---|
-| `internal/contracts/...` (wire contracts) | 80% |
+| `internal/contracts/...` (wire contracts) | 90% |
 | `internal/validation/operational/...` | 90% |
-| `internal/vault/orchestration/...` | 85% |
-| every other product package | 70% |
+| `internal/vault/orchestration/...` | 90% |
+| every other product package | 80% |
+
+The targets were 80 / 90 / 85 / 70 until 2026-10-14, when the refusal tables
+written that day took the product from 83% to 95.5% and every package above
+the new values; the product total's floor rose from 83% to 90% the same day.
 
 Packages still below target are listed in `scripts/coverage_floors.txt` with the
 floor they may not drop below. The file is a ratchet: floors are only ever
@@ -136,6 +150,16 @@ raised, a package leaves it once it meets its target, and a new package cannot
 enter below target without a reviewed entry. The same file holds the floor for
 the product total. The gate prints the full table on every run, so progress on
 the listed packages is visible in each CI log.
+
+Branch coverage is measured as well, for the wire contracts
+(`internal/contracts/...`), by gobco in `.github/workflows/branch-coverage.yml`
+(`make branch-coverage`, `scripts/branch_coverage.sh`): every condition is
+instrumented and counted on both sides, and the report — branches covered
+over branches instrumented per package and in total, with the conditions
+never seen on one side — goes to the job summary and to an artifact. It is a
+reading, not a gate: no threshold is enforced yet, so that the number is
+visible first and can be ratcheted later the way the statement floors were.
+gobco is installed at a commit (v1.3.4), not a floating version.
 
 ## 9. Reproducible builds
 

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tee
@@ -67,6 +68,7 @@ func TestAllProviders_StableOrder(t *testing.T) {
 		ProviderIntelSGXDCAP,
 		ProviderGCPTDX,
 		ProviderAzureCGPU,
+		ProviderAzureSEVSNP,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("AllProviders length = %d, want %d", len(got), len(want))

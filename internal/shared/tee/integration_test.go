@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Package tee — end-to-end integration tests for all four real-hardware
@@ -358,7 +359,7 @@ func TestIntegration_GCPSEVSNP(t *testing.T) {
 		defer p.Close()
 		v, err := NewGCPSEVVerifier(nil, wantMeas, GCPSEVVerifierConfig{
 			AMDKDSURL:      "https://fake.kdsintf.amd.com",
-			MinReportedTCB: 99999, // far above fake's reportedTCB=100
+			MinReportedTCB: 0xDE1D000000000005, // one above the fake's Milan-at-the-floors TCB
 		})
 		require.NoError(t, err)
 		ev, err := p.Quote(bytes.Repeat([]byte{0x42}, NonceMinBytes))

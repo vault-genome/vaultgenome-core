@@ -10,7 +10,7 @@ PKG   := ./...
 
 # --- metadata -----------------------------------------------------------------
 
-BINARIES := sagvd acp-compute acpctl acp-bootstrap acp-demo
+BINARIES := sagvd acp-compute acpctl acp-bootstrap acp-keygen acp-demo
 VERSION  ?= 0.0.0-dev
 COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 
@@ -22,8 +22,25 @@ COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 #   -s -w                           strip symbol table + DWARF
 # `-trimpath` (a `go build` flag, not an ldflag) removes absolute paths
 # from the binary so the build is location-independent.
+#
+# DEBUG=1 keeps the symbol table and DWARF (no -s -w) for a debugger or a
+# profiler; everything else, -trimpath included, stays the same, so the
+# debug build is as reproducible as the stripped one, only larger.
+# Release binaries are always the stripped build.
+DEBUG ?= 0
+ifeq ($(DEBUG),1)
+LDFLAGS       := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -buildid=
+else
 LDFLAGS       := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -buildid= -s -w
+endif
 GOFLAGS_REPRO := -trimpath -ldflags '$(LDFLAGS)'
+
+# The FIPS build (ADR 0030): the same binaries on the certified Go
+# Cryptographic Module, named by its version — never `certified` or
+# `latest`, which move. GOFIPS140 selects the module snapshot at build
+# time and makes fips140=on the binary's default; `version` and
+# `identity` print it. `make build-fips` writes bin/<name>-fips.
+FIPS_MODULE := v1.0.0
 
 .PHONY: all
 all: fmt vet build test
@@ -33,6 +50,9 @@ all: fmt vet build test
 .PHONY: build
 build: $(BINARIES:%=bin/%)
 
+.PHONY: build-fips
+build-fips: $(BINARIES:%=bin/%-fips)
+
 # CGO_ENABLED=0: static binaries that run on any linux/amd64 without a
 # libc to match, and that anyone rebuilds byte for byte from any host with
 # the pinned Go (docs/operator/05_release_procedure.md §5). Nothing in the
@@ -41,19 +61,24 @@ bin/%: cmd/%
 	@mkdir -p bin
 	CGO_ENABLED=0 $(GO) build $(GOFLAGS_REPRO) -o $@ ./$<
 
-# verify-reproducible builds every binary twice with identical flags and
-# diffs the resulting bytes. Failure means a non-determinism source
+# The same, on the certified module (the shorter stem wins the pattern).
+bin/%-fips: cmd/%
+	@mkdir -p bin
+	CGO_ENABLED=0 GOFIPS140=$(FIPS_MODULE) $(GO) build $(GOFLAGS_REPRO) -o $@ ./$<
+
+# verify-reproducible builds every binary twice — the default build and
+# the FIPS build — with identical flags and diffs the resulting bytes. Failure means a non-determinism source
 # crept in (random build IDs, embedded timestamps, GOPATH leakage,
 # CGO non-determinism). CI runs this as sub-check 18 in vault-gate.yml.
 .PHONY: verify-reproducible
 verify-reproducible:
 	@$(MAKE) --no-print-directory clean-bin
-	@$(MAKE) --no-print-directory build
+	@$(MAKE) --no-print-directory build build-fips
 	@mkdir -p dist/repro
-	@for b in $(BINARIES); do cp bin/$$b dist/repro/$$b.first; done
+	@for b in $(BINARIES) $(BINARIES:%=%-fips); do cp bin/$$b dist/repro/$$b.first; done
 	@$(MAKE) --no-print-directory clean-bin
-	@$(MAKE) --no-print-directory build
-	@for b in $(BINARIES); do \
+	@$(MAKE) --no-print-directory build build-fips
+	@for b in $(BINARIES) $(BINARIES:%=%-fips); do \
 	  if cmp -s dist/repro/$$b.first bin/$$b; then \
 	    echo "  $$b: byte-identical across two builds"; \
 	  else \
@@ -97,6 +122,15 @@ test:
 .PHONY: test-race
 test-race:
 	$(GO) test -count=1 -race $(PKG)
+
+# The assessment of ADR 0030: the unit tests on the certified Go
+# Cryptographic Module (GOFIPS140=v1.0.0, CMVP #5247) with enforcement on
+# (fips140=only) — every non-approved algorithm fails instead of running.
+# Not a production mode; the record that the fips and cnsa profiles reach
+# only approved services.
+.PHONY: test-fips140-only
+test-fips140-only:
+	GOFIPS140=v1.0.0 GODEBUG=fips140=only $(GO) test -count=1 $(PKG)
 
 .PHONY: test-integration
 test-integration:
@@ -190,6 +224,7 @@ mutation-quick:
 vuln:
 	@command -v govulncheck >/dev/null || { echo "govulncheck not installed"; exit 1; }
 	govulncheck $(PKG)
+	cd scripts/hardware-test/aws-nitro/vsock-attest && GOOS=linux GOARCH=amd64 govulncheck ./...
 
 .PHONY: secrets
 secrets:
@@ -208,13 +243,52 @@ sbom:
 terminology:
 	bash scripts/terminology_check.sh
 
+# The formal models (ADR 0032): the models are what formal/gen.py writes, and ProVerif 2.05
+# gives the recorded verdicts. ProVerif 2.05 on PATH or in PROVERIF (built from
+# https://proverif.inria.fr/proverif2.05.tar.gz with ./build -nointeract); not part of
+# vault-gate, so that the gate needs no ProVerif on a developer's machine.
+PROVERIF ?= proverif
+.PHONY: formal-check formal
+formal-check:
+	cd formal && python3 gen.py && git diff --exit-code -- '*.pv'
+	python3 formal/check_results.py --proverif $(PROVERIF)
+
+formal:
+	python3 formal/check_results.py --proverif $(PROVERIF) --out formal/results/proverif-$$(date -u +%Y%m%dT%H%M%SZ).txt
+
+# The differential test (ADR 0034): the product's SEV-SNP verifier against Google's
+# go-sev-guest (tools/oracle, a module of its own) and VirTEE's snpguest (VG_SNPGUEST,
+# Linux x86-64) on every genuine report in test/corpus/sev-snp. Not part of vault-gate.
+.PHONY: differential
+differential:
+	$(GO) test -tags differential ./internal/shared/tee/ -run TestDifferential -count=1 -v
+	$(GO) test -tags differential ./internal/audit/chain/ -run TestDifferential_Auditor -count=1 -v
+
+.PHONY: cli-reference
+cli-reference:
+	bash scripts/gen_cli_reference.sh
+
 .PHONY: license-headers
 license-headers:
 	bash scripts/license_header_check.sh
 
+# dco checks the commits under review (origin/main..HEAD by default) for the
+# Developer Certificate of Origin sign-off (CONTRIBUTING.md); CI passes the
+# pull request's or push's own range.
+.PHONY: dco
+dco:
+	bash scripts/dco_check.sh $(DCO_RANGE)
+
 .PHONY: coverage-thresholds
 coverage-thresholds: coverage
 	bash scripts/coverage_check.sh
+
+# branch-coverage measures branch coverage of the wire contracts with gobco
+# (pinned in .github/workflows/branch-coverage.yml) and writes the report to
+# dist/branch-coverage/; docs/doctrine/ci-security-policy.md §8. No threshold.
+.PHONY: branch-coverage
+branch-coverage:
+	bash scripts/branch_coverage.sh
 
 .PHONY: dep-allowlist
 dep-allowlist:
@@ -263,12 +337,12 @@ DEMO_READY_TIMEOUT  ?= 30
 .PHONY: demo-certs
 demo-certs:
 	@echo "==> generating demo secrets under $(DEMO_SECRETS_DIR)"
-	@cd $(DEMO_DIR)/keygen && $(GO) run . -out $(DEMO_SECRETS_DIR)
+	@$(GO) run ./cmd/acp-keygen -out $(DEMO_SECRETS_DIR)
 
 .PHONY: demo-certs-force
 demo-certs-force:
 	@echo "==> regenerating demo secrets (force) under $(DEMO_SECRETS_DIR)"
-	@cd $(DEMO_DIR)/keygen && $(GO) run . -out $(DEMO_SECRETS_DIR) -force
+	@$(GO) run ./cmd/acp-keygen -out $(DEMO_SECRETS_DIR) -force
 
 # demo-genome fine-tunes a tiny model with the real vg_genome worker and
 # seals its genome into deploy/compose/genomes (with the base model under
@@ -330,7 +404,7 @@ demo-logs:
 # --- aggregate gates ----------------------------------------------------------
 
 .PHONY: vault-gate
-vault-gate: fmt-check vet build test test-race test-doctrine lint terminology license-headers vuln secrets coverage-thresholds dep-allowlist dep-depth
+vault-gate: fmt-check vet build test test-race test-fips140-only test-doctrine lint terminology license-headers dco vuln secrets coverage-thresholds dep-allowlist dep-depth
 	@echo "vault-gate: PASS"
 
 # --- housekeeping -------------------------------------------------------------

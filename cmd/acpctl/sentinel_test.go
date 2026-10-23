@@ -1,12 +1,13 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
 
 import (
 	"bytes"
-	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,7 +44,7 @@ func sentinelKeys(t *testing.T, dir string) (seed, pub, escrowPEM string) {
 	require.NotEqual(t, 0, code, "a sentinel key is never overwritten")
 	require.Contains(t, stderr, "exists")
 
-	esc, err := escrow.GenerateKey()
+	esc, err := escrow.GenerateKey(kms.PolicyForThisProcess().Writes())
 	require.NoError(t, err)
 	pemBytes, err := escrow.PublicPEM(esc.PublicKey())
 	require.NoError(t, err)
@@ -92,9 +93,9 @@ func TestSentinel_WatchSealsThenReportsCompromise(t *testing.T) {
 	require.Equal(t, canary, res.Compromise.Tripped[0].Target)
 	require.Contains(t, stderr, "genome sealed")
 
-	pk, err := readEd25519PublicKey(pub)
+	pk, err := readSigningPublicKey(pub)
 	require.NoError(t, err)
-	chain, rejected, err := sentinel.ReadChain(outbox, ed25519.PublicKey(pk))
+	chain, rejected, err := sentinel.ReadChain(outbox, pk)
 	require.NoError(t, err)
 	require.Empty(t, rejected)
 	require.Len(t, chain, 1)
@@ -206,9 +207,9 @@ func TestSentinel_IdentityAndAttestedWatch(t *testing.T) {
 	require.Equal(t, id.MeasurementHex, res.MeasurementHex)
 	require.Contains(t, stderr, "attests every record")
 
-	pk, err := readEd25519PublicKey(pub)
+	pk, err := readSigningPublicKey(pub)
 	require.NoError(t, err)
-	chain, _, err := sentinel.ReadChain(outbox, ed25519.PublicKey(pk))
+	chain, _, err := sentinel.ReadChain(outbox, pk)
 	require.NoError(t, err)
 	require.Len(t, chain, 1)
 	attestor, err := readEd25519PublicKey(attestorPub)
@@ -219,11 +220,11 @@ func TestSentinel_IdentityAndAttestedWatch(t *testing.T) {
 	m, err := chain[0].Attested(verifier)
 	require.NoError(t, err)
 	require.Equal(t, id.MeasurementHex, hex.EncodeToString(m))
-	c, _, err := sentinel.ReadCompromise(outbox, ed25519.PublicKey(pk))
+	c, _, err := sentinel.ReadCompromise(outbox, pk)
 	require.NoError(t, err)
 	_, err = c.Attested(verifier)
 	require.NoError(t, err)
-	h, _, err := sentinel.ReadHeartbeat(outbox, ed25519.PublicKey(pk))
+	h, _, err := sentinel.ReadHeartbeat(outbox, pk)
 	require.NoError(t, err)
 	_, err = h.Attested(verifier)
 	require.NoError(t, err)
@@ -305,7 +306,9 @@ func TestFailover_IssueVerify(t *testing.T) {
 	require.Contains(t, stderr, "signature")
 
 	// Refused before signing: plain http, no trigger, a gate level that is
-	// not one, missing flags, a bad key.
+	// not one, missing flags, a bad key, a file that is no key at all.
+	junk := filepath.Join(dir, "junk.pub")
+	require.NoError(t, os.WriteFile(junk, []byte("not a key"), 0o644))
 	for name, tc := range map[string]struct {
 		args []string
 		code int
@@ -315,8 +318,8 @@ func TestFailover_IssueVerify(t *testing.T) {
 		"no trigger":  {append(replace(issue, "90s", "0s"), "--no-compromise-trigger"), 1, "no trigger"},
 		"bad gate":    {append(append([]string{}, issue...), "--require-gate", "CLOSE"), 1, "require_gate"},
 		"missing":     {[]string{"issue", "--key", opSeed}, 2, "are required"},
-		"bad key":     {replace(issue, opSeed, spub), 1, "seed file"},
-		"bad pub":     {replace(issue, spub, filepath.Join(dir, "escrow.pem")), 1, "--sentinel-pub"},
+		"bad key":     {replace(issue, opSeed, spub), 1, "--key"},
+		"bad pub":     {replace(issue, spub, junk), 1, "--sentinel-pub"},
 		"unknown sub": {[]string{"pause"}, 2, "unknown subcommand"},
 		"bare":        {nil, 2, "usage"},
 		"verify args": {[]string{"verify"}, 2, "are required"},

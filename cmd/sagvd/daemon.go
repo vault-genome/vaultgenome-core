@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -58,11 +59,15 @@ import (
 //	d.Shutdown()    // flips health flags, closes listener
 //	d.Zeroize()     // wipes the in-memory keystore (terminal)
 //
-// Concurrency model: single-worker at the dispatcher. The accept
-// goroutine hands each accepted net.Conn into the dispatcher, which
-// runs one session to completion before accepting the next. Multiple
-// workers may *connect* concurrently — only one gets the current job;
-// the others wait.
+// Concurrency model: runtime.max_sessions sessions at once (one by
+// default). The accept goroutine hands each accepted net.Conn to its
+// own goroutine, which takes a session slot — waiting up to the
+// handshake timeout for one, else closing the connection as busy — and
+// runs the session to completion. The queue hands each job to exactly
+// one session, the audit chain appends under its own lock, the flow of
+// each job is its own object: sessions do not see each other's jobs.
+// Shutdown waits for the sessions in flight, which end because the
+// daemon's context closes their connections.
 type Daemon struct {
 	cfg       Config
 	mat       *materials
@@ -81,6 +86,11 @@ type Daemon struct {
 	// listenerMu because Addr may be read while Run binds.
 	listenerMu sync.Mutex
 	listener   net.Listener
+	// slots bounds the sessions served at once (runtime.max_sessions);
+	// sessions counts the goroutines serving them, for Shutdown to wait.
+	slots    chan struct{}
+	sessions sync.WaitGroup
+	active   atomic.Int64
 }
 
 // daemonMetrics bundles the sagvd_* counters / gauges owned by the
@@ -93,6 +103,9 @@ type daemonMetrics struct {
 	gateVerdicts     *metrics.Counter // labels: level={EXACT|EQUIVALENT|FAIL|ERROR}
 	releases         *metrics.Counter // labels: decision={release|refuse|trust_denied}
 	sessionsOpened   *metrics.Counter // unlabeled
+	sessionsActive   *metrics.Gauge   // sessions holding a slot now
+	sessionsLimit    *metrics.Gauge   // runtime.max_sessions as configured
+	sessionsRefused  *metrics.Counter // labels: reason={busy}
 	handshakeFailure *metrics.Counter // labels: phase
 	queueDepth       *metrics.Gauge   // set on every dispatcher tick
 	lastSuccessUnix  *metrics.Gauge
@@ -214,8 +227,11 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.listenerMu.Lock()
 	d.listener = ln
 	d.listenerMu.Unlock()
+	limit := d.cfg.Runtime.SessionSlots()
+	d.slots = make(chan struct{}, limit)
+	d.metrics.sessionsLimit.Set(float64(limit))
 	d.log.Info("sagvd return-path listener bound", "address", ln.Addr().String(),
-		"tls_enabled", d.cfg.Vault.TLS.Enabled)
+		"tls_enabled", d.cfg.Vault.TLS.Enabled, "max_sessions", limit)
 	d.health.MarkReady()
 
 	// Close the listener when ctx fires so a blocked Accept returns.
@@ -224,6 +240,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		_ = ln.Close()
 	}()
 
+	defer d.sessions.Wait()
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -239,8 +256,48 @@ func (d *Daemon) Run(ctx context.Context) error {
 			}
 			continue
 		}
-		d.serveOne(ctx, conn)
+		d.sessions.Add(1)
+		go func() {
+			defer d.sessions.Done()
+			d.serveInSlot(ctx, conn)
+		}()
 	}
+}
+
+// serveInSlot takes a session slot for conn and serves it. Every slot
+// taken: the connection waits up to the handshake timeout for one, then
+// is closed as busy before any handshake — the worker's dial fails and
+// it dials again after its backoff; counted, logged, not a trust
+// decision (no Evidence was read).
+func (d *Daemon) serveInSlot(ctx context.Context, conn net.Conn) {
+	wait := time.NewTimer(d.cfg.Runtime.HandshakeTimeout())
+	defer wait.Stop()
+	select {
+	case d.slots <- struct{}{}:
+	case <-wait.C:
+		// Counted and logged before the close, so the record precedes
+		// what the peer sees.
+		d.metrics.sessionsRefused.Inc(metrics.Label{Name: "reason", Value: "busy"})
+		d.log.Warn("sagvd connection refused: every session slot taken",
+			"remote_addr", conn.RemoteAddr().String(), "max_sessions", cap(d.slots),
+			"waited", d.cfg.Runtime.HandshakeTimeout())
+		_ = conn.Close()
+		return
+	case <-ctx.Done():
+		_ = conn.Close()
+		return
+	}
+	// The gauge is kept by its own atomic Add, not Set from the counter:
+	// two sessions' Add-then-Set could apply the Sets out of order and
+	// leave the gauge one below the truth (seen under the race detector).
+	d.active.Add(1)
+	d.metrics.sessionsActive.Add(1)
+	defer func() {
+		d.active.Add(-1)
+		d.metrics.sessionsActive.Add(-1)
+		<-d.slots
+	}()
+	d.serveOne(ctx, conn)
 }
 
 // Shutdown flips health flags so orchestrator probes start failing
@@ -307,6 +364,7 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		conn = tlsConn
 	}
 	remote := conn.RemoteAddr().String()
+	handshakeStart := d.clock.Now()
 
 	// tamper is set when the wire signals tamper during the session; it
 	// is what op.tamper_absent checks at validation.
@@ -319,6 +377,8 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 		Conn:              conn,
 		Producer:          d.mat.Producer,
 		Verifier:          d.mat.Verifier,
+		LocalProvider:     d.mat.Provider,
+		PeerProvider:      d.mat.PeerProvider,
 		Clock:             d.clock,
 		WorkerKeyResolver: d.mat.WorkerResolver,
 		HandshakeTimeout:  d.cfg.Runtime.HandshakeTimeout(),
@@ -327,6 +387,9 @@ func (d *Daemon) serveOne(parent context.Context, raw net.Conn) {
 			d.log.Info("sagvd session opened", append([]any{
 				"remote_addr", remote,
 				"peer_measurement", hex.EncodeToString(state.PeerMeasurement[:]),
+				"peer_evidence_type", logSafe(state.PeerEvidenceType),
+				"peer_evidence_bytes", state.PeerEvidenceBytes,
+				"handshake_ms", state.ReadyAt.Sub(handshakeStart).Milliseconds(),
 				"ready_at", state.ReadyAt.Format(time.RFC3339Nano),
 			}, peerDetailLogFields(state.PeerDetail)...)...)
 		},
@@ -746,6 +809,18 @@ func registerDaemonMetrics(r *metrics.Registry, clock shared_time.Clock) *daemon
 		sessionsOpened: r.NewCounter(
 			"sagvd_sessions_opened_total",
 			"Total Return Path sessions that completed the 4-frame handshake.",
+		),
+		sessionsActive: r.NewGauge(
+			"sagvd_sessions_active",
+			"Return Path sessions being served now (each holds one of runtime.max_sessions slots).",
+		),
+		sessionsLimit: r.NewGauge(
+			"sagvd_sessions_limit",
+			"runtime.max_sessions: how many Return Path sessions the authority serves at once.",
+		),
+		sessionsRefused: r.NewCounter(
+			"sagvd_sessions_refused_total",
+			"Connections closed before any handshake, labelled by reason (busy: every session slot taken for handshake_timeout_seconds).",
 		),
 		handshakeFailure: r.NewCounter(
 			"sagvd_handshake_failures_total",

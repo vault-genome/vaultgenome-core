@@ -1,0 +1,21 @@
+== 13:10:28 inputs
+== 13:10:29 the Trust Domain: configfs-tsm (tdx_guest)
+== 13:10:29 the vTPM (tpm2-tools): acp-bootstrap seals its TLS key and token to it (ADR 0022, 0023)
+== 13:10:44 python runtime (CPU) and the base model the genome names — the gate runs the model here
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:01,  7.22it/s]Fetching 10 files:  50%|█████     | 5/10 [00:00<00:00, 22.85it/s]Fetching 10 files:  90%|█████████ | 9/10 [00:00<00:00, 28.03it/s]Fetching 10 files: 100%|██████████| 10/10 [00:11<00:00,  1.10s/it]
+== 13:11:51 the authority's TLS material, token and public key (through the private bucket)
+== 13:11:52 acp-bootstrap as gcp-tdx: the destination of a key release, the door on this VM's CPUs
+== 13:11:55 publish this destination's identity: endpoint on the VPC, TDX measurement
+{'endpoint': 'https://10.128.15.231:8443', 'measurement_hex': 'dbf0b24ede887fed10119414d042a7bbe4ee182fb125c925600da036c251eda381b71a1f177858d9ab3ffb386d0261d7', 'tee_provider': 'gcp-tdx', 'tdx': {'mrtd_hex': 'c1ee9c16e3afc506cfe042c5b846a368528f3b37618eafb27469bc114cf914e9222c91618470e7f2b28ac360968270a5', 'rtmr_hex': ['d0105f1a1d0e9716e296a326e6234592d3c5c898c806e0268663e4e45748d45326e7a0eed755b1ac1663b54020ee15c8', '500452a4a6031b3bd6eb006bb124ad0c3d713da72c1a8be43ac652e10c6d9f28d959e3ddcd59631033441160bcea2905', '66078c505f9a35774eb39403e4edaab70e863b1013faccc9240fa3dd10750eb8193cc2daab31d1cfc4e11cf5743a3532', '000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000']}}
+== 13:11:56 pull the primary's outbox replica until the authority is done

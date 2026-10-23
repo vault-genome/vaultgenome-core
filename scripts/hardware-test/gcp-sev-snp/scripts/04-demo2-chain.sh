@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # 04-demo2-chain.sh — Demo 2 chain operations on real SEV-SNP hardware.
@@ -56,7 +57,7 @@ LATEST=$(ls -1 generations/gen-*.genome | tail -1)
 
 echo
 echo "=== rewind to a middle generation ==="
-MID_BUNDLE=$(ls -1 generations/gen-*.genome | awk 'NR==int(NR/2)+1')
+MID_BUNDLE=$(ls -1 generations/gen-*.genome | awk '{line[NR]=$0} END{print line[int(NR/2)+1]}')
 "$ACPCTL" genome rewind \
   --bundle="$MID_BUNDLE" \
   --key-file="keys/$(basename "$MID_BUNDLE" .genome).key" \

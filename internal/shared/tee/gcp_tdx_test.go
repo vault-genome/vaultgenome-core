@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tee
@@ -377,14 +378,14 @@ type fakeTDXTSM struct {
 	calls  int
 }
 
-func (f *fakeTDXTSM) report(reportData [64]byte, _ uint32) ([]byte, error) {
+func (f *fakeTDXTSM) report(reportData [64]byte, _ uint32) ([]byte, []byte, error) {
 	f.calls++
 	for _, q := range f.quotes {
 		if bytes.Equal(q[48+520:48+584], reportData[:]) {
-			return q, nil
+			return q, nil, nil // tdx_guest shows no auxblob
 		}
 	}
-	return nil, errors.New("fake TDX guest: no captured quote answers this REPORTDATA")
+	return nil, nil, errors.New("fake TDX guest: no captured quote answers this REPORTDATA")
 }
 
 // The producer reads its measurement from a first quote and answers a

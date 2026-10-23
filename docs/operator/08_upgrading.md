@@ -1,0 +1,90 @@
+# Upgrading
+
+Which releases are supported, what changed between them that an operator
+has to act on, and how to move a deployment from one to the next. The
+per-release facts come from [`CHANGELOG.md`](../../CHANGELOG.md), whose
+"Compatibility" paragraphs are the authority; this page is the operator's
+index of them.
+
+## What is supported
+
+While the major version is 0, the latest release is the supported one:
+fixes land on `main` and ship in the next release, nothing is backported
+to an older minor. An operator on an older release upgrades along this
+page; the formats below make that a binary swap so far, not a migration.
+
+## The compatibility ledger
+
+| Release | Bundle format | Audit schema | Policy schema | What an operator must know |
+| - | - | - | - | - |
+| 0.1.0 (2026-09-14) | genome v3 | v6 | v1 | first release; `release_decision` schema v1 |
+| 0.2.0 (2026-09-17) | v3, unchanged | v6, unchanged; two new optional payload fields (`peer_detail`, `destination_detail`) | unchanged | `release_decision` is schema v2, a v1 decision is a valid v2 decision. New config fields are optional (`tee.sev_guest_device`, `tee.vtpm_seal_pcrs`, `gpu_policy.revocation`, `gpu_policy.ocsp_url`, `runtime.max_payload_bytes`); `gpu_policy.evaluation: "own"` is admitted. Key files may be sealed (`vault-genome/sealed-secret/v1`), bare files still load. **Return Path frame cap 16 MiB → 128 MiB: both ends of a Return Path must run 0.2.0 or later for a genome over 16 MiB.** Go directive 1.26. |
+| 0.2.1 (2026-09-17) | unchanged | unchanged | unchanged | fixes only |
+| 0.3.0 (2026-09-17) | unchanged | unchanged | unchanged | the code of 0.2.1 under the module path `github.com/vault-genome/vaultgenome-core`: `go install` paths change, nothing else. The 0.3.0 tag has no release assets (the pipeline failed on it; the tag stays, 0.3.1 explains) |
+| 0.3.1, 0.3.2 (2026-09-17) | unchanged | unchanged | unchanged | release pipeline fixes; signatures on cosign 2.x (`KNOWN_ISSUES.md` #15) |
+| 0.4.0 (2026-10-14) | unchanged | unchanged | unchanged | Go 1.27.2; the worker's Python runtime is torch 2.14.1 / transformers 5.19.0, installed by hash from two locks; the integer door reads a config's rotary base with no default. A deployment that raises the worker runtime re-measures its fidelity record before it relies on EXACT (`KNOWN_ISSUES.md` #14) |
+| 0.4.1 (2026-10-15) | unchanged | unchanged | unchanged | hardening and evidence; no operator action |
+| 0.4.2 (2026-10-15) | unchanged | unchanged | unchanged | **The AMD roots are pinned in the binary (ADR 0024):** `amd_cert_chain_path` must end in ARK-Milan, ARK-Genoa or ARK-Turin, or `sagvd` and `acp-compute` refuse to start — a chain taken from AMD KDS or Azure THIM is unaffected; `acpctl tee fetch-amd-chain` writes one. A release has 36 assets: five binaries (`acp-keygen` is new; the former `deploy/compose/keygen` module is gone, `make demo-certs` runs the binary) and the worker package `genome-worker-<tag>.tar.gz`, each signed, with an SBOM and in the provenance; verification commands cover six artifacts (README, `05_release_procedure.md` §5) |
+| 0.4.3 (2026-10-16) | unchanged | unchanged | unchanged | **New configuration keys, all optional:** `queue.path` (ADR 0026: the job store on disk — a job in flight survives a restart and, in the replica, a lost host; without it the queue is in memory as before), `tee.provider: "auto"` (ADR 0025: the family from the kernel's configfs-tsm), `tee.sealer` (`auto`, the default, is what earlier releases did — the chip's derived key on SEV-SNP, the vTPM on TDX and Azure; `tee` and `tpm2` are new choices; every sealed file now names its sealer, and a file from before opens as it did). **A release has 48 signed assets and the provenance:** a Sigstore bundle (`<asset>.sigstore.json`, the new bundle format) beside each `.sig` + `.cert`; where there is no route, verify with `cosign verify-blob --new-bundle-format --bundle … --trusted-root trusted_root.json` (`09_first_deployment.md`, `runbooks/air_gap.md`), not `--offline`. New `acpctl tee prefetch` and `cache-status` for a host that will lose its route (`runbooks/air_gap.md`); the authority-loss drill's numbers are in the DR runbook's scenario 4. |
+| 0.5.0 (2026-10-16) | unchanged | unchanged | unchanged | **The Return Path wire is 1.1 (ADR 0025, step 2a): both daemons move together** — a 1.0 peer is refused at the first frame, naming both versions; the evidence fields carry a RATS record with the family's media type. **New configuration keys, all optional:** `runtime.max_sessions` (sessions in parallel; 1 as before), `tee.peer.verifier` (`mode: rats` delegates the appraisal to a Verifier; `builtin` as before), `tee.provider` / `tee.peer.provider` `azure-sev-snp` (an Azure SEV-SNP Confidential VM without a GPU; the vTPM is its sealer). `acpctl provision` stands up a deployment. Files sealed by 0.4.x open as before; the audit chain reopens on the same store and keeps only its tip in memory; the authority's memory no longer grows with the jobs served (KNOWN_ISSUES #18), the two bbolt files on disk do (48–52 KB a job, nothing rotates them yet). |
+| 0.6.0 (2026-10-17) | unchanged | **v7** — one kind added (`AUDIT_SEGMENT_CLOSED`, ADR 0027), no field changed: the first change of the audit schema since 0.1.0; a chain from any earlier release verifies under 0.6.0, and a chain 0.6.0 wrote verifies under an earlier `acpctl` (hashes and signatures do not depend on the kind, which it reports as a name it does not know) | unchanged | **New configuration keys, all optional and off:** `audit.segment_events`, `audit.segment_max_age_seconds`, `audit.archive_dir` (ADR 0027: the live audit file closes into archived segments, which the daemon never deletes; `acpctl audit verify --archive-dir`, `--from-tip`; `query`, `status` and `lineage` read the archives), `queue.retain_finished_seconds` (finished jobs expire from the job store; the store is indexed once, when 0.6.0 first opens it). `acpctl provision` writes them (100 000 events or a day; thirty days); `acpctl provision authority\|join\|pin-worker` stands a deployment up across two hosts (ADR 0028). `acpctl` opens audit logs read-only, and a mistyped `--audit` path is refused rather than created. Files sealed by 0.5.0 open as before; the Return Path wire stays 1.1. |
+| 0.7.0 (2026-10-21) | unchanged | unchanged (v7; the `KEY_RELEASE_AUTHORIZED` payload gains `crypto_profile` and its `delivery_mode` is the suite id) | unchanged | **Both daemons move together (ADR 0029):** the cross-cloud wire is schema 2 — `kem_suites` in the handshake request, `recipient_key_suite` in the answer, `suite` beside each wrapped key in the token — and a request or an answer that names no suite is refused; a 0.6.x authority and a 0.7.0 destination, or the reverse, release nothing. The escrow documents are v2 and name their suite; the v1 envelopes, sealed keys and recovery envelopes of earlier releases still open with the same X25519 key, and raw 32-byte key files still read. New configuration section `crypto` on both daemons (`profile`: `general` by default — X25519 written, every suite accepted; `fips`; `cnsa`; `kem_suites` narrows); `acpctl escrow keygen`/`recovery-keygen` take `--suite` and write PEM private keys; `acpctl escrow recover` prints a PEM; `sagvd identity`, `acp-bootstrap identity` and `sagvd crosscloud-restore` report the profile and the suite. Under `general` a deployment behaves as before, with the suite on its records |
+| 0.6.1 (2026-10-21) | unchanged | unchanged | unchanged | Go 1.27.3 (GO-2026-6809); the release carries two container images signed by digest — `deploy/compose/README.md` says how to run them and what a container needs to reach the chip (root, the whole configfs, `apparmor=unconfined`, the two devices); the RATS Verifier client speaks TLS 1.3 only, a Verifier capped at 1.2 gets `verifier_unavailable`; the `verify` role of `vg_tee_attestation_*` is labelled with the peer's family (a dashboard that read the daemon's own family there changes); `tee.provider: auto` works on an Azure confidential VM |
+| 0.8.0 (2026-10-21) | **v4** — the module-generated 12-byte nonce stored before each segment, the segment's index and last flag in the additional data; v3 bundles still open everywhere; every writer writes v4 | unchanged (the suite ids in `KEY_RELEASE_AUTHORIZED` are the v2 ones) | unchanged | **Both daemons move together (ADR 0030, 3f):** the KEM suites are v2 — HPKE export-only, the module's AES-256-GCM — and the profiles list v2 only, so a 0.7.0 authority and a 0.8 destination, or the reverse, meet on no suite and release nothing; the recipient keys are the same, 0.7.0's escrow documents and sealed key files open by the suite they record, v1 is read-only. **Readers before writers:** a reader of 0.7.0 or earlier cannot open a v4 bundle, so a deployment upgrades `acpctl`, `sagvd`, the sentinel and `acp-bootstrap` before anything seals a new genome; a v3 bundle sealed earlier opens on every release. AES-GCM everywhere is constructed with the module's own nonce generation and HKDF is the module's — every sealed file, token, session, escrow document and continuity proof is byte-identical, no re-seal needed. `identity` and `version` report `fips140` (enabled, enforced, the module version, the build setting). Under `fips140=only` (the assessment mode, not a production setting) the `general` profile is refused at startup and `x25519-kem-v1` names its refusal. **The release carries `-fips` variants** of the five binaries and the two images (`sagvd-fips`, `acp-compute-fips`), built on the certified Go Cryptographic Module **v1.0.0** (CMVP #5247) from the same commit by the same reproducible build; they run the module in its approved mode, `version` and `identity` print `fips140=on module=v1.0.0`, and the module version is named here and in the release notes, never an alias (ADR 0030, part three) |
+| 0.9.0 (2026-10-22) | unchanged (v4) | **v8** — the optional `alg` field on every event, the suite it was signed under, absent for `ed25519` (ADR 0031); a v7 reader refuses a v8 event, a v8 reader verifies every earlier event as it did; `acpctl audit verify` reports `signature_suite` | unchanged | **Readers before writers (ADR 0031):** every signed record — audit events, verdicts, tokens, manifests, tree heads, the operator's stop list, the failover policy, the sentinel's records, the worker's frames (`worker_signature_alg`) — names its suite; a deployment that stays on `ed25519` writes the bytes it wrote before and every record ever written verifies as it did; a record signed under `ecdsa-p384-sha384` or `ml-dsa-87` is refused by a reader of an earlier release, so upgrade every `acpctl`, every destination and every standby before the authority moves to another suite. **A `cnsa` deployment re-keys and moves both daemons together:** `cnsa` signs with ECDSA P-384 and accepts ECDSA P-384 and ML-DSA-87, nothing under `ed25519` — the Ed25519 keys a 0.7.0 or 0.8.0 `cnsa` deployment holds stop the 0.9.0 authority at validation with the reason, and its registry refuses a worker pinned under `ed25519`; make the keys with `acp-keygen -signature-suite ecdsa-p384-sha384`, name the suite in `keys.<name>.suite` (`ed25519` when absent, never guessed from the file), and re-pin what is pinned by key: the worker registry (`suite` beside each key), the operator's stop key, the sentinel key a failover policy names (`sentinel_alg`), the source authority key `acp-bootstrap` pins. Under `general` and `fips` nothing changes unless `crypto.signature_suite` picks another suite the profile accepts; `identity` prints `signature_suite` and `signature_suites`. ML-DSA-87 is the standard library's and unavailable on the `-fips` build (the module v1.0.0 carries no ML-DSA): a key of that suite is refused there with the module's reason. The Return Path handshake names a peer's disconnect (`peer_disconnected`), a passed deadline (`deadline_exceeded`) and any other connection failure (`transport_failure`) on the record instead of a raw socket error. The confidential-GPU path is under the module claim on the same terms as SEV-SNP (ADR 0030, part four; C44) |
+
+No release has changed the bundle format or the policy schema: a genome
+sealed by 0.1.0 is a valid 0.8.0 genome, a policy file from 0.1.0 loads.
+The audit schema changed once, in 0.6.0, by one kind added: an audit
+chain written by 0.1.0 verifies under 0.6.0, and the chain's hashes and
+signatures do not depend on the kinds, so a 0.6.0 chain verifies under an
+earlier `acpctl` as well. Where the two sides of a wire must agree, the
+ledger says so (the Return Path cap in 0.2.0, the wire 1.1 in 0.5.0).
+
+0.9.0 changes the audit schema to v8 for the signature suite
+(ADR 0031): every signed record — audit events, verdicts, tokens,
+manifests, tree heads, the operator's lists and policies, the sentinel's
+records — carries `alg`, the suite it was signed under, absent for
+`ed25519`. A deployment that stays on `ed25519` writes the bytes it
+wrote before, and every record ever written verifies as it did; a
+record signed under `ecdsa-p384-sha384` or `ml-dsa-87` is refused by a
+reader of an earlier release, so readers go first: upgrade every
+`acpctl`, every destination and every standby before the authority
+moves to another suite, and move both daemons of a `cnsa` deployment
+together — `cnsa` signs with ECDSA P-384 and accepts nothing under
+`ed25519`. The suite a daemon signs with is the profile's unless
+`crypto.signature_suite` picks another the profile accepts; its keys
+(`keys.<name>.suite`) must be of that suite, or the daemon does not
+start.
+
+## How to upgrade a deployment
+
+1. **Read the release's Compatibility paragraph** in `CHANGELOG.md` and
+   the ledger row above; note any wire requirement that binds the two ends.
+2. **Verify the release** before it runs anywhere: the signatures, SBOMs,
+   provenance and tag, as in the README's "Verify a release"
+   ([`05_release_procedure.md`](05_release_procedure.md) §5).
+3. **Upgrade the deployment in one window**: `sagvd`, `acp-compute`,
+   `acp-bootstrap` and `acpctl` are released together and tested
+   together; the Return Path is the one wire contract between the
+   authority and its workers, and its compatibility across releases is
+   stated in the ledger, not assumed. Stop accepting jobs, let the queue
+   drain, replace the binaries (or the images), start the authority, then
+   the workers.
+4. **Run the preflight** ([`01_preflight.md`](01_preflight.md)) against
+   the upgraded deployment before relying on it.
+5. **Confirm the record continues**: the audit chain verifies across the
+   upgrade boundary ([`04_observability.md`](04_observability.md)), and a
+   genome sealed before the upgrade opens after it.
+
+Going back is the same procedure with the previous release's verified
+binaries; the formats being unchanged, nothing written by the newer
+release is unreadable by the older one except where the ledger says
+otherwise.
+
+## When a format changes
+
+A release that changes the bundle format, the audit schema or the policy
+schema will say so in its Compatibility paragraph with the migration
+steps, and this page's ledger will carry the row. Until then, this
+section is empty on purpose.

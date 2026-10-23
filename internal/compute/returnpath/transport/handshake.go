@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package transport
@@ -5,7 +6,10 @@ package transport
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"io"
+	"net"
+	"syscall"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
@@ -69,6 +73,14 @@ type HandshakeConfig struct {
 	// handshake-authority hole.
 	Verifier tee.Verifier
 
+	// LocalProvider is the family of Producer's Evidence — what the CMW
+	// record on the wire says it is (RFC 9999; tee.EvidenceMediaType).
+	// Required.
+	LocalProvider tee.Provider
+	// PeerProvider is the family Verifier reads: a record of any other
+	// type is refused before the verifier sees a byte. Required.
+	PeerProvider tee.Provider
+
 	// NonceReader is the entropy source for this side's nonce. Default
 	// is crypto/rand.Reader; tests may substitute a deterministic
 	// reader for reproducibility.
@@ -106,12 +118,19 @@ type SessionState struct {
 	// platform, the GPUs), for the audit record; nil for a verifier
 	// with nothing more to say.
 	PeerDetail *tee.AttestationDetail
-	ReadyAt    time.Time
+	// PeerEvidenceType and PeerEvidenceBytes say what the peer's
+	// Evidence record carried: its media type and the size of its
+	// value — the measure of the wire, for the operator's log.
+	PeerEvidenceType  string
+	PeerEvidenceBytes int
+	ReadyAt           time.Time
 }
 
 // handshake-level domain-separation labels. These are concatenated into
 // the SHA-256 pre-image that forms each side's TEE challenge. A change
 // in any of them requires a wire-version bump (MAGIC change) per §3.1.
+// Wire 1.1 changed the form of the evidence fields, not the challenge
+// derivation, so the labels keep the derivation's name.
 var (
 	labelServerAtt = []byte("rp-wire-v1.0 SERVER-ATT")
 	labelClientAtt = []byte("rp-wire-v1.0 CLIENT-ATT")
@@ -236,6 +255,44 @@ func readBodyAs(r io.Reader, expected FrameType, dst any) ([]byte, error) {
 	return f.Payload, nil
 }
 
+// classifyIO turns the I/O error of a handshake step into a classified
+// error, so that no raw socket error leaves the handshake: a peer that
+// closed or lost its connection is CodePeerDisconnected (nothing was
+// evaluated; the retry is the peer's), a deadline that passed is
+// CodeDeadlineExceeded, and any other transport failure is
+// CodeTransportFailure, all Operational. An error that is already
+// classified — a protocol violation, the peer's error envelope, a
+// refusal — passes through. The authority records what the handshake
+// returns, so this is what tells a hang-up from a refusal on the audit.
+func classifyIO(err error, step string) error {
+	if err == nil {
+		return nil
+	}
+	if shared_errors.CategoryOf(err) != shared_errors.CategoryUnknown {
+		return err
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return shared_errors.Operational(CodeDeadlineExceeded,
+			"returnpath/transport: the connection's deadline passed during the handshake ("+step+")", err)
+	}
+	if peerGone(err) {
+		return shared_errors.Operational(CodePeerDisconnected,
+			"returnpath/transport: the peer closed the connection during the handshake ("+step+")", err)
+	}
+	return shared_errors.Operational(CodeTransportFailure,
+		"returnpath/transport: the connection failed during the handshake ("+step+")", err)
+}
+
+// peerGone reports whether err is the peer's connection closed or lost:
+// a clean close at a frame boundary, an EOF, a write to a closed or
+// reset connection.
+func peerGone(err error) bool {
+	return errors.Is(err, ErrWireClosed) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, io.ErrClosedPipe) || errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
+}
+
 // sendErrorAndReturn writes an ErrorFrame containing a classified error
 // and returns the same error to the local caller. Best-effort: a write
 // failure on the error frame itself is swallowed, because at that point
@@ -305,6 +362,18 @@ func validateConfig(cfg HandshakeConfig) error {
 			nil,
 		)
 	}
+	for _, f := range []struct {
+		name string
+		p    tee.Provider
+	}{{"LocalProvider", cfg.LocalProvider}, {"PeerProvider", cfg.PeerProvider}} {
+		if f.p == "" || f.p == tee.ProviderAuto {
+			return shared_errors.Structural(
+				CodeProtocolViolation,
+				"returnpath/transport: HandshakeConfig."+f.name+" must name a family (auto resolves before the handshake)",
+				nil,
+			)
+		}
+	}
 	return nil
 }
 
@@ -347,13 +416,13 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 	if err := writeBody(cfg.Conn, hc); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "hello_client")
 	}
 
 	// Step 2: HELLO_SERVER.
 	var hs HelloServer
 	if _, err := readBodyAs(cfg.Conn, FrameTypeHelloServer, &hs); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "hello_server")
 	}
 	if err := hs.Validate(); err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
@@ -373,13 +442,11 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	// pre-binds the expected measurement so an attacker cannot
 	// substitute a valid quote from a different enclave.
 	serverChallenge := transcriptServerChallenge(clientNonce, cfg.ProposedChallenge)
-	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, tee.Evidence(hs.ServerEvidence), tee.Nonce(serverChallenge))
+	peerM, peerDetail, err := verifyPeerRecord(cfg, hs.ServerEvidence, serverChallenge,
+		"returnpath/transport: server evidence is not what this client's verifier reads",
+		"returnpath/transport: server TEE evidence verification failed")
 	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: server TEE evidence verification failed",
-			err,
-		))
+		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 
 	// Step 3: ATTEST_CLIENT. Produce our evidence over the full
@@ -388,26 +455,22 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	clientChallenge := transcriptClientChallenge(
 		clientNonce, hs.ServerNonce, hs.DerivationContext,
 	)
-	clientEv, err := cfg.Producer.Quote(tee.Nonce(clientChallenge))
+	clientRecord, err := produceRecord(cfg.LocalProvider, cfg.Producer, tee.Nonce(clientChallenge), "client")
 	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: client TEE quote generation failed",
-			err,
-		))
+		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
-	ac, err := NewAttestClient([]byte(clientEv))
+	ac, err := NewAttestClient(clientRecord)
 	if err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 	if err := writeBody(cfg.Conn, ac); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "attest_client")
 	}
 
 	// Step 4: SESSION_READY.
 	var sr SessionReady
 	if _, err := readBodyAs(cfg.Conn, FrameTypeSessionReady, &sr); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "session_ready")
 	}
 	if err := sr.Validate(); err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
@@ -425,13 +488,15 @@ func doClientHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		return nil, err
 	}
 	return &SessionState{
-		Role:            RoleClient,
-		Transcript:      tr,
-		TxKey:           c2s,
-		RxKey:           s2c,
-		PeerMeasurement: peerM,
-		PeerDetail:      peerDetail,
-		ReadyAt:         sr.ReadyAt,
+		Role:              RoleClient,
+		Transcript:        tr,
+		TxKey:             c2s,
+		RxKey:             s2c,
+		PeerMeasurement:   peerM,
+		PeerDetail:        peerDetail,
+		PeerEvidenceType:  hs.ServerEvidence.Type,
+		PeerEvidenceBytes: len(hs.ServerEvidence.Value),
+		ReadyAt:           sr.ReadyAt,
 	}, nil
 }
 
@@ -441,7 +506,7 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	// Step 1: read HELLO_CLIENT.
 	var hc HelloClient
 	if _, err := readBodyAs(cfg.Conn, FrameTypeHelloClient, &hc); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "hello_client")
 	}
 	if err := hc.Validate(); err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
@@ -462,26 +527,22 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		}
 	}
 	serverChallenge := transcriptServerChallenge(hc.ClientNonce, hc.ProposedChallenge)
-	serverEv, err := cfg.Producer.Quote(tee.Nonce(serverChallenge))
+	serverRecord, err := produceRecord(cfg.LocalProvider, cfg.Producer, tee.Nonce(serverChallenge), "server")
 	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: server TEE quote generation failed",
-			err,
-		))
+		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
-	hs, err := NewHelloServer(hc.ClientNonce, serverNonce, []byte(serverEv), derivationContext)
+	hs, err := NewHelloServer(hc.ClientNonce, serverNonce, serverRecord, derivationContext)
 	if err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 	if err := writeBody(cfg.Conn, hs); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "hello_server")
 	}
 
 	// Step 3: read ATTEST_CLIENT and verify.
 	var ac AttestClient
 	if _, err := readBodyAs(cfg.Conn, FrameTypeAttestClient, &ac); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "attest_client")
 	}
 	if err := ac.Validate(); err != nil {
 		return nil, sendErrorAndReturn(cfg.Conn, err)
@@ -489,19 +550,17 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 	clientChallenge := transcriptClientChallenge(
 		hc.ClientNonce, serverNonce, derivationContext,
 	)
-	peerM, peerDetail, err := tee.VerifyDetailed(cfg.Verifier, tee.Evidence(ac.ClientEvidence), tee.Nonce(clientChallenge))
+	peerM, peerDetail, err := verifyPeerRecord(cfg, ac.ClientEvidence, clientChallenge,
+		"returnpath/transport: client evidence is not what this server's verifier reads",
+		"returnpath/transport: client TEE evidence verification failed")
 	if err != nil {
-		return nil, sendErrorAndReturn(cfg.Conn, shared_errors.Authority(
-			CodeHandshakeFailure,
-			"returnpath/transport: client TEE evidence verification failed",
-			err,
-		))
+		return nil, sendErrorAndReturn(cfg.Conn, err)
 	}
 
 	// Step 4: send SESSION_READY.
 	ready := NewSessionReady(clockOf(cfg).Now())
 	if err := writeBody(cfg.Conn, ready); err != nil {
-		return nil, err
+		return nil, classifyIO(err, "session_ready")
 	}
 
 	// Derive session keys. Server: TxKey = s2c, RxKey = c2s.
@@ -516,13 +575,15 @@ func doServerHandshake(cfg HandshakeConfig) (*SessionState, error) {
 		return nil, err
 	}
 	return &SessionState{
-		Role:            RoleServer,
-		Transcript:      tr,
-		TxKey:           s2c,
-		RxKey:           c2s,
-		PeerMeasurement: peerM,
-		PeerDetail:      peerDetail,
-		ReadyAt:         ready.ReadyAt,
+		Role:              RoleServer,
+		Transcript:        tr,
+		TxKey:             s2c,
+		RxKey:             c2s,
+		PeerMeasurement:   peerM,
+		PeerDetail:        peerDetail,
+		PeerEvidenceType:  ac.ClientEvidence.Type,
+		PeerEvidenceBytes: len(ac.ClientEvidence.Value),
+		ReadyAt:           ready.ReadyAt,
 	}, nil
 }
 

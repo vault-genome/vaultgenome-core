@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package teemetrics_test
@@ -248,5 +249,76 @@ func TestRecorder_WrapVerifier_KeepsTheDetail(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, r.WriteMetricsTo(&buf))
 	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="azure-cgpu",result="success",role="verify"} 1`)
+	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="simulated",result="success",role="verify"} 1`)
+}
+
+type recordVerifierStub struct{ calls int }
+
+func (s *recordVerifierStub) Verify(tee.Evidence, tee.Nonce) (tee.Measurement, error) {
+	return tee.Measurement{1}, nil
+}
+
+func (s *recordVerifierStub) VerifyRecord(string, []byte, tee.Nonce) (tee.Measurement, *tee.AttestationDetail, error) {
+	s.calls++
+	return tee.Measurement{2}, &tee.AttestationDetail{Provider: tee.ProviderSimulated}, nil
+}
+
+type auxProducerStub struct{ stubProducer }
+
+func (s *auxProducerStub) QuoteWithAux(tee.Nonce) (tee.Evidence, []byte, error) {
+	return s.ev, []byte("the certificate table"), s.err
+}
+
+// The producer wrapper keeps the auxblob beside the Evidence (the
+// delegated Verifier needs the certificate table) and counts the quote.
+func TestRecorder_WrapProducer_KeepsTheAuxblob(t *testing.T) {
+	t.Parallel()
+	r := metrics.NewRegistry()
+	rec := teemetrics.New(r)
+	inner := &auxProducerStub{stubProducer{measurement: tee.MeasurementOf([]byte("m")), ev: tee.Evidence("report")}}
+	w := rec.WrapProducer("gcp-sev-snp", inner)
+	ev, aux, err := tee.QuoteWithAux(w, make(tee.Nonce, tee.NonceMinBytes))
+	require.NoError(t, err)
+	require.Equal(t, tee.Evidence("report"), ev)
+	require.Equal(t, []byte("the certificate table"), aux, "the wrapper dropped the auxblob")
+	// A plain inner producer still gives none, through the same wrapper.
+	plain := rec.WrapProducer("simulated", &stubProducer{ev: tee.Evidence("statement")})
+	ev, aux, err = tee.QuoteWithAux(plain, make(tee.Nonce, tee.NonceMinBytes))
+	require.NoError(t, err)
+	require.Equal(t, tee.Evidence("statement"), ev)
+	require.Nil(t, aux)
+	var buf bytes.Buffer
+	require.NoError(t, r.WriteMetricsTo(&buf))
+	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="gcp-sev-snp",result="success",role="produce"} 1`)
+}
+
+type bareVerifierStub struct{}
+
+func (bareVerifierStub) Verify(tee.Evidence, tee.Nonce) (tee.Measurement, error) {
+	return tee.Measurement{1}, nil
+}
+
+// The wrapper forwards the record path to a verifier that reads records,
+// counting it as a verification, and is not taken for one around a
+// verifier that reads bare evidence.
+func TestRecorder_WrapVerifier_ForwardsTheRecordPath(t *testing.T) {
+	t.Parallel()
+	r := metrics.NewRegistry()
+	rec := teemetrics.New(r)
+	inner := &recordVerifierStub{}
+	w := rec.WrapVerifier("simulated", inner)
+	rv := tee.RecordVerifierOf(w)
+	if rv == nil {
+		t.Fatal("the wrapper around a record verifier is not seen as one")
+	}
+	m, d, err := rv.VerifyRecord("application/x-test", []byte("value"), tee.Nonce("a thirty-two byte challenger nonce!"))
+	if err != nil || !m.Equal(tee.Measurement{2}) || d == nil || inner.calls != 1 {
+		t.Fatalf("forwarding: %v %v %v %d", m, d, err, inner.calls)
+	}
+	if tee.RecordVerifierOf(rec.WrapVerifier("simulated", bareVerifierStub{})) != nil {
+		t.Fatal("the wrapper around a bare verifier is taken for a record verifier")
+	}
+	var buf bytes.Buffer
+	require.NoError(t, r.WriteMetricsTo(&buf))
 	require.Contains(t, buf.String(), `vg_tee_attestation_total{provider="simulated",result="success",role="verify"} 1`)
 }

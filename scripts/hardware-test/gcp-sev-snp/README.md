@@ -29,6 +29,17 @@ After running the kit end-to-end, you will have:
 All evidence is captured into a single tar archive ready for review
 or upload to your evaluation data room.
 
+## The run of 2026-10-14
+
+`evidence/20261014T231645Z/` holds one end-to-end run of this kit, driven by
+`examples/full-test-run.sh` on a fresh `n2d-standard-4` Confidential VM
+(Milan) in `us-central1-c`: the report, the AMD chain validation (ALL POLICY
+CHECKS PASSED), Demo 1 with the tamper refusal, Demo 2, the byte-identical
+inference comparison and the runner's log. Its README reads the files.
+`evidence/20261015T005508Z/` is the same run a day later with the workload
+manifest naming what Demo 1 sealed, as acpctl measured it, bound into the
+report (#83).
+
 ## Prerequisites
 
 - A GCP project with Compute Engine API enabled
@@ -69,13 +80,15 @@ curl -fsSL https://raw.githubusercontent.com/<this-repo>/main/scripts/01-bootstr
 # 4. Capture SEV-SNP attestation report (raw 1184-byte report via ioctl)
 ./scripts/02-capture-attestation.sh
 
-# 4b. Cryptographic chain validation: ARK → ASK → VCEK → Report
-#     (workload-bound via REPORT_DATA = SHA-512(payload manifest); produces a
-#      complete attestation evidence directory verified against AMD's PKI)
-./scripts/02b-cryptographic-attestation.sh
-
-# 5. Pull a model + run Demo 1 (single bundle round-trip)
+# 5. Pull a model + run Demo 1 (single bundle round-trip); it also writes
+#    evidence/demo1-inspect.json, the measured record of what was sealed
 ./scripts/03-demo1-single-bundle.sh
+
+# 5b. Cryptographic chain validation: ARK → ASK → VCEK → Report
+#     (workload-bound via REPORT_DATA = SHA-512(manifest), where the manifest
+#      names what Demo 1 sealed as acpctl measured it; produces a complete
+#      attestation evidence directory verified against AMD's PKI)
+./scripts/02b-cryptographic-attestation.sh
 
 # 6. Run Demo 2 (chain of 6 generations)
 ./scripts/04-demo2-chain.sh

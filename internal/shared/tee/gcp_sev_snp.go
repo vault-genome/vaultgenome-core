@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Package tee — Google Cloud Confidential VMs (AMD SEV-SNP) adapter.
@@ -77,9 +78,12 @@ type GCPSEVVerifierConfig struct {
 	// https://confidentialcomputing.googleapis.com/v1/...).
 	AMDKDSURL string
 
-	// AMDRootPEM overrides the pinned AMD ARK certificate (for sovereign
-	// installations using their own pinned trust anchor). Default uses
-	// the AMD-published Milan / Genoa / Turin roots embedded at build.
+	// AMDRootPEM is the ASK+ARK chain (PEM) the worker's VCEK must chain
+	// to — the operator's amd_cert_chain_path, as AMD KDS serves it. Its
+	// root must be one of the AMD roots this build pins (ARK-Milan,
+	// ARK-Genoa, ARK-Turin; amd_roots.go, ADR 0024): the file names the
+	// product line, the binary names the trust anchor. There is no
+	// configured override.
 	AMDRootPEM []byte
 
 	// AcceptableMeasurements lists every launch measurement the verifier
@@ -90,6 +94,12 @@ type GCPSEVVerifierConfig struct {
 	// to the current TCB at deployment time and bump on AMD security
 	// advisories.
 	MinReportedTCB uint64
+
+	// SEVSNP holds the report to the attack record (ADR 0033): the TCB
+	// floors per product, the platform's word, the guest's policy, the
+	// mitigation vector and the chip. The zero value is the default policy:
+	// the floors AMD's bulletins printed when they were read.
+	SEVSNP SEVSNPPolicy
 
 	// MaxClockSkew bounds REPORT freshness using either REPORT_ID or
 	// an external timestamp service. Default 5 minutes.
@@ -199,6 +209,13 @@ func newGCPSEVProducer(cfg GCPSEVProducerConfig, tsm tsmReporter) (*GCPSEVProduc
 
 // NewGCPSEVVerifier constructs a verifier for SEV-SNP reports.
 func NewGCPSEVVerifier(_ crypto.PublicKey, expected Measurement, cfg GCPSEVVerifierConfig) (*GCPSEVVerifier, error) {
+	if len(cfg.AMDRootPEM) > 0 {
+		// A chain that will be refused at the first handshake is refused
+		// here, where the operator sees it at start.
+		if _, err := VerifyAMDCertChain(cfg.AMDRootPEM); err != nil {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-sev-snp: AMDRootPEM: "+err.Error(), err)
+		}
+	}
 	if cfg.AMDKDSURL == "" {
 		cfg.AMDKDSURL = "https://kdsintf.amd.com"
 	}
@@ -230,14 +247,21 @@ func NewGCPSEVSealer(device *os.File, measure Measurement, policy uint64) *GCPSE
 // Producer / Verifier / Sealer
 // ----------------------------------------------------------------------------
 
-// Quote implements Producer. Requests a report with
-// REPORT_DATA = SHA-256(nonce) || zeros(32) and returns the raw report
-// bytes (1184 bytes) as Evidence. A report whose launch measurement
-// differs from the one read at construction is refused: the workload
-// this producer speaks for cannot change underneath it.
+// Quote implements Producer: the report alone.
 func (p *GCPSEVProducer) Quote(nonce Nonce) (Evidence, error) {
+	ev, _, err := p.QuoteWithAux(nonce)
+	return ev, err
+}
+
+// QuoteWithAux implements AuxblobProducer. Requests a report with
+// REPORT_DATA = SHA-256(nonce) || zeros(32) and returns the raw report
+// bytes (1184 bytes) as Evidence, with the certificate table configfs-tsm
+// showed beside it (nil when the host wrote none). A report whose launch
+// measurement differs from the one read at construction is refused: the
+// workload this producer speaks for cannot change underneath it.
+func (p *GCPSEVProducer) QuoteWithAux(nonce Nonce) (Evidence, []byte, error) {
 	if len(nonce) < NonceMinBytes {
-		return nil, shared_errors.Structural(
+		return nil, nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"gcp-sev: nonce must be at least NonceMinBytes",
 			nil,
@@ -246,7 +270,7 @@ func (p *GCPSEVProducer) Quote(nonce Nonce) (Evidence, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.tsm == nil {
-		return nil, shared_errors.Structural(
+		return nil, nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"gcp-sev: producer closed",
 			nil,
@@ -254,16 +278,16 @@ func (p *GCPSEVProducer) Quote(nonce Nonce) (Evidence, error) {
 	}
 	report, err := sevSNPGuestReport(p.tsm, nonce, p.cfg.VMPL)
 	if err != nil {
-		return nil, fmt.Errorf("gcp-sev: request report: %w", err)
+		return nil, nil, fmt.Errorf("gcp-sev: request report: %w", err)
 	}
 	if !Measurement(report.Measurement[:]).Equal(p.measurement) {
-		return nil, shared_errors.Integrity(
+		return nil, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
 			"gcp-sev: report carries a different launch measurement than this producer was started with",
 			nil,
 		)
 	}
-	return Evidence(report.Raw), nil
+	return Evidence(report.Raw), report.AuxBlob, nil
 }
 
 // Measurement returns the cached launch MEASUREMENT.
@@ -288,17 +312,17 @@ func (p *GCPSEVProducer) Close() error {
 // Verify implements Verifier. Parses the SEV-SNP report, fetches and
 // validates the VCEK + AMD chain, verifies the ECDSA signature, and
 // checks REPORT_DATA + MEASUREMENT against expected values.
-func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
+func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPReportDetail, error) {
 	var zero Measurement
 	if len(nonce) < NonceMinBytes {
-		return zero, shared_errors.Structural(
+		return zero, nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"gcp-sev: challenger nonce too short",
 			nil,
 		)
 	}
 	if len(ev) < 1184 {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			"gcp-sev: evidence shorter than SEV-SNP report (1184 bytes)",
 			nil,
@@ -307,7 +331,7 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 
 	report, err := parseSEVSNPReport(ev)
 	if err != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: parse report: %v", err),
 			err,
@@ -317,14 +341,14 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	// Fetch + verify VCEK certificate chain (cached per CHIP_ID + TCB).
 	vcekPEM, err := v.fetchVCEK(report.ChipID, report.ReportedTCB)
 	if err != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: fetch VCEK: %v", err),
 			err,
 		)
 	}
 	if err := verifyAMDChain(vcekPEM, v.cfg.AMDRootPEM); err != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: AMD chain: %v", err),
 			err,
@@ -334,7 +358,7 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	// Verify ECDSA-P384 signature over the report (excluding the
 	// signature field).
 	if err := verifySEVReportSignature(report, vcekPEM); err != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: report signature: %v", err),
 			err,
@@ -345,21 +369,21 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	// report: signed by the VCEK this verifier fetched, with the
 	// algorithm it checked, for a non-debug guest at the expected VMPL.
 	if report.SignatureAlgo != 1 || report.SigningKey != 0 {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: report signed with algorithm %d by key kind %d; this verifier accepts ECDSA P-384 (1) by the VCEK (0)", report.SignatureAlgo, report.SigningKey),
 			nil,
 		)
 	}
 	if report.Policy&sevPolicyDebug != 0 {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
 			"gcp-sev: guest policy allows DEBUG — the hypervisor can read this guest's memory",
 			nil,
 		)
 	}
 	if report.VMPL != v.cfg.VMPL {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
 			fmt.Sprintf("gcp-sev: report requested at VMPL %d, expected %d", report.VMPL, v.cfg.VMPL),
 			nil,
@@ -368,16 +392,20 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 
 	// Reported TCB must be ≥ minimum (no rollback to vulnerable firmware).
 	if report.ReportedTCB < v.minReportedTCB {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: ReportedTCB %d below minimum %d", report.ReportedTCB, v.minReportedTCB),
 			nil,
 		)
 	}
+	snpDetail, err := checkSEVSNPPolicy(report, v.cfg.SEVSNP, "gcp-sev")
+	if err != nil {
+		return zero, nil, err
+	}
 
 	// Bind nonce.
 	if !nonceMatchesReportDataSEV(report.ReportData, nonce) {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			"gcp-sev: REPORT_DATA does not bind challenger nonce (replay?)",
 			nil,
@@ -394,7 +422,7 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 			}
 		}
 		if !ok {
-			return zero, shared_errors.Integrity(
+			return zero, nil, shared_errors.Integrity(
 				shared_errors.CodeSignatureInvalid,
 				fmt.Sprintf("gcp-sev: HOST_DATA %x not in acceptable set", report.HostData),
 				nil,
@@ -406,7 +434,7 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 	// length (48-byte SHA-384) — no truncation (ADR-0007).
 	reported, mErr := MeasurementFromBytes(report.Measurement[:])
 	if mErr != nil {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: unexpected MEASUREMENT length: %v", mErr),
 			nil,
@@ -420,14 +448,32 @@ func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
 		}
 	}
 	if !matched {
-		return zero, shared_errors.Integrity(
+		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
 			fmt.Sprintf("gcp-sev: MEASUREMENT %x not in acceptable set", reported),
 			nil,
 		)
 	}
 
-	return reported, nil
+	return reported, snpDetail, nil
+}
+
+// Verify implements Verifier.
+func (v *GCPSEVVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error) {
+	m, _, err := v.verify(ev, nonce)
+	return m, err
+}
+
+// VerifyDetailed is Verify with what the verifier read from the report
+// beside the measurement: the product and the chip, the four TCB
+// versions, the platform's word, the guest's policy, the mitigation
+// vector, and the floor the report was held to (ADR 0033).
+func (v *GCPSEVVerifier) VerifyDetailed(ev Evidence, nonce Nonce) (Measurement, *AttestationDetail, error) {
+	m, d, err := v.verify(ev, nonce)
+	if err != nil {
+		return nil, nil, err
+	}
+	return m, &AttestationDetail{Provider: ProviderGCPSEVSNP, Product: d.Product, ChipIDHex: d.ChipIDHex, ReportedTCB: d.ReportedTCBRaw, SEVSNP: d}, nil
 }
 
 // fetchVCEK returns the VCEK certificate for a CHIP_ID + TCB: from memory,
@@ -539,6 +585,11 @@ type sevSNPReport struct {
 	ReportedTCB uint64
 	ReportData  [64]byte
 
+	// AuxBlob is what configfs-tsm showed beside the report: the
+	// certificate table the host wrote (the VCEK among them); nil when
+	// it showed none. Not part of the report and not signed by it.
+	AuxBlob []byte
+
 	Policy        uint64 // guest policy; bit 19 = DEBUG
 	VMPL          uint32 // privilege level the report was requested at
 	SignatureAlgo uint32 // 1 = ECDSA P-384 with SHA-384
@@ -560,7 +611,7 @@ var sevSNPGuestReport = func(tsm tsmReporter, nonce []byte, vmpl uint32) (*sevSN
 	var reportData [64]byte
 	prefix := computeReportDataPrefix(nonce)
 	copy(reportData[:], prefix[:])
-	raw, err := tsm.report(reportData, vmpl)
+	raw, aux, err := tsm.report(reportData, vmpl)
 	if err != nil {
 		return nil, err
 	}
@@ -571,6 +622,7 @@ var sevSNPGuestReport = func(tsm tsmReporter, nonce []byte, vmpl uint32) (*sevSN
 	if report.ReportData != reportData {
 		return nil, errors.New("report does not carry the requested REPORT_DATA")
 	}
+	report.AuxBlob = aux
 	return report, nil
 }
 

@@ -1,0 +1,29 @@
+{
+  "authority_kid": "sagvd-authority-e2e",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEInF7zVA7yKsdhsHf7Rg6padNsaSFrDKW\nirtDhJPmi5vITIKkEswqz5OSWfHfbuIPO/QMUBOoRG+eRMRFYHGtCcheVK7STvTG\n8F240VgeyZlcnNEqYmbAweo7BHD5+GRm\n-----END PUBLIC KEY-----\n",
+  "authority_signature_suite": "ecdsa-p384-sha384",
+  "tee_provider": "gcp-sev-snp",
+  "tee_measurement_hex": "7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc",
+  "sealer": "sev-snp-derived-key",
+  "audit_kid": "sagvd-audit-e2e",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEi3p8TxBDgW+S4EQil+rQKK4OjpD6drr6\nyM2uk1SDirQhpixq1za8bJUnCvU2/E4PApoCMAVbV7LfyvXMiwtVi9I0TIxIICq6\njDc4fmMWu90HUK5Wx94yldrsp70oBFq0\n-----END PUBLIC KEY-----\n",
+  "audit_signature_suite": "ecdsa-p384-sha384",
+  "policy_version": "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0",
+  "policy_profiles": [
+    "gate"
+  ],
+  "crypto_profile": "cnsa",
+  "kem_suites": [
+    "hpke-mlkem1024-p384-v2"
+  ],
+  "signature_suite": "ecdsa-p384-sha384",
+  "signature_suites": [
+    "ecdsa-p384-sha384",
+    "ml-dsa-87"
+  ],
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  }
+}

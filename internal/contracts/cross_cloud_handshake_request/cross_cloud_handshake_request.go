@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Package cross_cloud_handshake_request defines the
@@ -36,19 +37,20 @@ package cross_cloud_handshake_request
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 const (
-	// SchemaVersionMin / Max / Current are all 1 — this contract is
-	// introduced fresh in Phase 4. Future extensions follow the
-	// docs/doctrine/bootstrap-contracts.md §5 freezing discipline:
-	// safe additions bump Max (not Min); reordering or reinterpretation
-	// bumps Min and Current together.
+	// SchemaVersionMin stays 1; Max and Current are 2 since ADR 0029:
+	// a schema-2 request names the KEM suites the source accepts
+	// (KEMSuites), a schema-1 request names none. Safe additions bump
+	// Max (not Min); reordering or reinterpretation bumps Min and
+	// Current together.
 	SchemaVersionMin     uint16 = 1
-	SchemaVersionMax     uint16 = 1
-	SchemaVersionCurrent uint16 = 1
+	SchemaVersionMax     uint16 = 2
+	SchemaVersionCurrent uint16 = 2
 
 	// HandshakeNonceMinBytes is the minimum acceptable length for the
 	// handshake nonce. Aligned with tee.NonceMinBytes (RFC 9334 §10.1).
@@ -90,6 +92,14 @@ type CrossCloudHandshakeRequest struct {
 	// nonce will not match.
 	HandshakeNonce []byte `json:"handshake_nonce"`
 
+	// KEMSuites names, in the source's order of preference, the KEM
+	// suites of ADR 0029 the source accepts an answer under (schema 2;
+	// required there, absent in schema 1). The destination generates its
+	// handshake key under the first it supports and names it in its
+	// answer; the source refuses an answer under any other. The ids are
+	// opaque strings to this contract; the kms package knows them.
+	KEMSuites []string `json:"kem_suites,omitempty"`
+
 	// SourceEvidence is the optional attestation Evidence from the
 	// source authority's own TEE. When non-empty the destination
 	// SHOULD verify it before responding (mutual attestation).
@@ -109,7 +119,10 @@ type CrossCloudHandshakeRequest struct {
 	InitiatedAt time.Time `json:"initiated_at"`
 
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
-	Signature    []byte    `json:"signature"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature"`
 
 	// AuditEventID points at the KindCrossCloudHandshakeInitiated
 	// audit event that records this dispatch. An un-evidenced

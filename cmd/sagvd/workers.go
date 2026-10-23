@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -14,6 +15,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 )
 
 // WorkerRegistryFile is the on-disk JSON schema that lists every
@@ -44,6 +46,10 @@ type WorkerEntry struct {
 	// operators can eyeball-compare against the daemon's startup
 	// log output, which emits hex.
 	SigningPublicKeyHex string `json:"signing_pubkey_hex"`
+	// Suite is the signature suite of the worker's key (ADR 0031): the
+	// raw key in SigningPublicKeyHex is read under it. Absent, it is
+	// ed25519.
+	Suite string `json:"suite,omitempty"`
 
 	// Note is a free-form operator comment. Ignored by sagvd.
 	Note string `json:"note,omitempty"`
@@ -56,7 +62,7 @@ type WorkerEntry struct {
 // signing_pubkey_hex decoding to exactly 32 bytes, and no duplicate
 // kids across the file. Any failure aborts the whole load — this is
 // operator-config hygiene, not a runtime condition.
-func LoadWorkerRegistry(path string) (*server.PublicKeyResolver, []WorkerEntry, error) {
+func LoadWorkerRegistry(path string, pol kms.SignaturePolicy) (*server.PublicKeyResolver, []WorkerEntry, error) {
 	if path == "" {
 		return nil, nil, errors.New("sagvd: workers.registry_path required")
 	}
@@ -86,10 +92,20 @@ func LoadWorkerRegistry(path string) (*server.PublicKeyResolver, []WorkerEntry, 
 				"sagvd: worker registry entry %d (kid=%q): signing_pubkey_hex invalid hex: %w",
 				i, w.KeyID, err)
 		}
-		if len(pub) != crypto.Ed25519PublicKeySize {
+		suite, err := crypto.SuiteOrDefault(w.Suite)
+		if err != nil {
+			return nil, nil, fmt.Errorf("sagvd: worker registry entry %d (kid=%q): suite: %w", i, w.KeyID, err)
+		}
+		// A worker whose key the profile does not accept would have every
+		// frame refused; it is refused here, at the registry, with the
+		// reason (ADR 0031).
+		if err := pol.CheckAcceptedKey(fmt.Sprintf("worker registry entry %d (kid=%q)", i, w.KeyID), suite); err != nil {
+			return nil, nil, fmt.Errorf("sagvd: %w", err)
+		}
+		if len(pub) != suite.PublicKeySize() {
 			return nil, nil, fmt.Errorf(
-				"sagvd: worker registry entry %d (kid=%q): signing_pubkey_hex must decode to %d bytes (got %d)",
-				i, w.KeyID, crypto.Ed25519PublicKeySize, len(pub))
+				"sagvd: worker registry entry %d (kid=%q): signing_pubkey_hex must decode to %d bytes for %s (got %d)",
+				i, w.KeyID, suite.PublicKeySize(), suite, len(pub))
 		}
 		kid := ids.KeyID(w.KeyID)
 		if _, dup := entries[kid]; dup {
@@ -99,7 +115,8 @@ func LoadWorkerRegistry(path string) (*server.PublicKeyResolver, []WorkerEntry, 
 		entries[kid] = keys.VerifyingKey{
 			KeyID:     kid,
 			Purpose:   keys.PurposeSigningAuthority,
-			PublicKey: crypto.PublicKey(pub),
+			Suite:     suite,
+			PublicKey: pub,
 		}
 		outEntries = append(outEntries, w)
 	}

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package continuity_proof
@@ -35,6 +36,11 @@ func (p *ContinuityProof) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, p.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	p.Alg = alg
 	cp := *p
 	cp.Signature = nil
 	cp.AncestorChain = append(cp.AncestorChain[:0:0], p.AncestorChain...)
@@ -74,5 +80,5 @@ func (p *ContinuityProof) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, p.Signature)
+	return vk.VerifyRecord(p.Alg, cb, p.Signature)
 }

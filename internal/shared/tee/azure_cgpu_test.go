@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tee
@@ -67,7 +68,7 @@ func newAzureCGPUFixture(t *testing.T) *azureCGPUFixture {
 		report[sevOffMeasurement+i] = byte(0xA0 + i)
 	}
 	binary.LittleEndian.PutUint64(report[sevOffReportedTCB:], 0x0B000000000000C0)
-	report[sevOffCPUIDFam], report[sevOffCPUIDFam+1] = 0x19, 0x11 // Genoa
+	stampSEVReportAtFloors(report, 0x19, 0x11, 0x01) // Genoa, at the floors of ADR 0033
 	for i := range 64 {
 		report[sevOffChipID+i] = byte(i + 1)
 	}
@@ -317,12 +318,16 @@ func TestAzureCGPUProducerRunsTheToolsAndAssemblesTheEnvelope(t *testing.T) {
 	}
 	p, err := NewAzureCGPUProducer(AzureCGPUProducerConfig{GPUAttestCommand: []string{"/usr/local/bin/gpu-token"}})
 	require.NoError(t, err)
-	require.Equal(t, "0x81000003", p.akHandle, "the persistent key that is HCLAkPub")
+	require.Equal(t, "0x81000003", p.vtpm.akHandle, "the persistent key that is HCLAkPub")
 	require.True(t, p.Measurement().Equal(f.measurement))
 	sel, digest := p.VTPMBoot()
 	require.Equal(t, "sha256:0,1,2,3,4,5,6,7", sel[0].String())
 	bootDigest := sha256.Sum256([]byte("pcrs"))
 	require.Equal(t, bootDigest[:], digest, "what the vTPM measured of this boot, from the quote at construction")
+	pcrs, d2, ok := VTPMBootOf(p)
+	require.True(t, ok)
+	require.Equal(t, sel[0].String(), pcrs[0])
+	require.Equal(t, digest, d2)
 
 	nonce := Nonce("a return-path challenge, thirty-two bytes")
 	ev, err := p.Quote(nonce)

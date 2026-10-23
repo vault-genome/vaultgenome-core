@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package keys
@@ -290,7 +291,7 @@ func TestInMemoryStore_EraseSealing(t *testing.T) {
 	s := NewInMemoryStore(shared_time.NewSystemClock())
 	key := bytes.Repeat([]byte{0x5a}, 32)
 	require.NoError(t, s.RegisterSealing("genome-1", key))
-	nonce, ct, err := crypto.Seal(key, []byte("delta"), nil, nil)
+	nonce, ct, err := crypto.Seal(key, []byte("delta"), nil)
 	require.NoError(t, err)
 	got, err := s.Open("genome-1", nonce, ct, nil)
 	require.NoError(t, err)

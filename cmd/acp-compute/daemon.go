@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -237,10 +238,13 @@ func (d *Daemon) runOnce(parent context.Context) (retErr error) {
 	stopOnDone := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stopOnDone()
 
+	handshakeStart := d.clock.Now()
 	sess, err := client.Dial(client.SessionConfig{
 		Conn:             conn,
 		Producer:         d.mat.Producer,
 		Verifier:         d.mat.Verifier,
+		LocalProvider:    d.mat.Provider,
+		PeerProvider:     d.mat.PeerProvider,
 		Clock:            d.clock,
 		Reconstructor:    d.recon,
 		Signer:           d.mat.Store,
@@ -250,8 +254,11 @@ func (d *Daemon) runOnce(parent context.Context) (retErr error) {
 		OnSessionOpened: func(state *transport.SessionState) {
 			d.metrics.sessionsOpened.Inc()
 			d.metrics.connectedGauge.Set(1)
-			d.log.Debug("return-path session opened",
+			d.log.Info("return-path session opened",
 				"peer_measurement", hex.EncodeToString(state.PeerMeasurement[:]),
+				"peer_evidence_type", logSafe(state.PeerEvidenceType),
+				"peer_evidence_bytes", state.PeerEvidenceBytes,
+				"handshake_ms", state.ReadyAt.Sub(handshakeStart).Milliseconds(),
 				"ready_at", state.ReadyAt.Format(time.RFC3339Nano),
 			)
 		},

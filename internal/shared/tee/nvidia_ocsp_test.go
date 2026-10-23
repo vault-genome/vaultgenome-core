@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tee
@@ -177,7 +178,7 @@ func TestOCSP_SyntheticResponder(t *testing.T) {
 				nonce = ext.Value
 			}
 		}
-		tmpl := ocsp.Response{Status: ocsp.Good, SerialNumber: req.TBSRequest.RequestList[0].Cert.SerialNumber,
+		tmpl := ocsp.Response{Status: ocsp.Good, SerialNumber: req.TBSRequest.RequestList[0].Cert.SerialNumber, IssuerHash: crypto.SHA256,
 			ThisUpdate: now, NextUpdate: now.Add(time.Hour), ExtraExtensions: []pkix.Extension{{Id: ocspNonceOID, Value: nonce}}}
 		signer, signerKey := respCert, respKey
 		tmpl.Certificate = signer // the delegated responder's certificate, embedded (RFC 6960 §4.2.2.2)

@@ -1,4 +1,5 @@
 #!/bin/bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # On the confidential GPU VM (after Microsoft's onboarding steps 0–2):
@@ -18,6 +19,10 @@ step() { echo "== $(date -u +%H:%M:%S) $*"; echo "== $(date -u +%H:%M:%S) $*" >>
 mark() { echo "$1=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" >> "$OUT/timeline.txt"; }
 T0=$(date +%s)
 VENV=/usr/local/lib/local_gpu_verifier/.venv/bin/python
+# VG_FIPS=1 (ADR 0030): acpctl, the one Go process of the capture, runs
+# under the module's enforcement; its version line goes on the record.
+FIPS="${VG_FIPS:-0}"; [ "$FIPS" = 1 ] || FIPS=0
+if [ "$FIPS" = 1 ]; then export GODEBUG=fips140=only; echo "fips=1 GODEBUG=fips140=only" >> "$OUT/steps.txt"; fi
 
 step "the guest"
 { uname -a; lsb_release -ds; echo "secure boot: $(mokutil --sb-state 2>&1)"; nproc; free -g | head -2; } > "$OUT/system.txt"
@@ -118,9 +123,15 @@ step "the 7B genome path on the confidential GPU"
 mark runtime_start
 apt-get install -y -qq python3-venv python3-pip >/dev/null 2>&1
 mkdir -p /opt/worker && tar -xzf "$HOME_DIR/worker.tgz" -C /opt/worker && install -m 0755 "$HOME_DIR/acpctl" /usr/local/bin/acpctl
-python3 -m venv /opt/vg && /opt/vg/bin/pip install -q --upgrade pip
-/opt/vg/bin/pip install -q --index-url https://download.pytorch.org/whl/cu126 torch==2.7.1
-/opt/vg/bin/pip install -q -r /opt/worker/requirements.txt huggingface_hub==0.33.4
+acpctl version > "$OUT/versions.txt" 2>&1
+python3 -m venv /opt/vg
+# The runtime from the hash-pinned locks, each from its own index: the worker's packages, torch's
+# dependencies and huggingface_hub from PyPI, the CUDA libraries from PyPI, then the torch cu126
+# wheel alone from the PyTorch index. No --extra-index-url anywhere.
+PIP="/opt/vg/bin/pip install -q --require-hashes --only-binary=:all:"
+$PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-ci.lock
+$PIP --index-url https://pypi.org/simple -r /opt/worker/requirements-cuda.lock
+$PIP --no-deps --index-url https://download.pytorch.org/whl/cu126 -r /opt/worker/requirements-torch-cu126.lock
 /opt/vg/bin/pip freeze > "$OUT/pip-freeze.txt"
 /opt/vg/bin/python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0), torch.cuda.get_device_properties(0).total_memory)" > "$OUT/torch.txt" 2>&1
 cat "$OUT/torch.txt"

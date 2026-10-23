@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package failover
@@ -5,7 +6,6 @@ package failover
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -169,7 +169,7 @@ func TestStolenSeedWithoutTheChipIsSilence(t *testing.T) {
 	results := d.attested(ctx, primary)
 	chain := d.waitChain(1)
 	// A genuine heartbeat from the primary while it watched, kept aside.
-	pub := d.sentinelKey.Public().(ed25519.PublicKey)
+	pub := d.sentinelKey.Public()
 	var last sentinel.Heartbeat
 	var lastRaw []byte
 	for deadline := time.Now().Add(5 * time.Second); ; {
@@ -262,7 +262,7 @@ func TestPinnedPrimaryRestoresOnlyAttestedGenomes(t *testing.T) {
 	cancel()
 	<-results
 	pol := d.pinned(primary)
-	hb, raw, err := sentinel.ReadHeartbeat(d.outbox, d.sentinelKey.Public().(ed25519.PublicKey))
+	hb, raw, err := sentinel.ReadHeartbeat(d.outbox, d.sentinelKey.Public())
 	must(t, err)
 	tr := Trigger{Kind: TriggerHeartbeatTimeout, At: hb.At.Add(time.Second), Heartbeat: &hb, Evidence: raw}
 
@@ -315,7 +315,7 @@ func TestChainIsTrustedOnlyToTheSentinelsLastWord(t *testing.T) {
 	chain := d.waitChain(2)
 	must(t, os.WriteFile(d.canary, []byte("touched"), 0o600))
 	<-results
-	pub := d.sentinelKey.Public().(ed25519.PublicKey)
+	pub := d.sentinelKey.Public()
 	c, raw, err := sentinel.ReadCompromise(d.outbox, pub)
 	must(t, err)
 	tr := Trigger{Kind: TriggerCompromise, At: c.DetectedAt, Compromise: &c, Evidence: raw}
@@ -426,7 +426,7 @@ func TestStoppedSentinelIsOverdueAfterTheGrace(t *testing.T) {
 	results = d2.runSentinel(ctx)
 	// The returning sentinel's first watching heartbeat, whenever the
 	// scheduler lets it write one (well inside the grace).
-	pub := d2.sentinelKey.Public().(ed25519.PublicKey)
+	pub := d2.sentinelKey.Public()
 	back := false
 	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
 		if h, _, err := sentinel.ReadHeartbeat(d2.outbox, pub); err == nil && h.Status == sentinel.StatusWatching {

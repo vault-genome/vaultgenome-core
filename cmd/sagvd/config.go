@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -9,14 +10,17 @@ import (
 	"fmt"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/attestation_result"
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/exposure"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
@@ -80,6 +84,17 @@ type Config struct {
 	// effect (ADR 0014). Required when gate jobs are enabled.
 	Audit AuditConfig `json:"audit,omitempty"`
 
+	// Queue is where the daemon keeps its accepted jobs on disk, so that
+	// a restart resumes what was queued or in flight (ADR 0026). Without
+	// a path the queue is in memory and a restart loses it; the daemon
+	// says so at start when gate jobs are enabled.
+	Queue QueueConfig `json:"queue,omitempty"`
+
+	// Crypto is the cryptographic profile (ADR 0029): the KEM suite the
+	// authority encapsulates keys under across clouds and the suites it
+	// accepts a destination's answer under. Omitted, the general profile.
+	Crypto CryptoConfig `json:"crypto,omitempty"`
+
 	// OperatorStop is the operator's signed stop list (ADR 0010) as Trust
 	// Admission consults it for gate jobs (ADR 0015): a stop-all list
 	// denies every job, a list revoking the worker's measurement denies
@@ -88,6 +103,42 @@ type Config struct {
 	// daemon's releases by writing a new list. Optional; when set, all
 	// three fields are required.
 	OperatorStop OperatorStopConfig `json:"operator_stop,omitempty"`
+}
+
+// CryptoConfig is the deployment's cryptographic profile (ADR 0029): the
+// KEM suite this daemon encapsulates under and the suites it accepts.
+type CryptoConfig struct {
+	// Profile is "general" (the default: X25519 written, every suite of
+	// the build accepted), "fips" (P-384 written; P-384, ML-KEM-768 and
+	// the MLKEM1024-P384 hybrid accepted — the primitives the Go
+	// Cryptographic Module lists as approved) or "cnsa" (the
+	// MLKEM1024-P384 hybrid only).
+	Profile string `json:"profile,omitempty"`
+
+	// KEMSuites narrows the profile's list to these suites, in this
+	// order of preference (the first is written). Every name must be
+	// one the profile accepts; a profile is never widened here.
+	KEMSuites []string `json:"kem_suites,omitempty"`
+
+	// SignatureSuite picks the signature suite this daemon signs with
+	// from the profile's list (ADR 0031): general and fips sign with
+	// ed25519 and cnsa with ecdsa-p384-sha384 unless this names another
+	// suite the profile accepts — fips with ecdsa-p384-sha384 is the
+	// deployment a bank held to X9 runs. Every signing key the config
+	// names (keys.<name>.suite) must be of this suite; a profile is never
+	// widened here.
+	SignatureSuite string `json:"signature_suite,omitempty"`
+}
+
+// Policy returns the configuration as the policy the kms package applies.
+func (c CryptoConfig) Policy() (kms.SuitePolicy, error) {
+	return kms.NewSuitePolicyFromNames(c.Profile, c.KEMSuites)
+}
+
+// SignaturePolicy returns the profile's signature policy: the suite the
+// daemon signs with and the suites it accepts (ADR 0031).
+func (c CryptoConfig) SignaturePolicy() (kms.SignaturePolicy, error) {
+	return kms.NewSignaturePolicyFromNames(c.Profile, c.SignatureSuite)
 }
 
 // PolicyProfileGate is the one policy profile the daemon serves: restore
@@ -233,11 +284,15 @@ type TLSConfig struct {
 // TEEConfig names the TEE this vault attests with on the Return Path
 // and pins the worker's TEE it will accept.
 type TEEConfig struct {
-	// Provider is the local TEE backend: "gcp-sev-snp" (AMD SEV-SNP
-	// reports through the kernel's configfs-tsm, on any SEV-SNP guest
-	// with Linux 6.7 or later — the chip signs) or "simulated" (a key
-	// read from SeedPath signs; no hardware isolation; development and
-	// tests only). Default "simulated". The cross-cloud release path
+	// Provider is the local TEE backend: "auto" (the family this host
+	// attests with, resolved when the file is loaded, ADR 0025: what the
+	// kernel's configfs-tsm serves — sev_guest or tdx_guest — or, under
+	// Azure's paravisor, the vTPM's HCL report: azure-sev-snp), "gcp-sev-snp" (AMD SEV-SNP
+	// reports through configfs-tsm, on any SEV-SNP guest with Linux 6.7
+	// or later — the chip signs), "gcp-tdx", "azure-cgpu", "azure-sev-snp", or "simulated"
+	// (a key read from SeedPath signs; no hardware isolation; development
+	// and tests only). The family names "sev-snp" and "tdx" are accepted
+	// for the first two. Default "simulated". The cross-cloud release path
 	// (sagvd crosscloud-*) does not depend on it.
 	Provider string `json:"provider,omitempty"`
 
@@ -261,7 +316,7 @@ type TEEConfig struct {
 	SEVGuestDevice string `json:"sev_guest_device,omitempty"`
 
 	// GPUAttestCommand, TPM2ToolsDir and AKHandle configure the
-	// azure-cgpu producer: the command that obtains NVIDIA's signed
+	// azure-cgpu producer (TPM2ToolsDir and AKHandle the azure-sev-snp one too): the command that obtains NVIDIA's signed
 	// attestation tokens for a nonce (the nonce is appended; required),
 	// where tpm2-tools live (default PATH), and the vTPM handle of the
 	// HCL attestation key (default: found by its public key). azure-cgpu
@@ -286,6 +341,48 @@ type TEEConfig struct {
 	// hardware isolation. The flag puts that in the config itself.
 	// Simulated only.
 	InsecureSimulation bool `json:"insecure_simulation,omitempty"`
+
+	// Sealer is how the daemon seals its key files to this host (ADR 0025,
+	// step 1b): "auto" (the TEE's own key where it has one — SEV-SNP's
+	// derived key — else the host's TPM 2.0, else the simulated key),
+	// "tee" (the TEE's own key only; refused on TDX and Azure, which have
+	// none), or "tpm2" (the host's TPM 2.0 through tpm2-tools, whatever
+	// the TEE). Every sealed file names the sealer it was made with.
+	Sealer string `json:"sealer,omitempty"`
+
+	// AutoResolvedFrom is set by ResolveAuto when Provider was "auto": the
+	// configfs-tsm provider name the family was taken from (ADR 0025).
+	// Not read from the file.
+	AutoResolvedFrom string `json:"-"`
+}
+
+// SealerMode is tee.sealer with the default applied.
+func (t TEEConfig) SealerMode() tee.SealerMode {
+	m, err := tee.ParseSealerMode(t.Sealer)
+	if err != nil {
+		return tee.SealerModeAuto
+	}
+	return m
+}
+
+// ResolveAuto replaces tee.provider "auto" with the family this host
+// attests with (ADR 0025) — what the kernel's configfs-tsm serves, or,
+// under Azure's paravisor, what the vTPM's HCL report names — keeping
+// where the answer came from in AutoResolvedFrom; any other provider is
+// left as it is. It runs when
+// the file is loaded, before validation, so that the family's own rules
+// apply to the rest of the section.
+func (t *TEEConfig) ResolveAuto() error {
+	p, err := tee.ParseProvider(t.Provider)
+	if err != nil || p != tee.ProviderAuto {
+		return nil
+	}
+	family, name, err := tee.ResolveAuto(t.TSMReportDir)
+	if err != nil {
+		return fmt.Errorf("tee.provider=auto: %w", err)
+	}
+	t.Provider, t.AutoResolvedFrom = string(family), name
+	return nil
 }
 
 // PeerTEEConfig pins the worker-side TEE the vault will accept.
@@ -305,7 +402,10 @@ type PeerTEEConfig struct {
 	MeasurementPath string `json:"measurement_path"`
 
 	// AMDCertChainPath is the AMD ASK+ARK certificate chain (PEM) the
-	// worker's VCEK must chain to. gcp-sev-snp peers only; required.
+	// worker's VCEK must chain to — the chip's product line, as AMD KDS
+	// serves it (`acpctl tee fetch-amd-chain`); its root must be one of
+	// the AMD roots the binary pins (ADR 0024). Required for gcp-sev-snp
+	// and azure-cgpu and azure-sev-snp peers.
 	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
 
 	// AMDKDSURL overrides the AMD KDS base URL (a mirror). gcp-sev-snp
@@ -320,6 +420,11 @@ type PeerTEEConfig struct {
 	// MinReportedTCB is the lowest REPORTED_TCB accepted from the
 	// worker. gcp-sev-snp peers only.
 	MinReportedTCB uint64 `json:"min_reported_tcb,omitempty"`
+	// SEVSNP holds a SEV-SNP peer's report to the attack record (ADR 0033):
+	// the TCB floors, the platform's word, the guest's policy, the mitigation
+	// vector, the chip. Absent: the floors AMD's bulletins printed when they
+	// were read, for the chip's variant.
+	SEVSNP *tee.SEVSNPPolicyConfig `json:"sev_snp,omitempty"`
 
 	// PCSURL overrides the Intel PCS base URL (a mirror, a PCCS); PCSCacheDir
 	// keeps the TCB info and QE identity documents between runs, each
@@ -339,8 +444,113 @@ type PeerTEEConfig struct {
 	GPUPolicy    *GPUPolicyConfig `json:"gpu_policy,omitempty"`
 	// PCRDigests (hex, 32 bytes each), when set, pin what the peer's vTPM
 	// measured of its boot: the quote's PCR digest must be one of them
-	// (`identity` prints it as vtpm.pcr_digest_hex). azure-cgpu peers only.
+	// (`identity` prints it as vtpm.pcr_digest_hex). azure-cgpu and azure-sev-snp peers only.
 	PCRDigests []string `json:"pcr_digests,omitempty"`
+
+	// Verifier chooses who appraises the worker's Evidence (ADR 0025,
+	// step 2b): this daemon's builtin verifier for the family (the
+	// default), or a RATS Verifier asked over Veraison's
+	// challenge-response API. The pin (measurement_path) is held here
+	// either way.
+	Verifier *PeerVerifierConfig `json:"verifier,omitempty"`
+}
+
+// PeerVerifierConfig is tee.peer.verifier: builtin, or a delegated RATS
+// Verifier whose attestation result (EAR) this daemon verifies under the
+// key on file and judges by the policy here. In the delegated mode the
+// family's own inputs (the AMD chain, Intel's PCS) are the Verifier's
+// business and need not be configured here; the peer's family and its
+// measurement still are.
+type PeerVerifierConfig struct {
+	// Mode is "builtin" (default) or "rats".
+	Mode string `json:"mode,omitempty"`
+	// URL is the Verifier's base URL (https; plain http reaches loopback
+	// only). rats only.
+	URL string `json:"url,omitempty"`
+	// EARPublicKeyPath holds the key the Verifier signs EARs with: a PEM
+	// "PUBLIC KEY" block or a JSON Web Key, as its well-known document
+	// publishes it (`ear-verification-key`). ES256, so EC P-256. rats only.
+	EARPublicKeyPath string `json:"ear_public_key_path,omitempty"`
+	// CAPath, when set, is the CA bundle (PEM) the Verifier's TLS
+	// certificate must chain to; otherwise the system roots. rats only.
+	CAPath string `json:"ca_path,omitempty"`
+	// ClientCertPath and ClientKeyPath, when set, are this daemon's TLS
+	// client certificate and key for a Verifier that takes only known
+	// callers (mutual TLS). Both or neither. rats only.
+	ClientCertPath string `json:"client_cert_path,omitempty"`
+	ClientKeyPath  string `json:"client_key_path,omitempty"`
+	// PolicyID, when set, is the ear.appraisal-policy-id the appraisal
+	// must name. rats only.
+	PolicyID string `json:"policy_id,omitempty"`
+	// Submod, when set, is the appraisal (attester component) judged
+	// by; otherwise the EAR must carry exactly one. rats only.
+	Submod string `json:"submod,omitempty"`
+	// Accept are the ear.status values that admit the peer: affirming
+	// (the default), and warning if the operator says so. rats only.
+	Accept []string `json:"accept,omitempty"`
+	// TimeoutSeconds bounds each request to the Verifier; 10 by default.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+}
+
+// delegatedPeerFamilies are the families whose measurement this side
+// reads from the Evidence itself, so a delegated verdict can be pinned.
+var delegatedPeerFamilies = []tee.Provider{tee.ProviderSimulated, tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX}
+
+func (c *PeerVerifierConfig) mode() string {
+	if c == nil || c.Mode == "" {
+		return "builtin"
+	}
+	return c.Mode
+}
+
+// delegated reports whether appraisal goes to a RATS Verifier.
+func (c *PeerVerifierConfig) delegated() bool { return c.mode() == "rats" }
+
+func (c *PeerVerifierConfig) timeout() time.Duration {
+	if c == nil || c.TimeoutSeconds <= 0 {
+		return 10 * time.Second
+	}
+	return time.Duration(c.TimeoutSeconds) * time.Second
+}
+
+// validate checks tee.peer.verifier for a peer of family peer.
+func (c *PeerVerifierConfig) validate(peer tee.Provider) []error {
+	if c == nil {
+		return nil
+	}
+	var errs []error
+	switch c.mode() {
+	case "builtin":
+		if c.URL != "" || c.EARPublicKeyPath != "" || c.CAPath != "" || c.ClientCertPath != "" || c.ClientKeyPath != "" || c.PolicyID != "" || c.Submod != "" || len(c.Accept) > 0 || c.TimeoutSeconds != 0 {
+			errs = append(errs, errors.New("tee.peer.verifier: url, ear_public_key_path, ca_path, client_cert_path, client_key_path, policy_id, submod, accept and timeout_seconds apply to mode=rats only"))
+		}
+	case "rats":
+		if c.URL == "" {
+			errs = append(errs, errors.New("tee.peer.verifier.url required when tee.peer.verifier.mode=rats"))
+		} else if u, err := url.Parse(c.URL); err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+			errs = append(errs, fmt.Errorf("tee.peer.verifier.url %q is not an http(s) URL", c.URL))
+		}
+		if c.EARPublicKeyPath == "" {
+			errs = append(errs, errors.New("tee.peer.verifier.ear_public_key_path required when tee.peer.verifier.mode=rats (the key the Verifier signs its results with)"))
+		}
+		for _, a := range c.Accept {
+			if a != tee.EARStatusAffirming && a != tee.EARStatusWarning {
+				errs = append(errs, fmt.Errorf("tee.peer.verifier.accept %q: only affirming and warning can admit a peer", a))
+			}
+		}
+		if c.TimeoutSeconds < 0 {
+			errs = append(errs, errors.New("tee.peer.verifier.timeout_seconds must not be negative"))
+		}
+		if (c.ClientCertPath == "") != (c.ClientKeyPath == "") {
+			errs = append(errs, errors.New("tee.peer.verifier.client_cert_path and client_key_path go together"))
+		}
+		if peer != "" && !slices.Contains(delegatedPeerFamilies, peer) {
+			errs = append(errs, fmt.Errorf("tee.peer.verifier.mode=rats holds the pin by reading the Evidence itself, which this build does for %v, not %q", delegatedPeerFamilies, peer))
+		}
+	default:
+		errs = append(errs, fmt.Errorf("tee.peer.verifier.mode %q: builtin or rats", c.Mode))
+	}
+	return errs
 }
 
 // pcrDigests decodes PCRDigests; a malformed entry is a config error.
@@ -442,7 +652,7 @@ func (g *GPUPolicyConfig) apply(cfg *tee.AzureCGPUVerifierConfig) error {
 
 // supportedProviders are the TEE backends this build can attest with
 // on the Return Path, and verify a peer's Evidence for.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderSimulated}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderSimulated, tee.ProviderAuto}
 
 // DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
 const DefaultSEVGuestDevice = "/dev/sev-guest"
@@ -478,6 +688,9 @@ func (p PeerTEEConfig) ProviderKind() (tee.Provider, error) {
 // peer by measurement and the AMD chain.
 func validateTEE(t TEEConfig) []error {
 	var errs []error
+	if _, err := tee.ParseSealerMode(t.Sealer); err != nil {
+		errs = append(errs, err)
+	}
 	switch provider, err := t.ProviderKind(); {
 	case err != nil:
 		errs = append(errs, fmt.Errorf("tee.provider invalid: %w", err))
@@ -499,6 +712,18 @@ func validateTEE(t TEEConfig) []error {
 		if t.VTPMSealPCRs != "" {
 			errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies to gcp-tdx and azure-cgpu only"))
 		}
+	case provider == tee.ProviderAuto:
+		// The family is the kernel's to say at start (configfs-tsm); the
+		// rules of a hardware provider apply, and the per-family settings
+		// are checked for form here and for fit by the family resolved.
+		if t.SeedPath != "" || t.InsecureSimulation {
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only; tee.provider=auto runs the family configfs-tsm, or the vTPM's HCL report under Azure's paravisor, serves"))
+		}
+		if t.VTPMSealPCRs != "" {
+			if err := tee.ValidatePCRSelection(t.VTPMSealPCRs); err != nil {
+				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+			}
+		}
 	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
 		if t.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
@@ -517,6 +742,21 @@ func validateTEE(t TEEConfig) []error {
 				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
 			}
 		}
+	case provider == tee.ProviderAzureSEVSNP:
+		if t.SeedPath != "" || t.InsecureSimulation {
+			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only"))
+		}
+		if t.TSMReportDir != "" || t.SEVGuestDevice != "" {
+			errs = append(errs, errors.New("tee.tsm_report_dir and tee.sev_guest_device do not apply to azure-sev-snp (the report comes from the vTPM)"))
+		}
+		if t.VTPMSealPCRs != "" {
+			if err := tee.ValidatePCRSelection(t.VTPMSealPCRs); err != nil {
+				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+			}
+		}
+		if len(t.GPUAttestCommand) > 0 {
+			errs = append(errs, errors.New("tee.gpu_attest_command applies to azure-cgpu only (azure-sev-snp has no GPU)"))
+		}
 	case provider == tee.ProviderAzureCGPU:
 		if t.SeedPath != "" || t.InsecureSimulation {
 			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only"))
@@ -533,23 +773,25 @@ func validateTEE(t TEEConfig) []error {
 			errs = append(errs, errors.New("tee.gpu_attest_command required when tee.provider=azure-cgpu (the command that obtains NVIDIA's attestation tokens for a nonce)"))
 		}
 	}
-	if lp, _ := t.ProviderKind(); lp != tee.ProviderAzureCGPU && (len(t.GPUAttestCommand) > 0 || t.TPM2ToolsDir != "" || t.AKHandle != "") {
-		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu only"))
+	if lp, _ := t.ProviderKind(); lp != tee.ProviderAzureCGPU && lp != tee.ProviderAzureSEVSNP && (len(t.GPUAttestCommand) > 0 || t.TPM2ToolsDir != "" || t.AKHandle != "") {
+		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu and azure-sev-snp only"))
 	}
 	if t.Peer.MeasurementPath == "" {
 		errs = append(errs, errors.New("tee.peer.measurement_path required"))
 	}
 	switch peer, err := t.Peer.ProviderKind(); {
+	case peer == tee.ProviderAuto:
+		errs = append(errs, errors.New("tee.peer.provider cannot be auto: name the family the peer must attest as (gcp-sev-snp, gcp-tdx, azure-cgpu, azure-sev-snp or simulated); only the daemon's own tee.provider may be auto"))
 	case err != nil:
 		errs = append(errs, fmt.Errorf("tee.peer.provider invalid: %w", err))
 	case !slices.Contains(supportedProviders, peer):
 		errs = append(errs, fmt.Errorf("tee.peer.provider %q: no verifier this build can run end to end (supported: %v)", peer, supportedProviders))
 	case peer == tee.ProviderSimulated:
-		if t.Peer.PublicKeyPath == "" {
+		if t.Peer.PublicKeyPath == "" && !t.Peer.Verifier.delegated() {
 			errs = append(errs, errors.New("tee.peer.public_key_path required when tee.peer.provider=simulated"))
 		}
-		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
-			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp or azure-cgpu peer only"))
+		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 || t.Peer.SEVSNP != nil {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir, min_reported_tcb and sev_snp apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"))
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
@@ -558,7 +800,7 @@ func validateTEE(t TEEConfig) []error {
 		if t.Peer.PublicKeyPath != "" {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a SEV-SNP report is signed by the chip's VCEK"))
 		}
-		if t.Peer.AMDCertChainPath == "" {
+		if t.Peer.AMDCertChainPath == "" && !t.Peer.Verifier.delegated() {
 			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=gcp-sev-snp (the AMD ASK+ARK chain the VCEK must chain to)"))
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
@@ -568,25 +810,43 @@ func validateTEE(t TEEConfig) []error {
 		if t.Peer.PublicKeyPath != "" {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a TDX quote chains to the Intel SGX Root CA"))
 		}
-		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 {
-			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir and min_reported_tcb apply to a gcp-sev-snp or azure-cgpu peer only"))
+		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 || t.Peer.SEVSNP != nil {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir, min_reported_tcb and sev_snp apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"))
+		}
+	case peer == tee.ProviderAzureSEVSNP:
+		if t.Peer.PublicKeyPath != "" {
+			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; an Azure SEV-SNP VM's report is signed by the chip's VCEK"))
+		}
+		if t.Peer.AMDCertChainPath == "" && !t.Peer.Verifier.delegated() {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=azure-sev-snp (the AMD ASK+ARK chain of the chip's product, Milan or Genoa as the report says)"))
+		}
+		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
+			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
+		}
+		if t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil {
+			errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir and gpu_policy apply to an azure-cgpu peer only (azure-sev-snp has no GPU)"))
 		}
 	case peer == tee.ProviderAzureCGPU:
 		if t.Peer.PublicKeyPath != "" {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; an Azure confidential GPU VM's report is signed by the chip's VCEK"))
 		}
-		if t.Peer.AMDCertChainPath == "" {
+		if t.Peer.AMDCertChainPath == "" && !t.Peer.Verifier.delegated() {
 			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=azure-cgpu (the AMD ASK+ARK chain of the chip's product, Genoa for NCC H100 v5)"))
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
 		}
 	}
+	if peer, err := t.Peer.ProviderKind(); err == nil {
+		errs = append(errs, t.Peer.Verifier.validate(peer)...)
+	} else {
+		errs = append(errs, t.Peer.Verifier.validate("")...)
+	}
 	if err := t.Peer.GPUPolicy.validate(); err != nil {
 		errs = append(errs, fmt.Errorf("tee.peer.%w", err))
 	}
-	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderAzureCGPU && (t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil || len(t.Peer.PCRDigests) > 0) {
-		errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir, gpu_policy and pcr_digests apply to an azure-cgpu peer only"))
+	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderAzureCGPU && peer != tee.ProviderAzureSEVSNP && (t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil || len(t.Peer.PCRDigests) > 0) {
+		errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir, gpu_policy and pcr_digests apply to an azure-cgpu or azure-sev-snp peer only"))
 	}
 	if _, err := pcrDigests(t.Peer.PCRDigests); err != nil {
 		errs = append(errs, fmt.Errorf("tee.peer.%w", err))
@@ -596,7 +856,7 @@ func validateTEE(t TEEConfig) []error {
 
 // KeysConfig bundles the key-material slots sagvd uses.
 type KeysConfig struct {
-	// AuthoritySigning is the Ed25519 key sagvd uses to sign
+	// AuthoritySigning is the key sagvd uses to sign
 	// authority artifacts (ReconstructionJobManifest signatures,
 	// ReleaseDecision, AttestationResult). Phase 1 uses it only for
 	// provisioning parity with Phase 3; the investor demo does not
@@ -609,7 +869,7 @@ type KeysConfig struct {
 	// and extract the plaintext it will operate on.
 	SessionSealing SealingKeyConfig `json:"session_sealing"`
 
-	// AuditSigning is the Ed25519 key that signs the cross-cloud audit
+	// AuditSigning is the key that signs the cross-cloud audit
 	// log (keys.PurposeSigningAudit). It must stay the same across runs:
 	// the log is one hash-linked chain, verified end to end whenever it
 	// is opened. Required when crosscloud.enabled=true; its public half
@@ -617,10 +877,21 @@ type KeysConfig struct {
 	AuditSigning SigningKeyConfig `json:"audit_signing,omitempty"`
 }
 
-// SigningKeyConfig points at a 32-byte Ed25519 seed file.
+// SigningKeyConfig names a signing key: its kid, its key file and its
+// signature suite (ADR 0031). SeedPath is the key file — the 32-byte seed
+// of an ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384
+// key — bare, or sealed in place by seal-keys (ADR 0023). Suite names
+// the suite the file is read under, never guessed from its length;
+// absent, it is ed25519, what every configuration before ADR 0031 meant.
 type SigningKeyConfig struct {
 	KeyID    string `json:"kid"`
 	SeedPath string `json:"seed_path"`
+	Suite    string `json:"suite,omitempty"`
+}
+
+// signatureSuite is the suite the configuration names: ed25519 when absent.
+func (k SigningKeyConfig) signatureSuite() (crypto.SignatureSuite, error) {
+	return crypto.SuiteOrDefault(k.Suite)
 }
 
 // SealingKeyConfig points at a 32-byte AES-256 key-material file.
@@ -637,6 +908,48 @@ type WorkersConfig struct {
 	// from. Out-of-band provisioning in Phase 1; attestation-bound
 	// in Phase 3.
 	RegistryPath string `json:"registry_path"`
+}
+
+// QueueConfig is the daemon's job store (ADR 0026).
+type QueueConfig struct {
+	// Path is the bbolt file every accepted job is recorded in — the
+	// request as accepted, its status, and once finished its view — so
+	// that a restart admits again what was queued or in flight and still
+	// answers a GET for what was finished. Empty keeps the queue in
+	// memory. It must not be the audit log's file: one process holds a
+	// bbolt file at a time, and the two are opened separately.
+	Path string `json:"path,omitempty"`
+
+	// MaxResumeAttempts bounds how many times one job is admitted after
+	// restarts before it is failed as a job the authority cannot finish
+	// (a job that crashes the authority must not crash it forever);
+	// 0 takes DefaultMaxResumeAttempts.
+	MaxResumeAttempts int `json:"max_resume_attempts,omitempty"`
+
+	// RetainFinishedSeconds is how long a finished job's record and view
+	// stay in the store after it finished (ADR 0027): older ones are
+	// deleted, in batches, at most once a minute, after a completion and
+	// at start, and GET /v1/jobs/{id} answers 404 for them — the audit
+	// log holds the decision under the job's request id. 0, the
+	// default, keeps every finished job. Jobs queued or running are
+	// never deleted.
+	RetainFinishedSeconds int `json:"retain_finished_seconds,omitempty"`
+}
+
+// RetainFinished is QueueConfig.RetainFinishedSeconds as a duration.
+func (q QueueConfig) RetainFinished() time.Duration {
+	return time.Duration(q.RetainFinishedSeconds) * time.Second
+}
+
+// DefaultMaxResumeAttempts is QueueConfig.MaxResumeAttempts when unset.
+const DefaultMaxResumeAttempts = 3
+
+// MaxResume returns MaxResumeAttempts with the default applied.
+func (q QueueConfig) MaxResume() int {
+	if q.MaxResumeAttempts <= 0 {
+		return DefaultMaxResumeAttempts
+	}
+	return q.MaxResumeAttempts
 }
 
 // RuntimeConfig bounds the accept / dispatch / HTTP timings.
@@ -678,6 +991,25 @@ type RuntimeConfig struct {
 	// dials again, attests again). 0 takes the attestation default
 	// (5 minutes).
 	EvidenceMaxAgeSeconds int `json:"evidence_max_age_seconds,omitempty"`
+
+	// MaxSessions is how many Return Path sessions the authority serves
+	// at once — each a worker attested, a job dispatched, an answer
+	// judged, on the record. 0 means 1: one session at a time, the
+	// behaviour before this setting. A worker that connects while every
+	// slot is taken waits up to handshake_timeout_seconds for one, then
+	// is closed before any handshake and counted as refused (busy); it
+	// dials again after its backoff. Every stage a session takes is
+	// under the audit log's and the queue's own locks, so sessions do
+	// not see each other's jobs.
+	MaxSessions int `json:"max_sessions,omitempty"`
+}
+
+// SessionSlots returns RuntimeConfig.MaxSessions, 1 when unset.
+func (r RuntimeConfig) SessionSlots() int {
+	if r.MaxSessions <= 0 {
+		return 1
+	}
+	return r.MaxSessions
 }
 
 // JobTimeout returns RuntimeConfig.JobTimeoutSeconds as a Duration.
@@ -934,7 +1266,14 @@ func LoadConfigFile(path string) (Config, error) {
 		return Config{}, fmt.Errorf("sagvd: open config %q: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()
-	return DecodeConfig(f)
+	c, err := DecodeConfig(f)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := c.TEE.ResolveAuto(); err != nil {
+		return Config{}, fmt.Errorf("sagvd: %w", err)
+	}
+	return c, nil
 }
 
 // DecodeConfig decodes JSON from r into a Config, applied on top of
@@ -982,6 +1321,29 @@ func (c *Config) ResolveSecrets() error {
 // see the full punch-list in one run.
 func (c Config) Validate() error {
 	var errs []error
+
+	if _, err := c.Crypto.Policy(); err != nil {
+		errs = append(errs, fmt.Errorf("crypto: %w", err))
+	}
+	// The signing keys must be of the suite the profile signs with: the
+	// key material and the configuration's intent agree, or the daemon
+	// does not start (ADR 0031).
+	if sigPol, err := c.Crypto.SignaturePolicy(); err != nil {
+		errs = append(errs, fmt.Errorf("crypto: %w", err))
+	} else {
+		if suite, err := c.Keys.AuthoritySigning.signatureSuite(); err == nil {
+			if err := sigPol.CheckSigningKey("keys.authority_signing", suite); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if c.Keys.AuditSigning.KeyID != "" || c.Keys.AuditSigning.SeedPath != "" {
+			if suite, err := c.Keys.AuditSigning.signatureSuite(); err == nil {
+				if err := sigPol.CheckSigningKey("keys.audit_signing", suite); err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+	}
 
 	if strings.TrimSpace(c.Vault.ListenAddress) == "" {
 		errs = append(errs, errors.New("vault.listen_address required"))
@@ -1043,6 +1405,12 @@ func (c Config) Validate() error {
 	if c.Keys.AuthoritySigning.SeedPath == "" {
 		errs = append(errs, errors.New("keys.authority_signing.seed_path required"))
 	}
+	if _, err := c.Keys.AuthoritySigning.signatureSuite(); err != nil {
+		errs = append(errs, fmt.Errorf("keys.authority_signing.suite: %w", err))
+	}
+	if _, err := c.Keys.AuditSigning.signatureSuite(); err != nil {
+		errs = append(errs, fmt.Errorf("keys.audit_signing.suite: %w", err))
+	}
 	if c.Keys.SessionSealing.KeyID == "" {
 		errs = append(errs, errors.New("keys.session_sealing.kid required"))
 	}
@@ -1074,6 +1442,9 @@ func (c Config) Validate() error {
 	}
 	if c.Runtime.MaxPayloadBytes == 0 {
 		errs = append(errs, errors.New("runtime.max_payload_bytes must be > 0"))
+	}
+	if c.Runtime.MaxSessions < 0 {
+		errs = append(errs, errors.New("runtime.max_sessions must be >= 0 (0 = one session at a time)"))
 	}
 
 	switch strings.ToLower(c.Log.Level) {
@@ -1117,6 +1488,35 @@ func (c Config) Validate() error {
 		if c.CrossCloud.AuditLogPath != "" && filepath.Clean(c.CrossCloud.AuditLogPath) == filepath.Clean(c.Audit.LogPath) {
 			errs = append(errs, errors.New("audit.log_path and crosscloud.audit_log_path must be different files: the daemon holds its log open, and one process holds a log at a time"))
 		}
+		if c.Audit.SegmentEvents < 0 || c.Audit.SegmentEvents == 1 {
+			errs = append(errs, errors.New("audit.segment_events must be 0 (never close a segment by count) or at least 2"))
+		}
+		if c.Audit.SegmentMaxAgeSeconds < 0 {
+			errs = append(errs, errors.New("audit.segment_max_age_seconds must be >= 0 (0 = never close a segment by age)"))
+		}
+		if c.Audit.ArchiveDir != "" && !filepath.IsAbs(c.Audit.ArchiveDir) {
+			errs = append(errs, fmt.Errorf("audit.archive_dir %q must be an absolute path", c.Audit.ArchiveDir))
+		}
+	} else if c.Audit.Rotates() || c.Audit.ArchiveDir != "" {
+		errs = append(errs, errors.New("audit.segment_events, audit.segment_max_age_seconds and audit.archive_dir need audit.log_path"))
+	}
+
+	if c.Queue.Path != "" {
+		if c.Audit.LogPath != "" && filepath.Clean(c.Queue.Path) == filepath.Clean(c.Audit.LogPath) {
+			errs = append(errs, errors.New("queue.path and audit.log_path must be different files: each is a bbolt file the daemon holds open"))
+		}
+		if c.CrossCloud.AuditLogPath != "" && filepath.Clean(c.Queue.Path) == filepath.Clean(c.CrossCloud.AuditLogPath) {
+			errs = append(errs, errors.New("queue.path and crosscloud.audit_log_path must be different files"))
+		}
+	}
+	if c.Queue.MaxResumeAttempts < 0 {
+		errs = append(errs, errors.New("queue.max_resume_attempts must be >= 0 (0 = the default of 3)"))
+	}
+	if c.Queue.RetainFinishedSeconds < 0 {
+		errs = append(errs, errors.New("queue.retain_finished_seconds must be >= 0 (0 = keep every finished job)"))
+	}
+	if c.Queue.RetainFinishedSeconds > 0 && c.Queue.Path == "" {
+		errs = append(errs, errors.New("queue.retain_finished_seconds needs queue.path: a queue in memory has nothing on disk to expire"))
 	}
 
 	// CrossCloud is opt-in; only validate fields when enabled.

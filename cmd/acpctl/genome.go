@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -5,7 +6,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -194,7 +194,7 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 	if *escrowOut == "" && *escrowTo != "" {
 		*escrowOut = *outputPath + ".escrow"
 	}
-	var escrowPub *ecdh.PublicKey
+	var escrowPub escrow.PublicKey
 	if *escrowTo != "" {
 		raw, err := os.ReadFile(*escrowTo)
 		if err == nil {
@@ -268,7 +268,7 @@ func genomeSealCmd(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	var escrowTag string
-	if escrowPub != nil {
+	if !escrowPub.IsZero() {
 		env, err := escrow.Seal(dek, sealed.KeyID, escrowPub)
 		var raw []byte
 		if err == nil {
@@ -1009,12 +1009,12 @@ func loadGenome(path string) (*genomeFile, error) {
 	var magic [len(bundle.Magic)]byte
 	_, err = io.ReadFull(f, magic[:])
 	_ = f.Close()
-	if err == nil && bundle.IsV3(magic[:]) {
+	if err == nil && bundle.Is(magic[:]) {
 		id, err := bundle.Identify(path)
 		if err != nil {
 			return nil, err
 		}
-		return &genomeFile{Path: path, Size: id.Size, SHA256: id.SHA256, Format: bundle.Format, Header: id.Header, V3: true}, nil
+		return &genomeFile{Path: path, Size: id.Size, SHA256: id.SHA256, Format: id.Header.Format, Header: id.Header, V3: true}, nil
 	}
 	blob, err := os.ReadFile(path)
 	if err != nil {

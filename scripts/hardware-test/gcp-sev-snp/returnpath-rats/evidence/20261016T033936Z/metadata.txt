@@ -1,0 +1,4 @@
+instance=vg-rp-rats-20261016t033730z
+zone=us-central1-c
+machine=n2d-standard-4
+captured=20261016T033936Z

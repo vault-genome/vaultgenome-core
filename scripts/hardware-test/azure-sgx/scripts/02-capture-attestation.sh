@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # 02-capture-attestation.sh — generate an Intel SGX quote on this Azure
@@ -49,10 +50,13 @@ echo "=== using oeutil at ${OEUTIL} ==="
 
 echo
 echo "=== generate SGX evidence (quote + claims) via oeutil ==="
-# `oeutil generate-evidence` produces a binary evidence buffer
-# containing the quote + custom claims. The flag "-f sgx_ecdsa" requests
-# DCAP/ECDSA quote (vs deprecated EPID).
-if "${OEUTIL}" generate-evidence -f sgx_ecdsa --out-file evidence/sgx-quote.bin 2>&1 | tee evidence/sgx-quote-generation.txt; then
+# `oeutil generate-evidence` produces a binary evidence buffer containing
+# the quote + custom claims: "-f sgx_ecdsa" asks for a DCAP/ECDSA quote,
+# "-p out" quotes through aesmd (the login session is not yet in the
+# sgx_prv group, see 02b), "-o" names the evidence file and "-e" the
+# endorsements (Open Enclave 0.19's flags; the kit once passed --out-file,
+# which 0.19 rejects — the May 2026 captures carry that error).
+if "${OEUTIL}" generate-evidence -f sgx_ecdsa -p out -o evidence/sgx-quote.bin -e evidence/sgx-endorsements.bin 2>&1 | tee evidence/sgx-quote-generation.txt; then
   echo "✓ quote generated"
 else
   echo "ERROR: oeutil generate-evidence failed. See evidence/sgx-quote-generation.txt"

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Package received_disclosure defines the ReceivedDisclosure canonical
@@ -39,6 +40,7 @@ package received_disclosure
 import (
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 )
 
@@ -104,5 +106,8 @@ type ReceivedDisclosure struct {
 	AuditEventID ids.AuditEventID `json:"audit_event_id"`
 
 	SigningKeyID ids.KeyID `json:"signing_key_id"`
-	Signature    []byte    `json:"signature"`
+	// Alg is the signature suite the signature was made under (ADR
+	// 0031): absent for ed25519, the suite id otherwise.
+	Alg       crypto.SignatureSuite `json:"alg,omitempty"`
+	Signature []byte                `json:"signature"`
 }

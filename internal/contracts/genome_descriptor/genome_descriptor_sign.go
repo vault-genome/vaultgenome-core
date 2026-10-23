@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package genome_descriptor
@@ -47,6 +48,11 @@ func (g *GenomeDescriptor) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, g.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	g.Alg = alg
 	cp := *g
 	cp.Signature = nil
 	cb, err := crypto.CanonicalJSON(&cp)
@@ -93,5 +99,5 @@ func (g *GenomeDescriptor) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, g.Signature)
+	return vk.VerifyRecord(g.Alg, cb, g.Signature)
 }

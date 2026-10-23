@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -93,28 +94,40 @@ func (e *chainAuditEmitter) Emit(
 	manifestID ids.ManifestID,
 	requestID ids.RequestID,
 ) (ids.AuditEventID, error) {
+	sealed, err := e.chain.Append(e.build(kind, payload, sessionID, manifestID, requestID), e.signer)
+	if err != nil {
+		return "", err
+	}
+	return sealed.EventID, nil
+}
+
+// build is the event Emit appends, before the chain seals it: the next
+// id under the emitter's prefix, the clock's time, the kind, payload
+// and correlators. A rotation appends one itself, under the chain's
+// lock (returnPathAudit.rotateIfDue).
+func (e *chainAuditEmitter) build(
+	kind audit_event.Kind,
+	payload []byte,
+	sessionID ids.SessionID,
+	manifestID ids.ManifestID,
+	requestID ids.RequestID,
+) audit_event.AuditEvent {
 	e.mu.Lock()
 	e.counter++
 	counter := e.counter
 	e.mu.Unlock()
 
-	now := e.clock.Now().UTC()
-	skel := audit_event.AuditEvent{
+	return audit_event.AuditEvent{
 		SchemaVersion: audit_event.SchemaVersionCurrent,
 		EventID:       ids.AuditEventID(fmt.Sprintf("%s%016x", e.prefix, counter)),
 		Kind:          kind,
-		OccurredAt:    now,
+		OccurredAt:    e.clock.Now().UTC(),
 		SessionID:     sessionID,
 		ManifestID:    manifestID,
 		RequestID:     requestID,
 		Payload:       payload,
 		SigningKeyID:  e.signerKID,
 	}
-	sealed, err := e.chain.Append(skel, e.signer)
-	if err != nil {
-		return "", err
-	}
-	return sealed.EventID, nil
 }
 
 // --- ID generator ---------------------------------------------------

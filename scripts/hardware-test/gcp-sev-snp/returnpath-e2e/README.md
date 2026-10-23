@@ -11,12 +11,22 @@ attesting with the chip and each pinning the other's launch measurement
 - `sagvd identity` and `acp-compute identity` read each side's 48-byte launch
   measurement from the chip through configfs-tsm; each is written into the
   other's `tee.peer.measurement_path`;
-- a worker that is **not** the pinned identity — same certificate, same
-  sealing key, a simulated TEE instead of the chip — dials the Return Path
-  and is refused at the handshake; the refusal is on `sagvd`'s audit log;
+- `sagvd seal-keys` and `acp-compute seal-keys` seal every key file on disk
+  to this host — with the chip's derived key, or with the guest's vTPM when
+  the kit runs with `VG_SEALER=tpm2` (`tee.sealer`, ADR 0025 step 1b) — and
+  both daemons start from the sealed files;
+- a thief with those sealed files and no chip (a simulated TEE) is refused
+  before any key is read; a worker that is **not** the pinned identity —
+  the plaintext copies of the signing seed, the TLS key and the sealing key
+  taken before sealing, the same certificate, a simulated TEE instead of the
+  chip — dials the Return Path and is refused at the handshake; the refusal
+  is on `sagvd`'s audit log;
 - the pinned worker dials, its SEV-SNP Evidence verifies (VCEK from AMD KDS,
-  ECDSA-P384, VCEK → ASK → ARK-Milan, no DEBUG, VMPL 0, REPORT_DATA binding
-  the transcript challenge), a gate job goes over the Return Path, the
+  ECDSA-P384, VCEK → ASK → ARK-Milan, the TCB against the floors AMD's
+  bulletins set for the chip's variant with the alias check and the
+  mitigation vector — ADR 0033 — no DEBUG, no MIGRATE_MA, VMPL 0,
+  REPORT_DATA binding the transcript challenge), a gate job goes over the
+  Return Path, the
   worker restores the model in memory through the door and answers the
   genome's prompts, `sagvd` judges the answers and signs the verdict;
 - both daemons stop; `acpctl audit verify` verifies the log under the key
@@ -27,6 +37,166 @@ Both processes run inside the same guest here; what the run proves is that
 the Return Path handshake carries genuine hardware Evidence on both sides,
 that the pinned identity is the one admitted, and that every decision of
 the authority is on a verifiable record before it took effect.
+
+## Results — run `20261022T194156Z`: the policy on the identity, and the admitted worker's chip on the record (ADR 0033, part two)
+
+The same kit on the tree of ADR 0033 part one (`be37c6f`), `fips` under
+`VG_FIPS=1`, us-central1-c, `n2d-standard-4`, the image of every run
+since September (measurement `7dc7c12e…25acc`); both daemons `commit
+be37c6f6b98a`, `fips140=only module=v1.0.0 enforced=true`. The whole
+guest script took **127.0 s**. New on the record, and required by the
+verdict: what the authority holds a SEV-SNP peer to, and what the
+admitted worker's chip said.
+
+| | `20261022T194156Z` |
+| - | - |
+| `sagvd identity` → `sev_snp_policy` | `bulletins_read_on=2026-10-22`; the Milan row `snp 0x1b microcode 0xde, mitigation vector bits 0x2, alias check` |
+| The admitted worker's chip, from its `TRUST_EVALUATED` record (`outcome=allow`, `peer_detail.sev_snp`) | Milan (CPUID 0x19/0x01/0x01), SNP **0x1d**, microcode **0xde**, firmware 1.58.1, the alias check complete, mitigation vector `0xb`; held to the floor 0x1b/0xde; chip id `35e7e230…` — another host than the key-release run's, at the same levels |
+| The rogue worker's `TRUST_EVALUATED` record | `outcome=deny` at the handshake after 1 s, `handshake_failure`: its evidence is not the type this verifier reads — a simulated TEE has no report, so no `sev_snp` detail |
+| The thief with the sealed files | does not open them off the chip (`sev-snp-derived-key`) |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 5 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `62d50a58…`, `ed25519` — the `fips` profile's own suite, `VG_SIGSUITE` unset |
+
+## Results — runs `20261021T212451Z` (cnsa) and `20261021T213945Z` (fips): `VG_FIPS=1` — the certified module with enforcement on (ADR 0030, part two)
+
+The same kit with every binary built on the certified Go Cryptographic
+Module v1.0.0 (`GOFIPS140=v1.0.0`) and every Go process on the guest
+under `GODEBUG=fips140=only`, in which a non-approved service fails
+instead of succeeding; the profile `cnsa` — the kit's third argument,
+new — in `sagvd`'s configuration. us-central1-c, `n2d-standard-4`, the
+image of every run since September (measurement `7dc7c12e…25acc`), the
+tree `a6b33a2`. The whole script took **131.3 s** (runtime from the locks
+81.8 s). The kit's verdict is new too: it requires both rogues refused,
+the session opened, the job `succeeded` with the gate EXACT and the audit
+log verified — and, under the flag, the record of the module on every
+process.
+
+| Step | Outcome |
+|---|---|
+| The record of the module | `versions.txt`: `sagvd`, `acp-compute` and `acpctl` each `fips140=only module=v1.0.0 enforced=true`; `steps.txt`: `fips=1 GODEBUG=fips140=only`, `sagvd fips140 enabled=true enforced=true version=v1.0.0` and the same for `acp-compute`; `build.txt` (the runner's, outside the guest's sums): every binary `GOFIPS140=v1.0.0-c2097c7c` at `a6b33a2` |
+| The profile | `steps.txt`: `profile=cnsa`, `sagvd crypto_profile=cnsa kem_suites=hpke-mlkem1024-p384-v2` |
+| `seal-keys` | both daemons, `sealer=sev-snp-derived-key`: 5 files and 2 files |
+| A thief with the sealed files, off the chip | **refused**: `exit=1 sealed to gcp-sev-snp, this host is simulated` |
+| A worker that is not the pinned identity | **refused** at the handshake after 1 s, on the record |
+| The gate job | the session opened after 8 s; `succeeded` after 5 s, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e` |
+| `acpctl audit verify` | **ok** — 17 events |
+
+The `fips` run, `evidence/20261021T213945Z`, is the same under
+`hpke-p384-v2` (`sagvd crypto_profile=fips kem_suites=hpke-p384-v2,
+hpke-mlkem768-v2,hpke-mlkem1024-p384-v2`): **128.9 s** (runtime from
+the locks 79.0 s), both rogues refused, the session opened after 8 s,
+the job `succeeded` after 5 s with the gate EXACT 6 of 6, 17 events
+verified, the three version lines and both identities on the module.
+The two guests ran minutes apart on the same image. (A third run, under
+`fips` in the same second as the `cnsa` one, named its record by its
+own clock and the decode of the later guest overwrote the earlier
+record; since then the guest names the record by the runner's stamp,
+`vg-stamp`, unique per run.)
+
+## Result — run `20261015T194325Z`: `tee.sealer: "tpm2"` — the guest's vTPM seals the key files, beside the chip
+
+The same kit with both daemons' key files sealed by the guest's vTPM
+instead of the chip's derived key — `VG_SEALER=tpm2` puts `tee.sealer:
+"tpm2"` into both configs (ADR 0025, step 1b), the guest installs
+tpm2-tools, and after the identities are read `sagvd seal-keys` and
+`acp-compute seal-keys` seal every key file on disk. The sealing step is
+new to the kit — until this run its comment promised sealing that no step
+performed — and so is the first of the two rogues below. us-central1-c,
+`n2d-standard-4`, the image of every run since September (measurement
+`7dc7c12e…25acc`, `tee.provider: "auto"` → `sev_guest`). The whole script took
+**112.9 s** (runtime from the locks 78.3 s, fine-tune 9.4 s).
+
+| Step | Outcome |
+|---|---|
+| The vTPM | `vtpm.txt`: `/dev/tpm0`, `/dev/tpmrm0`, `TPM2_PT_MANUFACTURER` `0x474F4F47` ("GOOG") |
+| `seal-keys` | `seal-keys-sagvd.json`: `sealer: tpm2`, 5 files (`keys.authority_signing.seed_path`, `keys.session_sealing.material_path`, `keys.audit_signing.seed_path`, `vault.tls.server_key`, `http_api.bearer_token_file`); `seal-keys-worker.json`: `sealer: tpm2`, 2 files, the shared sealing material already sealed |
+| The sealed files | `sealed-files.txt`: all 7 name `tee: gcp-sev-snp`, `sealer: tpm2` — the sealer is in the seal, not only in the file |
+| The daemons, from the sealed files | both start from them; `sagvd identity` and `acp-compute identity` print `sealer: tpm2` / `tpm2` |
+| A thief with the sealed files, off the chip | **refused before any key is read**: `rogue-sealed-worker.log` — `sealed secret 'keys.worker_signing.seed_path': sealed to gcp-sev-snp, this host is simulated`; `steps.txt`: `exit=1 sealed to gcp-sev-snp, this host is simulated` |
+| A worker with a simulated TEE and the plaintext copies | **refused** at the handshake after 1 s (`integrity[signature_invalid]: gcp-sev: evidence shorter than SEV-SNP report (1184 bytes)`), on the record — the handshake proof of every run, kept |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 8.8 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `d7d523b1…` |
+
+
+## Result — run `20261015T143033Z`: the AMD chain fetched on the guest, the keys provisioned privately
+
+The same kit on the tree of the self-contained release (`e0b3fed`, #96),
+with two changes on the guest: the AMD Milan chain is no longer uploaded
+from this tree but fetched on the guest from AMD KDS by `acpctl tee
+fetch-amd-chain`, which verifies it against the roots the binary pins
+before writing it (ADR 0024; `amd-chain.txt`: 4602 bytes, ASK `SEV-Milan`,
+ARK `ARK-Milan` sha256 `69d063b4…0bcd`; `inputs.sha256`: the chain's
+sha256 `22e62f8d…1ce6`, the same bytes as the fixture
+`internal/shared/tee/testdata/amd/kds-Milan-cert_chain.pem` read from
+KDS that morning); and the key material is provisioned by `acp-keygen
+-private` (0600 files in 0700 directories), the helper built from
+`cmd/acp-keygen` and reporting its version next to the daemons'
+(`versions.txt`). us-central1-c, `n2d-standard-4`, the launch measurement
+`7dc7c12e…25acc` as in every run since September.
+
+| Step | Outcome |
+|---|---|
+| Runtime install from the locks | 80.7 s |
+| Fine-tune + seal | 9.9 s; key id `genome-7b3d5aa7528e-g0-953b38e33127` |
+| The unpinned worker | refused at the handshake after 1 s |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 5.2 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `a05cf08e…` |
+| The guest script | 100.5 s |
+
+Checksums: `cd evidence/20261015T143033Z && grep -v ' sha256sums.txt$'
+sha256sums.txt | shasum -a 256 -c` — 33 of 33 match.
+
+## Result — run `20261015T190305Z`: `tee.provider: "auto"` — the kernel names the family
+
+The same kit with neither daemon told what hardware it runs on: both
+configs say `tee.provider: "auto"` (the peer pin stays `gcp-sev-snp`), and
+each daemon takes its family from the kernel's configfs-tsm when the
+configuration is loaded (ADR 0025, step 1). us-central1-c, `n2d-standard-4`,
+the image of every run since September (measurement `7dc7c12e…25acc`).
+
+| | `20261015T190305Z` (tree `de6bccd` + this branch) |
+| - | - |
+| The kernel's answer | `sagvd.log`, `acp-compute.log`: `tee.provider auto: the family is the kernel's to say` — `tsm_provider: sev_guest`, `tee_provider: gcp-sev-snp`, before each daemon's TEE identity line |
+| The identities | `tee_provider: gcp-sev-snp` on both, measurement `7dc7c12e…25acc` from the chip |
+| The AMD chain | fetched on the guest by `acpctl tee fetch-amd-chain`, checked against the pinned ARK-Milan (`amd-chain.txt`) |
+| Runtime install from the locks | 84.3 s |
+| Fine-tune + seal | 9.2 s; key id `genome-494a27fce81b-g0-d7f07cebe9f7` |
+| The unpinned worker | refused at the handshake after 1 s |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 5.2 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `dc6c3c82…` |
+| The guest script | 103.4 s |
+
+Nothing else differs from the runs below: the family the kernel named is
+the family the daemons ran, attested and recorded as. The same kit on a
+TDX Trust Domain the same minute, with the same two words in its config:
+[`../../gcp-tdx/returnpath-e2e/`](../../gcp-tdx/returnpath-e2e/README.md),
+run `20261015T190232Z` (`tsm_provider: tdx_guest`).
+
+## Result — runs `20261015T043703Z` and `20261015T044521Z`: the runtime from the hash-pinned locks
+
+The same kit, with the guest installing the worker's runtime from the
+hash-pinned locks instead of plain pins — `requirements-ci.lock` from PyPI,
+then the torch CPU wheel alone from `requirements-torch-cpu.lock` on the
+PyTorch CPU index, each under `pip --require-hashes --only-binary=:all:`.
+us-central1-c, `n2d-standard-4`, both daemons reading the launch
+measurement `7dc7c12e…25acc` from the chip as in every run since September.
+
+| | `20261015T043703Z` (tree `4d289a5`) | `20261015T044521Z` (tree `75efe4f`) |
+| - | - | - |
+| Runtime install from the locks | 82.9 s | 75.2 s |
+| `runtime.txt` | torch 2.14.1+cpu, transformers 5.19.0, safetensors 0.8.0 | the same |
+| Fine-tune + seal | 10.3 s; key id `genome-8b157371311d-g0-bc5f5067c40a` | 8.8 s; `genome-f219ea41724c-g0-b7a2314633ea` |
+| The unpinned worker | refused at the handshake after 1 s | the same |
+| The gate job | `succeeded`, **EXACT**, pinned replay, rung 0, 6 of 6, max abs err 0, signed by `sagvd-authority-e2e`; 5.2 s | the same; 5.2 s |
+| `acpctl audit verify` | **ok — 17 events**, tip `0c251fc9…` | **ok — 17 events**, tip `861ddc27…` |
+| The guest script | 103.4 s | 93.7 s |
+| `pip-requirements.log`, `pip-torch.log` | empty: pip ran with `-q` | what pip installed and from where — the torch wheel from `download-r2.pytorch.org/whl/cpu`, the rest from PyPI, every file by hash |
+
+The second run is the first with `-q` removed from the guest's two pip
+calls, so that the two logs are the record of the install; nothing else
+differs between the trees. Checksums: `cd evidence/<run> && grep -v
+' sha256sums.txt$' sha256sums.txt | shasum -a 256 -c` — 32 of 32 match in
+each.
 
 ## Result — run `20260916T003940Z` (evidence/20260916T003940Z): the nine-stage flow on the chip
 
@@ -104,16 +274,29 @@ script now takes them last, and the evidence is kept exactly as captured.
 provider, measurement), `seal.json`, `finetune.json`, `job-submit.json`,
 `job.json` (the job view with the signed verdict), `audit-verify.json`,
 `audit-events.jsonl` (every event with its payload), `audit-public-key.pem`,
-both daemons' logs, the rogue worker's log, metrics, the runtime versions,
+`seal-keys-sagvd.json` and `seal-keys-worker.json` (which files were sealed,
+by which sealer), `sealed-files.txt` (each sealed file's shape, none of its
+bytes), `vtpm.txt` when the vTPM seals, both daemons' logs, the two rogue
+workers' logs, metrics, the runtime versions,
 `tsm.txt` and `kernel.txt`, `steps.txt` with the timings, and
 `sha256sums.txt` over all of it. Keys, seeds, the API token, the sealed
 bundle's key file and the configs stay on the VM and die with it: the VM
 and the bucket are deleted at the end of every run, also on failure.
 
+Since ADR 0033 `steps.txt` carries two more lines, and the verdict
+requires both: `sagvd sev_snp_policy bulletins_read_on=…` from `sagvd
+identity` — the day the floors were read from AMD's bulletins and the
+Milan row the authority holds a peer of that variant to — and a
+`peer chip` line from the admitted worker's `TRUST_EVALUATED` record
+(`peer_detail.sev_snp` in `audit-events.jsonl`): its variant by CPUID,
+the TCB it reported, the firmware, the alias check, the mitigation vector
+and the floor applied. The first run under it is `20261022T194156Z`
+(ADR 0033, part two), the first of the results above.
+
 ## Reproduce
 
 ```bash
-scripts/hardware-test/gcp-sev-snp/returnpath-e2e/run.sh <gcp-project> [zone]
+scripts/hardware-test/gcp-sev-snp/returnpath-e2e/run.sh <gcp-project> [zone] [profile]
 ```
 
 `gcloud` logged in to a project with the Compute Engine and Cloud Storage
@@ -122,3 +305,16 @@ The AMD Milan chain comes from `../keybind-evidence/20260913T222343Z/`.
 The raw serial capture is kept under `~/.cache/vaultgenome/returnpath-e2e/`
 (override with `VG_E2E_RAW_DIR`); `decode-results.sh` verifies the tarball's
 size and SHA-256 against the header the guest printed before unpacking it.
+The third argument, `general`, `fips` or `cnsa`, is the cryptographic
+profile of ADR 0029, written into `sagvd`'s configuration (unset, the
+daemon's default applies). `VG_FIPS=1` builds every binary on the
+certified Go Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`) and runs
+every Go process on the guest under `GODEBUG=fips140=only` (ADR 0030,
+part two); the profile defaults to `fips` and `general` is refused, its
+first suite being X25519.
+The binaries are built from a clean checkout of `HEAD` when the tree's
+tracked files are clean, so their VCS stamp is the commit's even while
+other kits write their records into the tree (untracked files mark a
+build modified; on 2026-10-21 the binaries of a release record came out
+`-dirty` for that reason); a tree with modified tracked files builds from
+the working tree, stamped so.

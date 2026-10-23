@@ -1,0 +1,10 @@
+{
+  "escrow_key": "8c9d9b1258dac31d",
+  "suite": "hpke-p384-v1",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAErTzHj2fsj38pZWlJ8Xs0C9tX3V7F+6xU\n5W4At5d7WT0Yb4KjYhtVSyXEpFpu7KvErkQmCOXTnsNrWQdALAy0bF1TFuhdNC83\nHWP2rBGS7qEQJ/gli8eiG7QGJFHIQaSy\n-----END PUBLIC KEY-----\n",
+  "tee": "gcp-sev-snp",
+  "measurement_hex": "7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc",
+  "source": "stdin",
+  "sealed_path": "/root/w/escrow.sealed",
+  "public_path": "/root/w/escrow.pem"
+}

@@ -1,0 +1,2 @@
+sagvd, bundle + --offline, no route: Error: trusted root is required when using new bundle format error during command execution: trusted root is required when using new bundle format 
+sagvd, the pair, no bundle, no route: WARNING: Could not fetch trusted_root.json from the TUF repository. Continuing with individual targets. Error from TUF: error getting live trusted root: failed to create TUF client failed to load metadata: tuf refresh failed: Get "https://tuf-repo-cdn.sigstore.dev/14.root.json": dial tcp 34.117.62.1

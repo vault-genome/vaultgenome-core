@@ -1,0 +1,7 @@
+Oct 15 00:56:30 ubuntu kernel: sgx: EPC section 0x8c0000000-0xcbfffffff
+Oct 15 00:56:38 vault-genome-sgx-test kernel: EXT4-fs (sda1): resizing filesystem from 548091 to 10457339 blocks
+Oct 15 00:56:38 vault-genome-sgx-test kernel: EXT4-fs (sda1): resized filesystem to 10457339
+Oct 15 00:56:40 vault-genome-sgx-test kernel: loop3: detected capacity change from 0 to 8
+Oct 15 00:56:41 vault-genome-sgx-test kernel: kauditd_printk_skb: 17 callbacks suppressed
+Oct 15 00:56:41 vault-genome-sgx-test kernel: audit: type=1400 audit(1792025801.128:42): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="/usr/lib/snapd/snap-confine" pid=892 comm="apparmor_parser"
+Oct 15 00:57:17 vault-genome-sgx-test kernel: hv_balloon: Max. dynamic memory size: 32768 MB

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -10,7 +11,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/vault-genome/vaultgenome-core/internal/audit/store"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 )
 
@@ -32,10 +32,11 @@ func lineageCmd(args []string, stdout, stderr io.Writer) int {
 		auditPath  = fs.String("audit", "", "Path to the audit bbolt file (required)")
 		sessionID  = fs.String("session-id", "", "Session ID to trace")
 		manifestID = fs.String("manifest-id", "", "Manifest ID to trace")
+		archive    = fs.String("archive-dir", "", "Directory of the log's closed segments, read before the live file (default: \"archive\" beside --audit; ADR 0027)")
 		jsonOut    = fs.Bool("json", false, "Emit machine-readable JSON output")
 	)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: acpctl lineage --audit PATH (--session-id ID | --manifest-id ID) [--json]")
+		fmt.Fprintln(stderr, "usage: acpctl lineage --audit PATH [--archive-dir DIR] (--session-id ID | --manifest-id ID) [--json]")
 		fmt.Fprintln(stderr)
 		fmt.Fprintln(stderr, "Walk the audit log chronologically, returning every event tied to")
 		fmt.Fprintln(stderr, "the supplied session or manifest. Exactly one of --session-id and")
@@ -53,13 +54,12 @@ func lineageCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	s, err := store.Open(*auditPath)
+	log, err := openAuditLog(*auditPath, *archive)
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl lineage: open audit store: %v\n", err)
 		return 1
 	}
-	defer func() { _ = s.Close() }()
-	events, err := s.Load()
+	events, err := log.load()
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl lineage: load: %v\n", err)
 		return 1

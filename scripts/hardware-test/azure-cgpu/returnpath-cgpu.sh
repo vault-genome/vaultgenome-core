@@ -1,4 +1,5 @@
 #!/bin/bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # On the confidential GPU VM, after cgpu-capture.sh: the Return Path with
@@ -21,23 +22,31 @@ step() { echo "== $(date -u +%H:%M:%S) $*"; echo "== $(date -u +%H:%M:%S) $*" >>
 mark() { echo "$1=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" >> "$OUT/timeline.txt"; }
 GPU_TOKEN=/usr/local/lib/local_gpu_verifier/.venv/bin/python
 CHAIN="$HOME_DIR/out/${VG_CAPTURE_STAMP:?VG_CAPTURE_STAMP}/cert-chain.pem"
+# The cryptographic profile (ADR 0029) and the signature suite (ADR 0031)
+# from the runner; the module's enforcement (ADR 0030) when VG_FIPS=1:
+# every Go process below runs under fips140=only.
+PROFILE="${VG_PROFILE:-general}"; SIGSUITE="${VG_SIGSUITE:-}"
+case "$SIGSUITE" in ed25519|ecdsa-p384-sha384|ml-dsa-87) ;; *) case "$PROFILE" in cnsa) SIGSUITE=ecdsa-p384-sha384;; *) SIGSUITE=ed25519;; esac;; esac
+echo "profile=$PROFILE" >> "$OUT/steps.txt"; echo "signature_suite=$SIGSUITE" >> "$OUT/steps.txt"
+FIPS="${VG_FIPS:-0}"; [ "$FIPS" = 1 ] || FIPS=0
+if [ "$FIPS" = 1 ]; then export GODEBUG=fips140=only; echo "fips=1 GODEBUG=fips140=only" >> "$OUT/steps.txt"; fi
 
 step "inputs"
 for b in sagvd acp-compute acpctl keygen; do install -m 0755 "$HOME_DIR/$b" "$W/$b"; done
-./sagvd version > "$OUT/versions.txt"; ./acp-compute version >> "$OUT/versions.txt"
+./sagvd version > "$OUT/versions.txt"; ./acp-compute version >> "$OUT/versions.txt"; ./acpctl version >> "$OUT/versions.txt"
 cp "$CHAIN" "$W/amd-genoa-cert_chain.pem"; cp "$HOME_DIR/gpu-token.py" "$W/gpu-token.py"
 openssl x509 -in "$W/amd-genoa-cert_chain.pem" -noout -subject 2>/dev/null | head -1 > "$OUT/amd-chain-subject.txt"
 sha256sum sagvd acp-compute acpctl keygen amd-genoa-cert_chain.pem gpu-token.py > "$OUT/inputs.sha256"
 
 step "provision (keygen); the pins start as placeholders"
-./keygen -out secrets -quiet
+./keygen -out secrets -quiet -signature-suite "$SIGSUITE"
 S=$W/secrets
 mkdir -p genomes audit vcek-cache nras-cache rim-cache
 head -c 48 /dev/zero > peer-vault.meas; head -c 48 /dev/zero > peer-worker.meas
 write_configs() { # $1 = vault measurement hex, $2 = worker measurement hex
-  python3 - "$1" "$2" "$W" "$GPU_TOKEN" <<'PY'
+  python3 - "$1" "$2" "$W" "$GPU_TOKEN" "$PROFILE" "$SIGSUITE" <<'PY'
 import json, sys, binascii
-vault_meas, worker_meas, W, py = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+vault_meas, worker_meas, W, py, profile, sigsuite = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6]
 S = W + "/secrets"
 open(W + "/peer-vault.meas", "wb").write(binascii.unhexlify(vault_meas))
 open(W + "/peer-worker.meas", "wb").write(binascii.unhexlify(worker_meas))
@@ -52,8 +61,8 @@ sagvd = {
     "tls": {"enabled": True, "server_cert": S + "/sagvd/tls/server.crt", "server_key": S + "/sagvd/tls/server.key", "client_cas": S + "/shared/tls/ca.crt"}},
   "http_api": {"listen_address": "127.0.0.1:9080", "bearer_token_file": S + "/sagvd/api_token"},
   "tee": {"provider": "azure-cgpu", "workload_descriptor": "sagvd-returnpath-cgpu-v1", "gpu_attest_command": gpu_cmd, "peer": peer(W + "/peer-worker.meas")},
-  "keys": {"authority_signing": {"kid": "sagvd-authority-e2e", "seed_path": S + "/sagvd/authority_signing_seed"},
-           "audit_signing": {"kid": "sagvd-audit-e2e", "seed_path": S + "/sagvd/audit_signing_seed"},
+  "keys": {"authority_signing": {"kid": "sagvd-authority-e2e", "seed_path": S + "/sagvd/authority_signing_seed", "suite": sigsuite},
+           "audit_signing": {"kid": "sagvd-audit-e2e", "seed_path": S + "/sagvd/audit_signing_seed", "suite": sigsuite},
            "session_sealing": {"kid": "session-sealing-e2e", "material_path": S + "/shared/sealing.key"}},
   "workers": {"registry_path": S + "/shared/workers.json"},
   "genome": {"bundle_dir": W + "/genomes", "gate": {"atol": 1e-2, "rtol": 1e-3, "max_non_critical_outliers": 0}},
@@ -61,12 +70,13 @@ sagvd = {
   "runtime": {"job_timeout_seconds": 900, "handshake_timeout_seconds": 120, "queue_poll_ms": 50,
     "http_read_header_timeout_seconds": 5, "http_write_timeout_seconds": 30, "default_job_deadline_seconds": 900, "max_payload_bytes": 268435456},
   "health": {"listen_address": "127.0.0.1:9081"},
-  "log": {"level": "info", "format": "json"}}
+  "log": {"level": "info", "format": "json"},
+  "crypto": {"profile": profile, "signature_suite": sigsuite}}
 worker = {
   "vault": {"address": "127.0.0.1:9443",
     "tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt", "client_key": S + "/acp-compute/tls/client.key", "ca_bundle": S + "/shared/tls/ca.crt", "server_name": "localhost"}},
   "tee": {"provider": "azure-cgpu", "workload_descriptor": "acp-compute-returnpath-cgpu-v1", "gpu_attest_command": gpu_cmd, "peer": peer(W + "/peer-vault.meas")},
-  "keys": {"worker_signing": {"kid": "acp-compute-worker-demo", "seed_path": S + "/acp-compute/worker_signing_seed"},
+  "keys": {"worker_signing": {"kid": "acp-compute-worker-demo", "seed_path": S + "/acp-compute/worker_signing_seed", "suite": sigsuite},
            "session_sealing": {"kid": "session-sealing-e2e", "material_path": S + "/shared/sealing.key"}},
   "genome": {"door": {"command": ["/opt/vg/bin/python3", "-m", "vg_genome", "door", "--stdin-genome", "--base", "/opt/base", "--device", "cuda"],
                       "env": ["PYTHONPATH=/opt/worker", "TOKENIZERS_PARALLELISM=false"], "timeout_seconds": 600}},
@@ -102,6 +112,8 @@ mark identity_end
 VMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/sagvd-identity.json" 2>/dev/null)
 WMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/acp-compute-identity.json" 2>/dev/null)
 echo "vault_measurement=$VMEAS" >> "$OUT/steps.txt"; echo "worker_measurement=$WMEAS" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or []))); print("sagvd signature_suite=%s signature_suites=%s" % (d.get("signature_suite"), ",".join(d.get("signature_suites") or []))); print("sagvd authority_signature_suite=%s audit_signature_suite=%s" % (d.get("authority_signature_suite"), d.get("audit_signature_suite"))); f=d.get("fips140") or {}; print("sagvd fips140 enabled=%s enforced=%s version=%s" % (str(f.get("enabled")).lower(), str(f.get("enforced")).lower(), f.get("version")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>&1
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("acp-compute signing_signature_suite=%s" % d.get("signing_signature_suite")); f=d.get("fips140") or {}; print("acp-compute fips140 enabled=%s enforced=%s version=%s" % (str(f.get("enabled")).lower(), str(f.get("enforced")).lower(), f.get("version")))' "$OUT/acp-compute-identity.json" >> "$OUT/steps.txt" 2>&1
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
 write_configs "$VMEAS" "$WMEAS"
 
@@ -194,6 +206,7 @@ kill -TERM $WORKER; wait $WORKER 2>/dev/null
 kill -TERM $SAGVD; wait $SAGVD 2>/dev/null
 ./acpctl audit verify --audit audit/returnpath-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-e2e --json > "$OUT/audit-verify.json" 2> "$OUT/audit-verify.err"
 echo "audit verify exit=$?" >> "$OUT/steps.txt"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("audit suite=%s events=%s" % (d.get("signature_suite"), d.get("event_count")))' "$OUT/audit-verify.json" >> "$OUT/steps.txt" 2>/dev/null
 ./acpctl audit query --audit audit/returnpath-audit.db --limit 0 --json > "$OUT/audit-events.jsonl" 2> "$OUT/audit-query.err"
 cp audit.pem "$OUT/audit-public-key.pem"
 for f in vcek-cache/* nras-cache/*; do [ -f "$f" ] && cp "$f" "$OUT/cache-$(basename "$f")"; done

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package kms
@@ -127,6 +128,7 @@ func TestHTTPTransport_BearerHeaderAttached(t *testing.T) {
 		DestinationTEEKind:  tee.ProviderSimulated,
 		DestinationEndpoint: srv.URL,
 		HandshakeNonce:      nonce,
+		KEMSuites:           PolicyForThisProcess().SuiteIDs(),
 		InitiatedAt:         stdtime.Now(),
 		SigningKeyID:        ids.KeyID("k"),
 		Signature:           []byte{0xAA},

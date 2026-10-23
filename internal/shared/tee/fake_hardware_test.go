@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Package tee — fake hardware harness for Phase-1 integration tests.
@@ -122,7 +123,7 @@ func newFakeHardware(t testing.TB, label string) *fakeHardware {
 		hostData:    shared_crypto.SHA256([]byte("vg-fake-hostdata-" + label)),
 		isvSVN:      5,
 		isvPID:      1,
-		reportedTCB: 100,
+		reportedTCB: milanGenoaTCB(0x04, 0x00, 0x1D, 0xDE), // a Milan at the floors of ADR 0033
 	}
 	chipFront := shared_crypto.SHA256Slice([]byte("vg-fake-chipid-" + label))
 	chipBack := shared_crypto.SHA256Slice([]byte("vg-fake-chipid-extra-" + label))
@@ -280,7 +281,7 @@ func installAWSNitroFake(t testing.TB, fh *fakeHardware) {
 			return nil, fmt.Errorf("fake-kms: empty keyARN")
 		}
 		aad := canonicalEC(ec)
-		nonce, ct, err := shared_crypto.Seal(fakeKMSKey, pt, aad, nil)
+		nonce, ct, err := shared_crypto.Seal(fakeKMSKey, pt, aad)
 		if err != nil {
 			return nil, err
 		}
@@ -391,7 +392,7 @@ func installSGXFake(t testing.TB, fh *fakeHardware, mode string) {
 		return []byte("fake-pccs-collateral"), nil
 	}
 	sgxECallSealData = func(_ uint64, plaintext, aad []byte, _ SGXSealPolicy) ([]byte, error) {
-		nonce, ct, err := shared_crypto.Seal(sealKey, plaintext, aad, nil)
+		nonce, ct, err := shared_crypto.Seal(sealKey, plaintext, aad)
 		if err != nil {
 			return nil, err
 		}
@@ -432,7 +433,7 @@ func installSGXFake(t testing.TB, fh *fakeHardware, mode string) {
 	// HSM wrap layer (Intel bare-metal optional defense in depth).
 	hsmKey := shared_crypto.SHA256Slice([]byte("fake-hsm-wrapping-key"))
 	hsmWrap = func(_ string, sealed []byte) ([]byte, error) {
-		nonce, ct, err := shared_crypto.Seal(hsmKey, sealed, []byte("hsm-aad"), nil)
+		nonce, ct, err := shared_crypto.Seal(hsmKey, sealed, []byte("hsm-aad"))
 		if err != nil {
 			return nil, err
 		}
@@ -511,7 +512,7 @@ func installSEVSNPFake(t testing.TB, fh *fakeHardware) {
 		var meas [48]byte
 		copy(meas[:32], att.Measurement[:])
 		return &sevSNPReport{
-			Raw:           raw,
+			Raw:           sevRawMilanAtFloors(), // the chip's bytes a fake has none of
 			Measurement:   meas,
 			HostData:      att.HostData,
 			ChipID:        att.ChipID,
@@ -543,7 +544,7 @@ func installSEVSNPFake(t testing.TB, fh *fakeHardware) {
 		return out, nil
 	}
 	sevAEADSeal = func(key, plaintext, aad []byte) ([]byte, error) {
-		nonce, ct, err := shared_crypto.Seal(key, plaintext, aad, nil)
+		nonce, ct, err := shared_crypto.Seal(key, plaintext, aad)
 		if err != nil {
 			return nil, err
 		}

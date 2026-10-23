@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -20,8 +21,10 @@ import (
 // Evidence is signed with. Hardware Evidence is signed by the vendor's
 // certificate chain instead, so no attestor key is printed for it.
 type destinationIdentity struct {
-	TEEProvider          string `json:"tee_provider"`
-	MeasurementHex       string `json:"measurement_hex"`
+	TEEProvider    string `json:"tee_provider"`
+	MeasurementHex string `json:"measurement_hex"`
+	// Sealer is how this host seals its secret files (tee.sealer, ADR 0025).
+	Sealer               string `json:"sealer,omitempty"`
 	AttestorPublicKeyPEM string `json:"attestor_public_key_pem,omitempty"`
 	// InsecureSimulation is true for a destination with no hardware
 	// isolation, so a source operator pinning it sees that it is one.
@@ -30,6 +33,16 @@ type destinationIdentity struct {
 	TDX *tdxIdentity `json:"tdx,omitempty"`
 	// VTPM is what an azure-cgpu guest's vTPM measured of its boot.
 	VTPM *vtpmIdentity `json:"vtpm,omitempty"`
+	// CryptoProfile and KEMSuites are the cryptographic profile (ADR
+	// 0029): the suites this destination generates a handshake key under,
+	// in its order of preference.
+	CryptoProfile string   `json:"crypto_profile"`
+	KEMSuites     []string `json:"kem_suites"`
+	// SignatureSuites are the suites this destination accepts the source
+	// authority's signatures under (ADR 0031).
+	SignatureSuites []string `json:"signature_suites"`
+	// FIPS140 is the cryptographic module this process runs on (ADR 0030).
+	FIPS140 crypto.FIPS140 `json:"fips140"`
 }
 
 // runIdentity implements `acp-bootstrap identity -config <path>`: it
@@ -56,9 +69,24 @@ func runIdentity(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	suites, err := cfg.Crypto.Policy()
+	if err != nil {
+		return fmt.Errorf("acp-bootstrap identity: crypto: %w", err)
+	}
+	sigPol, err := cfg.Crypto.SignaturePolicy()
+	if err != nil {
+		return fmt.Errorf("acp-bootstrap identity: crypto: %w", err)
+	}
 	id := destinationIdentity{
-		TEEProvider:    cfg.TEE.Provider,
-		MeasurementHex: hex.EncodeToString(producer.Measurement()),
+		TEEProvider:     cfg.TEE.Provider,
+		MeasurementHex:  hex.EncodeToString(producer.Measurement()),
+		CryptoProfile:   string(suites.Profile()),
+		FIPS140:         crypto.FIPSStatus(),
+		KEMSuites:       suites.SuiteIDs(),
+		SignatureSuites: sigPol.AcceptIDs(),
+	}
+	if kind, err := tee.SealerKindFor(producer, cfg.TEE.SealerMode()); err == nil {
+		id.Sealer = string(kind)
 	}
 	if sim, ok := producer.(*tee.Simulated); ok {
 		pemBytes, err := crypto.PublicKeyPEM(sim.PublicKey())
@@ -96,22 +124,18 @@ func tdxIdentityOf(p tee.Producer) *tdxIdentity {
 	return out
 }
 
-// vtpmIdentity is what an azure-cgpu guest's vTPM measured of its boot:
-// the PCRs quoted and their digest, which a peer may pin (pcr_digests).
+// vtpmIdentity is what an Azure guest's vTPM (azure-cgpu, azure-sev-snp)
+// measured of its boot: the PCRs quoted and their digest, which a peer may
+// pin (pcr_digests).
 type vtpmIdentity struct {
 	PCRs         []string `json:"pcrs"`
 	PCRDigestHex string   `json:"pcr_digest_hex"`
 }
 
 func vtpmIdentityOf(p tee.Producer) *vtpmIdentity {
-	a, ok := p.(*tee.AzureCGPUProducer)
+	pcrs, digest, ok := tee.VTPMBootOf(p)
 	if !ok {
 		return nil
 	}
-	sel, digest := a.VTPMBoot()
-	out := &vtpmIdentity{PCRDigestHex: hex.EncodeToString(digest)}
-	for _, s := range sel {
-		out.PCRs = append(out.PCRs, s.String())
-	}
-	return out
+	return &vtpmIdentity{PCRs: pcrs, PCRDigestHex: hex.EncodeToString(digest)}
 }

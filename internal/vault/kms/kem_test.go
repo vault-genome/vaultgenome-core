@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package kms
@@ -11,6 +12,15 @@ import (
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
+// newDefaultRecipient makes a recipient key under the suite the default
+// policy writes — X25519 normally, P-384 under fips140=only (ADR 0030).
+func newDefaultRecipient(t *testing.T) (priv, pub []byte) {
+	t.Helper()
+	priv, pub, err := DefaultSuitePolicy().Writes().GenerateRecipientKey()
+	require.NoError(t, err)
+	return priv, pub
+}
+
 func newX25519(t *testing.T) (priv, pub []byte) {
 	t.Helper()
 	k, err := ecdh.X25519().GenerateKey(rand.Reader)
@@ -20,6 +30,9 @@ func newX25519(t *testing.T) (priv, pub []byte) {
 
 func TestX25519KEM_RoundTrip(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	priv, pub := newX25519(t)
 	w := NewX25519KeyWrapper()
 	u := NewX25519KeyUnwrapper()
@@ -38,6 +51,9 @@ func TestX25519KEM_RoundTrip(t *testing.T) {
 
 func TestX25519KEM_WrongPrivateKeyFails(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	_, pub := newX25519(t)
 	otherPriv, _ := newX25519(t)
 	wrapped, err := NewX25519KeyWrapper().Wrap([]byte("dek"), pub, []byte("aad"))
@@ -49,6 +65,9 @@ func TestX25519KEM_WrongPrivateKeyFails(t *testing.T) {
 
 func TestX25519KEM_TamperFails(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	priv, pub := newX25519(t)
 	wrapped, err := NewX25519KeyWrapper().Wrap([]byte("dek"), pub, []byte("aad"))
 	require.NoError(t, err)
@@ -61,6 +80,9 @@ func TestX25519KEM_TamperFails(t *testing.T) {
 
 func TestX25519KEM_WrongAADFails(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	priv, pub := newX25519(t)
 	wrapped, err := NewX25519KeyWrapper().Wrap([]byte("dek"), pub, []byte("aad-1"))
 	require.NoError(t, err)
@@ -71,6 +93,9 @@ func TestX25519KEM_WrongAADFails(t *testing.T) {
 
 func TestX25519KEM_FreshEphemeralPerWrap(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	_, pub := newX25519(t)
 	w := NewX25519KeyWrapper()
 	c1, err := w.Wrap([]byte("dek"), pub, []byte("aad"))
@@ -84,6 +109,9 @@ func TestX25519KEM_FreshEphemeralPerWrap(t *testing.T) {
 // changing either, or shifting bytes between them, changes it.
 func TestRecipientChallenge_BindsKeyAndNonce(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	_, pub := newX25519(t)
 	_, other := newX25519(t)
 	nonce := []byte("0123456789abcdef")
@@ -101,6 +129,9 @@ func TestRecipientChallenge_BindsKeyAndNonce(t *testing.T) {
 
 func TestValidateRecipientPublicKey(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	_, pub := newX25519(t)
 	require.NoError(t, ValidateRecipientPublicKey(pub))
 
@@ -120,6 +151,9 @@ func TestValidateRecipientPublicKey(t *testing.T) {
 
 func TestX25519KEM_RejectsBadKeys(t *testing.T) {
 	t.Parallel()
+	if !SuiteHPKEX25519.Available() {
+		t.Skip("X25519 is unavailable under fips140=only (ADR 0030)")
+	}
 	_, err := NewX25519KeyWrapper().Wrap([]byte("dek"), make([]byte, 31), []byte("aad"))
 	require.Error(t, err)
 	require.True(t, shared_errors.Is(err, shared_errors.CategoryStructural))

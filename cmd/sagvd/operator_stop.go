@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -6,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/trust"
 )
@@ -16,15 +18,15 @@ import (
 // stops the daemon's releases by writing a new list. A list with a
 // serial older than one already consulted is refused: an operator stop
 // cannot be rolled back by restoring an old file.
-func newOperatorStopSource(cfg OperatorStopConfig) (trust.StopListSource, uint64, error) {
-	first, err := loadOperatorStop(cfg)
+func newOperatorStopSource(cfg OperatorStopConfig, pol kms.SignaturePolicy) (trust.StopListSource, uint64, error) {
+	first, err := loadOperatorStop(cfg, pol)
 	if err != nil {
 		return nil, 0, fmt.Errorf("sagvd: operator_stop: %w", err)
 	}
 	var mu sync.Mutex
 	highest := first.Serial
 	return func() (revocation.List, error) {
-		list, err := loadOperatorStop(cfg)
+		list, err := loadOperatorStop(cfg, pol)
 		if err != nil {
 			return revocation.List{}, err
 		}

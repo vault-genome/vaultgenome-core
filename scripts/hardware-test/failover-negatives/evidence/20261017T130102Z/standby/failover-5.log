@@ -1,0 +1,53 @@
+{"time":"2026-10-17T13:14:34.299768961Z","level":"INFO","msg":"failover escrow key","escrow_key":"3da877b6bb866d6e","storage":"sealed:gcp-sev-snp"}
+{"time":"2026-10-17T13:14:34.32452315Z","level":"INFO","msg":"failover armed","policy_serial":5,"sentinel":"sentinel-33f00501326931ee","primary_tee":"gcp-sev-snp 10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519","stopped_grace_seconds":0,"standby":"gcp-sev-snp https://127.0.0.1:8443","outbox":"/root/replica"}
+{"time":"2026-10-17T13:14:34.3309059Z","level":"WARN","msg":"failover triggered","trigger":"compromise-report","at":"2026-10-17T13:13:36.904998789Z"}
+{"time":"2026-10-17T13:14:44.601546362Z","level":"WARN","msg":"failover decided","policy_serial":5,"sentinel":"sentinel-33f00501326931ee","decision_id":"xcc-dec-43d6afdb77da84c0a596178ee39a4a50","generation":1,"key_id":"genome-19cca5149484-g1-1d4367426cb8"}
+{
+  "status": "failed",
+  "error": "authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: failover policy serial 5 releases only to its standby (gcp-sev-snp, measurement [10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519]); gcp-sev-snp 7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc is not it",
+  "policy_serial": 5,
+  "policy_sha256": "19a33c84503b2a1df3c8080dc11f43484155a934d40d87ac5921e234a1d8b892",
+  "sentinel": "sentinel-33f00501326931ee",
+  "trigger": {
+    "kind": "compromise-report",
+    "at": "2026-10-17T13:13:36.904998789Z",
+    "observed_at": "2026-10-17T13:14:34.32453857Z",
+    "evidence_sha256": "8d87be413fe018163155e8c639b7a95c441be213a52f530bbc86ec2c96c1e262",
+    "primary_measurement_hex": "10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519",
+    "tripped": [
+      {
+        "wire": "path",
+        "target": "/root/canary",
+        "want": "e91a347f5d68f56c7ab031b9dcbed288f4cb929c401c315c1d270e3ba7fcda7d",
+        "got": "45bb370196d1e59e368ab5f98cd6e27353963d8607d93e47e13bb418db172170"
+      }
+    ],
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "c06f68a676c9996d1d629d2be96399d0646ddfd3dd725a20464d8dae0e0b4db7",
+      "sealed_at": "2026-10-17T13:13:27.907572381Z"
+    }
+  },
+  "decision": {
+    "decision": "failover",
+    "reason": "compromise-report under failover policy serial 5: restore generation 1 on the standby",
+    "decision_id": "xcc-dec-43d6afdb77da84c0a596178ee39a4a50",
+    "audit_id": "xcc-evt-0000000000000008",
+    "decided_at": "2026-10-17T13:14:44.599822882Z"
+  },
+  "genome": {
+    "generation": 1,
+    "bundle": "gen-000001.genome",
+    "bundle_sha256": "c06f68a676c9996d1d629d2be96399d0646ddfd3dd725a20464d8dae0e0b4db7",
+    "bundle_bytes": 2216819,
+    "key_id": "genome-19cca5149484-g1-1d4367426cb8",
+    "payload_sha256": "sha256:19cca514948441a2eb0695e8cd66676d9950f1c2e3b8c986e90b128a07d9a1a5",
+    "tree_sha256": "eade5dde1d17390339989f1a1921d6fb30dad9aef3ef036a590615c95356ec6a",
+    "sealed_at": "2026-10-17T13:13:27.907572381Z",
+    "chain_end": 1
+  },
+  "audit_chain_length": 11,
+  "audit_tip": "e35247e27f5ceb0c0bf633c8696e21c63c178de27eca27452879896a88db0547",
+  "operator_stop_serial": 3
+}
+{"time":"2026-10-17T13:14:44.623338541Z","level":"ERROR","msg":"sagvd failover: terminated with error","err":"authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: failover policy serial 5 releases only to its standby (gcp-sev-snp, measurement [10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519]); gcp-sev-snp 7dc7c12e55999ef40d78e4d3c83071588d639b914d619bd0ceb422aa5e899ec37d48afec327950d6d0619c2974125acc is not it"}

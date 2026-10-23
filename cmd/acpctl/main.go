@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -5,6 +6,7 @@ package main
 import (
 	"fmt"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
+	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"os"
 )
 
@@ -18,7 +20,8 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
-			fmt.Printf("acpctl %s (commit %s)\n", version, commit)
+			fips := shared_crypto.FIPSStatus()
+			fmt.Printf("acpctl %s (commit %s) fips140=%s module=%s enforced=%t\n", version, commit, fipsMode(fips), fips.Version, fips.Enforced)
 			return
 		case "help", "--help", "-h":
 			printUsage()
@@ -41,6 +44,10 @@ func main() {
 			os.Exit(sentinelCmd(os.Args[2:], os.Stdout, os.Stderr))
 		case "failover":
 			os.Exit(failoverCmd(os.Args[2:], os.Stdout, os.Stderr))
+		case "tee":
+			os.Exit(teeCmd(os.Args[2:], os.Stdout, os.Stderr))
+		case "provision":
+			os.Exit(provisionCmd(os.Args[2:], os.Stdout, os.Stderr))
 		case "attest":
 			os.Exit(attestCmd(os.Args[2:], os.Stdout, os.Stderr))
 		}
@@ -59,6 +66,7 @@ func printUsage() {
 	fmt.Println("Commands:")
 	fmt.Println("  version       Print the build version and exit")
 	fmt.Println("  help          Print this message")
+	fmt.Println("  provision     Stand up a deployment: key material, both daemons' configurations, identities and pins, the key files sealed to the host")
 	fmt.Println("  recover       Restore a sealed vault inside a fresh TEE")
 	fmt.Println("  status        Print a read-only summary of the audit log")
 	fmt.Println("  audit query   List events filtered by kind / session / time")
@@ -81,7 +89,22 @@ func printUsage() {
 	fmt.Println("  sentinel watch   Keep a running model's state sealed; report when a tripwire fires")
 	fmt.Println("  failover issue   Sign the operator's failover policy: which standby, on which signs of failure")
 	fmt.Println("  failover verify  Check a failover policy against the operator public key")
-	fmt.Println("  attest nitro     Audit a captured AWS Nitro attestation document offline with the daemons' verifier")
+	fmt.Println("  tee fetch-amd-chain  Fetch an AMD product line's ASK+ARK chain from AMD KDS, verified against the pinned roots, for amd_cert_chain_path")
+	fmt.Println("  tee prefetch         Fill a daemon's peer-verifier caches (VCEK, Intel PCS documents) while the vendors are reachable — for a host that will be air-gapped")
+	fmt.Println("  tee cache-status     What those caches hold and until when; exit 1 when anything is expired or missing")
+	fmt.Println("  attest nitro         Audit a captured AWS Nitro attestation document offline with the daemons' verifier")
 	fmt.Println()
 	fmt.Println("Run `acpctl <command> --help` for per-subcommand flags.")
+}
+
+// fipsMode is the word the version line prints for the cryptographic
+// module's state (ADR 0030).
+func fipsMode(st shared_crypto.FIPS140) string {
+	if st.Enforced {
+		return "only"
+	}
+	if st.Enabled {
+		return "on"
+	}
+	return "off"
 }

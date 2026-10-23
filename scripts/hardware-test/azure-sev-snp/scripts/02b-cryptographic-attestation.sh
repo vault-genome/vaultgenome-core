@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # 02b-cryptographic-attestation.sh — full AMD ARK→ASK→VCEK→Report chain
@@ -22,12 +23,12 @@
 #
 # Optional environment variables:
 #   VM_ID                  identifier baked into manifest (default: hostname)
-#   PAYLOAD_SHA256         override default Llama 3.2 3B SHA-256
-#   PAYLOAD_SIZE           override default Llama 3.2 3B size in bytes
-#   PAYLOAD_DESCRIPTION    override default description
+#   INSPECT_JSON           the record of what Demo 1 sealed (default:
+#                          ~/vg/evidence/demo1-inspect.json, written by 03)
 #   AMD_KDS_RETRIES        retries on AMD KDS fetch (default: 3)
 #   AMD_KDS_SLEEP_SEC      sleep between retries (default: 30)
-#   SNP_CHIP               AMD chip codename (default: milan; DCasv5 is Milan)
+#   SNP_CHIP               AMD product line (default: read from the report; the
+#                          West Europe DC4as_v5 of 2026-10-14 was Genoa, not Milan)
 
 set -euo pipefail
 
@@ -40,12 +41,48 @@ LOCATION=$(echo "${IMDS_JSON}" | jq -r '.location // "unknown"')
 ZONE=$(echo "${IMDS_JSON}" | jq -r '.zone // "unknown"')
 VM_SIZE=$(echo "${IMDS_JSON}" | jq -r '.vmSize // "unknown"')
 
-PAYLOAD_SHA256="${PAYLOAD_SHA256:-d9387aa0a249fc8516c65c3c88b399a46a636409586ea171658457f7b6bd1869}"
-PAYLOAD_SIZE="${PAYLOAD_SIZE:-2018847232}"
-PAYLOAD_DESCRIPTION="${PAYLOAD_DESCRIPTION:-Llama 3.2 3B base model GGUF Q4_K_M}"
+# The workload manifest names what Demo 1 sealed, as acpctl measured it
+# (03-demo1-single-bundle.sh writes evidence/demo1-inspect.json): the
+# payload digest over the sealed components, the sizes, the content
+# reference and the sealing time. A constant would name a file no run
+# measured; the report binds the manifest, so the manifest is measured.
+INSPECT_JSON="${INSPECT_JSON:-${HOME}/vg/evidence/demo1-inspect.json}"
+[ -s "${INSPECT_JSON}" ] || { echo "ERROR: ${INSPECT_JSON} missing — run 03-demo1-single-bundle.sh before 02b"; exit 1; }
+read -r PAYLOAD_SHA256 PAYLOAD_SIZE BUNDLE_SHA256 BUNDLE_SIZE SEALED_AT CONTENT_REF < <(python3 - "${INSPECT_JSON}" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+digest = str(d.get("payload_sha256", "")).removeprefix("sha256:")
+size = d.get("payload_bytes")
+if len(digest) != 64 or not isinstance(size, int):
+    sys.exit("demo1-inspect.json carries no measured payload digest and size")
+print(digest, size, str(d.get("bundle_sha256", "")).removeprefix("sha256:"), d.get("bundle_bytes"), d.get("sealed_at"), d.get("content_ref"))
+PYEOF
+)
+PAYLOAD_DESCRIPTION="ollama ${CONTENT_REF}, as sealed by acpctl genome seal into demo1-bundle.genome"
 AMD_KDS_RETRIES="${AMD_KDS_RETRIES:-3}"
 AMD_KDS_SLEEP_SEC="${AMD_KDS_SLEEP_SEC:-30}"
-SNP_CHIP="${SNP_CHIP:-milan}"  # DCasv5 = Milan; switch to genoa/turin if Azure migrates the family
+# The AMD product line (Milan, Genoa, Turin) decides the KDS URL and the
+# root; it is read from the report's CPUID family and model (report version
+# 3 and later, offsets 0x188 and 0x189), with the table snpguest uses.
+# SNP_CHIP overrides it.
+detect_snp_chip() {  # <report.bin>
+  python3 - "$1" <<'PYEOF'
+import struct, sys
+b = open(sys.argv[1], "rb").read()
+version = struct.unpack("<I", b[0:4])[0]
+if version < 3:
+    sys.exit("report version %d carries no CPUID family; set SNP_CHIP" % version)
+fam, mod = b[0x188], b[0x189]
+if fam == 0x19 and mod <= 0x0F:
+    print("milan")
+elif fam == 0x19 and (0x10 <= mod <= 0x1F or 0xA0 <= mod <= 0xAF):
+    print("genoa")
+elif fam == 0x1A and mod <= 0x11:
+    print("turin")
+else:
+    sys.exit("CPUID family 0x%02x model 0x%02x: not a known SEV-SNP product line" % (fam, mod))
+PYEOF
+}
 
 OUT_DIR="${HOME}/vg/attestation-validation/${VM_ID}"
 mkdir -p "${OUT_DIR}/06-certificates"
@@ -81,6 +118,10 @@ cat > 01-vaultgenome-payload-manifest.json <<EOF
   "payload_sha256": "${PAYLOAD_SHA256}",
   "payload_size_bytes": ${PAYLOAD_SIZE},
   "payload_description": "${PAYLOAD_DESCRIPTION}",
+  "payload_measured_by": "acpctl genome inspect --json of demo1-bundle.genome: sha256 over the sealed components, measured in this run",
+  "bundle_sha256": "${BUNDLE_SHA256}",
+  "bundle_size_bytes": ${BUNDLE_SIZE},
+  "sealed_at": "${SEALED_AT}",
   "demo": "vault-genome-cross-vm-attestation",
   "vm_id": "${VM_ID}",
   "tee_backend": "amd-sev-snp",
@@ -92,23 +133,79 @@ cat > 01-vaultgenome-payload-manifest.json <<EOF
 EOF
 cat 01-vaultgenome-payload-manifest.json
 
-# ---- Step 3: REPORT_DATA = SHA-512(manifest) ----
+# ---- Step 3: the report, as 02-capture-attestation.sh read it from the vTPM ----
+# On Azure the guest cannot ask for a report with its own REPORT_DATA: the
+# paravisor binds REPORT_DATA to the vTPM runtime data (SHA-256 of it, then
+# 32 zero bytes). The manifest above is recorded with the evidence; the
+# binding checked in Step 9 is Azure's.
 echo
-echo "=== Step 3: REPORT_DATA = SHA-512(manifest) ==="
-sha512sum 01-vaultgenome-payload-manifest.json | awk '{print $1}' > 02-report-data.hex
+echo "=== Step 3: attestation report from the vTPM capture ==="
+EVIDENCE="${HOME}/vg/evidence"
+for f in snp-attestation-report.bin hcl-runtime-data.json hcl-report.bin; do
+  [ -s "${EVIDENCE}/${f}" ] || { echo "ERROR: ${EVIDENCE}/${f} missing; run 02-capture-attestation.sh first"; exit 1; }
+done
+cp "${EVIDENCE}/hcl-report.bin" 03-hcl-report.bin
+cp "${EVIDENCE}/hcl-runtime-data.json" 03-runtime-data.json
+cp "${EVIDENCE}/snp-attestation-report.bin" 04-attestation-report.bin
+{ sha256sum 03-runtime-data.json | awk '{print $1}' | tr -d '\n'; printf '%064d\n' 0; } > 02-report-data.hex
 xxd -r -p 02-report-data.hex 03-report-data.bin
-test "$(stat -c %s 03-report-data.bin 2>/dev/null || stat -f %z 03-report-data.bin)" = "64" || \
-  { echo "ERROR: report-data must be 64 bytes"; exit 1; }
-echo "REPORT_DATA: $(cat 02-report-data.hex)"
+test "$(stat -c %s 03-report-data.bin)" = "64" || { echo "ERROR: report-data must be 64 bytes"; exit 1; }
+test "$(stat -c %s 04-attestation-report.bin)" = "1184" || { echo "ERROR: attestation report must be 1184 bytes"; exit 1; }
+echo "REPORT_DATA expected (SHA-256(runtime data) || 0^32): $(cat 02-report-data.hex)"
+SNP_CHIP="${SNP_CHIP:-$(detect_snp_chip 04-attestation-report.bin)}"
+echo "AMD product line (from the report's CPUID family/model): ${SNP_CHIP}"
+echo "${SNP_CHIP}" > 03-snp-chip.txt
 
-# ---- Step 4: capture attestation report bound to manifest ----
+# ---- Step 4: bind the manifest through the vTPM ----
+# The report's REPORT_DATA names the runtime data, and the runtime data
+# names the vTPM's attestation key (HCLAkPub). A quote signed by that key
+# with SHA-256(manifest) as its qualifying data therefore binds the
+# manifest to this report: chip -> runtime data -> AK -> quote -> manifest.
+# The kit takes the quote here and verifies it: the key that signed it is
+# the one the runtime data names, and the quote's extra data is the
+# manifest's hash.
 echo
-echo "=== Step 4: capture attestation report (bound to REPORT_DATA) ==="
-sudo "${SNPGUEST}" report 04-attestation-report.bin 03-report-data.bin
-sudo chown "$USER:$USER" 04-attestation-report.bin
-ls -la 04-attestation-report.bin
-test "$(stat -c %s 04-attestation-report.bin 2>/dev/null || stat -f %z 04-attestation-report.bin)" = "1184" || \
-  { echo "ERROR: attestation report must be 1184 bytes"; exit 1; }
+echo "=== Step 4: the vTPM quote that binds the manifest to the report ==="
+# The vTPM device is root/tss-only on this image (02 reads the NV index
+# with sudo for the same reason); the files the TPM tools write are handed
+# back to the user afterwards.
+sudo tpm2_getcap handles-persistent > 14-tpm-handles.txt 2>&1
+python3 - "$(pwd)" <<'PYEOF'
+import base64, json, os, subprocess, sys
+out = sys.argv[1]
+owner = f"{os.getuid()}:{os.getgid()}"
+j = json.load(open(out + "/03-runtime-data.json"))
+ak = next(k for k in j["keys"] if k["kid"] == "HCLAkPub")
+n = int.from_bytes(base64.urlsafe_b64decode(ak["n"] + "=" * (-len(ak["n"]) % 4)), "big")
+handles = [h for h in open(out + "/14-tpm-handles.txt").read().split() if h.startswith("0x")]
+match = None
+for h in handles:
+    pem = subprocess.run(["sudo", "tpm2_readpublic", "-c", h, "-f", "pem", "-o", f"{out}/14-tpm-{h}.pem"], capture_output=True, text=True)
+    if pem.returncode != 0:
+        continue
+    # The TPM tools create their output 0660; a file root made is handed to the user before it is read.
+    subprocess.run(["sudo", "chown", owner, f"{out}/14-tpm-{h}.pem"], check=True)
+    txt = subprocess.run(["openssl", "rsa", "-pubin", "-in", f"{out}/14-tpm-{h}.pem", "-modulus", "-noout"], capture_output=True, text=True).stdout
+    if txt.startswith("Modulus=") and int(txt.split("=")[1].strip(), 16) == n:
+        match = h
+print("persistent handles:", handles, "| the runtime data's HCLAkPub is", match or "NOT FOUND")
+open(out + "/14-ak-handle.txt", "w").write((match or "") + "\n")
+if match:
+    subprocess.run(["cp", f"{out}/14-tpm-{match}.pem", f"{out}/14-ak-pub.pem"], check=True)
+PYEOF
+AK=$(tr -d '\n' < 14-ak-handle.txt)
+[ -n "${AK}" ] || { echo "ERROR: no persistent TPM key matches the runtime data's HCLAkPub"; exit 1; }
+MANIFEST_SHA256=$(sha256sum 01-vaultgenome-payload-manifest.json | awk '{print $1}')
+echo "${MANIFEST_SHA256}" > 14-manifest-sha256.hex
+sudo tpm2_quote -c "${AK}" -l sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 -q "${MANIFEST_SHA256}" -g sha256 \
+  -m 14-manifest-quote.msg -s 14-manifest-quote.sig -o 14-manifest-quote.pcrs -f plain > 14-manifest-quote.txt 2>&1
+sudo chown "$USER:$USER" 14-manifest-quote.msg 14-manifest-quote.sig 14-manifest-quote.pcrs
+# tpm2_checkquote verifies the signature with the AK's public key and that
+# the quote's qualifying data is the manifest's hash and its PCR digest
+# matches the PCR values it carries.
+tpm2_checkquote -u 14-ak-pub.pem -m 14-manifest-quote.msg -s 14-manifest-quote.sig -f 14-manifest-quote.pcrs -g sha256 -q "${MANIFEST_SHA256}" > 14-manifest-binding.txt 2>&1 \
+  && echo "vTPM quote by ${AK} (HCLAkPub) over SHA-256(manifest)=${MANIFEST_SHA256}: VERIFIED" | tee -a 14-manifest-binding.txt \
+  || { echo "ERROR: the manifest quote did not verify (14-manifest-binding.txt)"; cat 14-manifest-binding.txt; exit 1; }
 
 # ---- Step 5: decoded report ----
 echo
@@ -139,7 +236,7 @@ if [ "${KDS_OK}" != "true" ]; then
     echo "=== AMD KDS outage diagnostic — $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
     echo "Egress IP: $(curl -fs --max-time 5 https://api.ipify.org 2>/dev/null || echo unknown)"
     echo
-    curl -v --max-time 15 "https://kdsintf.amd.com/vcek/v1/$(echo ${SNP_CHIP^})/cert_chain" 2>&1 | head -30
+    curl -v --max-time 15 "https://kdsintf.amd.com/vcek/v1/${SNP_CHIP^}/cert_chain" 2>&1 | head -30 || true
   } > "12-amd-kds-outage-diagnostic.txt"
   cat <<'EOF' > 99-VM-STATUS.md
 # Status: REPORT-CAPTURED, AMD-CHAIN-VALIDATION-DEFERRED
@@ -176,13 +273,44 @@ echo "=== Step 8: verify report signature ==="
 "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin | tee 09-verify-attestation.txt
 
 # ---- Step 9: explicit REPORT_DATA binding check ----
-if "${SNPGUEST}" verify attestation --help 2>&1 | grep -q "report-data"; then
+# The help text is captured first: a multi-line writer behind "grep -q" can die of
+# SIGPIPE, which pipefail would turn into a skipped check.
+VERIFY_HELP="$("${SNPGUEST}" verify attestation --help 2>&1 || true)"
+if grep -q "report-data" <<<"${VERIFY_HELP}"; then
   echo
   echo "=== Step 9: verify REPORT_DATA binding ==="
   REPORT_DATA_HEX=$(tr -d '\n ' < 02-report-data.hex)
   echo "Expected REPORT_DATA: ${REPORT_DATA_HEX}" | tee 10-verify-report-data-binding.txt
-  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" -r "${REPORT_DATA_HEX}" \
+  "${SNPGUEST}" verify attestation 06-certificates/ 04-attestation-report.bin -p "${SNP_CHIP}" -r "0x${REPORT_DATA_HEX}" \
     | tee -a 10-verify-report-data-binding.txt
+fi
+
+# ---- Step 9b: the VCEK Azure THIM served is this chip's, the same key AMD KDS serves ----
+# AMD KDS signs a fresh certificate on every request (the notBefore moves),
+# so the certificates differ byte for byte; what must agree is the VCEK
+# public key (derived from the chip's secrets and the TCB) and the chip id
+# (hwID extension), and THIM's certificate must chain to the ARK that KDS
+# served. Seen 2026-10-14: THIM's certificate from 2026-08-18, KDS's from
+# the moment of the request, same key, same hwID.
+if [ -s "${EVIDENCE}/thim-vcek.pem" ]; then
+  echo
+  echo "=== Step 9b: VCEK from Azure THIM vs VCEK from AMD KDS ==="
+  THIM_KEY=$(openssl x509 -in "${EVIDENCE}/thim-vcek.pem" -noout -pubkey | sha256sum | awk '{print $1}')
+  KDS_KEY=$(openssl x509 -in 06-certificates/vcek.pem -noout -pubkey | sha256sum | awk '{print $1}')
+  THIM_HWID=$(openssl asn1parse -in "${EVIDENCE}/thim-vcek.pem" 2>/dev/null | grep -A1 '1.3.6.1.4.1.3704.1.4' | tail -1 | sed 's/.*\[HEX DUMP\]://')
+  KDS_HWID=$(openssl asn1parse -in 06-certificates/vcek.pem 2>/dev/null | grep -A1 '1.3.6.1.4.1.3704.1.4' | tail -1 | sed 's/.*\[HEX DUMP\]://')
+  {
+    echo "THIM VCEK: $(openssl x509 -in "${EVIDENCE}/thim-vcek.pem" -noout -dates | tr '\n' ' ')"
+    echo "KDS  VCEK: $(openssl x509 -in 06-certificates/vcek.pem -noout -dates | tr '\n' ' ')"
+    echo "THIM VCEK public key sha256: ${THIM_KEY}"
+    echo "KDS  VCEK public key sha256: ${KDS_KEY}"
+    echo "THIM hwID: ${THIM_HWID}"
+    echo "KDS  hwID: ${KDS_HWID}"
+    echo "THIM VCEK against the KDS chain: $(openssl verify -CAfile 06-certificates/ark.pem -untrusted 06-certificates/ask.pem "${EVIDENCE}/thim-vcek.pem" 2>&1)"
+    if [ "${THIM_KEY}" = "${KDS_KEY}" ] && [ -n "${THIM_HWID}" ] && [ "${THIM_HWID}" = "${KDS_HWID}" ]; then echo "SAME KEY, SAME CHIP"; else echo "MISMATCH"; fi
+  } | tee 13-vcek-thim-vs-kds.txt
+  grep -q "SAME KEY, SAME CHIP" 13-vcek-thim-vs-kds.txt || { echo "ERROR: THIM and KDS disagree on the VCEK key or chip id"; exit 1; }
+  openssl verify -CAfile 06-certificates/ark.pem -untrusted 06-certificates/ask.pem "${EVIDENCE}/thim-vcek.pem" >/dev/null || { echo "ERROR: THIM VCEK does not chain to the KDS ARK"; exit 1; }
 fi
 
 # ---- Step 10: policy validation summary ----
@@ -199,12 +327,17 @@ Tool:       $(cat 11-snpguest-version.txt)
 Chip:       AMD EPYC ${SNP_CHIP^} (SEV-SNP)
 
 POLICY CHECKS
-✓ Report from /dev/sev-guest (real silicon)
+✓ Report from the vTPM's HCL report (Azure paravisor, NV 0x1400001; real silicon)
 ✓ Cert chain valid (ARK self-signed → ASK signed by ARK → VCEK signed by ASK)
 ✓ VEK signed attestation report
 ✓ TCB values match (cert ↔ report) — Microcode/SNP/TEE/Boot Loader
 ✓ Chip ID matches (cert ↔ report)
-✓ REPORT_DATA = SHA-512(manifest)        — workload binding
+✓ REPORT_DATA = SHA-256(vTPM runtime data) || 0^32 — Azure's binding, checked
+$([ -f 13-vcek-thim-vs-kds.txt ] && echo "✓ VCEK from Azure THIM: same key and chip id as AMD KDS's, chains to the same ARK")
+✓ Workload manifest bound through the vTPM: the attestation key the report's
+  runtime data names (HCLAkPub) signed a quote whose qualifying data is
+  SHA-256(manifest) (14-manifest-quote.*, checked by tpm2_checkquote);
+  the manifest names what Demo 1 sealed, as measured
 
 RESULT: AMD CHAIN VALIDATION PASSED
 

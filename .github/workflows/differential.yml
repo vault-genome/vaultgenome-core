@@ -1,0 +1,49 @@
+# The differential test (ADR 0034): the product's SEV-SNP verifier against readings nobody
+# here wrote — Google's go-sev-guest through tools/oracle (a module of its own) and VirTEE's
+# snpguest, built from crates.io at a pinned version — on every genuine report in
+# test/corpus/sev-snp: the verdict, nineteen fields, and every single-byte mutant. Not part
+# of vault-gate: `make differential` on a developer's machine runs the Google leg alone
+# (snpguest is Linux x86-64), this workflow runs both on every push and pull request.
+name: differential
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  corpus:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            tools/oracle/go.sum
+      - name: The corpus is what build.py writes
+        run: python3 -I test/corpus/sev-snp/build.py --no-fetch && git diff --exit-code -- test/corpus/sev-snp/manifest.tsv test/corpus/sev-snp/SHA256SUMS
+      - name: Google's reading, tools/oracle
+        run: go build -C tools/oracle -o "$RUNNER_TEMP/oracle" .
+      - name: VirTEE's reading, snpguest 0.10.0 from crates.io
+        run: cargo install snpguest --version 0.10.0 --locked --root "$RUNNER_TEMP/snpguest"
+      - name: One test calls all three
+        run: |
+          VG_ORACLE="$RUNNER_TEMP/oracle" VG_SNPGUEST="$RUNNER_TEMP/snpguest/bin/snpguest" \
+          VG_DIFFERENTIAL_RECORD="$RUNNER_TEMP/differential-ci.json" \
+          go test -tags differential ./internal/shared/tee/ -run TestDifferential -count=1 -v 2>&1 | grep -v '^=== RUN'
+      - name: The auditor's own verifier of the audit log against acpctl audit verify (part three)
+        run: |
+          VG_AUDITOR_RECORD="$RUNNER_TEMP/auditor-ci.json" \
+          go test -tags differential ./internal/audit/chain/ -run TestDifferential_Auditor -count=1 -v 2>&1 | grep -v '^=== RUN'
+      - name: Keep the run
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: differential-record
+          path: |
+            ${{ runner.temp }}/differential-ci.json
+            ${{ runner.temp }}/auditor-ci.json

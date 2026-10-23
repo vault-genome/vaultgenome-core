@@ -1,0 +1,16 @@
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 09bb0999cff29722ffd1286bb3ff1fc81334d60e
+Verifying artifact sagvd: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 09bb0999cff29722ffd1286bb3ff1fc81334d60e
+Verifying artifact acp-compute: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 09bb0999cff29722ffd1286bb3ff1fc81334d60e
+Verifying artifact acpctl: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 09bb0999cff29722ffd1286bb3ff1fc81334d60e
+Verifying artifact acp-bootstrap: PASSED
+
+PASSED: SLSA verification passed

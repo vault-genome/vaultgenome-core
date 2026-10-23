@@ -1,8 +1,10 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
 
 import (
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	"os"
 	"path/filepath"
 	"strings"
@@ -287,7 +289,8 @@ func TestConfig_Validate_TEEProviders(t *testing.T) {
 		want   []string
 	}{
 		"simulated by default":              {func(c *Config) {}, nil},
-		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "tdx" }, []string{"tee.provider invalid"}},
+		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "no-such-tee" }, []string{"tee.provider invalid"}},
+		"family name accepted (ADR 0025)":   {func(c *Config) { c.TEE.Provider = "sev-snp"; c.TEE.SeedPath = ""; c.TEE.InsecureSimulation = false }, nil},
 		"unsupported provider":              {func(c *Config) { c.TEE.Provider = "aws-nitro" }, []string{"not available in this build"}},
 		"simulated without acknowledgement": {func(c *Config) { c.TEE.InsecureSimulation = false }, []string{"tee.insecure_simulation=true"}},
 		"simulated without seed":            {func(c *Config) { c.TEE.SeedPath = "" }, []string{"tee.seed_path required"}},
@@ -298,7 +301,7 @@ func TestConfig_Validate_TEEProviders(t *testing.T) {
 		"peer unknown":                   {func(c *Config) { c.TEE.Peer.Provider = "sgx?" }, []string{"tee.peer.provider invalid"}},
 		"peer unsupported":               {func(c *Config) { c.TEE.Peer.Provider = "azure-sgx" }, []string{"no verifier this build can run"}},
 		"simulated peer without key":     {func(c *Config) { c.TEE.Peer.PublicKeyPath = "" }, []string{"tee.peer.public_key_path required"}},
-		"simulated peer with AMD fields": {func(c *Config) { c.TEE.Peer.AMDCertChainPath = "/x/chain.pem" }, []string{"apply to a gcp-sev-snp or azure-cgpu peer only"}},
+		"simulated peer with AMD fields": {func(c *Config) { c.TEE.Peer.AMDCertChainPath = "/x/chain.pem" }, []string{"apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"}},
 		"sev-snp peer without chain": {func(c *Config) { c.TEE.Peer.Provider = "gcp-sev-snp"; c.TEE.Peer.PublicKeyPath = "" },
 			[]string{"tee.peer.amd_cert_chain_path required"}},
 		"sev-snp peer with a key": {func(c *Config) {
@@ -345,4 +348,48 @@ func TestPCRDigests(t *testing.T) {
 	out, err = pcrDigests(nil)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+// tee.provider "auto" (ADR 0025): accepted for the worker's own provider,
+// refused for the vault it pins, resolved from configfs-tsm at load.
+func TestTEEConfig_Auto(t *testing.T) {
+	c := DefaultConfig()
+	c.TEE.Provider = "auto"
+	c.TEE.SeedPath = ""
+	c.TEE.InsecureSimulation = false
+	if err := c.Validate(); err != nil && (strings.Contains(err.Error(), "tee.provider") || strings.Contains(err.Error(), "tee.seed_path")) {
+		t.Fatalf("auto refused for the worker's own provider: %v", err)
+	}
+	c = DefaultConfig()
+	c.TEE.Peer.Provider = "auto"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "tee.peer.provider cannot be auto") {
+		t.Fatalf("auto for the peer was not refused: %v", err)
+	}
+	tc := TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}
+	if err := tc.ResolveAuto(); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("ResolveAuto off a confidential VM: %v", err)
+	}
+	if _, _, err := buildTEEProducer(TEEConfig{Provider: "auto", TSMReportDir: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "configfs-tsm") {
+		t.Fatalf("buildTEEProducer with auto off a confidential VM: %v", err)
+	}
+}
+
+// tee.sealer (ADR 0025, step 1b): auto by default, tee or tpm2 by choice,
+// anything else refused.
+func TestTEEConfig_SealerMode(t *testing.T) {
+	c := DefaultConfig()
+	if c.TEE.SealerMode() != tee.SealerModeAuto {
+		t.Fatalf("default sealer mode %q, want auto", c.TEE.SealerMode())
+	}
+	c.TEE.Sealer = "tpm2"
+	if err := c.Validate(); err != nil && strings.Contains(err.Error(), "tee.sealer") {
+		t.Fatalf("tpm2 refused: %v", err)
+	}
+	if c.TEE.SealerMode() != tee.SealerModeTPM2 {
+		t.Fatalf("sealer mode %q, want tpm2", c.TEE.SealerMode())
+	}
+	c.TEE.Sealer = "hsm"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "tee.sealer \"hsm\"") {
+		t.Fatalf("an unknown sealer was not refused: %v", err)
+	}
 }

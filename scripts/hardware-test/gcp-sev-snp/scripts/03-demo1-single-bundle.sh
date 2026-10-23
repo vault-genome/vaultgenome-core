@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # 03-demo1-single-bundle.sh — Demo 1 round-trip on real SEV-SNP hardware.
@@ -18,6 +19,13 @@ if [ ! -x "$ACPCTL" ]; then
   exit 1
 fi
 
+# The Ollama installer leaves the daemon's model store readable only by
+# the ollama user; the seal reads it as the login user.
+echo "=== make the ollama model store readable ==="
+sudo chown -R ollama:ollama /usr/share/ollama 2>/dev/null || true
+sudo chmod -R u=rwX,go=rX /usr/share/ollama 2>/dev/null || true
+
+echo
 echo "=== pull the model the demo uses ==="
 ollama pull "$MODEL"
 
@@ -34,6 +42,9 @@ echo
 echo "=== inspect ==="
 "$ACPCTL" genome inspect --bundle=demo1-bundle.genome \
   | tee evidence/demo1-inspect.txt
+# The machine-readable record of what was sealed: 02b takes the measured
+# payload digest and the sizes from it for the workload manifest.
+"$ACPCTL" genome inspect --bundle=demo1-bundle.genome --json > evidence/demo1-inspect.json
 
 echo
 echo "=== open into /tmp/demo1-restored ==="

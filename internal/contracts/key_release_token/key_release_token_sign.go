@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package key_release_token
@@ -25,6 +26,11 @@ func (t *KeyReleaseToken) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, t.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	t.Alg = alg
 	cp := *t
 	cp.Signature = nil
 	cb, err := crypto.CanonicalJSON(&cp)
@@ -61,5 +67,5 @@ func (t *KeyReleaseToken) VerifySignature(resolver keys.Resolver) error {
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, t.Signature)
+	return vk.VerifyRecord(t.Alg, cb, t.Signature)
 }

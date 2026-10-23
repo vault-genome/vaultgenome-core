@@ -1,0 +1,4 @@
+sagvd v0.6.0 (commit cc8b204d7ba3d492e74c6b92e7d625f63126ee41)
+acp-compute v0.6.0 (commit cc8b204d7ba3d492e74c6b92e7d625f63126ee41)
+acpctl v0.6.0 (commit cc8b204d7ba3d492e74c6b92e7d625f63126ee41)
+acp-keygen v0.6.0 (commit cc8b204d7ba3d492e74c6b92e7d625f63126ee41)

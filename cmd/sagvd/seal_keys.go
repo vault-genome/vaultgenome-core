@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
@@ -21,6 +22,7 @@ import (
 type sealKeysOutput struct {
 	TEE            string           `json:"tee"`
 	MeasurementHex string           `json:"measurement_hex"`
+	Sealer         string           `json:"sealer"`
 	Sealed         []sealedKeyEntry `json:"sealed"`
 	AlreadySealed  []sealedKeyEntry `json:"already_sealed,omitempty"`
 }
@@ -42,12 +44,17 @@ type keyFile struct {
 }
 
 func keyFiles(cfg Config) []keyFile {
+	// The signing keys' lengths follow their suites (ADR 0031): the
+	// 32-byte seed of ed25519 and ml-dsa-87, any length for the PKCS#8 PEM
+	// of ecdsa-p384-sha384. The config is validated before this runs.
+	authSuite, _ := cfg.Keys.AuthoritySigning.signatureSuite()
 	files := []keyFile{
-		{"keys.authority_signing.seed_path", cfg.Keys.AuthoritySigning.SeedPath, crypto.Ed25519SeedSize},
+		{"keys.authority_signing.seed_path", cfg.Keys.AuthoritySigning.SeedPath, authSuite.KeyFileSize()},
 		{"keys.session_sealing.material_path", cfg.Keys.SessionSealing.MaterialPath, crypto.AES256KeySize},
 	}
 	if cfg.Keys.AuditSigning.SeedPath != "" {
-		files = append(files, keyFile{"keys.audit_signing.seed_path", cfg.Keys.AuditSigning.SeedPath, crypto.Ed25519SeedSize})
+		auditSuite, _ := cfg.Keys.AuditSigning.signatureSuite()
+		files = append(files, keyFile{"keys.audit_signing.seed_path", cfg.Keys.AuditSigning.SeedPath, auditSuite.KeyFileSize()})
 	}
 	if cfg.Vault.TLS.Enabled && cfg.Vault.TLS.ServerKey != "" {
 		files = append(files, keyFile{"vault.tls.server_key", cfg.Vault.TLS.ServerKey, 0})
@@ -96,11 +103,15 @@ func runSealKeysCmd(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if mat.Provider == tee.ProviderSimulated {
+	kind, err := mat.SealerKind()
+	if err != nil {
+		return err
+	}
+	if kind == tee.SealerKindSimulated {
 		fmt.Fprintln(stderr, "seal-keys: SIMULATED TEE: the keys are sealed under a key derived from the simulated measurement, with no hardware behind it; development and tests only")
 	}
 	measurement := mat.Producer.Measurement()
-	out := sealKeysOutput{TEE: string(mat.Provider), MeasurementHex: hex.EncodeToString(measurement)}
+	out := sealKeysOutput{TEE: string(mat.Provider), MeasurementHex: hex.EncodeToString(measurement), Sealer: string(kind)}
 	for _, f := range keyFiles(cfg) {
 		raw, err := os.ReadFile(f.path)
 		if err != nil {
@@ -113,7 +124,7 @@ func runSealKeysCmd(args []string, stdout, stderr io.Writer) error {
 		if (f.n > 0 && len(raw) != f.n) || len(raw) == 0 {
 			return fmt.Errorf("seal-keys: %s (%q) must be exactly %d bytes (got %d)", f.name, f.path, f.n, len(raw))
 		}
-		sealed, err := tee.SealSecret(raw, sealer, mat.Provider, measurement, f.name)
+		sealed, err := tee.SealSecretWith(raw, sealer, kind, mat.Provider, measurement, f.name)
 		for i := range raw {
 			raw[i] = 0
 		}
@@ -121,7 +132,7 @@ func runSealKeysCmd(args []string, stdout, stderr io.Writer) error {
 			return fmt.Errorf("seal-keys: %s: %w", f.name, err)
 		}
 		// The sealed file must open here before the bare one is gone.
-		if _, err := tee.OpenSecret(sealed, sealer, mat.Provider, f.name); err != nil {
+		if _, err := tee.OpenSecretWith(sealed, sealer, kind, mat.Provider, f.name); err != nil {
 			return fmt.Errorf("seal-keys: %s: the sealed key does not open on this host: %w", f.name, err)
 		}
 		if err := replaceFile(f.path, sealed); err != nil {

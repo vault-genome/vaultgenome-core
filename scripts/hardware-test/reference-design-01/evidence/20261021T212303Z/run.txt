@@ -1,0 +1,9 @@
+tree a6b33a28b026de12b2f787d9f362a01a58f2097c
+stamp 20261021T212303Z
+profile fips
+zone_a us-central1-c
+go go1.27.3
+host Darwin arm64
+fips 1
+gofips140 v1.0.0
+zone_b europe-west4-b

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package transport
@@ -15,7 +16,9 @@ import (
 
 // ---- wire framing ---------------------------------------------------------
 
-func TestWireMagic_V10(t *testing.T) {
+// The wire is 1.1 since Evidence became a CMW record (RFC 9999); a 1.0
+// peer sends bytes where 1.1 reads a record, and is refused by version.
+func TestWireMagic_V11(t *testing.T) {
 	t.Parallel()
 	m := WireMagic()
 	require.Equal(t, byte('R'), m[0])
@@ -23,7 +26,7 @@ func TestWireMagic_V10(t *testing.T) {
 	require.Equal(t, WireMajor, m[2])
 	require.Equal(t, WireMinor, m[3])
 	require.Equal(t, uint8(1), WireMajor)
-	require.Equal(t, uint8(0), WireMinor)
+	require.Equal(t, uint8(1), WireMinor)
 }
 
 func TestWriteReadFrame_RoundTrip(t *testing.T) {
@@ -218,14 +221,14 @@ func mustHelloServer(t *testing.T) HelloServer {
 	t.Helper()
 	clientNonce := bytes.Repeat([]byte{0x22}, NonceMinBytes)
 	serverNonce := bytes.Repeat([]byte{0x33}, NonceMinBytes)
-	hs, err := NewHelloServer(clientNonce, serverNonce, []byte("evidence"), []byte("ctx"))
+	hs, err := NewHelloServer(clientNonce, serverNonce, evRecord("evidence"), []byte("ctx"))
 	require.NoError(t, err)
 	return hs
 }
 
 func mustAttestClient(t *testing.T) AttestClient {
 	t.Helper()
-	ac, err := NewAttestClient([]byte("client-evidence-bytes"))
+	ac, err := NewAttestClient(evRecord("client-evidence-bytes"))
 	require.NoError(t, err)
 	return ac
 }

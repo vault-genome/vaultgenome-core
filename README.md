@@ -3,9 +3,10 @@
 [![vault-gate](https://github.com/vault-genome/vaultgenome-core/actions/workflows/vault-gate.yml/badge.svg)](https://github.com/vault-genome/vaultgenome-core/actions/workflows/vault-gate.yml)
 [![CodeQL](https://github.com/vault-genome/vaultgenome-core/actions/workflows/codeql.yml/badge.svg)](https://github.com/vault-genome/vaultgenome-core/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/vault-genome/vaultgenome-core/badge)](https://scorecard.dev/viewer/?uri=github.com/vault-genome/vaultgenome-core)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15491/badge)](https://www.bestpractices.dev/projects/15491)
 [![Release](https://img.shields.io/github/v/release/vault-genome/vaultgenome-core?display_name=tag&color=2ea44f)](https://github.com/vault-genome/vaultgenome-core/releases)
 [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](docs/operator/05_release_procedure.md)
-[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
+[![Go](https://img.shields.io/badge/Go-1.27.2-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 
 **A fine-tuned AI model that survives the loss of the machine it runs on —
@@ -28,13 +29,14 @@ a computation problem third.
 ## Measured on real hardware
 
 Every number links to the claim, its evidence files and the command that
-reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C26).
+reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C39).
 
 | What | Result | Claim |
 | - | - | - |
 | A model under attack on a SEV-SNP VM fails over to another SEV-SNP VM | detect 2.53 s, RPO 9.0 s, **RTO 16.81 s**, the clean generation gated **EXACT** | [drill](docs/CONTINUITY-DRILL.md), [C14](VERIFIABLE-CLAIMS.md#c14) |
 | The same failover to an Azure **confidential GPU** across the Internet | key released on the chip's report, the vTPM's quote and NVIDIA's tokens; **RTO 24.99 s**, EQUIVALENT on the H100 | [C18](VERIFIABLE-CLAIMS.md#c18) |
 | The same failover to an **Intel TDX** Trust Domain | key released on Intel's word for the platform, TDX module and QE; **RTO 24.09 s** | [C21](VERIFIABLE-CLAIMS.md#c21) |
+| A primary that **goes dark without a word** — switched off while it trains, then deleted | no report, only silence: after 15 s the key goes to the attested H100 across the Atlantic; **RTO 25.97 s** and **26.24 s** in two runs, EQUIVALENT on the H100, done before Google logged the machine's termination | [C35](VERIFIABLE-CLAIMS.md#c27) |
 | Eight policies against one attack | **seven refused** for seven stated reasons, one move to the generation whose bytes match the sentinel's word | [C22](VERIFIABLE-CLAIMS.md#c22) |
 | A **32B** model through the genome path on a confidential H100 | fine-tuned, sealed, restored and gated **EXACT** (16/16) over the Return Path | [C26](VERIFIABLE-CLAIMS.md#c26) |
 | A 7B genome on one GPU | 10 MB against 15 GB of weights (1 : 1 502), EXACT on the pinned runtime, the recipe replaying bit for bit | [C16](VERIFIABLE-CLAIMS.md#c16) |
@@ -82,10 +84,11 @@ Opening authenticates every 1 MiB segment before a byte of it is used and
 leaves the target untouched on any refusal: an edited, truncated or
 wrong-key bundle changes nothing.
 
-**Prerequisites.** Go 1.26 for the binaries. The `acp-compute` worker and
-the hardware kits also need Python 3.11+ with the pinned runtime in
+**Prerequisites.** Go 1.27.2 for the binaries (`go.mod` names the toolchain;
+`GOTOOLCHAIN=auto` fetches it). The `acp-compute` worker and the hardware
+kits also need Python 3.12+ with the pinned runtime in
 [`workers/genome/requirements.txt`](workers/genome/requirements.txt)
-(torch 2.7.1); a vTPM host (Intel TDX, the Azure confidential GPU VM) needs
+(torch 2.14.1); a vTPM host (Intel TDX, the Azure confidential GPU VM) needs
 `tpm2-tools`.
 
 ## Deploy
@@ -95,6 +98,7 @@ the hardware kits also need Python 3.11+ with the pinned runtime in
 | **A real deployment on confidential VMs** — the authority, a worker, a destination, the policies, the keys | [`docs/operator/`](docs/operator/00_overview.md): [preflight](docs/operator/01_preflight.md) (keys and `seal-keys`), [cross-cloud restore](docs/operator/06_cross_cloud_restore.md), [failover](docs/operator/07_failover.md), and the real-TEE runbooks for [SEV-SNP](docs/operator/runbooks/real-tee-sev-snp.md), [TDX](docs/operator/runbooks/real-tee-tdx.md) and the [Azure confidential GPU](docs/operator/runbooks/real-tee-azure-cgpu.md) |
 | **Reproduce a hardware claim** — one command boots the machines, runs the drill, collects the evidence and deletes everything | [`scripts/hardware-test/`](scripts/hardware-test/): each kit's README names the machines, the cost and the time of a run (a failover drill: two SEV-SNP VMs, about 25 minutes; the H100 runs: one NCC H100 v5 VM at about $9 an hour) |
 | **Run the pieces locally** — the daemons on the simulated TEE, with Docker Compose | [`deploy/compose/`](deploy/compose/README.md) |
+| **Run the released images** — signed by digest, the release's own binaries inside | [`deploy/compose/README.md`](deploy/compose/README.md#run-the-released-images-instead-of-building) |
 
 Every binary reads its secrets from files it seals to the host it runs on:
 run `sagvd seal-keys`, `acp-compute seal-keys` and `acp-bootstrap seal-keys`
@@ -104,18 +108,45 @@ once after provisioning ([ADR 0023](docs/adr/0023-the-daemons-key-files-sealed-t
 
 Releases are cut by [`release.yml`](.github/workflows/release.yml) from a tag
 signed by a key pinned in [`.github/allowed_signers`](.github/allowed_signers):
-four binaries built reproducibly, each with a keyless cosign signature and a
-transparency-log entry, an SPDX SBOM, and a SLSA level 3 provenance
-attestation. Check what you downloaded before you run it:
+five binaries and the worker package built reproducibly — and, from
+0.8.0, a `-fips` variant of each binary and image on the certified Go
+Cryptographic Module v1.0.0 (ADR 0030) — each with a keyless cosign
+signature and a transparency-log entry, an SPDX SBOM, and a SLSA level
+3 provenance attestation. Check what you downloaded before you run it:
 
 ```bash
 cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
 slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
-  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.3.2
-git verify-tag v0.3.2
+  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.9.0
+git verify-tag v0.9.0
 ```
+
+The same two commands verify `acp-compute`, `acpctl`, `acp-bootstrap`,
+`acp-keygen`, their `-fips` variants and the worker package
+`genome-worker-v0.9.0.tar.gz`; a
+deployment needs nothing from the source tree
+([`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md)).
+
+From 0.4.3 on, every signed file also has a Sigstore bundle,
+`<asset>.sigstore.json` — the signature, the certificate and the Rekor
+entry in one file — so a host with no route at all verifies it too, with
+the Sigstore trust root carried in as a file (`cosign initialize` on a
+connected machine fetches it into its cache,
+`~/.sigstore/root/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json`):
+
+```bash
+cosign verify-blob --new-bundle-format --bundle sagvd.sigstore.json --trusted-root trusted_root.json \
+  --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
+```
+
+Not `--offline`: on the pinned cosign 2.6.5 that flag still reaches for
+the TUF mirror and fails without a route (measured).
+([`docs/operator/runbooks/air_gap.md`](docs/operator/runbooks/air_gap.md) is
+the air-gapped procedure; the rehearsal `v0.4.3-rc2` verified all twelve
+bundles this way with the network denied.)
 
 [`docs/operator/05_release_procedure.md`](docs/operator/05_release_procedure.md)
 is the whole procedure; [`docs/security/supply_chain.md`](docs/security/supply_chain.md)
@@ -175,12 +206,14 @@ summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
 | [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md) | Every claim, its evidence and its reproduction command; what we do not claim |
 | [`docs/CONTINUITY-DRILL.md`](docs/CONTINUITY-DRILL.md) | The failover drills, narrated, with their numbers |
 | [`docs/adr/`](docs/adr/README.md) | Twenty-three architecture decision records, from the frozen TEE interface (0001) to the sealed key files (0023) |
-| [`docs/operator/`](docs/operator/00_overview.md) | The operator guides 00–07 and the real-TEE runbooks |
+| [`docs/operator/`](docs/operator/00_overview.md) | The operator guides 00–09 — from the overview to the first deployment measured against the reference — and the real-TEE runbooks |
 | [`docs/security/`](docs/security/threat_model.md) | The threat model and the supply chain |
 | [`docs/doctrine/`](docs/doctrine/terminology.md) | The canonical vocabulary (enforced by CI) and the CI security policy |
 | [`docs/testing/`](docs/testing/cross-hardware-determinism.md) | Cross-hardware determinism and mutation testing |
-| [`docs/compliance/`](docs/compliance/README.md), [`docs/reference-designs/`](docs/reference-designs/README.md) | The compliance crosswalk and four reference designs |
+| [`docs/compliance/`](docs/compliance/README.md), [`docs/reference-designs/`](docs/reference-designs/README.md) | The control catalogue, the sector maps and four reference designs |
 | [`docs/spec/`](docs/spec/draft-vault-genome-tap-00.md) | The TEE-Agnostic Attestation Protocol draft |
+| [`docs/reference/cli.md`](docs/reference/cli.md) | Every command and flag of the five binaries, generated from their own usage text |
+| [`docs/reference/api.md`](docs/reference/api.md) | The operator REST API for an integrator — `POST /v1/jobs`, `GET /v1/jobs/{id}`, the error envelope, the job view, how to verify what it says |
 | [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md), [`ROADMAP.md`](ROADMAP.md), [`CHANGELOG.md`](CHANGELOG.md) | Limits, what is next, what changed |
 
 ## Development

@@ -57,10 +57,10 @@ load:
 
 | Key | Config | Loaded by | Used for |
 | - | - | - | - |
-| Authority signing (32-byte Ed25519 seed) | sagvd `keys.authority_signing` (`kid`, `seed_path`) | `sagvd` and all its subcommands | Signs every authority artifact of a gate job — the attestation, the session, each disclosure, the manifest, the gate verdict, the release decision (ADR 0015) — and cross-cloud handshake requests and key-release tokens, which each destination verifies against its `source_authority`. `sagvd identity` prints its public key |
+| Authority signing (the key file of its suite, ADR 0031: the 32-byte seed of an ed25519 or ml-dsa-87 key, the PKCS#8 PEM of an ecdsa-p384-sha384 key) | sagvd `keys.authority_signing` (`kid`, `seed_path`, `suite` — ed25519 when absent; the file is read as the suite says) | `sagvd` and all its subcommands | Signs every authority artifact of a gate job — the attestation, the session, each disclosure, the manifest, the gate verdict, the release decision (ADR 0015) — and cross-cloud handshake requests and key-release tokens, which each destination verifies against its `source_authority`. `sagvd identity` prints its public key |
 | Session sealing (32-byte AES-256 key) | `keys.session_sealing` (`kid`, `material_path`) — the same kid and bytes in sagvd and every acp-compute | both daemons | sagvd seals every disclosure of a gate job under it — the genome's description, adapter and prompts, to the job's session; the worker opens them |
-| Audit signing (32-byte Ed25519 seed) | sagvd `keys.audit_signing` (`kid`, `seed_path`) | the `sagvd` daemon (required with `audit.log_path`, which gate jobs require), `sagvd crosscloud-restore` and `crosscloud-confirm` (required when `crosscloud.enabled`); `sagvd identity` prints its public key | Signs the Return Path audit log and the cross-cloud audit log. It must stay the same for the life of the logs |
-| Worker signing (32-byte Ed25519 seed) | acp-compute `keys.worker_signing` | `acp-compute` | Signs every CandidateOutputFrame; sagvd checks it against `workers.registry_path` |
+| Audit signing (the key file of its suite, as above) | sagvd `keys.audit_signing` (`kid`, `seed_path`, `suite`) | the `sagvd` daemon (required with `audit.log_path`, which gate jobs require), `sagvd crosscloud-restore` and `crosscloud-confirm` (required when `crosscloud.enabled`); `sagvd identity` prints its public key | Signs the Return Path audit log and the cross-cloud audit log. It must stay the same for the life of the logs |
+| Worker signing (the key file of its suite, as above) | acp-compute `keys.worker_signing` (`kid`, `seed_path`, `suite`) | `acp-compute` | Signs every CandidateOutputFrame; sagvd checks it against `workers.registry_path`, whose entries name each worker's `suite` beside its raw key (ed25519 when absent) |
 | Simulated TEE seeds (32 bytes) | `tee.seed_path` in sagvd and acp-compute, with `tee.provider: "simulated"` | both daemons, off hardware | Sign each side's Return Path Evidence. On a SEV-SNP guest (`tee.provider: "gcp-sev-snp"`) there is no seed: the chip signs |
 
 No binary loads a witness key.
@@ -113,8 +113,10 @@ What attests in this build:
 
 - `sagvd` and `acp-compute` attest with the TEE they run on:
   `tee.provider: "gcp-sev-snp"` (AMD SEV-SNP through configfs-tsm),
-  `"gcp-tdx"` (Intel TDX) or `"azure-cgpu"` (an Azure confidential GPU VM —
-  the chip, the vTPM and the H100), the measurement read from the hardware;
+  `"gcp-tdx"` (Intel TDX), `"azure-sev-snp"` (an Azure SEV-SNP Confidential
+  VM — the chip's report from the vTPM and a TPM quote) or `"azure-cgpu"`
+  (an Azure confidential GPU VM — the chip, the vTPM and the H100), the
+  measurement read from the hardware;
   or with the simulated TEE for development — Evidence signed by a key
   derived from `tee.seed_path`, measurement = SHA-256 of
   `tee.workload_descriptor` — which refuses to start unless
@@ -175,7 +177,10 @@ changed — the review is itself a policy-alignment signal.
 
 `sagvd` writes two audit logs under `keys.audit_signing`: the Return Path
 log (`audit.log_path`, required with gate jobs) and the cross-cloud log
-(`crosscloud.audit_log_path`). Check each.
+(`crosscloud.audit_log_path`). Check each. It also keeps its job store
+(`queue.path`, ADR 0026) — a bbolt file of its own, never the audit log's
+— and says at start how many records it holds; a daemon without
+`queue.path` warns that its queue is in memory.
 
 1. `acpctl audit verify --audit <path> --audit-pubkey <audit.pem> --audit-kid <kid> --json`
    must report `"ok": true`.
@@ -184,10 +189,19 @@ log (`audit.log_path`, required with gate jobs) and the cross-cloud log
    kept off the host. A log whose tail was cut off still verifies; only this
    comparison shows it.
 
-acpctl opens the file read-write and takes the same lock a running
-`crosscloud-restore` holds (it gives up after 5 seconds): run it between
-releases, or on a copy. A mistyped `--audit` path creates an empty log, which
-verifies with 0 events.
+With segments (ADR 0027) the verifier reads the closed segments in
+`audit.archive_dir` (`archive/` beside the file unless set; `--archive-dir`
+names another place) before the live file, checks that each continues the
+one before it and that each archive is the file the chain recorded when it
+closed it, and lists them. Segments shipped off the host leave it unable to
+reach genesis: verify them where they are, then pass `--from-tip <hash>` —
+the tip they ended with, which the `AUDIT_SEGMENT_CLOSED` event after them
+carries and the verifier's output names.
+
+acpctl opens every file read-only — an archive's bytes are what the chain
+records — and takes a shared lock that a running daemon's exclusive one
+refuses (it gives up after 5 seconds): run it between releases, or on a
+copy. A mistyped `--audit` path is refused, not created.
 
 A discontinuity here is the canonical "is the audit log being replaced
 under me?" signal. Treat as critical.
@@ -201,6 +215,16 @@ under me?" signal. Treat as critical.
 | sagvd alive | `curl -fsS http://127.0.0.1:9091/healthz` | `ok` |
 | sagvd ready | `curl -fsS http://127.0.0.1:9091/readyz` | `ready` (once the Return Path listener is bound) |
 | Worker connected | sagvd log and `/metrics` | `sagvd session opened` lines; `sagvd_sessions_opened_total` rising |
+
+| Host clock | `timedatectl show -p NTP -p NTPSynchronized -p TimeUSec`, then `chronyc tracking` for the source | `NTP=yes`, `NTPSynchronized=yes`; chrony's `Reference ID` is the source the deployment's record names (on a GCP guest: `metadata.google.internal`) |
+
+Every audit event carries the daemon's clock (`internal/shared/time`, one
+clock per process; no `time.Now()` in product code), and the chain is
+ordered by its index, not by time — but the timestamps are what an
+auditor reads next to other systems' logs, and the regulations a bank is
+held to ask for clocks synchronised to a documented reference (the RTS
+on ICT risk management, Article 12(2)(f); PCI DSS 10.6). Synchronising
+the host is the deployer's; this check says whether it is done.
 
 `127.0.0.1:9091` is the default `health.listen_address`; the REST API is a
 separate listener (`http_api.listen_address`, default `127.0.0.1:9080`).

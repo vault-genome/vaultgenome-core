@@ -4,11 +4,12 @@ One question, asked of real hardware: **if the machine running your model is
 taken, does the model survive — and can you prove the thing that came back is
 the same model?**
 
-This document is the answer we can defend. It is a narrative of three drills
-that ran on live confidential machines — AMD SEV-SNP VMs on GCP and, in the
-third, an Azure confidential GPU VM as the standby — with every number copied
-from evidence committed to this repository. Nothing here is simulated except the
-adversary, and the adversary only ever touched our own machines.
+This document is the answer we can defend. It is a narrative of seven drills
+that ran on live confidential machines — AMD SEV-SNP VMs on GCP, an Intel TDX
+Trust Domain and an Azure confidential GPU VM as standbys — with every number
+copied from evidence committed to this repository. Nothing here is simulated
+except the adversary and, in the seventh, the loss of power, and both only ever
+touched our own machines.
 
 Every claim below is indexed in [VERIFIABLE-CLAIMS.md](../VERIFIABLE-CLAIMS.md)
 with the file that proves it and the command that reproduces it.
@@ -387,6 +388,201 @@ the door.
 
 ---
 
+## Drill VI — The authority is lost
+
+*Runs `20261015T171848Z`, `20261015T173009Z`, `20261015T174115Z`. Two GCP SEV-SNP
+machines, one after the other. Evidence:
+[`scripts/hardware-test/authority-loss/evidence/`](../scripts/hardware-test/authority-loss/evidence/)*
+
+Drills II to V lose a primary and watch the authority move the model.
+This one loses the **authority** — `sagvd`, the process that signs every
+verdict and holds the escrow key — and asks how long until a fresh
+machine *is* that authority again, and what of it comes back.
+
+### 1. What an authority is made of
+
+Before the first job, machine A does what an operator does before relying
+on an authority. The key material `acp-keygen -private` made — the signing
+seeds, the TLS identities, the API token, the worker registry — goes to
+the **operator's safe** before the host seals its own copies to its chip
+(`sagvd seal-keys`, `acp-compute seal-keys`,
+[ADR 0023](adr/0023-the-daemons-key-files-sealed-to-the-host.md)); in the
+drill the safe is an object in the run's private bucket, the model of a
+secrets manager. The escrow key is made inside `sagvd`, sealed to the chip,
+and wrapped to the operator's recovery key
+([ADR 0016](adr/0016-escrow-key-sealed-to-the-release-host.md)); the
+envelope goes to the safe. Then A fine-tunes a tiny model, seals it, and
+runs gate jobs over the Return Path in a loop — a job every eight seconds,
+5.3 s each, sixteen audit events each — replicating its state after every
+job: the audit log and the genomes, as one tar in the bucket, with the
+job's tip in a manifest.
+
+### 2. The deletion
+
+The runner waits until A has completed three jobs, then deletes the VM
+while a job is in flight. The guest gets no warning: `gcloud compute
+instances delete`, issued at a moment the runner records. In the three
+runs A had completed four, five and four jobs; the job submitted
+after the last completed one was never done. Its audit events, appended
+on A after the last replica, died with A.
+
+### 3. A fresh machine becomes the authority
+
+Machine B is created the moment A's deletion is issued. It reads nothing
+of A but the safe and the replica:
+
+1. the key material from the safe, sealed to **B's** chip (`sagvd
+   seal-keys`, `acp-compute seal-keys`) — the same seeds, so the same
+   signing key, the same audit key, the same certificate, the same token;
+2. the replica of the audit log and the genomes; `acpctl audit verify`
+   on the replica before anything appends to it: `ok: true`, 64, 80 and
+   64 events, with the tip A's last manifest named;
+3. the escrow key through the recovery ceremony — `acpctl escrow recover
+   | sagvd escrow-provision -stdin` — sealed to B's chip: the key tag A's
+   provisioning printed (`ced42a93…`, `ad0f082e…`, `a08e386a…`) comes out
+   of the ceremony on B;
+4. `sagvd identity` and `acp-compute identity` on B: each daemon reads
+   its launch measurement from the chip and pins the other's (on the same
+   image, the same value A had: `7dc7c12e…25acc`);
+5. `sagvd` starts over the replica — `sagvd audit log open … events=64
+   tip=75b63362…` in its log (the third run) — the worker connects, and B finds from A's
+   markers which job was lost, submits it again, and signs the first
+   verdict after the loss: EXACT 6/6, sealing the next event on A's chain.
+
+### 4. The numbers
+
+| Phase (run `…174115Z`; the other two runs' values are in the kit's README) | Measured |
+| - | - |
+| A's deletion issued → B created | 33.6 s |
+| B's boot until its first line | 74.8 s |
+| the worker's runtime from the hash-pinned locks | 330.2 s |
+| the replica restored | 1.1 s |
+| identities, the replica verified, both daemons' key files sealed | 10.5 s |
+| the recovery ceremony | 10.3 s |
+| both daemons up, the session open | 22.2 s |
+| the first verdict after the loss | 5.4 s |
+| **RTO cold** — deletion issued → first verdict, B created on demand | **489.3 s** |
+| **RTO warm** — the runtime in place → first verdict | **49.5 s** |
+
+Three runs: RTO warm 49.7 s, 49.3 s, 49.5 s — the procedure does not
+move; RTO cold 235.8 s, 237.2 s, 489.3 s — the third run's fresh VM took
+330 s for the runtime from the locks against 78–80 s in the other two, a
+package mirror's day, not the product's. The runner checks four facts from the two records
+(`timeline.txt`): the authority signing key and the audit key the same on
+A and B; the escrow key the same after the ceremony; the replica's chain
+intact before B appends to it; the final chain — A's events and B's in
+one file — intact under the one audit key (the third run; the first two
+runs' stop step signalled the daemons' subshells and left `sagvd` holding
+the file's lock, a bug of the kit, fixed and recorded in its README).
+
+### 5. What it says
+
+The authority is not the machine: it is the key material in the safe, the
+escrow envelope, and the audit log's replica. Given those three, a machine
+nobody had seen before is the authority in fifty seconds, and the chain of
+decisions does not break. What the drill lost in its first three runs was
+the job in flight, because the queue was in memory
+([KNOWN_ISSUES.md](../KNOWN_ISSUES.md) #16); with the job store on disk
+(ADR 0026) and in the replica from the moment a job is accepted, the
+fourth run (`20261015T204339Z`) lost nothing: the new host's `sagvd`
+admitted the lost job again by itself — the same job id, the same request
+id, `resumed` on its audit record — and signed it EXACT 49.1 s after its
+runtime was ready. What the cold number is mostly made of is not the
+product: a VM's boot and a package mirror's speed. A standby with the
+runtime and the binaries in place is the warm number; a continuous
+replica in place of the drill's per-job copies is the remaining piece.
+
+---
+
+---
+
+## Drill VII — The region goes dark
+
+*Run `20260930T194321Z`. A GCP SEV-SNP primary in us-central1, the authority
+in europe-west4, the Azure NCC H100 v5 standby of Drill III in West Europe.
+Evidence:
+[`scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/`](../scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/)*
+
+Drills II to V begin with an intruder the sentinel catches. This one begins
+with nothing: no intruder, no tripwire, no report. The primary is switched
+off in the middle of its work and deleted, the way a strike or a total loss
+of power would take it, and the only sign the authority ever gets is that
+the heartbeat stops.
+
+### 1. The operator signs for silence
+
+The policy (serial 1) pins the primary's sentinel and chip and the GPU
+standby as in Drill III, and has one trigger: **no heartbeat for 15 s**. A
+compromise report would not count. The authority runs in another region
+from the primary; the replica it reads lives in a bucket in that region too.
+
+### 2. The primary goes dark
+
+The primary seals generation 1 at 20:01:36Z and starts training generation 2.
+Its last heartbeat to leave the machine, #209 at 20:01:57Z, says `watching`,
+newest sealed generation 1, signed, with the chip's report. At 20:02:02Z it
+switches itself off through the kernel's sysrq trigger — no shutdown, no
+signal to the sentinel, no `stopped`. Generation 2 dies at step 11 of 160,
+unsealed.
+
+Google's API went on reporting the machine `RUNNING` for another 53 seconds;
+its audit log records the guest's termination at 20:02:55Z. The operator then
+deleted the machine and its disk, and Google answered that it did not exist.
+
+### 3. Fifteen seconds of silence, then the policy
+
+| Phase | Measured |
+| - | - |
+| Detect — the heartbeat's last rise → the authority acts | **15.01 s** (the policy's timeout) |
+| **RPO** — generation 2's unsealed training | **21.01 s** |
+| Key release — the H100 host attested, across the Internet | 2.87 s |
+| Restore — 5 files, 2,210,917 B | **9.8 ms** |
+| Gate on the H100 | 6.75 s |
+| **RTO — last heartbeat seen → gated, confirmed, running model on the GPU** | **25.97 s** |
+
+- **generation 1** — the last state the primary sealed; generation 2 never
+  existed as far as the authority is concerned;
+- gate level **EQUIVALENT** on the H100, 16 fixtures, `max_abs_err: 1.52e-4`
+  — the same honest level as Drill III;
+- the key released only after the standby's chip, vTPM and GPU verified
+  under one nonce, and erased on the standby after the restore;
+- audit chain of 5 events, tip `3488b31c…153f`, verified again offline from
+  the log file itself.
+
+Measured from the primary's own record of the power-off, the model was back
+26.14 s later — and confirmed on the H100 27 seconds before Google's own
+audit log recorded that the machine had stopped. The failover did not wait
+for anyone to say the primary was dead. Its silence was enough, because the
+operator had signed for it in advance.
+
+### 4. The same drill, sixteen days later
+
+*Run `20261016T210544Z`, on the tree of 16 October, the same three machines.
+Evidence:
+[`scripts/hardware-test/failover-region-loss/evidence/20261016T210544Z/`](../scripts/hardware-test/failover-region-loss/evidence/20261016T210544Z/)*
+
+| Phase | Measured |
+| - | - |
+| Detect — the heartbeat's last rise → the authority acts | **15.01 s** (the policy's timeout) |
+| **RPO** — generation 2's unsealed training | **21.00 s** |
+| Key release — the H100 host attested, across the Internet | 3.13 s |
+| Restore — 5 files | **11.8 ms** |
+| Gate on the H100 | 6.82 s |
+| **RTO — last heartbeat seen → gated, confirmed, running model on the GPU** | **26.24 s** |
+
+The same shape to the hundredth of a second where the policy sets it, and
+within a third of a second elsewhere: EQUIVALENT on the H100 again
+(`max_abs_err: 2.48e-4`), five audit events, tip `16f6058b…c896`, verified
+offline. The model was confirmed back 24.74 s after the power-off by the
+primary's own clock, and 5.4 s before Google's audit log recorded that the
+guest had terminated; Google's API showed the machine `RUNNING` for 29 s
+after it had switched itself off. Generation 1 was already on the standby
+when the power went: the copy loop that raced the primary's uploads in the
+first run had the bundle in place this time.
+
+
+---
+
 ## The line we will not cross
 
 A system that relocates itself to new hardware when it detects a threat is one
@@ -421,26 +617,36 @@ outreach material.
 The drills are strong evidence for a narrow claim, and the narrowness is the
 point.
 
-- **0.5B in the drills, 7B at most.** Every number here is Qwen2.5-0.5B. A
+- **0.5B in the drills.** Every number here is Qwen2.5-0.5B. A
   7B run through the same path exists
   ([gpu-7b](../scripts/hardware-test/gpu-7b/README.md)): EXACT on the pinned
   L4, its recipe replaying bit for bit, and the float door failing closed
-  across devices in bfloat16 while the answers stay the same. Nothing larger
-  has been run.
-- **One GPU leg, once, at 0.5B.** Drill III's standby is an attested
-  confidential GPU, run once with the 0.5B model. In that run its GPU
-  measurements were NVIDIA's evaluation, verified by NVIDIA's signature; the
-  verifier now evaluates the report itself as well (ADR 0021, `both`), and
-  the manifests' XML signatures verified; what stays NVIDIA's word is
-  revocation.
-  In that run the standby held no sealed escrow key; since ADR 0022 a
+  across devices in bfloat16 while the answers stay the same. The largest
+  model through the genome path is 32B, restored and gated EXACT on the
+  confidential H100 outside a failover
+  ([C26](../VERIFIABLE-CLAIMS.md#c26)).
+- **The GPU leg twice, at 0.5B.** The standby of Drills III and VII is an
+  attested confidential GPU, each run once with the 0.5B model. In Drill III
+  its GPU measurements were NVIDIA's evaluation, verified by NVIDIA's
+  signature; the verifier now evaluates the report itself as well (ADR 0021,
+  `both`), and in Drill VII it did — the driver's and the VBIOS's signed
+  manifests verified, 64 measurements each matched; what stays NVIDIA's word
+  is revocation.
+  In Drill III the standby held no sealed escrow key; since ADR 0022 a
   host of either family seals the key to its vTPM under a policy of the
   pinned boot, and can be an authority.
 - **SEV-SNP, TDX and the Azure confidential GPU only.** Nitro and SGX have
   adapter dispatch (ADR 0002) but no shipped offline verifier. A TDX host
   and an Azure confidential GPU host seal to their vTPM (ADR 0022) — a root
-  the cloud provider virtualises, not the TEE's own. Each other-family standby — the GPU (Drill III) and the TDX Trust
-  Domain (Drill IV) — has taken one key release, once, at 0.5B.
+  the cloud provider virtualises, not the TEE's own. The GPU standby
+  (Drills III and VII) has taken two key releases and the TDX Trust Domain
+  (Drill IV) one, all at 0.5B.
+- **Silence cannot tell dead from cut off.** Drill VII's only trigger is a
+  lost heartbeat, and a primary that is alive but cut off from the replica
+  looks the same. The policy moves the model at most once and only to the
+  standby it names, so the risk is a second running copy, not a leak;
+  fencing the primary is the operator's. Drill VII's primary was one machine
+  switched off from inside, not a region lost.
 - **Byte-identical inference across devices is unavailable, and we proved it
   against ourselves.** A dedicated probe on an L4 found the CPU↔GPU divergence
   entering at the **first transformer block**, on every fixture, in both float32
@@ -470,6 +676,7 @@ bash scripts/hardware-test/gcp-failover/run.sh <gcp-project>   # Drill II  (~25 
 bash scripts/hardware-test/failover-cgpu/run.sh <gcp-project> [gcp-zone] [azure-rg]   # Drill III (~25 min; GCP + an Azure NCC H100 v5)
 bash scripts/hardware-test/failover-tdx/run.sh <gcp-project> [n2d-zone] [tdx-zone]     # Drill IV  (~15 min; two GCP n2d SEV-SNP CVMs + a c3 TDX Trust Domain)
 bash scripts/hardware-test/failover-negatives/run.sh <gcp-project> [zone]          # Drill V   (~15 min; two GCP n2d SEV-SNP CVMs)
+bash scripts/hardware-test/authority-loss/run.sh <gcp-project> [zone]              # Drill VI  (~10 min; two GCP n2d SEV-SNP CVMs, one after the other)
 bash scripts/hardware-test/gpu-exact/run.sh    <gcp-project>   # the CPU↔GPU probe (~20 min)
 ```
 

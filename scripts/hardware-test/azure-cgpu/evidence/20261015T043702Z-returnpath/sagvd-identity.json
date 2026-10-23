@@ -1,0 +1,18 @@
+{
+  "authority_kid": "sagvd-authority-e2e",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA2uw89IaqaAOH6RBULTJpPPnzXe0QD1KfGEUUezdU4Yg=\n-----END PUBLIC KEY-----\n",
+  "tee_provider": "azure-cgpu",
+  "tee_measurement_hex": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "cddc768c53653115824482fe50c910f1b89742c41a6a8a2acb1ddc325c1518be"
+  },
+  "audit_kid": "sagvd-audit-e2e",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAZF8XnlQUj1kx9f84g3fWtVMXSAxqU/z4bSpfKtLFqxA=\n-----END PUBLIC KEY-----\n",
+  "policy_version": "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0",
+  "policy_profiles": [
+    "gate"
+  ]
+}

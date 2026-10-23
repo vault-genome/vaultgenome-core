@@ -1,0 +1,22 @@
+== 15:27:07 inputs
+== 15:27:08 configfs-tsm
+== 15:27:08 the worker runtime from the locks
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+== 15:28:28 the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== 15:28:28 provision (acp-keygen -private); the operator's safe keeps the plaintext key material before it is sealed to this chip
+== 15:28:29 identities: each daemon reads its launch measurement from the chip
+== 15:28:29 a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl as gen-0; the base goes to the safe (the genome names its digest)
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 487.37it/s]
+== 15:28:38 the key files sealed to this chip (ADR 0023)
+== 15:28:40 the escrow key made inside sagvd, sealed to this chip, wrapped to the operator's recovery key (ADR 0016); the envelope to the safe
+== 15:28:51 sagvd and its worker on this chip
+== 15:29:13 gate jobs in a loop; the state replicated once each is accepted and once it is done; the runner takes the machine away in the middle of one

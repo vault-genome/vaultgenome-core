@@ -1,0 +1,7 @@
+rebuilt from tag v0.6.0 at cc8b204d7ba3d492e74c6b92e7d625f63126ee41 with go1.27.2, tar (GNU tar) 1.35 and gzip 1.15 on Darwin arm64
+sagvd: rebuilt sha256 equals the released file (0e07cc4820baaba29c8bdf72fba72a3f9f9055109f3568aa8312c21b484f4b16)
+acp-compute: rebuilt sha256 equals the released file (772c062f5399c5fd480d5c64ce5b19b8f6decf902923df0cadf877224484e1d9)
+acpctl: rebuilt sha256 equals the released file (360c4c6edcf439952a9ca4416ded6aeb79fff749dc85c692996812e32608d4ca)
+acp-bootstrap: rebuilt sha256 equals the released file (78c7d8bc6e0486aec67bc468e5081c67adba8addb2bbda6b2a12181829fa5c04)
+acp-keygen: rebuilt sha256 equals the released file (8c40d22ece5e4b9f9c0dc11dde79d05df374104cc949fd9ab5c7dcfff0dee727)
+genome-worker-v0.6.0.tar.gz: repacked sha256 equals the released file (19fed8f8350ecf932bc8a032145104bb8ddf982a775d47948a80ed8045579b00)

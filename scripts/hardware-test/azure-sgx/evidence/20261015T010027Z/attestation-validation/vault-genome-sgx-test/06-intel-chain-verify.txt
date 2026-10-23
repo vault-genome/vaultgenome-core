@@ -1,0 +1,16 @@
+=== SGX quote v3 inspection ===
+quote_size:     4734 bytes
+header.version: 3
+att_key_type:   2 (2 = ECDSA-P256)
+MRENCLAVE:      2715763f2271e40703b0a1b3f7e37bb635d3aba9565797f43337c0f35db0d72a
+MRSIGNER:       68a0989eed606a6eb39bc168e8c391f28a494075e1b7fb9f91df83e61636dc96
+ISV_PROD_ID:    1
+ISV_SVN:        1
+REPORT_DATA:    085524d5f8456cffc2ed0e43d6eb4dc018aacbda6000323b7c9fd0e0839b3b130000000000000000000000000000000000000000000000000000000000000000
+EXPECTED:       085524d5f8456cffc2ed0e43d6eb4dc018aacbda6000323b7c9fd0e0839b3b130000000000000000000000000000000000000000000000000000000000000000
+REPORT_DATA == expected (manifest binding): YES (workload binding verified)
+
+=== chain verification (libsgx-dcap-quote-verify) ===
+Azure Quote Provider: libdcap_quoteprov.so [ERROR]: Could not retrieve environment variable for 'AZDCAP_DEBUG_LOG_LEVEL'
+✗ sgx_qv_verify_quote returned 0xe03a — chain NOT validated
+collateral fetched:            13500 bytes via tee_qv_get_collateral

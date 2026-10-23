@@ -1,0 +1,2 @@
+acp-bootstrap 0.0.0-dev (commit 1a4156827039) fips140=off module=latest enforced=false
+acpctl 0.0.0-dev (commit 1a4156827039) fips140=off module=latest enforced=false

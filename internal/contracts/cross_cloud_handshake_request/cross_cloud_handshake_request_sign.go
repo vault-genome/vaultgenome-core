@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package cross_cloud_handshake_request
@@ -28,6 +29,11 @@ func (r *CrossCloudHandshakeRequest) SignWith(signer keys.Signer) error {
 			nil,
 		)
 	}
+	alg, err := keys.RecordAlg(signer, r.SigningKeyID)
+	if err != nil {
+		return err
+	}
+	r.Alg = alg
 	cp := *r
 	cp.Signature = nil
 	cb, err := crypto.CanonicalJSON(&cp)
@@ -65,5 +71,5 @@ func (r *CrossCloudHandshakeRequest) VerifySignature(resolver keys.Resolver) err
 	if err != nil {
 		return err
 	}
-	return crypto.Verify(vk.PublicKey, cb, r.Signature)
+	return vk.VerifyRecord(r.Alg, cb, r.Signature)
 }

@@ -1,0 +1,4 @@
+third-party audit verify (return path) exit=0
+third-party audit verify (cross-cloud) exit=0
+third-party audit query --request req-0dc59a2f4c470edc exit=0 events=6
+third-party lineage --session-id ses-e885efe6-0000000000000001 exit=0

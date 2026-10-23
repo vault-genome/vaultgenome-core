@@ -1,8 +1,10 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
 
 import (
+	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,6 +36,7 @@ func minimalValidConfig() Config {
 	c.Keys.AuthoritySigning = SigningKeyConfig{KeyID: "auth-1", SeedPath: "/tmp/auth.seed"}
 	c.Keys.SessionSealing = SealingKeyConfig{KeyID: "seal-1", MaterialPath: "/tmp/seal.key"}
 	c.Workers.RegistryPath = "/tmp/workers.json"
+	c.Crypto.Profile = string(kms.PolicyForThisProcess().Profile())
 	return c
 }
 
@@ -485,7 +488,8 @@ func TestValidate_TEEProviders(t *testing.T) {
 		want   []string
 	}{
 		"simulated by default":              {func(c *Config) {}, nil},
-		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "tdx" }, []string{"tee.provider invalid"}},
+		"unknown provider":                  {func(c *Config) { c.TEE.Provider = "no-such-tee" }, []string{"tee.provider invalid"}},
+		"family name accepted (ADR 0025)":   {func(c *Config) { c.TEE.Provider = "tdx"; c.TEE.SeedPath = ""; c.TEE.InsecureSimulation = false }, nil},
 		"unsupported provider":              {func(c *Config) { c.TEE.Provider = "intel-sgx-dcap" }, []string{"not available in this build"}},
 		"simulated without acknowledgement": {func(c *Config) { c.TEE.InsecureSimulation = false }, []string{"tee.insecure_simulation=true"}},
 		"simulated without seed":            {func(c *Config) { c.TEE.SeedPath = "" }, []string{"tee.seed_path required"}},

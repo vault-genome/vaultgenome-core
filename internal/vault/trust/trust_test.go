@@ -1,9 +1,9 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package trust
 
 import (
-	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
 	"testing"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/attestation_result"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/recovery_request"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
@@ -27,7 +28,7 @@ type harness struct {
 	kid    ids.KeyID
 	req    recovery_request.RecoveryRequest
 	peer   Peer
-	opPriv ed25519.PrivateKey
+	opPriv *crypto.SigningKey
 }
 
 func newHarness(t *testing.T) *harness {
@@ -37,7 +38,7 @@ func newHarness(t *testing.T) *harness {
 	kid := ids.KeyID("vault-auth")
 	_, err := store.GenerateSigning(kid, keys.PurposeSigningAuthority)
 	require.NoError(t, err)
-	_, priv, err := ed25519.GenerateKey(nil)
+	priv, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
 	require.NoError(t, err)
 	return &harness{
 		clock: clock, store: store, kid: kid, opPriv: priv,

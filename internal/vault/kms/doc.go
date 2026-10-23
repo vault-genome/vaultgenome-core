@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Package kms (Key Management System) implements the release-side
@@ -7,8 +8,9 @@
 //
 // The Coordinator runs the cross-cloud attestation handshake, applies
 // a KeyReleasePolicy to authorise key release, encapsulates each DEK
-// with the X25519 KEM to the key the destination TEE attested for this
-// handshake (ADR 0009), and dispatches the resulting KeyReleaseToken to
+// under the KEM suite the two sides settled on (ADR 0029) to the key
+// the destination TEE attested for this handshake (ADR 0009), and
+// dispatches the resulting KeyReleaseToken to
 // the destination's CrossCloudReceiver. Every
 // authority decision the Coordinator makes is recorded in the audit
 // chain BEFORE the decision becomes visible to its caller —
@@ -62,13 +64,16 @@
 //   - Clock + NonceSource — small replaceable utilities for
 //     deterministic tests.
 //
-// Key wrapping is deliberately not an extension point: the X25519 KEM
-// is the only delivery mode, so no configuration can reintroduce the
-// measurement-derived symmetric wrap that ADR 0009 removed.
+// Key wrapping is deliberately not an extension point: a KEM to the
+// attested per-handshake key is the only delivery mode. What a
+// configuration chooses is the suite, from the lists of a profile
+// (profile.go, ADR 0029) — never a mode: no configuration can
+// reintroduce the measurement-derived symmetric wrap that ADR 0009
+// removed.
 //
 // # See also
 //
 //   - ADR 0006 — Cross-Cloud KMS-Mediated Restore (overall design)
-//   - docs/doctrine/bootstrap-contracts.md §5 — contract freezing
-//   - docs/doctrine/validation-thresholds.md §9 — audit-first-class
+//   - ADR 0009 — the per-handshake attested key; ADR 0029 — the suites
+//   - test/doctrine (Invariant 09) — contract freezing
 package kms

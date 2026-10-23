@@ -47,7 +47,11 @@ It replays the chain from its first event (whose previous hash must be 32 zero
 bytes), checks every hash link and every signature under the one key given,
 and prints `ok`, `event_count` and `tip` (the hash of the last event).
 `--audit-pubkey` takes the PEM `sagvd identity` prints as
-`audit_public_key_pem`, or the 32 raw bytes.
+`audit_public_key_pem` — the key's algorithm names the signature suite
+(Ed25519, ECDSA P-384 or ML-DSA-87; ADR 0031), and the output reports it
+as `signature_suite` — or the 32 raw bytes of an Ed25519 key. A chain
+whose records name another suite than the key's is refused before any
+signature is checked.
 
 **Expected output:** `"ok": true`, exit 0. On the first inconsistency it
 reports the offending event's index — `event #N: prev_hash does not link to
@@ -143,12 +147,18 @@ another address on a shared host), next to `/healthz` (`ok`) and `/readyz`
 | `sagvd_jobs_completed_total{outcome}` | Jobs finished: `success`, `reject` (operational or structural error, including a gate that refused the model), `fail` |
 | `sagvd_gate_verdicts_total{level}` | Gate verdicts on restored models: `EXACT`, `EQUIVALENT`, `FAIL`, `ERROR` (the answer could not be judged) |
 | `sagvd_audit_events_total{kind}` | Return Path audit events written to `audit.log_path`, by kind — every writer: the flow, the disclosure sequencer, the validation and incident services, the daemon's refusals (ADR 0014, 0015) |
+| `sagvd_audit_segments_closed_total` | Segments of `audit.log_path` closed and moved into `audit.archive_dir` (ADR 0027); each closing is also an `AUDIT_SEGMENT_CLOSED` event, the first of the next segment |
+| `sagvd_audit_segment_events` | Events in the live segment: what the next start verifies, and how far the count trigger is |
+| `sagvd_jobs_swept_total` | Finished jobs whose record and view expired from `queue.path` after `queue.retain_finished_seconds` (ADR 0027) |
 | `sagvd_release_decisions_total{decision}` | Release decisions the authority signed: `release`, `refuse` (validation did not pass), `trust_denied` (ADR 0015) |
 | `sagvd_sessions_opened_total` | Return Path handshakes completed |
+| `sagvd_sessions_active` | Sessions being served now, each holding one of `runtime.max_sessions` slots |
+| `sagvd_sessions_limit` | `runtime.max_sessions` as configured (1 unless set) |
+| `sagvd_sessions_refused_total{reason="busy"}` | Connections closed before any handshake because every slot stayed taken for `handshake_timeout_seconds`; the worker dials again |
 | `sagvd_handshake_failures_total{phase}` | `tls` or `handshake` |
 | `sagvd_queue_depth` | Jobs waiting for a worker |
 | `sagvd_last_success_unix`, `sagvd_start_unix` | Timestamps |
-| `vg_tee_attestation_total{provider,result,role}`, `vg_tee_attestation_duration_seconds` | Return Path Evidence produced and verified; `provider` is always `simulated` in sagvd |
+| `vg_tee_attestation_total{provider,result,role}`, `vg_tee_attestation_duration_seconds` | Return Path Evidence produced and verified; `provider` is the family of what was attested — the daemon's own for `produce`, the peer's for `verify` (an authority on SEV-SNP verifying an Azure worker counts it under `azure-sev-snp`) |
 | `vg_tee_capability_total{provider,available}` | Recorded once at startup as `simulated` / `true`; sagvd probes no hardware |
 
 acp-compute exports `acp_compute_jobs_total`,

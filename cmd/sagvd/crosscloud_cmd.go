@@ -1,10 +1,10 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package main
 
 import (
 	"context"
-	"crypto/ecdh"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -140,6 +140,10 @@ func runCrossCloudRestoreCmd(args []string) error {
 	}
 	defer func() { _ = xcc.Close() }()
 
+	suites, err := cfg.Crypto.Policy()
+	if err != nil {
+		return fmt.Errorf("crypto: %w", err)
+	}
 	coord, err := kms.NewCoordinator(kms.Config{
 		AuditChain:   xcc.AuditEmitter,
 		Signer:       mat.Store,
@@ -150,6 +154,7 @@ func runCrossCloudRestoreCmd(args []string) error {
 		NonceSource:  xcc.NonceSource,
 		Clock:        clock,
 		SigningKeyID: mat.AuthoritySigningKeyID,
+		Suites:       suites,
 	})
 	if err != nil {
 		return err
@@ -166,6 +171,7 @@ func runCrossCloudRestoreCmd(args []string) error {
 
 	res, coordErr := coord.CoordinateRestore(context.Background(), req)
 	out := buildCoordinationOutput(res, coordErr, xcc.AuditChain.Len())
+	out.CryptoProfile = string(suites.Profile())
 	out.AuditTip = hex.EncodeToString(xcc.AuditChain.Tip())
 	out.StopSerial = xcc.StopSerial
 	enc := json.NewEncoder(os.Stdout)
@@ -258,7 +264,7 @@ func readKeyFiles(in []string) ([]kms.KeyMaterial, error) {
 
 // openEscrows opens each escrow envelope with the authority's escrow key,
 // as the materials hold it in memory.
-func openEscrows(priv *ecdh.PrivateKey, paths []string) ([]kms.KeyMaterial, error) {
+func openEscrows(priv *escrow.PrivateKey, paths []string) ([]kms.KeyMaterial, error) {
 	if priv == nil {
 		return nil, errors.New("crosscloud-restore: -key-escrow needs crosscloud.key_escrow_path")
 	}
@@ -299,10 +305,14 @@ type coordinationOutput struct {
 	KeyReleaseAuditID      ids.AuditEventID         `json:"key_release_audit_id,omitempty"`
 	DestinationMeasurement string                   `json:"destination_measurement_hex,omitempty"`
 	RecipientKeySHA256     string                   `json:"recipient_key_sha256,omitempty"`
-	PolicyVersion          string                   `json:"policy_version,omitempty"`
-	TokenID                ids.DecisionID           `json:"token_id,omitempty"`
-	DispatchedAt           string                   `json:"dispatched_at,omitempty"`
-	AuditChainLength       int                      `json:"audit_chain_length"`
+	// RecipientKeySuite is the KEM suite the DEKs were encapsulated under
+	// (ADR 0029); CryptoProfile the profile that chose it.
+	RecipientKeySuite string         `json:"recipient_key_suite,omitempty"`
+	CryptoProfile     string         `json:"crypto_profile,omitempty"`
+	PolicyVersion     string         `json:"policy_version,omitempty"`
+	TokenID           ids.DecisionID `json:"token_id,omitempty"`
+	DispatchedAt      string         `json:"dispatched_at,omitempty"`
+	AuditChainLength  int            `json:"audit_chain_length"`
 	// AuditTip is the hash of the audit log's last event. Record it:
 	// a log whose tail was cut off still verifies, but not to this tip.
 	AuditTip string `json:"audit_tip,omitempty"`
@@ -337,6 +347,9 @@ func buildCoordinationOutput(res kms.CoordinationResult, err error, chainLen int
 	}
 	if len(res.RecipientKeySHA256) > 0 {
 		out.RecipientKeySHA256 = hex.EncodeToString(res.RecipientKeySHA256)
+	}
+	if res.RecipientKeySuite != "" {
+		out.RecipientKeySuite = string(res.RecipientKeySuite)
 	}
 	if res.PolicyVersion != "" {
 		out.PolicyVersion = res.PolicyVersion

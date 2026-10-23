@@ -1,0 +1,27 @@
+{
+  "schema": "vault-genome/failover-policy/v1",
+  "serial": 5,
+  "issued_at": "2026-10-17T13:14:24Z",
+  "not_after": "2026-11-16T13:14:24Z",
+  "sentinel_public_key": "kGHGwqym/cLrTx3GpJvyZOymBlodt36SiJI3zwqSTKA=",
+  "primary": {
+    "kind": "gcp-sev-snp",
+    "measurements": [
+      "10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519"
+    ]
+  },
+  "standby": {
+    "kind": "gcp-sev-snp",
+    "endpoint": "https://127.0.0.1:8443",
+    "measurements": [
+      "10f5ac22cef1db0a099ce3be6713d93dfa522cc079fcddd14a8823fa98d02de5a671e2d900f35fecc577ef2c13b74519"
+    ]
+  },
+  "triggers": {
+    "compromise_report": true
+  },
+  "require_gate": "EQUIVALENT",
+  "reason": "negatives drill 5/8: the standby pinned is another machine",
+  "signing_key_id": "operator-1",
+  "signature": "XO/omVF27c4dWSZ/FLSEOh11hlH6Bt5hsCEE4uQP8z8mPgi9+J17JlLBO5yjDrew8i0Jw45IYxPs9Zbd0mBvBw=="
+}

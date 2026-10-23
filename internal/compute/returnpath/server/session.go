@@ -1,3 +1,4 @@
+// Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package server
@@ -10,7 +11,6 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath"
 	"github.com/vault-genome/vaultgenome-core/internal/compute/returnpath/transport"
 	rjm "github.com/vault-genome/vaultgenome-core/internal/contracts/reconstruction_job_manifest"
-	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
@@ -27,7 +27,7 @@ import (
 const CodeWorkerRejected = "worker_rejected_job"
 
 // CodeWorkerSignatureInvalid is emitted when the CandidateOutputFrame's
-// WorkerSignature fails Ed25519 verification under the key resolved via
+// WorkerSignature fails verification, under the key's suite, via
 // WorkerKeyResolver. Category is Integrity; callers on cmd/sagvd wire
 // this into IncidentEvent emission.
 const CodeWorkerSignatureInvalid = "worker_signature_invalid"
@@ -59,6 +59,12 @@ type SessionConfig struct {
 	// with the worker's expected Measurement — a missing expected
 	// measurement is a handshake-authority hole. Required.
 	Verifier tee.Verifier
+
+	// LocalProvider is the family of Producer's Evidence; PeerProvider the
+	// family Verifier reads (the CMW record on the wire names it). Both
+	// required.
+	LocalProvider tee.Provider
+	PeerProvider  tee.Provider
 
 	// Clock provides the timestamps baked into SessionReady and any
 	// Shutdown frames the Session emits. Optional; defaults to
@@ -195,6 +201,8 @@ func Accept(cfg SessionConfig) (*Session, error) {
 		Conn:              cfg.Conn,
 		Producer:          cfg.Producer,
 		Verifier:          cfg.Verifier,
+		LocalProvider:     cfg.LocalProvider,
+		PeerProvider:      cfg.PeerProvider,
 		Clock:             cfg.Clock,
 		DerivationContext: cfg.DerivationContext,
 	})
@@ -259,7 +267,8 @@ func (s *Session) ServeOneJob(ctx context.Context, req transport.JobRequest) (re
 //     (Heartbeats are skipped).
 //  5. Verify the CandidateOutputFrame against the JobRequest: match
 //     ManifestID, SessionID, OutputKind; re-compute CoverBytes and
-//     Ed25519-verify the WorkerSignature via WorkerKeyResolver.
+//     verify the WorkerSignature via WorkerKeyResolver, under the key's
+//     suite, which the frame's worker_signature_alg must name (ADR 0031).
 //  6. Translate to a returnpath.CandidateOutput and return it with the
 //     verified worker signing key ID.
 //
@@ -270,9 +279,12 @@ func (s *Session) ServeOneJob(ctx context.Context, req transport.JobRequest) (re
 //
 // ctx is honored via SetDeadline: if ctx carries a deadline, it is
 // propagated to the net.Conn. A cancelled ctx without a deadline is
-// surfaced before the first I/O with CodeContextCancelled. Callers
-// wanting strict cancellation should also close the net.Conn when ctx
-// is done (Session.Close does this).
+// surfaced before the first I/O with CodeContextCancelled, and after
+// that at the next Heartbeat: a frame the worker has already sent is
+// read and acted on before cancellation is reported, so a JobAccept
+// that arrived ahead of the cancellation is an accept, not a cancelled
+// wait. Callers wanting strict cancellation should also close the
+// net.Conn when ctx is done (Session.Close does this).
 func (s *Session) ServeOneJobVerified(ctx context.Context, req transport.JobRequest) (VerifiedCandidate, error) {
 	var zero VerifiedCandidate
 	if s.closed {
@@ -369,14 +381,10 @@ type jobReply struct {
 // awaitJobReply reads frames from conn, skipping Heartbeats, until it
 // observes a JobAccept or JobReject or an ErrorFrame from the peer. An
 // ErrorFrame is translated to a classified error. Any other frame type
-// is a protocol violation.
+// is a protocol violation. Cancellation of ctx is noticed at each
+// Heartbeat, between frames: a reply already on the wire is read first.
 func (s *Session) awaitJobReply(ctx context.Context) (jobReply, error) {
 	for {
-		if err := ctx.Err(); err != nil {
-			return jobReply{}, shared_errors.Operational(
-				CodeContextCancelled,
-				"returnpath/server: context done while awaiting JobAccept/JobReject", err)
-		}
 		typ, body, err := s.conn.Read()
 		if err != nil {
 			return jobReply{}, err
@@ -401,7 +409,11 @@ func (s *Session) awaitJobReply(ctx context.Context) (jobReply, error) {
 			}
 			return jobReply{rejected: true, reject: r}, nil
 		case transport.FrameTypeHeartbeat:
-			// skip
+			if err := ctx.Err(); err != nil {
+				return jobReply{}, shared_errors.Operational(
+					CodeContextCancelled,
+					"returnpath/server: context done while awaiting JobAccept/JobReject", err)
+			}
 			continue
 		case transport.FrameTypeError:
 			var ef transport.ErrorFrame
@@ -421,14 +433,11 @@ func (s *Session) awaitJobReply(ctx context.Context) (jobReply, error) {
 // awaitCandidateOutput reads frames, skipping Heartbeats, until it sees
 // a CandidateOutputFrame (or a peer-initiated ErrorFrame / Shutdown).
 // Shutdown before a candidate output arrives is Authority-classified:
-// the worker closed early without delivering.
+// the worker closed early without delivering. Cancellation of ctx is
+// noticed at each Heartbeat, between frames: an output already on the
+// wire is read first.
 func (s *Session) awaitCandidateOutput(ctx context.Context) (transport.CandidateOutputFrame, error) {
 	for {
-		if err := ctx.Err(); err != nil {
-			return transport.CandidateOutputFrame{}, shared_errors.Operational(
-				CodeContextCancelled,
-				"returnpath/server: context done while awaiting CandidateOutputFrame", err)
-		}
 		typ, body, err := s.conn.Read()
 		if err != nil {
 			return transport.CandidateOutputFrame{}, err
@@ -444,6 +453,11 @@ func (s *Session) awaitCandidateOutput(ctx context.Context) (transport.Candidate
 			}
 			return f, nil
 		case transport.FrameTypeHeartbeat:
+			if err := ctx.Err(); err != nil {
+				return transport.CandidateOutputFrame{}, shared_errors.Operational(
+					CodeContextCancelled,
+					"returnpath/server: context done while awaiting CandidateOutputFrame", err)
+			}
 			continue
 		case transport.FrameTypeError:
 			var ef transport.ErrorFrame
@@ -491,7 +505,7 @@ func (s *Session) verifyWorkerSignature(f transport.CandidateOutputFrame) error 
 			CodeWorkerSignatureInvalid,
 			"returnpath/server: cannot re-encode CandidateOutputFrame for verification", err)
 	}
-	if err := crypto.Verify(vk.PublicKey, cover, f.WorkerSignature); err != nil {
+	if err := vk.VerifyRecord(f.WorkerSignatureAlg, cover, f.WorkerSignature); err != nil {
 		return shared_errors.Integrity(
 			CodeWorkerSignatureInvalid,
 			"returnpath/server: CandidateOutputFrame.WorkerSignature verification failed", err)

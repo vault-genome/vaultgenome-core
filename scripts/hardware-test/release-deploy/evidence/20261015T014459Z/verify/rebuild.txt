@@ -1,0 +1,5 @@
+rebuilt from tag v0.4.1 at 09bb0999cff29722ffd1286bb3ff1fc81334d60e with go1.27.2 on Darwin arm64
+sagvd: rebuilt sha256 equals the released file (31fc5af2b1cccd316bdff206d220300cbc12db3e9a82298bd6a0bd9eab9ca5c8)
+acp-compute: rebuilt sha256 equals the released file (e115aab33beac65a4639a41cb9c609c21ab99b8734a6eb9d2728bbdba5c18c96)
+acpctl: rebuilt sha256 equals the released file (1ca10cfb64165feaad203c9765caed88596537f71078b743cadb66c9cfcbadd2)
+acp-bootstrap: rebuilt sha256 equals the released file (2ac2fb3807f1d255935713c109dc266548173cd5ed42997fa40ba155a06d6317)
