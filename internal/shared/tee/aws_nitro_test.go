@@ -66,13 +66,12 @@ func TestAWSNitroVerifier_RejectsTooShortEvidence(t *testing.T) {
 	}
 }
 
-// TestAWSNitroSealer_RejectsMissingKeyARN enforces required config.
+// TestAWSNitroSealer_RejectsMissingKeyARN: the sealer is not built
+// without the KMS key it pins (aws_nitro_sealer_test.go has the rest).
 func TestAWSNitroSealer_RejectsMissingKeyARN(t *testing.T) {
 	t.Parallel()
-	s := NewAWSNitroSealer("", "us-east-1", Measurement{})
-	_, err := s.Seal([]byte("plaintext"), nil)
-	if err == nil {
-		t.Fatal("expected config error when kms_key_arn empty")
+	if _, err := NewAWSNitroSealer(AWSNitroSealerConfig{}); err == nil {
+		t.Fatal("expected a refusal without a KMS key ARN")
 	}
 }
 

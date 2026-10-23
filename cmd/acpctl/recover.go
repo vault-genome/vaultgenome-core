@@ -285,16 +285,11 @@ func unsealVault(env *VaultEnvelope, sealed []byte, enclaveSO, sevDev string) ([
 		return s.Unseal(sealed, env.AAD)
 
 	case tee.ProviderAWSNitro:
-		if env.AWSKMSKeyARN == "" {
-			return nil, errors.New("aws-nitro: vault missing aws_kms_key_arn")
-		}
-		if len(env.AWSExpectedPCR0) != 32 {
-			return nil, fmt.Errorf("aws-nitro: aws_expected_pcr0 must be 32 bytes (got %d)", len(env.AWSExpectedPCR0))
-		}
-		var pcr0 tee.Measurement
-		copy(pcr0[:], env.AWSExpectedPCR0)
-		s := tee.NewAWSNitroSealer(env.AWSKMSKeyARN, env.AWSRegion, pcr0)
-		return s.Unseal(sealed, env.AAD)
+		// KMS releases a Nitro vault's key only to the attestation document
+		// of the enclave it was sealed for (ADR 0036); acpctl, on the
+		// operator's machine, has none to show. The enclave's acp-bootstrap
+		// opens what is sealed to it.
+		return nil, errors.New("aws-nitro: a Nitro-sealed vault opens only inside the enclave it was sealed for — KMS releases its key to that enclave's attestation document (ADR 0036); acpctl recover does not open it")
 
 	case tee.ProviderAzureSGX:
 		if enclaveSO == "" {

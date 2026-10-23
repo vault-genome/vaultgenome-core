@@ -183,8 +183,6 @@ func TestUnwiredSeamsFailClosed(t *testing.T) {
 	teeFakeMu.Lock()
 	t.Cleanup(teeFakeMu.Unlock)
 	refusals := map[string]func() error{
-		"awsKMSEncrypt":        func() error { _, err := awsKMSEncrypt("", "", nil, nil); return err },
-		"awsKMSDecrypt":        func() error { _, err := awsKMSDecrypt("", "", nil, nil); return err },
 		"sgxCreateEnclave":     func() error { _, err := sgxCreateEnclave(""); return err },
 		"sgxDestroyEnclave":    func() error { return sgxDestroyEnclave(0) },
 		"sgxGetMREnclave":      func() error { _, err := sgxGetMREnclave(0); return err },
@@ -205,7 +203,6 @@ func TestUnwiredSeamsFailClosed(t *testing.T) {
 		require.Error(t, err, name)
 		require.Contains(t, err.Error(), "not yet wired", name)
 	}
-	require.False(t, isKMSAccessDenied(errors.New("anything")), "without the SDK no error is read as a KMS denial")
 }
 
 func TestAWSNitroProducerVerifierAndSealerRefusals(t *testing.T) {
@@ -310,29 +307,9 @@ func TestAWSNitroProducerVerifierAndSealerRefusals(t *testing.T) {
 	})
 
 	t.Run("sealer", func(t *testing.T) {
-		unconfigured := NewAWSNitroSealer("", "us-east-1", fh.measure)
-		_, err := unconfigured.Seal([]byte("k"), nil)
-		requireStructuralErr(t, err, "kms_key_arn")
-		_, err = unconfigured.Unseal([]byte("k"), nil)
-		requireStructuralErr(t, err, "kms_key_arn")
-
-		s := NewAWSNitroSealer("arn:aws:kms:us-east-1:1:key/2", "us-east-1", fh.measure)
-		sealed, err := s.Seal([]byte("the key"), []byte("aad"))
-		require.NoError(t, err)
-		opened, err := s.Unseal(sealed, []byte("aad"))
-		require.NoError(t, err)
-		require.Equal(t, []byte("the key"), opened)
-		_, err = s.Unseal(sealed[:3], []byte("aad"))
-		requireIntegrityErr(t, err, "KMS denied")
-
-		encrypt, decrypt := awsKMSEncrypt, awsKMSDecrypt
-		t.Cleanup(func() { awsKMSEncrypt, awsKMSDecrypt = encrypt, decrypt })
-		awsKMSEncrypt = func(string, string, []byte, map[string]string) ([]byte, error) { return nil, errors.New("throttled") }
-		_, err = s.Seal([]byte("k"), nil)
-		require.ErrorContains(t, err, "KMS Encrypt")
-		awsKMSDecrypt = func(string, string, []byte, map[string]string) ([]byte, error) { return nil, errors.New("throttled") }
-		_, err = s.Unseal(sealed, []byte("aad"))
-		require.ErrorContains(t, err, "KMS Decrypt")
+		_, err := NewAWSNitroSealer(AWSNitroSealerConfig{Measurement: fh.measure, kms: fh.nitroKMS})
+		requireStructuralErr(t, err, "not a KMS key ARN")
+		// The sealer's own refusals are in aws_nitro_sealer_test.go.
 	})
 
 	require.True(t, nonceMatches([]byte("ab"), []byte("ab")))
@@ -341,9 +318,6 @@ func TestAWSNitroProducerVerifierAndSealerRefusals(t *testing.T) {
 	require.True(t, isDebugAttestation(&nitroAttestationDoc{}))
 	require.True(t, isDebugAttestation(&nitroAttestationDoc{PCRs: map[int][]byte{0: make([]byte, 48)}}))
 	require.False(t, isDebugAttestation(&nitroAttestationDoc{PCRs: map[int][]byte{0: {0, 1}}}))
-	ec := mergeEncryptionContext(map[string]string{"a": "1"}, []byte{0xAB})
-	require.Equal(t, map[string]string{"a": "1", "vault-genome.aad": "ab"}, ec)
-	require.Equal(t, map[string]string{"a": "1"}, mergeEncryptionContext(map[string]string{"a": "1"}, nil))
 }
 
 func TestAzureSGXProducerVerifierAndSealerRefusals(t *testing.T) {
