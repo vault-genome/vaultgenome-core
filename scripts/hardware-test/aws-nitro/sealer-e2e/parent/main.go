@@ -116,11 +116,18 @@ func forward(c net.Conn, target string) {
 	log.Printf("parent: %s: %d bytes up, %d down", target, up, down)
 }
 
+// handFiles writes the sealed files and then waits for the enclave to
+// close: the enclave reads one JSON value and closes. The parent does not
+// close first — on the enclave's kernel a peer's shutdown that arrives
+// before the reader has read can leave the reader's socket disconnected
+// with ENOTCONN instead of the data (the third run, 2026-10-23T13:01Z).
 func handFiles(c net.Conn, bundle []byte) {
 	defer func() { _ = c.Close() }()
-	_ = c.SetWriteDeadline(time.Now().Add(30 * time.Second))
+	_ = c.SetDeadline(time.Now().Add(60 * time.Second))
 	n, err := c.Write(bundle)
 	log.Printf("parent: files: %d bytes handed over (%v)", n, err)
+	rest, err := io.Copy(io.Discard, c)
+	log.Printf("parent: files: the enclave closed (%d bytes back, %v)", rest, err)
 }
 
 var reports atomic.Int32

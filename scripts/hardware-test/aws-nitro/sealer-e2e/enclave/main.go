@@ -85,6 +85,7 @@ type caseReport struct {
 }
 
 type report struct {
+	Kernel    string       `json:"enclave_kernel,omitempty"`
 	Self      *selfReport  `json:"self_attestation,omitempty"`
 	SelfError string       `json:"self_attestation_error,omitempty"`
 	Cases     []caseReport `json:"cases"`
@@ -119,6 +120,9 @@ func readConfig(cfg *config) error {
 }
 
 func run(cfg config, rep *report) error {
+	if k, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil {
+		rep.Kernel = string(bytes.TrimSpace(k))
+	}
 	// The shipping producer: it attests itself at start against the
 	// pinned AWS root and takes PCR0 from its own document.
 	producer, err := tee.NewAWSNitroProducer(tee.AWSNitroProducerConfig{})
@@ -279,15 +283,10 @@ func fetchBundle(cfg config) (*bundle, error) {
 	}
 	defer func() { _ = c.Close() }()
 	_ = c.SetReadDeadline(time.Now().Add(dialTimeout))
-	raw, err := io.ReadAll(io.LimitReader(c, maxBundle+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(raw) > maxBundle {
-		return nil, fmt.Errorf("more than %d bytes", maxBundle)
-	}
+	// One JSON value, then this side closes; the parent waits for that
+	// before it closes its own.
 	var b bundle
-	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec := json.NewDecoder(io.LimitReader(c, maxBundle))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&b); err != nil {
 		return nil, err
