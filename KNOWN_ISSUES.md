@@ -154,9 +154,11 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    `scripts/hardware-test/aws-nitro/evidence/0N-*/07-go-verifier-audit.json`,
    `acpctl attest nitro`). Its NSM producer is written from the device's
    interface and attests itself at start (ADR 0036, part one), but has not
-   run in an enclave; the KMS sealer is still a stub; no Nitro enclave has
-   attested to this code live, and the registry and `acp-bootstrap` keep
-   refusing the family until one has.
+   run in an enclave; the KMS sealer is written (part three: its signature
+   accepted by KMS itself, C50) but its attested Decrypt has not run
+   against KMS from an enclave; no Nitro enclave has attested to this code
+   live, and the registry and `acp-bootstrap` keep refusing the family
+   until one has.
    Still scaffolding: the Azure SGX and Intel SGX DCAP adapters —
    `sagvd`'s verifier registry and `acp-bootstrap` refuse those families
    rather than trust them. `sagvd` and `acp-compute` attest with SEV-SNP,

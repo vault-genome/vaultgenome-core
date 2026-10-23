@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -3359,8 +3359,8 @@ acpctl attest nitro --doc internal/shared/tee/testdata/aws-nitro/2026-05-08-vm1-
 **Scope.** Offline, at the document's own timestamp: the verifier's
 clock is pinned to the capture because the hypervisor's signing
 certificate lives three hours. The NSM producer (written from the
-device's interface, ADR 0036) and the KMS sealer (not yet written) are
-unproven in an enclave, no Nitro enclave has attested to this code live, none has
+device's interface, ADR 0036) and the KMS sealer ([C50](#c50)) have
+not run in an enclave, no Nitro enclave has attested to this code live, none has
 received a key, and the verifier registry refuses the `aws-nitro` family
 until one has ([What we do not claim](#what-we-do-not-claim), 4). The
 `user_data` binds the bytes of the build manifest the image carries; the
@@ -3368,6 +3368,64 @@ image is identified by its PCRs, and the manifest's own PCR fields are the
 debug build's, which the May kit reused for the production build — the
 manifest is not evidence of which image ran
 (`internal/shared/tee/testdata/aws-nitro/README.md`).
+
+---
+
+<a id="c50"></a>
+### C50 — The Nitro sealer's KMS client signs as AWS's own suite says and as KMS itself accepts, reads KMS's CMS in its profile, and trusts only Amazon's roots
+
+**Claim.** `internal/shared/awssigv4`, Signature Version 4 written from
+the IAM User Guide, produces AWS's answer — canonical request, string to
+sign, signature, Authorization header — for all 38 cases of AWS's own
+test suite (aws-c-auth at `84a26ea`, in the repository with its Apache-2.0
+LICENSE and NOTICE). Against AWS KMS itself (us-east-2, 2026-10-23, the
+client at `f1c97c2`, no key and nothing created): a correctly signed
+GenerateRandom is answered AccessDeniedException — the signature
+accepted, authorisation left, since the identity has no KMS permission;
+the same request under a wrong secret and with the date twenty minutes
+behind is refused as InvalidSignatureException ("Signature expired"
+under KMS's five minutes), an access key nobody has as
+UnrecognizedClientException; with an empty root pool the TLS handshake
+fails ("certificate signed by unknown authority"), with Amazon Trust
+Services' four roots (fingerprints held to the repository's page) it
+completes in TLS 1.3. `internal/shared/cms` opens the CMS EnvelopedData of
+KMS's profile — RSAES-OAEP-SHA-256, AES-256-CBC, one recipient by subject
+key identifier — as OpenSSL 3.6.4 made it, in DER and in streamed BER, at
+32 and 4096 bytes, and refuses OAEP with SHA-1, PKCS #1 v1.5, AES-128, a
+recipient by issuer and serial, a second recipient, AuthEnvelopedData and
+a key wrapped to another recipient. The sealer
+(`internal/shared/tee/aws_nitro_sealer.go`) seals with a data key from
+GenerateDataKey and opens in the enclave through Decrypt with the
+enclave's attestation document as Recipient, under an encryption context
+naming the image's PCR0 and the secret — round trip, another image,
+another secret, a policy that does not admit the image, a changed
+ciphertext and a wrong answer from KMS proven on the fake NSM and a fake
+KMS that behaves as the operator guide's key policy does.
+
+**Evidence.**
+[`internal/shared/awssigv4/testdata/aws-signing-test-suite/`](internal/shared/awssigv4/testdata/aws-signing-test-suite/)
+— AWS's vectors and their provenance (tarball SHA-256 `97f39b13…1de95`);
+[`scripts/hardware-test/aws-nitro/kms-live/evidence/20261023T032633Z/`](scripts/hardware-test/aws-nitro/kms-live/evidence/20261023T032633Z/)
+— the live run (the commit, a clean tree, go1.27.3, each answer with
+KMS's request ID; the access key shortened, the account number taken
+out); [`internal/shared/cms/testdata/`](internal/shared/cms/testdata/) —
+the OpenSSL vectors, the script that made them and the throwaway key.
+
+**Reproduce:**
+
+```bash
+go test ./internal/shared/awssigv4/ -run TestAWSSigningSuite -v
+go test ./internal/shared/cms/ ./internal/shared/awskms/ ./internal/shared/tee/ -v -run 'OpenSSL|ReadsTheProfile|OutsideTheProfile|StructuralFaults|AmazonRootsArePinned|OperationsOnTheWire|AnswersOutsideTheirForm|TLSIsVerifiedAgainstThePool|AWSNitroSealer|NitroSealed|NitroSealerSelection'
+scripts/hardware-test/aws-nitro/kms-live/run.sh   # with AWS credentials; needs no key
+```
+
+**Scope.** The signer and the client against KMS's front door: the
+signature, the date, the credential scope, the TLS endpoint and the
+requests' shape. The attested call itself — Decrypt with a Recipient from
+a production-mode enclave, KMS's CiphertextForRecipient opened by this
+reader — has not run, because it needs an enclave, a key and its policy;
+that is ADR 0036's part four, on hardware, and the family stays refused
+until then ([What we do not claim](#what-we-do-not-claim), 4).
 
 ---
 
@@ -3406,8 +3464,10 @@ sentence we cannot defend.
    AWS Nitro verifier is written from AWS's specification and verifies
    the production-mode documents captured in May 2026 at their capture
    time ([C49](#c49), ADR 0035; one raw document is in the repository,
-   three under NDA), but its producer and sealer are unproven, no enclave
-   has attested to this code live, and the registry refuses the family.
+   three under NDA), and its sealer's KMS client is held to AWS's
+   signing suite and accepted by KMS itself ([C50](#c50)), but its producer
+   and sealer have not run in an enclave, no enclave has attested to this
+   code live, and the registry refuses the family.
    The SGX verifiers do not exist. A TDX host and an Azure confidential GPU host seal
    the escrow key to their vTPM (ADR 0022) — a root the cloud provider
    virtualises inside the confidential VM, not the TEE's own; an operator
