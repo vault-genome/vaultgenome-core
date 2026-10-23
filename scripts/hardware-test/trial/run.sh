@@ -90,6 +90,7 @@ note "lane build: $(grep -c '^EQUAL' "$REC/lane-build.txt") of 10 equal to the s
 # 4. The kit, unmodified.
 EVD="$LANE/scripts/hardware-test/$KIT/evidence"
 before="$(ls -1 "$EVD" 2>/dev/null | sort)"
+KSTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 note "start $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if [ -x "$LANE/scripts/hardware-test/$KIT/run.sh" ]; then
   (cd "$LANE" && "./scripts/hardware-test/$KIT/run.sh" "$@") > "$CONSOLE" 2>&1 < /dev/null
@@ -98,7 +99,12 @@ else
 fi
 RC=$?
 note "end $(date -u +%Y-%m-%dT%H:%M:%SZ)"; note "kit exit $RC"
-NEW="$(comm -13 <(printf '%s\n' "$before") <(ls -1 "$EVD" 2>/dev/null | sort) | grep -v '^$' || true)"
+# A kit names its evidence by a UTC stamp taken when it starts or later; a
+# directory stamped before this kit started is another run's of the same kit.
+NEW=""
+for d in $(comm -13 <(printf '%s\n' "$before") <(ls -1 "$EVD" 2>/dev/null | sort) | grep -v '^$' || true); do
+  if [[ "${d:0:16}" < "$KSTAMP" ]]; then note "evidence of another run, left out: $d"; else NEW="$NEW $d"; fi
+done
 note "evidence $(echo $NEW)"
 
 # 5. What the kit uploaded, against the signed list; the evidence into this tree.
