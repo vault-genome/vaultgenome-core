@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """The harness adapter for tools/oracle (Google's go-sev-guest): runs it on
 one report and prints the harness's JSON. Build the oracle first:
 go build -C tools/oracle -o /tmp/oracle .

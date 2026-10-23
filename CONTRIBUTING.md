@@ -134,7 +134,10 @@ welcome and expected; personal attacks are not.
 ## License of Contributions
 
 By contributing, you agree your contribution is licensed under AGPL-3.0-or-later
-with the same terms as the rest of the repository.
+with the same terms as the rest of the repository — and under Apache-2.0 for a
+contribution to `pkg/teeconformance`, `tools/corpus-harness` or
+`test/corpus/sev-snp`, which carry that licence (ADR 0003, amendment of
+2026-10-23).
 
 ## Developer Certificate of Origin
 

@@ -192,7 +192,10 @@ code.
   the expected values and holds a reader to them and to two mutants per
   report; the product's own reading is its first user
   (`TestSEVSNPCorpus_ProductReading`, in the gate). The `differential`
-  workflow runs the harness with both adapters on every push.
+  workflow runs the harness with both adapters on every push. The three
+  directories are Apache-2.0 by the decision of both copyright holders
+  (ADR 0003, amendment of 2026-10-23), so that any verifier can take the
+  corpus into its own tests.
 - **Part five:** must-be-zero in the signed body, version-aware, from the
   specification; a hardware day adding a fresh report to the corpus by the
   kit; the receipts (the restore receipt and the report quoted over it)

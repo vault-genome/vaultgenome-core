@@ -114,6 +114,10 @@ Rodion Sorokin`) and the `SPDX-License-Identifier: AGPL-3.0-or-later`
 header, enforced by `scripts/license_header_check.sh`. A file without either
 fails the gate. This keeps the holder and the licence unambiguous at the
 granularity of a single file, however the code is later copied or vendored.
+Three directories carry `SPDX-License-Identifier: Apache-2.0` instead, and
+the check requires it there: `pkg/teeconformance`, `tools/corpus-harness`
+and `test/corpus/sev-snp` — the published conformance corpus, its harness
+and the public conformance package (ADR 0003, amendment of 2026-10-23).
 
 ## 8. Coverage thresholds
 

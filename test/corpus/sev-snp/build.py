@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """The SEV-SNP corpus of ADR 0034: every genuine attestation report on record
 in this tree, each with the VCEK it verifies under and AMD's chain for its
 product, in one manifest the differential test walks.

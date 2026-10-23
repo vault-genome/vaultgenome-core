@@ -74,8 +74,11 @@ must be refused. The product's own reading is the first user
 
 ## Licence
 
-The reports, the manifest and the expected values are published under
-CC0 1.0 — no rights reserved — so that any verifier can carry them in
-its own tests. AMD's certificates are AMD's, redistributed here as its
-Key Distribution Service serves them. The harness and the code around the
-corpus are AGPL-3.0-or-later, as the module is.
+This directory — the reports, the manifest, the expected values, the
+script and this text — is licensed under the Apache License, Version 2.0
+([`LICENSE`](LICENSE) here), so that any verifier can carry the corpus in
+its own tests; the harness (`tools/corpus-harness`) and the public
+conformance package (`pkg/teeconformance`) are Apache-2.0 too, while the
+product around them stays AGPL-3.0-or-later (ADR 0003, amendment of
+2026-10-23). AMD's certificates are AMD's, redistributed here as its Key
+Distribution Service serves them.

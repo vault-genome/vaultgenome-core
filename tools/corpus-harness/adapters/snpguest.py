@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """The harness adapter for VirTEE's snpguest (Linux x86-64): verifies the
 chain and the report with it and reads the measurement and chip id from
 `snpguest display report`, printing the harness's JSON.

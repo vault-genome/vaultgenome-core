@@ -64,7 +64,8 @@ satisfy AGPL's network-distribution clause.
 ### Per-component licensing
 
 - The Go module path `github.com/vault-genome/vaultgenome-core` is
-  AGPL-3.0-or-later in its entirety.
+  AGPL-3.0-or-later in its entirety, except the three directories the
+  amendment of 2026-10-23 names (below), which are Apache-2.0.
   (Declared as `github.com/ai-continuity-platform/core` until 0.3.0, when the
   module moved to the path it is published at; the licence did not change.)
 - Patent grants in commercial licenses do NOT extend to derivative
@@ -150,6 +151,41 @@ satisfy AGPL's network-distribution clause.
       [`COMMERCIAL-LICENSE.md`](../../COMMERCIAL-LICENSE.md) ("Do you need one?
       Usually not.") rather than expanding the README, which keeps the
       licensing discussion in one place.
+
+## Amendment of 2026-10-23 — the conformance corpus, its harness and the conformance package under Apache-2.0
+
+Three directories are licensed under the Apache License, Version 2.0, by
+the decision of both copyright holders (Serhii Nikolaichuk and Rodion
+Sorokin, recorded in the review of the pull request that made the
+change): `pkg/teeconformance` — the public conformance package, the
+executable definition of the Producer / Verifier / Sealer contract and,
+since ADR 0034, the SEV-SNP corpus for Go verifiers; `test/corpus/sev-snp`
+— the corpus itself: every genuine report on record, its certificates and
+what every verifier must read; `tools/corpus-harness` — the harness any
+verifier runs through a command. Each directory carries the licence text
+and every source file in it the `SPDX-License-Identifier: Apache-2.0`
+header; `scripts/license_header_check.sh` requires it there and AGPL
+everywhere else.
+
+Why Apache-2.0 and not AGPL, CC0 or CC-BY for these three: the corpus and
+the harness exist so that other verifiers — Google's, AMD's community's,
+a bank's own — are held to the same bytes as this one, and that happens
+only if their maintainers can take the corpus into their own test suites.
+Apache-2.0 is the licence of that ecosystem (go-sev-guest, snpguest and
+the sev crate, Veraison, Wycheproof's test vectors) and is pre-approved
+by the open-source offices of the companies behind it; it carries an
+express patent licence for the use of what is published, which matters
+to a reader who knows the maintainers hold patent applications — CC0 and
+CC-BY withhold patent rights by their text, and AGPL §13 would keep a
+verifier that merely tests against the corpus at arm's length. The
+product stays AGPL-3.0-or-later with the commercial licence beside it:
+the pattern of an open-core project whose conformance tests and
+specifications are permissive so that the market can test against them.
+Nothing in the three directories is the product: no daemon, no key
+handling, no protocol — a contract, data, and a runner.
+
+Documentation in those directories follows the directory (Apache-2.0),
+not the CC-BY-SA 4.0 of `docs/`.
 
 ## Reviews + sign-off
 

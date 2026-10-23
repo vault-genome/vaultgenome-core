@@ -112,7 +112,9 @@ V1-conformant adapters indefinitely.
 
 ## License
 
-AGPL-3.0-or-later, same as the rest of the module. See
-[ADR-0003](../../docs/adr/0003-agpl-commercial-dual-licensing.md) for
-the licensing strategy. Commercial licenses available — contact
-ops@vaultgenome.com.
+Apache License 2.0 ([`LICENSE`](LICENSE) in this directory), unlike the
+rest of the module, which is AGPL-3.0-or-later with a commercial licence
+beside it: a conformance package exists to be run by others, so it is
+licensed the way the TEE ecosystem's own tools are. The decision and its
+reasons are the amendment of 2026-10-23 to
+[ADR-0003](../../docs/adr/0003-agpl-commercial-dual-licensing.md).

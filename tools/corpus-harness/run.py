@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """Runs any SEV-SNP verifier against the corpus (ADR 0034, part four).
 
 The verifier is a command; the harness runs it once per report in the

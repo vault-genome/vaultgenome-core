@@ -23,3 +23,8 @@ The JSON the verifier prints: `verified` (required), and any of
 Google's go-sev-guest (`tools/oracle`), one for VirTEE's `snpguest`
 (Linux x86-64; it verifies the chain and the report and reads the
 measurement and chip id from `snpguest display report`).
+
+## Licence
+
+Apache License 2.0 ([`LICENSE`](LICENSE) in this directory), as the corpus
+and the public conformance package are (ADR 0003, amendment of 2026-10-23).

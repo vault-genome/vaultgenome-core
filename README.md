@@ -248,7 +248,11 @@ current by Dependabot.
 - **License:** AGPL-3.0-or-later ([`LICENSE`](LICENSE), scope in
   [`NOTICE`](NOTICE)); the same code under a
   [commercial license](COMMERCIAL-LICENSE.md) for deployments that cannot
-  satisfy AGPL §13, with no feature gating between the two.
+  satisfy AGPL §13, with no feature gating between the two. The published
+  conformance corpus, its harness and the public conformance package
+  ([`test/corpus/sev-snp`](test/corpus/sev-snp/), [`tools/corpus-harness`](tools/corpus-harness/),
+  [`pkg/teeconformance`](pkg/teeconformance/)) are Apache-2.0, so that any
+  verifier can test against them.
 - **Cite:** [`CITATION.cff`](CITATION.cff).
 
 The architecture represented by this code is the product of the founders'
