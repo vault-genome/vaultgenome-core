@@ -175,7 +175,7 @@ func NewAzureSGXProducer(cfg AzureSGXProducerConfig) (*AzureSGXProducer, error) 
 	if err != nil {
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("azure-sgx: load enclave %s: %v", cfg.EnclaveSOPath, err),
+			fmt.Sprintf("azure-sgx: load enclave %s", cfg.EnclaveSOPath),
 			err,
 		)
 	}
@@ -373,7 +373,7 @@ func (v *AzureSGXVerifier) verifyMAA(quote Evidence, nonce Nonce) (Measurement, 
 	if err != nil {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("azure-sgx: MAA submit: %v", err),
+			"azure-sgx: MAA submit",
 			err,
 		)
 	}
@@ -387,7 +387,7 @@ func (v *AzureSGXVerifier) verifyMAA(quote Evidence, nonce Nonce) (Measurement, 
 	if err != nil {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("azure-sgx: JWT verify: %v", err),
+			"azure-sgx: JWT verify",
 			err,
 		)
 	}
@@ -404,7 +404,7 @@ func (v *AzureSGXVerifier) verifyDCAP(quote Evidence, nonce Nonce) (Measurement,
 	if err != nil {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("azure-sgx: fetch collateral: %v", err),
+			"azure-sgx: fetch collateral",
 			err,
 		)
 	}
@@ -413,7 +413,7 @@ func (v *AzureSGXVerifier) verifyDCAP(quote Evidence, nonce Nonce) (Measurement,
 	if err != nil {
 		return zero, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("azure-sgx: dcap verify: %v", err),
+			"azure-sgx: dcap verify",
 			err,
 		)
 	}
@@ -520,7 +520,7 @@ func (s *AzureSGXSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 	if err != nil {
 		return nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("azure-sgx-sealer: unseal: %v (sealing key mismatch?)", err),
+			"azure-sgx-sealer: unseal (sealing key mismatch?)",
 			err,
 		)
 	}

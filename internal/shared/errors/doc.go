@@ -17,5 +17,13 @@
 // misclassifies an IntegrityError as a StructuralError is downgrading a
 // critical signal — that is itself a reviewable doctrinal defect.
 //
-// Stage B: empty package, doctrinal purpose only.
+// # Message and cause
+//
+// A classified error prints itself as "category[code]: message: cause".
+// The message says what failed, in the caller's terms; the cause is left
+// to the error, which prints it after the message. A message that carries
+// the cause as well — formatted into it, through its Error(), or in a
+// variable built from it — says everything twice: the package's tests walk
+// the module and refuse such a caller (callers_test.go), and Semgrep rule
+// vg-error-cause-twice marks one in review.
 package errors

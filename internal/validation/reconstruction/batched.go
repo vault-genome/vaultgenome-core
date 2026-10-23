@@ -105,9 +105,11 @@ func (b *BatchedExternalBackend) run() {
 	runErr := cmd.Run()
 	b.Seconds = time.Since(start).Seconds()
 	if runErr != nil {
-		b.err = shared_errors.Operational(shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("reconstruction: batched backend %q failed: %v: %s %s", b.Argv[0], runErr,
-				strings.TrimSpace(tail(out.String())), strings.TrimSpace(tail(errb.String()))), runErr)
+		msg := fmt.Sprintf("reconstruction: batched backend %q failed", b.Argv[0])
+		if t := strings.TrimSpace(strings.TrimSpace(tail(out.String())) + " " + strings.TrimSpace(tail(errb.String()))); t != "" {
+			msg += ": " + t
+		}
+		b.err = shared_errors.Operational(shared_errors.CodeFieldValueInvalid, msg, runErr)
 		return
 	}
 	var resp batchResponse

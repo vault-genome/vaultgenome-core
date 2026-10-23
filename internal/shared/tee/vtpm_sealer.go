@@ -233,12 +233,12 @@ func (s *VTPMSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 	}
 	if _, err := runCommand(s.cfg.Timeout, s.tool("tpm2_load"), "-C", primary, "-u", pub, "-r", priv, "-c", ctx, "-Q"); err != nil {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("vtpm-sealer: the vTPM did not load the sealed object: %v (another TPM, or a cleared owner hierarchy?)", err), err)
+			"vtpm-sealer: the vTPM did not load the sealed object (another TPM, or a cleared owner hierarchy?)", err)
 	}
 	key, err := runCommand(s.cfg.Timeout, s.tool("tpm2_unseal"), "-c", ctx, "-p", "pcr:"+b.PCRs)
 	if err != nil {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("vtpm-sealer: the vTPM refused to unseal under this boot's PCRs %s: %v (another boot, another machine?)", b.PCRs, err), err)
+			fmt.Sprintf("vtpm-sealer: the vTPM refused to unseal under this boot's PCRs %s (another boot, another machine?)", b.PCRs), err)
 	}
 	defer zeroize(key)
 	if len(key) != crypto.AES256KeySize {
@@ -247,7 +247,7 @@ func (s *VTPMSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 	}
 	plaintext, err := sevAEADOpen(key, b.Box, aad)
 	if err != nil {
-		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, fmt.Sprintf("vtpm-sealer: AEAD open: %v", err), err)
+		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid, "vtpm-sealer: AEAD open", err)
 	}
 	return plaintext, nil
 }

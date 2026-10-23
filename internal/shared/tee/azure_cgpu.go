@@ -329,11 +329,11 @@ func NewAzureCGPUVerifier(_ crypto.PublicKey, expected Measurement, cfg AzureCGP
 		v.ownOnly = cfg.GPUEvaluation == GPUEvaluationOwn
 		device, err := parseNVIDIARoot(cfg.NVIDIADeviceRootPEM, NVIDIADeviceRootPEM)
 		if err != nil {
-			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: NVIDIA device root: "+err.Error(), err)
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: NVIDIA device root", err)
 		}
 		rimRoot, err := parseNVIDIARoot(cfg.NVIDIARIMRootPEM, NVIDIARIMRootPEM)
 		if err != nil {
-			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: NVIDIA RIM root: "+err.Error(), err)
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "azure-cgpu: NVIDIA RIM root", err)
 		}
 		v.gpuEval = &GPUEvaluator{DeviceRoot: device, RIMRoot: rimRoot, Now: cfg.Now,
 			RIMs: &RIMFetcher{BaseURL: cfg.RIMServiceURL, CacheDir: cfg.RIMCacheDir}}

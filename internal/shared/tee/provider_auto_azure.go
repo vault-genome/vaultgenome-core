@@ -70,7 +70,7 @@ func DetectAzureHCL() (Provider, error) {
 	}
 	if rt != hclReportTypeSNP {
 		return "", shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("tee: %v: report type %d, not %d; this build has no producer for it (ADR 0025)", errHCLOtherType, rt, hclReportTypeSNP), errHCLOtherType)
+			fmt.Sprintf("tee: HCL report type %d, not %d; this build has no producer for it (ADR 0025)", rt, hclReportTypeSNP), errHCLOtherType)
 	}
 	return ProviderAzureSEVSNP, nil
 }

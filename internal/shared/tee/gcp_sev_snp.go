@@ -213,7 +213,7 @@ func NewGCPSEVVerifier(_ crypto.PublicKey, expected Measurement, cfg GCPSEVVerif
 		// A chain that will be refused at the first handshake is refused
 		// here, where the operator sees it at start.
 		if _, err := VerifyAMDCertChain(cfg.AMDRootPEM); err != nil {
-			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-sev-snp: AMDRootPEM: "+err.Error(), err)
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-sev-snp: AMDRootPEM", err)
 		}
 	}
 	if cfg.AMDKDSURL == "" {
@@ -333,7 +333,7 @@ func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPR
 	if err != nil {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev: parse report: %v", err),
+			"gcp-sev: parse report",
 			err,
 		)
 	}
@@ -343,14 +343,14 @@ func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPR
 	if err != nil {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev: fetch VCEK: %v", err),
+			"gcp-sev: fetch VCEK",
 			err,
 		)
 	}
 	if err := verifyAMDChain(vcekPEM, v.cfg.AMDRootPEM); err != nil {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev: AMD chain: %v", err),
+			"gcp-sev: AMD chain",
 			err,
 		)
 	}
@@ -360,7 +360,7 @@ func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPR
 	if err := verifySEVReportSignature(report, vcekPEM); err != nil {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev: report signature: %v", err),
+			"gcp-sev: report signature",
 			err,
 		)
 	}
@@ -555,7 +555,7 @@ func (s *GCPSEVSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 	if err != nil {
 		return nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev-sealer: AEAD open: %v (different VM image / policy?)", err),
+			"gcp-sev-sealer: AEAD open (different VM image / policy?)",
 			err,
 		)
 	}
