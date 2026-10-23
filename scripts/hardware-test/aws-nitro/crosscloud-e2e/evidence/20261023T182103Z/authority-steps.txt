@@ -1,0 +1,34 @@
+== the inputs
+== configfs-tsm: the chip's reports through the kernel
+== provision (acp-keygen, private modes)
+== the destination's bundle and the transport's client pair, taken before sealing
+== sagvd on SEV-SNP: its identity from the chip
+sagvd identity exit=0
+sagvd tee_provider=gcp-sev-snp measurement=e79ebb5b789ddb6b7a9897f663a655a65c69445aa482c4e1a5ff9fdeb4af1a2c8d5d30fcad5f4f0e04f1a13885eb984d
+== the authority's key files sealed to this chip (ADR 0023)
+seal-keys exit=0 sealer=sev-snp-derived-key sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,crosscloud.transport_tls.client_key,http_api.bearer_token_file
+sagvd identity from the sealed files exit=0
+== seal a genome (a fine-tune's output: LoRA weights, config, tokenizer)
+seal exit=0
+key_id=genome-ca2448550aeb-g0-ea420ae1c5a1
+bundle_sha256=6d5f55646bbf6f49ae2ebe625e9bb2203ca884ab80c01b2e2773af452f7efd8d
+destination=aws-nitro pcr0=04af10770400f2ed82d88d91a76c49aff46b8641e9d776942a913f9332d358ce1ae0e58f7d430a95b8d83324868f7c84
+== the bundle into the enclave over the API (opaque without its key)
+upload exit=0 key_id=genome-ca2448550aeb-g0-ea420ae1c5a1 bundle_sha256=6d5f55646bbf6f49ae2ebe625e9bb2203ca884ab80c01b2e2773af452f7efd8d bytes=16782195
+== the genome key released to the Nitro enclave, only after its document verified
+release exit=0
+release suite=hpke-x25519-v2 profile=general recipient_key_sha256=9797bdfd7911e039888b0d149dee35c3db3a81e43289664e3c764ffef9277f29
+nitro module=i-0b37272f3621e784e-enc01a16a026c60ea84 timestamp=2026-10-23T18:25:13.318Z pcr0=04af10770400f2ed82d88d91a76c49aff46b8641e9d776942a913f9332d358ce1ae0e58f7d430a95b8d83324868f7c84 pinned=1,2
+== the enclave restores by itself; the restore confirmed from its NSM-signed receipt
+confirm exit=0
+== refused: an image the allow-list does not name
+unlisted exit=1
+== refused: a PCR the registry pins to another value
+pin exit=1
+== refused: the operator stop in force
+stopped exit=1
+== refused: the same image in debug mode, given the TLS key and the token in the clear
+debug exit=1
+== the audit log verified with the published audit key: by acpctl, and by the auditor's own verifier
+audit verify exit=0
+auditor verify exit=0

@@ -1,0 +1,41 @@
+{
+  "http": {
+    "listen_vsock_port": 5000,
+    "bearer_token_file": "/run/vg/keys/token",
+    "write_timeout_seconds": 120,
+    "tls": {
+      "enabled": true,
+      "server_cert": "/etc/vg/tls/server.crt",
+      "server_key": "/run/vg/keys/server.key",
+      "client_cas": "/etc/vg/tls/ca.crt"
+    }
+  },
+  "tee": {
+    "provider": "aws-nitro",
+    "workload_descriptor": "acp-bootstrap-nitro-xcc-v1",
+    "secret_files_vsock_port": 7000,
+    "aws_kms": {
+      "key_arn": "arn:aws:kms:us-east-2:<account>:key/c78bf621-a89b-402b-94e0-fa2a7498847c",
+      "kms_vsock_port": 8000,
+      "imds_vsock_port": 8002
+    }
+  },
+  "source_authority": {
+    "kid": "sagvd-authority-xcc",
+    "public_key_path": "/etc/vg/authority.pem"
+  },
+  "genome": {
+    "bundle_dir": "/run/vg/bundles",
+    "restore_dir": "/run/vg/restored",
+    "rescan_seconds": 1,
+    "max_bundle_bytes": 67108864
+  },
+  "health": {
+    "listen_address": ""
+  },
+  "log": {
+    "level": "info",
+    "format": "json",
+    "vsock_port": 7001
+  }
+}

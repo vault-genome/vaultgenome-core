@@ -1,0 +1,16 @@
+{
+  "status": "failed",
+  "error": {
+    "category": "authority",
+    "code": "attestation_denied",
+    "message": "authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: destination measurement not in allow-list for \"aws-nitro\""
+  },
+  "handshake_request_id": "xcc-req-14673f4253a0825fd2e75e8f105fb6e2",
+  "handshake_audit_id": "xcc-evt-0000000000000005",
+  "attestation_audit_id": "xcc-evt-0000000000000006",
+  "destination_measurement_hex": "04af10770400f2ed82d88d91a76c49aff46b8641e9d776942a913f9332d358ce1ae0e58f7d430a95b8d83324868f7c84",
+  "crypto_profile": "general",
+  "audit_chain_length": 7,
+  "audit_tip": "554ac573f561140323a98ff2467d788ca5163ecfda090f744f0f2fb450e241a3",
+  "operator_stop_serial": 1
+}

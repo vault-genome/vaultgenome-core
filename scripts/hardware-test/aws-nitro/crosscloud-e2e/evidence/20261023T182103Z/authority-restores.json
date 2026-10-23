@@ -1,0 +1,23 @@
+{
+  "restores": [
+    {
+      "key_id": "genome-ca2448550aeb-g0-ea420ae1c5a1",
+      "decision_id": "nitro-decision-1",
+      "request_id": "xcc-req-13b64d15a3946dc04f0705b1d6460626",
+      "token_id": "xcc-dec-a283a6924c22b54b5d281f25167d3e33",
+      "state": "restored",
+      "key_received_at": "2026-10-23T18:25:13.339215217Z",
+      "bundle": "/run/vg/bundles/6d5f55646bbf6f49ae2ebe625e9bb2203ca884ab80c01b2e2773af452f7efd8d.genome",
+      "bundle_sha256": "6d5f55646bbf6f49ae2ebe625e9bb2203ca884ab80c01b2e2773af452f7efd8d",
+      "started_at": "2026-10-23T18:25:13.339556947Z",
+      "finished_at": "2026-10-23T18:25:13.530271528Z",
+      "result": {
+        "target": "/run/vg/restored/genome-ca2448550aeb-g0-ea420ae1c5a1",
+        "files": 3,
+        "bytes_written": 16777312,
+        "payload_sha256": "sha256:ca2448550aeb3fc82f05a8e7e60e211980d5b8359d42d240270e18a67547ecc2",
+        "tree_sha256": "01a44c927a45938ebea117e3f24fe0e10aede9f8dc42ac71a1cfd14cc982e7cf"
+      }
+    }
+  ]
+}
