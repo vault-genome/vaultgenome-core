@@ -170,7 +170,7 @@ func NewAWSNitroProducer(cfg AWSNitroProducerConfig) (*AWSNitroProducer, error) 
 	if err != nil {
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("aws-nitro: open NSM device %s: %v (this binary must run inside a Nitro Enclave)", cfg.NSMDevicePath, err),
+			fmt.Sprintf("aws-nitro: open NSM device %s (this binary must run inside a Nitro Enclave)", cfg.NSMDevicePath),
 			err,
 		)
 	}
@@ -232,7 +232,7 @@ func NewAWSNitroVerifier(_ crypto.PublicKey, expected Measurement, cfg AWSNitroV
 		if _, err := x509.ParseCertificate(der); err != nil {
 			return nil, shared_errors.Structural(
 				shared_errors.CodeFieldValueInvalid,
-				fmt.Sprintf("aws-nitro: pinned root %d is not a DER certificate: %v", i, err),
+				fmt.Sprintf("aws-nitro: pinned root %d is not a DER certificate", i),
 				err,
 			)
 		}

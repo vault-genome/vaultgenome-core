@@ -1,0 +1,52 @@
+2026/10/23 13:53:29 parent: forwarding vsock 8000 to kms.us-east-2.amazonaws.com:443, 8002 to the metadata service; files on 7000, reports on 7001
+2026/10/23 13:53:33 parent: files: connection from vsock://16:924611222
+2026/10/23 13:53:33 parent: files: 5896 bytes handed over (<nil>)
+2026/10/23 13:53:33 parent: files: the enclave closed (0 bytes back, <nil>)
+2026/10/23 13:53:33 parent: imds: connection from vsock://16:924611223
+2026/10/23 13:53:33 parent: 169.254.169.254:80: 195 bytes up, 237 down
+2026/10/23 13:53:33 parent: imds: connection from vsock://16:924611224
+2026/10/23 13:53:33 parent: 169.254.169.254:80: 241 bytes up, 272 down
+2026/10/23 13:53:33 parent: imds: connection from vsock://16:924611225
+2026/10/23 13:53:33 parent: 169.254.169.254:80: 265 bytes up, 1844 down
+2026/10/23 13:53:33 parent: kms: connection from vsock://16:924611226
+2026/10/23 13:53:34 parent: imds: connection from vsock://16:924611227
+2026/10/23 13:53:34 parent: 169.254.169.254:80: 195 bytes up, 237 down
+2026/10/23 13:53:34 parent: imds: connection from vsock://16:924611228
+2026/10/23 13:53:34 parent: 169.254.169.254:80: 241 bytes up, 272 down
+2026/10/23 13:53:34 parent: imds: connection from vsock://16:924611229
+2026/10/23 13:53:34 parent: 169.254.169.254:80: 265 bytes up, 1844 down
+2026/10/23 13:53:34 parent: kms: connection from vsock://16:924611230
+2026/10/23 13:53:34 parent: imds: connection from vsock://16:924611231
+2026/10/23 13:53:34 parent: imds: connection from vsock://16:924611232
+2026/10/23 13:53:34 parent: 169.254.169.254:80: 195 bytes up, 237 down
+2026/10/23 13:53:34 parent: 169.254.169.254:80: 241 bytes up, 272 down
+2026/10/23 13:53:34 parent: imds: connection from vsock://16:924611233
+2026/10/23 13:53:34 parent: 169.254.169.254:80: 265 bytes up, 1844 down
+2026/10/23 13:53:34 parent: kms: connection from vsock://16:924611234
+2026/10/23 13:53:34 parent: imds: connection from vsock://16:924611235
+2026/10/23 13:53:34 parent: 169.254.169.254:80: 195 bytes up, 237 down
+2026/10/23 13:53:34 parent: imds: connection from vsock://16:924611236
+2026/10/23 13:53:34 parent: 169.254.169.254:80: 241 bytes up, 272 down
+2026/10/23 13:53:34 parent: imds: connection from vsock://16:924611237
+2026/10/23 13:53:34 parent: 169.254.169.254:80: 265 bytes up, 1844 down
+2026/10/23 13:53:34 parent: kms: connection from vsock://16:924611238
+2026/10/23 13:53:34 parent: report: connection from vsock://16:924611239
+2026/10/23 13:53:34 parent: report: 4090 bytes kept in /home/ec2-user/vg/out/enclave-report-1.json
+2026/10/23 13:53:34 parent: kms.us-east-2.amazonaws.com:443: 10792 bytes up, 7058 down
+2026/10/23 13:53:34 parent: kms.us-east-2.amazonaws.com:443: 10792 bytes up, 6766 down
+2026/10/23 13:53:34 parent: kms.us-east-2.amazonaws.com:443: 10792 bytes up, 6766 down
+2026/10/23 13:53:34 parent: kms.us-east-2.amazonaws.com:443: 10792 bytes up, 7704 down
+2026/10/23 13:53:42 parent: files: connection from vsock://16:1569024855
+2026/10/23 13:53:42 parent: files: 5896 bytes handed over (<nil>)
+2026/10/23 13:53:42 parent: files: the enclave closed (0 bytes back, <nil>)
+2026/10/23 13:53:42 parent: imds: connection from vsock://16:1569024856
+2026/10/23 13:53:42 parent: 169.254.169.254:80: 195 bytes up, 237 down
+2026/10/23 13:53:42 parent: imds: connection from vsock://16:1569024857
+2026/10/23 13:53:42 parent: 169.254.169.254:80: 241 bytes up, 272 down
+2026/10/23 13:53:42 parent: imds: connection from vsock://16:1569024858
+2026/10/23 13:53:42 parent: 169.254.169.254:80: 265 bytes up, 1844 down
+2026/10/23 13:53:42 parent: kms: connection from vsock://16:1569024859
+2026/10/23 13:53:42 parent: report: connection from vsock://16:1569024860
+2026/10/23 13:53:42 parent: report: 3844 bytes kept in /home/ec2-user/vg/out/enclave-report-2.json
+2026/10/23 13:53:42 parent: kms.us-east-2.amazonaws.com:443: 10792 bytes up, 7058 down
+2026/10/23 13:53:46 parent: stopped

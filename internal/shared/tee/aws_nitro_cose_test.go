@@ -305,6 +305,7 @@ func TestAWSNitro_Verifier_ConstructorRefusals(t *testing.T) {
 	_, err := NewAWSNitroVerifier(nil, Measurement{}, AWSNitroVerifierConfig{PinnedRoots: [][]byte{[]byte("not-der")}})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not a DER certificate")
+	requireCauseOnce(t, err)
 	_, err = NewAWSNitroVerifier(nil, Measurement{}, AWSNitroVerifierConfig{PCRIndex: 32})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "outside 0..31")

@@ -1,0 +1,61 @@
+{
+  "enclave_kernel": "4.14.256-209.484.amzn2.x86_64",
+  "self_attestation": {
+    "module_id": "i-0377a114cba6815bd-enc01a16909ccd32ce8",
+    "document_timestamp": "2026-10-23T13:53:33.646Z",
+    "enclave_clock": "2026-10-23T13:53:33.594436086Z",
+    "debug": false,
+    "pcrs": {
+      "0": "932d541e9962b7a08c45a2def3ffd75efa0a932afe3eee006f3c690ebe393aa07df2d102a67ee1786271431c2d4f4e0a",
+      "1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+      "2": "5a900d2b09c3790de94dc723d4444a8edcd11cc193590e992a1d747a40e6c626168dd4b345ac2ade5e9281753e6335b0",
+      "3": "<PCR3 withheld: it measures the parent role's ARN, which names the account>",
+      "4": "e685b94c4fc439b63a3e1e03c415fc362b5680a05026cd989c9005bb4706450d18b1f7553157b5d25ddbc65b12aafe5e",
+      "5": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "6": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "7": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "8": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "chain": [
+      "CN=i-0377a114cba6815bd-enc01a16909ccd32ce8.us-east-2.aws,OU=AWS,O=Amazon,L=Seattle,ST=Washington,C=US",
+      "CN=i-0377a114cba6815bd.us-east-2.aws.nitro-enclaves,OU=AWS,O=Amazon,L=Seattle,ST=Washington,C=US",
+      "CN=cff903eea11d97ee.zonal.us-east-2.aws.nitro-enclaves,OU=AWS,O=Amazon,L=Seattle,ST=WA,C=US",
+      "CN=ba0f582db8125f3c.us-east-2.aws.nitro-enclaves,OU=AWS,O=Amazon,C=US",
+      "CN=aws.nitro-enclaves,OU=AWS,O=Amazon,C=US"
+    ]
+  },
+  "cases": [
+    {
+      "case": "opens",
+      "expect": "open",
+      "outcome": "opened",
+      "plaintext_sha256": "22247feab52e151e47b5ecadbc74c20a06989d5c4938864cc207c3e41257e2d4",
+      "millis": 365,
+      "as_expected": true
+    },
+    {
+      "case": "another-image",
+      "expect": "refuse",
+      "outcome": "refused",
+      "error": "integrity[signature_invalid]: sealed secret \"probe.secret\": this host does not open it (sealed at 1ea32e108bb4a314… on aws-nitro): integrity[signature_invalid]: aws-nitro sealer: KMS does not decrypt the data key under this enclave's context — the secret was sealed for another image than PCR0 932d541e9962b7a0… or as another secret: awskms: KMS refused (HTTP 400, InvalidCiphertextException, request fd7e864f-06c2-465a-b3f6-0e416dcde28e)",
+      "millis": 168,
+      "as_expected": true
+    },
+    {
+      "case": "another-secret",
+      "expect": "refuse",
+      "outcome": "refused",
+      "error": "integrity[signature_invalid]: sealed secret \"probe.secret\": this host does not open it (sealed at 932d541e9962b7a0… on aws-nitro): integrity[signature_invalid]: aws-nitro sealer: KMS does not decrypt the data key under this enclave's context — the secret was sealed for another image than PCR0 932d541e9962b7a0… or as another secret: awskms: KMS refused (HTTP 400, InvalidCiphertextException, request df6e104f-59bd-4a12-9c5f-53a81bc13864)",
+      "millis": 198,
+      "as_expected": true
+    },
+    {
+      "case": "policy-refuses",
+      "expect": "refuse",
+      "outcome": "refused",
+      "error": "integrity[signature_invalid]: sealed secret \"probe.secret\": this host does not open it (sealed at 932d541e9962b7a0… on aws-nitro): integrity[attestation_denied]: aws-nitro sealer: KMS does not release the data key to this enclave — the key's policy does not admit its attestation (PCR0 932d541e9962b7a0…): awskms: KMS refused (HTTP 400, AccessDeniedException, request a4ac54b0-b31f-4d30-8d5a-77c13ebf4e04): User: arn:aws:sts::<account>:assumed-role/vaultgenome-nitro-parent/i-0377a114cba6815bd is not authorized to perform: kms:Decrypt on resource: arn:aws:kms:us-east-2:<account>:key/085c79e2-ea40-4a34-ac3c-57340be16a0b because no resource-based policy allows the kms:Decrypt action",
+      "millis": 265,
+      "as_expected": true
+    }
+  ]
+}

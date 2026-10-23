@@ -106,9 +106,13 @@ func NewAWSNitroSealer(cfg AWSNitroSealerConfig) (*AWSNitroSealer, error) {
 	if _, err := ParseAWSKMSKeyARN(cfg.KeyARN); err != nil {
 		return nil, err
 	}
-	if len(cfg.Measurement) != 48 || cfg.Measurement.IsZero() {
+	if len(cfg.Measurement) != 48 {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("aws-nitro sealer: the measurement is %d bytes or zero; PCR0 is a non-zero SHA-384 (48 bytes) of a production-mode image", len(cfg.Measurement)), nil)
+			fmt.Sprintf("aws-nitro sealer: a measurement of %d bytes; PCR0 is a SHA-384, 48 bytes", len(cfg.Measurement)), nil)
+	}
+	if cfg.Measurement.IsZero() {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			"aws-nitro sealer: PCR0 is zero, a debug-mode enclave; secrets are sealed only to a production-mode image", nil)
 	}
 	k := cfg.kms
 	if k == nil {

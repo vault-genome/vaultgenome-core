@@ -37,6 +37,16 @@ func requireStructuralErr(t *testing.T, err error, fragment string) {
 	require.ErrorContains(t, err, fragment)
 }
 
+// requireCauseOnce: a refusal that wraps a cause prints it once. The
+// shared error prints its cause after its message, so a message that
+// formats the cause as well says everything twice.
+func requireCauseOnce(t *testing.T, err error) {
+	t.Helper()
+	cause := errors.Unwrap(err)
+	require.NotNil(t, cause, "%v wraps no cause", err)
+	require.Equal(t, 1, strings.Count(err.Error(), cause.Error()), "the cause is printed more than once: %v", err)
+}
+
 func requireIntegrityErr(t *testing.T, err error, fragment string) {
 	t.Helper()
 	require.Error(t, err)
@@ -60,6 +70,7 @@ func TestBuildProducerRefusesWithoutTheHardware(t *testing.T) {
 	requireStructuralErr(t, err, "user_data")
 	_, err = BuildProducer(ProducerSpec{Provider: ProviderAWSNitro, AWSNitro: AWSNitroProducerConfig{NSMDevicePath: absent}})
 	requireStructuralErr(t, err, "open NSM device")
+	requireCauseOnce(t, err)
 
 	_, err = BuildProducer(ProducerSpec{Provider: ProviderAzureSGX})
 	requireStructuralErr(t, err, "enclave_so_path")

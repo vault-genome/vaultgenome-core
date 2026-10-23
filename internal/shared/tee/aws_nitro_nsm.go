@@ -67,7 +67,7 @@ func nsmGetAttestationDoc(f *os.File, req nsmAttestationRequest) ([]byte, error)
 		der, err := x509.MarshalPKIXPublicKey(req.PublicKey)
 		if err != nil {
 			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
-				fmt.Sprintf("aws-nitro: the public key for the NSM is not a PKIX key: %v", err), err)
+				"aws-nitro: the public key for the NSM is not a PKIX key", err)
 		}
 		pub = der
 	}

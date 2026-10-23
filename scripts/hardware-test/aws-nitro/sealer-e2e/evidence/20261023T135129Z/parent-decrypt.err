@@ -1,0 +1,3 @@
+
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the Decrypt operation: User: arn:aws:sts::<account>:assumed-role/vaultgenome-nitro-parent/i-0377a114cba6815bd is not authorized to perform: kms:Decrypt on resource: arn:aws:kms:us-east-2:<account>:key/b3455f57-9307-4739-8303-817dfbfbb5e7 with an explicit deny in a resource-based policy
+aws kms decrypt rc=254

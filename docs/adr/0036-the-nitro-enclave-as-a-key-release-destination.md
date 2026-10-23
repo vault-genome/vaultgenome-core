@@ -1,6 +1,6 @@
 # ADR 0036 — The Nitro enclave as a key-release destination: the NSM spoken from its interface, the enclave reached over vsock, its secrets released only to its measurement, the contour proven across clouds
 
-- **Status:** Proposed (2026-10-23) — the design; part one (the producer: the NSM spoken from the kernel's and AWS's interface, a self-check at start) and part two (`acp-bootstrap` over vsock, the bundle into the enclave over the API) with it; part three (the sealer: Signature Version 4, KMS's CMS, the envelope) the same day; parts four and five follow after
+- **Status:** Proposed (2026-10-23) — the design; part one (the producer: the NSM spoken from the kernel's and AWS's interface, a self-check at start) and part two (`acp-bootstrap` over vsock, the bundle into the enclave over the API) with it; part three (the sealer: Signature Version 4, KMS's CMS, the envelope) and the first stage of part four (the sealer in an enclave, against KMS itself) the same day; the rest of part four, and part five, follow after
 - **Date:** 2026-10-23
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0035 (the Nitro verifier from the specification), ADR 0009 and 0029 (the cross-cloud key release), ADR 0011 (the restore receipt), ADR 0033 (the attack record in the policy), ADR 0034 (the corpus)
@@ -96,9 +96,11 @@ record. Nitro has to go the same way, and it is not the same place:
    timestamp within the skew, the nonce equal to the key-binding challenge;
    `AttestationDetail.nitro` with the PCRs, the module id and the
    timestamp on every admission and release record; the policy on
-   `identity`. What cannot be held — the hypervisor's version — is written
+   `identity`. PCR0 is required because a debug-mode enclave keeps its
+   parent's PCR3 and PCR4 (C51): pins on the parent alone would admit
+   it. What cannot be held — the hypervisor's version — is written
    down as the platform's, not ours. The family's refusal is lifted in the
-   pull request that carries the hardware run, never before. (Parts three
+   pull request that carries decision 6's run, never before. (Parts three
    and four.)
 6. **The proof is across clouds**: a genome key released by an authority on
    a GCP SEV-SNP Confidential VM to `acp-bootstrap` in a production-mode
@@ -229,8 +231,57 @@ record. Nitro has to go the same way, and it is not the same place:
   `tee.aws_kms`, `seal-keys` for an image's PCR0, the sealed files
   brought into the enclave by its parent — goes with part four, where
   the family's refusal is lifted on hardware.
-- **Part four (hardware):** the policy and the record at the source; the
-  kit across clouds; the family's refusal lifted; claims.
+- **Part four, stage one (hardware):** the sealer in a production-mode
+  enclave against KMS itself (`scripts/hardware-test/aws-nitro/sealer-e2e`,
+  C51). The kit works under its own role
+  (`scripts/hardware-test/aws-nitro/iam/`, a CloudFormation stack the
+  operator creates: the run's instance, keys and key policies, CloudTrail
+  read, and no `kms:Decrypt`), and makes two keys — the
+  policy of one admits the image, the other's another image, and both
+  deny Decrypt to every principal when no attestation document comes
+  with it — and an m5.xlarge whose role has no permissions of its own.
+  The image is one static probe program and its configuration, so PCR0
+  covers the keys and the parent's ports; the program attests itself
+  with the shipping producer and opens each sealed file through
+  `tee.SealerFor` and `tee.OpenSecretWith`, as `acp-bootstrap` will.
+  The production enclave opens the secret sealed to its image; KMS
+  refuses another image's file and another secret's
+  (InvalidCiphertextException), and the key that admits another image
+  refuses this one (AccessDenied); in debug mode the sealer is not built
+  on the zero PCR0, and KMS refuses the debug document a key sealed for
+  the production image; the parent's role and the kit's, without an
+  enclave, meet the explicit deny. CloudTrail records the seven calls:
+  the granted one's Recipient is the enclave's own document — module
+  id, PCR0 as the image digest, PCR1 to PCR4 and PCR8 as the enclave
+  reported them — and its credentials came by IMDSv2. What the hardware
+  showed:
+  - the enclave's init sends its boot heartbeat to the parent on vsock
+    port 9000, where nitro-cli listens; a parent helper bound there
+    makes the enclave fail to boot (E36);
+  - init mounts `/dev`, `/proc`, `/sys`, `/run` and `/tmp` in the
+    image's root, so an image built from scratch carries those
+    directories;
+  - a parent that closed right after writing left the enclave's first
+    read with ENOTCONN on the 4.14 kernel, so the reader closes first
+    and the writer waits for it;
+  - CloudTrail writes the attestation's measurements in base64, and a
+    Decrypt refused at the policy as errorCode AccessDenied with no
+    request parameters and no resources — the key named only in the
+    error message;
+  - **in debug mode PCR0, PCR1 and PCR2 are zero, but PCR3 and PCR4
+    still measure the parent**, though AWS's guide says a debug-mode
+    document's PCRs are all zero (*Cryptographic attestation*, SHA-256
+    `103f2fd1…` as read on 2026-10-23): a key policy that pins only the
+    parent admits a debug-mode enclave on it, so the image has to be
+    pinned, as here and in decision 5;
+  - PCR3 is SHA-384 over 48 zero bytes and the parent role's ARN, as
+    the guide computes it (PCR4 the same over the instance id), so it
+    names the account at a search of twelve digits; the evidence
+    withholds it, and every IAM unique identifier — a role's encodes the
+    account number, as an access key's does.
+- **Part four, next:** the policy and the record at the source; the
+  sealer wired into `acp-bootstrap`; the kit across clouds; the family's
+  refusal lifted; claims.
 - **Part five:** the Nitro corpus and its two outside readings.
 
 ## References
@@ -254,4 +305,7 @@ GenerateRandom, common parameters and errors) and developer guide
 (attested calls, the Nitro Enclaves condition keys, CloudTrail of attested
 requests); the EC2 User Guide on the instance metadata service and role
 credentials; Amazon Trust Services' root certificates and repository page,
-and the KMS endpoints' TLS chains as observed on 2026-10-23.
+and the KMS endpoints' TLS chains as observed on 2026-10-23. For part
+four: the Nitro Enclaves user guide's *Cryptographic attestation*
+(`set-up-attestation`, PCR3 and PCR4 and how to compute them, debug
+mode), read again on 2026-10-23.

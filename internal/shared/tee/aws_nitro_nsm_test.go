@@ -93,6 +93,7 @@ func TestNSM_PublicKeyTravelsAsPKIX(t *testing.T) {
 	require.Equal(t, der, pk.b)
 	_, err = nsmGetAttestationDoc(nil, nsmAttestationRequest{Nonce: make([]byte, 32), PublicKey: "not a key"})
 	requireStructuralErr(t, err, "not a PKIX key")
+	requireCauseOnce(t, err)
 }
 
 func TestNSM_DecodeAttestationResponse(t *testing.T) {

@@ -1,0 +1,71 @@
+{
+  "EifVersion": 4,
+  "Measurements": {
+    "HashAlgorithm": "Sha512_48 { .. }",
+    "PCR0": "932d541e9962b7a08c45a2def3ffd75efa0a932afe3eee006f3c690ebe393aa07df2d102a67ee1786271431c2d4f4e0a",
+    "PCR1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+    "PCR2": "5a900d2b09c3790de94dc723d4444a8edcd11cc193590e992a1d747a40e6c626168dd4b345ac2ade5e9281753e6335b0"
+  },
+  "IsSigned": false,
+  "CheckCRC": true,
+  "ImageName": "vg-sealer-e2e",
+  "ImageVersion": "37d88ba4aedfcb434a143660c7ff56a5b91534207037ad405eac597f1e263648",
+  "Metadata": {
+    "BuildTime": "2026-10-23T13:53:22.391812003+00:00",
+    "BuildTool": "nitro-cli",
+    "BuildToolVersion": "1.5.0",
+    "OperatingSystem": "Linux",
+    "KernelVersion": "4.14.256",
+    "DockerInfo": {
+      "Architecture": "amd64",
+      "Author": "",
+      "Comment": "buildkit.dockerfile.v0",
+      "Config": {
+        "AttachStderr": false,
+        "AttachStdin": false,
+        "AttachStdout": false,
+        "Domainname": "",
+        "Entrypoint": [
+          "/enclave"
+        ],
+        "Env": [
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        ],
+        "Hostname": "",
+        "Image": "",
+        "OpenStdin": false,
+        "StdinOnce": false,
+        "Tty": false,
+        "User": "",
+        "WorkingDir": "/"
+      },
+      "Created": "2026-10-23T13:53:22.197558834Z",
+      "DockerVersion": "",
+      "GraphDriver": {
+        "Data": {
+          "MergedDir": "/var/lib/docker/overlay2/ps2sphk5rajte6c5fm143p5c9/merged",
+          "UpperDir": "/var/lib/docker/overlay2/ps2sphk5rajte6c5fm143p5c9/diff",
+          "WorkDir": "/var/lib/docker/overlay2/ps2sphk5rajte6c5fm143p5c9/work"
+        },
+        "Name": "overlay2"
+      },
+      "Id": "sha256:37d88ba4aedfcb434a143660c7ff56a5b91534207037ad405eac597f1e263648",
+      "Metadata": {
+        "LastTagTime": "2026-10-23T13:53:22.281994559Z"
+      },
+      "Os": "linux",
+      "Parent": "",
+      "RepoDigests": [],
+      "RepoTags": [
+        "vg-sealer-e2e:latest"
+      ],
+      "RootFS": {
+        "Layers": [
+          "sha256:94cfcb3dca63d6ed2894cb66b1b0da2e56dd45a285c3ca5b57a6ce569137f282"
+        ],
+        "Type": "layers"
+      },
+      "Size": 7561675
+    }
+  }
+}

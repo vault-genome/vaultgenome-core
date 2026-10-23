@@ -2,7 +2,7 @@
 
 The authoritative maturity summary of this repository. Every statement
 below is backed by an evidence file and a reproduction command in
-[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C26); the open limits
+[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C51); the open limits
 are in [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) and
 [what we do not claim](../VERIFIABLE-CLAIMS.md#what-we-do-not-claim); what
 is next is in [`ROADMAP.md`](../ROADMAP.md). Component-level design
@@ -147,11 +147,13 @@ Intel Xeon CPUs for the determinism measurements.
 
 - Off hardware the daemons run a simulated TEE that announces itself and
   refuses to start without `tee.insecure_simulation: true`.
-- No AWS Nitro or Intel SGX adapter attests. The Nitro verifier is written
-  from AWS's specification and proven offline on the four production
-  documents of May 2026 (ADR 0035, `acpctl attest nitro`); its producer and
-  sealer are unproven, the SGX verifiers do not exist, and the registry
-  refuses both families until a live enclave has been verified end to end
+- No AWS Nitro or Intel SGX adapter takes a key release. The Nitro
+  verifier is written from AWS's specification and proven offline on the
+  four production documents of May 2026 (ADR 0035, `acpctl attest nitro`);
+  its producer and sealer run in a production-mode enclave against KMS
+  itself (VERIFIABLE-CLAIMS C51), but no source has released a key to an
+  enclave. The SGX verifiers do not exist, and the registry refuses both
+  families until a live enclave has been verified end to end
   ([ROADMAP.md](../ROADMAP.md)).
 - The largest model measured is 32B, on one confidential GPU, on the pinned
   runtime; cross-device equivalence is measured at 0.5B and 7B; every

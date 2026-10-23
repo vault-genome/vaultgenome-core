@@ -1,0 +1,1 @@
+arn:aws:sts::<account>:assumed-role/vaultgenome-nitro-parent/i-0377a114cba6815bd
