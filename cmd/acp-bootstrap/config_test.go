@@ -229,6 +229,43 @@ func TestValidate_TEEProvider(t *testing.T) {
 	requireInvalid(t, c, `tee.provider "azure-sgx" is not available in this build`)
 }
 
+// TestDecodeConfig_EnclaveDefaultsYield: the listen addresses' defaults
+// are a networked host's; a file that names a vsock port, or aws-nitro,
+// gets no address it did not write, and one it wrote is judged as written.
+func TestDecodeConfig_EnclaveDefaultsYield(t *testing.T) {
+	decode := func(s string) Config {
+		t.Helper()
+		c, err := DecodeConfig(strings.NewReader(s))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	c := decode(`{"http":{"listen_vsock_port":5000},"tee":{"provider":"aws-nitro"}}`)
+	if c.HTTP.ListenAddress != "" || c.Health.ListenAddress != "" {
+		t.Fatalf("the defaults did not yield: http %q, health %q", c.HTTP.ListenAddress, c.Health.ListenAddress)
+	}
+	c = decode(`{"http":{"listen_vsock_port":5000,"listen_address":"0.0.0.0:8443"},"tee":{"provider":"aws-nitro"},"health":{"listen_address":"127.0.0.1:8444"}}`)
+	if c.HTTP.ListenAddress != "0.0.0.0:8443" || c.Health.ListenAddress != "127.0.0.1:8444" {
+		t.Fatalf("what the file wrote must stand: http %q, health %q", c.HTTP.ListenAddress, c.Health.ListenAddress)
+	}
+	requireInvalid(t, func() Config { c := nitroConfig(); c.HTTP.ListenAddress = "0.0.0.0:8443"; return c }(), "set only one of listen_address and listen_vsock_port")
+	c = decode(`{"tee":{"provider":"gcp-sev-snp"}}`)
+	if c.HTTP.ListenAddress != "127.0.0.1:8443" || c.Health.ListenAddress != "127.0.0.1:8444" {
+		t.Fatalf("a networked host keeps the defaults: http %q, health %q", c.HTTP.ListenAddress, c.Health.ListenAddress)
+	}
+	// The enclave's whole configuration, as the kit writes it, without a
+	// listen_address and without a health section, validates.
+	c = decode(`{"http":{"listen_vsock_port":5000,"bearer_token_file":"/run/vg/keys/token",
+	  "tls":{"enabled":true,"server_cert":"/etc/vg/tls/server.crt","server_key":"/run/vg/keys/server.key","client_cas":"/etc/vg/tls/ca.crt"}},
+	  "tee":{"provider":"aws-nitro","workload_descriptor":"acp-bootstrap-nitro-v1","secret_files_vsock_port":7000,
+	  "aws_kms":{"key_arn":"arn:aws:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab","kms_vsock_port":8000,"imds_vsock_port":8002}},
+	  "source_authority":{"kid":"k","public_key_path":"/etc/vg/authority.pem"},
+	  "genome":{"bundle_dir":"/run/vg/bundles","restore_dir":"/run/vg/restored"},
+	  "log":{"level":"info","format":"json","vsock_port":7001}}`)
+	requireValid(t, c)
+}
+
 // nitroConfig is a Nitro enclave's configuration as the image carries it
 // (ADR 0036): the API on a vsock port, TLS with client certificates, no
 // health listener, the key files from the parent, KMS and the instance

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -429,13 +430,36 @@ func LoadConfigFile(path string) (Config, error) {
 }
 
 // DecodeConfig decodes JSON from r into a Config on top of
-// DefaultConfig.
+// DefaultConfig. The two listen addresses have defaults for a host with
+// a network; a file that names a vsock port, or the aws-nitro provider,
+// is an enclave's, and a default the file did not write yields to it —
+// an enclave has no address to listen on, not even loopback (ADR 0036).
+// What the file wrote stands, and Validate judges it.
 func DecodeConfig(r io.Reader) (Config, error) {
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return Config{}, fmt.Errorf("acp-bootstrap: read config: %w", err)
+	}
 	c := DefaultConfig()
-	dec := json.NewDecoder(r)
+	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&c); err != nil {
 		return Config{}, fmt.Errorf("acp-bootstrap: decode config: %w", err)
+	}
+	var written struct {
+		HTTP struct {
+			ListenAddress *string `json:"listen_address"`
+		} `json:"http"`
+		Health struct {
+			ListenAddress *string `json:"listen_address"`
+		} `json:"health"`
+	}
+	_ = json.Unmarshal(raw, &written) // the strict decode above already accepted raw
+	if c.HTTP.ListenVsockPort != 0 && written.HTTP.ListenAddress == nil {
+		c.HTTP.ListenAddress = ""
+	}
+	if p, err := tee.ParseProvider(c.TEE.Provider); err == nil && p == tee.ProviderAWSNitro && written.Health.ListenAddress == nil {
+		c.Health.ListenAddress = ""
 	}
 	return c, nil
 }
