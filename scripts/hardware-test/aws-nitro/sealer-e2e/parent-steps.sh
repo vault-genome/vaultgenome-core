@@ -78,7 +78,7 @@ run_enclave() {
   mkdir -p "$OUT/nitro-logs-$label" && sudo sh -c "cp /var/log/nitro_enclaves/*.log '$OUT/nitro-logs-$label/' 2>/dev/null; chown -R $(id -u):$(id -g) '$OUT/nitro-logs-$label'"
   [ "$after" -gt "$before" ] || { echo "no report from the $label run"; return 1; }
   cp "$(ls -t "$OUT"/enclave-report-[0-9]*.json | head -1)" "$OUT/report-$label.json"
-  cat "$OUT/report-$label.json"
+  cat "$OUT/report-$label.json"; echo
 }
 
 # parent_decrypt: the parent's own role asks KMS to decrypt the data key of

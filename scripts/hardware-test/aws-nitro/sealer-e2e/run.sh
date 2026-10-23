@@ -201,11 +201,15 @@ for i in $(seq 1 20); do
 import json, sys
 ev = json.load(open(sys.argv[1])).get("Events", [])
 keys = set(sys.argv[2:])
-print(sum(1 for e in ev if any(r.get("ResourceName") in keys for r in e.get("Resources", []))))
+def on_keys(e):
+    if any(r.get("ResourceName") in keys for r in e.get("Resources", [])): return True
+    rp = json.loads(e.get("CloudTrailEvent", "{}")).get("requestParameters") or {}
+    return rp.get("keyId") in keys
+print(sum(1 for e in ev if on_keys(e)))
 PY
 )"
   echo "CloudTrail: $n Decrypt events on the run's keys"
-  [ "${n:-0}" -ge 6 ] && break
+  [ "${n:-0}" -ge 7 ] && break
   sleep 45
 done
 
@@ -225,8 +229,9 @@ ev = json.load(open(sys.argv[1])).get("Events", [])
 keys = set(sys.argv[2:])
 out = []
 for e in ev:
-    if not any(r.get("ResourceName") in keys for r in e.get("Resources", [])): continue
     ct = json.loads(e["CloudTrailEvent"])
+    rp = ct.get("requestParameters") or {}
+    if not (any(r.get("ResourceName") in keys for r in e.get("Resources", [])) or rp.get("keyId") in keys): continue
     out.append({k: ct.get(k) for k in ("eventTime", "eventName", "userIdentity", "requestParameters", "additionalEventData", "errorCode", "errorMessage", "requestID", "eventID", "sourceIPAddress", "userAgent")})
 print(json.dumps(sorted(out, key=lambda x: x["eventTime"]), indent=2))
 PY
@@ -296,10 +301,19 @@ pe = open(os.path.join(ev, "parent-decrypt.err")).read()
 ke = open(os.path.join(ev, "kit-decrypt.err")).read()
 check("the parent's role without an enclave: AccessDeniedException", "AccessDeniedException" in pe)
 check("the kit's role without an enclave: AccessDeniedException", "AccessDeniedException" in ke)
+import base64
+def digest_hex(v):
+    # CloudTrail writes the attestation's measurements in base64.
+    try:
+        return base64.b64decode(v, validate=True).hex()
+    except Exception:
+        return (v or "").lower()
 ct = json.load(open(os.path.join(ev, "cloudtrail-decrypt.json")))
 granted = [e for e in ct if not e.get("errorCode") and (e.get("additionalEventData") or {}).get("recipient")]
 check("CloudTrail: a Decrypt granted to an enclave whose image digest is the image's PCR0",
-      any(e["additionalEventData"]["recipient"].get("attestationDocumentEnclaveImageDigest", "").lower() == pcr0 for e in granted))
+      any(digest_hex(e["additionalEventData"]["recipient"].get("attestationDocumentEnclaveImageDigest", "")) == pcr0 for e in granted))
+denied = [e for e in ct if e.get("errorCode") == "AccessDeniedException"]
+check("CloudTrail: the denied Decrypts are on the record (the other key's policy, the debug document, the parent and the kit without an enclave)", len(denied) >= 4)
 print("VERDICT", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)
 PY
