@@ -34,8 +34,10 @@ func main() {
 	region := flag.String("region", "us-east-2", "KMS's Region")
 	kmsPort := flag.Uint("kms-port", 8000, "vsock port forwarded to kms.<region>.amazonaws.com:443")
 	imdsPort := flag.Uint("imds-port", 8002, "vsock port forwarded to the instance metadata service")
-	filesPort := flag.Uint("files-port", 9000, "vsock port that hands the enclave the sealed files")
-	reportPort := flag.Uint("report-port", 9001, "vsock port the enclave sends its report to")
+	// Not 9000: nitro-cli listens there for the enclave's boot heartbeat
+	// (init.c of aws-nitro-enclaves-sdk-bootstrap: CID 3, port 9000).
+	filesPort := flag.Uint("files-port", 7000, "vsock port that hands the enclave the sealed files")
+	reportPort := flag.Uint("report-port", 7001, "vsock port the enclave sends its report to")
 	bundlePath := flag.String("bundle", "", "the sealed files, as the enclave reads them (JSON)")
 	outDir := flag.String("out", ".", "where the reports are written")
 	flag.Parse()

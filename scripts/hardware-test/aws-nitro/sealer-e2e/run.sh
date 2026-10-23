@@ -139,7 +139,7 @@ step "the image's configuration: the keys and the parent's ports, under PCR0"
 python3 - "$WORK/enclave.json" "$REGION" "$KEY_ARN" "$OTHER_KEY_ARN" <<'PY'
 import json, sys
 json.dump({"region": sys.argv[2], "kms_key_arn": sys.argv[3], "other_kms_key_arn": sys.argv[4],
-           "kms_vsock_port": 8000, "imds_vsock_port": 8002, "files_vsock_port": 9000, "report_vsock_port": 9001},
+           "kms_vsock_port": 8000, "imds_vsock_port": 8002, "files_vsock_port": 7000, "report_vsock_port": 7001},
           open(sys.argv[1], "w"), indent=2)
 PY
 "${SSH[@]}" "ec2-user@$PARENT_IP" "mkdir -p ~/vg/out" </dev/null
