@@ -40,7 +40,7 @@
 // enclave's secrets through AWS KMS: Decrypt with the attestation document
 // as the recipient, under a key policy that requires the image
 // (kms:RecipientAttestation:ImageSha384); KMS answers with a ciphertext
-// only the enclave's key opens. The sealer below is still a stub.
+// only the enclave's key opens (aws_nitro_sealer.go).
 //
 // Production caveats this adapter wires for:
 //   - NSM device may be absent (running outside enclave) — Capability()
@@ -135,17 +135,6 @@ type AWSNitroVerifier struct {
 	pinnedRoots  [][]byte
 	pcrIndex     int
 	now          func() time.Time
-}
-
-// AWSNitroSealer implements Sealer using AWS KMS with PCR-conditional
-// access. It is constructed separately from the Producer because sealing
-// requires AWS SDK credentials and KMS key ARNs that the daemon resolves
-// from environment / IAM role at runtime.
-type AWSNitroSealer struct {
-	kmsKeyARN         string
-	expectedPCR0      Measurement
-	awsRegion         string
-	encryptionContext map[string]string
 }
 
 // ----------------------------------------------------------------------------
@@ -270,22 +259,6 @@ func NewAWSNitroVerifier(_ crypto.PublicKey, expected Measurement, cfg AWSNitroV
 		pcrIndex:     cfg.PCRIndex,
 		now:          cfg.Now,
 	}, nil
-}
-
-// NewAWSNitroSealer constructs a Sealer that delegates to AWS KMS with
-// PCR-conditional access. The kmsKeyARN must reference a key whose policy
-// includes a kms:RecipientAttestation:ImageSha384 condition matching
-// expectedPCR0; otherwise Decrypt calls from this enclave will fail.
-func NewAWSNitroSealer(kmsKeyARN, awsRegion string, expectedPCR0 Measurement) *AWSNitroSealer {
-	return &AWSNitroSealer{
-		kmsKeyARN:    kmsKeyARN,
-		awsRegion:    awsRegion,
-		expectedPCR0: expectedPCR0,
-		encryptionContext: map[string]string{
-			"vault-genome.tee":      "aws-nitro",
-			"vault-genome.workload": "sagvd",
-		},
-	}
 }
 
 // ----------------------------------------------------------------------------
@@ -434,58 +407,6 @@ func (v *AWSNitroVerifier) Verify(ev Evidence, nonce Nonce) (Measurement, error)
 	return reported, nil
 }
 
-// Seal implements Sealer via AWS KMS Encrypt with PCR-conditional access.
-//
-// The cleartext is sent to KMS using the configured CMK (kmsKeyARN) plus
-// an EncryptionContext that binds the ciphertext to this workload. The
-// returned blob is the KMS ciphertext blob (opaque, ~200 bytes overhead
-// regardless of plaintext size).
-func (s *AWSNitroSealer) Seal(plaintext, aad []byte) ([]byte, error) {
-	if s.kmsKeyARN == "" {
-		return nil, shared_errors.Structural(
-			shared_errors.CodeFieldValueInvalid,
-			"aws-nitro-sealer: kms_key_arn not configured",
-			nil,
-		)
-	}
-	ec := mergeEncryptionContext(s.encryptionContext, aad)
-	ciphertext, err := awsKMSEncrypt(s.awsRegion, s.kmsKeyARN, plaintext, ec)
-	if err != nil {
-		return nil, fmt.Errorf("aws-nitro-sealer: KMS Encrypt: %w", err)
-	}
-	return ciphertext, nil
-}
-
-// Unseal implements Sealer via AWS KMS Decrypt. KMS will only return
-// plaintext if the calling identity (the enclave) satisfies the key
-// policy's RecipientAttestation conditions — meaning the enclave must
-// produce a fresh attestation that includes the expected PCR0.
-func (s *AWSNitroSealer) Unseal(sealed, aad []byte) ([]byte, error) {
-	if s.kmsKeyARN == "" {
-		return nil, shared_errors.Structural(
-			shared_errors.CodeFieldValueInvalid,
-			"aws-nitro-sealer: kms_key_arn not configured",
-			nil,
-		)
-	}
-	ec := mergeEncryptionContext(s.encryptionContext, aad)
-	plaintext, err := awsKMSDecrypt(s.awsRegion, s.kmsKeyARN, sealed, ec)
-	if err != nil {
-		// AccessDeniedException from KMS often means PCR0 mismatch — the
-		// enclave running now is not the one whose attestation was bound
-		// to this ciphertext. Surface as Integrity.
-		if isKMSAccessDenied(err) {
-			return nil, shared_errors.Integrity(
-				shared_errors.CodeSignatureInvalid,
-				"aws-nitro-sealer: KMS denied (PCR0 mismatch — unauthorized enclave)",
-				err,
-			)
-		}
-		return nil, fmt.Errorf("aws-nitro-sealer: KMS Decrypt: %w", err)
-	}
-	return plaintext, nil
-}
-
 // ----------------------------------------------------------------------------
 // Capability — startup-time check whether we can actually use this backend
 // ----------------------------------------------------------------------------
@@ -501,7 +422,7 @@ func awsNitroCapability() (bool, string) {
 }
 
 // ----------------------------------------------------------------------------
-// The NSM device, and the KMS helper stubs (the sealer: ADR 0036, part three)
+// The NSM device
 // ----------------------------------------------------------------------------
 
 // openNSMDevice opens /dev/nsm. In production this is a simple os.Open —
@@ -512,27 +433,6 @@ func awsNitroCapability() (bool, string) {
 // constructs an in-memory file pointer without touching the host.
 var openNSMDevice = func(path string) (*os.File, error) {
 	return os.OpenFile(path, os.O_RDWR, 0)
-}
-
-// awsKMSEncrypt wraps aws-sdk-go-v2 kms.Client.Encrypt.
-//
-// Phase 2 wiring: import "github.com/aws/aws-sdk-go-v2/service/kms",
-// build a Client with config.LoadDefaultConfig (uses the Nitro
-// enclave's IAM role via the parent EC2 instance's credential proxy),
-// then call Encrypt with KeyId + Plaintext + EncryptionContext.
-var awsKMSEncrypt = func(_ /*region*/ string, _ /*keyARN*/ string, _ []byte, _ map[string]string) ([]byte, error) {
-	return nil, errors.New("awsKMSEncrypt: not yet wired to AWS SDK (Phase 2 — import github.com/aws/aws-sdk-go-v2/service/kms)")
-}
-
-// awsKMSDecrypt wraps kms.Client.Decrypt with PCR-conditional access.
-var awsKMSDecrypt = func(_ /*region*/ string, _ /*keyARN*/ string, _ []byte, _ map[string]string) ([]byte, error) {
-	return nil, errors.New("awsKMSDecrypt: not yet wired to AWS SDK (Phase 2)")
-}
-
-var isKMSAccessDenied = func(err error) bool {
-	// Phase 2: detect via errors.As on smithy.GenericAPIError with code
-	// "AccessDeniedException".
-	return false
 }
 
 func nonceMatches(docNonce, challengerNonce []byte) bool {
@@ -558,17 +458,6 @@ func isDebugAttestation(doc *nitroAttestationDoc) bool {
 		}
 	}
 	return true
-}
-
-func mergeEncryptionContext(base map[string]string, aad []byte) map[string]string {
-	out := make(map[string]string, len(base)+1)
-	for k, v := range base {
-		out[k] = v
-	}
-	if len(aad) > 0 {
-		out["vault-genome.aad"] = fmt.Sprintf("%x", aad)
-	}
-	return out
 }
 
 // Compile-time interface conformance.

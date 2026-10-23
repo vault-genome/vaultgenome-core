@@ -41,6 +41,13 @@ coverage.txt
 # (X.509 certs, not keys) — needed by the SEV-SNP verification tests.
 !scripts/hardware-test/**/*.pem
 !test/corpus/sev-snp/chains/*.pem
+# The CMS vectors' throwaway RSA-3072 key and its self-signed certificate,
+# made by make-vectors.sh beside them for those vectors only (ADR 0036,
+# part three; the key is allowlisted for gitleaks by path).
+!internal/shared/cms/testdata/*.pem
+# Amazon Trust Services' four public root certificates, which the KMS
+# client embeds to verify KMS (ADR 0036, part three): certificates, not keys.
+!internal/shared/awskms/roots/*.pem
 
 # Key material provisioned by deploy/compose/keygen (NEVER commit)
 /deploy/compose/secrets/

@@ -61,6 +61,34 @@ given release can still open.
   scan ignores, checks the v3 header, stores it as `<sha256>.genome` by a
   rename and refuses a second bundle for the same key; the receipt's
   digest remains the source's check.
+- The Nitro enclave's sealer (ADR 0036, part three). A Nitro enclave has
+  no key of its own, so a secret is sealed in an envelope — AES-256-GCM
+  under a data key KMS generates — and opened in the enclave by asking
+  KMS to decrypt the data key for a Recipient: the enclave's attestation
+  document, carrying a fresh RSA-3072 key. KMS answers with CMS only that
+  key opens, and only when the key's policy admits the document's PCR0
+  and the encryption context matches the one the data key was made under,
+  which names the image (`vault-genome:pcr0`) and the secret
+  (`vault-genome:aad-sha256`): a file sealed for one image does not open
+  in another, nor as another secret. Sealing needs no enclave; opening is
+  only in one (sealer kind `aws-kms-attested`; `tee.sealer=tpm2` is
+  refused on Nitro, which has no TPM). The parts, each with the standard
+  library: `internal/shared/awssigv4`, Signature Version 4 from AWS's
+  specification, held to AWS's own test suite (aws-c-auth, 38 of 38
+  cases byte for byte); `internal/shared/cms`, BER from X.690 and
+  EnvelopedData in exactly KMS's profile (RSAES-OAEP-SHA-256, AES-256-CBC),
+  held to vectors OpenSSL 3 made and fuzzed; `internal/shared/awskms`,
+  GenerateDataKey, Decrypt and GenerateRandom over TLS 1.3 verified
+  against Amazon Trust Services' four roots only, with credentials handed
+  in by the caller (a command's `main` reads the operator's at startup;
+  the library reads no environment) or from the instance metadata
+  service (version 2, through the parent from an enclave). Run against KMS itself
+  (`scripts/hardware-test/aws-nitro/kms-live`, us-east-2): a correct
+  signature is accepted, a wrong secret, a stale date and an unknown key
+  are refused by the service, an empty root pool fails the handshake
+  (VERIFIABLE-CLAIMS C50). `acpctl recover` refuses a Nitro vault by
+  name: only the enclave opens it. The attested Decrypt has not yet run
+  against KMS from an enclave; the family stays refused until part four.
 - The verifier held to readings nobody here wrote (ADR 0034, part one).
   Every genuine SEV-SNP report on record — 41 on 2026-10-22, 25 chips,
   Milan and Genoa — is a corpus (`test/corpus/sev-snp`, `build.py`, the

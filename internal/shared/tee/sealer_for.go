@@ -6,26 +6,33 @@ package tee
 // Sealing by what the host has (ADR 0025, step 1b). A SEV-SNP guest has a
 // key of its own derived by the chip (ADR 0016); a TDX Trust Domain, an
 // Azure confidential VM and most servers have a TPM 2.0, virtual or
-// discrete (ADR 0022); the simulated TEE has its weak key. tee.sealer
-// says which the daemon uses — "auto" takes the TEE's own key where there
-// is one and the TPM otherwise — and every sealed file names the sealer
-// it was made with, so a file sealed one way is not opened as another.
+// discrete (ADR 0022); a Nitro enclave has KMS, released to its
+// attestation document (ADR 0036); the simulated TEE has its weak key.
+// tee.sealer says which the daemon uses — "auto" takes the TEE's own key
+// where there is one and the TPM otherwise — and every sealed file names
+// the sealer it was made with, so a file sealed one way is not opened as
+// another.
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/awskms"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/vsock"
 )
 
 // SealerMode is the daemon's tee.sealer.
 type SealerMode string
 
 const (
-	// SealerModeAuto: the TEE's own key where it has one (SEV-SNP), the
-	// host's TPM 2.0 otherwise (TDX, Azure), the simulated key off hardware.
+	// SealerModeAuto: the TEE's own key where it has one (SEV-SNP; on a
+	// Nitro enclave, KMS released to its attestation), the host's TPM 2.0
+	// otherwise (TDX, Azure), the simulated key off hardware.
 	SealerModeAuto SealerMode = "auto"
 	// SealerModeTEE: the TEE's own key only; refused on a TEE that has none.
 	SealerModeTEE SealerMode = "tee"
@@ -67,6 +74,45 @@ type SealerOptions struct {
 	// 0022); empty means PATH and the default selection.
 	TPM2ToolsDir string
 	VTPMSealPCRs string
+	// AWSKMS configures a Nitro enclave's sealer (ADR 0036).
+	AWSKMS *AWSKMSSealerOptions
+}
+
+// AWSKMSSealerOptions are a Nitro enclave's sealer's settings, all from the
+// image's configuration: the KMS key, and the parent's vsock ports that
+// carry the enclave to KMS's endpoint and to the instance metadata
+// service, which the parent forwards (the enclave has no other network).
+type AWSKMSSealerOptions struct {
+	KeyARN string
+	// Endpoint is KMS's host; empty means kms.<the key's Region>.amazonaws.com.
+	Endpoint      string
+	KMSVsockPort  uint32
+	IMDSVsockPort uint32
+}
+
+// awsKMSClientForEnclave builds the KMS client an enclave uses: TLS to the
+// endpoint through the parent's vsock port, credentials from the instance
+// metadata service through another.
+var awsKMSClientForEnclave = func(o AWSKMSSealerOptions) (*awskms.Client, error) {
+	region, err := ParseAWSKMSKeyARN(o.KeyARN)
+	if err != nil {
+		return nil, err
+	}
+	if o.KMSVsockPort == 0 || o.IMDSVsockPort == 0 || o.KMSVsockPort == o.IMDSVsockPort {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+			"sealer: the enclave reaches KMS and the instance metadata service through two distinct vsock ports of its parent; both are required", nil)
+	}
+	kmsPort, imdsPort := o.KMSVsockPort, o.IMDSVsockPort
+	return awskms.New(awskms.Config{
+		Region:   region,
+		Endpoint: o.Endpoint,
+		Dial: func(ctx context.Context) (net.Conn, error) {
+			return vsock.Dial(ctx, vsock.CIDNitroParent, kmsPort)
+		},
+		Credentials: &awskms.IMDSCredentials{Dial: func(ctx context.Context) (net.Conn, error) {
+			return vsock.Dial(ctx, vsock.CIDNitroParent, imdsPort)
+		}},
+	})
 }
 
 // SealerKindForProvider says which sealer a host of the given family uses
@@ -75,6 +121,13 @@ type SealerOptions struct {
 func SealerKindForProvider(p Provider, mode SealerMode) (SealerKind, error) {
 	if mode == "" {
 		mode = SealerModeAuto
+	}
+	if p == ProviderAWSNitro {
+		if mode == SealerModeTPM2 {
+			return "", shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+				"tee.sealer=tpm2: a Nitro enclave has no TPM; its sealer is KMS, released to its attestation (ADR 0036) — set tee.sealer to auto or tee", nil)
+		}
+		return SealerKindAWSKMSAttested, nil
 	}
 	if mode == SealerModeTPM2 {
 		return SealerKindTPM2, nil
@@ -109,6 +162,8 @@ func providerOf(p Producer) (Provider, bool) {
 		return ProviderAzureCGPU, true
 	case *AzureSEVSNPProducer:
 		return ProviderAzureSEVSNP, true
+	case *AWSNitroProducer:
+		return ProviderAWSNitro, true
 	default:
 		return "", false
 	}
@@ -143,6 +198,21 @@ func SealerFor(p Producer, opts SealerOptions) (Sealer, io.Closer, SealerKind, e
 		return NewGCPSEVSealer(dev, t.Measurement(), t.Policy()), dev, kind, nil
 	case SealerKindTPM2:
 		s, err := NewVTPMSealer(VTPMSealerConfig{TPM2ToolsDir: opts.TPM2ToolsDir, PCRs: opts.VTPMSealPCRs})
+		if err != nil {
+			return nil, nil, "", err
+		}
+		return s, nil, kind, nil
+	case SealerKindAWSKMSAttested:
+		if opts.AWSKMS == nil {
+			return nil, nil, "", shared_errors.Structural(shared_errors.CodeRequiredFieldMissing,
+				"sealer: a Nitro enclave's sealer needs tee.aws_kms — the KMS key and the parent's vsock ports (ADR 0036)", nil)
+		}
+		client, err := awsKMSClientForEnclave(*opts.AWSKMS)
+		if err != nil {
+			return nil, nil, "", err
+		}
+		np := p.(*AWSNitroProducer)
+		s, err := NewAWSNitroSealer(AWSNitroSealerConfig{KeyARN: opts.AWSKMS.KeyARN, Measurement: np.Measurement(), KMS: client, Attest: np.attestRecipient})
 		if err != nil {
 			return nil, nil, "", err
 		}

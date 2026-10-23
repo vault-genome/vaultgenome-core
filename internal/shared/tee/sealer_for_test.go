@@ -43,7 +43,10 @@ func TestSealerKindForProvider(t *testing.T) {
 		{ProviderSimulated, SealerModeAuto, SealerKindSimulated, ""},
 		{ProviderSimulated, SealerModeTEE, SealerKindSimulated, ""},
 		{ProviderSimulated, SealerModeTPM2, SealerKindTPM2, ""},
-		{ProviderAWSNitro, SealerModeAuto, "", "no sealer in this build"},
+		{ProviderAWSNitro, SealerModeAuto, SealerKindAWSKMSAttested, ""},
+		{ProviderAWSNitro, SealerModeTEE, SealerKindAWSKMSAttested, ""},
+		{ProviderAWSNitro, SealerModeTPM2, "", "a Nitro enclave has no TPM"},
+		{ProviderAzureSGX, SealerModeAuto, "", "no sealer in this build"},
 	} {
 		got, err := SealerKindForProvider(tc.p, tc.mode)
 		if tc.err != "" {

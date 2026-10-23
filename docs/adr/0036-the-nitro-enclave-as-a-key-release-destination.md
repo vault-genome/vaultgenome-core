@@ -1,6 +1,6 @@
 # ADR 0036 — The Nitro enclave as a key-release destination: the NSM spoken from its interface, the enclave reached over vsock, its secrets released only to its measurement, the contour proven across clouds
 
-- **Status:** Proposed (2026-10-23) — the design; part one (the producer: the NSM spoken from the kernel's and AWS's interface, a self-check at start) and part two (`acp-bootstrap` over vsock, the bundle into the enclave over the API) with it; parts three to five follow after
+- **Status:** Proposed (2026-10-23) — the design; part one (the producer: the NSM spoken from the kernel's and AWS's interface, a self-check at start) and part two (`acp-bootstrap` over vsock, the bundle into the enclave over the API) with it; part three (the sealer: Signature Version 4, KMS's CMS, the envelope) the same day; parts four and five follow after
 - **Date:** 2026-10-23
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0035 (the Nitro verifier from the specification), ADR 0009 and 0029 (the cross-cloud key release), ADR 0011 (the restore receipt), ADR 0033 (the attack record in the policy), ADR 0034 (the corpus)
@@ -171,9 +171,64 @@ record. Nitro has to go the same way, and it is not the same place:
   and getpeername(2) on every wake, as Go's own `net` does; and the raw
   read behind `Accept` reports a closed listener as the poller's "use of
   closed file", so `Close` sets a flag `Accept` answers from.
-- **Part three (code):** the KMS sealer — SigV4, `Decrypt` with a recipient,
-  the CMS EnvelopedData with RSA-OAEP-SHA-256 and AES-256-CBC, the
-  envelope AES-256-GCM.
+- **Part three (code):** the KMS sealer, each part with the standard
+  library and each held to something nobody here wrote.
+  `internal/shared/awssigv4` — Signature Version 4 from the IAM User
+  Guide (header form; the presigned form is not needed), held to AWS's
+  own suite: all 38 cases of aws-c-auth at `84a26ea` byte for byte, the
+  vectors in testdata under their Apache-2.0 LICENSE and NOTICE.
+  `internal/shared/cms` — BER from X.690 (definite and indefinite
+  lengths, constructed strings) and EnvelopedData in exactly the profile
+  the SDK reads (`cms.c` at `cd61b61`): version 2, one recipient by
+  subject key identifier, RSAES-OAEP with SHA-256 and MGF1-SHA-256 and
+  no label — absent parameters mean SHA-1 and are refused — AES-256-CBC
+  with a 16-byte IV; held to vectors OpenSSL 3.6.4 made, mutated at every
+  level, cut at every length, fuzzed. `internal/shared/awskms` —
+  GenerateDataKey, Decrypt and GenerateRandom from the API Reference,
+  TLS 1.3 to the endpoint verified against Amazon Trust Services' four
+  roots and no other (a parent cannot stand in for KMS with a
+  certificate a wider store would take), no proxy from the environment,
+  every answer held to its form (for a Recipient a CiphertextForRecipient
+  and no plaintext; the key named the key asked for); credentials handed
+  in by the caller — the operator's, which a command's `main` reads at
+  startup (the library reads no environment) — or the instance metadata
+  service's, version 2 (through the parent, from an enclave — they buy
+  the parent nothing, since the policy releases only to the enclave's
+  document).
+  Run against KMS itself (`scripts/hardware-test/aws-nitro/kms-live`,
+  us-east-2, 2026-10-23): a correct signature accepted, a wrong secret,
+  a date twenty minutes behind ("Signature expired" — KMS allows five
+  minutes, so the enclave's drift of seconds is nothing) and an unknown
+  key refused by the service, an empty root pool refused at the
+  handshake (C50). The sealer
+  (`internal/shared/tee/aws_nitro_sealer.go`, kind `aws-kms-attested`):
+  Seal asks GenerateDataKey for an AES-256 key under the encryption
+  context `{vault-genome:sealed-secret: v1, vault-genome:pcr0: <the
+  image>, vault-genome:aad-sha256: <the secret>}` and seals with
+  AES-256-GCM, the key's ARN and the AAD in the GCM AAD; Unseal makes a
+  fresh RSA-3072 key, takes an NSM document carrying it, asks Decrypt
+  with the key's ARN, the context of its own PCR0 and the document as
+  Recipient, opens the CMS and then the GCM. A file sealed for another
+  image or as another secret is refused by KMS (the context differs),
+  an image the policy does not admit is refused by KMS
+  (AccessDeniedException), each named. Sealing needs no enclave and
+  opening is only in one; `acpctl recover` refuses a Nitro vault by
+  name. The key policy the operator guide will carry: GenerateDataKey
+  for the operator's role only; Decrypt for the instance's role only
+  under `kms:RecipientAttestation:ImageSha384`; Decrypt denied to every
+  principal when the request carries no attestation document
+  (`Null` on that key). What the envelope does not stop: a parent can
+  hand the enclave an older sealed file of the same secret for the same
+  image — a bearer token from before a rotation. What the token and the
+  TLS key guard is the channel into the enclave, and what crosses it is
+  checked on its own (the bundle by its digest at the source, ADR 0011;
+  the receipt by the NSM's signature); an operator who must make an old
+  file useless seals under a new KMS key, which is a new image. A debug
+  enclave cannot even ask: its PCR0 is zero, and the sealer is not built
+  on a zero measurement. Wiring the sealer into `acp-bootstrap` — its
+  `tee.aws_kms`, `seal-keys` for an image's PCR0, the sealed files
+  brought into the enclave by its parent — goes with part four, where
+  the family's refusal is lifted on hardware.
 - **Part four (hardware):** the policy and the record at the source; the
   kit across clouds; the family's refusal lifted; claims.
 - **Part five:** the Nitro corpus and its two outside readings.
@@ -191,4 +246,12 @@ Enclaves SDK in C at `cd61b61` (`source/cms.c`, `source/kms.c`); the KMS
 API reference (`Decrypt`, `RecipientInfo`), the KMS developer guide
 (attestation condition keys, *How AWS Nitro Enclaves uses AWS KMS*), the
 Nitro Enclaves user guide (concepts, attestation, root verification);
-hf/nitrite at `c2d5d3c`; aws-nitro-enclaves-cose at `d940631`.
+hf/nitrite at `c2d5d3c`; aws-nitro-enclaves-cose at `d940631`. For part
+three: the IAM User Guide's Signature Version 4 pages and aws-c-auth at
+`84a26ea` (the test suite); RFC 5652, RFC 3560, RFC 4055, RFC 3565 and
+ITU-T X.690 (02/2021); the KMS API Reference (GenerateDataKey,
+GenerateRandom, common parameters and errors) and developer guide
+(attested calls, the Nitro Enclaves condition keys, CloudTrail of attested
+requests); the EC2 User Guide on the instance metadata service and role
+credentials; Amazon Trust Services' root certificates and repository page,
+and the KMS endpoints' TLS chains as observed on 2026-10-23.

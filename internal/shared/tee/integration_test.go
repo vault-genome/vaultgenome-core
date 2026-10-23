@@ -133,7 +133,10 @@ func TestIntegration_AWSNitro(t *testing.T) {
 	})
 
 	t.Run("SealingAADBinding", func(t *testing.T) {
-		s := NewAWSNitroSealer("arn:aws:kms:us-east-1:000000:key/fake", "us-east-1", fh.measure)
+		p := mkProducer(t)
+		defer p.Close()
+		s, err := NewAWSNitroSealer(AWSNitroSealerConfig{KeyARN: fakeNitroKeyARN, Measurement: p.Measurement(), Attest: p.attestRecipient, kms: fh.nitroKMS})
+		require.NoError(t, err)
 		pt := []byte("session-secret-payload")
 		aad := []byte("session=alpha;component=Z")
 		sealed, err := s.Seal(pt, aad)
@@ -142,13 +145,11 @@ func TestIntegration_AWSNitro(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, pt, got)
 
-		// Tampered AAD: KMS denies via AccessDeniedException.
+		// Another AAD is another encryption context: KMS does not decrypt.
 		_, err = s.Unseal(sealed, []byte("session=beta"))
 		require.Error(t, err)
 		require.Equal(t, shared_errors.CategoryIntegrity, shared_errors.CategoryOf(err))
-		require.True(t, strings.Contains(err.Error(), "PCR0 mismatch") ||
-			strings.Contains(err.Error(), "AccessDenied") ||
-			strings.Contains(err.Error(), "KMS denied"))
+		require.True(t, strings.Contains(err.Error(), "as another secret"), err.Error())
 	})
 
 	t.Run("CloseIdempotent", func(t *testing.T) {

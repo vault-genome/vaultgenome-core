@@ -64,13 +64,9 @@ func TestUnsealVault_RefusesPerProvider(t *testing.T) {
 			env:  VaultEnvelope{TEEProvider: "simulated", SimulatedWorkloadDescriptor: []byte("w"), SimulatedSeed: []byte("short")},
 			want: "seed must be 32 bytes",
 		},
-		"aws-nitro without a KMS key": {
-			env:  VaultEnvelope{TEEProvider: "aws-nitro"},
-			want: "missing aws_kms_key_arn",
-		},
-		"aws-nitro with a PCR0 of the wrong width": {
-			env:  VaultEnvelope{TEEProvider: "aws-nitro", AWSKMSKeyARN: "arn:aws:kms:eu-west-1:1:key/k", AWSExpectedPCR0: []byte{1, 2, 3}},
-			want: "aws_expected_pcr0 must be 32 bytes (got 3)",
+		"aws-nitro, opened only in its enclave": {
+			env:  VaultEnvelope{TEEProvider: "aws-nitro", AWSKMSKeyARN: "arn:aws:kms:eu-west-1:111122223333:key/k", AWSExpectedPCR0: make([]byte, 48)},
+			want: "opens only inside the enclave it was sealed for",
 		},
 		"azure-sgx without an enclave": {
 			env:  VaultEnvelope{TEEProvider: "azure-sgx"},

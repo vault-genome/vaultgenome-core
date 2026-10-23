@@ -45,8 +45,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -96,6 +94,7 @@ type fakeHardware struct {
 	measure     Measurement
 	pcrs        map[int][]byte
 	nitro       *nitroTestChain // set by installAWSNitroFake
+	nitroKMS    *fakeNitroKMS   // set by installAWSNitroFake
 	mrSigner    [32]byte
 	chipID      [64]byte
 	hostData    [32]byte
@@ -201,24 +200,6 @@ func (fh *fakeHardware) parseAttestation(blob []byte) (*fakeAttestation, error) 
 	return &att, nil
 }
 
-// canonicalEC produces deterministic AAD bytes from the EncryptionContext
-// map so encrypt/decrypt match across calls. KMS uses lex-sorted keys.
-func canonicalEC(ec map[string]string) []byte {
-	keys := make([]string, 0, len(ec))
-	for k := range ec {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	var buf bytes.Buffer
-	for _, k := range keys {
-		buf.WriteString(k)
-		buf.WriteByte('=')
-		buf.WriteString(ec[k])
-		buf.WriteByte('\n')
-	}
-	return buf.Bytes()
-}
-
 // =============================================================================
 // AWS Nitro fake harness
 // =============================================================================
@@ -243,9 +224,6 @@ func installAWSNitroFake(t testing.TB, fh *fakeHardware) {
 	// Save originals.
 	origOpenNSM := openNSMDevice
 	origNSMRawCall := nsmRawCall
-	origAwsKMSEncrypt := awsKMSEncrypt
-	origAwsKMSDecrypt := awsKMSDecrypt
-	origIsKMSAccessDenied := isKMSAccessDenied
 
 	// Fake /dev/nsm — adapter just needs a non-nil *os.File handle.
 	openNSMDevice = func(_ string) (*os.File, error) {
@@ -262,46 +240,15 @@ func installAWSNitroFake(t testing.TB, fh *fakeHardware) {
 		return fh.nitroNSMAnswer(t, req)
 	}
 
-	// Fake KMS: AES-GCM with a key derived from the workload measurement;
-	// EncryptionContext is the AAD so PCR-conditional access is enforced.
-	fakeKMSKey := shared_crypto.SHA256Slice(append([]byte("fake-kms-key-"), fh.measure[:]...))
-	awsKMSEncrypt = func(_, keyARN string, pt []byte, ec map[string]string) ([]byte, error) {
-		if keyARN == "" {
-			return nil, fmt.Errorf("fake-kms: empty keyARN")
-		}
-		aad := canonicalEC(ec)
-		nonce, ct, err := shared_crypto.Seal(fakeKMSKey, pt, aad)
-		if err != nil {
-			return nil, err
-		}
-		return append(nonce, ct...), nil
-	}
-	awsKMSDecrypt = func(_, keyARN string, blob []byte, ec map[string]string) ([]byte, error) {
-		if keyARN == "" {
-			return nil, fmt.Errorf("fake-kms: empty keyARN")
-		}
-		if len(blob) < shared_crypto.GCMNonceSize {
-			return nil, fmt.Errorf("fake-kms: AccessDeniedException — truncated")
-		}
-		aad := canonicalEC(ec)
-		nonce := blob[:shared_crypto.GCMNonceSize]
-		ct := blob[shared_crypto.GCMNonceSize:]
-		pt, err := shared_crypto.Open(fakeKMSKey, nonce, ct, aad)
-		if err != nil {
-			return nil, fmt.Errorf("fake-kms: AccessDeniedException — %v", err)
-		}
-		return pt, nil
-	}
-	isKMSAccessDenied = func(err error) bool {
-		return err != nil && strings.Contains(err.Error(), "AccessDeniedException")
-	}
+	// Fake KMS: it keeps each data key with the encryption context it was
+	// made under, and releases one only as KMS does for the key policy the
+	// operator guide writes (ADR 0036) — to a Recipient whose document
+	// verifies and whose PCR0 the policy admits.
+	fh.nitroKMS = newFakeNitroKMS(t, fh)
 
 	t.Cleanup(func() {
 		openNSMDevice = origOpenNSM
 		nsmRawCall = origNSMRawCall
-		awsKMSEncrypt = origAwsKMSEncrypt
-		awsKMSDecrypt = origAwsKMSDecrypt
-		isKMSAccessDenied = origIsKMSAccessDenied
 		teeFakeMu.Unlock()
 	})
 }
