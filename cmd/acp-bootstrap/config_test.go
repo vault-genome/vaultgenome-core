@@ -225,8 +225,73 @@ func TestValidate_TEEProvider(t *testing.T) {
 
 	// Families whose producer this build does not run are refused up front.
 	c = minimalValidConfig()
+	c.TEE.Provider = "azure-sgx"
+	requireInvalid(t, c, `tee.provider "azure-sgx" is not available in this build`)
+}
+
+// nitroConfig is a Nitro enclave's configuration as the image carries it
+// (ADR 0036): the API on a vsock port, TLS with client certificates, no
+// health listener, the key files from the parent, KMS and the instance
+// metadata service through the parent's forwarders, the log to the parent.
+func nitroConfig() Config {
+	c := minimalValidConfig()
 	c.TEE.Provider = "aws-nitro"
-	requireInvalid(t, c, `tee.provider "aws-nitro" is not available in this build`)
+	c.TEE.SeedPath, c.TEE.InsecureSimulation = "", false
+	c.TEE.AWSKMS = &AWSKMSConfig{KeyARN: "arn:aws:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab", KMSVsockPort: 8000, IMDSVsockPort: 8002}
+	c.TEE.SecretFilesVsockPort = 7000
+	c.HTTP.ListenAddress, c.HTTP.ListenVsockPort = "", 5000
+	c.HTTP.TLS = TLSServerConfig{Enabled: true, ServerCert: "/etc/vg/tls/server.crt", ServerKey: "/run/vg/keys/server.key", ClientCAs: "/etc/vg/tls/ca.crt"}
+	c.Health.ListenAddress = ""
+	c.Log.VsockPort = 7001
+	return c
+}
+
+// TestValidate_Nitro holds a Nitro enclave's configuration to what an
+// enclave is: vsock only, no health listener, the key files from the
+// parent, KMS through the parent, the ports apart and off nitro-cli's.
+func TestValidate_Nitro(t *testing.T) {
+	requireValid(t, nitroConfig())
+	c := nitroConfig()
+	c.Log.VsockPort = 0
+	requireValid(t, c)
+
+	for name, tc := range map[string]struct {
+		mutate func(*Config)
+		want   string
+	}{
+		"a TCP listener":        {func(c *Config) { c.HTTP.ListenVsockPort, c.HTTP.ListenAddress = 0, "0.0.0.0:8443" }, "http.listen_vsock_port required (an enclave has no network interface"},
+		"a health listener":     {func(c *Config) { c.Health.ListenAddress = "127.0.0.1:8444" }, `health.listen_address must be "" (an enclave has no network interface, not even loopback)`},
+		"no key files' port":    {func(c *Config) { c.TEE.SecretFilesVsockPort = 0 }, "tee.secret_files_vsock_port required"},
+		"no KMS":                {func(c *Config) { c.TEE.AWSKMS = nil }, "tee.aws_kms required"},
+		"a bad key ARN":         {func(c *Config) { c.TEE.AWSKMS.KeyARN = "arn:aws:kms:us-east-2:111122223333:alias/x" }, "tee.aws_kms.key_arn"},
+		"no IMDS port":          {func(c *Config) { c.TEE.AWSKMS.IMDSVsockPort = 0 }, "tee.aws_kms.kms_vsock_port and tee.aws_kms.imds_vsock_port required"},
+		"nitro-cli's port":      {func(c *Config) { c.TEE.AWSKMS.KMSVsockPort = 9000 }, "tee.aws_kms.kms_vsock_port 9000 is the parent's port nitro-cli receives the enclave's boot heartbeat on"},
+		"two forwarders on one": {func(c *Config) { c.Log.VsockPort = 7000 }, "are the same vsock port 7000"},
+		"VMADDR_PORT_ANY":       {func(c *Config) { c.TEE.SecretFilesVsockPort = 0xFFFFFFFF }, "tee.secret_files_vsock_port 4294967295 is VMADDR_PORT_ANY"},
+		"a TPM sealer":          {func(c *Config) { c.TEE.Sealer = "tpm2" }, "a Nitro enclave has no TPM"},
+		"a seed":                {func(c *Config) { c.TEE.SeedPath = "/etc/seed" }, "apply to the simulated provider only"},
+		"configfs-tsm":          {func(c *Config) { c.TEE.TSMReportDir = "/sys/kernel/config/tsm/report" }, "tee.tsm_report_dir does not apply to aws-nitro"},
+		"no TLS":                {func(c *Config) { c.HTTP.TLS = TLSServerConfig{} }, "http.tls.enabled required: listen_vsock_port 5000 is not loopback"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := nitroConfig()
+			tc.mutate(&c)
+			requireInvalid(t, c, tc.want)
+		})
+	}
+
+	// The Nitro sections mean nothing elsewhere.
+	for name, mutate := range map[string]func(*Config){
+		"aws_kms":                 func(c *Config) { c.TEE.AWSKMS = &AWSKMSConfig{} },
+		"secret_files_vsock_port": func(c *Config) { c.TEE.SecretFilesVsockPort = 7000 },
+		"log.vsock_port":          func(c *Config) { c.Log.VsockPort = 7001 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := minimalValidConfig()
+			mutate(&c)
+			requireInvalid(t, c, "apply to aws-nitro only")
+		})
+	}
 }
 
 func TestResolveSecrets(t *testing.T) {

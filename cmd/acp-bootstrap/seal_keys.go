@@ -12,9 +12,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/awskms"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
+
+// operatorKMS builds the KMS client an operator seals a Nitro enclave's
+// key files with; a variable so the tests stand in for KMS.
+var operatorKMS = func(region, endpoint string, creds awskms.Credentials) (*awskms.Client, error) {
+	return awskms.New(awskms.Config{Region: region, Endpoint: endpoint, Credentials: creds})
+}
 
 type sealKeysOutput struct {
 	TEE            string           `json:"tee"`
@@ -51,11 +59,20 @@ func secretFiles(cfg Config) []sealedKeyEntry {
 // them sealed. A file already sealed is left as it is. Run it once the
 // config is final and before the daemon's first start; a new chip, image
 // or boot of a vTPM host needs new files.
-func runSealKeys(args []string, stdout, stderr io.Writer) error {
+//
+// A Nitro enclave's files are sealed outside it, for its image (ADR 0036):
+// `seal-keys -config <path> -pcr0 <hex> [-root <dir>]` under the
+// operator's AWS credentials, the files read at the config's paths under
+// -root (the enclave's files, staged on this machine) and sealed there;
+// the parent hands them to the enclave, where KMS opens them for that
+// image's attestation only.
+func runSealKeys(args []string, stdout, stderr io.Writer, creds awskms.StaticCredentials) error {
 	fs := flag.NewFlagSet("acp-bootstrap seal-keys", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	var configPath string
+	var configPath, pcr0Hex, root string
 	fs.StringVar(&configPath, "config", "", "path to JSON config file (required)")
+	fs.StringVar(&pcr0Hex, "pcr0", "", "aws-nitro: the image's PCR0, hex, as `nitro-cli describe-eif` prints it; the files are sealed for that image, outside the enclave")
+	fs.StringVar(&root, "root", "", "aws-nitro: the directory the config's key-file paths are read under on this machine (the enclave's files, staged)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -68,6 +85,9 @@ func runSealKeys(args []string, stdout, stderr io.Writer) error {
 	}
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("acp-bootstrap seal-keys: config validation: %w", err)
+	}
+	if provider, _ := tee.ParseProvider(cfg.TEE.Provider); provider == tee.ProviderAWSNitro || pcr0Hex != "" || root != "" {
+		return sealNitroKeys(cfg, pcr0Hex, root, stdout, stderr, creds)
 	}
 	producer, err := buildTEEProducer(cfg.TEE)
 	if err != nil {
@@ -118,6 +138,87 @@ func runSealKeys(args []string, stdout, stderr io.Writer) error {
 	if out.Sealed == nil {
 		out.Sealed = []sealedKeyEntry{}
 	}
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+// sealNitroKeys seals a Nitro enclave's key files outside it, for the
+// image whose PCR0 is given (ADR 0036): a data key from KMS's
+// GenerateDataKey under the encryption context naming that PCR0 and the
+// file, the file sealed under it. The files cannot be opened here — only
+// the enclave can, through KMS, released to its attestation — so a file
+// already sealed is kept when it names this image and its own name, and
+// refused otherwise.
+func sealNitroKeys(cfg Config, pcr0Hex, root string, stdout, stderr io.Writer, creds awskms.StaticCredentials) error {
+	if provider, _ := tee.ParseProvider(cfg.TEE.Provider); provider != tee.ProviderAWSNitro {
+		return fmt.Errorf("acp-bootstrap seal-keys: -pcr0 and -root seal a Nitro enclave's key files; this config's tee.provider is %s", cfg.TEE.Provider)
+	}
+	if pcr0Hex == "" {
+		return errors.New("acp-bootstrap seal-keys: on aws-nitro the key files are sealed outside the enclave, for its image: -pcr0 <the image's PCR0, from nitro-cli describe-eif>")
+	}
+	raw, err := hex.DecodeString(strings.TrimSpace(pcr0Hex))
+	if err != nil || len(raw) != 48 {
+		return errors.New("acp-bootstrap seal-keys: -pcr0 is the image's PCR0: a SHA-384, 96 hex characters")
+	}
+	measurement := tee.Measurement(raw)
+	if measurement.IsZero() {
+		return errors.New("acp-bootstrap seal-keys: -pcr0 is zero, a debug-mode enclave's; key files are sealed to a production-mode image only")
+	}
+	if creds.AccessKeyID == "" || creds.SecretAccessKey == "" {
+		return errors.New("acp-bootstrap seal-keys: sealing for a Nitro image asks KMS for a data key under the operator's AWS credentials: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (and AWS_SESSION_TOKEN for a role's)")
+	}
+	region, err := tee.ParseAWSKMSKeyARN(cfg.TEE.AWSKMS.KeyARN)
+	if err != nil {
+		return fmt.Errorf("acp-bootstrap seal-keys: tee.aws_kms.key_arn: %w", err)
+	}
+	client, err := operatorKMS(region, cfg.TEE.AWSKMS.Endpoint, creds)
+	if err != nil {
+		return fmt.Errorf("acp-bootstrap seal-keys: %w", err)
+	}
+	sealer, err := tee.NewAWSNitroSealer(tee.AWSNitroSealerConfig{KeyARN: cfg.TEE.AWSKMS.KeyARN, Measurement: measurement, KMS: client})
+	if err != nil {
+		return fmt.Errorf("acp-bootstrap seal-keys: %w", err)
+	}
+	pcr0 := hex.EncodeToString(measurement)
+	out := sealKeysOutput{TEE: string(tee.ProviderAWSNitro), MeasurementHex: pcr0, Sealer: string(tee.SealerKindAWSKMSAttested)}
+	for _, f := range secretFiles(cfg) {
+		path := f.Path
+		if root != "" {
+			path = filepath.Join(root, f.Path)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("acp-bootstrap seal-keys: read %s (%q): %w", f.Name, path, err)
+		}
+		if tee.IsSealedSecret(data) {
+			s, err := tee.ParseSealedSecret(data)
+			if err != nil {
+				return fmt.Errorf("acp-bootstrap seal-keys: %s (%q): %w", f.Name, path, err)
+			}
+			if s.TEE != string(tee.ProviderAWSNitro) || s.Sealer != string(tee.SealerKindAWSKMSAttested) || s.MeasurementHex != pcr0 || s.Name != f.Name {
+				return fmt.Errorf("acp-bootstrap seal-keys: %s (%q) is already sealed, but on %s for %s… as %q; give the bare file to seal it for this image", f.Name, path, s.TEE, s.MeasurementHex[:min(16, len(s.MeasurementHex))], s.Name)
+			}
+			out.AlreadySealed = append(out.AlreadySealed, f)
+			continue
+		}
+		if len(data) == 0 {
+			return fmt.Errorf("acp-bootstrap seal-keys: %s (%q) is empty", f.Name, path)
+		}
+		sealed, err := tee.SealSecretWith(data, sealer, tee.SealerKindAWSKMSAttested, tee.ProviderAWSNitro, measurement, f.Name)
+		zero(data)
+		if err != nil {
+			return fmt.Errorf("acp-bootstrap seal-keys: %s: %w", f.Name, err)
+		}
+		if err := replaceFile(path, sealed); err != nil {
+			return fmt.Errorf("acp-bootstrap seal-keys: write %s (%q): %w", f.Name, path, err)
+		}
+		out.Sealed = append(out.Sealed, f)
+	}
+	if out.Sealed == nil {
+		out.Sealed = []sealedKeyEntry{}
+	}
+	fmt.Fprintf(stderr, "acp-bootstrap seal-keys: sealed for the image whose PCR0 is %s…: the files open only in its enclave, through KMS, released to its attestation\n", pcr0[:16])
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)

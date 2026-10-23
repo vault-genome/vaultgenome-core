@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/vault-genome/vaultgenome-core/internal/shared/awskms"
 )
 
 // identity refuses what it cannot print from — a bad flag, a config it
@@ -42,19 +44,19 @@ func TestSealKeys_StopsBeforeSealing(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
 	// The flag set reports to the stderr it was given.
-	if err := runSealKeys([]string{"-bogus"}, &stdout, &stderr); err == nil || !strings.Contains(stderr.String(), "-config") {
+	if err := runSealKeys([]string{"-bogus"}, &stdout, &stderr, awskms.StaticCredentials{}); err == nil || !strings.Contains(stderr.String(), "-config") {
 		t.Fatalf("unknown flag: err=%v stderr=%q", err, stderr.String())
 	}
 
 	invalid := cfg
 	invalid.TEE.Provider = "nope"
-	if err := runSealKeys([]string{"-config", writeConfigFile(t, dst.dir, invalid)}, &stdout, &stderr); err == nil || !strings.Contains(err.Error(), "config validation") {
+	if err := runSealKeys([]string{"-config", writeConfigFile(t, dst.dir, invalid)}, &stdout, &stderr, awskms.StaticCredentials{}); err == nil || !strings.Contains(err.Error(), "config validation") {
 		t.Fatalf("invalid config: %v", err)
 	}
 
 	noSeed := cfg
 	noSeed.TEE.SeedPath = filepath.Join(dst.dir, "absent_seed")
-	if err := runSealKeys([]string{"-config", writeConfigFile(t, dst.dir, noSeed)}, &stdout, &stderr); err == nil || !strings.Contains(err.Error(), "read tee.seed_path") {
+	if err := runSealKeys([]string{"-config", writeConfigFile(t, dst.dir, noSeed)}, &stdout, &stderr, awskms.StaticCredentials{}); err == nil || !strings.Contains(err.Error(), "read tee.seed_path") {
 		t.Fatalf("missing seed: %v", err)
 	}
 
@@ -66,7 +68,7 @@ func TestSealKeys_StopsBeforeSealing(t *testing.T) {
 	foreign.HTTP.BearerTokenFile = filepath.Join(dst.dir, "foreign_token")
 	sealedElsewhere := sealedToSimulatedHost(t, elsewhere, token, "http.bearer_token_file")
 	writeFile(t, foreign.HTTP.BearerTokenFile, sealedElsewhere)
-	err := runSealKeys([]string{"-config", writeConfigFile(t, dst.dir, foreign)}, &stdout, &stderr)
+	err := runSealKeys([]string{"-config", writeConfigFile(t, dst.dir, foreign)}, &stdout, &stderr, awskms.StaticCredentials{})
 	if err == nil || !strings.Contains(err.Error(), "http.bearer_token_file is sealed, and this host cannot open it") {
 		t.Fatalf("token sealed elsewhere: %v", err)
 	}
@@ -88,7 +90,7 @@ func TestSealKeys_StopsBeforeSealing(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(ro, 0o700) })
-		err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr)
+		err := runSealKeys([]string{"-config", configPath}, &stdout, &stderr, awskms.StaticCredentials{})
 		if err == nil || !strings.Contains(err.Error(), "write http.bearer_token_file") {
 			t.Fatalf("read-only directory: %v", err)
 		}
