@@ -38,6 +38,15 @@ paths = [
   # wrote. gitleaks' private-key rule matches the PEM block by shape; it
   # protects nothing.
   '''internal/shared/cms/testdata/recipient-key\.pem''',
+  # internal/shared/awssigv4/testdata/aws-signing-test-suite/: AWS's own
+  # Signature Version 4 test vectors (aws-c-auth at 84a26ea, Apache-2.0),
+  # copied byte for byte so the signer is held to them (ADR 0036, part
+  # three). Every signature, session token and key in them is computed
+  # with or is one of AWS's documented example credentials (AKIDEXAMPLE
+  # and its example secret); they sign nothing anyone accepts. gitleaks'
+  # generic-api-key rule matches the signatures and the example token by
+  # shape.
+  '''internal/shared/awssigv4/testdata/aws-signing-test-suite/.*''',
 ]
 regexes = [
   # `type PrivateKey = ed25519.PrivateKey` in internal/shared/crypto: a Go
