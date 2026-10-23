@@ -72,6 +72,11 @@ must be refused. The product's own reading is the first user
   receipt of the 0.10.0 record added), the Google reading alone: both
   verify every report, nineteen fields equal, no mutant verified by
   either.
+- `results/differential-ci-20261023T205603Z.json` — the `differential`
+  workflow on the corpus at 42 (run 40022715298, ubuntu-24.04 x86-64):
+  the product, Google's go-sev-guest and VirTEE's `snpguest` verify
+  every report, nineteen fields equal, no single-byte mutant verified by
+  either library reading.
 - `results/harness-oracle-20261023T205108Z.json` — the harness with the
   Google adapter: 42 reports, eleven fields each, eight of eight mutants
   refused on each.

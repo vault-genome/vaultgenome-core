@@ -3323,6 +3323,11 @@ and the two refusal counts;
 alone: both verify every report, nineteen fields equal, the sweeps on the
 new report as on every other (product 416/768, go-sev-guest 557/627,
 none verified);
+[`test/corpus/sev-snp/results/differential-ci-20261023T205603Z.json`](test/corpus/sev-snp/results/differential-ci-20261023T205603Z.json)
+— the `differential` workflow on the corpus at 42 (run 40022715298,
+ubuntu-24.04 x86-64; `snpguest` built from crates.io in 1 min 31 s): 42
+rows, each with the three verdicts, the fields compared and the two
+refusal counts;
 [`test/corpus/sev-snp/results/harness-oracle-20261023T205108Z.json`](test/corpus/sev-snp/results/harness-oracle-20261023T205108Z.json)
 — the harness with the Google adapter on the 42: eleven fields each,
 eight of eight mutants refused on each;
