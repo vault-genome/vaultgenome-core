@@ -19,6 +19,9 @@ type AttestationDetail struct {
 	// SEVSNP is what a SEV-SNP verifier read from the report beyond the
 	// measurement, and the floor it held it to (ADR 0033).
 	SEVSNP *SEVSNPReportDetail `json:"sev_snp,omitempty"`
+	// Nitro is what the Nitro verifier read from the attestation document
+	// beyond PCR0, and the PCRs it held to pins (ADR 0036).
+	Nitro *NitroDocumentDetail `json:"nitro,omitempty"`
 	// PCRSelection and PCRDigestHex are the vTPM quote's bank and PCRs
 	// and the digest over them the pin was held against.
 	PCRSelection string `json:"pcr_selection,omitempty"`
