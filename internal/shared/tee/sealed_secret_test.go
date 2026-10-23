@@ -47,6 +47,7 @@ func TestSealedSecret_RoundTripsAndBindsNameProviderAndHost(t *testing.T) {
 	_, err = OpenSecret(raw, other, ProviderSimulated, "keys.authority_signing.seed_path")
 	require.Equal(t, shared_errors.CategoryIntegrity, shared_errors.CategoryOf(err))
 	require.ErrorContains(t, err, "does not open it")
+	requireCauseOnce(t, err)
 
 	// A touched file.
 	touched := bytes.Replace(raw, []byte(`"name": "keys.authority_signing.seed_path"`), []byte(`"name": "keys.audit_signing.seed_path"`), 1)

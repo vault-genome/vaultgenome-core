@@ -266,6 +266,16 @@ func TestAPIErrorsAreNamed(t *testing.T) {
 	_, err = c.GenerateRandom(context.Background(), 8, nil)
 	require.ErrorAs(t, err, &e)
 	require.Equal(t, "unknown", e.Type)
+
+	// KMS answers InvalidCiphertextException with no message at all (as it
+	// did on hardware); the error then ends at the request's ID.
+	_, c = newFake(t, creds, func(string, map[string]any) (int, any) {
+		return 400, map[string]any{"__type": "com.amazon.coral.service#InvalidCiphertextException"}
+	})
+	_, err = c.GenerateRandom(context.Background(), 8, nil)
+	require.ErrorAs(t, err, &e)
+	require.Equal(t, "awskms: KMS refused (HTTP 400, InvalidCiphertextException, request req-123)", e.Error())
+	require.False(t, strings.HasSuffix(err.Error(), ": "), "%q", err.Error())
 }
 
 // A signature that does not recompute is what the fake — and KMS — refuse.

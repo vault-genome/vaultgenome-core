@@ -129,7 +129,7 @@ func OpenSecretWith(raw []byte, sealer Sealer, kind SealerKind, provider Provide
 	plain, err := sealer.Unseal(s.Sealed, sealedSecretAAD(provider, s.MeasurementHex, s.Name, SealerKind(s.Sealer)))
 	if err != nil {
 		return nil, shared_errors.Integrity(shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("sealed secret %q: this host does not open it (sealed at %s on %s): %v", name, s.MeasurementHex[:min(16, len(s.MeasurementHex))]+"…", s.TEE, err), err)
+			fmt.Sprintf("sealed secret %q: this host does not open it (sealed at %s on %s)", name, s.MeasurementHex[:min(16, len(s.MeasurementHex))]+"…", s.TEE), err)
 	}
 	return plain, nil
 }

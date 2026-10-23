@@ -173,7 +173,13 @@ type APIError struct {
 }
 
 func (e *APIError) Error() string {
-	return fmt.Sprintf("awskms: KMS refused (HTTP %d, %s, request %s): %s", e.StatusCode, e.Type, e.RequestID, e.Message)
+	s := fmt.Sprintf("awskms: KMS refused (HTTP %d, %s, request %s)", e.StatusCode, e.Type, e.RequestID)
+	if e.Message != "" {
+		// KMS answers some refusals, InvalidCiphertextException among
+		// them, with no message at all.
+		s += ": " + e.Message
+	}
+	return s
 }
 
 // IsAccessDenied reports whether err is KMS's AccessDeniedException — the
