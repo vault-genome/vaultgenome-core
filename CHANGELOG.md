@@ -87,8 +87,23 @@ given release can still open.
   signature is accepted, a wrong secret, a stale date and an unknown key
   are refused by the service, an empty root pool fails the handshake
   (VERIFIABLE-CLAIMS C50). `acpctl recover` refuses a Nitro vault by
-  name: only the enclave opens it. The attested Decrypt has not yet run
-  against KMS from an enclave; the family stays refused until part four.
+  name: only the enclave opens it.
+- The Nitro sealer on hardware, against KMS itself (ADR 0036, part four,
+  stage one; VERIFIABLE-CLAIMS C51). `scripts/hardware-test/aws-nitro/sealer-e2e`
+  works under the kit's role (`../iam/`, a CloudFormation stack the
+  operator creates, with no `kms:Decrypt`): two KMS keys for the run, an
+  m5.xlarge whose role has no permissions of its own, and a
+  production-mode enclave whose probe program attests itself with the
+  shipping producer and opens sealed files with the shipping sealer. The
+  secret sealed to the image opens; another image's file, another
+  secret's, a key whose policy admits another image, a debug-mode enclave
+  and the parent's and the kit's roles without an enclave are refused;
+  CloudTrail's seven records are checked call by call, the granted one's
+  Recipient against the enclave's own document. In debug mode PCR3 and
+  PCR4 keep the parent's measurements, though AWS's guide says a debug
+  document's PCRs are all zero — a key policy that pins only the parent
+  admits a debug-mode enclave. The evidence withholds PCR3 and every IAM unique identifier,
+  both of which name the account.
 - The verifier held to readings nobody here wrote (ADR 0034, part one).
   Every genuine SEV-SNP report on record — 41 on 2026-10-22, 25 chips,
   Milan and Genoa — is a corpus (`test/corpus/sev-snp`, `build.py`, the
@@ -187,6 +202,14 @@ given release can still open.
   verdicts; the two rules the symbolic model does not establish — one
   failover per policy serial, an older serial refused — are named as the
   authority's record.
+
+### Fixed
+
+- A refusal that wraps a cause prints it once. The sealed-secret frame
+  every family opens its key files through, and three Nitro refusals,
+  formatted their cause into the message, and the error printed it again
+  after it; a test holds each to one copy. KMS's refusals without a message
+  (InvalidCiphertextException among them) end at the request's ID.
 
 ## [0.9.0] — 2026-10-22
 

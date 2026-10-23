@@ -2,7 +2,7 @@
 
 What is next, what is out of reach today and why, and what will never be
 claimed. The record of what is done is [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md)
-(C1–C26) and [`CHANGELOG.md`](CHANGELOG.md); the open limits are
+(C1–C51) and [`CHANGELOG.md`](CHANGELOG.md); the open limits are
 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md). Nothing here is a promise with a date.
 
 ## Next
@@ -19,20 +19,20 @@ claimed. The record of what is done is [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIM
   the same evidence (`gpu_evidence` carries a list) is untested.
 - **Operator-facing release notes per version**, and a `docs/` site built
   from the runbooks and the ADRs.
+- **A genome key released to a Nitro enclave, across clouds.** The
+  verifier is proven offline on AWS's own documents (ADR 0035); the NSM
+  producer and the KMS sealer run in a production-mode enclave against
+  KMS itself, every refusal with them and AWS's record of each call
+  ([C51](VERIFIABLE-CLAIMS.md#c51)). Next (ADR 0036): the source's Nitro
+  policy and record, `acp-bootstrap` in the enclave with its sealed key
+  files, and a release from a GCP SEV-SNP authority over the Internet,
+  the restore confirmed from the enclave's receipt; the registry refuses
+  the family until that has run.
 
 ## Blocked on hardware or quota
 
-- **AWS Nitro Enclaves and Intel SGX.** The Nitro verifier is written from
-  AWS's specification and proven offline on the four production documents
-  of May 2026 (ADR 0035, `acpctl attest nitro`); its NSM producer is written
-  from the device's interface (ADR 0036, part one) and its KMS sealer is not
-  yet, both unproven in an enclave, and the registry refuses the family
-  until a live enclave has attested to this code end to end and taken a
-  key release. The account runs a Nitro parent — the kit ran on an
-  m5.xlarge in us-east-2a on 2026-10-14
-  (`scripts/hardware-test/aws-nitro/evidence/2026-10-14`); ADR 0036 is the
-  path to that release. The SGX verifiers are not written and there is no
-  SGX machine; `scripts/hardware-test/azure-sgx` is the starting point.
+- **Intel SGX.** The SGX verifiers are not written and there is no SGX
+  machine; `scripts/hardware-test/azure-sgx` is the starting point.
 - **70B.** A 70B model in bfloat16 (about 140 GB) does not fit the one
   94 GB confidential H100 we can get; two non-confidential H100s are
   behind a quota we do not have, and quantising the base would change what
