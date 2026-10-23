@@ -189,10 +189,12 @@ record. Nitro has to go the same way, and it is not the same place:
   roots and no other (a parent cannot stand in for KMS with a
   certificate a wider store would take), no proxy from the environment,
   every answer held to its form (for a Recipient a CiphertextForRecipient
-  and no plaintext; the key named the key asked for); credentials from
-  the environment (the operator) or the instance metadata service,
-  version 2 (through the parent, from an enclave — they buy the parent
-  nothing, since the policy releases only to the enclave's document).
+  and no plaintext; the key named the key asked for); credentials handed
+  in by the caller — the operator's, which a command's `main` reads at
+  startup (the library reads no environment) — or the instance metadata
+  service's, version 2 (through the parent, from an enclave — they buy
+  the parent nothing, since the policy releases only to the enclave's
+  document).
   Run against KMS itself (`scripts/hardware-test/aws-nitro/kms-live`,
   us-east-2, 2026-10-23): a correct signature accepted, a wrong secret,
   a date twenty minutes behind ("Signature expired" — KMS allows five

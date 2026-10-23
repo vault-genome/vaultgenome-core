@@ -79,9 +79,10 @@ given release can still open.
   EnvelopedData in exactly KMS's profile (RSAES-OAEP-SHA-256, AES-256-CBC),
   held to vectors OpenSSL 3 made and fuzzed; `internal/shared/awskms`,
   GenerateDataKey, Decrypt and GenerateRandom over TLS 1.3 verified
-  against Amazon Trust Services' four roots only, with credentials from
-  the environment or the instance metadata service (version 2, through
-  the parent from an enclave). Run against KMS itself
+  against Amazon Trust Services' four roots only, with credentials handed
+  in by the caller (a command's `main` reads the operator's at startup;
+  the library reads no environment) or from the instance metadata
+  service (version 2, through the parent from an enclave). Run against KMS itself
   (`scripts/hardware-test/aws-nitro/kms-live`, us-east-2): a correct
   signature is accepted, a wrong secret, a stale date and an unknown key
   are refused by the service, an empty root pool fails the handshake

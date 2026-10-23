@@ -3378,8 +3378,8 @@ manifest is not evidence of which image ran
 the IAM User Guide, produces AWS's answer — canonical request, string to
 sign, signature, Authorization header — for all 38 cases of AWS's own
 test suite (aws-c-auth at `84a26ea`, in the repository with its Apache-2.0
-LICENSE and NOTICE). Against AWS KMS itself (us-east-2, 2026-10-23, the
-client at `f1c97c2`, no key and nothing created): a correctly signed
+LICENSE and NOTICE). Against AWS KMS itself (us-east-2, no key and
+nothing created): a correctly signed
 GenerateRandom is answered AccessDeniedException — the signature
 accepted, authorisation left, since the identity has no KMS permission;
 the same request under a wrong secret and with the date twenty minutes
@@ -3405,8 +3405,8 @@ KMS that behaves as the operator guide's key policy does.
 **Evidence.**
 [`internal/shared/awssigv4/testdata/aws-signing-test-suite/`](internal/shared/awssigv4/testdata/aws-signing-test-suite/)
 — AWS's vectors and their provenance (tarball SHA-256 `97f39b13…1de95`);
-[`scripts/hardware-test/aws-nitro/kms-live/evidence/20261023T032633Z/`](scripts/hardware-test/aws-nitro/kms-live/evidence/20261023T032633Z/)
-— the live run (the commit, a clean tree, go1.27.3, each answer with
+[`scripts/hardware-test/aws-nitro/kms-live/evidence/20261023T035355Z/`](scripts/hardware-test/aws-nitro/kms-live/evidence/20261023T035355Z/)
+— the live run (its commit, a clean tree, go1.27.3, each answer with
 KMS's request ID; the access key shortened, the account number taken
 out); [`internal/shared/cms/testdata/`](internal/shared/cms/testdata/) —
 the OpenSSL vectors, the script that made them and the throwaway key.
