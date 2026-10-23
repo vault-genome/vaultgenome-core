@@ -155,6 +155,10 @@ which `git commit -s` adds from your git identity; the email must be the
 author's (a GitHub noreply address is fine). For commits already made,
 `git rebase --signoff origin/main` adds it to each. CI refuses a pull
 request with an unsigned-off commit (`scripts/dco_check.sh`); merge commits
-are exempt. Commits before 2026-10-14 are covered by the founders'
+are exempt, and so, on main, is the commit GitHub writes when it
+squash-merges a pull request — its author is the account's noreply address
+and it carries the squashed commits' sign-offs, each checked on the pull
+request. `main` takes only signed commits; a pull request that carries an
+older unsigned one is merged by squash, which GitHub signs. Commits before 2026-10-14 are covered by the founders'
 copyright and assignment agreements (`NOTICE`, `MAINTAINERS.md`). No CLA:
 the sign-off is the whole of it.
