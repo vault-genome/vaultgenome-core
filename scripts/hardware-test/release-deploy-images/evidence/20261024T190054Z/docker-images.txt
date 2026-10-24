@@ -1,0 +1,2 @@
+sha256:79c4da2a5ee801e19ebe251e776856bc1fa5c657648a69a8eb907d18410f5ca1 [ghcr.io/vault-genome/sagvd:i-was-a-digest] [ghcr.io/vault-genome/sagvd@sha256:79c4da2a5ee801e19ebe251e776856bc1fa5c657648a69a8eb907d18410f5ca1] 65532 [/usr/local/bin/sagvd]
+sha256:ad928f7df7c47e4662fbcc0a404a50a96e545915d5adee9f87ec39a8dd07d5c0 [ghcr.io/vault-genome/acp-compute:i-was-a-digest] [ghcr.io/vault-genome/acp-compute@sha256:ad928f7df7c47e4662fbcc0a404a50a96e545915d5adee9f87ec39a8dd07d5c0] 65532:65532 [/usr/local/bin/acp-compute]

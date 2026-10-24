@@ -1,0 +1,12 @@
+rebuilt from tag v0.11.0 at 162835d51bd320c156e1fadea4e8f6133ace5273 with go1.27.3, tar (GNU tar) 1.35 and gzip 1.15 on Darwin arm64
+sagvd: rebuilt sha256 equals the released file (b982b6f512988934f05568def052e90aa23bc44775f2371d72549a934583484b)
+acp-compute: rebuilt sha256 equals the released file (5cb0e6c16c6feec8cbffb4fdea865b7548525118e8e8a325c79c8ffb121e9b9d)
+acpctl: rebuilt sha256 equals the released file (529e0928c544c782b2d64f6c72ede2a92b98cfbe3ab69529e690c2b720d78837)
+acp-bootstrap: rebuilt sha256 equals the released file (ee8d3f95c4794b780660849be03a9347dfb37dc6a2b4e9b89d78b26f95f85ac3)
+acp-keygen: rebuilt sha256 equals the released file (01386234b221c24d45926b1688098bc514346ac3bbe33672ee90f2624a0e6db8)
+sagvd-fips: rebuilt sha256 equals the released file (187bbad22e0054147d4b71694112397f99ad3a7bc07ccf16fb6b1c4118ae5833)
+acp-compute-fips: rebuilt sha256 equals the released file (3e508a6eeeec3090523bef0e59423072031750203789d68c1316d1fdc109a9a9)
+acpctl-fips: rebuilt sha256 equals the released file (2602b0e6e83db1b1bc6ecfebab6e72b7cce627667b8776e441f9d7f11c9cf7a9)
+acp-bootstrap-fips: rebuilt sha256 equals the released file (95eb357038eea1c988c756cb57e09dd5f1ee4f558964aa34939c465d2e45697e)
+acp-keygen-fips: rebuilt sha256 equals the released file (1f853c195c83904e1a8d6f7607c1f01b18421fda3cb88a2731405b34c3fad051)
+genome-worker-v0.11.0.tar.gz: repacked sha256 equals the released file (2ab1024d595ddd5dce746d628eece6595acc96a176f096b076fa0e3dc0d67c1d)

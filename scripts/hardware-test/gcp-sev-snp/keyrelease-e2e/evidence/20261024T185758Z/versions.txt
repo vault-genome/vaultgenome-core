@@ -1,0 +1,2 @@
+sagvd v0.11.0 (commit 162835d51bd3) fips140=only module=v1.0.0 enforced=true
+acp-bootstrap v0.11.0 (commit 162835d51bd3) fips140=only module=v1.0.0 enforced=true

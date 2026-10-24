@@ -173,3 +173,15 @@ binary inside each equal to its release asset (`06a958c9…`,
 the two `sagvd` images, 9 for the two workers); on the guest, from the
 two default images, `gate_level=EXACT` 6/6, both rogues refused, the
 audit log verified (17 events), 187.1 s.
+
+`20261024T190054Z` is the run on `v0.11.0`, 10 minutes after it was
+published: PASS — the four images `sagvd@sha256:f7359123…`,
+`acp-compute@sha256:c7acc30b…`, `sagvd-fips@sha256:3feaf316…` and
+`acp-compute-fips@sha256:dbbedc2d…`, all publicly readable; each
+signature, SBOM attestation and container provenance verified; the
+binary inside each equal to its release asset (`b982b6f5…`,
+`5cb0e6c1…`, `187bbad2…`, `3e508a6e…`); each loaded image's
+`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
+the two `sagvd` images, 9 for the two workers); on the guest, from the
+two default images, `gate_level=EXACT` 6/6, both rogues refused, the
+audit log verified (17 events), 180.5 s.
