@@ -439,10 +439,12 @@ suite (`key_escrow_suite`). Envelopes, sealed keys and recovery envelopes of
 releases before 0.7 (the X25519 KEM of ADR 0009) still open with the same
 X25519 key.
 
-The sealed key opens only for the same code on the same chip at the same
-measurement. A restart that lands on another host, a new VM image, a dead
-chip: `sagvd` refuses to start and says which measurement the key was sealed
-at. Keep `escrow.recovery` (ciphertext, useless without `recovery.seed`) where
+The sealed key opens only on the same chip at the same launch measurement
+and guest policy, and — on a Compute Engine SEV-SNP host sealed with
+`tee.sealer: both`, the default of `gcp-sev-snp-vtpm` (ADR 0037) — on the
+boot its vTPM policy names. A restart that lands on another host, a new image
+or kernel on such a host, a dead chip: `sagvd` refuses to start and says
+which measurement the key was sealed at. Keep `escrow.recovery` (ciphertext, useless without `recovery.seed`) where
 a restart can reach it, and re-seal on the new host through a pipe, so its disk
 never holds the key in the clear:
 
@@ -618,7 +620,10 @@ fleet may do.
 
 - **New destination measurement** (upgrade, new image): print its identity,
   write a new allow-list with a new `version`, set the same value as
-  `policy_version`. Each `crosscloud-restore` run reads the files afresh.
+  `policy_version`. Each `crosscloud-restore` run reads the files afresh. A
+  `gcp-sev-snp-vtpm` destination's new boot is pinned the same way: add its
+  identity's `vtpm.pcr_digest_hex` to the entry's `pcr_digests`
+  (runbooks/real-tee-gcp-sev-snp-vtpm.md, D).
 - **Revoking a destination:** remove its measurement from the allow-list (new
   version). No further key reaches it; keys it already holds stay where they are.
 - **Authority key:** rotate the seed, run `sagvd identity`, re-pin

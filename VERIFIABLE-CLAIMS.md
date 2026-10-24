@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -561,9 +561,11 @@ make test-integration
 
 **Scope.** The escrow key alone is sealed; the authority's signing seed,
 audit seed and session-sealing key are still files (KNOWN_ISSUES #1, #11).
-The sealed key is bound to the chip and the launch measurement, so a
-restart on another host or a new image needs the operator's ceremony;
-nothing re-provisions itself. The chip's word bounds an attacker who holds
+The sealed key is bound to the chip and the launch measurement — on a
+Compute Engine host Google's UEFI — and, under `tee.sealer: both`, to the
+boot the vTPM measured ([C53](#c53)): a restart on another host, and under
+`both` a new image or kernel, needs the operator's ceremony; nothing
+re-provisions itself. The chip's word bounds an attacker who holds
 the seed without the chip; an intruder with root inside the primary's
 guest holds both and is caught only by the wires (KNOWN_ISSUES #12). The
 model is Qwen2.5-0.5B-Instruct with a LoRA adapter; both machines are CPU
@@ -3634,6 +3636,61 @@ hypervisor's own version is not in the document and is not held.
 
 ---
 
+### C53 — On a Compute Engine SEV-SNP guest the chip's measurement is Google's firmware and does not see the kernel; `gcp-sev-snp-vtpm` holds the boot too: the shipping verifier accepts a pinned boot and the same boot after a reboot and refuses another kernel on the same chip, and a key file sealed to the chip and the boot opens after the reboot and not under the other kernel
+
+**Claim.** On a Compute Engine n2d SEV-SNP instance (Milan, Ubuntu 24.04,
+its vTPM on), over four boots of one VM: the chip's launch measurement was
+the same on every boot, under kernel 7.0.0-1014-gcp and under
+7.0.0-1013-gcp — Google's UEFI, which Google's launch endorsement
+precomputes per vCPU count — and a text sealed with the chip's derived key
+alone opened under the other kernel. The `gcp-sev-snp-vtpm` producer made
+its attestation key from Google's template in the vTPM's endorsement
+hierarchy, the key Google's certificate names, and gave the chip's report
+naming that key beside the key's quote over sha256:0-9. The
+`gcp-sev-snp-vtpm` verifier, the second boot's digest pinned, accepted that
+boot and the same boot after a plain reboot (no PCR moved), and refused the
+other kernel (PCRs 8, 9 and 10 moved: "PCR digest … is not in the
+acceptable set"). A file sealed by the chip-and-vTPM sealer opened after the
+reboot and was refused by the vTPM under the other kernel. The attestation
+key's certificate chained to Google's EK/AK root, which the binary pins,
+through the intermediate its issuer URL served, and named the instance, its
+project and that it is production.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-sev-snp/boot-chain/evidence/20261024T160531Z`](scripts/hardware-test/gcp-sev-snp/boot-chain/evidence/20261024T160531Z)
+(`run.txt`: twelve checks, `RESULT: PASS`; the product step of boots B, C
+and D, the shipping producer, verifier and sealer on the guest);
+[`…/20261024T155106Z`](scripts/hardware-test/gcp-sev-snp/boot-chain/evidence/20261024T155106Z)
+(what moved between boots; the vTPM seal under sha256:0-7, 0-9 and 0-14:
+0-7 opened under the other kernel, 0-9 and 0-14 were refused);
+[`…/20261024T153800Z`](scripts/hardware-test/gcp-sev-snp/boot-chain/evidence/20261024T153800Z)
+(the first run, three boots, kept for what it recorded). Offline, the
+verifier on boot B's captured evidence accepts it, and refuses it under
+another boot's digest, another project, another PCR selection, another
+nonce, a signature with one bit changed, another instance's attestation-key
+certificate, and the report without its quote
+(`internal/shared/tee/gcp_sev_snp_vtpm_test.go`); the attestation-key
+certificate verifies to the pinned root and is refused under another root,
+without its intermediate, before its issue, and with a byte changed
+(`gce_vtpm_test.go`); the chip-and-vTPM sealer refuses another boot on the
+same chip and the same boot on another chip (`sev_snp_vtpm_sealer_test.go`).
+
+**Scope.** One instance type and zone, one image, one kernel swap to an
+older build of the same series. The vTPM is Google's software, outside the
+TEE: the boot is held to it as the firmware is held to Google's UEFI, which
+the chip measures. A guest whose whole boot the chip itself measures needs
+a host that runs the operator's firmware, which this claim does not cover.
+The image's first boot moves PCR 5 (its partition grows), so the boot is
+pinned and the files sealed once the first boot has settled
+([runbook](docs/operator/runbooks/real-tee-gcp-sev-snp-vtpm.md)).
+
+```bash
+scripts/hardware-test/gcp-sev-snp/boot-chain/run.sh <gcp-project>
+go test -count=1 -run 'GCPSEVVTPM|GCEAK|GCEEKAK|GCEInstance|SEVSNPVTPMSealer' ./internal/shared/tee
+```
+
+---
+
 ## What we do not claim
 
 This section is load-bearing. We would rather lose a deal than win one on a
@@ -3681,6 +3738,9 @@ sentence we cannot defend.
    the escrow key to their vTPM (ADR 0022) — a root the cloud provider
    virtualises inside the confidential VM, not the TEE's own; an operator
    who does not accept that root has no sealed escrow key on those hosts.
+   A Compute Engine SEV-SNP host under `gcp-sev-snp-vtpm` seals to its chip
+   and its vTPM together, and attests with both (ADR 0037); the vTPM there
+   is Google's software, outside the TEE ([C53](#c53)).
 5. **We do not claim this at frontier scale.** The largest model measured is
    Qwen/Qwen2.5-32B-Instruct — on an attested confidential GPU VM ([C26](#c26));
    Qwen2.5-7B-Instruct ran on one 24 GB GPU ([C16](#c16)) and on the same

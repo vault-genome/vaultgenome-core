@@ -1,7 +1,12 @@
 # ADR 0023 — The daemons' key files sealed to the host
 
-- **Status:** Accepted (2026-09-16)
+- **Status:** Accepted (2026-09-16); amended by ADR 0037 (2026-10-24)
 - **Tags:** keys, sealing, tee, sagvd, acp-compute
+- **Amended by:** ADR 0037 — on a Compute Engine SEV-SNP host the launch
+  measurement is Google's UEFI, so "a new image" on the same chip derives the
+  same key from the chip alone; the key files there are sealed to the chip and
+  to the boot (`tee.sealer: both`, the default of `gcp-sev-snp-vtpm`), and a new
+  image or kernel does not open them.
 - **Extends:** ADR 0016 (the escrow key sealed to the release host) and
   ADR 0022 (the vTPM sealer) to every key file a daemon reads.
 
