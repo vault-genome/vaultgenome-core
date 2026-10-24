@@ -134,15 +134,19 @@ gcs_get handoff/acp-compute-identity.json /root/acp-compute-identity.json || fai
 cp /root/acp-compute-identity.json "$OUT/acp-compute-identity.json"
 mark identity_received
 
-step "step 3: acpctl provision pin-worker — the worker's measurement from its own chip, pinned"
+step "step 3: acpctl provision pin-worker — the worker's measurement from its own chip, and its boot from its vTPM, pinned"
 ./acpctl provision pin-worker --out "$DEPLOY" --identity /root/acp-compute-identity.json > "$OUT/provision-pin-worker.out" 2> "$OUT/provision-pin-worker.err"
 RC=$?; echo "provision pin-worker exit=$RC" >> "$OUT/steps.txt"
 cp "$DEPLOY/provision.json" "$OUT/provision-complete.json" 2>/dev/null || true
 [ "$RC" = 0 ] || fail "pin-worker: $(tail -3 "$OUT/provision-pin-worker.err")"
-python3 - "$OUT/provision-complete.json" >> "$OUT/steps.txt" 2>&1 <<'PY'
+python3 - "$OUT/provision-complete.json" "$DEPLOY/sagvd.json" >> "$OUT/steps.txt" 2>&1 <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))
 print("phase=%s worker_measurement=%s worker_provider=%s worker_sealer=%s" % (d["phase"], d["worker"]["measurement_hex"], d["worker"].get("provider"), d["worker"].get("sealer")))
+# An azure-sev-snp worker is pinned to its boot as well (ADR 0037): what
+# sagvd.json now names, beside what the worker's identity printed.
+peer = json.load(open(sys.argv[2]))["tee"]["peer"]
+print("worker_boot=%s sagvd_pcr_digests=%s" % (d["worker"].get("vtpm_pcr_digest_hex"), ",".join(peer.get("pcr_digests") or [])))
 PY
 mark pinned
 
