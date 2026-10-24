@@ -30,8 +30,22 @@ given release can still open.
   producer, verifier and sealer on the guest; the second boot pinned, a
   reboot accepted, another kernel refused.
 - `docs/operator/runbooks/real-tee-gcp-sev-snp-vtpm.md`.
+- `acpctl provision` pins each side's boot on Azure: the configurations
+  start on a placeholder no boot measures; the one-host form writes each
+  side's boot from its identity, the worker's bundle names the
+  authority's, and `pin-worker` pins the worker's beside its measurement.
+- `scripts/hardware-test/azure-sev-snp/returnpath-e2e`: a worker whose
+  boot is not the one pinned is refused at the handshake.
 
 ### Changed
+
+- **An Azure peer or destination names its boot (ADR 0037).** `pcr_digests`
+  is required for an `azure-sev-snp` and an `azure-cgpu` peer and registry
+  entry, and the verifiers refuse a policy without it: under Azure's
+  paravisor the launch measurement is the paravisor's and the firmware's,
+  and only the vTPM measures the OS. A configuration without it no longer
+  starts; the peer's `identity` prints the digest as
+  `vtpm.pcr_digest_hex`.
 
 - The SEV-SNP corpus of ADR 0034 holds 65 reports from 27 chips: the ten
   the boot-chain kit kept joined it, read alike by the product and by

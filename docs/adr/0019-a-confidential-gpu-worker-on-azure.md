@@ -1,6 +1,7 @@
 # ADR 0019: A Confidential GPU Worker on Azure — the Chip, the vTPM and the GPU in One Evidence
 
-**Status:** Accepted — implemented (2026-09-16)
+**Status:** Accepted — implemented (2026-09-16); amended by ADR 0037 (2026-10-24)
+**Amended by:** ADR 0037 — the boot is required: an `azure-cgpu` peer or registry entry without `pcr_digests` is refused, as is a verifier constructed without it; the launch measurement under the paravisor says nothing of the OS
 **Date:** 2026-09-16
 **Authors:** Serhii Nikolaichuk (CEO), Rodion Sorokin (CTO)
 **Builds on:** ADR 0014 (both daemons attest with the hardware they run on), ADR 0018 (Intel TDX on the Return Path), ADR 0009 (SEV-SNP verification to the AMD root), ADR 0007 (variable-length measurements), ADR 0001 (frozen Producer/Verifier/Sealer)
@@ -124,9 +125,9 @@ gate job. The verifier's tests run against the capture, offline.
 - **The pin names the paravisor, not the OS.** Azure's SNP launch
   measurement covers the firmware Azure measures; the OS and the driver
   are in the vTPM's PCRs, which the quote records and the verifier
-  polices only when the operator lists `pcr_digests` (added after this
-  ADR; the digest is a property of a boot, so it is taken from `identity`
-  on the running machine). The GPU's software is pinned through NVIDIA's
+  polices through `pcr_digests` (added after this ADR, required by ADR
+  0037; the digest is a property of a boot, so it is taken from
+  `identity` on the running machine). The GPU's software is pinned through NVIDIA's
   claims (driver, VBIOS) instead.
 - **As a destination.** The provider has taken a key release as the
   standby of a failover (`scripts/hardware-test/failover-cgpu`,
