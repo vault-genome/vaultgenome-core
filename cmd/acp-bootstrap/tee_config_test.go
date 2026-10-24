@@ -61,7 +61,7 @@ func TestValidate_HardwareProviderFields(t *testing.T) {
 		"azure without the attest command": {func(c *Config) { hardware(c, "azure-cgpu") },
 			"tee.gpu_attest_command required when tee.provider=azure-cgpu"},
 		"attest command on simulated": {func(c *Config) { c.TEE.GPUAttestCommand = []string{"/opt/nvidia/attest"} },
-			"tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu and azure-sev-snp only"},
+			"tee.gpu_attest_command and ak_handle apply to azure-cgpu and azure-sev-snp only, and tpm2_tools_dir to those and gcp-sev-snp-vtpm"},
 		"tpm2 dir on sev-snp": {func(c *Config) {
 			hardware(c, "gcp-sev-snp")
 			c.TEE.TPM2ToolsDir = "/usr/bin"
@@ -75,17 +75,17 @@ func TestValidate_HardwareProviderFields(t *testing.T) {
 			c.TEE.SEVGuestDevice = "/dev/sev-guest-1"
 		}, ""},
 		"sev device on simulated": {func(c *Config) { c.TEE.SEVGuestDevice = "/dev/sev-guest-1" },
-			"tee.sev_guest_device applies to gcp-sev-snp only"},
+			"tee.sev_guest_device applies to gcp-sev-snp and gcp-sev-snp-vtpm only"},
 		"sev device on tdx": {func(c *Config) {
 			hardware(c, "gcp-tdx")
 			c.TEE.SEVGuestDevice = "/dev/sev-guest"
-		}, "tee.sev_guest_device applies to gcp-sev-snp only"},
+		}, "tee.sev_guest_device applies to gcp-sev-snp and gcp-sev-snp-vtpm only"},
 		"vtpm pcrs on simulated": {func(c *Config) { c.TEE.VTPMSealPCRs = "sha256:0" },
-			"tee.vtpm_seal_pcrs applies to gcp-tdx, azure-cgpu and azure-sev-snp only"},
+			"tee.vtpm_seal_pcrs applies where a vTPM seals"},
 		"vtpm pcrs on sev-snp": {func(c *Config) {
 			hardware(c, "gcp-sev-snp")
 			c.TEE.VTPMSealPCRs = "sha256:0"
-		}, "tee.vtpm_seal_pcrs applies to gcp-tdx, azure-cgpu and azure-sev-snp only"},
+		}, "tee.vtpm_seal_pcrs applies where a vTPM seals"},
 		"vtpm pcrs as a range on tdx": {func(c *Config) {
 			hardware(c, "gcp-tdx")
 			c.TEE.VTPMSealPCRs = "sha256:0-14"

@@ -160,6 +160,14 @@ type verifierEntry struct {
 	GPUPolicy    *GPUPolicyConfig `json:"gpu_policy,omitempty"`
 	PCRDigests   []string         `json:"pcr_digests,omitempty"`
 
+	// gcp-sev-snp-vtpm (ADR 0037), with the AMD fields above: the boots the
+	// destination may run, required (pcr_digests); the selection its quote
+	// covers (default sha256:0-9); the Compute Engine projects it may be an
+	// instance of; roots added to Google's pinned EK/AK root.
+	PCRSelection     string   `json:"pcr_selection,omitempty"`
+	GCEProjectIDs    []string `json:"gce_project_ids,omitempty"`
+	GCEEKAKRootsPath string   `json:"gce_ek_ak_roots_path,omitempty"`
+
 	// Nitro (provider "aws-nitro", ADR 0036): expected_measurement_hex is
 	// the image's PCR0; this pins PCRs beyond it and bounds the document's
 	// timestamp. The AWS Nitro Enclaves root is the binary's own.
@@ -360,6 +368,34 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 				MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol,
 				VCEKCacheDir: e.VCEKCacheDir,
 			}
+		case tee.ProviderGCPSEVSNPVTPM:
+			if e.AMDCertChainPath == "" {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: gcp-sev-snp-vtpm requires amd_cert_chain_path (the AMD ASK+ARK chain the VCEK must chain to)", i)
+			}
+			if len(e.PCRDigests) == 0 {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: gcp-sev-snp-vtpm requires pcr_digests, the boots the destination may run: its launch measurement is Google's firmware and says nothing of the kernel (ADR 0037)", i)
+			}
+			chain, err := os.ReadFile(e.AMDCertChainPath)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].amd_cert_chain_path: %w", i, err)
+			}
+			digests, err := pcrDigests(e.PCRDigests)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
+			}
+			var roots []byte
+			if e.GCEEKAKRootsPath != "" {
+				if roots, err = os.ReadFile(e.GCEEKAKRootsPath); err != nil {
+					return nil, fmt.Errorf("sagvd: verifier_registry[%d].gce_ek_ak_roots_path: %w", i, err)
+				}
+			}
+			spec.GCPSEVVTPM = tee.GCPSEVVTPMVerifierConfig{
+				SEV:                  tee.GCPSEVVerifierConfig{AMDRootPEM: chain, AMDKDSURL: e.AMDKDSURL, MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol, VCEKCacheDir: e.VCEKCacheDir},
+				PCRs:                 e.PCRSelection,
+				AcceptablePCRDigests: digests,
+				ProjectIDs:           e.GCEProjectIDs,
+				ExtraRootsPEM:        roots,
+			}
 		case tee.ProviderGCPTDX:
 			spec.GCPTDX = tee.GCPTDXVerifierConfig{PCSURL: e.PCSURL, PCSCacheDir: e.PCSCacheDir, AcceptableTCBStatuses: e.AcceptableTCBStatuses}
 		case tee.ProviderAzureSEVSNP:
@@ -407,7 +443,7 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 		default:
 			// Fail closed: a family whose verifier this build cannot run
 			// end to end must not be trusted with key releases.
-			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-tdx, azure-cgpu, azure-sev-snp, aws-nitro)", i, provider)
+			return nil, fmt.Errorf("sagvd: verifier_registry[%d].provider %q: no verifier this build can run end to end (supported: simulated, gcp-sev-snp, gcp-sev-snp-vtpm, gcp-tdx, azure-cgpu, azure-sev-snp, aws-nitro)", i, provider)
 		}
 		specs = append(specs, tee.RegistrySpec{Provider: provider, Spec: spec})
 	}

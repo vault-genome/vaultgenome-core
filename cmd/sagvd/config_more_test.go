@@ -29,8 +29,11 @@ func TestValidateTEE_FieldsBelongToTheirProvider(t *testing.T) {
 	peer := func(provider string, mutate func(p *PeerTEEConfig)) TEEConfig {
 		c := sim
 		c.Peer = PeerTEEConfig{Provider: provider, MeasurementPath: "/m"}
-		if provider == "gcp-sev-snp" || provider == "azure-cgpu" {
+		if provider == "gcp-sev-snp" || provider == "azure-cgpu" || provider == "gcp-sev-snp-vtpm" {
 			c.Peer.AMDCertChainPath = "/chain.pem"
+		}
+		if provider == "gcp-sev-snp-vtpm" {
+			c.Peer.PCRDigests = []string{strings.Repeat("cd", 32)}
 		}
 		if mutate != nil {
 			mutate(&c.Peer)
@@ -49,7 +52,7 @@ func TestValidateTEE_FieldsBelongToTheirProvider(t *testing.T) {
 			"set tee.insecure_simulation=true"},
 		"simulated with tsm dir":      {func() TEEConfig { c := sim; c.TSMReportDir = "/sys/kernel/config/tsm/report"; return c }(), "tsm_report_dir applies to gcp-sev-snp and gcp-tdx only"},
 		"simulated with sev device":   {func() TEEConfig { c := sim; c.SEVGuestDevice = "/dev/sev-guest"; return c }(), "sev_guest_device applies to gcp-sev-snp only"},
-		"simulated with tpm tools":    {func() TEEConfig { c := sim; c.TPM2ToolsDir = "/opt/tpm2"; return c }(), "tpm2_tools_dir and ak_handle apply to azure-cgpu and azure-sev-snp only"},
+		"simulated with tpm tools":    {func() TEEConfig { c := sim; c.TPM2ToolsDir = "/opt/tpm2"; return c }(), "ak_handle apply to azure-cgpu and azure-sev-snp only, and tpm2_tools_dir to those and gcp-sev-snp-vtpm"},
 		"sev-snp":                     {hardware("gcp-sev-snp"), ""},
 		"sev-snp with a seed":         {func() TEEConfig { c := hardware("gcp-sev-snp"); c.SeedPath = "/seed"; return c }(), "seed_path applies to the simulated provider only"},
 		"sev-snp acknowledged":        {func() TEEConfig { c := hardware("gcp-sev-snp"); c.InsecureSimulation = true; return c }(), "insecure_simulation applies to the simulated provider only"},
@@ -67,7 +70,7 @@ func TestValidateTEE_FieldsBelongToTheirProvider(t *testing.T) {
 		"simulated peer without key":  {func() TEEConfig { c := sim; c.Peer.PublicKeyPath = ""; return c }(), "tee.peer.public_key_path required"},
 		"simulated peer with amd":     {func() TEEConfig { c := sim; c.Peer.VCEKCacheDir = "/cache"; return c }(), "apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"},
 		"simulated peer with pcs":     {func() TEEConfig { c := sim; c.Peer.PCSURL = "https://pcs"; return c }(), "apply to a gcp-tdx peer only"},
-		"simulated peer with nras":    {func() TEEConfig { c := sim; c.Peer.NRASJWKSURL = "https://nras"; return c }(), "apply to an azure-cgpu or azure-sev-snp peer only"},
+		"simulated peer with nras":    {func() TEEConfig { c := sim; c.Peer.NRASJWKSURL = "https://nras"; return c }(), "gpu_policy apply to an azure-cgpu peer"},
 		"sev-snp peer":                {peer("gcp-sev-snp", nil), ""},
 		"sev-snp peer with key":       {peer("gcp-sev-snp", func(p *PeerTEEConfig) { p.PublicKeyPath = "/k" }), "signed by the chip's VCEK"},
 		"sev-snp peer without chain":  {peer("gcp-sev-snp", func(p *PeerTEEConfig) { p.AMDCertChainPath = "" }), "amd_cert_chain_path required when tee.peer.provider=gcp-sev-snp"},
@@ -81,6 +84,26 @@ func TestValidateTEE_FieldsBelongToTheirProvider(t *testing.T) {
 		"azure-cgpu peer with pcs":    {peer("azure-cgpu", func(p *PeerTEEConfig) { p.AcceptableTCBStatuses = []string{"UpToDate"} }), "apply to a gcp-tdx peer only"},
 		"azure-cgpu peer bad policy":  {peer("azure-cgpu", func(p *PeerTEEConfig) { p.GPUPolicy = &GPUPolicyConfig{Evaluation: "trust-me"} }), "tee.peer.gpu_policy.evaluation"},
 		"azure-cgpu peer bad digests": {peer("azure-cgpu", func(p *PeerTEEConfig) { p.PCRDigests = []string{"zz"} }), "tee.peer.pcr_digests"},
+		// gcp-sev-snp-vtpm (ADR 0037): the boot is required, the delegated
+		// Verifiers do not read the quote, and its fields are its own.
+		"vtpm host": {func() TEEConfig {
+			c := hardware("gcp-sev-snp-vtpm")
+			c.TPM2ToolsDir, c.VTPMQuotePCRs = "/opt/tpm2", "sha256:0,1,2,3,4,5,6,7,8,9"
+			return c
+		}(), ""},
+		"vtpm host bad quote pcrs": {func() TEEConfig { c := hardware("gcp-sev-snp-vtpm"); c.VTPMQuotePCRs = "sha1:0"; return c }(), "tee.vtpm_quote_pcrs"},
+		"vtpm host with ak handle": {func() TEEConfig { c := hardware("gcp-sev-snp-vtpm"); c.AKHandle = "0x81000003"; return c }(), "makes its attestation key from Google's template"},
+		"quote pcrs elsewhere":     {func() TEEConfig { c := hardware("gcp-sev-snp"); c.VTPMQuotePCRs = "sha256:0"; return c }(), "apply to gcp-sev-snp-vtpm only"},
+		"vtpm peer": {peer("gcp-sev-snp-vtpm", func(p *PeerTEEConfig) {
+			p.GCEProjectIDs = []string{"rats-probe"}
+			p.PCRSelection = "sha256:0,1,2,3,4,5,6,7,8,9"
+		}), ""},
+		"vtpm peer names no boot": {peer("gcp-sev-snp-vtpm", func(p *PeerTEEConfig) { p.PCRDigests = nil }), "tee.peer.pcr_digests required when tee.peer.provider=gcp-sev-snp-vtpm"},
+		"vtpm peer no chain":      {peer("gcp-sev-snp-vtpm", func(p *PeerTEEConfig) { p.AMDCertChainPath = "" }), "amd_cert_chain_path required when tee.peer.provider=gcp-sev-snp-vtpm"},
+		"vtpm peer delegated": {peer("gcp-sev-snp-vtpm", func(p *PeerTEEConfig) {
+			p.Verifier = &PeerVerifierConfig{Mode: "rats", URL: "https://verifier.example", EARPublicKeyPath: "/ear.pem"}
+		}), "appraised by this verifier only"},
+		"gce fields elsewhere": {peer("gcp-sev-snp", func(p *PeerTEEConfig) { p.GCEProjectIDs = []string{"x"} }), "apply to a gcp-sev-snp-vtpm peer only"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			errs := validateTEE(tc.cfg)

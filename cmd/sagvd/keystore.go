@@ -264,6 +264,21 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 			return "", nil, fmt.Errorf("sagvd: tee.provider=gcp-tdx: %w", err)
 		}
 		return provider, p, nil
+	case tee.ProviderGCPSEVSNPVTPM:
+		var inter []byte
+		if cfg.AKIntermediatesPath != "" {
+			b, err := os.ReadFile(cfg.AKIntermediatesPath)
+			if err != nil {
+				return "", nil, fmt.Errorf("sagvd: read tee.ak_intermediates_path (%q): %w", cfg.AKIntermediatesPath, err)
+			}
+			inter = b
+		}
+		p, err := tee.NewGCPSEVVTPMProducer(tee.GCPSEVVTPMProducerConfig{SEV: tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir},
+			TPM2ToolsDir: cfg.TPM2ToolsDir, PCRs: cfg.VTPMQuotePCRs, IntermediatesPEM: inter})
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: tee.provider=gcp-sev-snp-vtpm: %w", err)
+		}
+		return provider, p, nil
 	case tee.ProviderAzureSEVSNP:
 		p, err := tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
 		if err != nil {
@@ -335,6 +350,31 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 			AMDKDSURL:      cfg.AMDKDSURL,
 			VCEKCacheDir:   cfg.VCEKCacheDir,
 			MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol,
+		}
+	case tee.ProviderGCPSEVSNPVTPM:
+		if len(measurement) != 48 {
+			return "", nil, fmt.Errorf("sagvd: tee.peer.measurement_path (%q) must hold a 48-byte SEV-SNP launch measurement (got %d bytes)", cfg.MeasurementPath, len(measurement))
+		}
+		chain, err := os.ReadFile(cfg.AMDCertChainPath)
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: read tee.peer.amd_cert_chain_path (%q): %w", cfg.AMDCertChainPath, err)
+		}
+		digests, err := pcrDigests(cfg.PCRDigests)
+		if err != nil {
+			return "", nil, fmt.Errorf("sagvd: tee.peer.%w", err)
+		}
+		var roots []byte
+		if cfg.GCEEKAKRootsPath != "" {
+			if roots, err = os.ReadFile(cfg.GCEEKAKRootsPath); err != nil {
+				return "", nil, fmt.Errorf("sagvd: read tee.peer.gce_ek_ak_roots_path (%q): %w", cfg.GCEEKAKRootsPath, err)
+			}
+		}
+		spec.GCPSEVVTPM = tee.GCPSEVVTPMVerifierConfig{
+			SEV:                  tee.GCPSEVVerifierConfig{AMDRootPEM: chain, AMDKDSURL: cfg.AMDKDSURL, VCEKCacheDir: cfg.VCEKCacheDir, MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol},
+			PCRs:                 cfg.PCRSelection,
+			AcceptablePCRDigests: digests,
+			ProjectIDs:           cfg.GCEProjectIDs,
+			ExtraRootsPEM:        roots,
 		}
 	case tee.ProviderGCPTDX:
 		if len(measurement) != 48 {

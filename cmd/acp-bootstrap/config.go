@@ -176,8 +176,10 @@ type TEEConfig struct {
 	// step 1b): "auto" (the TEE's own key where it has one — SEV-SNP's
 	// derived key — else the host's TPM 2.0, else the simulated key),
 	// "tee" (the TEE's own key only; refused on TDX and Azure, which have
-	// none), or "tpm2" (the host's TPM 2.0 through tpm2-tools, whatever
-	// the TEE). Every sealed file names the sealer it was made with.
+	// none), "tpm2" (the host's TPM 2.0 through tpm2-tools, whatever
+	// the TEE), or "both" (SEV-SNP's derived key nested inside the TPM's
+	// sealed object, ADR 0037: this chip and the boot the PCR policy names).
+	// Every sealed file names the sealer it was made with.
 	Sealer string `json:"sealer,omitempty"`
 
 	// AutoResolvedFrom is set by ResolveAuto when Provider was "auto": the
@@ -203,6 +205,14 @@ type TEEConfig struct {
 	// a gcp-tdx or azure-cgpu host (ADR 0022; default sha256:0-14, the
 	// boot the operator pins). Those providers only.
 	VTPMSealPCRs string `json:"vtpm_seal_pcrs,omitempty"`
+
+	// VTPMQuotePCRs is the PCR selection a gcp-sev-snp-vtpm destination's
+	// vTPM quotes (ADR 0037; default sha256:0-9); AKIntermediatesPath a PEM
+	// file of the certificates between its attestation-key certificate and
+	// Google's EK/AK root (default: the one the certificate's issuer URL
+	// serves). gcp-sev-snp-vtpm only.
+	VTPMQuotePCRs       string `json:"vtpm_quote_pcrs,omitempty"`
+	AKIntermediatesPath string `json:"ak_intermediates_path,omitempty"`
 
 	// AWSKMS is the KMS key a Nitro enclave's key files are sealed under,
 	// and the vsock ports of the parent's forwarders to KMS and to the
@@ -255,7 +265,7 @@ func (t TEEConfig) SEVDevice() string {
 }
 
 // supportedProviders are the TEE backends this build can run.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderAWSNitro, tee.ProviderSimulated, tee.ProviderAuto}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPSEVSNPVTPM, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderAWSNitro, tee.ProviderSimulated, tee.ProviderAuto}
 
 // SourceAuthorityConfig points at the source-authority signing
 // public key file. Used by the receiver to verify every handshake +
@@ -581,7 +591,7 @@ func (c Config) Validate() error {
 				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
 			}
 		}
-	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
+	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX || provider == tee.ProviderGCPSEVSNPVTPM:
 		if c.TEE.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
 		}
@@ -615,8 +625,16 @@ func (c Config) Validate() error {
 		(c.TEE.AWSKMS != nil || c.TEE.SecretFilesVsockPort != 0 || c.Log.VsockPort != 0) {
 		errs = append(errs, errors.New("tee.aws_kms, tee.secret_files_vsock_port and log.vsock_port apply to aws-nitro only"))
 	}
-	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderAzureCGPU && lp != tee.ProviderAzureSEVSNP && (len(c.TEE.GPUAttestCommand) > 0 || c.TEE.TPM2ToolsDir != "" || c.TEE.AKHandle != "") {
-		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu and azure-sev-snp only"))
+	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderAzureCGPU && lp != tee.ProviderAzureSEVSNP && (len(c.TEE.GPUAttestCommand) > 0 || c.TEE.AKHandle != "" ||
+		(c.TEE.TPM2ToolsDir != "" && lp != tee.ProviderGCPSEVSNPVTPM)) {
+		errs = append(errs, errors.New("tee.gpu_attest_command and ak_handle apply to azure-cgpu and azure-sev-snp only, and tpm2_tools_dir to those and gcp-sev-snp-vtpm"))
+	}
+	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderGCPSEVSNPVTPM && (c.TEE.VTPMQuotePCRs != "" || c.TEE.AKIntermediatesPath != "") {
+		errs = append(errs, errors.New("tee.vtpm_quote_pcrs and ak_intermediates_path apply to gcp-sev-snp-vtpm only"))
+	} else if c.TEE.VTPMQuotePCRs != "" {
+		if err := tee.ValidatePCRSelection(c.TEE.VTPMQuotePCRs); err != nil {
+			errs = append(errs, fmt.Errorf("tee.vtpm_quote_pcrs: %w", err))
+		}
 	}
 	if strings.TrimSpace(c.TEE.WorkloadDescriptor) == "" {
 		errs = append(errs, errors.New("tee.workload_descriptor required"))
@@ -651,17 +669,18 @@ func (c Config) Validate() error {
 	}
 
 	if provider, err := tee.ParseProvider(c.TEE.Provider); err == nil {
-		if c.TEE.SEVGuestDevice != "" && provider != tee.ProviderGCPSEVSNP {
-			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp only"))
+		if c.TEE.SEVGuestDevice != "" && provider != tee.ProviderGCPSEVSNP && provider != tee.ProviderGCPSEVSNPVTPM {
+			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp and gcp-sev-snp-vtpm only"))
 		}
 		if c.TEE.VTPMSealPCRs != "" {
-			switch provider {
-			case tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP:
+			switch {
+			case provider == tee.ProviderGCPTDX || provider == tee.ProviderAzureCGPU || provider == tee.ProviderAzureSEVSNP || provider == tee.ProviderGCPSEVSNPVTPM,
+				provider == tee.ProviderGCPSEVSNP && (c.TEE.SealerMode() == tee.SealerModeBoth || c.TEE.SealerMode() == tee.SealerModeTPM2):
 				if err := tee.ValidatePCRSelection(c.TEE.VTPMSealPCRs); err != nil {
 					errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
 				}
 			default:
-				errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies to gcp-tdx, azure-cgpu and azure-sev-snp only"))
+				errs = append(errs, errors.New("tee.vtpm_seal_pcrs applies where a vTPM seals: gcp-tdx, azure-cgpu, azure-sev-snp, gcp-sev-snp-vtpm, and gcp-sev-snp under tee.sealer both or tpm2"))
 			}
 		}
 	}

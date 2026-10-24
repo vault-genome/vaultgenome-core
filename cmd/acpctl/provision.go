@@ -329,6 +329,8 @@ func provisionFamily(name string) (local, resolved tee.Provider, err error) {
 		return p, p, nil
 	case tee.ProviderAzureCGPU:
 		return "", "", errors.New("--provider azure-cgpu: the confidential GPU VM needs its GPU attestation command and policy; set it up by the runbook (docs/operator/runbooks/real-tee-azure-cgpu.md)")
+	case tee.ProviderGCPSEVSNPVTPM:
+		return "", "", errors.New("--provider gcp-sev-snp-vtpm: each host's boot (pcr_digests) is pinned from its own identity after its first boot has settled; set it up by the runbook (docs/operator/runbooks/real-tee-gcp-sev-snp-vtpm.md)")
 	default:
 		return "", "", fmt.Errorf("--provider %q: no deployment this command can set up (supported: gcp-sev-snp, gcp-tdx, azure-sev-snp, simulated, auto)", name)
 	}
@@ -369,10 +371,10 @@ func measurementLen(p tee.Provider) int {
 // checkSealer validates --sealer.
 func checkSealer(s string) error {
 	switch s {
-	case "auto", "tee", "tpm2":
+	case "auto", "tee", "tpm2", "both":
 		return nil
 	default:
-		return fmt.Errorf("--sealer %q: one of auto, tee, tpm2", s)
+		return fmt.Errorf("--sealer %q: one of auto, tee, tpm2, both", s)
 	}
 }
 
