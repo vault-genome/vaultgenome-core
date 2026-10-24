@@ -3286,7 +3286,7 @@ kit's way to show the refusal on the hardware at hand — a chip below the
 live floors was not available to refuse.
 
 <a id="c47"></a>
-### C47 — The SEV-SNP verifier's reading is equal to two implementations nobody here wrote, on every genuine report on record, and no single-byte mutant verifies on any side: Google's go-sev-guest and VirTEE's snpguest on 41 reports from 25 chips, reproduced in CI
+### C47 — The SEV-SNP verifier's reading is equal to two implementations nobody here wrote, on every genuine report on record, and no single-byte mutant verifies on any side: Google's go-sev-guest and VirTEE's snpguest on 55 reports from 27 chips, reproduced in CI
 
 **Claim.** One test ([ADR 0034](docs/adr/0034-the-differential-corpus.md);
 `internal/shared/tee/differential_test.go`, `make differential`) calls the
