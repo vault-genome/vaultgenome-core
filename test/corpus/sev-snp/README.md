@@ -4,7 +4,7 @@ This directory is whole on its own: every genuine AMD SEV-SNP attestation
 report Vault Genome has on record, the VCEK each one verifies under, AMD's
 ASK+ARK chain for each product, what every verifier must read from each
 report, and the digests of all of it. A tarball of this directory is the
-corpus. On 2026-10-24: 55 reports from 27 distinct chips, Milan and Genoa,
+corpus. On 2026-10-24: 65 reports from 27 distinct chips, Milan and Genoa,
 report versions 3 and 5, firmware from SNP 0x17 to 0x1d.
 
 | File | What it is |
@@ -19,13 +19,14 @@ report versions 3 and 5, firmware from SNP 0x17 to 0x1d.
 | `build.py` | makes all of it from the hardware kits' evidence (the standard library only); `--no-fetch` stays offline |
 
 Where the reports come from: the hardware kits of this repository kept
-them — the key-release and Return Path kits on GCP Milan, the confidential
-GPU and vTPM kits on Azure Genoa — and the restore receipts of the
-key-release kits embed the report the destination's chip signed. The
-manifest's `source` column names the evidence directory of each; two
-files of the demo kits of 2026-10-14/15 are not reports (the kernel's
-ioctl response, its signature cut) and are left out. Nothing here is
-secret: a report, a VCEK and AMD's chain are what any verifier is handed.
+them — the key-release, Return Path and boot-chain kits on GCP Milan,
+the confidential GPU and vTPM kits on Azure Genoa — and the restore
+receipts of the key-release kits embed the report the destination's chip
+signed. The manifest's `source` column names the evidence directory of
+each; two files of the demo kits of 2026-10-14/15 are not reports (the
+kernel's ioctl response, its signature cut) and are left out. Nothing
+here is secret: a report, a VCEK and AMD's chain are what any verifier
+is handed.
 
 ## Run your verifier against it
 
@@ -86,6 +87,13 @@ must be refused. The product's own reading is the first user
   no mutant verified by either.
 - `results/harness-oracle-20261024T014543Z.json` — the harness with the Google
   adapter on the 55: eleven fields each, eight of eight mutants refused on
+  each.
+- `results/differential-20261024T163710Z.json` — the corpus at 65 (the ten
+  reports of the boot-chain kit of ADR 0037 added, both chips already on
+  record), the Google reading alone: both verify every report, nineteen
+  fields equal, no mutant verified by either.
+- `results/harness-oracle-20261024T164532Z.json` — the harness with the Google
+  adapter on the 65: eleven fields each, eight of eight mutants refused on
   each.
 
 ## Licence

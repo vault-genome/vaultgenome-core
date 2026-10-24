@@ -33,6 +33,10 @@ given release can still open.
 
 ### Changed
 
+- The SEV-SNP corpus of ADR 0034 holds 65 reports from 27 chips: the ten
+  the boot-chain kit kept joined it, read alike by the product and by
+  Google's go-sev-guest, every mutant refused (C47).
+
 - The threat model's SEV-SNP section, ADR 0016 and 0023, the cross-cloud
   restore guide, KNOWN_ISSUES and the banking map state what each
   platform's measurement holds: on Compute Engine the launch measurement is
