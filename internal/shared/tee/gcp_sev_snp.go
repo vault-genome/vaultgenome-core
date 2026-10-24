@@ -41,9 +41,12 @@
 // Sealing on SEV-SNP uses derived keys from the platform sealing root.
 // Unlike SGX, SEV-SNP sealing is not transparent — the guest must
 // derive its own AES key from the SEV_SNP_GUEST_MSG_DERIVED_KEY
-// response, then use it for AEAD. The derivation can be bound to the
-// guest policy + measurement so that a different VM image cannot
-// reproduce the key.
+// response, then use it for AEAD. The derivation is bound to the guest
+// policy and the launch measurement, so a guest launched with other first
+// pages cannot reproduce the key; on Compute Engine those pages are
+// Google's UEFI, and the operating system on the disk is not among them —
+// tee.sealer both nests this key inside the vTPM's, sealed to the boot
+// (sev_snp_vtpm_sealer.go, ADR 0037).
 
 package tee
 
@@ -288,6 +291,25 @@ func (p *GCPSEVProducer) QuoteWithAux(nonce Nonce) (Evidence, []byte, error) {
 		)
 	}
 	return Evidence(report.Raw), report.AuxBlob, nil
+}
+
+// reportWithData is QuoteWithAux for a REPORT_DATA the caller composes: the
+// same lock, the same refusal of a report whose measurement moved.
+func (p *GCPSEVProducer) reportWithData(reportData [64]byte) (*sevSNPReport, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.tsm == nil {
+		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "gcp-sev: producer closed", nil)
+	}
+	report, err := sevSNPGuestReportWithData(p.tsm, reportData, p.cfg.VMPL)
+	if err != nil {
+		return nil, fmt.Errorf("gcp-sev: request report: %w", err)
+	}
+	if !Measurement(report.Measurement[:]).Equal(p.measurement) {
+		return nil, shared_errors.Integrity(shared_errors.CodeAttestationDenied,
+			"gcp-sev: report carries a different launch measurement than this producer was started with", nil)
+	}
+	return report, nil
 }
 
 // Measurement returns the cached launch MEASUREMENT.
@@ -555,7 +577,7 @@ func (s *GCPSEVSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 	if err != nil {
 		return nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			"gcp-sev-sealer: AEAD open (different VM image / policy?)",
+			"gcp-sev-sealer: AEAD open (another chip, launch measurement or guest policy?)",
 			err,
 		)
 	}
@@ -611,6 +633,13 @@ var sevSNPGuestReport = func(tsm tsmReporter, nonce []byte, vmpl uint32) (*sevSN
 	var reportData [64]byte
 	prefix := computeReportDataPrefix(nonce)
 	copy(reportData[:], prefix[:])
+	return sevSNPGuestReportWithData(tsm, reportData, vmpl)
+}
+
+// sevSNPGuestReportWithData requests a report whose REPORT_DATA is
+// reportData, whole: the gcp-sev-snp-vtpm producer puts SHA-256 of its
+// attestation key in the second half (ADR 0037).
+var sevSNPGuestReportWithData = func(tsm tsmReporter, reportData [64]byte, vmpl uint32) (*sevSNPReport, error) {
 	raw, aux, err := tsm.report(reportData, vmpl)
 	if err != nil {
 		return nil, err

@@ -169,6 +169,8 @@ func VTPMBootOf(p Producer) (pcrs []string, digest []byte, ok bool) {
 		boot = a.vtpm.boot
 	case *AzureSEVSNPProducer:
 		boot = a.vtpm.boot
+	case *GCPSEVVTPMProducer:
+		boot = a.vtpm.boot
 	default:
 		return nil, nil, false
 	}

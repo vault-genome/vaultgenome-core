@@ -10,13 +10,13 @@ import (
 )
 
 func TestParseSealerMode(t *testing.T) {
-	for in, want := range map[string]SealerMode{"": SealerModeAuto, "auto": SealerModeAuto, " TEE ": SealerModeTEE, "tpm2": SealerModeTPM2} {
+	for in, want := range map[string]SealerMode{"": SealerModeAuto, "auto": SealerModeAuto, " TEE ": SealerModeTEE, "tpm2": SealerModeTPM2, "Both": SealerModeBoth} {
 		got, err := ParseSealerMode(in)
 		if err != nil || got != want {
 			t.Fatalf("ParseSealerMode(%q) = %q, %v; want %q", in, got, err, want)
 		}
 	}
-	if _, err := ParseSealerMode("hsm"); err == nil || !strings.Contains(err.Error(), "want auto, tee or tpm2") {
+	if _, err := ParseSealerMode("hsm"); err == nil || !strings.Contains(err.Error(), "want auto, tee, tpm2 or both") {
 		t.Fatalf("an unknown mode: %v", err)
 	}
 }
@@ -35,6 +35,11 @@ func TestSealerKindForProvider(t *testing.T) {
 		{ProviderGCPSEVSNP, "", SealerKindSEVDerivedKey, ""},
 		{ProviderGCPSEVSNP, SealerModeTEE, SealerKindSEVDerivedKey, ""},
 		{ProviderGCPSEVSNP, SealerModeTPM2, SealerKindTPM2, ""},
+		{ProviderGCPSEVSNP, SealerModeBoth, SealerKindSEVDerivedKeyTPM2, ""},
+		{ProviderGCPTDX, SealerModeBoth, "", "no sealing key of its own to nest"},
+		{ProviderAzureSEVSNP, SealerModeBoth, "", "no sealing key of its own to nest"},
+		{ProviderSimulated, SealerModeBoth, "", "no sealing key of its own to nest"},
+		{ProviderAWSNitro, SealerModeBoth, "", "a Nitro enclave has no TPM"},
 		{ProviderGCPTDX, SealerModeAuto, SealerKindTPM2, ""},
 		{ProviderGCPTDX, SealerModeTPM2, SealerKindTPM2, ""},
 		{ProviderGCPTDX, SealerModeTEE, "", "no sealing key of its own"},

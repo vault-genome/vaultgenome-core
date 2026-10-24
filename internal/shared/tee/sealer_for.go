@@ -39,6 +39,11 @@ const (
 	// SealerModeTPM2: the host's TPM 2.0 — a vTPM or a discrete TPM —
 	// whatever the TEE, through tpm2-tools (ADR 0022).
 	SealerModeTPM2 SealerMode = "tpm2"
+	// SealerModeBoth: the TEE's own key and the host's TPM 2.0, nested
+	// (ADR 0037) — a file opens only on this chip, at this measurement and
+	// policy, and on a boot the TPM's PCR policy names. SEV-SNP only: the
+	// TEEs without a key of their own have the TPM alone.
+	SealerModeBoth SealerMode = "both"
 )
 
 // ParseSealerMode parses tee.sealer; empty means auto.
@@ -46,11 +51,11 @@ func ParseSealerMode(s string) (SealerMode, error) {
 	switch m := SealerMode(strings.ToLower(strings.TrimSpace(s))); m {
 	case "":
 		return SealerModeAuto, nil
-	case SealerModeAuto, SealerModeTEE, SealerModeTPM2:
+	case SealerModeAuto, SealerModeTEE, SealerModeTPM2, SealerModeBoth:
 		return m, nil
 	default:
 		return "", shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
-			fmt.Sprintf("tee.sealer %q: want auto, tee or tpm2", s), nil)
+			fmt.Sprintf("tee.sealer %q: want auto, tee, tpm2 or both", s), nil)
 	}
 }
 
@@ -60,7 +65,10 @@ type SealerKind string
 const (
 	SealerKindSEVDerivedKey SealerKind = "sev-snp-derived-key"
 	SealerKindTPM2          SealerKind = "tpm2"
-	SealerKindSimulated     SealerKind = "simulated"
+	// SealerKindSEVDerivedKeyTPM2 is the chip's derived key nested inside
+	// the TPM 2.0's sealed object (ADR 0037).
+	SealerKindSEVDerivedKeyTPM2 SealerKind = "sev-snp-derived-key+tpm2"
+	SealerKindSimulated         SealerKind = "simulated"
 )
 
 // SealerOptions is what a host's sealer needs beyond its producer.
@@ -123,20 +131,35 @@ func SealerKindForProvider(p Provider, mode SealerMode) (SealerKind, error) {
 		mode = SealerModeAuto
 	}
 	if p == ProviderAWSNitro {
-		if mode == SealerModeTPM2 {
+		if mode == SealerModeTPM2 || mode == SealerModeBoth {
 			return "", shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
-				"tee.sealer=tpm2: a Nitro enclave has no TPM; its sealer is KMS, released to its attestation (ADR 0036) — set tee.sealer to auto or tee", nil)
+				"tee.sealer="+string(mode)+": a Nitro enclave has no TPM; its sealer is KMS, released to its attestation (ADR 0036) — set tee.sealer to auto or tee", nil)
 		}
 		return SealerKindAWSKMSAttested, nil
 	}
 	if mode == SealerModeTPM2 {
 		return SealerKindTPM2, nil
 	}
+	if mode == SealerModeBoth {
+		if p != ProviderGCPSEVSNP && p != ProviderGCPSEVSNPVTPM {
+			return "", shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
+				fmt.Sprintf("tee.sealer=both: %s gives the guest no sealing key of its own to nest inside the TPM's; set tee.sealer to tpm2 or auto (ADR 0037)", p), nil)
+		}
+		return SealerKindSEVDerivedKeyTPM2, nil
+	}
 	switch p {
 	case ProviderSimulated:
 		return SealerKindSimulated, nil
 	case ProviderGCPSEVSNP:
 		return SealerKindSEVDerivedKey, nil
+	case ProviderGCPSEVSNPVTPM:
+		// The family that attests with the vTPM seals to it too: under
+		// auto, the chip's key nested in the vTPM's (ADR 0037); tee keeps
+		// the chip's key alone.
+		if mode == SealerModeTEE {
+			return SealerKindSEVDerivedKey, nil
+		}
+		return SealerKindSEVDerivedKeyTPM2, nil
 	case ProviderGCPTDX, ProviderAzureCGPU, ProviderAzureSEVSNP:
 		if mode == SealerModeTEE {
 			return "", shared_errors.Structural(shared_errors.CodeFieldValueInvalid,
@@ -156,6 +179,8 @@ func providerOf(p Producer) (Provider, bool) {
 		return ProviderSimulated, true
 	case *GCPSEVProducer:
 		return ProviderGCPSEVSNP, true
+	case *GCPSEVVTPMProducer:
+		return ProviderGCPSEVSNPVTPM, true
 	case *GCPTDXProducer:
 		return ProviderGCPTDX, true
 	case *AzureCGPUProducer:
@@ -178,6 +203,13 @@ func SealerKindFor(p Producer, mode SealerMode) (SealerKind, error) {
 	return SealerKindForProvider(family, mode)
 }
 
+// sevSNPGuest is a producer on a SEV-SNP guest: what the chip's sealing key
+// is derived with.
+type sevSNPGuest interface {
+	Measurement() Measurement
+	Policy() uint64
+}
+
 // SealerFor returns the sealer of the host the producer attests for under
 // opts.Mode, what to close when done with it (nil when nothing was
 // opened), and the kind every file it seals is named with.
@@ -190,7 +222,7 @@ func SealerFor(p Producer, opts SealerOptions) (Sealer, io.Closer, SealerKind, e
 	case SealerKindSimulated:
 		return p.(*Simulated), nil, kind, nil
 	case SealerKindSEVDerivedKey:
-		t := p.(*GCPSEVProducer)
+		t := p.(sevSNPGuest)
 		dev, err := os.OpenFile(opts.SEVGuestDevice, os.O_RDWR, 0)
 		if err != nil {
 			return nil, nil, "", fmt.Errorf("sealer: open %s (the sev-guest driver must be loaded; the daemon needs access to it): %w", opts.SEVGuestDevice, err)
@@ -202,6 +234,28 @@ func SealerFor(p Producer, opts SealerOptions) (Sealer, io.Closer, SealerKind, e
 			return nil, nil, "", err
 		}
 		return s, nil, kind, nil
+	case SealerKindSEVDerivedKeyTPM2:
+		t := p.(sevSNPGuest)
+		pcrs := opts.VTPMSealPCRs
+		if pcrs == "" {
+			// The boot, not the run: the firmware's PCRs and GRUB's, which
+			// hold across a reboot and move with the kernel (ADR 0037).
+			pcrs = DefaultGCEBootPCRs
+		}
+		vt, err := NewVTPMSealer(VTPMSealerConfig{TPM2ToolsDir: opts.TPM2ToolsDir, PCRs: pcrs})
+		if err != nil {
+			return nil, nil, "", err
+		}
+		dev, err := os.OpenFile(opts.SEVGuestDevice, os.O_RDWR, 0)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("sealer: open %s (the sev-guest driver must be loaded; the daemon needs access to it): %w", opts.SEVGuestDevice, err)
+		}
+		s, err := NewSEVSNPVTPMSealer(NewGCPSEVSealer(dev, t.Measurement(), t.Policy()), vt)
+		if err != nil {
+			_ = dev.Close()
+			return nil, nil, "", err
+		}
+		return s, dev, kind, nil
 	case SealerKindAWSKMSAttested:
 		if opts.AWSKMS == nil {
 			return nil, nil, "", shared_errors.Structural(shared_errors.CodeRequiredFieldMissing,
