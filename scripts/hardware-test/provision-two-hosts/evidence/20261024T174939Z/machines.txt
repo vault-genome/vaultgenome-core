@@ -1,0 +1,5 @@
+authority=vg-p2-authority-20261024t174939z zone=us-central1-c ip=34.30.242.99
+worker=vg-p2-worker-20261024t174939z location=westeurope size=Standard_DC4as_v5 ip=52.157.87.121
+bucket=gs://rats-probe-vg-p2-20261024t174939z (deleted with the run)
+firewall=vg-p2-returnpath-20261024t174939z tcp:9443 from 52.157.87.121/32 to tag vg-p2-20261024t174939z
+captured=20261024T174939Z

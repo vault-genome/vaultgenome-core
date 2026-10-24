@@ -1,0 +1,8 @@
+== binaries, the worker package, the base model and the bundle from /home/vg/in
+== tpm2-tools: the azure-sev-snp provider reads the HCL report from the vTPM's NV index through tpm2_nvread
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== step 2: acpctl provision join — the bundle into /root/deploy, acp-compute.json for the authority it names, identity from the vTPM, keys sealed
+JOINED 20261024T175737Z
+== acp-compute on what join wrote, dialing the authority
+STARTED
+== metrics; stop acp-compute; the results

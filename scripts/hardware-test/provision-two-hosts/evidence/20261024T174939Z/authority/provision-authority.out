@@ -1,0 +1,71 @@
+provision authority: /root/deploy (family gcp-sev-snp, worker azure-sev-snp, sealer auto, the worker dials 34.30.242.99:9443)
+  key material: /root/deploy/secrets (acp-keygen, private modes)
+  AMD chain (the worker's product, for sagvd): /root/deploy/amd-genoa-cert_chain.pem (Genoa; ARK 4c6598d19c18719c5dfd4a7d335f674e5bfe1d8f800cea2cf270c10d103db2f1, a root this build pins)
+  AMD chain (this host's product, for the worker): /root/deploy/amd-milan-cert_chain.pem (Milan; ARK 69d063b45344d26a2e94e1f4210de49ef555308287d4c174445c95639a540bcd, a root this build pins)
+  configuration: /root/deploy/sagvd.json
+  sagvd identity: 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf (gcp-sev-snp)
+  audit public key: /root/deploy/operator/audit_public_key.pem (keep it off the host: it verifies the log)
+  worker bundle: /root/deploy/worker-bundle.tar (sha256 827ada96827dc2385014782e64c3679dc68287af5966d6b3af0de476a8ad7da6; 7 files; the worker's secrets are no longer on this host)
+  sagvd key files sealed (sev-snp-derived-key): keys.authority_signing.seed_path, keys.session_sealing.material_path, keys.audit_signing.seed_path, vault.tls.server_key, http_api.bearer_token_file
+provision.json: /root/deploy/provision.json
+  REST token (the operator's copy): /root/deploy/operator/api_token (not printed)
+{
+  "schema": "vault-genome/acpctl-provision/v1",
+  "role": "authority",
+  "phase": "awaiting-worker",
+  "out": "/root/deploy",
+  "provider": "auto",
+  "peer_provider": "azure-sev-snp",
+  "sealer": "auto",
+  "binaries": {
+    "keygen": "/root/p2/keygen",
+    "sagvd": "/root/p2/sagvd"
+  },
+  "secrets": "/root/deploy/secrets",
+  "configs": {
+    "sagvd": "/root/deploy/sagvd.json"
+  },
+  "configs_sha256": {
+    "sagvd": "229f0990ab300fddb771ed0ca64d6b741d73448aa51fb9662ad20cf94cfcfdc4"
+  },
+  "pins": {
+    "vault": "/root/deploy/pins/vault.measurement",
+    "worker": "/root/deploy/pins/worker.measurement"
+  },
+  "amd_cert_chain": "/root/deploy/amd-genoa-cert_chain.pem",
+  "vault": {
+    "provider": "gcp-sev-snp",
+    "measurement_hex": "9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf",
+    "sealer": "sev-snp-derived-key",
+    "audit_kid": "sagvd-audit-demo",
+    "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEATs+K9cXLHJvfzm6XMeZuCQLbfI+pCRZxZk3SP/VgkLk=\n-----END PUBLIC KEY-----\n",
+    "authority_kid": "sagvd-authority-demo",
+    "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAG8YEiBuTFo7OzFJmIwQevrDZFm4uNMAhL2gHCIik5KM=\n-----END PUBLIC KEY-----\n",
+    "identity_file": "/root/deploy/sagvd-identity.json"
+  },
+  "worker": {
+    "provider": "azure-sev-snp",
+    "measurement_hex": ""
+  },
+  "api_token_file": "/root/deploy/operator/api_token",
+  "sealed": {
+    "sagvd": [
+      "keys.authority_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "keys.audit_signing.seed_path",
+      "vault.tls.server_key",
+      "http_api.bearer_token_file"
+    ]
+  },
+  "worker_bundle": "/root/deploy/worker-bundle.tar",
+  "worker_bundle_sha256": "827ada96827dc2385014782e64c3679dc68287af5966d6b3af0de476a8ad7da6",
+  "vault_address": "34.30.242.99:9443",
+  "next": [
+    "carry /root/deploy/worker-bundle.tar to the worker's host over a channel you trust (it holds the worker's private keys); delete it there after the next step",
+    "on the worker's host: acpctl provision join --bundle worker-bundle.tar --out \u003cdir\u003e --door-python \u003cpython\u003e --base-model \u003cdir\u003e --worker-package \u003cdir\u003e",
+    "carry the worker's \u003cdir\u003e/acp-compute-identity.json back here",
+    "acpctl provision pin-worker --out /root/deploy --identity acp-compute-identity.json",
+    "/root/p2/sagvd -config /root/deploy/sagvd.json (after pin-worker; pins are read at start)",
+    "acpctl genome seal --content-dir \u003cgenome\u003e --output /root/deploy/genomes/gen-0.genome --key-out /root/deploy/genomes/gen-0.key"
+  ]
+}

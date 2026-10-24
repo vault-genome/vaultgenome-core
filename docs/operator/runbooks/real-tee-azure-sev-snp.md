@@ -91,10 +91,12 @@ The daemon on the VM (root, or a user that may read the vTPM):
 - `pcr_digests` (required): what the peer's vTPM measured of its boot —
   `identity` on the peer, on the boot it runs, prints it as
   `vtpm.pcr_digest_hex` — and the quote's digest must be one of these. A
-  configuration without it does not start. A kernel update changes it: add
-  the new boot's digest before the update and remove the old once no host
-  runs it, as for `gcp-sev-snp-vtpm`
-  ([real-tee-gcp-sev-snp-vtpm.md](real-tee-gcp-sev-snp-vtpm.md)).
+  configuration without it does not start. It is a property of one VM's
+  boot, not of the image — two VMs of one image measured different
+  digests (C54) — so each host is pinned from its own `identity`, taken
+  after its last reboot. A kernel update is a new boot: the host is
+  refused until its new digest is pinned beside the old; remove the old
+  once no host runs it.
   `acpctl provision` pins each side's boot from its identity, the worker's
   in `pin-worker`.
 - `tee.sealer`: `auto` (the default) is the vTPM (`tpm2`, ADR 0022): the
@@ -113,7 +115,9 @@ the reported TCB, the quote's PCR selection and digest.
 
 `scripts/hardware-test/azure-sev-snp/returnpath-e2e/` runs the Return
 Path on one `Standard_DC4as_v5`: both daemons attest as `azure-sev-snp`,
-each pins the other's launch measurement, the worker fine-tunes a genome
+each pins the other's launch measurement and boot, a worker on a boot
+the policy does not name is refused at the handshake, the worker
+fine-tunes a genome
 on the guest, `acpctl` seals it, the gate job goes over the Return Path
 and the authority judges the answer; every key file is sealed to the vTPM.
 The run on record is in the kit's `README.md` and in

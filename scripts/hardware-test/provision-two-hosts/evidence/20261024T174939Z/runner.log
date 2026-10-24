@@ -1,0 +1,102 @@
+build sagvd, acp-compute, acpctl, keygen (linux/amd64); pack workers/genome
+bucket gs://rats-probe-vg-p2-20261024t174939z (private; the run's hand-off and results; deleted with the run)
+Creating gs://rats-probe-vg-p2-20261024t174939z/...
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/sagvd to gs://rats-probe-vg-p2-20261024t174939z/in/sagvd
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/acp-compute to gs://rats-probe-vg-p2-20261024t174939z/in/acp-compute
+  
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/acpctl to gs://rats-probe-vg-p2-20261024t174939z/in/acpctl
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/keygen to gs://rats-probe-vg-p2-20261024t174939z/in/keygen
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/genome-worker.tgz to gs://rats-probe-vg-p2-20261024t174939z/in/genome-worker.tgz
+...................
+
+Average throughput: 31.8MiB/s
+boot the WORKER vg-p2-worker-20261024t174939z (Canonical:ubuntu-24_04-lts:cvm:24.04.202607310, Standard_DC4as_v5, westeurope; ssh from 104.14.24.198 only)
+Selecting "uksouth" may reduce your costs. The region you've selected may cost more for the same services. You can disable this message in the future with the command "az config set core.display_region_identified=false". Learn more at https://go.microsoft.com/fwlink/?linkid=222571 
+
+WARNING: Consider upgrading security for your workloads using Azure Trusted Launch VMs. To know more about Trusted Launch, please visit https://aka.ms/TrustedLaunch.
+worker vg-p2-worker-20261024t174939z at 52.157.87.121
+the authority's Return Path port 9443: open to 52.157.87.121 only (rule vg-p2-returnpath-20261024t174939z, tag vg-p2-20261024t174939z)
+Creating firewall...
+..Created [https://www.googleapis.com/compute/v1/projects/rats-probe/global/firewalls/vg-p2-returnpath-20261024t174939z].
+done.
+boot the AUTHORITY vg-p2-authority-20261024t174939z (n2d SEV-SNP, us-central1-c)
+WARNING: You have selected a disk size of under [200GB]. This may result in poor I/O performance. For more information, see: https://developers.google.com/compute/docs/disks#performance.
+Created [https://www.googleapis.com/compute/v1/projects/rats-probe/zones/us-central1-c/instances/vg-p2-authority-20261024t174939z].
+WARNING: Some requests generated warnings:
+ - Disk size: '20 GB' is larger than image size: '10 GB'. You might need to resize the root repartition manually if the operating system does not support automatic resizing. See https://cloud.google.com/compute/docs/disks/add-persistent-disk#resize_pd for details.
+
+authority vg-p2-authority-20261024t174939z at 34.30.242.99
+step 1 on the authority: provision authority (the bundle comes through the bucket)
+Copying gs://rats-probe-vg-p2-20261024t174939z/handoff/worker-bundle.tar to file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/handoff/worker-bundle.tar
+Copying gs://rats-probe-vg-p2-20261024t174939z/handoff/base.tgz to file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/handoff/base.tgz
+  
+Copying gs://rats-probe-vg-p2-20261024t174939z/handoff/authority-provision.json to file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/handoff/authority-provision.json
+...........
+
+Average throughput: 1.5MiB/s
+bundle received: 827ada96827dc2385014782e64c3679dc68287af5966d6b3af0de476a8ad7da6 (15360 bytes)
+step 2 on the worker: the bundle carried in, provision join, the identity carried back
+Warning: Permanently added '52.157.87.121' (ED25519) to the list of known hosts.
+== binaries, the worker package, the base model and the bundle from /home/vg/in
+== tpm2-tools: the azure-sev-snp provider reads the HCL report from the vTPM's NV index through tpm2_nvread
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== step 2: acpctl provision join — the bundle into /root/deploy, acp-compute.json for the authority it names, identity from the vTPM, keys sealed
+worker identity: 6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48 (azure-sev-snp, sealer tpm2)
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/handoff/acp-compute-identity.json to gs://rats-probe-vg-p2-20261024t174939z/handoff/acp-compute-identity.json
+  
+......
+the worker starts and dials 34.30.242.99:9443; step 3 on the authority: pin-worker, sagvd, the job
+== acp-compute on what join wrote, dialing the authority
+Copying gs://rats-probe-vg-p2-20261024t174939z/out/authority.tgz to file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.xsU86359Nz/authority.tgz
+  
+......
+collect the worker and stop it
+== metrics; stop acp-compute; the results
+== the authority's steps
+== binaries from gs://rats-probe-vg-p2-20261024t174939z/in
+== configfs-tsm
+== the worker runtime here too: the fine-tune that makes the genome needs it
+== step 1: acpctl provision authority — keygen, sagvd for an azure-sev-snp worker (genoa chain), this chip's milan chain for the worker, identity, sealed keys, the bundle
+provision authority exit=0
+provider=auto worker=azure-sev-snp sealer=auto phase=awaiting-worker
+vault_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf vault_sealer=sev-snp-derived-key
+sealed_sagvd=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+amd_cert_chain=/root/deploy/amd-genoa-cert_chain.pem bundle_sha256=827ada96827dc2385014782e64c3679dc68287af5966d6b3af0de476a8ad7da6
+== the genome: tiny base model built here, LoRA adapter trained by vg_genome, sealed into /root/deploy/genomes
+finetune exit=0
+seal exit=0
+key_id=genome-5db7ce84fec4-g0-c69d3e781fc0
+== hand-off: the bundle, the base model and provision.json to the bucket; the bundle removed from this host
+bundle removed from the authority host after hand-off
+== wait for the worker's identity (the orchestrator carries it back through the bucket)
+== step 3: acpctl provision pin-worker — the worker's measurement from its own chip, and its boot from its vTPM, pinned
+provision pin-worker exit=0
+phase=complete worker_measurement=6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48 worker_provider=azure-sev-snp worker_sealer=tpm2
+worker_boot=65442b83741c7dfa1dde8b45bfb1757366b18429f24e8a557dbf2024bf56f738 sagvd_pcr_digests=65442b83741c7dfa1dde8b45bfb1757366b18429f24e8a557dbf2024bf56f738
+== sagvd on what provision wrote, listening on 0.0.0.0:9443 for the worker across the Internet
+sagvd ready after 11s
+session opened after 3s
+== the gate job over the Return Path, to the worker on the other cloud
+job_id=defa9cc0d59e98bd0907c5374026b551
+job status=succeeded after 6s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo
+attestation_outcome=allow peer_provider=None
+== metrics; stop sagvd; verify the audit log with the key provision kept for the operator
+audit verify exit=0
+audit query exit=0
+elapsed_seconds=459.2
+== the worker's steps
+== binaries, the worker package, the base model and the bundle from /home/vg/in
+== tpm2-tools: the azure-sev-snp provider reads the HCL report from the vTPM's NV index through tpm2_nvread
+tpm2_nvread=/usr/bin/tpm2_nvread
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== step 2: acpctl provision join — the bundle into /root/deploy, acp-compute.json for the authority it names, identity from the vTPM, keys sealed
+provision join exit=0
+provider=auto authority=gcp-sev-snp sealer=auto phase=joined vault_address=34.30.242.99:9443
+worker_measurement=6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48 worker_provider=azure-sev-snp worker_sealer=tpm2
+pinned_authority=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+sealed_worker=keys.worker_signing.seed_path,keys.session_sealing.material_path,vault.tls.client_key
+bundle deleted on the worker host after join
+== acp-compute on what join wrote, dialing the authority
+acp-compute ready after 1s pid=5112
+== metrics; stop acp-compute; the results

@@ -39,7 +39,7 @@ given release can still open.
 
 ### Changed
 
-- **An Azure peer or destination names its boot (ADR 0037).** `pcr_digests`
+- **An Azure peer or destination names its boot (ADR 0037, C54).** `pcr_digests`
   is required for an `azure-sev-snp` and an `azure-cgpu` peer and registry
   entry, and the verifiers refuse a policy without it: under Azure's
   paravisor the launch measurement is the paravisor's and the firmware's,

@@ -1,0 +1,67 @@
+{
+  "genome": {
+    "door": {
+      "command": [
+        "/root/p2/venv/bin/python3",
+        "-m",
+        "vg_genome",
+        "door",
+        "--stdin-genome",
+        "--base",
+        "/root/p2/base",
+        "--device",
+        "cpu"
+      ],
+      "env": [
+        "PYTHONPATH=/root/p2/workers/genome",
+        "TOKENIZERS_PARALLELISM=false"
+      ],
+      "timeout_seconds": 300
+    }
+  },
+  "health": {
+    "listen_address": "127.0.0.1:9082"
+  },
+  "keys": {
+    "session_sealing": {
+      "kid": "session-sealing-demo",
+      "material_path": "/root/deploy/secrets/acp-compute/sealing.key"
+    },
+    "worker_signing": {
+      "kid": "acp-compute-worker-demo",
+      "seed_path": "/root/deploy/secrets/acp-compute/worker_signing_seed"
+    }
+  },
+  "log": {
+    "format": "json",
+    "level": "info"
+  },
+  "runtime": {
+    "dial_backoff_initial_ms": 500,
+    "dial_backoff_max_ms": 5000,
+    "handshake_timeout_seconds": 30,
+    "idle_between_jobs_ms": 200,
+    "job_timeout_seconds": 600
+  },
+  "tee": {
+    "peer": {
+      "amd_cert_chain_path": "/root/deploy/amd-milan-cert_chain.pem",
+      "measurement_path": "/root/deploy/pins/vault.measurement",
+      "provider": "gcp-sev-snp",
+      "vcek_cache_dir": "/root/deploy/vcek-cache"
+    },
+    "provider": "auto",
+    "sealer": "auto",
+    "workload_descriptor": "acp-compute-two-hosts-v1"
+  },
+  "vault": {
+    "address": "34.30.242.99:9443",
+    "tls": {
+      "ca_bundle": "/root/deploy/secrets/shared/tls/ca.crt",
+      "client_cert": "/root/deploy/secrets/acp-compute/tls/client.crt",
+      "client_key": "/root/deploy/secrets/acp-compute/tls/client.key",
+      "enabled": true,
+      "server_name": "localhost"
+    }
+  }
+}

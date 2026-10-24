@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -2048,7 +2048,7 @@ measurement and the two are the same value; a fleet pins each side's
 own. The report is issued at boot and its REPORT_DATA is Azure's; the
 handshake's freshness is the TPM quote's, under the attestation key the
 report names. The PCR digest was recorded, not pinned (`pcr_digests`
-empty in this run). The chain came from AMD KDS, not from Azure's THIM.
+empty in this run); the boot is required and enforced in [C54](#c54). The chain came from AMD KDS, not from Azure's THIM.
 A DC4as_v5 in West Europe was Genoa that day and East US Milan on
 2026-09-14; the kit reads the product from the report, and a verifier
 configured with the other product's chain refuses. The gate is the e2e
@@ -2689,7 +2689,9 @@ kit: [`scripts/hardware-test/provision-two-hosts/`](scripts/hardware-test/provis
 the decision: [ADR 0028](docs/adr/0028-provisioning-across-two-hosts.md);
 the guide: [`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md) §2.
 
-**Scope.** One run that completed; the two before it stopped at step 2
+**Scope.** The worker's boot is pinned by `pin-worker` from the run of
+[C54](#c54); in the runs here it was recorded, not pinned. One run that
+completed; the two before it stopped at step 2
 for the kit's own mistakes — `--provider auto` then read only
 configfs-tsm, which Azure's paravisor does not expose, so the worker
 named its family, and the azure-sev-snp provider reads the HCL report
@@ -3644,6 +3646,7 @@ hypervisor's own version is not in the document and is not held.
 
 ---
 
+<a id="c53"></a>
 ### C53 — On a Compute Engine SEV-SNP guest the chip's measurement is Google's firmware and does not see the kernel; `gcp-sev-snp-vtpm` holds the boot too: the shipping verifier accepts a pinned boot and the same boot after a reboot and refuses another kernel on the same chip, and a key file sealed to the chip and the boot opens after the reboot and not under the other kernel
 
 **Claim.** On a Compute Engine n2d SEV-SNP instance (Milan, Ubuntu 24.04,
@@ -3696,6 +3699,74 @@ pinned and the files sealed once the first boot has settled
 scripts/hardware-test/gcp-sev-snp/boot-chain/run.sh <gcp-project>
 go test -count=1 -run 'GCPSEVVTPM|GCEAK|GCEEKAK|GCEInstance|SEVSNPVTPMSealer' ./internal/shared/tee
 ```
+
+---
+
+<a id="c54"></a>
+### C54 — Under Azure's paravisor the launch measurement does not see the OS, and both Azure families now require the boot: on a real Azure SEV-SNP Confidential VM a worker whose boot the policy does not name is refused at the handshake and the pinned one admitted, and `acpctl provision` pins the worker's boot across two clouds
+
+**Claim.** `pcr_digests` — the vTPM's digest of the boot — is required of
+an `azure-sev-snp` and an `azure-cgpu` peer and registry entry, and both
+verifiers refuse a policy without it
+([ADR 0037](docs/adr/0037-the-boot-chain-on-sev-snp-without-a-paravisor.md),
+amendment). On a `Standard_DC4as_v5` in West Europe (Genoa), both daemons
+attesting as `azure-sev-snp` on one VM pinned each other's launch
+measurement `6587d41e…7f48` and boot `e7eed387…ce21` (SHA-256 over PCRs
+0–14), each from the other's identity. A second `sagvd` whose policy names
+another boot (`07eed387…`, one digit changed) refused the real worker at
+the handshake — "azure-sev-snp: PCR digest e7eed387… is not in the
+acceptable set" (`attestation_denied`); the `sagvd` pinned to the boot the
+worker runs admitted it, and the gate job came back EXACT 6/6 through the
+pinned replay; the audit log verified under the published key, and a
+thief's copy of the sealed key files and a simulated worker were refused.
+Across two clouds, `acpctl provision authority` on a GCP SEV-SNP guest
+(Milan), `provision join` on another `Standard_DC4as_v5` (Genoa) and
+`provision pin-worker` pinned the worker's measurement and its boot
+`65442b83…f738` in `sagvd.json`, the value the worker's identity printed;
+the session opened over the Internet 3 s after `sagvd` was ready, the gate
+job EXACT 6/6, the audit log verified.
+
+**Evidence.**
+[`scripts/hardware-test/azure-sev-snp/returnpath-e2e/evidence/20261024T174525Z`](scripts/hardware-test/azure-sev-snp/returnpath-e2e/evidence/20261024T174525Z)
+(`steps.txt`: `vault_boot`, `worker_boot`, `other boot refused after 1s:
+PCR digest … is not in the acceptable set`, `gate_level=EXACT`, `audit
+verify exit=0`; `sagvd-otherboot.log`: the refusal with its code;
+`versions.txt`: the binaries of commit `e9a4d914`);
+[`scripts/hardware-test/provision-two-hosts/evidence/20261024T174939Z`](scripts/hardware-test/provision-two-hosts/evidence/20261024T174939Z)
+(`authority/steps.txt`: `provision pin-worker exit=0`,
+`worker_boot=65442b83… sagvd_pcr_digests=65442b83…`, `gate_level=EXACT`,
+`audit verify exit=0`; `authority/sagvd-metrics.txt`:
+`vg_tee_attestation_total{provider="azure-sev-snp",result="success",role="verify"} 2`).
+That run's binaries (`inputs.sha256`) are byte for byte those built from
+commit `e9a4d914`: their stamp says `-dirty` because the first run's
+evidence directory was not yet in git when the kit built, and a build of
+the commit with an untracked file present gives the same four hashes.
+Offline: `TestAzureVerifiersRequireTheBoot` (`internal/shared/tee`); the
+refusals of `sagvd`, `acp-compute` and the registry
+(`config_more_test.go`, `tee_config_test.go`,
+`crosscloud_loader_more_test.go`); `TestProvision_AzurePinsEachSidesBoot`
+and `TestProvisionTwoHosts_AzurePinsTheBoots` (`cmd/acpctl`).
+
+**Reproduce:**
+
+```bash
+az login
+scripts/hardware-test/azure-sev-snp/returnpath-e2e/run.sh vg-asnp-weu westeurope   # ~15 min, one DC4as_v5
+scripts/hardware-test/provision-two-hosts/run.sh <gcp-project>                    # ~20 min, one n2d-standard-4 and one DC4as_v5
+go test -count=1 -run 'AzureVerifiersRequireTheBoot|AzurePinsEachSidesBoot|AzurePinsTheBoots' ./internal/shared/tee ./cmd/acpctl
+```
+
+**Scope.** One VM size and region. The boot's digest is a property of one
+VM's boot, not of its image: two VMs of the same image, size and region,
+with the same launch measurement, measured `e7eed387…` and `65442b83…`, so
+each host is pinned from its own identity; a policy over an image rather
+than a host needs the event log appraised, which this claim does not
+cover. A kernel update is a new boot: the host is refused until its new
+digest is pinned. The `azure-cgpu` family's pin is the same verifier code,
+held on the H100 by the failover kits' runs ([C18](#c18)); its Return Path
+kit now writes the boots too and was not run again here. Azure's
+paravisor holds the vTPM inside the TEE and is trusted as the chip's
+intermediary (threat model).
 
 ---
 

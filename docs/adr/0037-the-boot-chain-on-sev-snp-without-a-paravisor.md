@@ -153,7 +153,12 @@ listed `pcr_digests`. It is now required for both Azure families, as for
   in `sagvd.json` beside its measurement.
 
 A delegated (RATS) Verifier was never admitted for these families, so
-there is no path that skips the quote.
+there is no path that skips the quote. [C54](../../VERIFIABLE-CLAIMS.md#c54):
+on an Azure SEV-SNP Confidential VM a worker whose boot the policy does not
+name is refused at the handshake and the pinned one admitted; across two
+clouds `pin-worker` pinned the Azure worker's boot from its identity. Two
+VMs of one image measured different boots: the pin is a host's, taken from
+its own identity.
 
 ## Evidence
 

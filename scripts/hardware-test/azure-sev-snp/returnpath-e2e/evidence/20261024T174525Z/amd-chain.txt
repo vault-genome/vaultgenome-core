@@ -1,0 +1,3 @@
+wrote amd-cert_chain.pem: the Genoa chain, 4602 bytes
+  ASK: CN=SEV-Genoa
+  ARK: CN=ARK-Genoa, sha256 4c6598d19c18719c5dfd4a7d335f674e5bfe1d8f800cea2cf270c10d103db2f1 — a root this build pins (ADR 0024)
