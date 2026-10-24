@@ -1,0 +1,12 @@
+run_start=2026-10-24T17:49:39Z
+worker_create_start=2026-10-24T17:49:49Z
+worker_created=2026-10-24T17:51:04Z
+authority_create_start=2026-10-24T17:51:19Z
+authority_created=2026-10-24T17:51:30Z
+bundle_received=2026-10-24T17:57:14Z
+bundle_carried=2026-10-24T17:57:35Z
+identity_received=2026-10-24T17:59:43Z
+identity_carried=2026-10-24T17:59:46Z
+authority_done=2026-10-24T18:00:25Z
+worker_collected=2026-10-24T18:00:32Z
+run_end=2026-10-24T18:00:32Z

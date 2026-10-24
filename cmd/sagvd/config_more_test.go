@@ -84,6 +84,13 @@ func TestValidateTEE_FieldsBelongToTheirProvider(t *testing.T) {
 		"azure-cgpu peer with pcs":    {peer("azure-cgpu", func(p *PeerTEEConfig) { p.AcceptableTCBStatuses = []string{"UpToDate"} }), "apply to a gcp-tdx peer only"},
 		"azure-cgpu peer bad policy":  {peer("azure-cgpu", func(p *PeerTEEConfig) { p.GPUPolicy = &GPUPolicyConfig{Evaluation: "trust-me"} }), "tee.peer.gpu_policy.evaluation"},
 		"azure-cgpu peer bad digests": {peer("azure-cgpu", func(p *PeerTEEConfig) { p.PCRDigests = []string{"zz"} }), "tee.peer.pcr_digests"},
+		// Under Azure's paravisor the launch measurement says nothing of
+		// the OS: a peer of either family names the boots it may run.
+		"azure-cgpu peer no boot": {peer("azure-cgpu", nil), "tee.peer.pcr_digests required when tee.peer.provider=azure-cgpu"},
+		"azure-sev-snp peer": {peer("azure-sev-snp", func(p *PeerTEEConfig) {
+			p.AMDCertChainPath, p.PCRDigests = "/chain.pem", []string{strings.Repeat("ab", 32)}
+		}), ""},
+		"azure-sev-snp peer no boot": {peer("azure-sev-snp", func(p *PeerTEEConfig) { p.AMDCertChainPath = "/chain.pem" }), "tee.peer.pcr_digests required when tee.peer.provider=azure-sev-snp"},
 		// gcp-sev-snp-vtpm (ADR 0037): the boot is required, the delegated
 		// Verifiers do not read the quote, and its fields are its own.
 		"vtpm host": {func() TEEConfig {

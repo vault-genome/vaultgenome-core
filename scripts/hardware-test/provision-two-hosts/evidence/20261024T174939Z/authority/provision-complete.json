@@ -1,0 +1,59 @@
+{
+  "schema": "vault-genome/acpctl-provision/v1",
+  "role": "authority",
+  "phase": "complete",
+  "out": "/root/deploy",
+  "provider": "auto",
+  "peer_provider": "azure-sev-snp",
+  "sealer": "auto",
+  "binaries": {
+    "keygen": "/root/p2/keygen",
+    "sagvd": "/root/p2/sagvd"
+  },
+  "secrets": "/root/deploy/secrets",
+  "configs": {
+    "sagvd": "/root/deploy/sagvd.json"
+  },
+  "configs_sha256": {
+    "sagvd": "cf01f17a36d9b30350436d7bd86fed9d2dcfaa3d22c97a86d8424fedbff07b3a"
+  },
+  "pins": {
+    "vault": "/root/deploy/pins/vault.measurement",
+    "worker": "/root/deploy/pins/worker.measurement"
+  },
+  "amd_cert_chain": "/root/deploy/amd-genoa-cert_chain.pem",
+  "vault": {
+    "provider": "gcp-sev-snp",
+    "measurement_hex": "9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf",
+    "sealer": "sev-snp-derived-key",
+    "audit_kid": "sagvd-audit-demo",
+    "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEATs+K9cXLHJvfzm6XMeZuCQLbfI+pCRZxZk3SP/VgkLk=\n-----END PUBLIC KEY-----\n",
+    "authority_kid": "sagvd-authority-demo",
+    "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAG8YEiBuTFo7OzFJmIwQevrDZFm4uNMAhL2gHCIik5KM=\n-----END PUBLIC KEY-----\n",
+    "identity_file": "/root/deploy/sagvd-identity.json"
+  },
+  "worker": {
+    "provider": "azure-sev-snp",
+    "measurement_hex": "6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48",
+    "sealer": "tpm2",
+    "vtpm_pcr_digest_hex": "65442b83741c7dfa1dde8b45bfb1757366b18429f24e8a557dbf2024bf56f738",
+    "identity_file": "/root/deploy/acp-compute-identity.json"
+  },
+  "api_token_file": "/root/deploy/operator/api_token",
+  "sealed": {
+    "sagvd": [
+      "keys.authority_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "keys.audit_signing.seed_path",
+      "vault.tls.server_key",
+      "http_api.bearer_token_file"
+    ]
+  },
+  "worker_bundle": "/root/deploy/worker-bundle.tar",
+  "worker_bundle_sha256": "827ada96827dc2385014782e64c3679dc68287af5966d6b3af0de476a8ad7da6",
+  "vault_address": "34.30.242.99:9443",
+  "next": [
+    "/root/p2/sagvd -config /root/deploy/sagvd.json (start it again if it is running: pins are read at start)",
+    "on the worker's host: acp-compute -config \u003cdir\u003e/acp-compute.json"
+  ]
+}

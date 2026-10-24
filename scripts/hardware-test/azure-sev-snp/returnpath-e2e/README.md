@@ -7,14 +7,16 @@ with `az`, on which `cvm-returnpath-azure.sh` runs as root over ssh. Both
 daemons attest with the chip's SEV-SNP report from the vTPM's HCL report,
 bound to each handshake's challenge by a TPM quote under the vTPM's
 attestation key — the Azure guest has no `/dev/sev-guest` — and each pins
-the other's launch measurement; the chip's product (Milan or Genoa) is
+the other's launch measurement and boot (the vTPM's PCR digest, which
+ADR 0037 requires); the chip's product (Milan or Genoa) is
 read from the report and the matching AMD chain fetched from KDS and
 verified against the pinned roots; every key file is sealed to the vTPM.
 Then as on GCP: the real `vg_genome` worker fine-tunes a genome on the
 guest, `acpctl` seals it, a rogue with the sealed key files off this vTPM
 cannot open them, a rogue with the plaintext copies and another
-attestation is refused at the handshake on the record, the gate job goes
-over the Return Path and comes back EXACT, and the audit log verifies
+attestation is refused at the handshake on the record, the real worker
+against a second authority whose policy names another boot is refused at
+the handshake, the gate job goes over the Return Path and comes back EXACT, and the audit log verifies
 under the published key.
 
 ```bash
@@ -23,7 +25,8 @@ scripts/hardware-test/azure-sev-snp/returnpath-e2e/run.sh [resource-group] [loca
 
 The results come back as `evidence/<stamp>/`: `steps.txt`, `vtpm.txt`,
 `product.txt`, the identities (with `vtpm.pcr_digest_hex`), the sealed
-files' shapes, `seal.json`, the two rogues' logs, `job.json` and the gate
+files' shapes, `seal.json`, the two rogues' logs, the other-boot
+authority's and worker's logs, `job.json` and the gate
 verdict, the daemons' logs and metrics, `audit-verify.json`,
 `audit-events.jsonl`, `audit-public-key.pem`, `sha256sums.txt`; the
 runner adds `runner-guest.log`. The capture kit that preceded the provider
@@ -47,3 +50,13 @@ resolved_from=vtpm-hcl tee_provider=azure-sev-snp`; both identities
 measurement, the handshake 109 ms with 4515 bytes of evidence, the gate job
 EXACT 6/6 in 6 s, both rogues refused, 17 audit events verified; the guest
 script in 136.6 s.
+
+Third run on record, the boot required (claim C54):
+`evidence/20261024T174525Z/` — the binaries of commit `e9a4d914`; each
+daemon pinned the other's launch measurement `6587d41e…7f48` and boot
+`e7eed387…ce21` from its identity; a second `sagvd` whose policy names
+another boot (`07eed387…`) refused the real worker at the handshake
+(*azure-sev-snp: PCR digest e7eed387… is not in the acceptable set*,
+`attestation_denied`, `sagvd-otherboot.log`); the `sagvd` pinned to the
+boot the worker runs admitted it, the gate job EXACT 6/6 in 6 s, both
+rogues refused, 17 audit events verified; the guest script in 137.2 s.

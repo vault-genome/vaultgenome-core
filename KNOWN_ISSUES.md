@@ -123,10 +123,10 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    cached a day; the per-GPU leaf is not served by the responder and its
    issuers' status stands for it. What it still trusts NVIDIA for: under
    `own` the secure-boot and debug-mode claims, which only NVIDIA's
-   tokens carry — `both` asserts them, `own` does not. What it polices only when the
-   operator asks: the vTPM's PCRs
-   (`pcr_digests`, a per-boot digest — the launch measurement covers
-   Azure's paravisor and firmware, not the OS). The escrow key on that
+   tokens carry — `both` asserts them, `own` does not. The boot is pinned
+   in every policy: the vTPM's PCR digest (`pcr_digests`, required, a
+   per-boot digest — the launch measurement covers Azure's paravisor and
+   firmware, not the OS; ADR 0037). The escrow key on that
    host is sealed to the same vTPM under the same PCRs (ADR 0022). A key
    release to the confidential-GPU destination has run on
    hardware (`scripts/hardware-test/failover-cgpu`, 2026-09-16: a failover

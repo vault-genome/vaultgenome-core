@@ -133,6 +133,33 @@ policy, the same for any operating system on that chip.
   reboot once the image's first boot had settled, PCRs 8, 9 and 10 moved by
   another kernel, and PCR 5 moved by the first boot (the root partition grows).
 
+## Amendment (2026-10-24, later): the Azure families name their boot too
+
+Under Azure's paravisor the launch measurement is the paravisor's and the
+firmware's, as Google's UEFI is on Compute Engine; the paravisor's vTPM,
+inside the TEE, measures the OS, and the pin held only where the operator
+listed `pcr_digests`. It is now required for both Azure families, as for
+`gcp-sev-snp-vtpm`:
+
+- the verifiers (`azure_vtpm.go`, shared by `azure-sev-snp` and
+  `azure-cgpu`) are refused a policy that names no boot and hold every
+  quote to the boots it names;
+- `sagvd` and `acp-compute` refuse a `tee.peer` of either family without
+  `pcr_digests`, and `sagvd`'s registry an entry without it;
+- `acpctl provision` pins each side's boot from its identity: the
+  configurations start on a placeholder no boot measures, the one-host form
+  writes each side's boot once both identities are taken, the bundle names
+  the authority's boot for the worker, and `pin-worker` pins the worker's
+  in `sagvd.json` beside its measurement.
+
+A delegated (RATS) Verifier was never admitted for these families, so
+there is no path that skips the quote. [C54](../../VERIFIABLE-CLAIMS.md#c54):
+on an Azure SEV-SNP Confidential VM a worker whose boot the policy does not
+name is refused at the handshake and the pinned one admitted; across two
+clouds `pin-worker` pinned the Azure worker's boot from its identity. Two
+VMs of one image measured different boots: the pin is a host's, taken from
+its own identity.
+
 ## Evidence
 
 [C53](../../VERIFIABLE-CLAIMS.md#c53): four boots of one Compute Engine n2d

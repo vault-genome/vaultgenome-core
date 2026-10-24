@@ -71,7 +71,7 @@ func TestLoadVerifierSpecs_Refusals(t *testing.T) {
 	dir := t.TempDir()
 	absent := filepath.Join(dir, "absent")
 	chain := writeFile(t, dir, "chain.pem", []byte("-----BEGIN CERTIFICATE-----\nMA==\n-----END CERTIFICATE-----\n"))
-	meas := strings.Repeat("ab", 48)
+	meas, boot := strings.Repeat("ab", 48), strings.Repeat("cd", 32)
 	n := 0
 	entry := func(fields string) string {
 		n++
@@ -88,8 +88,10 @@ func TestLoadVerifierSpecs_Refusals(t *testing.T) {
 		"azure no chain":        {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `"`), "azure-cgpu requires amd_cert_chain_path"},
 		"azure chain missing":   {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + absent + `"`), "amd_cert_chain_path:"},
 		"azure bad digests":     {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `","pcr_digests":["zz"]`), "pcr_digests"},
-		"azure bad policy":      {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `","gpu_policy":{"evaluation":"trust-me"}`), "gpu_policy.evaluation"},
-		"azure root missing":    {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `","gpu_policy":{"evaluation":"both","nvidia_device_root_path":"` + absent + `"}`), "nvidia_device_root_path"},
+		"azure no boot":         {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `"`), "azure-cgpu requires pcr_digests"},
+		"azure-sev-snp no boot": {entry(`"provider":"azure-sev-snp","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `"`), "azure-sev-snp requires pcr_digests"},
+		"azure bad policy":      {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `","pcr_digests":["` + boot + `"],"gpu_policy":{"evaluation":"trust-me"}`), "gpu_policy.evaluation"},
+		"azure root missing":    {entry(`"provider":"azure-cgpu","expected_measurement_hex":"` + meas + `","amd_cert_chain_path":"` + chain + `","pcr_digests":["` + boot + `"],"gpu_policy":{"evaluation":"both","nvidia_device_root_path":"` + absent + `"}`), "nvidia_device_root_path"},
 		"unsupported kind":      {entry(`"provider":"azure-sgx","expected_measurement_hex":"` + meas + `"`), "no verifier this build can run end to end"},
 	} {
 		t.Run(name, func(t *testing.T) {

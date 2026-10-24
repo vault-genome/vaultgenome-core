@@ -621,9 +621,10 @@ fleet may do.
 - **New destination measurement** (upgrade, new image): print its identity,
   write a new allow-list with a new `version`, set the same value as
   `policy_version`. Each `crosscloud-restore` run reads the files afresh. A
-  `gcp-sev-snp-vtpm` destination's new boot is pinned the same way: add its
-  identity's `vtpm.pcr_digest_hex` to the entry's `pcr_digests`
-  (runbooks/real-tee-gcp-sev-snp-vtpm.md, D).
+  new boot of a `gcp-sev-snp-vtpm`, `azure-sev-snp` or `azure-cgpu`
+  destination is pinned the same way: add its identity's
+  `vtpm.pcr_digest_hex` to the entry's `pcr_digests`, which each of these
+  entries requires (ADR 0037; runbooks/real-tee-gcp-sev-snp-vtpm.md, D).
 - **Revoking a destination:** remove its measurement from the allow-list (new
   version). No further key reaches it; keys it already holds stay where they are.
 - **Authority key:** rotate the seed, run `sagvd identity`, re-pin

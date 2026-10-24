@@ -105,5 +105,6 @@ tar xzf "$BUILD/results.tgz" -C "$HERE/evidence"
 cp "$BUILD/guest.log" "$HERE/evidence/$GSTAMP/runner-guest.log"
 echo "evidence: $HERE/evidence/$GSTAMP"
 cat "$HERE/evidence/$GSTAMP/steps.txt"
-grep -q 'gate_level=EXACT' "$HERE/evidence/$GSTAMP/steps.txt" && grep -q 'audit verify exit=0' "$HERE/evidence/$GSTAMP/steps.txt" && OK=1
-[ "$OK" = 1 ] || { echo "the run did not reach EXACT with a verified audit log"; exit 1; }
+grep -q 'gate_level=EXACT' "$HERE/evidence/$GSTAMP/steps.txt" && grep -q 'audit verify exit=0' "$HERE/evidence/$GSTAMP/steps.txt" \
+  && grep -q '^other boot refused' "$HERE/evidence/$GSTAMP/steps.txt" && OK=1
+[ "$OK" = 1 ] || { echo "the run did not reach EXACT with a verified audit log and the other boot refused"; exit 1; }

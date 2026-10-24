@@ -43,15 +43,16 @@ step "provision (keygen); the pins start as placeholders"
 S=$W/secrets
 mkdir -p genomes audit vcek-cache nras-cache rim-cache
 head -c 48 /dev/zero > peer-vault.meas; head -c 48 /dev/zero > peer-worker.meas
-write_configs() { # $1 = vault measurement hex, $2 = worker measurement hex
-  python3 - "$1" "$2" "$W" "$GPU_TOKEN" "$PROFILE" "$SIGSUITE" <<'PY'
+write_configs() { # $1/$2 = vault/worker measurement hex, $3/$4 = vault/worker boot (the vTPM's PCR digest)
+  python3 - "$1" "$2" "$W" "$GPU_TOKEN" "$PROFILE" "$SIGSUITE" "$3" "$4" <<'PY'
 import json, sys, binascii
 vault_meas, worker_meas, W, py, profile, sigsuite = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6]
+vault_boot, worker_boot = sys.argv[7], sys.argv[8]
 S = W + "/secrets"
 open(W + "/peer-vault.meas", "wb").write(binascii.unhexlify(vault_meas))
 open(W + "/peer-worker.meas", "wb").write(binascii.unhexlify(worker_meas))
 gpu_cmd = [py, W + "/gpu-token.py"]
-peer = lambda meas: {"provider": "azure-cgpu", "measurement_path": meas, "amd_cert_chain_path": W + "/amd-genoa-cert_chain.pem",
+peer = lambda meas, boot: {"provider": "azure-cgpu", "measurement_path": meas, "pcr_digests": [boot], "amd_cert_chain_path": W + "/amd-genoa-cert_chain.pem",
                      "vcek_cache_dir": W + "/vcek-cache", "nras_cache_dir": W + "/nras-cache",
                      # both: NVIDIA's tokens and this verifier's own evaluation of the GPU's report (ADR 0021),
                      # the manifests fetched from NVIDIA's RIM service into rim-cache/
@@ -60,7 +61,7 @@ sagvd = {
   "vault": {"listen_address": "127.0.0.1:9443",
     "tls": {"enabled": True, "server_cert": S + "/sagvd/tls/server.crt", "server_key": S + "/sagvd/tls/server.key", "client_cas": S + "/shared/tls/ca.crt"}},
   "http_api": {"listen_address": "127.0.0.1:9080", "bearer_token_file": S + "/sagvd/api_token"},
-  "tee": {"provider": "azure-cgpu", "workload_descriptor": "sagvd-returnpath-cgpu-v1", "gpu_attest_command": gpu_cmd, "peer": peer(W + "/peer-worker.meas")},
+  "tee": {"provider": "azure-cgpu", "workload_descriptor": "sagvd-returnpath-cgpu-v1", "gpu_attest_command": gpu_cmd, "peer": peer(W + "/peer-worker.meas", worker_boot)},
   "keys": {"authority_signing": {"kid": "sagvd-authority-e2e", "seed_path": S + "/sagvd/authority_signing_seed", "suite": sigsuite},
            "audit_signing": {"kid": "sagvd-audit-e2e", "seed_path": S + "/sagvd/audit_signing_seed", "suite": sigsuite},
            "session_sealing": {"kid": "session-sealing-e2e", "material_path": S + "/shared/sealing.key"}},
@@ -75,7 +76,7 @@ sagvd = {
 worker = {
   "vault": {"address": "127.0.0.1:9443",
     "tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt", "client_key": S + "/acp-compute/tls/client.key", "ca_bundle": S + "/shared/tls/ca.crt", "server_name": "localhost"}},
-  "tee": {"provider": "azure-cgpu", "workload_descriptor": "acp-compute-returnpath-cgpu-v1", "gpu_attest_command": gpu_cmd, "peer": peer(W + "/peer-vault.meas")},
+  "tee": {"provider": "azure-cgpu", "workload_descriptor": "acp-compute-returnpath-cgpu-v1", "gpu_attest_command": gpu_cmd, "peer": peer(W + "/peer-vault.meas", vault_boot)},
   "keys": {"worker_signing": {"kid": "acp-compute-worker-demo", "seed_path": S + "/acp-compute/worker_signing_seed", "suite": sigsuite},
            "session_sealing": {"kid": "session-sealing-e2e", "material_path": S + "/shared/sealing.key"}},
   "genome": {"door": {"command": ["/opt/vg/bin/python3", "-m", "vg_genome", "door", "--stdin-genome", "--base", "/opt/base", "--device", "cuda"],
@@ -87,8 +88,8 @@ json.dump(sagvd, open(W + "/sagvd.json", "w"), indent=2)
 json.dump(worker, open(W + "/worker.json", "w"), indent=2)
 PY
 }
-ZEROS=$(printf '%096d' 0)
-write_configs "$ZEROS" "$ZEROS"
+ZEROS=$(printf '%096d' 0); BOOT0=$(printf '%064d' 0)
+write_configs "$ZEROS" "$ZEROS" "$BOOT0" "$BOOT0"
 
 step "the key files sealed to the vTPM (ADR 0023): sagvd's and acp-compute's seeds and the session sealing key, in place"
 TOKEN=$(cat "$S/sagvd/api_token")   # read before sagvd seals the file (ADR 0023)
@@ -111,11 +112,14 @@ mark identity_start
 mark identity_end
 VMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/sagvd-identity.json" 2>/dev/null)
 WMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/acp-compute-identity.json" 2>/dev/null)
+VBOOT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["vtpm"]["pcr_digest_hex"])' "$OUT/sagvd-identity.json" 2>/dev/null)
+WBOOT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["vtpm"]["pcr_digest_hex"])' "$OUT/acp-compute-identity.json" 2>/dev/null)
+echo "vault_boot=$VBOOT worker_boot=$WBOOT" >> "$OUT/steps.txt"
 echo "vault_measurement=$VMEAS" >> "$OUT/steps.txt"; echo "worker_measurement=$WMEAS" >> "$OUT/steps.txt"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("sagvd crypto_profile=%s kem_suites=%s" % (d.get("crypto_profile"), ",".join(d.get("kem_suites") or []))); print("sagvd signature_suite=%s signature_suites=%s" % (d.get("signature_suite"), ",".join(d.get("signature_suites") or []))); print("sagvd authority_signature_suite=%s audit_signature_suite=%s" % (d.get("authority_signature_suite"), d.get("audit_signature_suite"))); f=d.get("fips140") or {}; print("sagvd fips140 enabled=%s enforced=%s version=%s" % (str(f.get("enabled")).lower(), str(f.get("enforced")).lower(), f.get("version")))' "$OUT/sagvd-identity.json" >> "$OUT/steps.txt" 2>&1
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("acp-compute signing_signature_suite=%s" % d.get("signing_signature_suite")); f=d.get("fips140") or {}; print("acp-compute fips140 enabled=%s enforced=%s version=%s" % (str(f.get("enabled")).lower(), str(f.get("enforced")).lower(), f.get("version")))' "$OUT/acp-compute-identity.json" >> "$OUT/steps.txt" 2>&1
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
-write_configs "$VMEAS" "$WMEAS"
+write_configs "$VMEAS" "$WMEAS" "$VBOOT" "$WBOOT"
 
 step "the escrow key sealed to the guest's vTPM (ADR 0022): made in sagvd's process, sealed under this boot's PCR policy, opened once to prove it, re-sealed through the recovery ceremony"
 tpm2_pcrread sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 > "$OUT/vtpm-pcrs.txt" 2>&1 || true

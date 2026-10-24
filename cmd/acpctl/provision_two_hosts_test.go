@@ -302,6 +302,85 @@ func TestProvisionPinWorker_CompletesTheDeployment(t *testing.T) {
 	require.Equal(t, 2, provisionCmd([]string{"pin-worker", "--out", out}, &stdout2, &stderr2))
 }
 
+// Two Azure hosts: the authority's boot goes to the worker in the bundle,
+// the worker's comes back in its identity, and each configuration pins the
+// other's (ADR 0037).
+func TestProvisionTwoHosts_AzurePinsTheBoots(t *testing.T) {
+	authorityBoot, workerBoot := strings.Repeat("a1", 32), strings.Repeat("b2", 32)
+	authorityBin, _ := stubReleaseBoot(t, 48, "azure-sev-snp", authorityBoot)
+	workerBin, _ := stubReleaseBoot(t, 48, "azure-sev-snp", workerBoot)
+	chain := filepath.Join(t.TempDir(), "amd-genoa-cert_chain.pem")
+	require.NoError(t, os.WriteFile(chain, []byte("-----BEGIN CERTIFICATE-----\nstub\n-----END CERTIFICATE-----\n"), 0o644))
+	run := func(args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := provisionCmd(args, &stdout, &stderr)
+		return code, stdout.String(), stderr.String()
+	}
+	peerOf := func(path string) map[string]any {
+		return readJSON(t, path)["tee"].(map[string]any)["peer"].(map[string]any)
+	}
+
+	// 1. The authority: sagvd starts on the placeholder; the bundle names
+	// this host's boot.
+	authority := filepath.Join(t.TempDir(), "authority")
+	code, _, msg := run("authority", "--out", authority, "--bin-dir", authorityBin, "--provider", "azure-sev-snp",
+		"--amd-cert-chain", chain, "--own-amd-chain", chain, "--vault-listen", "0.0.0.0:19443", "--vault-address", "10.0.0.5:19443", "--skip-seal")
+	require.Equal(t, 0, code, msg)
+	sagvdPath := filepath.Join(authority, "sagvd.json")
+	require.Equal(t, []any{placeholderBoot}, peerOf(sagvdPath)["pcr_digests"], "no boot pinned before pin-worker")
+	m, files, err := readWorkerBundle(filepath.Join(authority, bundleName))
+	require.NoError(t, err)
+	require.Equal(t, authorityBoot, m.Authority.PCRDigestHex)
+
+	// 2. The worker joins: it pins the authority's boot from the bundle.
+	worker := filepath.Join(t.TempDir(), "worker")
+	code, _, msg = run("join", "--bundle", filepath.Join(authority, bundleName), "--out", worker, "--bin-dir", workerBin,
+		"--provider", "azure-sev-snp", "--door-command", "/opt/door", "--skip-seal")
+	require.Equal(t, 0, code, msg)
+	require.Equal(t, []any{authorityBoot}, peerOf(filepath.Join(worker, "acp-compute.json"))["pcr_digests"])
+	require.Equal(t, authorityBoot, readJSON(t, filepath.Join(worker, "provision.json"))["vault"].(map[string]any)["vtpm_pcr_digest_hex"])
+
+	// A bundle that names no boot for an Azure authority is refused.
+	stale := t.TempDir()
+	names := []string{}
+	for name, data := range files {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(stale, name)), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(stale, name), data, 0o600))
+		names = append(names, name)
+	}
+	m.Authority.PCRDigestHex = ""
+	staleBundle := filepath.Join(stale, bundleName)
+	_, err = writeWorkerBundle(staleBundle, stale, names, m)
+	require.NoError(t, err)
+	code, _, msg = run("join", "--bundle", staleBundle, "--out", filepath.Join(t.TempDir(), "worker"), "--bin-dir", workerBin,
+		"--provider", "azure-sev-snp", "--door-command", "/opt/door", "--skip-seal")
+	require.Equal(t, 1, code)
+	require.Contains(t, msg, "names no boot for the azure-sev-snp authority")
+
+	// 3. pin-worker: an identity without the boot pins nothing; the
+	// worker's own identity pins its measurement and its boot.
+	bare := filepath.Join(t.TempDir(), "acp-compute-identity.json")
+	require.NoError(t, os.WriteFile(bare, []byte(`{"tee_provider":"azure-sev-snp","tee_measurement_hex":"`+strings.Repeat("cd", 48)+`"}`), 0o600))
+	code, _, msg = run("pin-worker", "--out", authority, "--identity", bare)
+	require.Equal(t, 1, code)
+	require.Contains(t, msg, "no vtpm.pcr_digest_hex")
+	pin, err := os.ReadFile(filepath.Join(authority, "pins", "worker.measurement"))
+	require.NoError(t, err)
+	require.Equal(t, make([]byte, 48), pin, "nothing pinned by a refusal")
+	require.Equal(t, []any{placeholderBoot}, peerOf(sagvdPath)["pcr_digests"])
+
+	code, stdout, msg := run("pin-worker", "--out", authority, "--identity", filepath.Join(worker, "acp-compute-identity.json"))
+	require.Equal(t, 0, code, msg)
+	require.Contains(t, stdout, "sagvd pins the worker's boot: "+workerBoot)
+	require.Equal(t, []any{workerBoot}, peerOf(sagvdPath)["pcr_digests"])
+	res := readJSON(t, filepath.Join(authority, "provision.json"))
+	raw, err := os.ReadFile(sagvdPath)
+	require.NoError(t, err)
+	sum := sha256.Sum256(raw)
+	require.Equal(t, hex.EncodeToString(sum[:]), res["configs_sha256"].(map[string]any)["sagvd"], "the digest of sagvd.json as it stands")
+	require.Equal(t, workerBoot, res["worker"].(map[string]any)["vtpm_pcr_digest_hex"])
+}
+
 func TestProvisionCmd_HelpNamesTheThreeSteps(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, provisionCmd([]string{"help"}, &stdout, &stderr))

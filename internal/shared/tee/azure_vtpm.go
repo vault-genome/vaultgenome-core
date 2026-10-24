@@ -20,6 +20,7 @@ package tee
 import (
 	"bytes"
 	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -183,8 +184,9 @@ func VTPMBootOf(p Producer) (pcrs []string, digest []byte, ok bool) {
 // azureSNPChecker is the verifier's half: the SNP report inside the HCL
 // report held to AMD's root for its product, its policy, VMPL and TCB
 // floor; then the vTPM's attestation key the report named, signing the
-// challenge over the PCRs, with the PCR digest pinned when the policy
-// names one.
+// challenge over the PCRs, with the PCR digest pinned to the boots the
+// policy names: under the paravisor the launch measurement is the
+// paravisor's and the firmware's, and only the vTPM measures the OS.
 type azureSNPChecker struct {
 	family     string
 	amdRootPEM []byte
@@ -205,6 +207,15 @@ func newAzureSNPChecker(family string, amdRootPEM []byte, kdsURL, cacheDir strin
 	}
 	if _, err := VerifyAMDCertChain(amdRootPEM); err != nil {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, family+": AMDRootPEM", err)
+	}
+	if len(pcrDigests) == 0 {
+		return nil, shared_errors.Structural(shared_errors.CodeRequiredFieldMissing,
+			family+": the policy names no boot: pcr_digests (SHA-256 over the vTPM's PCRs, as TPM2_Quote computes it) is required — under Azure's paravisor the launch measurement is the paravisor's and the firmware's and says nothing of the OS (ADR 0037)", nil)
+	}
+	for _, d := range pcrDigests {
+		if len(d) != sha256.Size {
+			return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, fmt.Sprintf("%s: pcr_digests: %d bytes, want 32", family, len(d)), nil)
+		}
 	}
 	if kdsURL == "" {
 		kdsURL = "https://kdsintf.amd.com"
@@ -270,17 +281,15 @@ func (c *azureSNPChecker) check(hclRaw, quoteMsg, quoteSig []byte, nonce Nonce) 
 	if !bytes.Equal(quote.ExtraData, challenge[:]) {
 		return nil, "", nil, nil, integrity(shared_errors.CodeSignatureInvalid, "TPM quote does not bind challenger nonce (replay?)", nil)
 	}
-	if len(c.pcrDigests) > 0 {
-		pinned := false
-		for _, d := range c.pcrDigests {
-			if bytes.Equal(d, quote.PCRDigest) {
-				pinned = true
-				break
-			}
+	pinned := false
+	for _, d := range c.pcrDigests {
+		if bytes.Equal(d, quote.PCRDigest) {
+			pinned = true
+			break
 		}
-		if !pinned {
-			return nil, "", nil, nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("PCR digest %x is not in the acceptable set: the boot measured into the vTPM is not one the policy names", quote.PCRDigest), nil)
-		}
+	}
+	if !pinned {
+		return nil, "", nil, nil, integrity(shared_errors.CodeAttestationDenied, fmt.Sprintf("PCR digest %x is not in the acceptable set: the boot measured into the vTPM is not one the policy names", quote.PCRDigest), nil)
 	}
 	return h, product, quote, snpDetail, nil
 }

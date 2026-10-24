@@ -130,23 +130,25 @@ GPU verifier):
   NVIDIA reports (`GH100`, `595.71.05`, `96.00.9F.00.04` on the machine
   measured); `allow_secure_boot_off`, `allow_debug`, `allow_unsigned_rim`
   relax the defaults, knowingly.
-- `pcr_digests`: what the peer's vTPM measured of its boot — `identity`
-  prints it as `vtpm.pcr_digest_hex` (the digest over PCRs 0–14 of the
-  SHA-256 bank, as TPM2_Quote computes it) — pinned to one of these; a
-  kernel or driver update changes it. Empty: recorded in the evidence, not
-  policed.
+- `pcr_digests` (required): what the peer's vTPM measured of its boot —
+  `identity` prints it as `vtpm.pcr_digest_hex` (the digest over PCRs 0–14
+  of the SHA-256 bank, as TPM2_Quote computes it) — pinned to one of these;
+  a kernel or driver update changes it. A configuration without it does not
+  start: the launch measurement is Azure's paravisor and firmware and says
+  nothing of the OS (ADR 0037).
 - A destination reached by IP whose certificate names it otherwise: the
   authority's `crosscloud.transport_tls.server_name` is the name to verify
   the certificate against.
 
-The peer pins the VM's measurement from `identity`, as for SEV-SNP.
+The peer pins the VM's measurement and its boot from `identity`.
 
 ## D. A destination for a key release
 
 `acp-bootstrap` with `"tee": { "provider": "azure-cgpu", "gpu_attest_command": [...] }`;
 on the source, a registry entry `{ "provider": "azure-cgpu",
 "expected_measurement_hex": …, "amd_cert_chain_path": …, "vcek_cache_dir":
-…, "nras_cache_dir": …, "gpu_policy": {…}, "pcr_digests": […] }`, and the
+…, "nras_cache_dir": …, "gpu_policy": {…}, "pcr_digests": […] }` —
+`pcr_digests` required, the registry refuses the entry without it — and the
 allow-list names the measurement under `"azure-cgpu"`. Two things the
 failover drill taught: the registry also needs an entry for the
 *primary's* TEE family — the anchors `sagvd failover` verifies the

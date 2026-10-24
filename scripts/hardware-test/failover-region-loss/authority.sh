@@ -98,6 +98,7 @@ DEST_ENDPOINT=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["
 DMEAS=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["measurement_hex"])' /root/destination.json)
 DPCR=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("pcr_digest_hex",""))' /root/destination.json)
 echo "destination endpoint=$DEST_ENDPOINT measurement=$DMEAS pcr_digest=$DPCR" >> "$OUT/steps.txt"
+[ -n "$DPCR" ] || { echo "the destination's hand-off names no vTPM PCR digest: an azure-cgpu destination is pinned to its boot (ADR 0037)"; false; }
 
 step "wait for the primary's sentinel key and chip identity (the operator pins both)"
 for i in $(seq 1 480); do gcs_get handoff/sentinel-identity.json /root/sentinel-identity.json 2>/dev/null && gcs_get handoff/sentinel.pem /root/sentinel.pem 2>/dev/null && break; sleep 5; done
@@ -112,7 +113,7 @@ S="$S"; DMEAS="$DMEAS"; DPCR="$DPCR"; PMEAS="$PMEAS"
 entry={"provider":"azure-cgpu","expected_measurement_hex":DMEAS,"amd_cert_chain_path":"/root/amd-genoa-cert_chain.pem",
        "vcek_cache_dir":"/root/vcek-cache","nras_cache_dir":"/root/nras-cache",
        "gpu_policy":{"hw_models":["GH100"],"evaluation":"both","rim_cache_dir":"/root/rim-cache"}}   # both: NVIDIA's tokens and this verifier's own evaluation, revocation asked of NVIDIA's OCSP responder (ADR 0021)
-if DPCR: entry["pcr_digests"]=[DPCR]
+entry["pcr_digests"]=[DPCR]   # required (ADR 0037): the boot the destination runs
 # the primary's anchors: the executor verifies the primary's SEV-SNP reports (ADR 0017) with the registry's gcp-sev-snp entry,
 # the policy's pinned measurements replacing this expected one
 primary={"provider":"gcp-sev-snp","expected_measurement_hex":PMEAS,"amd_cert_chain_path":"/root/amd-milan-cert_chain.pem","vcek_cache_dir":"/root/vcek-cache"}

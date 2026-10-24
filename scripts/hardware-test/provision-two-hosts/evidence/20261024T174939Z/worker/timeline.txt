@@ -1,0 +1,6 @@
+runtime_install_start=2026-10-24T17:58:08.327804912Z
+runtime_install_end=2026-10-24T17:59:39.707988830Z
+provision_join_start=2026-10-24T17:59:39.710048277Z
+provision_join_end=2026-10-24T17:59:40.349161670Z
+worker_start=2026-10-24T17:59:48.094831828Z
+worker_stopped=2026-10-24T18:00:29.354118335Z

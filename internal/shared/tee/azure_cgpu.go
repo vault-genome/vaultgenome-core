@@ -104,10 +104,11 @@ type AzureCGPUVerifierConfig struct {
 	NVIDIARIMRootPEM    []byte
 	RIMServiceURL       string
 	RIMCacheDir         string
-	// AcceptablePCRDigests, when set, pins the quote's PCR digest — the
-	// SHA-256 over the selected PCRs' values, as TPM2_Quote computes it —
-	// to one of these, so the OS and driver measured into the vTPM are
-	// policed and not only recorded. Empty: recorded only.
+	// AcceptablePCRDigests pin the quote's PCR digest — the SHA-256 over
+	// the selected PCRs' values, as TPM2_Quote computes it — to one of
+	// these: the boots, OS and driver, the peer may run. Required: the
+	// launch measurement is Azure's paravisor and firmware, and only the
+	// vTPM measures the OS (ADR 0037).
 	AcceptablePCRDigests [][]byte
 	// AcceptableMeasurements lists every SNP measurement accepted. When
 	// empty, falls back to VerifierSpec.ExpectedMeasurement.

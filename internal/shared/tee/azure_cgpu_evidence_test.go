@@ -66,6 +66,10 @@ func azureCGPUCapturedVerifier(t *testing.T, chain []byte, mutate func(*AzureCGP
 		// NVIDIA's stored answers; the captured verifier leaves it off so no
 		// test reaches for the responder.
 		GPURevocation: GPURevocationOff}
+	// The boot the captured quote reports, pinned as a deployment pins it.
+	q, err := parseTPMQuote(func() []byte { b, _ := os.ReadFile(filepath.Join(azureCGPUCapture, "quote1.msg")); return b }())
+	require.NoError(t, err)
+	cfg.AcceptablePCRDigests = [][]byte{q.PCRDigest}
 	if mutate != nil {
 		mutate(&cfg)
 	}

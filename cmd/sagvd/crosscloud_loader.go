@@ -153,8 +153,10 @@ type verifierEntry struct {
 	PCSURL                string   `json:"pcs_url,omitempty"`
 	PCSCacheDir           string   `json:"pcs_cache_dir,omitempty"`
 	AcceptableTCBStatuses []string `json:"acceptable_tcb_statuses,omitempty"`
-	// NRASJWKSURL, NRASCacheDir, GPUPolicy and PCRDigests configure an
-	// azure-cgpu verifier, with the AMD fields above (the Genoa chain).
+	// NRASJWKSURL, NRASCacheDir and GPUPolicy configure an azure-cgpu
+	// verifier, with the AMD fields above (the Genoa chain). PCRDigests are
+	// the boots an azure-cgpu, azure-sev-snp or gcp-sev-snp-vtpm destination
+	// may run, required for each (ADR 0037).
 	NRASJWKSURL  string           `json:"nras_jwks_url,omitempty"`
 	NRASCacheDir string           `json:"nras_cache_dir,omitempty"`
 	GPUPolicy    *GPUPolicyConfig `json:"gpu_policy,omitempty"`
@@ -406,6 +408,9 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			if err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].amd_cert_chain_path: %w", i, err)
 			}
+			if len(e.PCRDigests) == 0 {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: azure-sev-snp requires pcr_digests, the boots the destination may run: its launch measurement is Azure's paravisor and firmware and says nothing of the OS (ADR 0037)", i)
+			}
 			digests, err := pcrDigests(e.PCRDigests)
 			if err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].%w", i, err)
@@ -418,6 +423,9 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 			chain, err := os.ReadFile(e.AMDCertChainPath)
 			if err != nil {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d].amd_cert_chain_path: %w", i, err)
+			}
+			if len(e.PCRDigests) == 0 {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: azure-cgpu requires pcr_digests, the boots the destination may run, OS and driver: its launch measurement is Azure's paravisor and firmware and says nothing of the OS (ADR 0037)", i)
 			}
 			digests, err := pcrDigests(e.PCRDigests)
 			if err != nil {

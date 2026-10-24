@@ -64,3 +64,12 @@ EXACT 6/6 in 5 s, the audit log verified; 8 min 55 s end to end. The
 authority's `authority/sagvd-metrics.txt` carries
 `vg_tee_attestation_total{provider="azure-sev-snp",role="verify"} 1`: the
 verification counted under the worker's family.
+
+Third run on record, the worker's boot pinned (claim C54):
+`evidence/20261024T174939Z/` — the binaries of commit `e9a4d914`;
+`pin-worker` pinned the Azure worker's measurement and its vTPM's boot
+digest in `sagvd.json` (`authority/steps.txt`: `worker_boot=65442b83…
+sagvd_pcr_digests=65442b83…`), the value the worker's identity printed;
+the session opened 3 s after sagvd was ready, the gate job EXACT 6/6 in
+6 s, the audit log verified; the authority's script 459.2 s.
+

@@ -454,12 +454,12 @@ type PeerTEEConfig struct {
 	NRASJWKSURL  string           `json:"nras_jwks_url,omitempty"`
 	NRASCacheDir string           `json:"nras_cache_dir,omitempty"`
 	GPUPolicy    *GPUPolicyConfig `json:"gpu_policy,omitempty"`
-	// PCRDigests (hex, 32 bytes each), when set, pin what the peer's vTPM
-	// measured of its boot: the quote's PCR digest must be one of them
-	// (`identity` prints it as vtpm.pcr_digest_hex). azure-cgpu and
-	// azure-sev-snp peers, and required for a gcp-sev-snp-vtpm peer, whose
-	// launch measurement is Google's firmware and whose kernel only the vTPM
-	// measures (ADR 0037).
+	// PCRDigests (hex, 32 bytes each) pin what the peer's vTPM measured of
+	// its boot: the quote's PCR digest must be one of them (`identity`
+	// prints it as vtpm.pcr_digest_hex). Required for an azure-cgpu,
+	// azure-sev-snp and gcp-sev-snp-vtpm peer: the launch measurement of
+	// each is the cloud's — Azure's paravisor and firmware, Google's UEFI —
+	// and only the vTPM measures the kernel (ADR 0037).
 	PCRDigests []string `json:"pcr_digests,omitempty"`
 
 	// PCRSelection is the selection a gcp-sev-snp-vtpm peer's quote must
@@ -893,6 +893,9 @@ func validateTEE(t TEEConfig) []error {
 		if t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil {
 			errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir and gpu_policy apply to an azure-cgpu peer only (azure-sev-snp has no GPU)"))
 		}
+		if len(t.Peer.PCRDigests) == 0 {
+			errs = append(errs, errors.New("tee.peer.pcr_digests required when tee.peer.provider=azure-sev-snp: the boots the peer may run (its launch measurement is Azure's paravisor and firmware and says nothing of the OS; ADR 0037)"))
+		}
 	case peer == tee.ProviderAzureCGPU:
 		if t.Peer.PublicKeyPath != "" {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; an Azure confidential GPU VM's report is signed by the chip's VCEK"))
@@ -902,6 +905,9 @@ func validateTEE(t TEEConfig) []error {
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
+		}
+		if len(t.Peer.PCRDigests) == 0 {
+			errs = append(errs, errors.New("tee.peer.pcr_digests required when tee.peer.provider=azure-cgpu: the boots the peer may run, OS and driver (its launch measurement is Azure's paravisor and firmware and says nothing of the OS; ADR 0037)"))
 		}
 	}
 	if peer, err := t.Peer.ProviderKind(); err == nil {

@@ -1,0 +1,47 @@
+{
+  "schema": "vault-genome/acpctl-provision/v1",
+  "role": "worker",
+  "phase": "joined",
+  "out": "/root/deploy",
+  "provider": "auto",
+  "peer_provider": "gcp-sev-snp",
+  "sealer": "auto",
+  "binaries": {
+    "acp-compute": "/root/p2/acp-compute"
+  },
+  "secrets": "/root/deploy/secrets",
+  "configs": {
+    "acp-compute": "/root/deploy/acp-compute.json"
+  },
+  "configs_sha256": {
+    "acp-compute": "9e0c2b8d36d93356c86a31ca7e1465a82f7c9e2ae2f4d15636d9380315e3e494"
+  },
+  "pins": {
+    "vault": "/root/deploy/pins/vault.measurement"
+  },
+  "amd_cert_chain": "/root/deploy/amd-milan-cert_chain.pem",
+  "vault": {
+    "provider": "gcp-sev-snp",
+    "measurement_hex": "9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf"
+  },
+  "worker": {
+    "provider": "azure-sev-snp",
+    "measurement_hex": "6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48",
+    "sealer": "tpm2",
+    "vtpm_pcr_digest_hex": "65442b83741c7dfa1dde8b45bfb1757366b18429f24e8a557dbf2024bf56f738",
+    "identity_file": "/root/deploy/acp-compute-identity.json"
+  },
+  "sealed": {
+    "acp-compute": [
+      "keys.worker_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "vault.tls.client_key"
+    ]
+  },
+  "vault_address": "34.30.242.99:9443",
+  "next": [
+    "delete /home/vg/in/worker-bundle.tar: its files are in /root/deploy now, sealed to this host",
+    "carry /root/deploy/acp-compute-identity.json to the authority's host and run: acpctl provision pin-worker --out \u003cauthority dir\u003e --identity acp-compute-identity.json",
+    "/root/p2/acp-compute -config /root/deploy/acp-compute.json (once the authority has pinned this worker and is running)"
+  ]
+}

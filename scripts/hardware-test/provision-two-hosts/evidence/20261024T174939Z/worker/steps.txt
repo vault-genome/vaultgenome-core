@@ -1,0 +1,14 @@
+== binaries, the worker package, the base model and the bundle from /home/vg/in
+== tpm2-tools: the azure-sev-snp provider reads the HCL report from the vTPM's NV index through tpm2_nvread
+tpm2_nvread=/usr/bin/tpm2_nvread
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== step 2: acpctl provision join — the bundle into /root/deploy, acp-compute.json for the authority it names, identity from the vTPM, keys sealed
+provision join exit=0
+provider=auto authority=gcp-sev-snp sealer=auto phase=joined vault_address=34.30.242.99:9443
+worker_measurement=6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48 worker_provider=azure-sev-snp worker_sealer=tpm2
+pinned_authority=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+sealed_worker=keys.worker_signing.seed_path,keys.session_sealing.material_path,vault.tls.client_key
+bundle deleted on the worker host after join
+== acp-compute on what join wrote, dialing the authority
+acp-compute ready after 1s pid=5112
+== metrics; stop acp-compute; the results

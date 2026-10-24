@@ -94,10 +94,10 @@ mkdir -p genomes audit queue vcek-cache
 # a config that validates, so the pin files start out as placeholders.
 head -c 48 /dev/zero > peer-vault.meas; head -c 48 /dev/zero > peer-worker.meas
 
-write_configs() { # $1 = vault measurement hex, $2 = worker measurement hex
-  python3 - "$1" "$2" "$SEALER" <<'PY'
+write_configs() { # $1/$2 = vault/worker measurement hex, $3/$4 = vault/worker boot (the vTPM's PCR digest)
+  python3 - "$1" "$2" "$SEALER" "$3" "$4" <<'PY'
 import json, sys, binascii
-vault_meas, worker_meas, SEALER = sys.argv[1], sys.argv[2], sys.argv[3]
+vault_meas, worker_meas, SEALER, vault_boot, worker_boot = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 W = "/root/e2e"; S = W + "/secrets"
 open(W + "/peer-vault.meas", "wb").write(binascii.unhexlify(vault_meas))
 open(W + "/peer-worker.meas", "wb").write(binascii.unhexlify(worker_meas))
@@ -106,7 +106,7 @@ sagvd = {
     "tls": {"enabled": True, "server_cert": S + "/sagvd/tls/server.crt", "server_key": S + "/sagvd/tls/server.key", "client_cas": S + "/shared/tls/ca.crt"}},
   "http_api": {"listen_address": "127.0.0.1:9080", "bearer_token_file": S + "/sagvd/api_token"},
   "tee": {"provider": "auto", "sealer": SEALER, "workload_descriptor": "sagvd-returnpath-e2e-v1",
-    "peer": {"provider": "azure-sev-snp", "measurement_path": W + "/peer-worker.meas",
+    "peer": {"provider": "azure-sev-snp", "measurement_path": W + "/peer-worker.meas", "pcr_digests": [worker_boot],
              "amd_cert_chain_path": W + "/amd-cert_chain.pem", "vcek_cache_dir": W + "/vcek-cache"}},
   "keys": {"authority_signing": {"kid": "sagvd-authority-e2e", "seed_path": S + "/sagvd/authority_signing_seed"},
            "audit_signing": {"kid": "sagvd-audit-e2e", "seed_path": S + "/sagvd/audit_signing_seed"},
@@ -123,7 +123,7 @@ worker = {
   "vault": {"address": "127.0.0.1:9443",
     "tls": {"enabled": True, "client_cert": S + "/acp-compute/tls/client.crt", "client_key": S + "/acp-compute/tls/client.key", "ca_bundle": S + "/shared/tls/ca.crt", "server_name": "localhost"}},
   "tee": {"provider": "auto", "sealer": SEALER, "workload_descriptor": "acp-compute-returnpath-e2e-v1",
-    "peer": {"provider": "azure-sev-snp", "measurement_path": W + "/peer-vault.meas",
+    "peer": {"provider": "azure-sev-snp", "measurement_path": W + "/peer-vault.meas", "pcr_digests": [vault_boot],
              "amd_cert_chain_path": W + "/amd-cert_chain.pem", "vcek_cache_dir": W + "/vcek-cache"}},
   "keys": {"worker_signing": {"kid": "acp-compute-worker-demo", "seed_path": S + "/acp-compute/worker_signing_seed"},
            "session_sealing": {"kid": "session-sealing-e2e", "material_path": S + "/shared/sealing.key"}},
@@ -136,19 +136,24 @@ json.dump(sagvd, open(W + "/sagvd.json", "w"), indent=2)
 json.dump(worker, open(W + "/worker.json", "w"), indent=2)
 PY
 }
-ZEROS=$(printf '%096d' 0)
-write_configs "$ZEROS" "$ZEROS"
+ZEROS=$(printf '%096d' 0); BOOT0=$(printf '%064d' 0)
+write_configs "$ZEROS" "$ZEROS" "$BOOT0" "$BOOT0"
 
 step "identities: each daemon reads its launch measurement from the chip's report in the vTPM, and what the vTPM measured of this boot"
 ./sagvd identity -config sagvd.json > "$OUT/sagvd-identity.json" 2> "$OUT/sagvd-identity.err"; echo "sagvd identity exit=$?" >> "$OUT/steps.txt"
 ./acp-compute identity -config worker.json > "$OUT/acp-compute-identity.json" 2> "$OUT/acp-compute-identity.err"; echo "acp-compute identity exit=$?" >> "$OUT/steps.txt"
 VMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/sagvd-identity.json" 2>/dev/null)
 WMEAS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tee_measurement_hex"])' "$OUT/acp-compute-identity.json" 2>/dev/null)
+VBOOT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["vtpm"]["pcr_digest_hex"])' "$OUT/sagvd-identity.json" 2>/dev/null)
+WBOOT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["vtpm"]["pcr_digest_hex"])' "$OUT/acp-compute-identity.json" 2>/dev/null)
 echo "vault_measurement=$VMEAS" >> "$OUT/steps.txt"; echo "worker_measurement=$WMEAS" >> "$OUT/steps.txt"
+echo "vault_boot=$VBOOT" >> "$OUT/steps.txt"; echo "worker_boot=$WBOOT" >> "$OUT/steps.txt"
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_public_key_pem"], end="")' "$OUT/sagvd-identity.json" > audit.pem
 # Both daemons share this guest, so both measurements are the launch
-# measurement of this VM; each pins the other's.
-write_configs "$VMEAS" "$WMEAS"
+# measurement of this VM and both boots this boot; each pins the other's,
+# the boot required — the launch measurement is Azure's paravisor and
+# firmware and says nothing of the OS (ADR 0037).
+write_configs "$VMEAS" "$WMEAS" "$VBOOT" "$WBOOT"
 
 step "the key files sealed to this host (ADR 0023; the sealer is tee.sealer=$SEALER, ADR 0025 step 1b)"
 # seal-keys seals the API token file too: the operator's copy is taken first.
@@ -228,6 +233,44 @@ ROGUE=$!
 n=0; until grep -q "sagvd return-path handshake failed" "$OUT/sagvd.log" || [ $n -ge 60 ]; do sleep 1; n=$((n+1)); done
 if grep -q "sagvd return-path handshake failed" "$OUT/sagvd.log"; then echo "rogue refused after ${n}s" >> "$OUT/steps.txt"; else echo "rogue NOT refused within ${n}s" >> "$OUT/steps.txt"; fi
 kill -TERM $ROGUE 2>/dev/null; wait $ROGUE 2>/dev/null
+
+step "a worker whose boot is not the one pinned: refused at the handshake (ADR 0037)"
+# The real worker — its chip, its measurement, its key files — against a
+# second sagvd whose policy names another boot: one hex digit of this
+# boot's digest changed. The launch measurement matches; the vTPM's quote
+# of the boot does not, and the handshake is refused on that.
+python3 - "$WBOOT" >> "$OUT/steps.txt" <<'PY'
+import json, sys
+W = "/root/e2e"
+boot = sys.argv[1]
+other = ("1" if boot[0] == "0" else "0") + boot[1:]
+s = json.load(open(W + "/sagvd.json"))
+s["vault"]["listen_address"] = "127.0.0.1:9543"
+s["http_api"]["listen_address"] = "127.0.0.1:9180"
+s["health"]["listen_address"] = "127.0.0.1:9181"
+s["audit"]["log_path"] = W + "/audit/otherboot-audit.db"
+s["queue"]["path"] = W + "/queue/otherboot-jobs.db"
+s["tee"]["peer"]["pcr_digests"] = [other]
+json.dump(s, open(W + "/sagvd-otherboot.json", "w"), indent=2)
+c = json.load(open(W + "/worker.json"))
+c["vault"]["address"] = "127.0.0.1:9543"
+c["health"]["listen_address"] = "127.0.0.1:9183"
+json.dump(c, open(W + "/worker-otherboot.json", "w"), indent=2)
+print("other_boot=" + other)
+PY
+./sagvd -config sagvd-otherboot.json > "$OUT/sagvd-otherboot.log" 2>&1 &
+OTHER=$!
+n=0; until curl -sf http://127.0.0.1:9181/readyz >/dev/null || [ $n -ge 60 ]; do sleep 1; n=$((n+1)); done
+./acp-compute -config worker-otherboot.json > "$OUT/worker-otherboot.log" 2>&1 &
+OTHERW=$!
+n=0; until grep -q "is not in the acceptable set" "$OUT/sagvd-otherboot.log" || [ $n -ge 60 ]; do sleep 1; n=$((n+1)); done
+if grep -q "sagvd return-path handshake failed" "$OUT/sagvd-otherboot.log" && grep -q "PCR digest [0-9a-f]* is not in the acceptable set" "$OUT/sagvd-otherboot.log"; then
+  echo "other boot refused after ${n}s: $(grep -o 'PCR digest [0-9a-f]* is not in the acceptable set' "$OUT/sagvd-otherboot.log" | head -1)" >> "$OUT/steps.txt"
+else
+  echo "other boot NOT refused within ${n}s" >> "$OUT/steps.txt"
+fi
+kill -TERM $OTHERW 2>/dev/null; wait $OTHERW 2>/dev/null
+kill -TERM $OTHER 2>/dev/null; wait $OTHER 2>/dev/null
 
 step "acp-compute on Azure SEV-SNP, the real door"
 ./acp-compute -config worker.json > "$OUT/acp-compute.log" 2>&1 &

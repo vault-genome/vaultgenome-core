@@ -50,8 +50,8 @@ the paravisor and firmware Azure measures — the same for every VM of the
 same generation, not the OS. The OS is in the vTPM's PCRs, which the quote
 records; `identity` prints what this boot measured as
 `vtpm.pcr_digest_hex` (the digest over PCRs 0–14 of the SHA-256 bank, as
-TPM2_Quote computes it), and a peer pins it with `pcr_digests` when the
-OS is to be policed and not only recorded.
+TPM2_Quote computes it), and a peer pins it with `pcr_digests`, which is
+required: the launch measurement says nothing of the OS (ADR 0037).
 
 The report is issued at boot, so its own REPORT_DATA is Azure's (the
 SHA-256 of the vTPM's runtime data, which names the attestation key); the
@@ -68,6 +68,7 @@ The daemon on the VM (root, or a user that may read the vTPM):
   "provider": "azure-sev-snp", "workload_descriptor": "acp-compute-v1",
   "peer": { "provider": "azure-sev-snp",
             "measurement_path": "/etc/acp/pins/vault.measurement",
+            "pcr_digests": ["<the peer's vtpm.pcr_digest_hex>"],
             "amd_cert_chain_path": "/etc/acp/crosscloud/amd-genoa-cert_chain.pem",
             "vcek_cache_dir": "/var/lib/acp/vcek-cache" } }
 ```
@@ -87,9 +88,17 @@ The daemon on the VM (root, or a user that may read the vTPM):
   chain and the VCEK for this chip. A Milan chain refuses a Genoa VCEK.
 - `vcek_cache_dir`: fill it at deploy time (one handshake); with it empty
   and AMD KDS unreachable the verifier refuses.
-- `pcr_digests`: what the peer's vTPM measured of its boot, pinned to one
-  of these; a kernel update changes it. Empty: recorded in the evidence,
-  not policed.
+- `pcr_digests` (required): what the peer's vTPM measured of its boot —
+  `identity` on the peer, on the boot it runs, prints it as
+  `vtpm.pcr_digest_hex` — and the quote's digest must be one of these. A
+  configuration without it does not start. It is a property of one VM's
+  boot, not of the image — two VMs of one image measured different
+  digests (C54) — so each host is pinned from its own `identity`, taken
+  after its last reboot. A kernel update is a new boot: the host is
+  refused until its new digest is pinned beside the old; remove the old
+  once no host runs it.
+  `acpctl provision` pins each side's boot from its identity, the worker's
+  in `pin-worker`.
 - `tee.sealer`: `auto` (the default) is the vTPM (`tpm2`, ADR 0022): the
   paravisor gives the guest no derived key of its own, and `tee.sealer:
   "tee"` is refused by name. `tee.vtpm_seal_pcrs` selects the PCRs the key
@@ -97,7 +106,7 @@ The daemon on the VM (root, or a user that may read the vTPM):
 - No `gpu_attest_command`, `nras_*` or `gpu_policy`: those are the
   `azure-cgpu` family's and are refused here.
 
-The peer pins the VM's measurement from `identity`, as for SEV-SNP. What
+The peer pins the VM's measurement and its boot from `identity`. What
 the verifier checked is on the audit record: the `TRUST_EVALUATED` event
 that admits the worker carries `peer_detail` — the chip's product and id,
 the reported TCB, the quote's PCR selection and digest.
@@ -106,7 +115,9 @@ the reported TCB, the quote's PCR selection and digest.
 
 `scripts/hardware-test/azure-sev-snp/returnpath-e2e/` runs the Return
 Path on one `Standard_DC4as_v5`: both daemons attest as `azure-sev-snp`,
-each pins the other's launch measurement, the worker fine-tunes a genome
+each pins the other's launch measurement and boot, a worker on a boot
+the policy does not name is refused at the handshake, the worker
+fine-tunes a genome
 on the guest, `acpctl` seals it, the gate job goes over the Return Path
 and the authority judges the answer; every key file is sealed to the vTPM.
 The run on record is in the kit's `README.md` and in
