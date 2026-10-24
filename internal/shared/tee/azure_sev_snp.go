@@ -56,10 +56,11 @@ type AzureSEVSNPVerifierConfig struct {
 	MinReportedTCB uint64
 	// SEVSNP holds the chip's report to the attack record (ADR 0033).
 	SEVSNP SEVSNPPolicy
-	// AcceptablePCRDigests, when set, pins the quote's PCR digest — the
-	// SHA-256 over the selected PCRs' values, as TPM2_Quote computes it —
-	// to one of these, so the OS measured into the vTPM is policed and not
-	// only recorded. Empty: recorded only.
+	// AcceptablePCRDigests pin the quote's PCR digest — the SHA-256 over
+	// the selected PCRs' values, as TPM2_Quote computes it — to one of
+	// these: the boots the peer may run. Required: the launch measurement
+	// is Azure's paravisor and firmware, and only the vTPM measures the OS
+	// (ADR 0037).
 	AcceptablePCRDigests [][]byte
 	// AcceptableMeasurements lists every SNP measurement accepted. When
 	// empty, falls back to VerifierSpec.ExpectedMeasurement.

@@ -127,13 +127,13 @@ func TestAzureCGPUVerifierRefusesMoreDefects(t *testing.T) {
 
 	_, err = NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: []byte("junk")})
 	requireStructuralErr(t, err, "AMDRootPEM:")
-	_, err = NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, GPUEvaluation: GPUEvaluationOwn, NVIDIADeviceRootPEM: []byte("junk")})
+	_, err = NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, AcceptablePCRDigests: azureFixtureBoot(), GPUEvaluation: GPUEvaluationOwn, NVIDIADeviceRootPEM: []byte("junk")})
 	requireStructuralErr(t, err, "NVIDIA device root")
-	_, err = NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, GPUEvaluation: GPUEvaluationOwn, NVIDIARIMRootPEM: []byte("junk")})
+	_, err = NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, AcceptablePCRDigests: azureFixtureBoot(), GPUEvaluation: GPUEvaluationOwn, NVIDIARIMRootPEM: []byte("junk")})
 	requireStructuralErr(t, err, "NVIDIA RIM root")
-	_, err = NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, GPUEvaluation: GPUEvaluationBoth, GPURevocation: "weird"})
+	_, err = NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, AcceptablePCRDigests: azureFixtureBoot(), GPUEvaluation: GPUEvaluationBoth, GPURevocation: "weird"})
 	requireStructuralErr(t, err, "GPURevocation")
-	withOCSP, err := NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, GPUEvaluation: GPUEvaluationBoth})
+	withOCSP, err := NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, AcceptablePCRDigests: azureFixtureBoot(), GPUEvaluation: GPUEvaluationBoth})
 	require.NoError(t, err)
 	require.NotNil(t, withOCSP.gpuEval.OCSP, "revocation is checked unless switched off")
 

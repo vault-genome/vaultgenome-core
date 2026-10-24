@@ -35,9 +35,16 @@ func (f *azureCGPUFixture) sevsnpEvidence(t *testing.T, nonce []byte) Evidence {
 	return Evidence(ev)
 }
 
+// azureFixtureBoot is the boot the fixture's quotes report — the digest
+// over its PCRs — which a verifier of the fixture pins (ADR 0037).
+func azureFixtureBoot() [][]byte {
+	d := sha256.Sum256([]byte("pcrs"))
+	return [][]byte{d[:]}
+}
+
 func azureSEVSNPVerifier(t *testing.T, f *azureCGPUFixture, mutate func(*AzureSEVSNPVerifierConfig)) *AzureSEVSNPVerifier {
 	t.Helper()
-	cfg := AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain, VCEKCacheDir: t.TempDir()}
+	cfg := AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain, VCEKCacheDir: t.TempDir(), AcceptablePCRDigests: azureFixtureBoot()}
 	if mutate != nil {
 		mutate(&cfg)
 	}
@@ -124,11 +131,11 @@ func TestAzureSEVSNPVerifierRefusesWhatItShould(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("a measurement not pinned", func(t *testing.T) {
-		w, err := NewAzureSEVSNPVerifier(nil, make(Measurement, 48), AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain})
+		w, err := NewAzureSEVSNPVerifier(nil, make(Measurement, 48), AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain, AcceptablePCRDigests: azureFixtureBoot()})
 		require.NoError(t, err)
 		_, err = w.Verify(f.sevsnpEvidence(t, nonce), nonce)
 		require.ErrorContains(t, err, "not in acceptable set")
-		listed, err := NewAzureSEVSNPVerifier(nil, make(Measurement, 48), AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain, AcceptableMeasurements: []Measurement{f.measurement}})
+		listed, err := NewAzureSEVSNPVerifier(nil, make(Measurement, 48), AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain, AcceptablePCRDigests: azureFixtureBoot(), AcceptableMeasurements: []Measurement{f.measurement}})
 		require.NoError(t, err)
 		_, err = listed.Verify(f.sevsnpEvidence(t, nonce), nonce)
 		require.NoError(t, err, "AcceptableMeasurements replaces the expected one")
@@ -161,6 +168,23 @@ func TestAzureSEVSNPVerifierRefusesWhatItShould(t *testing.T) {
 		_, err := NewAzureSEVSNPVerifier(nil, f.measurement, AzureSEVSNPVerifierConfig{})
 		require.ErrorContains(t, err, "AMDRootPEM")
 	})
+}
+
+// Under Azure's paravisor the launch measurement is the paravisor's and
+// the firmware's: a verifier of either family is refused a policy that
+// names no boot, and a boot that is not a SHA-256 digest (ADR 0037).
+func TestAzureVerifiersRequireTheBoot(t *testing.T) {
+	f := newAzureCGPUFixture(t)
+	_, err := NewAzureSEVSNPVerifier(nil, f.measurement, AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain})
+	require.ErrorContains(t, err, "azure-sev-snp: the policy names no boot")
+	require.Equal(t, shared_errors.CodeRequiredFieldMissing, shared_errors.CodeOf(err))
+	_, err = NewAzureCGPUVerifier(nil, f.measurement, AzureCGPUVerifierConfig{AMDRootPEM: f.chain})
+	require.ErrorContains(t, err, "azure-cgpu: the policy names no boot")
+	_, err = BuildVerifier(VerifierSpec{Provider: ProviderAzureSEVSNP, ExpectedMeasurement: f.measurement, AzureSEVSNP: AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain}})
+	require.ErrorContains(t, err, "the policy names no boot")
+	_, err = NewAzureSEVSNPVerifier(nil, f.measurement, AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain, AcceptablePCRDigests: [][]byte{make([]byte, 31)}})
+	require.ErrorContains(t, err, "pcr_digests: 31 bytes, want 32")
+	require.Equal(t, shared_errors.CodeFieldValueInvalid, shared_errors.CodeOf(err))
 }
 
 // stubVTPMTools makes the vTPM's tools answer from the fixture: the HCL
@@ -281,7 +305,7 @@ func TestAzureSEVSNPIsOneRowOfTheTable(t *testing.T) {
 
 	f := newAzureCGPUFixture(t)
 	stubAMD(t, true)
-	v, err := BuildVerifier(VerifierSpec{Provider: ProviderAzureSEVSNP, ExpectedMeasurement: f.measurement, AzureSEVSNP: AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain}})
+	v, err := BuildVerifier(VerifierSpec{Provider: ProviderAzureSEVSNP, ExpectedMeasurement: f.measurement, AzureSEVSNP: AzureSEVSNPVerifierConfig{AMDRootPEM: f.chain, AcceptablePCRDigests: azureFixtureBoot()}})
 	require.NoError(t, err)
 	nonce := Nonce("a return-path challenge, thirty-two bytes")
 	m, err := v.Verify(f.sevsnpEvidence(t, nonce), nonce)

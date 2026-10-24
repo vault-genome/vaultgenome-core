@@ -145,7 +145,7 @@ func azureCGPUVerifier(t *testing.T, f *azureCGPUFixture, mutate func(*AzureCGPU
 	old := nrasHTTPGet
 	t.Cleanup(func() { nrasHTTPGet = old })
 	nrasHTTPGet = func(string) ([]byte, error) { return f.nras.jwks, nil }
-	cfg := AzureCGPUVerifierConfig{AMDRootPEM: f.chain, VCEKCacheDir: t.TempDir(), NRASCacheDir: t.TempDir(), Now: func() time.Time { return f.now }}
+	cfg := AzureCGPUVerifierConfig{AMDRootPEM: f.chain, VCEKCacheDir: t.TempDir(), NRASCacheDir: t.TempDir(), Now: func() time.Time { return f.now }, AcceptablePCRDigests: azureFixtureBoot()}
 	if mutate != nil {
 		mutate(&cfg)
 	}
@@ -248,7 +248,7 @@ func TestAzureCGPUVerifierRefusesWhatItShould(t *testing.T) {
 	})
 	t.Run("a measurement not pinned", func(t *testing.T) {
 		otherPin := make(Measurement, 48)
-		w, err := NewAzureCGPUVerifier(nil, otherPin, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, NRASCacheDir: v.cfg.NRASCacheDir, Now: v.cfg.Now})
+		w, err := NewAzureCGPUVerifier(nil, otherPin, AzureCGPUVerifierConfig{AMDRootPEM: f.chain, NRASCacheDir: v.cfg.NRASCacheDir, Now: v.cfg.Now, AcceptablePCRDigests: azureFixtureBoot()})
 		require.NoError(t, err)
 		_, err = w.Verify(f.evidence(t, nonce), nonce)
 		require.ErrorContains(t, err, "not in acceptable set")

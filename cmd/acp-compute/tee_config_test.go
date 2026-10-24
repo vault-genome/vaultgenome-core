@@ -112,6 +112,19 @@ func TestConfig_Validate_HardwareProviderFields(t *testing.T) {
 		}, []string{"an Azure confidential GPU VM's report is signed by the chip's VCEK"}},
 		"azure peer without the chain": {func(c *Config) { hardwarePeer(c, "azure-cgpu") },
 			[]string{"tee.peer.amd_cert_chain_path required when tee.peer.provider=azure-cgpu"}},
+		"azure peer without the boot": {func(c *Config) {
+			hardwarePeer(c, "azure-cgpu")
+			c.TEE.Peer.AMDCertChainPath = "/x/genoa.pem"
+		}, []string{"tee.peer.pcr_digests required when tee.peer.provider=azure-cgpu"}},
+		"azure-sev-snp peer clean": {func(c *Config) {
+			hardwarePeer(c, "azure-sev-snp")
+			c.TEE.Peer.AMDCertChainPath = "/x/genoa.pem"
+			c.TEE.Peer.PCRDigests = []string{testPCRDigestHex}
+		}, nil},
+		"azure-sev-snp peer without the boot": {func(c *Config) {
+			hardwarePeer(c, "azure-sev-snp")
+			c.TEE.Peer.AMDCertChainPath = "/x/genoa.pem"
+		}, []string{"tee.peer.pcr_digests required when tee.peer.provider=azure-sev-snp"}},
 		"azure peer with PCS fields": {func(c *Config) {
 			hardwarePeer(c, "azure-cgpu")
 			c.TEE.Peer.AMDCertChainPath = "/x/genoa.pem"

@@ -176,7 +176,7 @@ func TestAzureCGPUVerifier_RefusesAnUnknownEvaluationPolicy(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			cfg := AzureCGPUVerifierConfig{AMDRootPEM: chain}
+			cfg := AzureCGPUVerifierConfig{AMDRootPEM: chain, AcceptablePCRDigests: azureFixtureBoot()}
 			mutate(&cfg)
 			_, err := NewAzureCGPUVerifier(nil, Measurement(make([]byte, 48)), cfg)
 			require.Error(t, err)
