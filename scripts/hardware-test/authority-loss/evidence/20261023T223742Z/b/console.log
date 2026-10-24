@@ -1,0 +1,30 @@
+== 22:51:33 inputs
+== 22:51:34 configfs-tsm
+== 22:51:34 the worker runtime from the locks (a warm standby would have this already)
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart packagekit.service polkit.service rsyslog.service ssh.service
+
+Service restarts being deferred:
+ systemctl restart networkd-dispatcher.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+== 22:52:52 the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== 22:52:52 the operator's safe: the key material A provisioned, the recovery key, the escrow envelope, the base model
+== 22:52:53 the replica of A's state: the audit log, the genomes and the job store, as last synced
+== 22:52:53 identities on this chip: the same seeds, this machine's launch measurement
+== 22:52:54 the replicated audit chain, verified before anything appends to it
+== 22:52:54 the key files sealed to THIS chip (ADR 0023)
+== 22:53:04 the recovery ceremony: A's escrow key, from the envelope, sealed to this chip (ADR 0016)
+== 22:53:15 sagvd on this chip over the replicated audit log and job store, and its worker
+== 22:53:36 what sagvd admitted again from the replicated job store at start (ADR 0026)
+== 22:53:36 which job A lost: submitted and never completed
+== 22:53:37 the lost job, resumed by sagvd itself from the replicated job store — the first verdict after the loss
+== 22:53:41 a fresh job after the loss
+== 22:53:46 metrics; stop both; the whole chain — A's events and B's — verified under the published key

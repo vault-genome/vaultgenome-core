@@ -1,0 +1,30 @@
+== 00:02:07 inputs
+== 00:02:10 configfs-tsm (the sentinel attests with this chip)
+== 00:02:10 python runtime (CPU) and base model
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart packagekit.service polkit.service rsyslog.service ssh.service
+
+Service restarts being deferred:
+ systemctl restart networkd-dispatcher.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:00,  9.44it/s]Fetching 10 files:  40%|████      | 4/10 [00:00<00:00, 18.78it/s]Fetching 10 files:  90%|█████████ | 9/10 [00:00<00:00, 25.68it/s]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.07s/it]
+== 00:03:32 wait for the release authority's escrow key
+== 00:03:33 the sentinel's key and this chip's identity; the operator pins both
+== 00:03:35 seal the sentinel's seed to this chip (ADR 0023): the file the sentinel runs from is no seed elsewhere
+== 00:03:36 fine-tune generation 0 (120 steps)
+== 00:07:12 arm a tripwire and start the sentinel
+== 00:07:12 wait for generation 0 to be sealed
+== 00:07:20 wait for the authority to arm its failover watch (the GPU standby is onboarded first)
+== 00:12:59 keep training: fine-tune generation 1 (160 steps)
+== 00:17:07 wait for generation 1 to be sealed and replicated
+== 00:17:25 keep training: fine-tune generation 2 — the work the region takes with it
+== 00:17:40 THE REGION GOES DARK: no tripwire, no report — this machine is switched off while it trains

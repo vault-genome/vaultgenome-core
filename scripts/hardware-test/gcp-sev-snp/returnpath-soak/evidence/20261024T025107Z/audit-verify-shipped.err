@@ -1,0 +1,1 @@
+acpctl audit verify: chain BROKEN — returnpath-audit.0000005000-0000010001.db starts at event #5000 after tip b618a1628499a654642a5528334c98e7110b28e86e4f82c360659b36b2d98faf, and the segments before it are not in audit/archive: verify them where they are and pass --from-tip b618a1628499a654642a5528334c98e7110b28e86e4f82c360659b36b2d98faf, or put them back

@@ -1,0 +1,2 @@
+name, driver_version, vbios_version, uuid, memory.total [MiB]
+NVIDIA H100 NVL, 595.91.07, 96.00.9F.00.04, GPU-8da24a8a-47c0-e28d-03b9-47c0155c3aef, 95830 MiB

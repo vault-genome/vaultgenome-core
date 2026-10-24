@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "output": "gen-1.genome",
+  "key_file": "gen-1.key",
+  "key_id": "genome-d1cc0c55eb29-g0-17b789cf4e69",
+  "content_kind": "dir",
+  "content_ref": "adapter",
+  "generation": 0,
+  "payload_bytes": 16780800,
+  "bundle_bytes": 16782195,
+  "segment_bytes": 1048576,
+  "payload_sha256": "sha256:d1cc0c55eb29864d61ce428c3a54d34821f94db8aeaac348a5fc43e319e9e056",
+  "component_count": 3,
+  "sealed_at": "2026-10-23T22:08:18Z"
+}

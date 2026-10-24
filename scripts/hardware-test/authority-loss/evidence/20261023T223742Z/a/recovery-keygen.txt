@@ -1,0 +1,1 @@
+recovery key 65aeb40e79f32c4c (hpke-p384-v2): private /root/w/recovery.seed (keep it off the release host), public /root/w/recovery.pem (for sagvd escrow-provision -recovery-to)

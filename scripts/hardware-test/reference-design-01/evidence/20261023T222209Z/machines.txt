@@ -1,0 +1,4 @@
+a=vg-rd01-bank-20261023t222209z zone=us-central1-c ip=10.128.15.204
+b=vg-rd01-standby-20261023t222209z zone=europe-west4-b ip=10.164.15.232
+bucket=gs://rats-probe-vg-rd01-20261023t222209z (deleted with the run)
+firewall=vg-rd01-xcc-20261023t222209z tcp:8443 from 10.128.15.204/32 to tag vg-rd01-standby-20261023t222209z (deleted with the run)

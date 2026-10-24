@@ -1,0 +1,5 @@
+== 22:01:00 the guest
+== 22:01:00 configfs-tsm
+== 22:01:00 quote 1: REPORTDATA = the caller's 64 bytes (a SHA-256 of a challenge, then 32 zero bytes)
+== 22:01:00 quote 2: another challenge, the same guest
+== 22:01:00 a quote of the same shape, parsed only by offsets, for the record

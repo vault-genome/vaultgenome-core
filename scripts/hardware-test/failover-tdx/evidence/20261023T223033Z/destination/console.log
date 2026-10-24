@@ -1,0 +1,25 @@
+== 22:31:55 inputs
+== 22:31:56 the Trust Domain: configfs-tsm (tdx_guest)
+== 22:31:56 the vTPM (tpm2-tools): acp-bootstrap seals its TLS key and token to it (ADR 0022, 0023)
+== 22:32:12 python runtime (CPU) and the base model the genome names — the gate runs the model here
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart packagekit.service polkit.service rsyslog.service ssh.service
+
+Service restarts being deferred:
+ systemctl restart networkd-dispatcher.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  10%|█         | 1/10 [00:00<00:00,  9.89it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  40%|████      | 4/10 [00:00<00:00, 17.97it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 26.62it/s]Fetching 10 files: 100%|██████████| 10/10 [00:11<00:00,  1.11s/it]
+== 22:33:20 the authority's TLS material, token and public key (through the private bucket)
+== 22:33:21 acp-bootstrap as gcp-tdx: the destination of a key release, the door on this VM's CPUs
+== 22:33:25 publish this destination's identity: endpoint on the VPC, TDX measurement
+{'endpoint': 'https://10.128.15.234:8443', 'measurement_hex': '02de1d974289aa2d164b633b5d290db4611d5080ddd1d668b27c93e507506b6cfff4b7df8ab5231026aff7b97004253d', 'tee_provider': 'gcp-tdx', 'tdx': {'mrtd_hex': 'c1ee9c16e3afc506cfe042c5b846a368528f3b37618eafb27469bc114cf914e9222c91618470e7f2b28ac360968270a5', 'rtmr_hex': ['e141b935e09370f3ea1267004ce17d14f31166eafd811ad09964393e0a731de7b5f825b41c31490fa634b9fc8b3ee435', '5d1f3f04ba6040b9e15f821b3fe1e9dee16e64f85a2426bfb4a51040cf8a2a739134df3f7de3a6d5d97de850a26cddb4', '6a71247d1392cb1e178026d62828d9ad298d77126cbd6c555652c95335a35ab0d665a83f8f53fc6dc83705646fb29fae', '000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000']}}
+== 22:33:25 pull the primary's outbox replica until the authority is done

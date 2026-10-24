@@ -1,0 +1,4 @@
+instance=vg-rp-par-20261024t002351z
+zone=us-central1-c
+machine=n2d-standard-8
+captured=20261024T002521Z

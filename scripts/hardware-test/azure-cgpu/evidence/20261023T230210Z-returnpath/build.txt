@@ -1,0 +1,4 @@
+sagvd: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 vcs.modified=false 
+acp-compute: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 vcs.modified=false 
+acpctl: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 vcs.modified=false 
+keygen: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 vcs.modified=false 

@@ -1,0 +1,4 @@
+20261023T215123Z/versions.txt: sagvd v0.10.0 (commit 84cc9b91e590f3351a8a035ae1ba78a34af74857) fips140=off module=latest enforced=false
+20261023T215123Z/versions.txt: acp-compute v0.10.0 (commit 84cc9b91e590f3351a8a035ae1ba78a34af74857) fips140=off module=latest enforced=false
+20261023T215123Z/versions.txt: acpctl v0.10.0 (commit 84cc9b91e590f3351a8a035ae1ba78a34af74857) fips140=off module=latest enforced=false
+20261023T215123Z/versions.txt: acp-keygen v0.10.0 (commit 84cc9b91e590f3351a8a035ae1ba78a34af74857)

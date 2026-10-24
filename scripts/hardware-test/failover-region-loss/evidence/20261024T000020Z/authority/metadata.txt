@@ -1,0 +1,4 @@
+instance=vg-rl-authority-20261024t000020z
+zone=europe-west4-a
+machine=n2d-standard-4
+external_ip=34.6.20.18

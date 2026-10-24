@@ -1,0 +1,7 @@
+acp_compute_jobs_total{outcome="success"} 1
+acp_compute_jobs_total{outcome="fail"} 1
+acp_compute_dial_failures_total 11
+acp_compute_sessions_opened_total 2
+acp_compute_last_success_unix 1792794728
+acp_compute_session_active 0
+acp_compute_start_unix 1792794703

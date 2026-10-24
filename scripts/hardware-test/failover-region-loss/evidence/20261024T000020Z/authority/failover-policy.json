@@ -1,0 +1,29 @@
+{
+  "schema": "vault-genome/failover-policy/v1",
+  "serial": 1,
+  "issued_at": "2026-10-24T00:12:58Z",
+  "not_after": "2026-11-23T00:12:58Z",
+  "sentinel_public_key": "RAzxjFKOw0CqfuC8cBOjRSTu8Rt2musu0oDJhNx622M=",
+  "primary": {
+    "kind": "gcp-sev-snp",
+    "measurements": [
+      "8a8f9ea7f853cfd1345ba5ce03c5a2e1bc3ffd2cb69d3da0d4ad6ce9f4b8d45196001b98a42a4ad4bb71961d69e82f4c"
+    ]
+  },
+  "standby": {
+    "kind": "azure-cgpu",
+    "endpoint": "https://20.105.148.202:8443",
+    "measurements": [
+      "63e15b3f246c38becb65c7861547d8a6fb9ac1dc5c8d12c261fb6be91661dd114d5a5ef3030501a5120322c5900311fa"
+    ]
+  },
+  "triggers": {
+    "compromise_report": false,
+    "heartbeat_timeout_seconds": 15,
+    "stopped_grace_seconds": 60
+  },
+  "require_gate": "EQUIVALENT",
+  "reason": "region-loss drill: the primary is switched off and deleted without a word; only its silence triggers the move to an attested confidential GPU on Azure",
+  "signing_key_id": "operator-1",
+  "signature": "VVI72BUQGteRopCSOY38/I1qEYs98u0JRPe5SEvvz6XPARHR/HT41DdibtuV7EerkXGL3ZocJpXqabZhC7S/AQ=="
+}

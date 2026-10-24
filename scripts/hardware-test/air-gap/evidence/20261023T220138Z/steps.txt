@@ -1,0 +1,56 @@
+== 22:01:38 binaries from gs://rats-probe-vg-airgap-20261023t220004z/e2e
+== 22:01:39 the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== 22:01:39 configfs-tsm (sev-snp)
+== 22:01:39 the worker runtime: python, the pinned CPU torch (the door needs it) — while connected
+== 22:03:05 provision (acp-keygen, private modes)
+== 22:03:05 identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+worker_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+== 22:03:05 acpctl tee prefetch for each daemon's configuration: what this host's evidence needs from AMD KDS, into each peer verifier's cache
+prefetch sagvd exit=0
+prefetch worker exit=0
+cache-status sagvd exit=0
+cache-status worker exit=0
+files cached: 2
+== 22:03:06 ready to be cut off: waiting for the network tag vg-airgap-20261023t220004z (the runner's firewall rule denies all egress to it)
+tag seen after 4s: ["vg-airgap-20261023t220004z"]
+egress dead after 3s more
+== 22:03:19 the routes: AMD KDS, the bucket, the metadata server
+curl: (28) Connection timed out after 8002 milliseconds
+vendor http=000
+vendor: unreachable (curl exit 28)
+curl: (28) Connection timed out after 8001 milliseconds
+bucket http=000
+bucket: unreachable (curl exit 28)
+metadata http=200
+== 22:03:35 the key files sealed to this host (ADR 0023; tee.sealer auto: the chip's derived key on SEV-SNP, the vTPM on TDX)
+sagvd seal-keys exit=0 sealer=sev-snp-derived-key
+acp-compute seal-keys exit=0 sealer=sev-snp-derived-key
+== 22:03:45 a real fine-tune with the runtime offline: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-48fe3ab392ee-g0-682881278810
+== 22:03:55 both daemons air-gapped: the Return Path handshake verified from the cache alone, a gate job
+sagvd ready after 11s
+session opened after 1s
+job airgap id=6f63333432eb453b528aabe6046859f1 status=succeeded after 5s gate=EXACT door=pinned replay n_exact=6 max_abs_err=0
+daemons stopped after 1s; still running by name: 0 sagvd, 0 acp-compute
+== 22:04:14 the negative: the caches wiped, both daemons restarted — the handshake must be refused, naming AMD KDS
+cache-status after the wipe exit=1
+sagvd ready after 13s
+no session after 30s: {"time":"2026-10-23T22:04:57.527346244Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:55004","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[signature_invalid]: gcp-sev: fetch VCEK: Get \"https://kdsintf.amd.com/vcek/v1/M
+handshake refusals on the record: 1
+refusal: authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[signature_invalid]: gcp-sev: fetch VCEK: Get "https://kdsintf.amd.com/vcek/v1/Milan/75bbd2bb8dfeeb00ea0413ffa0f83557331b7aaf30a6be31efa5a43da77f79699545f7cd0d292495c74a572be5f15ac1d7157dadfb7288cc24a2ee131980559c?blSPL=4&snpSPL=29&teeSPL=0&ucode
+daemons stopped after 0s; still running by name: 0 sagvd, 0 acp-compute
+== 22:04:57 the caches restored from the copy; both daemons again; a gate job
+cache-status after the restore exit=0
+sagvd ready after 11s
+session opened after 1s
+job restored id=78de1d0298283d4c848299916c12aa75 status=succeeded after 5s gate=EXACT door=pinned replay n_exact=6 max_abs_err=0
+daemons stopped after 5s; still running by name: 0 sagvd, 0 acp-compute
+== 22:05:20 verify the audit log with the published key
+audit verify exit=0
+audit query exit=0
+elapsed_seconds=221.7

@@ -1,0 +1,29 @@
+{
+  "tee_provider": "azure-cgpu",
+  "measurement_hex": "63e15b3f246c38becb65c7861547d8a6fb9ac1dc5c8d12c261fb6be91661dd114d5a5ef3030501a5120322c5900311fa",
+  "sealer": "tpm2",
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "d6a9e18dffc1f45bba750968e3c2e35e6b75df2f767e1997d1ae3a77298b9c36"
+  },
+  "crypto_profile": "general",
+  "kem_suites": [
+    "hpke-x25519-v2",
+    "hpke-p384-v2",
+    "hpke-mlkem768-v2",
+    "hpke-mlkem1024-p384-v2",
+    "hpke-xwing-v2"
+  ],
+  "signature_suites": [
+    "ed25519",
+    "ecdsa-p384-sha384",
+    "ml-dsa-87"
+  ],
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  }
+}

@@ -1,0 +1,17 @@
+== 23:14:16 inputs
+== 23:14:16 GPU driver
+== 23:14:17 python runtime (CUDA 12.6 wheels)
+== 23:19:14 A. base model Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775
+== 23:19:22 A. fine-tune on the CPU in float32; the integer references are recorded on the CPU
+== 23:21:16 A. seal, restore, verify
+== 23:21:16 A. the integer door on the CPU, against the references (the same machine)
+== 23:21:37 A. the integer door on the L4, against the references recorded on the CPU
+== 23:21:56 A. the float door on the L4 (the cross-device float error, for context)
+== 23:22:12 A. gate on the L4 at zero tolerance: the float doors must fail, the integer door must open
+== 23:22:41 A. gate on the L4 at the default tolerance, and on the CPU
+== 23:23:05 B. base model Qwen/Qwen2.5-7B-Instruct@a09a35458c702b33eeacc393d103063234e8bc28
+== 23:24:30 B. fine-tune on the L4 in bfloat16; the integer references are recorded on the L4
+== 23:27:09 B. seal, restore
+== 23:27:10 B. the integer door on the L4, against the references (the same device)
+== 23:29:18 B. the integer door on the CPU, the first three fixtures, against the references recorded on the L4
+elapsed_seconds=1013

@@ -1,0 +1,1 @@
+{"ok":true,"audit_path":"xcc-audit.db","archive_dir":"archive","signature_suite":"ecdsa-p384-sha384","event_count":10,"tip":"e1fdeb5a29e60fa6a398f45bc807b0164a4121755838e351fff461e78e860f88","segments":[{"path":"xcc-audit.db","first_index":0,"events":10,"tip":"e1fdeb5a29e60fa6a398f45bc807b0164a4121755838e351fff461e78e860f88","live":true}]}

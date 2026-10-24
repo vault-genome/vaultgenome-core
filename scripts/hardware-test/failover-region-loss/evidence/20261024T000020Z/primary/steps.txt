@@ -1,0 +1,19 @@
+== 00:02:07 inputs
+== 00:02:10 configfs-tsm (the sentinel attests with this chip)
+== 00:02:10 python runtime (CPU) and base model
+== 00:03:32 wait for the release authority's escrow key
+== 00:03:33 the sentinel's key and this chip's identity; the operator pins both
+primary measurement=8a8f9ea7f853cfd1345ba5ce03c5a2e1bc3ffd2cb69d3da0d4ad6ce9f4b8d45196001b98a42a4ad4bb71961d69e82f4c
+== 00:03:35 seal the sentinel's seed to this chip (ADR 0023): the file the sentinel runs from is no seed elsewhere
+sentinel seal-key exit=0 tee=gcp-sev-snp sealed=True
+sentinel identity from the sealed seed: key sentinel-19517ae6336a026a same
+== 00:03:36 fine-tune generation 0 (120 steps)
+== 00:07:12 arm a tripwire and start the sentinel
+== 00:07:12 wait for generation 0 to be sealed
+== 00:07:20 wait for the authority to arm its failover watch (the GPU standby is onboarded first)
+== 00:12:59 keep training: fine-tune generation 1 (160 steps)
+== 00:17:07 wait for generation 1 to be sealed and replicated
+== 00:17:25 keep training: fine-tune generation 2 — the work the region takes with it
+generation 2 when the power went: still training
+sentinel running when the power went: yes
+== 00:17:40 THE REGION GOES DARK: no tripwire, no report — this machine is switched off while it trains

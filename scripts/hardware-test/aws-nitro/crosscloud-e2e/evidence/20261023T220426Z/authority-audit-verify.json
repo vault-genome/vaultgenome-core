@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "audit_path": "xcc-audit.db",
+  "archive_dir": "archive",
+  "signature_suite": "ed25519",
+  "event_count": 14,
+  "tip": "eaab1715f76f16821a9d494d54f91e78fa9190156e4f7b67ca61848774767d57",
+  "segments": [
+    {
+      "path": "xcc-audit.db",
+      "first_index": 0,
+      "events": 14,
+      "tip": "eaab1715f76f16821a9d494d54f91e78fa9190156e4f7b67ca61848774767d57",
+      "live": true
+    }
+  ]
+}

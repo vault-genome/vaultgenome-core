@@ -1,0 +1,7 @@
+valid failover policy, serial 1, issued 2026-10-24T00:12:58Z, until 2026-11-23T00:12:58Z: stands
+  primary sentinel: sentinel-19517ae6336a026a
+  primary TEE:      gcp-sev-snp, measurements 8a8f9ea7f853cfd1345ba5ce03c5a2e1bc3ffd2cb69d3da0d4ad6ce9f4b8d45196001b98a42a4ad4bb71961d69e82f4c (every record must carry its report)
+  standby:          azure-cgpu https://20.105.148.202:8443, measurements 63e15b3f246c38becb65c7861547d8a6fb9ac1dc5c8d12c261fb6be91661dd114d5a5ef3030501a5120322c5900311fa
+  triggers:         no heartbeat for 15s, stopped and not back within 60s
+  required gate:    EQUIVALENT; quarantine 0s; max RPO 0s (0: no bound)
+  reason:           region-loss drill: the primary is switched off and deleted without a word; only its silence triggers the move to an attested confidential GPU on Azure

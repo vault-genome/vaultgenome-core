@@ -1,0 +1,29 @@
+{
+  "schema": "vault-genome/failover-policy/v1",
+  "serial": 1,
+  "issued_at": "2026-10-23T23:51:08Z",
+  "not_after": "2026-11-22T23:51:08Z",
+  "sentinel_public_key": "u5jRQGoXM5f5hrA3+7VmQwgVTgkyLyCtg7WkgQ53WYU=",
+  "primary": {
+    "kind": "gcp-sev-snp",
+    "measurements": [
+      "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790"
+    ]
+  },
+  "standby": {
+    "kind": "azure-cgpu",
+    "endpoint": "https://20.101.114.226:8443",
+    "measurements": [
+      "63e15b3f246c38becb65c7861547d8a6fb9ac1dc5c8d12c261fb6be91661dd114d5a5ef3030501a5120322c5900311fa"
+    ]
+  },
+  "triggers": {
+    "compromise_report": true,
+    "heartbeat_timeout_seconds": 120,
+    "stopped_grace_seconds": 60
+  },
+  "require_gate": "EQUIVALENT",
+  "reason": "failover drill: a CPU TEE on GCP fails over to an attested confidential GPU on Azure",
+  "signing_key_id": "operator-1",
+  "signature": "S1zh50Mq8LnX0lrFBVG3JbTXg4pPnojN0eurA5WmRS6nUz4rjpmOFHjO8dfKzff2ttJQIpST/ykhBFRIQPQcCQ=="
+}

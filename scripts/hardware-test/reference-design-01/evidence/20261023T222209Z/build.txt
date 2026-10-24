@@ -1,0 +1,6 @@
+sagvd: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 
+acp-compute: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 
+acp-bootstrap: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 
+acpctl: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 
+keygen: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 
+acpctl-host: vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 

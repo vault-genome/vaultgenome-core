@@ -1,0 +1,8 @@
+total 56976
+-rw------- 1 root root 16777216 Oct 24 03:04 returnpath-audit.0000000000-0000004999.db
+-rw------- 1 root root 16777216 Oct 24 03:16 returnpath-audit.0000005000-0000010001.db
+-rw------- 1 root root 16777216 Oct 24 03:28 returnpath-audit.0000010002-0000015001.db
+-rw------- 1 root root 16777216 Oct 24 03:39 returnpath-audit.0000015002-0000020001.db
+-rw------- 1 root root 16777216 Oct 24 03:51 returnpath-audit.0000020002-0000025001.db
+85983232	audit
+16777216	queue

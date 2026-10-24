@@ -1,0 +1,9 @@
+{
+  "audit_path": "xcc-audit.db",
+  "errors": [],
+  "events": 14,
+  "kid": "sagvd-audit-xcc",
+  "ok": true,
+  "suite": "ed25519",
+  "tip": "eaab1715f76f16821a9d494d54f91e78fa9190156e4f7b67ca61848774767d57"
+}

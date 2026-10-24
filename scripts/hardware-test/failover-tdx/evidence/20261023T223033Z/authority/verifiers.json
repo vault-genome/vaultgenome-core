@@ -1,0 +1,15 @@
+{
+  "verifiers": [
+    {
+      "provider": "gcp-tdx",
+      "expected_measurement_hex": "02de1d974289aa2d164b633b5d290db4611d5080ddd1d668b27c93e507506b6cfff4b7df8ab5231026aff7b97004253d",
+      "pcs_cache_dir": "/root/pcs-cache"
+    },
+    {
+      "provider": "gcp-sev-snp",
+      "expected_measurement_hex": "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790",
+      "amd_cert_chain_path": "/root/amd-milan-cert_chain.pem",
+      "vcek_cache_dir": "/root/vcek-cache"
+    }
+  ]
+}

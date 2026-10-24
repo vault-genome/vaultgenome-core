@@ -1,0 +1,26 @@
+{
+  "signing_kid": "acp-compute-worker-demo",
+  "signing_public_key_hex": "39d50e09cf5de6b04b63cd1bf9f9883a5ba5afe887782a9d7495c0e875e40aef",
+  "signing_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAOdUOCc9d5rBLY80b+fmIOlulr+iHeCqddJXA6HXkCu8=\n-----END PUBLIC KEY-----\n",
+  "signing_signature_suite": "ed25519",
+  "tee_provider": "gcp-sev-snp",
+  "tee_measurement_hex": "8a8f9ea7f853cfd1345ba5ce03c5a2e1bc3ffd2cb69d3da0d4ad6ce9f4b8d45196001b98a42a4ad4bb71961d69e82f4c",
+  "sealer": "sev-snp-derived-key",
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  },
+  "sev_snp_policy": {
+    "bulletins_read_on": "2026-10-22",
+    "floors": {
+      "Bergamo/Siena": "snp 0x1b microcode 0x1b, mitigation vector bits 0x2, alias check",
+      "Genoa": "snp 0x1b microcode 0x56, mitigation vector bits 0x2, alias check",
+      "Genoa-X": "snp 0x1b microcode 0x51, mitigation vector bits 0x2, alias check",
+      "Milan": "snp 0x1b microcode 0xde, mitigation vector bits 0x2, alias check",
+      "Milan-X": "snp 0x1b microcode 0x47, mitigation vector bits 0x2, alias check",
+      "Turin": "snp 0x4 microcode 0x51, mitigation vector bits 0x1",
+      "Turin Dense": "snp 0x4 microcode 0x4e, mitigation vector bits 0x1"
+    }
+  }
+}

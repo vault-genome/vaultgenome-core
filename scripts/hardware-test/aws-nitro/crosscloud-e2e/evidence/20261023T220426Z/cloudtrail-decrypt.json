@@ -1,0 +1,114 @@
+[
+  {
+    "eventTime": "2026-10-23T22:08:36Z",
+    "eventName": "Decrypt",
+    "userIdentity": {
+      "type": "AssumedRole",
+      "principalId": "AROA<redacted>:i-0435089af3e1d6fe7",
+      "arn": "arn:aws:sts::<account>:assumed-role/vaultgenome-nitro-parent/i-0435089af3e1d6fe7",
+      "accountId": "<account>",
+      "accessKeyId": "ASIA<redacted>",
+      "sessionContext": {
+        "sessionIssuer": {
+          "type": "Role",
+          "principalId": "AROA<redacted>",
+          "arn": "arn:aws:iam::<account>:role/vaultgenome-nitro-parent",
+          "accountId": "<account>",
+          "userName": "vaultgenome-nitro-parent"
+        },
+        "attributes": {
+          "creationDate": "2026-10-23T22:04:39Z",
+          "mfaAuthenticated": "false"
+        },
+        "ec2RoleDelivery": "2.0"
+      },
+      "inScopeOf": {
+        "issuerType": "AWS::EC2::Instance",
+        "credentialsIssuedTo": "arn:aws:ec2:us-east-2:<account>:instance/i-0435089af3e1d6fe7"
+      }
+    },
+    "requestParameters": {
+      "encryptionAlgorithm": "SYMMETRIC_DEFAULT",
+      "keyId": "arn:aws:kms:us-east-2:<account>:key/b9a4f9ce-f9bb-493b-891e-2f5bc661f995",
+      "encryptionContext": {
+        "vault-genome:pcr0": "e80a10e420023f1d32198e5d9a130c0017f106da1545e9d3e4488c9d57f1582db723803d810160e7f5e1a943aecf5219",
+        "vault-genome:sealed-secret": "v1",
+        "vault-genome:aad-sha256": "be4a65356d89dc406cb3557172583486391a3c84a97a9c365b3d1f5b7bc19571"
+      }
+    },
+    "additionalEventData": {
+      "keyMaterialId": "063d302f0bf9aee4734e08e2f7fb036d9072f5bb204c45309dafc47497c66d0c",
+      "recipient": {
+        "attestationDocumentEnclavePCR4": "UJ2tRQxhOwmvkyDJOR695CDdkWNz08D/Z+xap8k1YsiBNbvDoWKUw5juynECD9Cl",
+        "attestationDocumentEnclavePCR8": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "attestationDocumentModuleId": "i-0435089af3e1d6fe7-enc01a16acf038b4cca",
+        "attestationDocumentEnclaveImageDigest": "6AoQ5CACPx0yGY5dmhMMABfxBtoVRenT5EiMnVfxWC23I4A9gQFg5/XhqUOuz1IZ",
+        "attestationDocumentEnclavePCR1": "S01bNmGz78EpIJAMgOEm5M54PFIt5sAqKlv3rzorkye4Z3bxiOS+HBxAShKdvaST",
+        "attestationDocumentEnclavePCR3": "<PCR3 withheld: it measures the parent role's ARN, which names the account>",
+        "attestationDocumentEnclavePCR2": "2ztTWK6xWW1XBZFVCrCT53Y9JhB6P7pp4mYGbMj0Gy4QS43eu0Fc5J8UEfpFpvXd"
+      }
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "cb581a21-29b3-4ba8-ba8d-4e70e6153cd1",
+    "eventID": "ad334999-4d62-4daa-a84c-a8e83c1f212b",
+    "sourceIPAddress": "<parent-address>",
+    "userAgent": "Go-http-client/1.1"
+  },
+  {
+    "eventTime": "2026-10-23T22:08:36Z",
+    "eventName": "Decrypt",
+    "userIdentity": {
+      "type": "AssumedRole",
+      "principalId": "AROA<redacted>:i-0435089af3e1d6fe7",
+      "arn": "arn:aws:sts::<account>:assumed-role/vaultgenome-nitro-parent/i-0435089af3e1d6fe7",
+      "accountId": "<account>",
+      "accessKeyId": "ASIA<redacted>",
+      "sessionContext": {
+        "sessionIssuer": {
+          "type": "Role",
+          "principalId": "AROA<redacted>",
+          "arn": "arn:aws:iam::<account>:role/vaultgenome-nitro-parent",
+          "accountId": "<account>",
+          "userName": "vaultgenome-nitro-parent"
+        },
+        "attributes": {
+          "creationDate": "2026-10-23T22:04:39Z",
+          "mfaAuthenticated": "false"
+        },
+        "ec2RoleDelivery": "2.0"
+      },
+      "inScopeOf": {
+        "issuerType": "AWS::EC2::Instance",
+        "credentialsIssuedTo": "arn:aws:ec2:us-east-2:<account>:instance/i-0435089af3e1d6fe7"
+      }
+    },
+    "requestParameters": {
+      "encryptionAlgorithm": "SYMMETRIC_DEFAULT",
+      "keyId": "arn:aws:kms:us-east-2:<account>:key/b9a4f9ce-f9bb-493b-891e-2f5bc661f995",
+      "encryptionContext": {
+        "vault-genome:pcr0": "e80a10e420023f1d32198e5d9a130c0017f106da1545e9d3e4488c9d57f1582db723803d810160e7f5e1a943aecf5219",
+        "vault-genome:sealed-secret": "v1",
+        "vault-genome:aad-sha256": "464d9f2c67ae4ffe5ebda7163c3764f48290ad951fd901703fe1e721d4752531"
+      }
+    },
+    "additionalEventData": {
+      "keyMaterialId": "063d302f0bf9aee4734e08e2f7fb036d9072f5bb204c45309dafc47497c66d0c",
+      "recipient": {
+        "attestationDocumentEnclavePCR4": "UJ2tRQxhOwmvkyDJOR695CDdkWNz08D/Z+xap8k1YsiBNbvDoWKUw5juynECD9Cl",
+        "attestationDocumentEnclavePCR8": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "attestationDocumentModuleId": "i-0435089af3e1d6fe7-enc01a16acf038b4cca",
+        "attestationDocumentEnclaveImageDigest": "6AoQ5CACPx0yGY5dmhMMABfxBtoVRenT5EiMnVfxWC23I4A9gQFg5/XhqUOuz1IZ",
+        "attestationDocumentEnclavePCR1": "S01bNmGz78EpIJAMgOEm5M54PFIt5sAqKlv3rzorkye4Z3bxiOS+HBxAShKdvaST",
+        "attestationDocumentEnclavePCR3": "<PCR3 withheld: it measures the parent role's ARN, which names the account>",
+        "attestationDocumentEnclavePCR2": "2ztTWK6xWW1XBZFVCrCT53Y9JhB6P7pp4mYGbMj0Gy4QS43eu0Fc5J8UEfpFpvXd"
+      }
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "5fe58df8-d711-4f9c-a19e-91eeeb75a295",
+    "eventID": "f0481b50-6717-4cbb-9dba-678d5f06d8c7",
+    "sourceIPAddress": "<parent-address>",
+    "userAgent": "Go-http-client/1.1"
+  }
+]

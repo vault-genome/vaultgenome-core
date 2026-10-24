@@ -1,0 +1,27 @@
+{
+  "tee": "azure-cgpu",
+  "measurement_hex": "6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48",
+  "sealer": "tpm2",
+  "sealed": [
+    {
+      "name": "keys.authority_signing.seed_path",
+      "path": "/home/vg/rp/secrets/sagvd/authority_signing_seed"
+    },
+    {
+      "name": "keys.session_sealing.material_path",
+      "path": "/home/vg/rp/secrets/shared/sealing.key"
+    },
+    {
+      "name": "keys.audit_signing.seed_path",
+      "path": "/home/vg/rp/secrets/sagvd/audit_signing_seed"
+    },
+    {
+      "name": "vault.tls.server_key",
+      "path": "/home/vg/rp/secrets/sagvd/tls/server.key"
+    },
+    {
+      "name": "http_api.bearer_token_file",
+      "path": "/home/vg/rp/secrets/sagvd/api_token"
+    }
+  ]
+}

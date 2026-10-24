@@ -1,0 +1,33 @@
+{
+  "signing_kid": "acp-compute-worker-demo",
+  "signing_public_key_hex": "04991784fcae481834207bbcc086d189e4e3b83006a843b6aae52cd567d24417a1600832432b3e58cd2caff5424805f8243fd52e1037fcf73371c429c9afcf31c3feb40a554254e7ed6c609caf391dea71f8ae9c19fed744f4085075d257c90460",
+  "signing_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEmReE/K5IGDQge7zAhtGJ5OO4MAaoQ7aq\n5SzVZ9JEF6FgCDJDKz5YzSyv9UJIBfgkP9UuEDf89zNxxCnJr88xw/60ClVCVOft\nbGCcrzkd6nH4rpwZ/tdE9AhQddJXyQRg\n-----END PUBLIC KEY-----\n",
+  "signing_signature_suite": "ecdsa-p384-sha384",
+  "tee_provider": "azure-cgpu",
+  "tee_measurement_hex": "6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48",
+  "sealer": "tpm2",
+  "fips140": {
+    "enabled": true,
+    "enforced": true,
+    "version": "v1.0.0",
+    "build": "v1.0.0-c2097c7c"
+  },
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "ff383fab39d22556a102f981a4b11d4b3ed3fa3961f0f11a28ad28deeb464d6f"
+  },
+  "sev_snp_policy": {
+    "bulletins_read_on": "2026-10-22",
+    "floors": {
+      "Bergamo/Siena": "snp 0x1b microcode 0x1b, mitigation vector bits 0x2, alias check",
+      "Genoa": "snp 0x1b microcode 0x56, mitigation vector bits 0x2, alias check",
+      "Genoa-X": "snp 0x1b microcode 0x51, mitigation vector bits 0x2, alias check",
+      "Milan": "snp 0x1b microcode 0xde, mitigation vector bits 0x2, alias check",
+      "Milan-X": "snp 0x1b microcode 0x47, mitigation vector bits 0x2, alias check",
+      "Turin": "snp 0x4 microcode 0x51, mitigation vector bits 0x1",
+      "Turin Dense": "snp 0x4 microcode 0x4e, mitigation vector bits 0x1"
+    }
+  }
+}

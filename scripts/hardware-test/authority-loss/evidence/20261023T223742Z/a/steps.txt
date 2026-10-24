@@ -1,0 +1,28 @@
+== 22:39:10 inputs
+== 22:39:11 configfs-tsm
+== 22:39:11 the worker runtime from the locks
+== 22:48:45 the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== 22:48:45 provision (acp-keygen -private); the operator's safe keeps the plaintext key material before it is sealed to this chip
+profile=fips suite=hpke-p384-v2
+== 22:48:46 identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+worker_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+authority_public_key sha256=40fd5a65fe335f7c audit_public_key sha256=32f40e7a127c3280
+== 22:48:46 a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl as gen-0; the base goes to the safe (the genome names its digest)
+finetune exit=0
+seal exit=0 key_id=genome-53e8d4b47a7e-g0-d9a0cbbc6ce2
+== 22:48:55 the key files sealed to this chip (ADR 0023)
+sagvd seal-keys exit=0
+acp-compute seal-keys exit=0
+== 22:48:57 the escrow key made inside sagvd, sealed to this chip, wrapped to the operator's recovery key (ADR 0016); the envelope to the safe
+escrow-provision exit=0 tee=gcp-sev-snp suite=hpke-p384-v2
+== 22:49:08 sagvd and its worker on this chip
+sagvd ready after 10s
+session opened after 11s
+== 22:49:30 gate jobs in a loop; the state replicated once each is accepted and once it is done; the runner takes the machine away in the middle of one
+job 1 id=25a12d86ea3ada56dfb7e6b54f0f34ce request_id=req-b09ec966f245b02d status=succeeded after 4s gate=EXACT n_exact=6 tip=77ea70579d258aed0d57c888e25cae6df20de3457696b3cfe5f1cdc1c7af13c4
+job 2 id=ea49cf4e31e22f0d2680425ad5d479c7 request_id=req-ee213da565b5b003 status=succeeded after 4s gate=EXACT n_exact=6 tip=90ae4226cce74547268fd63f73cd8b52e347ba01ed8224591b1fc011ea406f69
+job 3 id=b889a16bd1b64d96b2c126fd9ffb7082 request_id=req-6ca6486fd5dc7837 status=succeeded after 4s gate=EXACT n_exact=6 tip=c7bd5f95f7a150a2ad95a82be531411ec2ea93c5da6392ae45829bb80bf921c3
+job 4 id=00f91cb540f3cc47334ba6ad5dbe5e28 request_id=req-e3c77a14e0d3bb25 status=succeeded after 4s gate=EXACT n_exact=6 tip=f2330735019941bb8da3ba2e0a6259b84ccccbbcfc4125bab16b04b9cfba10fa

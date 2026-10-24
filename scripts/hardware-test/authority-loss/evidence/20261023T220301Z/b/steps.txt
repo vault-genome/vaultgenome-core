@@ -1,0 +1,37 @@
+== 22:08:58 inputs
+== 22:08:59 configfs-tsm
+== 22:08:59 the worker runtime from the locks (a warm standby would have this already)
+== 22:10:20 the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== 22:10:20 the operator's safe: the key material A provisioned, the recovery key, the escrow envelope, the base model
+== 22:10:21 the replica of A's state: the audit log, the genomes and the job store, as last synced
+replica manifest: {"after_job": 4, "when": "finished", "job_id": "83ec35b6a9ef6a9445d39a94c5c67b0d", "status": "succeeded", "chain_tip": "085cc7018bd5b3bd706b64f4ec1917e1a802896d7610718f7c63f54b34a3da52", "queue_file": "queue/sagvd-jobs.db", "synced_at": "2026-10-23T22:07:21Z"}
+== 22:10:21 identities on this chip: the same seeds, this machine's launch measurement
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+worker_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+authority_public_key sha256=b01a80149b152af0 audit_public_key sha256=3751dd05f35ec7de
+== 22:10:21 the replicated audit chain, verified before anything appends to it
+replica audit verify: {"ok":true,"audit_path":"/root/w/audit/returnpath-audit.db","archive_dir":"/root/w/audit/archive","signature_suite":"ed25519","event_count":64,"tip":"085cc7018bd5b3bd706b64f4ec1917e1a802896d7610718f7c63f54b34a3da52","segments":[{"path":"/root/w/audit/returnpath-audit.db","first_index":0,"events":64,
+== 22:10:21 the key files sealed to THIS chip (ADR 0023)
+sagvd seal-keys exit=0
+acp-compute seal-keys exit=0
+== 22:10:32 the recovery ceremony: A's escrow key, from the envelope, sealed to this chip (ADR 0016)
+escrow re-provision exit=0 escrow_key=98fc9fb5be8a2dbb suite=hpke-x25519-v2
+== 22:10:43 sagvd on this chip over the replicated audit log and job store, and its worker
+sagvd ready after 10s
+session opened after 11s
+== 22:11:04 what sagvd admitted again from the replicated job store at start (ADR 0026)
+resume summary: not in the log
+resumed_job_id=none resumed_request_id=none
+== 22:11:04 which job A lost: submitted and never completed
+lost_jobs=none
+a_lost_job_id=unknown a_lost_request_id=unknown
+== 22:11:05 nothing was resumed: the lost job (none) submitted again here — the first verdict after the loss
+job first-after-loss id=8006a2e53dc508a2dc23b9219a547168 request_id=req-cbe3e3a8f3bcdb61 status=succeeded after 5s gate=EXACT n_exact=6 tip=387dcda65bc7e3fb34e679fee316c63e8a961de76c1bb231c1e9c2dabc8cc824
+first job after the loss: resubmitted, succeeded
+== 22:11:10 a fresh job after the loss
+job second-after-loss id=ba1343059132c8b117df44a64ff87ae4 request_id=req-97eead2a4ee05cd9 status=succeeded after 5s gate=EXACT n_exact=6 tip=1b7ceca4820373d17dd721efeda0b6061c1d0b1f14817b7158c2cbf5a28a2787
+== 22:11:15 metrics; stop both; the whole chain — A's events and B's — verified under the published key
+daemons stopped after 0s; still running by name: 0 sagvd, 0 acp-compute
+final audit verify: {"ok":true,"audit_path":"/root/w/audit/returnpath-audit.db","archive_dir":"/root/w/audit/archive","signature_suite":"ed25519","event_count":96,"tip":"1b7ceca4820373d17dd721efeda0b6061c1d0b1f14817b7158c2cbf5a28a2787","segments":[{"path":"/root/w/audit/returnpath-audit.db","first_index":0,"events":96,

@@ -1,0 +1,27 @@
+{
+  "tee": "gcp-tdx",
+  "measurement_hex": "6f2a91864938369eeb6874c654cda21454e52739470c8e2fc9781c680099c0272694672814df6c704fd4c612acb97251",
+  "sealer": "tpm2",
+  "sealed": [
+    {
+      "name": "keys.authority_signing.seed_path",
+      "path": "/root/e2e/secrets/sagvd/authority_signing_seed"
+    },
+    {
+      "name": "keys.session_sealing.material_path",
+      "path": "/root/e2e/secrets/shared/sealing.key"
+    },
+    {
+      "name": "keys.audit_signing.seed_path",
+      "path": "/root/e2e/secrets/sagvd/audit_signing_seed"
+    },
+    {
+      "name": "vault.tls.server_key",
+      "path": "/root/e2e/secrets/sagvd/tls/server.key"
+    },
+    {
+      "name": "http_api.bearer_token_file",
+      "path": "/root/e2e/secrets/sagvd/api_token"
+    }
+  ]
+}

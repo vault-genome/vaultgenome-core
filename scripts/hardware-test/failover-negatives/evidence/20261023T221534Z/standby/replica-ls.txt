@@ -1,0 +1,11 @@
+total 4364
+drwxr-xr-x  2 root root    4096 Oct 23 22:27 .
+drwx------ 10 root root    4096 Oct 23 22:27 ..
+-rw-r--r--  1 root root    2321 Oct 23 22:27 compromise.json
+-rw-r--r--  1 root root 2215643 Oct 23 22:27 gen-000000.genome
+-rw-r--r--  1 root root     305 Oct 23 22:27 gen-000000.genome.escrow
+-rw-r--r--  1 root root    2283 Oct 23 22:27 gen-000000.seal.json
+-rw-r--r--  1 root root 2216848 Oct 23 22:27 gen-000001.genome
+-rw-r--r--  1 root root     305 Oct 23 22:27 gen-000001.genome.escrow
+-rw-r--r--  1 root root    2377 Oct 23 22:27 gen-000001.seal.json
+-rw-r--r--  1 root root    2167 Oct 23 22:27 heartbeat.json

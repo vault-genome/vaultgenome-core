@@ -1,0 +1,50 @@
+{
+  "authority_kid": "sagvd-authority-e2e",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE/gm86bNjOLl+vxUsTuTB7CsA8dP0gM+e\nun0DNzU6eYiC69fgc8qmz7wDBXyC7EFTRkuNg7Z7x3MyfsNcL13tVv3J3L0Lv797\nfmc33Zxv58AvrUz5SJWAWLdBA6xJiBf0\n-----END PUBLIC KEY-----\n",
+  "authority_signature_suite": "ecdsa-p384-sha384",
+  "tee_provider": "azure-cgpu",
+  "tee_measurement_hex": "6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48",
+  "sealer": "tpm2",
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "ff383fab39d22556a102f981a4b11d4b3ed3fa3961f0f11a28ad28deeb464d6f"
+  },
+  "sev_snp_policy": {
+    "bulletins_read_on": "2026-10-22",
+    "floors": {
+      "Bergamo/Siena": "snp 0x1b microcode 0x1b, mitigation vector bits 0x2, alias check",
+      "Genoa": "snp 0x1b microcode 0x56, mitigation vector bits 0x2, alias check",
+      "Genoa-X": "snp 0x1b microcode 0x51, mitigation vector bits 0x2, alias check",
+      "Milan": "snp 0x1b microcode 0xde, mitigation vector bits 0x2, alias check",
+      "Milan-X": "snp 0x1b microcode 0x47, mitigation vector bits 0x2, alias check",
+      "Turin": "snp 0x4 microcode 0x51, mitigation vector bits 0x1",
+      "Turin Dense": "snp 0x4 microcode 0x4e, mitigation vector bits 0x1"
+    }
+  },
+  "audit_kid": "sagvd-audit-e2e",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAERDPTwkJiRK1mleqYqp7hjIZCdGaa8Sew\nRflsLbXwrSZUgA6PfmSRZ7+BDdFEzuuNGRn9qB7OtzdK4jkUMZLdBcWV3otadHUX\nudBna3Fm4cZpIBCVF9Vc+P8QbVdnxvPi\n-----END PUBLIC KEY-----\n",
+  "audit_signature_suite": "ecdsa-p384-sha384",
+  "policy_version": "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0",
+  "policy_profiles": [
+    "gate"
+  ],
+  "crypto_profile": "fips",
+  "kem_suites": [
+    "hpke-p384-v2",
+    "hpke-mlkem768-v2",
+    "hpke-mlkem1024-p384-v2"
+  ],
+  "signature_suite": "ecdsa-p384-sha384",
+  "signature_suites": [
+    "ed25519",
+    "ecdsa-p384-sha384"
+  ],
+  "fips140": {
+    "enabled": true,
+    "enforced": true,
+    "version": "v1.0.0",
+    "build": "v1.0.0-c2097c7c"
+  }
+}

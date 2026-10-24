@@ -1,0 +1,27 @@
+PASS the source: sagvd attests with the SEV-SNP chip (tee_provider gcp-sev-snp), its identity read
+PASS the source: its key files sealed to the chip, and read back sealed
+PASS the source: a genome sealed, its key and bundle digest on the record
+PASS the image: PCR0, PCR1 and PCR2 as nitro-cli measured it
+PASS production: acp-bootstrap ready in the enclave — aws-nitro, measurement = PCR0, TLS with client certificates, the bearer token, genome restore on
+PASS production: the two key files came from the parent and opened through KMS before the daemon served
+PASS the bundle into the enclave over the API: the same bytes the source sealed
+PASS release: the genome key released (exit 0) under the general profile's suite
+PASS release: the CROSS_CLOUD_ATTESTATION_VERIFIED record names the enclave — kind aws-nitro, measurement PCR0, the document's PCR0/PCR1/PCR2, PCR1 and PCR2 pinned, the module this instance's
+PASS the attestation verified three times — for the release, and before the allow-list's and the stop's refusals — each time the same enclave; never for the pin or the debug document
+PASS release: the record carries the document's hash, not the document
+PASS the restore confirmed from the enclave's NSM-signed receipt (crosscloud-confirm exit 0)
+PASS the receipt names this release: the key, the destination aws-nitro at PCR0, the bundle the source sealed, no error
+PASS the receipt in the evidence keeps the document's digest and withholds the document
+PASS refused: an image the allow-list does not name — KEY_RELEASE_DENIED at the policy
+PASS refused: PCR2 pinned to another value — KEY_RELEASE_DENIED at the attestation, naming PCR2
+PASS refused: the operator stop — KEY_RELEASE_DENIED at the policy
+PASS debug: the same image in debug mode started with its key files in the clear (measurement zero) and served
+PASS refused: the debug-mode enclave — KEY_RELEASE_DENIED at the attestation, the document's zero PCR0
+PASS no other refusal on the record
+PASS the audit log verifies with the published audit key: acpctl audit verify
+PASS the audit log verifies by the auditor's own verifier, to the same event count
+PASS CloudTrail: two Decrypts granted on the run's key — the enclave's two key files — each to the parent's role with the production enclave's document as Recipient (image digest = PCR0)
+PASS CloudTrail: each granted call's encryption context names the image and the envelope's version
+PASS CloudTrail: no other Decrypt on the key (2 in all)
+PASS teardown: the parent terminated, the authority VM deleted, the key scheduled for deletion
+VERDICT PASS

@@ -1,0 +1,18 @@
+{
+  "tee_provider": "gcp-sev-snp",
+  "measurement_hex": "e79ebb5b789ddb6b7a9897f663a655a65c69445aa482c4e1a5ff9fdeb4af1a2c8d5d30fcad5f4f0e04f1a13885eb984d",
+  "sealer": "sev-snp-derived-key",
+  "crypto_profile": "cnsa",
+  "kem_suites": [
+    "hpke-mlkem1024-p384-v2"
+  ],
+  "signature_suites": [
+    "ecdsa-p384-sha384",
+    "ml-dsa-87"
+  ],
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  }
+}

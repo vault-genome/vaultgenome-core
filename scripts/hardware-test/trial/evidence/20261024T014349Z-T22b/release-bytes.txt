@@ -1,0 +1,4 @@
+EQUAL  20261024T014510Z/inputs.sha256: sagvd = asset sagvd
+EQUAL  20261024T014510Z/inputs.sha256: acp-compute = asset acp-compute
+EQUAL  20261024T014510Z/inputs.sha256: acpctl = asset acpctl
+EQUAL  20261024T014510Z/inputs.sha256: keygen = asset acp-keygen

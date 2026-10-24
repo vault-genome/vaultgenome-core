@@ -1,0 +1,69 @@
+{
+  "enclave_kernel": "4.14.256-209.484.amzn2.x86_64",
+  "self_attestation": {
+    "module_id": "i-028905acf5b1ad3eb-enc01a16ac852a23078",
+    "document_timestamp": "2026-10-23T22:01:17.004Z",
+    "enclave_clock": "2026-10-23T22:01:16.951625676Z",
+    "debug": true,
+    "pcrs": {
+      "0": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "1": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "2": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "3": "<PCR3 withheld: it measures the parent role's ARN, which names the account>",
+      "4": "7a7459f07c87bb0a2e9da8928ab62dbb827ce65f1ed5e938e09a4125ff4be30e6f179ce459125af18db6dde20710da29",
+      "5": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "6": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "7": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "8": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "chain": [
+      "CN=i-028905acf5b1ad3eb-enc01a16ac852a23078.us-east-2.aws,OU=AWS,O=Amazon,L=Seattle,ST=Washington,C=US",
+      "CN=i-028905acf5b1ad3eb.us-east-2.aws.nitro-enclaves,OU=AWS,O=Amazon,L=Seattle,ST=Washington,C=US",
+      "CN=810a3c131228b937.zonal.us-east-2.aws.nitro-enclaves,OU=AWS,O=Amazon,L=Seattle,ST=WA,C=US",
+      "CN=ba0f582db8125f3c.us-east-2.aws.nitro-enclaves,OU=AWS,O=Amazon,C=US",
+      "CN=aws.nitro-enclaves,OU=AWS,O=Amazon,C=US"
+    ]
+  },
+  "cases": [
+    {
+      "case": "opens",
+      "expect": "refuse",
+      "outcome": "refused",
+      "error": "structural[field_value_invalid]: aws-nitro sealer: PCR0 is zero, a debug-mode enclave; secrets are sealed only to a production-mode image",
+      "millis": 0,
+      "as_expected": true
+    },
+    {
+      "case": "another-image",
+      "expect": "refuse",
+      "outcome": "refused",
+      "error": "structural[field_value_invalid]: aws-nitro sealer: PCR0 is zero, a debug-mode enclave; secrets are sealed only to a production-mode image",
+      "millis": 0,
+      "as_expected": true
+    },
+    {
+      "case": "another-secret",
+      "expect": "refuse",
+      "outcome": "refused",
+      "error": "structural[field_value_invalid]: aws-nitro sealer: PCR0 is zero, a debug-mode enclave; secrets are sealed only to a production-mode image",
+      "millis": 0,
+      "as_expected": true
+    },
+    {
+      "case": "policy-refuses",
+      "expect": "refuse",
+      "outcome": "refused",
+      "error": "structural[field_value_invalid]: aws-nitro sealer: PCR0 is zero, a debug-mode enclave; secrets are sealed only to a production-mode image",
+      "millis": 0,
+      "as_expected": true
+    },
+    {
+      "case": "kms-to-a-debug-mode-document",
+      "expect": "refuse",
+      "outcome": "refused",
+      "error": "integrity[signature_invalid]: sealed secret \"probe.secret\": this host does not open it (sealed at bff8e0ca2b4e8299… on aws-nitro): integrity[attestation_denied]: aws-nitro sealer: KMS does not release the data key to this enclave — the key's policy does not admit its attestation (PCR0 bff8e0ca2b4e8299…): awskms: KMS refused (HTTP 400, AccessDeniedException, request 6353a337-599b-4066-a505-b5ec006fd4e3): User: arn:aws:sts::<account>:assumed-role/vaultgenome-nitro-parent/i-028905acf5b1ad3eb is not authorized to perform: kms:Decrypt on resource: arn:aws:kms:us-east-2:<account>:key/e8950feb-3349-4d85-8fef-3e3f52097553 because no resource-based policy allows the kms:Decrypt action",
+      "millis": 267,
+      "as_expected": true
+    }
+  ]
+}

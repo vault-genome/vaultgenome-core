@@ -1,0 +1,35 @@
+== 23:48:15 the guest
+== 23:48:15 the worker runtime (CUDA wheels) and the base model the genome names
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  10%|█         | 1/10 [00:00<00:01,  6.89it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  60%|██████    | 6/10 [00:00<00:00, 27.43it/s]Fetching 10 files: 100%|██████████| 10/10 [00:02<00:00,  3.96it/s]Fetching 10 files: 100%|██████████| 10/10 [00:02<00:00,  4.71it/s]
+== 23:50:43 acp-bootstrap as azure-cgpu: the destination of a key release, the door on the H100
+{
+  "tee_provider": "azure-cgpu",
+  "measurement_hex": "63e15b3f246c38becb65c7861547d8a6fb9ac1dc5c8d12c261fb6be91661dd114d5a5ef3030501a5120322c5900311fa",
+  "sealer": "tpm2",
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+    ],
+    "pcr_digest_hex": "d74bfb368d4bfb59562570d77d34ff153c8aee4b74ee4dd8acc5e068d281d807"
+  },
+  "crypto_profile": "general",
+  "kem_suites": [
+    "hpke-x25519-v2",
+    "hpke-p384-v2",
+    "hpke-mlkem768-v2",
+    "hpke-mlkem1024-p384-v2",
+    "hpke-xwing-v2"
+  ],
+  "signature_suites": [
+    "ed25519",
+    "ecdsa-p384-sha384",
+    "ml-dsa-87"
+  ],
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  }
+}
+DESTINATION UP

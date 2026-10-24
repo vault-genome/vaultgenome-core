@@ -1,0 +1,69 @@
+{
+ "overall": {
+  "header": {
+   "kid": "nv-eat-kid-prod-20261023213529732-b8994e39-596d-42ea-8c97-f41f82c49416",
+   "alg": "ES384"
+  },
+  "claims": {
+   "sub": "NVIDIA-PLATFORM-ATTESTATION",
+   "x-nvidia-ver": "2.0",
+   "nbf": 1792797127,
+   "iss": "https://nras.attestation.nvidia.com",
+   "x-nvidia-overall-att-result": true,
+   "submods": {
+    "GPU-0": [
+     "DIGEST",
+     [
+      "SHA-256",
+      "c8081361a701f8b1f6567960605db85fa2b985200ca754f5b0aedec9a6b868fa"
+     ]
+    ]
+   },
+   "eat_nonce": "6e28753e0353a068d39972f3fb24ce6e257b949c47dc909b1f11f242933be424",
+   "exp": 1792800727,
+   "iat": 1792797127,
+   "jti": "ac5dca97-a4da-4eae-8015-659e8f788219"
+  }
+ },
+ "detached": {
+  "GPU-0": {
+   "header": {
+    "kid": "nv-eat-kid-prod-20261023213529732-b8994e39-596d-42ea-8c97-f41f82c49416",
+    "alg": "ES384"
+   },
+   "claims": {
+    "x-nvidia-gpu-driver-rim-schema-validated": true,
+    "iss": "https://nras.attestation.nvidia.com",
+    "x-nvidia-gpu-attestation-report-cert-chain-validated": true,
+    "eat_nonce": "6e28753e0353a068d39972f3fb24ce6e257b949c47dc909b1f11f242933be424",
+    "x-nvidia-gpu-vbios-rim-signature-verified": true,
+    "x-nvidia-gpu-vbios-rim-fetched": true,
+    "exp": 1792800727,
+    "iat": 1792797127,
+    "ueid": "643672326474821204369041793372763237684732098362",
+    "jti": "2f6fe373-b6af-4cf8-8d60-ca3b198f2080",
+    "x-nvidia-gpu-attestation-report-nonce-match": true,
+    "x-nvidia-gpu-vbios-index-no-conflict": true,
+    "x-nvidia-gpu-vbios-rim-cert-validated": true,
+    "secboot": true,
+    "x-nvidia-gpu-attestation-report-parsed": true,
+    "x-nvidia-gpu-driver-rim-signature-verified": true,
+    "x-nvidia-gpu-arch-check": true,
+    "x-nvidia-attestation-warning": null,
+    "nbf": 1792797127,
+    "x-nvidia-gpu-driver-version": "595.91.07",
+    "x-nvidia-gpu-driver-rim-measurements-available": true,
+    "x-nvidia-gpu-attestation-report-signature-verified": true,
+    "hwmodel": "GH100",
+    "dbgstat": "disabled",
+    "x-nvidia-gpu-driver-rim-fetched": true,
+    "oemid": "5703",
+    "x-nvidia-gpu-vbios-rim-schema-validated": true,
+    "measres": "success",
+    "x-nvidia-gpu-driver-rim-cert-validated": true,
+    "x-nvidia-gpu-vbios-version": "96.00.9F.00.04",
+    "x-nvidia-gpu-vbios-rim-measurements-available": true
+   }
+  }
+ }
+}

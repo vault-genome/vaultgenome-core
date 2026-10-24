@@ -1,0 +1,6 @@
+instance=vg-airgap-sev-snp-20261023t220004z
+zone=us-central1-c
+machine=n2d-standard-4
+captured=20261023T220138Z
+tee=sev-snp
+airgap_tag=vg-airgap-20261023t220004z

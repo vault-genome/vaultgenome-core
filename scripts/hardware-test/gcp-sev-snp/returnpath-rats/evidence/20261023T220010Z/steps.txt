@@ -1,0 +1,56 @@
+== binaries from gs://rats-probe-vg-rats-20261023t215812z/e2e
+== the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== configfs-tsm
+== this chip's report for the Verifier's reference value: one configfs-tsm request, printed for the runner
+launch_report_bytes=1184 launch_certs_bytes=4763
+launch_measurement_from_report=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+sealer=auto
+== provision (acp-keygen, private modes; every key file is sealed to the chip below)
+== identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+worker_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+launch_measurement_equals_identity=yes
+== the key files sealed to this host (ADR 0023; the sealer is tee.sealer=auto, ADR 0025 step 1b)
+sagvd seal-keys exit=0 sealer=sev-snp-derived-key sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+acp-compute seal-keys exit=0 sealer=sev-snp-derived-key sealed=keys.worker_signing.seed_path,vault.tls.client_key
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-08d0b6335a61-g0-766613431846
+== A. the builtin verifiers on this chip: sagvd, acp-compute, a session, a job — the handshake measured
+sagvd_builtin ready after 11s
+builtin session opened after 1s sagvd_handshake_ms=230 worker_handshake_ms=230 worker_record_bytes=7980 vault_record_bytes=7980
+job_id_builtin=0a1b2421cef1a38f45e0e95908841bf3
+job_status_builtin=succeeded after 5s
+gate_builtin: level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-e2e
+== B. the Verifier holds this launch? (vg-go) — then the kit's PKI and the Verifier's EAR key
+vg-go after 480s
+== the Verifier from this guest: its well-known document over mutual TLS, by name
+well-known from the guest exit=0
+sagvd rats identity exit=0
+== sagvd on SEV-SNP, appraisal delegated to vg-verifier-20261023t215812z
+sagvd_rats ready after 11s "peer_verifier":"rats https://vg-verifier-20261023t215812z:8443"
+== a thief with the sealed key files, off the chip: they do not open (ADR 0023; tee.sealer=auto)
+rogue with the sealed files exit=1 sealed to gcp-sev-snp, this host is simulated
+== a worker of another family: refused by name before the Verifier is asked, on the record
+rogue refused after 1s: evidence type \"application/vnd.vault-genome.simulated-evidence\", this peer verifier is gcp-sev-snp
+== acp-compute on SEV-SNP, the real door, its appraisal of the vault delegated too
+rats session opened after 0s sagvd_handshake_ms=125 worker_handshake_ms=125 worker_record_bytes=7980 vault_record_bytes=7980
+== the gate job over the delegated Return Path
+job_id_rats=f37446485000152e390053cc995bf51b
+job_status_rats=succeeded after 5s
+gate_rats: level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-e2e
+== metrics
+== C. a daemon whose policy names another appraisal policy: the Verifier affirms, this side refuses
+policy refusal after 1s: appraised under policy \
+== D. a daemon whose Verifier is unreachable: nothing is admitted on a missing verdict
+verifier-down refusal after 11s: verifier_unavailable]: tee: the Verifier at https://vg-verifier-20261023t215812z:8444: no session: Post \
+sessions_opened_down=
+== verify the audit log with the published key; the trust decisions of every phase
+audit verify exit=0
+audit query exit=0
+trust_decisions: allow=2 deny=4 allow_with_ear=1
+elapsed_seconds=696.4

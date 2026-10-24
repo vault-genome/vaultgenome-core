@@ -1,0 +1,31 @@
+PASS production: the enclave attests itself, not debug, PCR0 = the image's
+PASS production: PCR1 and PCR2 = the image's, as nitro-cli measured it
+PASS production: PCR3 = SHA-384(48 zero bytes, the parent role's ARN) — the value withheld, the ARN names the account
+PASS production: PCR4 = SHA-384(48 zero bytes, the parent's instance id i-028905acf5b1ad3eb); the module is that instance's
+PASS the formula is AWS's own: its two examples reproduce (role 78fce75d…, instance 08f996b5…)
+PASS production: the enclave's clock is within a minute of the hypervisor's timestamp (-52 ms; KMS allows five)
+PASS debug: the enclave's clock is within a minute of the hypervisor's timestamp (-52 ms; KMS allows five)
+PASS production: opens: opened (expected open)
+PASS production: what opened is the secret sealed on the operator's machine (SHA-256)
+PASS production: another-image: refused (expected refuse)
+PASS production: another-secret: refused (expected refuse)
+PASS production: policy-refuses: refused (expected refuse)
+PASS debug: the enclave's own document says debug; PCR0, PCR1 and PCR2 are zero
+PASS debug: PCR3 and PCR4 still measure the parent, as in production — AWS's guide says a debug document's PCRs are all zero
+PASS debug: opens: refused (expected refuse)
+PASS debug: another-image: refused (expected refuse)
+PASS debug: another-secret: refused (expected refuse)
+PASS debug: policy-refuses: refused (expected refuse)
+PASS debug: kms-to-a-debug-mode-document: refused (expected refuse)
+PASS the parent's role without an enclave: AccessDeniedException, the key policy's explicit deny
+PASS the kit's role without an enclave: AccessDeniedException, the key policy's explicit deny
+PASS CloudTrail: one Decrypt granted — on the run's key, to the parent's role, an attestation document as Recipient
+PASS CloudTrail: the granted Recipient is the production enclave's own document — its module id, PCR0 (image digest), PCR1, PCR2, PCR3, PCR4 and PCR8 as the enclave reported them
+PASS CloudTrail: the granted call's encryption context names the image (vault-genome:pcr0) and the envelope's version
+PASS CloudTrail: two InvalidCiphertextException on the run's key, each from the production enclave's document — another image's file, another secret's
+PASS CloudTrail: the other key refused the enclave — AccessDenied, no statement of its policy admits this image
+PASS CloudTrail: the run's key refused the debug-mode document — AccessDenied, no statement admits it
+PASS CloudTrail: the run's key refused the parent's role without a document — AccessDenied, the explicit deny
+PASS CloudTrail: the run's key refused the kit's role without a document — AccessDenied, the explicit deny
+PASS CloudTrail: no other Decrypt on the run's keys (7 in all, 7 expected)
+VERDICT PASS

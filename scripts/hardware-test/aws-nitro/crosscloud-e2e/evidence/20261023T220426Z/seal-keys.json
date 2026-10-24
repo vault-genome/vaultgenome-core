@@ -1,0 +1,15 @@
+{
+  "tee": "aws-nitro",
+  "sealer": "aws-kms-attested",
+  "measurement_hex": "e80a10e420023f1d32198e5d9a130c0017f106da1545e9d3e4488c9d57f1582db723803d810160e7f5e1a943aecf5219",
+  "sealed": [
+    {
+      "name": "http.tls.server_key",
+      "path": "/run/vg/keys/server.key"
+    },
+    {
+      "name": "http.bearer_token_file",
+      "path": "/run/vg/keys/token"
+    }
+  ]
+}

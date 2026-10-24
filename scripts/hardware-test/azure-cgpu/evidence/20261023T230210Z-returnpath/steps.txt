@@ -1,0 +1,38 @@
+profile=general
+signature_suite=ed25519
+== 23:31:43 inputs
+== 23:31:43 provision (keygen); the pins start as placeholders
+== 23:31:43 the key files sealed to the vTPM (ADR 0023): sagvd's and acp-compute's seeds and the session sealing key, in place
+sagvd seal-keys exit=0
+acp-compute seal-keys exit=0
+== 23:31:44 identities: each daemon reads the launch measurement from the vTPM's HCL report
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48
+worker_measurement=6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48
+sagvd crypto_profile=general kem_suites=hpke-x25519-v2,hpke-p384-v2,hpke-mlkem768-v2,hpke-mlkem1024-p384-v2,hpke-xwing-v2
+sagvd signature_suite=ed25519 signature_suites=ed25519,ecdsa-p384-sha384,ml-dsa-87
+sagvd authority_signature_suite=ed25519 audit_signature_suite=ed25519
+sagvd fips140 enabled=false enforced=false version=latest
+acp-compute signing_signature_suite=ed25519
+acp-compute fips140 enabled=false enforced=false version=latest
+== 23:31:44 the escrow key sealed to the guest's vTPM (ADR 0022): made in sagvd's process, sealed under this boot's PCR policy, opened once to prove it, re-sealed through the recovery ceremony
+escrow-provision exit=0 tee=azure-cgpu
+escrow re-provision exit=0 re-provisioned escrow_key=80672c37c0fe97f4 source=stdin (want 80672c37c0fe97f4)
+== 23:31:45 the genome trained here, sealed for sagvd
+seal exit=0
+== 23:31:45 sagvd on the confidential GPU VM
+sagvd ready after 1s
+== 23:31:46 a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+rogue refused after 3s
+== 23:31:49 acp-compute on the confidential GPU VM, the door on the H100
+session opened after 1s
+== 23:31:51 the gate job over the Return Path: the genome restored on the H100
+job_id=002393a2e5f439502c81bbda4e81571a
+job status=succeeded after 240s
+gate_level=EXACT door=pinned replay rung=0 fixtures=16 n_exact=16 max_abs_err=0 signer=sagvd-authority-e2e
+== 23:36:03 the manifests the verifiers fetched (rim-cache: the RIM service's responses, public)
+== 23:36:03 metrics; stop both; verify the audit log with the published key
+audit verify exit=0
+audit suite=ed25519 events=18
+== RETURNPATH DONE

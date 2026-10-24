@@ -1,0 +1,27 @@
+{
+  "signing_kid": "acp-compute-worker-demo",
+  "signing_public_key_hex": "040406c23d6bdda10335e664cf001351214169e6f055714b815fb3f1f68cf3098433e6e0137d89a63f2388aa2d8998d325c120093b5cf6a8c52d7405477bc8abf34ae0a39c71036e348e5f975ac1a732a24ca385c395df35db7de87906382d2721",
+  "signing_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEBAbCPWvdoQM15mTPABNRIUFp5vBVcUuB\nX7Px9ozzCYQz5uATfYmmPyOIqi2JmNMlwSAJO1z2qMUtdAVHe8ir80rgo5xxA240\njl+XWsGnMqJMo4XDld81233oeQY4LSch\n-----END PUBLIC KEY-----\n",
+  "signing_signature_suite": "ecdsa-p384-sha384",
+  "tee_provider": "gcp-sev-snp",
+  "tee_measurement_hex": "9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf",
+  "sealer": "sev-snp-derived-key",
+  "fips140": {
+    "enabled": true,
+    "enforced": true,
+    "version": "v1.0.0",
+    "build": "v1.0.0-c2097c7c"
+  },
+  "sev_snp_policy": {
+    "bulletins_read_on": "2026-10-22",
+    "floors": {
+      "Bergamo/Siena": "snp 0x1b microcode 0x1b, mitigation vector bits 0x2, alias check",
+      "Genoa": "snp 0x1b microcode 0x56, mitigation vector bits 0x2, alias check",
+      "Genoa-X": "snp 0x1b microcode 0x51, mitigation vector bits 0x2, alias check",
+      "Milan": "snp 0x1b microcode 0xde, mitigation vector bits 0x2, alias check",
+      "Milan-X": "snp 0x1b microcode 0x47, mitigation vector bits 0x2, alias check",
+      "Turin": "snp 0x4 microcode 0x51, mitigation vector bits 0x1",
+      "Turin Dense": "snp 0x4 microcode 0x4e, mitigation vector bits 0x1"
+    }
+  }
+}

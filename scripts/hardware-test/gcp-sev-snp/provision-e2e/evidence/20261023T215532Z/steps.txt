@@ -1,0 +1,29 @@
+== binaries from gs://rats-probe-vg-prov-20261023t215405z/e2e
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== acpctl provision: one command — keygen, the configurations, the chain, the identities and pins, the key files sealed to the chip
+provision exit=0
+provider=auto peer=gcp-sev-snp sealer=auto
+vault_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+worker_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+vault_sealer=sev-snp-derived-key worker_sealer=sev-snp-derived-key
+sealed_sagvd=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+sealed_worker=keys.worker_signing.seed_path,keys.session_sealing.material_path,vault.tls.client_key
+amd_cert_chain=/root/deploy/amd-milan-cert_chain.pem
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-dcb965500caf-g0-31301ec16b82
+== sagvd on what provision wrote
+sagvd ready after 13s
+== acp-compute on what provision wrote, the real door
+session opened after 0s
+== the gate job over the Return Path
+job_id=7ae5e283cf2f8f42cc3359b97b8dde8d
+job status=succeeded after 5s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo
+== metrics
+== stop both; verify the audit log with the key provision kept for the operator
+audit verify exit=0
+audit query exit=0
+elapsed_seconds=125.9

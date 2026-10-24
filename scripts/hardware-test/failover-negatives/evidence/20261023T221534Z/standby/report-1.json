@@ -1,0 +1,47 @@
+{
+  "status": "declined",
+  "policy_serial": 1,
+  "policy_sha256": "0e5b242ae7aa6e2f15827e3d687e3969920ceb0fca849dba57f557a4a099e67c",
+  "sentinel": "sentinel-fd5b7392cf28e6c8",
+  "trigger": {
+    "kind": "compromise-report",
+    "at": "2026-10-23T22:26:57.180325837Z",
+    "observed_at": "2026-10-23T22:27:08.88337283Z",
+    "alive_observed_at": "2026-10-23T22:27:04.877129266Z",
+    "evidence_sha256": "cc1aca087056f8b8f94f648aa624cf4a08127fe1b293f3f00a4db2568b7db3c4",
+    "primary_measurement_hex": "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790",
+    "tripped": [
+      {
+        "wire": "path",
+        "target": "/root/canary",
+        "want": "e91a347f5d68f56c7ab031b9dcbed288f4cb929c401c315c1d270e3ba7fcda7d",
+        "got": "45bb370196d1e59e368ab5f98cd6e27353963d8607d93e47e13bb418db172170"
+      }
+    ],
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "eb16354f4a830d1f08527d87bd0e46f9bd0ddf054e0012cf94d213a92b24580e",
+      "sealed_at": "2026-10-23T22:26:45.183607678Z"
+    }
+  },
+  "decision": {
+    "decision": "declined",
+    "reason": "failover: policy serial 1 expired at 2026-10-23T22:20:12Z",
+    "audit_id": "xcc-evt-0000000000000001",
+    "decided_at": "2026-10-23T22:27:08.912940208Z"
+  },
+  "genome": {
+    "generation": 1,
+    "bundle": "gen-000001.genome",
+    "bundle_sha256": "eb16354f4a830d1f08527d87bd0e46f9bd0ddf054e0012cf94d213a92b24580e",
+    "bundle_bytes": 2216848,
+    "key_id": "genome-1c7189c63e93-g1-5ebb5d4bb0c2",
+    "payload_sha256": "sha256:1c7189c63e931e83e72252854894590c10688d2fc245fdf98d88764df1a4ed14",
+    "tree_sha256": "460f38c904494e58dd0d78a3835ef80621eba108b3049618de1fa91a02c2228c",
+    "sealed_at": "2026-10-23T22:26:45.183607678Z",
+    "chain_end": 1
+  },
+  "audit_chain_length": 1,
+  "audit_tip": "9af4a78743141e38f1521d04863e24ae5b8463dc3a30eeebd5d2172a6f4a169e",
+  "operator_stop_serial": 1
+}
