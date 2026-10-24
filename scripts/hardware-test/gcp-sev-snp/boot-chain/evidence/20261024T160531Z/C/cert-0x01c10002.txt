@@ -1,0 +1,67 @@
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            cb:35:be:d9:18:ce:48:50:e9:c8:6f:72:3c:82:71:15:5f:e2:cc
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C = US, ST = California, L = Mountain View, O = Google LLC, OU = Google Cloud, CN = EK/AK CA Intermediate
+        Validity
+            Not Before: Oct 24 16:05:51 2026 GMT
+            Not After : Oct 16 16:05:50 2056 GMT
+        Subject: L = us-central1-c, O = Google Compute Engine, OU = rats-probe, CN = 8914852422907685307
+        Subject Public Key Info:
+            Public Key Algorithm: id-ecPublicKey
+                Public-Key: (256 bit)
+                pub:
+                    04:7d:1f:49:ea:96:32:2e:15:05:95:a0:6f:21:3f:
+                    47:f2:e8:94:60:2f:fb:df:7f:2c:d2:aa:d4:70:a9:
+                    7a:8e:3d:d3:56:30:d5:c7:9b:2d:cf:92:d7:fc:dc:
+                    e2:b6:2d:da:e1:8a:48:2d:7f:31:85:21:99:08:77:
+                    3d:54:d1:84:7a
+                ASN1 OID: prime256v1
+                NIST CURVE: P-256
+        X509v3 extensions:
+            X509v3 Key Usage: critical
+                Digital Signature
+            X509v3 Basic Constraints: critical
+                CA:FALSE
+            X509v3 Subject Key Identifier: 
+                CE:36:29:C9:A3:B0:C9:A0:46:1F:D5:5A:B8:9A:8A:0F:1A:F1:C6:0D
+            X509v3 Authority Key Identifier: 
+                56:34:C1:08:E4:64:66:E6:F5:51:AC:23:CD:70:3A:81:D8:2C:25:AD
+            Authority Information Access: 
+                CA Issuers - URI:http://privateca-content-6a296e11-0000-2725-92a1-883d24f8f850.storage.googleapis.com/c5d5570c2c122e4f7db7/ca.crt
+            1.3.6.1.4.1.11129.2.1.21: 
+                0m.us-central1-c....,...
+rats-probe..{....qi...vg-bootchain-20261024t160531z. 0...............................
+    Signature Algorithm: sha256WithRSAEncryption
+    Signature Value:
+        16:75:7b:6d:b7:2c:41:2f:4b:6d:fe:a9:6f:38:2e:3a:0b:b9:
+        6f:38:1f:18:48:65:82:ae:a2:11:73:6d:ec:0d:ce:e3:a5:e9:
+        35:b0:83:2f:d6:bb:09:7f:99:ba:fc:bb:c8:e1:d2:4c:f9:e8:
+        d5:e6:fa:47:03:02:bb:5a:1f:46:ee:e3:1f:92:21:83:2f:8b:
+        6b:4c:52:cb:a1:a3:09:67:e7:e7:c5:4c:42:9f:0b:ec:4b:a3:
+        00:58:0e:36:99:b3:43:e7:30:cd:ee:f4:2e:cc:58:c6:80:3b:
+        fe:9e:d8:a0:2c:7e:dd:62:3c:b3:b9:80:e8:07:7e:97:48:fa:
+        41:8f:80:77:a1:4d:7c:57:24:fc:f0:8e:9d:c2:68:d4:7e:4c:
+        ec:ef:e6:a2:58:6d:53:cb:f7:50:49:d0:89:e0:94:29:b4:53:
+        56:ea:e0:70:48:66:84:8c:fe:ab:56:a3:45:de:d7:d0:f8:57:
+        d3:d2:85:f8:23:9e:fa:20:dd:a5:27:dd:79:df:bd:f8:ba:ad:
+        9e:61:a1:cb:1b:d6:30:f0:13:bc:05:a3:be:a6:56:78:b1:a8:
+        6b:0e:35:16:04:00:71:8b:7a:0a:d3:16:e9:73:cd:0e:49:f6:
+        06:f4:ab:be:26:c7:2b:9e:75:33:32:85:36:dd:b9:80:fb:7e:
+        81:19:8e:3e:e3:d9:b6:6d:49:3e:3f:22:69:4d:9b:28:37:c8:
+        47:21:39:a9:3b:9a:2e:67:8d:d1:9b:9c:8d:ab:47:71:e4:dc:
+        ef:01:3b:09:c8:04:9b:8a:bd:c8:4e:6e:9f:f1:c6:0b:bc:c2:
+        de:12:30:d6:26:54:c5:3e:f7:3f:9b:ac:7d:a0:c9:30:5e:e1:
+        07:d5:48:87:c4:43:37:01:e9:6e:33:03:d4:75:33:e0:85:14:
+        17:8b:73:30:0c:36:66:23:20:d9:5f:c1:23:a5:15:84:f5:e3:
+        ae:54:dc:ad:73:99:b0:0f:c9:0e:43:43:1e:09:cb:55:f2:34:
+        fd:c7:16:05:68:e5:95:87:78:01:74:93:a7:2c:59:55:3a:60:
+        97:1c:f4:7b:b9:65:68:68:6c:7c:92:04:16:fb:b2:7f:64:9e:
+        c1:e3:77:2a:0b:c2:eb:ec:c9:e2:8b:b5:7b:b7:c5:5f:89:b7:
+        21:ee:e4:a6:a9:ee:43:68:43:d0:ea:cc:ec:08:f1:4f:49:f2:
+        f1:49:ec:64:5e:9a:0f:87:7a:2d:c2:e7:f1:04:e6:47:25:c6:
+        4f:78:7b:73:ad:43:57:61:c6:8c:57:44:9e:5d:09:b4:6a:44:
+        26:80:4a:1e:39:40:29:95:0c:c0:c3:29:28:79:15:a8:2d:a2:
+        e5:57:4d:21:28:00:b7:c5

@@ -1,0 +1,5 @@
+measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf policy 0x30000
+chip open ok
+vtpm[sha256:0,1,2,3,4,5,6,7] open ok
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9] open ok
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] open ok

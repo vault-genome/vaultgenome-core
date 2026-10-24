@@ -1,0 +1,4 @@
+ERROR:esys:src/tss2-esys/api/Esys_CreatePrimary.c:229:Esys_CreatePrimary_Async() SAPI Prepare returned error. ErrorCode (0x00090006) 
+ERROR:esys:src/tss2-esys/api/Esys_CreatePrimary.c:110:Esys_CreatePrimary() Error in async function ErrorCode (0x00090006) 
+ERROR: Esys_CreatePrimary(0x90006) - mu:A buffer isn't large enough
+ERROR: Unable to run tpm2_createprimary

@@ -1,0 +1,2 @@
+ERROR: Could not open file: "/var/lib/vg-boot-chain/out/C/quote.msg" error: No such file or directory
+ERROR: Unable to run tpm2_checkquote

@@ -1,0 +1,6 @@
+ERROR: Incorrect handle value, got: "/var/lib/vg-boot-chain/ak.ctx", expected expected [o|p|e|n|l] or a handle number
+ERROR: Unable to read as BIO file
+ERROR: Unable to fetch public/private portions of TSS PRIVKEY
+ERROR: Cannot make sense of object context "/var/lib/vg-boot-chain/ak.ctx"
+ERROR: Invalid key authorization
+ERROR: Unable to run tpm2_quote

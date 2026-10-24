@@ -1,0 +1,10 @@
+== [B] boot B of run 20261024T155106Z at 2026-10-24T15:55:15Z
+== [B] configfs-tsm and the sev-guest driver
+== [B] the kernel
+== [B] the vTPM's certificates and templates (GCE NV indices)
+== [B] the AK, made in the endorsement hierarchy from GCE's template
+== [B] the AK made here is the key Google's AK certificate names
+== [B] a quote by the AK over sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 with a fresh nonce
+== [B] tpm2_checkquote ok
+== [B] the chip's report, REPORT_DATA = SHA-256(nonce) || SHA-256(AK public key)
+== [B] the probe seals one text with the chip and with the vTPM under sha256:0,1,2,3,4,5,6,7 sha256:0,1,2,3,4,5,6,7,8,9 sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14

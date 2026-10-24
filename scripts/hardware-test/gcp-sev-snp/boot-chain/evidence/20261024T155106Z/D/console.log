@@ -1,0 +1,11 @@
+== [D] boot D of run 20261024T155106Z at 2026-10-24T16:01:21Z
+== [D] configfs-tsm and the sev-guest driver
+== [D] the kernel
+== [D] the vTPM's certificates and templates (GCE NV indices)
+== [D] the AK, made in the endorsement hierarchy from GCE's template
+== [D] the AK made here is the key Google's AK certificate names
+== [D] a quote by the AK over sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 with a fresh nonce
+== [D] tpm2_checkquote ok
+== [D] the chip's report, REPORT_DATA = SHA-256(nonce) || SHA-256(AK public key)
+== [D] the probe opens what boot B sealed
+== [D] booted the other kernel 7.0.0-1013-gcp

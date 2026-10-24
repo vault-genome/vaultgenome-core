@@ -1,0 +1,66 @@
+build the probe (linux/amd64) from 264a96ed
+upload to gs://rats-probe-vg-bc-20261024t160531z
+Creating gs://rats-probe-vg-bc-20261024t160531z/...
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.krr2EDE2yH/probe to gs://rats-probe-vg-bc-20261024t160531z/bc/probe
+  
+.........
+boot vg-bootchain-20261024t160531z (SEV-SNP with a vTPM, us-central1-c)
+WARNING: You have selected a disk size of under [200GB]. This may result in poor I/O performance. For more information, see: https://developers.google.com/compute/docs/disks#performance.
+Created [https://www.googleapis.com/compute/v1/projects/rats-probe/zones/us-central1-c/instances/vg-bootchain-20261024t160531z].
+WARNING: Some requests generated warnings:
+ - Disk size: '20 GB' is larger than image size: '10 GB'. You might need to resize the root repartition manually if the operating system does not support automatic resizing. See https://cloud.google.com/compute/docs/disks/add-persistent-disk#resize_pd for details.
+
+waiting for four boots on the serial console (up to 60 min)
+serial capture: /Users/serhiinikolaichuk/.cache/vaultgenome/boot-chain/serial-20261024T160531Z.txt (f069cbe28b7b76c41c7af381389565bd5183ec8aca966083340d23f588f95d0e)
+decoded boot A
+decoded boot B
+decoded boot C
+decoded boot D
+boot A: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  the AK made here is the key
+  tpm2_checkquote ok
+  report_data_bound True
+boot B: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  the AK made here is the key
+  tpm2_checkquote ok
+  report_data_bound True
+  probe: chip seal ok (86 bytes)
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7] seal ok (546 bytes)
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9] seal ok (550 bytes)
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] seal ok (565 bytes)
+  product: producer ok: measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf boot sha256:0,1,2,3,4,5,6,7,8,9 digest 0f9d00f40688ca1485c732168b7cc
+  product: pinned this boot: 0f9d00f40688ca1485c732168b7cccd3b8d852f8e2a33ab3a2e7b93701317864
+  product: verify ok: instance rats-probe/vg-bootchain-20261024t160531z production=true, boot digest 0f9d00f40688ca1485c732168b7cccd3b8d852f8e2a33ab3a2e7b93701317864
+  product: both seal ok (586 bytes)
+boot C: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  the AK made here is the key
+  tpm2_checkquote ok
+  report_data_bound True
+  probe: chip open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7] open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9] open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] open ok
+  product: producer ok: measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf boot sha256:0,1,2,3,4,5,6,7,8,9 digest 0f9d00f40688ca1485c732168b7cc
+  product: verify ok: instance rats-probe/vg-bootchain-20261024t160531z production=true, boot digest 0f9d00f40688ca1485c732168b7cccd3b8d852f8e2a33ab3a2e7b93701317864
+  product: both open ok
+boot D: kernel=7.0.0-1013-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  the AK made here is the key
+  tpm2_checkquote ok
+  report_data_bound True
+  probe: chip open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7] open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9] open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's 
+  product: producer ok: measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf boot sha256:0,1,2,3,4,5,6,7,8,9 digest f2b87211d36ecea76c86146b47af7
+  product: verify REFUSED: integrity[attestation_denied]: gcp-sev-snp-vtpm: PCR digest f2b87211d36ecea76c86146b47af7bd9e127a9e3cd7b7560474c54a2d4729229 is not in the acceptable set: the boot measured i
+  product: both open REFUSED: sev-snp+tpm2: the vTPM refuses this boot: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9 (another 
+PCRs that moved A->B (the image's first boot, then the same kernel): 5,10
+PCRs that moved B->C (the same kernel, a plain reboot): none
+PCRs that moved C->D (another kernel): 8,9,10
+chip measurement the same on all four boots: True
+cleanup: deleting vg-bootchain-20261024t160531z and gs://rats-probe-vg-bc-20261024t160531z
+runner rc=0

@@ -1,0 +1,34 @@
+== boot D of run 20261024T160531Z at 2026-10-24T16:18:29Z
+== configfs-tsm and the sev-guest driver
+== the kernel
+kernel=7.0.0-1013-gcp
+== the vTPM's certificates and templates (GCE NV indices)
+== the AK, made in the endorsement hierarchy from GCE's template
+ak args: -g sha256 -G rsa2048:rsassa-sha256:null -a fixedtpm|fixedparent|sensitivedataorigin|userwithauth|restricted|sign -u /var/lib/vg-boot-chain/ak.unique
+ak_pub_sha256=e1ce51d5bf023b310179fae5a0da0b22e6b07e92cdbcf502440c984513ca6104 akcert_pub_sha256=e1ce51d5bf023b310179fae5a0da0b22e6b07e92cdbcf502440c984513ca6104
+== the AK made here is the key Google's AK certificate names
+== a quote by the AK over sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 with a fresh nonce
+== tpm2_checkquote ok
+eventlog_events=118
+== the chip's report, REPORT_DATA = SHA-256(nonce) || SHA-256(AK public key)
+snp report 1184 bytes; measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf; report_data_bound True
+== the probe opens what boot B sealed
+measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf policy 0x30000
+chip open ok
+vtpm[sha256:0,1,2,3,4,5,6,7] open ok
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9] open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9 (another boot, another machine?): tpm2_unseal: exit status 1: WARNING:esys:src/tss2-esys/api/Esys_Unseal.c:295:Esys_Unseal_Finish() Received TPM Error 
+ERROR:esys:src/tss2-esys/api/Esys_Unseal.c:98:Esys_Unseal() Esys Finish ErrorCode (0x0000099d) 
+ERROR: Esys_Unseal(0x99D) - tpm:session(1):a policy check failed
+ERROR: Unable to run tpm2_unseal
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 (another boot, another machine?): tpm2_unseal: exit status 1: WARNING:esys:src/tss2-esys/api/Esys_Unseal.c:295:Esys_Unseal_Finish() Received TPM Error 
+ERROR:esys:src/tss2-esys/api/Esys_Unseal.c:98:Esys_Unseal() Esys Finish ErrorCode (0x0000099d) 
+ERROR: Esys_Unseal(0x99D) - tpm:session(1):a policy check failed
+ERROR: Unable to run tpm2_unseal
+== the product: gcp-sev-snp-vtpm quotes, the verifier pinned to boot B's PCRs checks it, the chip-and-vTPM sealer
+producer ok: measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf boot sha256:0,1,2,3,4,5,6,7,8,9 digest f2b87211d36ecea76c86146b47af7bd9e127a9e3cd7b7560474c54a2d4729229
+verify REFUSED: integrity[attestation_denied]: gcp-sev-snp-vtpm: PCR digest f2b87211d36ecea76c86146b47af7bd9e127a9e3cd7b7560474c54a2d4729229 is not in the acceptable set: the boot measured into the vTPM — the kernel, its command line and initrd, the boot loader — is not one the policy names
+both open REFUSED: sev-snp+tpm2: the vTPM refuses this boot: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9 (another boot, another machine?): tpm2_unseal: exit status 1: WARNING:esys:src/tss2-esys/api/Esys_Unseal.c:295:Esys_Unseal_Finish() Received TPM Error 
+ERROR:esys:src/tss2-esys/api/Esys_Unseal.c:98:Esys_Unseal() Esys Finish ErrorCode (0x0000099d) 
+ERROR: Esys_Unseal(0x99D) - tpm:session(1):a policy check failed
+ERROR: Unable to run tpm2_unseal
+== booted the other kernel 7.0.0-1013-gcp
