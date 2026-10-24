@@ -11,6 +11,29 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-10-24
+
+The release that holds the boot where the chip's measurement does not
+reach it (ADR 0037). On a Compute Engine SEV-SNP guest the launch
+measurement is Google's UEFI and says nothing of the kernel: the new
+family `gcp-sev-snp-vtpm` carries the vTPM's quote of the boot beside the
+chip's report, which names the quote's attestation key, holds that key to
+Google's EK/AK root, which the binary pins, and seals key files to the
+chip and the boot together (`tee.sealer: both`). On four boots of one
+instance the chip's seal alone opened under another kernel and the
+measurement did not change; the shipping verifier, one boot pinned,
+accepted it and the same boot after a reboot and refused the other
+kernel, and the file sealed to both opened after the reboot and not under
+the other kernel (C53). Under Azure's paravisor the launch measurement is
+the paravisor's and the firmware's: both Azure families now require the
+boot, `acpctl provision` pins it from each host's identity, and on a real
+Confidential VM a worker on a boot the policy does not name was refused at
+the handshake while the pinned one was admitted (C54); two VMs of one
+image measured different boots, so the pin is a host's. The SEV-SNP corpus
+holds 65 reports from 27 chips, read alike by the product, Google's
+go-sev-guest and VirTEE's snpguest (C47). The bundle format (v4), the
+audit schema (v8) and the policy schema are unchanged.
+
 ### Added
 
 - **`gcp-sev-snp-vtpm`: a Compute Engine SEV-SNP guest attests with its chip
@@ -55,6 +78,13 @@ given release can still open.
   restore guide, KNOWN_ISSUES and the banking map state what each
   platform's measurement holds: on Compute Engine the launch measurement is
   Google's firmware; the boot is held by `gcp-sev-snp-vtpm`.
+
+- The threat model's AWS Nitro section describes the destination that
+  ships — the boundary `acp-bootstrap` runs in and what the shipped
+  verifier, sealer and receipt hold, each row citing the code, ADR 0035/0036
+  or C50–C52 — its header names the families that ship, its table of
+  contents reaches every section, and control VG-001 names
+  `gcp-sev-snp-vtpm` and says what Nitro is.
 
 ## [0.10.0] — 2026-10-23
 
