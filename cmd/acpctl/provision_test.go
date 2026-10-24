@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -21,6 +22,13 @@ import (
 // prints a measurement of the family's length, seal-keys lists what it
 // sealed. The test reads the record afterwards.
 func stubRelease(t *testing.T, measurementBytes int, identityProvider string) (binDir, record string) {
+	t.Helper()
+	return stubReleaseBoot(t, measurementBytes, identityProvider, "cafe")
+}
+
+// stubReleaseBoot is stubRelease whose identity prints boot as the vTPM's
+// PCR digest.
+func stubReleaseBoot(t *testing.T, measurementBytes int, identityProvider, boot string) (binDir, record string) {
 	t.Helper()
 	binDir = t.TempDir()
 	record = filepath.Join(binDir, "calls.log")
@@ -39,7 +47,7 @@ echo "the-bearer-token-0123456789abcdef" > "$out/sagvd/api_token"
 		return `#!/bin/sh
 echo "` + name + ` $*" >> ` + record + `
 case "$1" in
-  identity) printf '%s\n' '{"tee_provider":"` + identityProvider + `","tee_measurement_hex":"` + m + `","sealer":"stub","audit_kid":"sagvd-audit-demo","audit_public_key_pem":"-----BEGIN PUBLIC KEY-----\nstub\n-----END PUBLIC KEY-----\n","authority_kid":"sagvd-authority-demo","vtpm":{"pcr_digest_hex":"cafe"}}' ;;
+  identity) printf '%s\n' '{"tee_provider":"` + identityProvider + `","tee_measurement_hex":"` + m + `","sealer":"stub","audit_kid":"sagvd-audit-demo","audit_public_key_pem":"-----BEGIN PUBLIC KEY-----\nstub\n-----END PUBLIC KEY-----\n","authority_kid":"sagvd-authority-demo","vtpm":{"pcr_digest_hex":"` + boot + `"}}' ;;
   seal-keys) printf '%s\n' '{"tee":"` + identityProvider + `","measurement_hex":"` + m + `","sealer":"stub","sealed":[{"name":"keys.one","path":"/x"},{"name":"keys.two","path":"/y"}]}' ;;
   *) echo "unknown $1" >&2; exit 2 ;;
 esac
@@ -164,6 +172,44 @@ func TestProvision_HardwareFamilyPinsTheChainAndTheMeasurement(t *testing.T) {
 	next := res["next"].([]any)
 	require.Contains(t, next[0], "sagvd seal-keys -config")
 	require.Equal(t, chain, res["amd_cert_chain"])
+}
+
+// Under Azure's paravisor the launch measurement says nothing of the OS:
+// each side pins the other's boot as well, from the identity, in place of
+// the placeholder the configurations start with (ADR 0037).
+func TestProvision_AzurePinsEachSidesBoot(t *testing.T) {
+	boot := strings.Repeat("5e", 32)
+	binDir, _ := stubReleaseBoot(t, 48, "azure-sev-snp", boot)
+	out := filepath.Join(t.TempDir(), "deploy")
+	chain := filepath.Join(t.TempDir(), "amd-genoa-cert_chain.pem")
+	require.NoError(t, os.WriteFile(chain, []byte("-----BEGIN CERTIFICATE-----\nstub\n-----END CERTIFICATE-----\n"), 0o644))
+	args := []string{"--out", out, "--bin-dir", binDir, "--provider", "azure-sev-snp", "--amd-cert-chain", chain,
+		"--door-python", "/opt/vg/bin/python3", "--base-model", "/opt/base", "--worker-package", "/opt/worker", "--skip-seal"}
+	var stdout, stderr bytes.Buffer
+	require.Equal(t, 0, provisionCmd(args, &stdout, &stderr), stderr.String())
+	for _, name := range []string{"sagvd.json", "acp-compute.json"} {
+		peer := readJSON(t, filepath.Join(out, name))["tee"].(map[string]any)["peer"].(map[string]any)
+		require.Equal(t, "azure-sev-snp", peer["provider"], name)
+		require.Equal(t, []any{boot}, peer["pcr_digests"], name)
+	}
+	require.Contains(t, stdout.String(), "sagvd pins acp-compute's boot: "+boot)
+	require.Contains(t, stdout.String(), "acp-compute pins sagvd's boot: "+boot)
+	res := readJSON(t, filepath.Join(out, "provision.json"))
+	for key, path := range res["configs"].(map[string]any) {
+		raw, err := os.ReadFile(path.(string))
+		require.NoError(t, err)
+		sum := sha256.Sum256(raw)
+		require.Equal(t, hex.EncodeToString(sum[:]), res["configs_sha256"].(map[string]any)[key], "the digest of %s as it stands", key)
+	}
+	require.Equal(t, boot, res["worker"].(map[string]any)["vtpm_pcr_digest_hex"])
+
+	// An identity whose vTPM digest is not a digest pins nothing.
+	binDir, _ = stubRelease(t, 48, "azure-sev-snp")
+	stdout.Reset()
+	stderr.Reset()
+	args[1], args[3] = filepath.Join(t.TempDir(), "deploy"), binDir
+	require.Equal(t, 1, provisionCmd(args, &stdout, &stderr))
+	require.Contains(t, stderr.String(), `vtpm.pcr_digest_hex "cafe" is not a 32-byte digest`)
 }
 
 func TestProvision_Refusals(t *testing.T) {

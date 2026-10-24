@@ -461,7 +461,60 @@ func peerConfig(out string, family tee.Provider, chain, pcsCacheDir string) (map
 		}
 		cfg["pcs_cache_dir"] = pcs
 	}
+	if bootPinned(family) {
+		cfg["pcr_digests"] = []string{placeholderBoot}
+	}
 	return cfg, nil
+}
+
+// bootPinned reports whether a peer of family is pinned to its boot as
+// well as its measurement: the families whose launch measurement is the
+// cloud's — Azure's paravisor and firmware, Google's UEFI — and whose OS
+// only the vTPM measures (ADR 0037).
+func bootPinned(family tee.Provider) bool {
+	return family == tee.ProviderAzureSEVSNP || family == tee.ProviderAzureCGPU || family == tee.ProviderGCPSEVSNPVTPM
+}
+
+// placeholderBoot is a boot pin until the peer's identity names its own:
+// a digest no boot measures, so a daemon started before the pin refuses
+// every peer, as it does on the measurement's placeholder.
+var placeholderBoot = strings.Repeat("0", 2*sha256.Size)
+
+// pinBoot puts the peer's boot — the vTPM digest its identity printed — in
+// place of the placeholder in the configuration at path, and records the
+// configuration's new digest under key.
+func pinBoot(res *provisionResult, key, path, digestHex, peerName string, stdout io.Writer) error {
+	if d, err := hex.DecodeString(digestHex); err != nil || len(d) != sha256.Size {
+		return fmt.Errorf("%s identity: vtpm.pcr_digest_hex %q is not a 32-byte digest: %s pins the peer's boot as well as its measurement (ADR 0037)", peerName, digestHex, key)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var cfg map[string]any
+	if err := dec.Decode(&cfg); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	teeCfg, _ := cfg["tee"].(map[string]any)
+	peerCfg, _ := teeCfg["peer"].(map[string]any)
+	if peerCfg == nil {
+		return fmt.Errorf("%s: no tee.peer to pin the boot in", path)
+	}
+	peerCfg["pcr_digests"] = []string{digestHex}
+	pinned, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, append(pinned, '\n'), 0o600); err != nil {
+		return err
+	}
+	if res.ConfigsSHA256[key], err = provisionDigest(path); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "  %s pins %s boot: %s\n", key, peerName, digestHex)
+	return nil
 }
 
 // teeSection is a daemon's tee configuration: this host's family and
@@ -753,12 +806,21 @@ func provision(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
 	}
 	fmt.Fprintf(stdout, "  configurations: %s, %s\n", sagvdPath, workerPath)
 
-	// 5. The identities, and the pins from them: each side pins the other.
+	// 5. The identities, and the pins from them: each side pins the other,
+	// its measurement and, where the vTPM measures the OS, its boot.
 	if err := identify(out, "sagvd", bins["sagvd"], sagvdPath, vaultPin, "sagvd", family, local, &res.Vault, stdout); err != nil {
 		return nil, err
 	}
 	if err := identify(out, "acp-compute", bins["acp-compute"], workerPath, workerPin, "acp-compute", family, local, &res.Worker, stdout); err != nil {
 		return nil, err
+	}
+	if bootPinned(peer) {
+		if err := pinBoot(res, "sagvd", sagvdPath, res.Worker.VTPMPCRDigestHex, "acp-compute's", stdout); err != nil {
+			return nil, err
+		}
+		if err := pinBoot(res, "acp-compute", workerPath, res.Vault.VTPMPCRDigestHex, "sagvd's", stdout); err != nil {
+			return nil, err
+		}
 	}
 	if err := writeAuditPublicKey(out, res, stdout); err != nil {
 		return nil, err
@@ -810,6 +872,9 @@ type bundleAuthority struct {
 	// AMDCertChain is the bundle path of the authority's product's chain,
 	// for the worker's verifier of a SEV-SNP authority.
 	AMDCertChain string `json:"amd_cert_chain,omitempty"`
+	// PCRDigestHex is the authority's boot as its vTPM measured it, for the
+	// worker's pin of an authority whose OS only the vTPM measures.
+	PCRDigestHex string `json:"pcr_digest_hex,omitempty"`
 }
 
 type bundleWorker struct {
@@ -1122,6 +1187,12 @@ func provisionAuthority(o provisionOptions, stdout io.Writer) (*provisionResult,
 	manifest := workerBundle{Schema: workerBundleSchema,
 		Authority: bundleAuthority{Provider: string(family), MeasurementHex: res.Vault.MeasurementHex, VaultAddress: o.vaultAddress, VaultServerName: o.vaultServerName},
 		Worker:    bundleWorker{Provider: string(worker), Descriptor: o.workerDescriptor, Simulated: worker == tee.ProviderSimulated}}
+	if bootPinned(family) {
+		if d, err := hex.DecodeString(res.Vault.VTPMPCRDigestHex); err != nil || len(d) != sha256.Size {
+			return nil, fmt.Errorf("sagvd identity: vtpm.pcr_digest_hex %q is not a 32-byte digest: the worker pins a %s authority's boot as well as its measurement (ADR 0037)", res.Vault.VTPMPCRDigestHex, family)
+		}
+		manifest.Authority.PCRDigestHex = res.Vault.VTPMPCRDigestHex
+	}
 	if ownChain != "" {
 		rel, err := filepath.Rel(out, ownChain)
 		if err != nil || strings.HasPrefix(rel, "..") {
@@ -1279,6 +1350,13 @@ func provisionJoin(o provisionOptions, stdout io.Writer) (*provisionResult, erro
 	if err != nil {
 		return nil, fmt.Errorf("the authority is %s and the bundle carries no chain for it: %w", authorityFamily, err)
 	}
+	if bootPinned(authorityFamily) {
+		if d, err := hex.DecodeString(m.Authority.PCRDigestHex); err != nil || len(d) != sha256.Size {
+			return nil, fmt.Errorf("--bundle: the manifest names no boot for the %s authority (authority.pcr_digest_hex): the worker pins its boot as well as its measurement (ADR 0037); provision the authority again with this release", authorityFamily)
+		}
+		peerCfg["pcr_digests"] = []string{m.Authority.PCRDigestHex}
+		res.Vault.VTPMPCRDigestHex = m.Authority.PCRDigestHex
+	}
 
 	// 3. acp-compute's configuration.
 	sec := func(p ...string) string { return filepath.Join(append([]string{secrets}, p...)...) }
@@ -1391,12 +1469,32 @@ func provisionPinWorker(o provisionOptions, stdout io.Writer) (*provisionResult,
 		}
 		warnings = append(warnings, msg)
 	}
+	if bootPinned(worker) {
+		if id.VTPM == nil {
+			return nil, fmt.Errorf("--identity: no vtpm.pcr_digest_hex: a %s worker is pinned to its boot as well as its measurement (ADR 0037)", worker)
+		}
+		if d, err := hex.DecodeString(id.VTPM.PCRDigestHex); err != nil || len(d) != sha256.Size {
+			return nil, fmt.Errorf("--identity: vtpm.pcr_digest_hex %q is not a 32-byte digest", id.VTPM.PCRDigestHex)
+		}
+	}
 	pinPath := res.Pins["worker"]
 	if pinPath == "" {
 		pinPath = filepath.Join(out, "pins", "worker.measurement")
 	}
 	if err := os.WriteFile(pinPath, m, 0o600); err != nil {
 		return nil, err
+	}
+	if bootPinned(worker) {
+		cfgPath := res.Configs["sagvd"]
+		if cfgPath == "" {
+			cfgPath = filepath.Join(out, "sagvd.json")
+		}
+		if res.ConfigsSHA256 == nil {
+			res.ConfigsSHA256 = map[string]string{}
+		}
+		if err := pinBoot(&res, "sagvd", cfgPath, id.VTPM.PCRDigestHex, "the worker's", stdout); err != nil {
+			return nil, err
+		}
 	}
 	idFile := filepath.Join(out, "acp-compute-identity.json")
 	if err := os.WriteFile(idFile, idRaw, 0o600); err != nil {
