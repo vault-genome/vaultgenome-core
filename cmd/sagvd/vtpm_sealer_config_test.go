@@ -50,7 +50,7 @@ func TestConfig_VTPMSealPCRs_PerProvider(t *testing.T) {
 		"sev-snp": {func(c *Config) {
 			c.TEE.Provider, c.TEE.SeedPath, c.TEE.InsecureSimulation = "gcp-sev-snp", "", false
 			c.TEE.VTPMSealPCRs = "sha256:0,1"
-		}, "applies to gcp-tdx and azure-cgpu only"},
+		}, "seals with the chip's derived key unless tee.sealer is both or tpm2"},
 		"tdx, a bad selection": {func(c *Config) {
 			c.TEE.Provider, c.TEE.SeedPath, c.TEE.InsecureSimulation = "gcp-tdx", "", false
 			c.TEE.VTPMSealPCRs = "sha1:0"

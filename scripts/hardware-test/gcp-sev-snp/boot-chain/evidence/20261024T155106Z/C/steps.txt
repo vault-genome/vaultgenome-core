@@ -1,0 +1,24 @@
+== boot C of run 20261024T155106Z at 2026-10-24T15:57:38Z
+== configfs-tsm and the sev-guest driver
+== the kernel
+kernel=7.0.0-1014-gcp
+== the vTPM's certificates and templates (GCE NV indices)
+== the AK, made in the endorsement hierarchy from GCE's template
+ak args: -g sha256 -G rsa2048:rsassa-sha256:null -a fixedtpm|fixedparent|sensitivedataorigin|userwithauth|restricted|sign -u /var/lib/vg-boot-chain/ak.unique
+ak_pub_sha256=af2a7276ebd4d8eddbcd5def09589e51b97daf98ae2acb9fba884245776454a1 akcert_pub_sha256=af2a7276ebd4d8eddbcd5def09589e51b97daf98ae2acb9fba884245776454a1
+== the AK made here is the key Google's AK certificate names
+== a quote by the AK over sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 with a fresh nonce
+== tpm2_checkquote ok
+eventlog_events=119
+== the chip's report, REPORT_DATA = SHA-256(nonce) || SHA-256(AK public key)
+snp report 1184 bytes; measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf; report_data_bound True
+== the probe opens what boot B sealed
+measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf policy 0x30000
+chip open ok
+vtpm[sha256:0,1,2,3,4,5,6,7] open ok
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9] open ok
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] open ok
+== another kernel, made the default
+running=7.0.0-1014-gcp next=7.0.0-1013-gcp
+no linux-modules-extra-7.0.0-1013-gcp (the HWE kernel ships its modules in linux-modules)
+grub submenu=gnulinux-advanced-016a55ad-ee12-4ca2-ba46-31afd363950e entry=gnulinux-7.0.0-1013-gcp-advanced-016a55ad-ee12-4ca2-ba46-31afd363950e

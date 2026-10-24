@@ -26,6 +26,9 @@ type AttestationDetail struct {
 	// and the digest over them the pin was held against.
 	PCRSelection string `json:"pcr_selection,omitempty"`
 	PCRDigestHex string `json:"pcr_digest_hex,omitempty"`
+	// GCEInstance is the Compute Engine instance a vTPM's attestation-key
+	// certificate names (gcp-sev-snp-vtpm, ADR 0037).
+	GCEInstance *GCEInstance `json:"gce_instance,omitempty"`
 	// GPUs are the GPUs the verdict rests on, each with who vouched for
 	// it: NVIDIA's token or the verifier's own evaluation.
 	GPUs []GPUVerdict `json:"gpus,omitempty"`

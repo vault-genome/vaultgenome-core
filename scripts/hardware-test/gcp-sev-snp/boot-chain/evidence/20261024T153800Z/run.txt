@@ -1,0 +1,19 @@
+boot A: kernel=
+  chip measurement=
+boot B: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  AK MISMATCH
+  tpm2_checkquote FAIL
+  report_data_bound True
+  probe: chip open ok
+  probe: vtpm open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 (another boot, another machine?): tpm2_unseal: exit status 1: WARNING:esys:src/tss2-esys/api/Esys_Unseal.c:295:Esys_Unseal_Finish() Received TPM Error 
+boot C: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  AK MISMATCH
+  tpm2_checkquote FAIL
+  report_data_bound True
+  probe: chip open ok
+  probe: vtpm open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 (another boot, another machine?): tpm2_unseal: exit status 1: WARNING:esys:src/tss2-esys/api/Esys_Unseal.c:295:Esys_Unseal_Finish() Received TPM Error 
+PCRs that moved A->B (same kernel): none
+PCRs that moved B->C (other kernel): 8,9,10
+chip measurement the same on all three boots: False

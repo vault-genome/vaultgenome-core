@@ -1,0 +1,29 @@
+build the probe (linux/amd64) from 264a96ed
+upload to gs://rats-probe-vg-bc-20261024t155106z
+Creating gs://rats-probe-vg-bc-20261024t155106z/...
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.YXFoTuifhJ/probe to gs://rats-probe-vg-bc-20261024t155106z/bc/probe
+  
+..........
+boot vg-bootchain-20261024t155106z (SEV-SNP with a vTPM, us-central1-c)
+WARNING: You have selected a disk size of under [200GB]. This may result in poor I/O performance. For more information, see: https://developers.google.com/compute/docs/disks#performance.
+Created [https://www.googleapis.com/compute/v1/projects/rats-probe/zones/us-central1-c/instances/vg-bootchain-20261024t155106z].
+WARNING: Some requests generated warnings:
+ - Disk size: '20 GB' is larger than image size: '10 GB'. You might need to resize the root repartition manually if the operating system does not support automatic resizing. See https://cloud.google.com/compute/docs/disks/add-persistent-disk#resize_pd for details.
+
+waiting for four boots on the serial console (up to 60 min)
+serial capture: /Users/serhiinikolaichuk/.cache/vaultgenome/boot-chain/serial-20261024T155106Z.txt (ace69b67655036d2716afe0ed2f68c3b0671f4f7e4481c75e9b00da35fb65339)
+MISSING boots: A,B,C,D
+boot A: kernel=
+  chip measurement=
+boot B: kernel=
+  chip measurement=
+boot C: kernel=
+  chip measurement=
+boot D: kernel=
+  chip measurement=
+PCRs that moved A->B (the image's first boot, then the same kernel): unknown (a boot is missing)
+PCRs that moved B->C (the same kernel, a plain reboot): unknown (a boot is missing)
+PCRs that moved C->D (another kernel): unknown (a boot is missing)
+chip measurement the same on all four boots: False
+cleanup: deleting vg-bootchain-20261024t155106z and gs://rats-probe-vg-bc-20261024t155106z
+runner rc=0

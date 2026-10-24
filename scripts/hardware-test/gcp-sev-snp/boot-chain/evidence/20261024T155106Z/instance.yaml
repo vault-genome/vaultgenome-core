@@ -1,0 +1,10 @@
+confidentialInstanceConfig:
+  confidentialInstanceType: SEV_SNP
+cpuPlatform: AMD Milan
+machineType: n2d-standard-4
+scheduling:
+  onHostMaintenance: TERMINATE
+shieldedInstanceConfig:
+  enableIntegrityMonitoring: true
+  enableSecureBoot: false
+  enableVtpm: true

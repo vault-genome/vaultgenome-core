@@ -126,7 +126,9 @@ func (f *fakeVTPM) run(_ time.Duration, stdin []byte, argv ...string) ([]byte, e
 		if !bytes.Equal(pub, f.policy(sel)) {
 			return nil, errors.New("policy check failed (TPM_RC_POLICY_FAIL)")
 		}
-		return f.secrets[hex.EncodeToString(priv)], nil
+		// A TPM hands out a fresh copy on every unseal; the sealer zeroes
+		// what it gets, so the fake must not hand out its own slice.
+		return append([]byte(nil), f.secrets[hex.EncodeToString(priv)]...), nil
 	}
 	return nil, os.ErrNotExist
 }

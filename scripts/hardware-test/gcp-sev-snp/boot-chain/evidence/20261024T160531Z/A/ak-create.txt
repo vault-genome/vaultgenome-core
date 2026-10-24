@@ -1,0 +1,25 @@
+name-alg:
+  value: sha256
+  raw: 0xb
+attributes:
+  value: fixedtpm|fixedparent|sensitivedataorigin|userwithauth|restricted|sign
+  raw: 0x50072
+type:
+  value: rsa
+  raw: 0x1
+exponent: 65537
+bits: 2048
+scheme:
+  value: rsassa
+  raw: 0x14
+scheme-halg:
+  value: sha256
+  raw: 0xb
+sym-alg:
+  value: null
+  raw: 0x10
+sym-mode:
+  value: (null)
+  raw: 0x0
+sym-keybits: 0
+rsa: bb54c4fd1cc9119a8eddd906c8747d784fa572d8972ee7e7a78c9bfcd95e2b277a8de866dd163f375596b9c9efdd18f51f1266c3797ef40fd937b289e2aed69a0aba73e784a3d8965081020808a7863fd01f1c7bbc63c8a408f4347718d85d8b15938e790187a7a19dd8ca2bef3b1fb23c6e2efbbe66b5f4b80c2e2cb8d1f7058d4062d1c1ff2f0b3aff8ab817a6f76999ee0a35e9b77bbb351cfa747165fe776436a164b45165faba037b4170ee241a4f576db05826662abfc918e6cbe601dbe42a6d872ef1e860a76286bf591bbb9e4baa9420756de6cdfacd4882c160e491199c1ca888ebab17153aed61c83e9cc3336fcaeb63ef1d073b4785ce0d1f5add

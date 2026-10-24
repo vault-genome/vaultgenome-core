@@ -324,9 +324,12 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
       (Go's `ecdh` keeps its own copy; zeroization on exit covers the
       keystore, not that object). The host is a confidential VM for that
       reason.
-    - A restart that lands on another chip, or a new VM image, fails closed
-      until the operator runs the recovery ceremony; nothing re-provisions
-      itself. At the destination a released genome key is wiped from memory
+    - A restart that lands on another chip fails closed until the operator
+      runs the recovery ceremony, and so does a new image or kernel where the
+      key is sealed to the boot as well (`tee.sealer: both`, the default of
+      `gcp-sev-snp-vtpm`, ADR 0037, C53); the chip's key alone binds the
+      launch measurement, which on a Compute Engine host is Google's UEFI.
+      Nothing re-provisions itself. At the destination a released genome key is wiped from memory
       once its restore is signed for, as before.
     Since 2026-09-16 (ADR 0022) a `gcp-tdx` or `azure-cgpu` host seals the
     escrow key too — to the guest's vTPM under a policy of the pinned

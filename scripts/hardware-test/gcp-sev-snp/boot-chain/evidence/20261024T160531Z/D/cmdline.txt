@@ -1,0 +1,1 @@
+BOOT_IMAGE=/vmlinuz-7.0.0-1013-gcp root=PARTUUID=668bffdd-b002-4b46-9120-d69d230ce20b ro console=ttyS0,115200 panic=-1

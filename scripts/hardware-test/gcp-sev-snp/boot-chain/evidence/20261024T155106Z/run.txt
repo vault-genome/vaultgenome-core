@@ -1,0 +1,44 @@
+boot A: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  the AK made here is the key
+  tpm2_checkquote ok
+  report_data_bound True
+boot B: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  the AK made here is the key
+  tpm2_checkquote ok
+  report_data_bound True
+  probe: chip seal ok (86 bytes)
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7] seal ok (546 bytes)
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9] seal ok (550 bytes)
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] seal ok (565 bytes)
+boot C: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  the AK made here is the key
+  tpm2_checkquote ok
+  report_data_bound True
+  probe: chip open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7] open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9] open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] open ok
+boot D: kernel=7.0.0-1013-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  the AK made here is the key
+  tpm2_checkquote ok
+  report_data_bound True
+  probe: chip open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7] open ok
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9] open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1
+  probe: vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's 
+PCRs that moved A->B (the image's first boot, then the same kernel): 5,10
+PCRs that moved B->C (the same kernel, a plain reboot): none
+PCRs that moved C->D (another kernel): 8,9,10
+chip measurement the same on all four boots: True
+PASS: four boots decoded
+PASS: D runs another kernel than C
+PASS: the chip's measurement is the same on all four boots, whatever the kernel
+PASS: a plain reboot moves no PCR (B->C)
+PASS: the chip-sealed text opens under another kernel (the gap the chip leaves)
+PASS: the vTPM seal under sha256:0-9 opens after a reboot
+PASS: the vTPM seal under sha256:0-9 is refused under another kernel
+RESULT: PASS

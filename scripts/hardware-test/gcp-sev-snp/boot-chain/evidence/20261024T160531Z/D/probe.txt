@@ -1,0 +1,11 @@
+measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf policy 0x30000
+chip open ok
+vtpm[sha256:0,1,2,3,4,5,6,7] open ok
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9] open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9 (another boot, another machine?): tpm2_unseal: exit status 1: WARNING:esys:src/tss2-esys/api/Esys_Unseal.c:295:Esys_Unseal_Finish() Received TPM Error 
+ERROR:esys:src/tss2-esys/api/Esys_Unseal.c:98:Esys_Unseal() Esys Finish ErrorCode (0x0000099d) 
+ERROR: Esys_Unseal(0x99D) - tpm:session(1):a policy check failed
+ERROR: Unable to run tpm2_unseal
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 (another boot, another machine?): tpm2_unseal: exit status 1: WARNING:esys:src/tss2-esys/api/Esys_Unseal.c:295:Esys_Unseal_Finish() Received TPM Error 
+ERROR:esys:src/tss2-esys/api/Esys_Unseal.c:98:Esys_Unseal() Esys Finish ErrorCode (0x0000099d) 
+ERROR: Esys_Unseal(0x99D) - tpm:session(1):a policy check failed
+ERROR: Unable to run tpm2_unseal

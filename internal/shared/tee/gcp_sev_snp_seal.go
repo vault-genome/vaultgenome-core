@@ -9,8 +9,13 @@ package tee
 // hypervisor forwards the request and cannot read it. The sealer expands
 // that 32-byte root into an AES-256-GCM key with a label of its own, so a
 // blob it seals is opened only by this code, on this chip, at this
-// measurement and policy. A different VM image, a debuggable guest, or
-// another chip derives a different key, and the AEAD fails to open.
+// measurement and policy. Another launch measurement, a debuggable guest,
+// or another chip derives a different key, and the AEAD fails to open. The
+// launch measurement is what the guest's first pages held: on a Compute
+// Engine Confidential VM, Google's UEFI, not the operating system on the
+// disk. A file that must not open under another kernel is sealed with
+// tee.sealer both, which nests this key inside the vTPM's, sealed to the
+// boot (sev_snp_vtpm_sealer.go, ADR 0037).
 //
 // The key is not written anywhere: it is derived for every Seal and
 // Unseal and zeroed after. The kernel ABI is in

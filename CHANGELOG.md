@@ -11,6 +11,37 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- **`gcp-sev-snp-vtpm`: a Compute Engine SEV-SNP guest attests with its chip
+  and its vTPM under one challenge (ADR 0037, C53).** On Compute Engine the
+  chip's launch measurement is Google's UEFI and does not see the kernel; the
+  new family carries the vTPM's quote of the boot (GRUB, the kernel, its
+  command line and initrd, `sha256:0-9`) beside the chip's report, which names
+  the quote's attestation key. The verifier holds the key to Google's EK/AK
+  root, which the binary pins, and to the instance's project, and the boot to
+  `pcr_digests`, which a `gcp-sev-snp-vtpm` peer or destination entry requires.
+- **`tee.sealer: both`**: the chip's derived key nested inside the vTPM's
+  sealed object under the boot's PCR policy — the default of
+  `gcp-sev-snp-vtpm`. A key file opens on this chip and on the boot the
+  policy names; another kernel on the same chip opens nothing.
+- `scripts/hardware-test/gcp-sev-snp/boot-chain`: four boots of one
+  instance, the chip's and the vTPM's evidence of each, the shipping
+  producer, verifier and sealer on the guest; the second boot pinned, a
+  reboot accepted, another kernel refused.
+- `docs/operator/runbooks/real-tee-gcp-sev-snp-vtpm.md`.
+
+### Changed
+
+- The SEV-SNP corpus of ADR 0034 holds 65 reports from 27 chips: the ten
+  the boot-chain kit kept joined it, read alike by the product and by
+  Google's go-sev-guest, every mutant refused (C47).
+
+- The threat model's SEV-SNP section, ADR 0016 and 0023, the cross-cloud
+  restore guide, KNOWN_ISSUES and the banking map state what each
+  platform's measurement holds: on Compute Engine the launch measurement is
+  Google's firmware; the boot is held by `gcp-sev-snp-vtpm`.
+
 ## [0.10.0] — 2026-10-23
 
 The release that makes AWS Nitro Enclaves a key-release destination

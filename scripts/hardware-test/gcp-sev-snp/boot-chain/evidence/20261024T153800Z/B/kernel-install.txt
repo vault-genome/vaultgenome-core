@@ -1,0 +1,17 @@
+E: Unable to locate package linux-modules-extra-7.0.0-1013-gcp
+E: Couldn't find any package by glob 'linux-modules-extra-7.0.0-1013-gcp'
+E: Couldn't find any package by regex 'linux-modules-extra-7.0.0-1013-gcp'
+Sourcing file `/etc/default/grub'
+Sourcing file `/etc/default/grub.d/40-force-partuuid.cfg'
+Sourcing file `/etc/default/grub.d/50-cloudimg-settings.cfg'
+Sourcing file `/etc/default/grub.d/99-vg-boot-chain.cfg'
+Generating grub configuration file ...
+Warning: Requested serial terminal but GRUB_SERIAL_COMMAND is unspecified. Default parameters will be used.
+GRUB_FORCE_PARTUUID is set, will attempt initrdless boot
+Found linux image: /boot/vmlinuz-7.0.0-1014-gcp
+Found initrd image: /boot/initrd.img-7.0.0-1014-gcp
+Warning: os-prober will not be executed to detect other bootable partitions.
+Systems on them will not be added to the GRUB boot configuration.
+Check GRUB_DISABLE_OS_PROBER documentation entry.
+Adding boot menu entry for UEFI Firmware Settings ...
+done

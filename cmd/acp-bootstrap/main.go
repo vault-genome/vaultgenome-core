@@ -401,6 +401,17 @@ func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 		return tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})
 	case string(tee.ProviderGCPTDX):
 		return tee.NewGCPTDXProducer(tee.GCPTDXProducerConfig{TSMReportDir: cfg.TSMReportDir})
+	case string(tee.ProviderGCPSEVSNPVTPM):
+		var inter []byte
+		if cfg.AKIntermediatesPath != "" {
+			b, err := os.ReadFile(cfg.AKIntermediatesPath)
+			if err != nil {
+				return nil, fmt.Errorf("acp-bootstrap: read tee.ak_intermediates_path (%q): %w", cfg.AKIntermediatesPath, err)
+			}
+			inter = b
+		}
+		return tee.NewGCPSEVVTPMProducer(tee.GCPSEVVTPMProducerConfig{SEV: tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir},
+			TPM2ToolsDir: cfg.TPM2ToolsDir, PCRs: cfg.VTPMQuotePCRs, IntermediatesPEM: inter})
 	case string(tee.ProviderAzureSEVSNP):
 		return tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
 	case string(tee.ProviderAzureCGPU):

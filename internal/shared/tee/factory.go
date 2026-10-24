@@ -73,6 +73,14 @@ const (
 	// the attestation key the chip named — azure-cgpu without the GPU half.
 	// See azure_sev_snp.go.
 	ProviderAzureSEVSNP Provider = "azure-sev-snp"
+
+	// ProviderGCPSEVSNPVTPM is the GCP Confidential VM on AMD SEV-SNP that
+	// attests with its chip and its vTPM under one challenge: the chip's
+	// report naming the vTPM's attestation key, and that key's quote over
+	// the boot PCRs, the key certified by Google's EK/AK CA. The launch
+	// measurement there is Google's firmware; the vTPM carries the kernel.
+	// See gcp_sev_snp_vtpm.go and ADR 0037.
+	ProviderGCPSEVSNPVTPM Provider = "gcp-sev-snp-vtpm"
 )
 
 // AllProviders returns every Provider compiled into this binary, in
@@ -87,6 +95,7 @@ func AllProviders() []Provider {
 		ProviderGCPTDX,
 		ProviderAzureCGPU,
 		ProviderAzureSEVSNP,
+		ProviderGCPSEVSNPVTPM,
 	}
 }
 
@@ -144,6 +153,7 @@ type ProducerSpec struct {
 	GCPTDX      GCPTDXProducerConfig
 	AzureCGPU   AzureCGPUProducerConfig
 	AzureSEVSNP AzureSEVSNPProducerConfig
+	GCPSEVVTPM  GCPSEVVTPMProducerConfig
 }
 
 // VerifierSpec is the verifier-side counterpart to ProducerSpec.
@@ -166,6 +176,7 @@ type VerifierSpec struct {
 	GCPTDX      GCPTDXVerifierConfig
 	AzureCGPU   AzureCGPUVerifierConfig
 	AzureSEVSNP AzureSEVSNPVerifierConfig
+	GCPSEVVTPM  GCPSEVVTPMVerifierConfig
 }
 
 // BuildProducer constructs a Producer for the given Provider. This is the
@@ -203,6 +214,8 @@ func BuildProducer(spec ProducerSpec) (Producer, error) {
 		return NewAzureCGPUProducer(spec.AzureCGPU)
 	case ProviderAzureSEVSNP:
 		return NewAzureSEVSNPProducer(spec.AzureSEVSNP)
+	case ProviderGCPSEVSNPVTPM:
+		return NewGCPSEVVTPMProducer(spec.GCPSEVVTPM)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -236,6 +249,8 @@ func BuildVerifier(spec VerifierSpec) (Verifier, error) {
 		return NewAzureCGPUVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.AzureCGPU)
 	case ProviderAzureSEVSNP:
 		return NewAzureSEVSNPVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.AzureSEVSNP)
+	case ProviderGCPSEVSNPVTPM:
+		return NewGCPSEVVTPMVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.GCPSEVVTPM)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -281,6 +296,8 @@ func Capability(p Provider) (available bool, reason string) {
 		return azureCGPUCapability()
 	case ProviderAzureSEVSNP:
 		return azureSEVSNPCapability()
+	case ProviderGCPSEVSNPVTPM:
+		return gcpSEVVTPMCapability()
 	default:
 		return false, fmt.Sprintf("unknown provider %q", p)
 	}

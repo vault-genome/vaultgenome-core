@@ -1,6 +1,7 @@
 # ADR 0016: The Escrow Key Is Sealed to the Release Host's TEE
 
-**Status:** Accepted — implemented (2026-09-16)
+**Status:** Accepted — implemented (2026-09-16); amended by ADR 0037 (2026-10-24)
+**Amended by:** ADR 0037 — what a launch measurement holds is the guest's first pages: on a Compute Engine Confidential VM, Google's UEFI, and not the image or the kernel on the disk, so on that platform the chip's key alone does not tell one kernel from another. There the escrow key is sealed to the chip and to the boot the vTPM measured (`tee.sealer: both`, the default of `gcp-sev-snp-vtpm`), and the kernel update this record names below is a new boot the vTPM refuses.
 **Date:** 2026-09-16
 **Authors:** Serhii Nikolaichuk (CEO), Rodion Sorokin (CTO)
 **Builds on:** ADR 0009 (X25519 KEM), ADR 0011 (key escrow), ADR 0014 (daemons on real SEV-SNP), ADR 0007 (measurement as the chip reports it)

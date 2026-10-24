@@ -1,0 +1,79 @@
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            57:da:f5:0e:15:22:49:01:e6:56:2e:55:e5:9e:63:fe:7e:a1:f5
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C = US, ST = California, L = Mountain View, O = Google LLC, OU = Google Cloud, CN = EK/AK CA Intermediate
+        Validity
+            Not Before: Oct 24 16:05:51 2026 GMT
+            Not After : Oct 16 16:05:50 2056 GMT
+        Subject: L = us-central1-c, O = Google Compute Engine, OU = rats-probe, CN = 8914852422907685307
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+                Modulus:
+                    00:bb:54:c4:fd:1c:c9:11:9a:8e:dd:d9:06:c8:74:
+                    7d:78:4f:a5:72:d8:97:2e:e7:e7:a7:8c:9b:fc:d9:
+                    5e:2b:27:7a:8d:e8:66:dd:16:3f:37:55:96:b9:c9:
+                    ef:dd:18:f5:1f:12:66:c3:79:7e:f4:0f:d9:37:b2:
+                    89:e2:ae:d6:9a:0a:ba:73:e7:84:a3:d8:96:50:81:
+                    02:08:08:a7:86:3f:d0:1f:1c:7b:bc:63:c8:a4:08:
+                    f4:34:77:18:d8:5d:8b:15:93:8e:79:01:87:a7:a1:
+                    9d:d8:ca:2b:ef:3b:1f:b2:3c:6e:2e:fb:be:66:b5:
+                    f4:b8:0c:2e:2c:b8:d1:f7:05:8d:40:62:d1:c1:ff:
+                    2f:0b:3a:ff:8a:b8:17:a6:f7:69:99:ee:0a:35:e9:
+                    b7:7b:bb:35:1c:fa:74:71:65:fe:77:64:36:a1:64:
+                    b4:51:65:fa:ba:03:7b:41:70:ee:24:1a:4f:57:6d:
+                    b0:58:26:66:2a:bf:c9:18:e6:cb:e6:01:db:e4:2a:
+                    6d:87:2e:f1:e8:60:a7:62:86:bf:59:1b:bb:9e:4b:
+                    aa:94:20:75:6d:e6:cd:fa:cd:48:82:c1:60:e4:91:
+                    19:9c:1c:a8:88:eb:ab:17:15:3a:ed:61:c8:3e:9c:
+                    c3:33:6f:ca:eb:63:ef:1d:07:3b:47:85:ce:0d:1f:
+                    5a:dd
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Key Usage: critical
+                Digital Signature
+            X509v3 Basic Constraints: critical
+                CA:FALSE
+            X509v3 Subject Key Identifier: 
+                C6:A7:1E:0F:DD:C4:DA:10:6D:51:A2:41:A8:06:50:B5:72:71:08:D8
+            X509v3 Authority Key Identifier: 
+                56:34:C1:08:E4:64:66:E6:F5:51:AC:23:CD:70:3A:81:D8:2C:25:AD
+            Authority Information Access: 
+                CA Issuers - URI:http://privateca-content-6a296e11-0000-2725-92a1-883d24f8f850.storage.googleapis.com/c5d5570c2c122e4f7db7/ca.crt
+            1.3.6.1.4.1.11129.2.1.21: 
+                0m.us-central1-c....,...
+rats-probe..{....qi...vg-bootchain-20261024t160531z. 0...............................
+    Signature Algorithm: sha256WithRSAEncryption
+    Signature Value:
+        bc:05:37:50:e6:5a:ed:80:3b:16:4f:2a:ff:ca:44:7a:b3:e6:
+        4b:e3:c7:67:bc:28:86:92:95:e3:bf:b2:ff:07:46:1a:0a:ec:
+        92:e3:54:19:88:ba:16:59:45:eb:04:6a:89:1f:fa:0c:41:97:
+        bd:35:87:e6:58:b6:b6:22:52:b7:1b:83:b4:5e:e3:e9:33:f0:
+        63:97:64:0d:ca:21:0d:dd:8d:52:12:4a:87:da:ba:0f:85:b7:
+        29:5a:f7:b6:d3:6d:07:57:a9:18:32:18:4e:28:48:21:5e:be:
+        aa:7f:b9:af:54:59:a3:f8:a9:9b:16:ae:d5:fd:22:0b:dc:3b:
+        31:fd:95:d6:5b:e9:0f:fb:b8:85:25:6c:47:49:c4:de:7c:23:
+        9a:42:ea:12:8e:92:14:64:e3:45:f3:1b:28:2f:13:ea:13:7a:
+        b0:12:30:32:3d:31:fc:e2:14:8e:f8:fb:c4:c1:9a:b8:bf:9f:
+        32:d4:0d:75:43:07:ae:cd:3e:42:29:6b:9f:5a:dc:f0:70:26:
+        6f:b0:8e:2f:ad:41:ec:3d:9f:a5:b7:89:81:36:ae:b5:80:67:
+        ca:a8:3a:6a:c0:22:e6:16:c2:16:b4:67:01:82:be:a9:23:7e:
+        51:31:33:01:89:02:74:c4:d3:19:dd:f5:a8:a2:ba:d8:3d:76:
+        24:85:68:11:61:3f:42:16:bd:47:49:04:d0:9d:d5:1d:74:44:
+        2d:3d:f3:b5:63:0c:8a:8b:94:6c:f2:8d:f3:1d:52:16:d6:06:
+        0b:38:87:e7:57:f2:41:7e:3f:fb:7a:18:6a:96:0c:45:e3:0d:
+        76:8b:9b:8e:9c:70:de:b6:75:10:cc:05:19:20:d3:da:2c:13:
+        8b:63:d8:1b:76:77:27:bf:16:4c:3f:98:c7:ab:b2:bd:4e:0f:
+        09:b4:89:ce:d1:c6:8b:ef:ef:a0:58:11:5e:93:97:bd:fb:4d:
+        d6:13:6b:f2:a4:4a:4c:4e:d5:67:5a:b2:9b:a6:aa:7e:5f:9a:
+        e2:ad:7e:ac:82:70:35:01:a4:31:81:c1:ea:f8:83:7f:6a:02:
+        d4:2d:94:77:dc:62:0c:69:54:4e:73:1f:66:d7:a6:a8:ad:93:
+        8c:36:30:25:0d:1e:fc:40:b6:5f:71:63:09:eb:ce:ed:e4:f8:
+        8d:52:97:40:2d:38:f1:a7:5e:4c:84:e3:dd:a4:1b:c6:2c:93:
+        53:88:8d:e4:53:8a:d3:0b:ec:c9:24:39:0d:14:1a:c5:9a:37:
+        80:36:23:07:ba:96:97:3f:d0:89:b8:33:78:b0:69:72:3a:59:
+        af:96:f9:53:ab:a7:e5:5a:34:35:9b:fd:00:3b:89:5c:73:eb:
+        79:ff:ae:ca:0e:70:4d:07

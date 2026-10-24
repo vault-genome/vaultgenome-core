@@ -217,7 +217,7 @@ func vtpmIdentityOf(p tee.Producer) *vtpmIdentity {
 // not load (validation reports that).
 func sevSNPPolicyIdentity(peer string, c *tee.SEVSNPPolicyConfig) *tee.SEVSNPPolicySummary {
 	p, err := tee.ParseProvider(peer)
-	if err != nil || (p != tee.ProviderGCPSEVSNP && p != tee.ProviderAzureSEVSNP && p != tee.ProviderAzureCGPU) {
+	if err != nil || (p != tee.ProviderGCPSEVSNP && p != tee.ProviderGCPSEVSNPVTPM && p != tee.ProviderAzureSEVSNP && p != tee.ProviderAzureCGPU) {
 		return nil
 	}
 	pol, err := c.Policy()

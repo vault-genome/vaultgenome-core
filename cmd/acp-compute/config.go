@@ -120,6 +120,14 @@ type TEEConfig struct {
 	SEVGuestDevice string `json:"sev_guest_device,omitempty"`
 	VTPMSealPCRs   string `json:"vtpm_seal_pcrs,omitempty"`
 
+	// VTPMQuotePCRs is the PCR selection a gcp-sev-snp-vtpm worker's vTPM
+	// quotes (ADR 0037; default sha256:0-9); AKIntermediatesPath a PEM file
+	// of the certificates between its attestation-key certificate and
+	// Google's EK/AK root (default: the one the certificate's issuer URL
+	// serves). gcp-sev-snp-vtpm only.
+	VTPMQuotePCRs       string `json:"vtpm_quote_pcrs,omitempty"`
+	AKIntermediatesPath string `json:"ak_intermediates_path,omitempty"`
+
 	// Peer holds the trust-anchor material for sagvd's side.
 	Peer PeerTEEConfig `json:"peer"`
 
@@ -133,8 +141,10 @@ type TEEConfig struct {
 	// step 1b): "auto" (the TEE's own key where it has one — SEV-SNP's
 	// derived key — else the host's TPM 2.0, else the simulated key),
 	// "tee" (the TEE's own key only; refused on TDX and Azure, which have
-	// none), or "tpm2" (the host's TPM 2.0 through tpm2-tools, whatever
-	// the TEE). Every sealed file names the sealer it was made with.
+	// none), "tpm2" (the host's TPM 2.0 through tpm2-tools, whatever
+	// the TEE), or "both" (SEV-SNP's derived key nested inside the TPM's
+	// sealed object, ADR 0037: this chip and the boot the PCR policy names).
+	// Every sealed file names the sealer it was made with.
 	Sealer string `json:"sealer,omitempty"`
 
 	// AutoResolvedFrom is set by ResolveAuto when Provider was "auto": the
@@ -227,8 +237,17 @@ type PeerTEEConfig struct {
 	GPUPolicy    *GPUPolicyConfig `json:"gpu_policy,omitempty"`
 	// PCRDigests (hex, 32 bytes each), when set, pin what the peer's vTPM
 	// measured of its boot: the quote's PCR digest must be one of them
-	// (`identity` prints it as vtpm.pcr_digest_hex). azure-cgpu and azure-sev-snp peers only.
+	// (`identity` prints it as vtpm.pcr_digest_hex). azure-cgpu and
+	// azure-sev-snp peers, and required for a gcp-sev-snp-vtpm peer (ADR 0037).
 	PCRDigests []string `json:"pcr_digests,omitempty"`
+
+	// PCRSelection, GCEProjectIDs and GCEEKAKRootsPath: a gcp-sev-snp-vtpm
+	// peer's quote selection (default sha256:0-9), the Compute Engine
+	// projects it may be an instance of, and roots added to Google's pinned
+	// EK/AK root. gcp-sev-snp-vtpm peers only.
+	PCRSelection     string   `json:"pcr_selection,omitempty"`
+	GCEProjectIDs    []string `json:"gce_project_ids,omitempty"`
+	GCEEKAKRootsPath string   `json:"gce_ek_ak_roots_path,omitempty"`
 
 	// Verifier chooses who appraises the vault's Evidence (ADR 0025,
 	// step 2b): this daemon's builtin verifier for the family (the
@@ -421,7 +440,7 @@ func (g *GPUPolicyConfig) apply(cfg *tee.AzureCGPUVerifierConfig) error {
 
 // supportedProviders are the TEE backends this build can attest with
 // on the Return Path, and verify a peer's Evidence for.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderSimulated, tee.ProviderAuto}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPSEVSNPVTPM, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderSimulated, tee.ProviderAuto}
 
 // DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
 const DefaultSEVGuestDevice = "/dev/sev-guest"
@@ -607,12 +626,21 @@ func validateTEE(t TEEConfig) []error {
 				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
 			}
 		}
-	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
+	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX || provider == tee.ProviderGCPSEVSNPVTPM:
 		if t.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
 		}
 		if t.InsecureSimulation {
 			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
+		}
+		if provider == tee.ProviderGCPSEVSNPVTPM {
+			for _, sel := range []struct{ name, v string }{{"tee.vtpm_seal_pcrs", t.VTPMSealPCRs}, {"tee.vtpm_quote_pcrs", t.VTPMQuotePCRs}} {
+				if sel.v != "" {
+					if err := tee.ValidatePCRSelection(sel.v); err != nil {
+						errs = append(errs, fmt.Errorf("%s: %w", sel.name, err))
+					}
+				}
+			}
 		}
 	case provider == tee.ProviderAzureSEVSNP:
 		if t.SeedPath != "" || t.InsecureSimulation {
@@ -640,8 +668,12 @@ func validateTEE(t TEEConfig) []error {
 			errs = append(errs, errors.New("tee.gpu_attest_command required when tee.provider=azure-cgpu (the command that obtains NVIDIA's attestation tokens for a nonce)"))
 		}
 	}
-	if lp, _ := t.ProviderKind(); lp != tee.ProviderAzureCGPU && lp != tee.ProviderAzureSEVSNP && (len(t.GPUAttestCommand) > 0 || t.TPM2ToolsDir != "" || t.AKHandle != "") {
-		errs = append(errs, errors.New("tee.gpu_attest_command, tpm2_tools_dir and ak_handle apply to azure-cgpu and azure-sev-snp only"))
+	if lp, _ := t.ProviderKind(); lp != tee.ProviderAzureCGPU && lp != tee.ProviderAzureSEVSNP && (len(t.GPUAttestCommand) > 0 || t.AKHandle != "" ||
+		(t.TPM2ToolsDir != "" && lp != tee.ProviderGCPSEVSNPVTPM)) {
+		errs = append(errs, errors.New("tee.gpu_attest_command and ak_handle apply to azure-cgpu and azure-sev-snp only, and tpm2_tools_dir to those and gcp-sev-snp-vtpm"))
+	}
+	if lp, _ := t.ProviderKind(); lp != tee.ProviderGCPSEVSNPVTPM && (t.VTPMQuotePCRs != "" || t.AKIntermediatesPath != "") {
+		errs = append(errs, errors.New("tee.vtpm_quote_pcrs and ak_intermediates_path apply to gcp-sev-snp-vtpm only"))
 	}
 	if t.Peer.MeasurementPath == "" {
 		errs = append(errs, errors.New("tee.peer.measurement_path required"))
@@ -669,6 +701,27 @@ func validateTEE(t TEEConfig) []error {
 		}
 		if t.Peer.AMDCertChainPath == "" && !t.Peer.Verifier.delegated() {
 			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=gcp-sev-snp (the AMD ASK+ARK chain the VCEK must chain to)"))
+		}
+		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
+			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
+		}
+	case peer == tee.ProviderGCPSEVSNPVTPM:
+		if t.Peer.PublicKeyPath != "" {
+			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a SEV-SNP report is signed by the chip's VCEK"))
+		}
+		if t.Peer.Verifier.delegated() {
+			errs = append(errs, errors.New("tee.peer.verifier: a gcp-sev-snp-vtpm peer is appraised by this verifier only — the delegated Verifiers read the chip's report, not the vTPM's quote beside it"))
+		}
+		if t.Peer.AMDCertChainPath == "" {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=gcp-sev-snp-vtpm (the AMD ASK+ARK chain the VCEK must chain to)"))
+		}
+		if len(t.Peer.PCRDigests) == 0 {
+			errs = append(errs, errors.New("tee.peer.pcr_digests required when tee.peer.provider=gcp-sev-snp-vtpm: the boots the peer may run (its launch measurement is Google's firmware and says nothing of the kernel; ADR 0037)"))
+		}
+		if t.Peer.PCRSelection != "" {
+			if err := tee.ValidatePCRSelection(t.Peer.PCRSelection); err != nil {
+				errs = append(errs, fmt.Errorf("tee.peer.pcr_selection: %w", err))
+			}
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
@@ -712,8 +765,12 @@ func validateTEE(t TEEConfig) []error {
 	if err := t.Peer.GPUPolicy.validate(); err != nil {
 		errs = append(errs, fmt.Errorf("tee.peer.%w", err))
 	}
-	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderAzureCGPU && peer != tee.ProviderAzureSEVSNP && (t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil || len(t.Peer.PCRDigests) > 0) {
-		errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir, gpu_policy and pcr_digests apply to an azure-cgpu or azure-sev-snp peer only"))
+	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderAzureCGPU && peer != tee.ProviderAzureSEVSNP && (t.Peer.NRASJWKSURL != "" || t.Peer.NRASCacheDir != "" || t.Peer.GPUPolicy != nil ||
+		(len(t.Peer.PCRDigests) > 0 && peer != tee.ProviderGCPSEVSNPVTPM)) {
+		errs = append(errs, errors.New("tee.peer.nras_jwks_url, nras_cache_dir and gpu_policy apply to an azure-cgpu peer, and pcr_digests to that, an azure-sev-snp and a gcp-sev-snp-vtpm peer only"))
+	}
+	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderGCPSEVSNPVTPM && (t.Peer.PCRSelection != "" || len(t.Peer.GCEProjectIDs) > 0 || t.Peer.GCEEKAKRootsPath != "") {
+		errs = append(errs, errors.New("tee.peer.pcr_selection, gce_project_ids and gce_ek_ak_roots_path apply to a gcp-sev-snp-vtpm peer only"))
 	}
 	if _, err := pcrDigests(t.Peer.PCRDigests); err != nil {
 		errs = append(errs, fmt.Errorf("tee.peer.%w", err))

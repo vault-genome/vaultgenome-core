@@ -170,7 +170,17 @@ Decisions that moved the control plane's boundary, each with its record:
 
 ---
 
-## GCP Confidential VMs — SEV-SNP (`gcp-sev-snp`)
+## GCP Confidential VMs — SEV-SNP (`gcp-sev-snp`; `gcp-sev-snp-vtpm` with the boot chain)
+
+On Compute Engine the chip's launch MEASUREMENT is Google's UEFI — Google
+precomputes it per vCPU count and signs it in its launch endorsement — and the
+operating system is read from the disk after launch, so the boot after the
+firmware is not in it. `gcp-sev-snp-vtpm` (ADR 0037) holds that boot too: the
+vTPM's quote of GRUB, the kernel, its command line and initrd, by an
+attestation key Google certifies for the instance and the chip's report names.
+Trusted: AMD (the chip, its firmware at the attack record's floors) and Google
+(its UEFI, which the chip measures; under `gcp-sev-snp-vtpm`, its vTPM, which
+measures the boot and is software outside the TEE).
 
 ### Threat table
 
@@ -178,7 +188,9 @@ Decisions that moved the control plane's boundary, each with its record:
 |--------|--------|------------|
 | **S** Spoofing | Attacker forges a SEV-SNP report | report signed by VCEK (per-CPU AMD-issued cert); VCEK chains to AMD Root CA (ARK); `verifyAMDChain` checks against pinned `AMDRootPEM` |
 | **S** Spoofing | Attacker presents a stale report | `REPORT_DATA[:32] = SHA-256(nonce)` binds report to challenger nonce; verifier checks `nonceMatchesReportDataSEV` |
-| **T** Tampering | Attacker rebuilds VM image with malicious code | launch MEASUREMENT (SHA-384 of guest pages at launch) changes; `AcceptableMeasurements` set is the policy; HOST_DATA pinning available for hypervisor-set context |
+| **T** Tampering | Attacker rebuilds VM image with malicious code | `gcp-sev-snp-vtpm`: the boot the vTPM measured — GRUB, the kernel, its command line and initrd in PCRs 8–9 — must be one the policy names (`pcr_digests`, required), and the key files are sealed to the chip and to that boot (`tee.sealer` both), so another kernel gets no key and opens no file on the same chip (C53). The launch MEASUREMENT (SHA-384 of the guest pages at launch, `AcceptableMeasurements`) holds the firmware: Google's UEFI under `gcp-sev-snp`, the same whatever the disk holds; HOST_DATA pinning available for hypervisor-set context |
+| **S** Spoofing | Another instance's vTPM quote presented beside this chip's report | `REPORT_DATA[32:] = SHA-256` of the attestation key that signs the quote; the key's certificate chains to Google's pinned EK/AK root and names the instance, its project (`gce_project_ids`) and that it is production |
+| **T** Tampering | The vTPM's boot measurement is forged | the vTPM is Google's: it is trusted for the boot as Google is for the firmware the chip measures; against everyone else, its quotes carry the challenger's nonce and are signed by the key Google certified |
 | **T** Tampering | Attacker swaps the VCEK for an attacker-controlled one | VCEK chain validation rejects any cert not issued by AMD's KDS; KDS lookup keyed on CHIP_ID + reported TCB |
 | **R** Repudiation | Two VMs with same image claim different chip IDs | CHIP_ID is unique per AMD CPU + VM instance UUID; sagvd records CHIP_ID + REPORT_ID per session; 7-year audit retention via Terraform-provisioned Cloud Storage with versioning |
 | **I** Information disclosure | Hypervisor reads guest memory | SEV-SNP hardware encrypts guest memory under per-VM key derived from chip; HV cannot decrypt |

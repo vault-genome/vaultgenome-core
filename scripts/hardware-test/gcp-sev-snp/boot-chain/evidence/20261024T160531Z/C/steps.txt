@@ -1,0 +1,28 @@
+== boot C of run 20261024T160531Z at 2026-10-24T16:12:06Z
+== configfs-tsm and the sev-guest driver
+== the kernel
+kernel=7.0.0-1014-gcp
+== the vTPM's certificates and templates (GCE NV indices)
+== the AK, made in the endorsement hierarchy from GCE's template
+ak args: -g sha256 -G rsa2048:rsassa-sha256:null -a fixedtpm|fixedparent|sensitivedataorigin|userwithauth|restricted|sign -u /var/lib/vg-boot-chain/ak.unique
+ak_pub_sha256=e1ce51d5bf023b310179fae5a0da0b22e6b07e92cdbcf502440c984513ca6104 akcert_pub_sha256=e1ce51d5bf023b310179fae5a0da0b22e6b07e92cdbcf502440c984513ca6104
+== the AK made here is the key Google's AK certificate names
+== a quote by the AK over sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 with a fresh nonce
+== tpm2_checkquote ok
+eventlog_events=119
+== the chip's report, REPORT_DATA = SHA-256(nonce) || SHA-256(AK public key)
+snp report 1184 bytes; measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf; report_data_bound True
+== the probe opens what boot B sealed
+measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf policy 0x30000
+chip open ok
+vtpm[sha256:0,1,2,3,4,5,6,7] open ok
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9] open ok
+vtpm[sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] open ok
+== the product: gcp-sev-snp-vtpm quotes, the verifier pinned to boot B's PCRs checks it, the chip-and-vTPM sealer
+producer ok: measurement 9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf boot sha256:0,1,2,3,4,5,6,7,8,9 digest 0f9d00f40688ca1485c732168b7cccd3b8d852f8e2a33ab3a2e7b93701317864
+verify ok: instance rats-probe/vg-bootchain-20261024t160531z production=true, boot digest 0f9d00f40688ca1485c732168b7cccd3b8d852f8e2a33ab3a2e7b93701317864
+both open ok
+== another kernel, made the default
+running=7.0.0-1014-gcp next=7.0.0-1013-gcp
+no linux-modules-extra-7.0.0-1013-gcp (the HWE kernel ships its modules in linux-modules)
+grub submenu=gnulinux-advanced-016a55ad-ee12-4ca2-ba46-31afd363950e entry=gnulinux-7.0.0-1013-gcp-advanced-016a55ad-ee12-4ca2-ba46-31afd363950e

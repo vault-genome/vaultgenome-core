@@ -1,0 +1,38 @@
+build the probe (linux/amd64) from 264a96ed
+upload to gs://rats-probe-vg-bc-20261024t153800z
+Creating gs://rats-probe-vg-bc-20261024t153800z/...
+Copying file:///var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.SHBpYH5MdQ/probe to gs://rats-probe-vg-bc-20261024t153800z/bc/probe
+  
+..........
+boot vg-bootchain-20261024t153800z (SEV-SNP with a vTPM, us-central1-c)
+WARNING: You have selected a disk size of under [200GB]. This may result in poor I/O performance. For more information, see: https://developers.google.com/compute/docs/disks#performance.
+Created [https://www.googleapis.com/compute/v1/projects/rats-probe/zones/us-central1-c/instances/vg-bootchain-20261024t153800z].
+WARNING: Some requests generated warnings:
+ - Disk size: '20 GB' is larger than image size: '10 GB'. You might need to resize the root repartition manually if the operating system does not support automatic resizing. See https://cloud.google.com/compute/docs/disks/add-persistent-disk#resize_pd for details.
+
+waiting for three boots on the serial console (up to 45 min)
+serial capture: /Users/serhiinikolaichuk/.cache/vaultgenome/boot-chain/serial-20261024T153800Z.txt (3783bb99822205c6b0c9126430fd1a55373777db4cca1c65caf5efd38bb3c7db)
+decoded boot B
+decoded boot C
+MISSING boots: A
+boot A: kernel=
+  chip measurement=
+boot B: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  AK MISMATCH
+  tpm2_checkquote FAIL
+  report_data_bound True
+  probe: chip open ok
+  probe: vtpm open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 (another boot, another machine?): tpm2_unseal: exit status 1: WARNING:esys:src/tss2-esys/api/Esys_Unseal.c:295:Esys_Unseal_Finish() Received TPM Error 
+boot C: kernel=7.0.0-1014-gcp
+  chip measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+  AK MISMATCH
+  tpm2_checkquote FAIL
+  report_data_bound True
+  probe: chip open ok
+  probe: vtpm open REFUSED: integrity[signature_invalid]: vtpm-sealer: the vTPM refused to unseal under this boot's PCRs sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 (another boot, another machine?): tpm2_unseal: exit status 1: WARNING:esys:src/tss2-esys/api/Esys_Unseal.c:295:Esys_Unseal_Finish() Received TPM Error 
+PCRs that moved A->B (same kernel): none
+PCRs that moved B->C (other kernel): 8,9,10
+chip measurement the same on all three boots: False
+cleanup: deleting vg-bootchain-20261024t153800z and gs://rats-probe-vg-bc-20261024t153800z
+runner rc=0
