@@ -3344,14 +3344,14 @@ kit's way to show the refusal on the hardware at hand — a chip below the
 live floors was not available to refuse.
 
 <a id="c47"></a>
-### C47 — The SEV-SNP verifier's reading is equal to two implementations nobody here wrote, on every genuine report on record, and no single-byte mutant verifies on any side: Google's go-sev-guest and VirTEE's snpguest on 65 reports from 27 chips, reproduced in CI
+### C47 — The SEV-SNP verifier's reading is equal to two implementations nobody here wrote, on every genuine report on record, and no single-byte mutant verifies on any side: Google's go-sev-guest and VirTEE's snpguest on 66 reports from 27 chips, reproduced in CI
 
 **Claim.** One test ([ADR 0034](docs/adr/0034-the-differential-corpus.md);
 `internal/shared/tee/differential_test.go`, `make differential`) calls the
 product's SEV-SNP parse, AMD-chain and signature checks and, on the same
 bytes, Google's `go-sev-guest` v0.15.0 (`tools/oracle`, a module of its
 own) and VirTEE's `snpguest` 0.10.0, on every genuine report on record
-(`test/corpus/sev-snp`: 65 reports on 2026-10-24 — 31 the kits kept, 34
+(`test/corpus/sev-snp`: 66 reports on 2026-10-24 — 31 the kits kept, 35
 from the key-release receipts — 27 distinct chips, Milan and Genoa, report
 versions 3 and 5, firmware from SNP 0x17 to 0x1d, each with its VCEK and
 AMD's chain). Each report verifies under all three; nineteen fields are
@@ -3403,6 +3403,13 @@ record), the Google reading alone: both verify every report, nineteen
 fields equal, the sweeps as on every other report;
 [`test/corpus/sev-snp/results/harness-oracle-20261024T164532Z.json`](test/corpus/sev-snp/results/harness-oracle-20261024T164532Z.json)
 — the harness with the Google adapter on the 65;
+[`test/corpus/sev-snp/results/differential-20261024T190729Z.json`](test/corpus/sev-snp/results/differential-20261024T190729Z.json)
+— the corpus at 66, with the receipt of the 0.11.0 record
+(`gcp-sev-snp-keyrelease-e2e-20261024T185758Z`, a chip already on
+record), the Google reading alone: both verify every report, nineteen
+fields equal, the sweeps as on every other report;
+[`test/corpus/sev-snp/results/harness-oracle-20261024T190756Z.json`](test/corpus/sev-snp/results/harness-oracle-20261024T190756Z.json)
+— the harness with the Google adapter on the 66;
 [`test/corpus/sev-snp/manifest.tsv`](test/corpus/sev-snp/manifest.tsv) and
 [`test/corpus/sev-snp/SHA256SUMS`](test/corpus/sev-snp/SHA256SUMS) — the
 corpus; the `corpus` job of the `differential` workflow on every push.
@@ -3416,7 +3423,7 @@ cargo install snpguest --version 0.10.0 --locked                         # VirTE
 ```
 
 **Scope.** Two readings maintained by others, run on the same bytes: not a
-proof that any of the three is correct, but that they agree on 65 reports
+proof that any of the three is correct, but that they agree on 66 reports
 of two product lines and disagree on none, and that a byte out of place
 is refused by all. The stage of a refusal differs and may: go-sev-guest
 refuses reserved and must-be-one bits at the parse where the product
