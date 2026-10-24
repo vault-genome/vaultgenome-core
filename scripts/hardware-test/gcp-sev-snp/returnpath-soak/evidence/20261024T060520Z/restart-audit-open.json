@@ -1,0 +1,1 @@
+{"time":"2026-10-24T08:13:09.499342047Z","level":"INFO","msg":"sagvd audit log open","path":"/root/e2e/audit/returnpath-audit.db","events":51536,"live_segment_events":51536,"segment_events":0,"segment_max_age_seconds":0,"archive_dir":"/root/e2e/audit/archive","tip":"9c332ad208739bace637564845696356503ed39745777d00027aa1a1b8b3b940","audit_kid":"sagvd-audit-e2e"}

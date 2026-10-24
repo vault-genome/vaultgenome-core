@@ -1,0 +1,39 @@
+profile=cnsa
+signature_suite=ecdsa-p384-sha384
+== binaries from gs://rats-probe-vg-e2e-20261023t221307z/e2e
+== configfs-tsm
+== provision (keygen)
+== sagvd identity
+sagvd crypto_profile=cnsa kem_suites=hpke-mlkem1024-p384-v2
+sagvd signature_suite=ecdsa-p384-sha384 signature_suites=ecdsa-p384-sha384,ml-dsa-87
+sagvd authority_signature_suite=ecdsa-p384-sha384 audit_signature_suite=ecdsa-p384-sha384
+sagvd fips140 enabled=false enforced=false version=latest
+== seal a genome (a fine-tune output: LoRA weights, config, tokenizer)
+seal exit=0
+key_id=genome-b084038e0962-g0-1c90eb12fc18
+== operator stop key and first list (nothing stopped)
+== acp-bootstrap on SEV-SNP
+identity exit=0
+destination crypto_profile=cnsa kem_suites=hpke-mlkem1024-p384-v2
+destination signature_suites=ecdsa-p384-sha384,ml-dsa-87
+destination fips140 enabled=false enforced=false version=latest
+measurement=e79ebb5b789ddb6b7a9897f663a655a65c69445aa482c4e1a5ff9fdeb4af1a2c8d5d30fcad5f4f0e04f1a13885eb984d
+== release the genome key to this attested guest
+release exit=0
+chip product=Milan variant=Milan cpuid=0x19/0x1/0x1 snp=0x1d microcode=0xde bootloader=0x4 firmware=1.58.1 alias_check=true mit_vector=0xb floor_snp=0x1b floor_microcode=0xde floor_from=AMD bulletins read 2026-10-22 for Milan
+release suite=hpke-mlkem1024-p384-v2
+release profile=cnsa
+release recipient_key_sha256=eeda2cd9b3842dee22f73bac73ab96007d5e0d0da27891e28892d3c5fe5dabeb
+== the destination restores by itself; confirm from its chip-signed receipt
+confirm exit=0
+verify exit=0
+== release refused: guest not on the allow-list
+unlisted exit=1
+== release refused: operator stop in force
+stopped exit=1
+== release refused: the operator's TCB floor one above this chip (ADR 0033)
+floor exit=1
+floor chip_snp=0x1d floor_snp=0x1e reason=TCB floor: reported TCB snp 0x1d below 0x1e (tee.peer.sev_snp.tcb_floor) denied_on_record=1
+== audit log verified with the published audit key
+audit verify exit=0
+audit suite=ecdsa-p384-sha384 events=12

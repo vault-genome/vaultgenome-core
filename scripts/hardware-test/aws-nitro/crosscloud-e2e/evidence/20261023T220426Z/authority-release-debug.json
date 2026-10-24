@@ -1,0 +1,14 @@
+{
+  "status": "failed",
+  "error": {
+    "category": "integrity",
+    "code": "attestation_denied",
+    "message": "integrity[attestation_denied]: kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key and suite under this nonce: integrity[signature_invalid]: aws-nitro: debug-mode enclave rejected (production verifier)"
+  },
+  "handshake_request_id": "xcc-req-a423d3434a72f81aa15ce8b1061535ce",
+  "handshake_audit_id": "xcc-evt-000000000000000d",
+  "crypto_profile": "general",
+  "audit_chain_length": 14,
+  "audit_tip": "eaab1715f76f16821a9d494d54f91e78fa9190156e4f7b67ca61848774767d57",
+  "operator_stop_serial": 3
+}

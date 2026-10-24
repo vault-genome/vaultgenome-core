@@ -1,0 +1,4 @@
+sagvd: GOFIPS140=v1.0.0-c2097c7c vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 
+acp-compute: GOFIPS140=v1.0.0-c2097c7c vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 
+acpctl: GOFIPS140=v1.0.0-c2097c7c vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 
+keygen: GOFIPS140=v1.0.0-c2097c7c vcs.revision=84cc9b91e590f3351a8a035ae1ba78a34af74857 

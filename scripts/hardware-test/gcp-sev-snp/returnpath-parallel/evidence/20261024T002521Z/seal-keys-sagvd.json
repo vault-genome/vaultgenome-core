@@ -1,0 +1,27 @@
+{
+  "tee": "gcp-sev-snp",
+  "measurement_hex": "8a8f9ea7f853cfd1345ba5ce03c5a2e1bc3ffd2cb69d3da0d4ad6ce9f4b8d45196001b98a42a4ad4bb71961d69e82f4c",
+  "sealer": "sev-snp-derived-key",
+  "sealed": [
+    {
+      "name": "keys.authority_signing.seed_path",
+      "path": "/root/e2e/secrets/sagvd/authority_signing_seed"
+    },
+    {
+      "name": "keys.session_sealing.material_path",
+      "path": "/root/e2e/secrets/shared/sealing.key"
+    },
+    {
+      "name": "keys.audit_signing.seed_path",
+      "path": "/root/e2e/secrets/sagvd/audit_signing_seed"
+    },
+    {
+      "name": "vault.tls.server_key",
+      "path": "/root/e2e/secrets/sagvd/tls/server.key"
+    },
+    {
+      "name": "http_api.bearer_token_file",
+      "path": "/root/e2e/secrets/sagvd/api_token"
+    }
+  ]
+}

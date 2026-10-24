@@ -1,0 +1,27 @@
+{
+  "schema": "vault-genome/failover-policy/v1",
+  "serial": 7,
+  "issued_at": "2026-10-23T22:28:44Z",
+  "not_after": "2026-11-22T22:28:44Z",
+  "sentinel_public_key": "8/Ec0rffZicSRQVUH+aMm6LwfYn4o4E59IGoZXAoOaA=",
+  "primary": {
+    "kind": "gcp-sev-snp",
+    "measurements": [
+      "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790"
+    ]
+  },
+  "standby": {
+    "kind": "gcp-sev-snp",
+    "endpoint": "https://127.0.0.1:8443",
+    "measurements": [
+      "21199b36f500cc26a5d26c92c699fe2820ce217458bf219be18efd761f636b4145fdecbd7249c4b566797b4afd339546"
+    ]
+  },
+  "triggers": {
+    "compromise_report": true
+  },
+  "require_gate": "EQUIVALENT",
+  "reason": "negatives drill 8/8: a stranger's signature",
+  "signing_key_id": "operator-1",
+  "signature": "edjF+kKB3ULgYL7BaxKefK2xPcWCf9xRvTGp0IwVGyiwpTjZKoBCVHSTzy1r2cspo9jCH2xetkpCvo0OwtwOAw=="
+}

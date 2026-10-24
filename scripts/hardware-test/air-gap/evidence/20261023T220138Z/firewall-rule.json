@@ -1,0 +1,26 @@
+{
+  "creationTimestamp": "2026-10-23T15:00:13.218-07:00",
+  "denied": [
+    {
+      "IPProtocol": "all"
+    }
+  ],
+  "description": "vaultgenome air-gap drill 20261023T220004Z: no egress for the tagged guest",
+  "destinationRanges": [
+    "0.0.0.0/0"
+  ],
+  "direction": "EGRESS",
+  "disabled": false,
+  "id": "9034977534281147906",
+  "kind": "compute#firewall",
+  "logConfig": {
+    "enable": false
+  },
+  "name": "vg-airgap-deny-egress-20261023t220004z",
+  "network": "https://www.googleapis.com/compute/v1/projects/rats-probe/global/networks/default",
+  "priority": 100,
+  "selfLink": "https://www.googleapis.com/compute/v1/projects/rats-probe/global/firewalls/vg-airgap-deny-egress-20261023t220004z",
+  "targetTags": [
+    "vg-airgap-20261023t220004z"
+  ]
+}

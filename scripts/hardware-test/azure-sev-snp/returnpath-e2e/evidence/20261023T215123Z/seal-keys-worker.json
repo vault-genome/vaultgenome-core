@@ -1,0 +1,21 @@
+{
+  "tee": "azure-sev-snp",
+  "measurement_hex": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+  "sealer": "tpm2",
+  "sealed": [
+    {
+      "name": "keys.worker_signing.seed_path",
+      "path": "/root/e2e/secrets/acp-compute/worker_signing_seed"
+    },
+    {
+      "name": "vault.tls.client_key",
+      "path": "/root/e2e/secrets/acp-compute/tls/client.key"
+    }
+  ],
+  "already_sealed": [
+    {
+      "name": "keys.session_sealing.material_path",
+      "path": "/root/e2e/secrets/shared/sealing.key"
+    }
+  ]
+}

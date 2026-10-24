@@ -1,0 +1,4 @@
+instance=vg-provision-20261023t215405z
+zone=us-central1-c
+machine=n2d-standard-4
+captured=20261023T215532Z

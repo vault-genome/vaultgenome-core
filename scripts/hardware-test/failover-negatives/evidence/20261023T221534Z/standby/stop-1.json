@@ -1,0 +1,8 @@
+{
+  "schema": "vault-genome/revocation/v1",
+  "serial": 1,
+  "issued_at": "2026-10-23T22:17:07Z",
+  "stop_all": false,
+  "signing_key_id": "operator-1",
+  "signature": "7jOgGQowhvFTrTAp062yGTYbUv/dsJCkGGqsMqB448fQJjY6rADWJrBOcvIFkA/9tuCv7ISUt0KwMO10Q0jZBA=="
+}

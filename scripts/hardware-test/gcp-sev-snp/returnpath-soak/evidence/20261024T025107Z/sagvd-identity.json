@@ -1,0 +1,46 @@
+{
+  "authority_kid": "sagvd-authority-e2e",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAPIpHXfLCt8y/MSyF8NuW7EALMSwSVN0GfqvOMAN6yeo=\n-----END PUBLIC KEY-----\n",
+  "authority_signature_suite": "ed25519",
+  "tee_provider": "gcp-sev-snp",
+  "tee_measurement_hex": "8a8f9ea7f853cfd1345ba5ce03c5a2e1bc3ffd2cb69d3da0d4ad6ce9f4b8d45196001b98a42a4ad4bb71961d69e82f4c",
+  "sealer": "sev-snp-derived-key",
+  "sev_snp_policy": {
+    "bulletins_read_on": "2026-10-22",
+    "floors": {
+      "Bergamo/Siena": "snp 0x1b microcode 0x1b, mitigation vector bits 0x2, alias check",
+      "Genoa": "snp 0x1b microcode 0x56, mitigation vector bits 0x2, alias check",
+      "Genoa-X": "snp 0x1b microcode 0x51, mitigation vector bits 0x2, alias check",
+      "Milan": "snp 0x1b microcode 0xde, mitigation vector bits 0x2, alias check",
+      "Milan-X": "snp 0x1b microcode 0x47, mitigation vector bits 0x2, alias check",
+      "Turin": "snp 0x4 microcode 0x51, mitigation vector bits 0x1",
+      "Turin Dense": "snp 0x4 microcode 0x4e, mitigation vector bits 0x1"
+    }
+  },
+  "audit_kid": "sagvd-audit-e2e",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAc//et5ZV0bXvvJi+czHSOgSZRx1rVcZZTWHlTrS2GmE=\n-----END PUBLIC KEY-----\n",
+  "audit_signature_suite": "ed25519",
+  "policy_version": "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0",
+  "policy_profiles": [
+    "gate"
+  ],
+  "crypto_profile": "general",
+  "kem_suites": [
+    "hpke-x25519-v2",
+    "hpke-p384-v2",
+    "hpke-mlkem768-v2",
+    "hpke-mlkem1024-p384-v2",
+    "hpke-xwing-v2"
+  ],
+  "signature_suite": "ed25519",
+  "signature_suites": [
+    "ed25519",
+    "ecdsa-p384-sha384",
+    "ml-dsa-87"
+  ],
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  }
+}

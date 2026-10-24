@@ -1,0 +1,37 @@
+workers=3
+== binaries from gs://rats-probe-vg-tdxpar-20261024t003048z/e2e
+== the Trust Domain: configfs-tsm (tdx_guest)
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== the host's vTPM: tee.sealer auto resolves to tpm2 on a Trust Domain (tpm2-tools)
+== provision (acp-keygen, private modes; every key file is sealed to this host below)
+== identities: each daemon reads MRTD and RTMR0..3 from a quote of this Trust Domain
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=6f2a91864938369eeb6874c654cda21454e52739470c8e2fc9781c680099c0272694672814df6c704fd4c612acb97251
+worker_measurement=6f2a91864938369eeb6874c654cda21454e52739470c8e2fc9781c680099c0272694672814df6c704fd4c612acb97251
+sagvd-identity.json: provider=gcp-tdx mrtd=c1ee9c16e3afc506… rtmr3=0000000000000000… sha384(mrtd||rtmr0..3)==measurement: True
+acp-compute-identity.json: provider=gcp-tdx mrtd=c1ee9c16e3afc506… rtmr3=0000000000000000… sha384(mrtd||rtmr0..3)==measurement: True
+== the key files sealed to this host (ADR 0023; tee.sealer unset — auto, which is tpm2 here, ADR 0025 step 1b)
+sagvd seal-keys exit=0 sealer=tpm2 sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+acp-compute seal-keys exit=0 sealer=tpm2 sealed=keys.worker_signing.seed_path,vault.tls.client_key
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-7ebfd69716cd-g0-fc0f9f61b2ec
+== round max_sessions=1: 3 workers, 6 jobs
+sagvd ready after 5s limit=1
+sessions_active_before_jobs=1
+round_max1: workers=3 jobs=6 done=6 exact=6 wall_s=23.7 per_job_s=3.9 peak_sessions_active=1 max_queue_depth=4 refused_busy=0 handshake_ms=[443,86,84,85,89,86,86]
+load after round 1:
+ 00:33:55 up 2 min,  0 user,  load average: 2.04, 0.72, 0.27
+== round max_sessions=3: 3 workers, 6 jobs
+sagvd ready after 3s limit=3
+sessions_active_before_jobs=3
+round_max3: workers=3 jobs=6 done=6 exact=6 wall_s=9.8 per_job_s=1.6 peak_sessions_active=3 max_queue_depth=1 refused_busy=0 handshake_ms=[87,93,83,161,198,223,85,120,123]
+load after round 3:
+ 00:34:16 up 2 min,  0 user,  load average: 2.25, 0.85, 0.32
+== verify the audit log of both rounds with the published key
+audit verify exit=0
+audit query exit=0
+== the Intel PCS documents both verifiers fetched (public), for offline re-verification
+elapsed_seconds=149.8

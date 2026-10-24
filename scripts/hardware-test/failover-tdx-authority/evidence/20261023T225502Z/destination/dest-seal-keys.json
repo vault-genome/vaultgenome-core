@@ -1,0 +1,15 @@
+{
+  "tee": "gcp-tdx",
+  "sealer": "tpm2",
+  "measurement_hex": "02de1d974289aa2d164b633b5d290db4611d5080ddd1d668b27c93e507506b6cfff4b7df8ab5231026aff7b97004253d",
+  "sealed": [
+    {
+      "name": "http.tls.server_key",
+      "path": "/root/dest/server.key"
+    },
+    {
+      "name": "http.bearer_token_file",
+      "path": "/root/dest/xcc_token"
+    }
+  ]
+}

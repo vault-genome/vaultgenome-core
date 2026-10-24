@@ -1,0 +1,9 @@
+crw-rw---- 1 tss root  10,   224 Oct 23 22:25 /dev/tpm0
+crw-rw---- 1 tss tss  252, 65536 Oct 23 22:25 /dev/tpmrm0
+0x1400001:
+  name: 000be863f1cc5b6951ebbd1b5f9ebbab6b15570b2842e81518cff8098f67b76ff494
+  hash algorithm:
+    friendly: sha256
+ls: cannot access '/dev/sev-guest': No such file or directory
+/sys/kernel/config/tsm:
+report

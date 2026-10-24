@@ -1,0 +1,22 @@
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:  58%|█████▊    | 196/339 [00:00<00:00, 1955.14it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 2708.80it/s]
+/opt/vg/lib/python3.12/site-packages/torch/autograd/graph.py:1072: UserWarning: Flash Attention defaults to a non-deterministic algorithm. To explicitly enable determinism call torch.use_deterministic_algorithms(True, warn_only=False). (Triggered internally at /__w/pytorch/pytorch/aten/src/ATen/native/transformers/cuda/attention_backward.cu:156.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+step 1/160 loss 6.0526
+step 11/160 loss 5.8925
+step 21/160 loss 5.2405
+step 31/160 loss 0.0615
+step 41/160 loss 4.1422
+step 51/160 loss 2.4233
+step 61/160 loss 0.0030
+step 71/160 loss 1.0228
+step 81/160 loss 0.0073
+step 91/160 loss 0.0063
+step 101/160 loss 0.8256
+step 111/160 loss 0.0006
+step 121/160 loss 0.0625
+step 131/160 loss 0.0232
+step 141/160 loss 0.0001
+step 151/160 loss 0.0278
+step 160/160 loss 0.0002
+recording the integer door's references
+integer door: top-1 the same on 16/16 fixtures, max abs err 0.877

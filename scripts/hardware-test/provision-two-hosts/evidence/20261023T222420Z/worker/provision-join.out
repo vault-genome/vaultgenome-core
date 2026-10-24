@@ -1,0 +1,54 @@
+provision join: /root/deploy (family azure-sev-snp, the authority gcp-sev-snp at 34.67.129.134:9443, sealer auto)
+  from the bundle: 7 files (amd-milan-cert_chain.pem, pins/vault.measurement, secrets/acp-compute/sealing.key, secrets/acp-compute/tls/client.crt, secrets/acp-compute/tls/client.key, secrets/acp-compute/worker_signing_seed, secrets/shared/tls/ca.crt)
+  configuration: /root/deploy/acp-compute.json
+  acp-compute identity: 11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4 (azure-sev-snp)
+  acp-compute key files sealed (tpm2): keys.worker_signing.seed_path, keys.session_sealing.material_path, vault.tls.client_key
+provision.json: /root/deploy/provision.json
+  identity for the authority: /root/deploy/acp-compute-identity.json
+{
+  "schema": "vault-genome/acpctl-provision/v1",
+  "role": "worker",
+  "phase": "joined",
+  "out": "/root/deploy",
+  "provider": "auto",
+  "peer_provider": "gcp-sev-snp",
+  "sealer": "auto",
+  "binaries": {
+    "acp-compute": "/root/p2/acp-compute"
+  },
+  "secrets": "/root/deploy/secrets",
+  "configs": {
+    "acp-compute": "/root/deploy/acp-compute.json"
+  },
+  "configs_sha256": {
+    "acp-compute": "38cf2d29f74555822d637c418afb1aeb218d4b2c046f449d794940a0897b239f"
+  },
+  "pins": {
+    "vault": "/root/deploy/pins/vault.measurement"
+  },
+  "amd_cert_chain": "/root/deploy/amd-milan-cert_chain.pem",
+  "vault": {
+    "provider": "gcp-sev-snp",
+    "measurement_hex": "9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf"
+  },
+  "worker": {
+    "provider": "azure-sev-snp",
+    "measurement_hex": "11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4",
+    "sealer": "tpm2",
+    "vtpm_pcr_digest_hex": "3ea455d8c2e3b18ed247f9a2be28489a36cb08efe14f6d284bd107a15f73e0b4",
+    "identity_file": "/root/deploy/acp-compute-identity.json"
+  },
+  "sealed": {
+    "acp-compute": [
+      "keys.worker_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "vault.tls.client_key"
+    ]
+  },
+  "vault_address": "34.67.129.134:9443",
+  "next": [
+    "delete /home/vg/in/worker-bundle.tar: its files are in /root/deploy now, sealed to this host",
+    "carry /root/deploy/acp-compute-identity.json to the authority's host and run: acpctl provision pin-worker --out \u003cauthority dir\u003e --identity acp-compute-identity.json",
+    "/root/p2/acp-compute -config /root/deploy/acp-compute.json (once the authority has pinned this worker and is running)"
+  ]
+}

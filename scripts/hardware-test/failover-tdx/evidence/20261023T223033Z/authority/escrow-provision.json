@@ -1,0 +1,12 @@
+{
+  "escrow_key": "c0379376d4eeee2c",
+  "suite": "hpke-x25519-v2",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAqSvYPFsmGqqo8akDpX1tyDqNiPYzldKx78uCIeBDZzo=\n-----END PUBLIC KEY-----\n",
+  "tee": "gcp-sev-snp",
+  "measurement_hex": "21199b36f500cc26a5d26c92c699fe2820ce217458bf219be18efd761f636b4145fdecbd7249c4b566797b4afd339546",
+  "source": "generated",
+  "sealed_path": "/root/escrow.sealed",
+  "public_path": "/root/escrow.pem",
+  "recovery_key": "2b7e3a49b3c7bcf9",
+  "recovery_path": "/root/escrow.recovery.json"
+}

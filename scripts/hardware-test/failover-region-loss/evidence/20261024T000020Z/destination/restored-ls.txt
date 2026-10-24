@@ -1,0 +1,5 @@
+total 40
+drwxr-xr-x 3 root root  4096 Oct 24 00:18 .
+drwxr-x--- 9 vg   vg    4096 Oct 24 00:18 ..
+drwxr-xr-x 4 root root  4096 Oct 24 00:18 genome-6a31cb197a44-g1-01304791d982
+-rw------- 1 root root 26616 Oct 24 00:18 genome-6a31cb197a44-g1-01304791d982.receipt.json

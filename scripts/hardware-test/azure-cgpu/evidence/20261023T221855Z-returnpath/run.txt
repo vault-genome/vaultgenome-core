@@ -1,0 +1,7 @@
+tree 84cc9b91e590f3351a8a035ae1ba78a34af74857
+stamp 20261023T221855Z
+profile fips
+signature_suite ed25519
+fips 1
+gofips140 v1.0.0
+go go1.27.3

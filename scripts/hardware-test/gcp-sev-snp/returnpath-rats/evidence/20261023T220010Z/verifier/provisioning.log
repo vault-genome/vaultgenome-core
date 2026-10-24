@@ -1,0 +1,23 @@
+INFO	Initializing Provisioning Service	{"version": "+"}
+INFO	initializing VTS client
+INFO	vts connection established	{"server-version": "+"}
+INFO	initializing provisioner
+INFO	initializing provisioning API service	{"address": "0.0.0.0:9443"}
+INFO	initializing provisioning API HTTPS service	{"address": "0.0.0.0:9443"}
+INFO	gin	[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+INFO	gin	 - using env:	export GIN_MODE=release
+INFO	gin	 - using code:	gin.SetMode(gin.ReleaseMode)
+INFO	gin	
+INFO	gin	
+INFO	gin	[GIN-debug] GET    /.well-known/veraison/provisioning --> github.com/veraison/services/provisioning/api.IHandler.GetWellKnownProvisioningInfo-fm (3 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] POST   /endorsement-provisioning/v1/submit --> github.com/veraison/services/provisioning/api.IHandler.Submit-fm (4 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] Listening and serving HTTPS on 0.0.0.0:9443
+INFO	gin	
+INFO	gin	[GIN-debug] [WARNING] You trusted all proxies, this is NOT safe. We recommend you to set a value.
+INFO	gin	Please check https://pkg.go.dev/github.com/gin-gonic/gin#readme-don-t-trust-all-proxies for details.
+INFO	gin	
+2026/10/23 22:10:22 http: TLS handshake error from 127.0.0.1:41802: unexpected EOF
+INFO	gin	[GIN] 2026/10/23 - 22:10:25 | 200 |   58.072429ms |   104.14.24.198 | POST     "/endorsement-provisioning/v1/submit"
+INFO	gin	

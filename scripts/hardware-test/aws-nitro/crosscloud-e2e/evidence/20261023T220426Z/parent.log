@@ -1,0 +1,48 @@
+2026/10/23 22:08:31 parent: 0.0.0.0:8443 to the enclave's vsock 16:5000; vsock 8000 to kms.us-east-2.amazonaws.com:443, 8002 to the metadata service; key files on 7000, the log on 7001
+2026/10/23 22:08:35 parent: log: connection from vsock://16:3389542456
+2026/10/23 22:08:35 parent: files: connection from vsock://16:3389542457
+2026/10/23 22:08:35 parent: files: 3176 bytes handed over (<nil>)
+2026/10/23 22:08:35 parent: files: the enclave closed (0 bytes back, <nil>)
+2026/10/23 22:08:36 parent: imds: connection from vsock://16:3389542458
+2026/10/23 22:08:36 parent: imds: 195 bytes one way, 237 the other
+2026/10/23 22:08:36 parent: imds: connection from vsock://16:3389542459
+2026/10/23 22:08:36 parent: imds: 241 bytes one way, 272 the other
+2026/10/23 22:08:36 parent: imds: connection from vsock://16:3389542460
+2026/10/23 22:08:36 parent: imds: 265 bytes one way, 1844 the other
+2026/10/23 22:08:36 parent: kms: connection from vsock://16:3389542461
+2026/10/23 22:08:36 parent: imds: connection from vsock://16:3389542462
+2026/10/23 22:08:36 parent: imds: 195 bytes one way, 237 the other
+2026/10/23 22:08:36 parent: imds: connection from vsock://16:3389542463
+2026/10/23 22:08:36 parent: imds: 241 bytes one way, 272 the other
+2026/10/23 22:08:36 parent: imds: connection from vsock://16:3389542464
+2026/10/23 22:08:36 parent: imds: 265 bytes one way, 1844 the other
+2026/10/23 22:08:36 parent: kms: connection from vsock://16:3389542465
+2026/10/23 22:08:40 parent: api: connection from <authority-address>:40042
+2026/10/23 22:08:40 parent: api: 16806667 bytes one way, 2886 the other
+2026/10/23 22:08:41 parent: api: connection from <authority-address>:40050
+2026/10/23 22:08:41 parent: api: 3022 bytes one way, 8574 the other
+2026/10/23 22:08:41 parent: api: connection from <authority-address>:40054
+2026/10/23 22:08:41 parent: api: 3265 bytes one way, 2260 the other
+2026/10/23 22:08:42 parent: kms: 10792 bytes one way, 7728 the other
+2026/10/23 22:08:42 parent: kms: 10792 bytes one way, 7728 the other
+2026/10/23 22:08:51 parent: api: connection from <authority-address>:33684
+2026/10/23 22:08:51 parent: api: 2424 bytes one way, 9507 the other
+2026/10/23 22:08:51 parent: api: connection from <authority-address>:33694
+2026/10/23 22:08:51 parent: api: 1876 bytes one way, 9948 the other
+2026/10/23 22:08:51 parent: api: connection from <authority-address>:33704
+2026/10/23 22:08:51 parent: api: 1834 bytes one way, 3519 the other
+2026/10/23 22:09:02 parent: api: connection from <authority-address>:46448
+2026/10/23 22:09:02 parent: api: 3021 bytes one way, 8573 the other
+2026/10/23 22:09:12 parent: api: connection from <authority-address>:44862
+2026/10/23 22:09:12 parent: api: 3022 bytes one way, 8573 the other
+2026/10/23 22:09:22 parent: api: connection from <authority-address>:57474
+2026/10/23 22:09:23 parent: api: 3021 bytes one way, 8573 the other
+2026/10/23 22:09:24 parent: log: 12 lines kept in /home/ec2-user/vg/out/enclave-log-1.jsonl
+2026/10/23 22:09:29 parent: log: connection from vsock://16:2049166855
+2026/10/23 22:09:29 parent: files: connection from vsock://16:2049166856
+2026/10/23 22:09:29 parent: files: 480 bytes handed over (<nil>)
+2026/10/23 22:09:29 parent: files: the enclave closed (0 bytes back, <nil>)
+2026/10/23 22:09:34 parent: api: connection from <authority-address>:40654
+2026/10/23 22:09:34 parent: api: 3021 bytes one way, 8574 the other
+2026/10/23 22:09:35 parent: log: 3 lines kept in /home/ec2-user/vg/out/enclave-log-2.jsonl
+2026/10/23 22:09:38 parent: stopped

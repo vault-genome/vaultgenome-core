@@ -1,0 +1,6 @@
+acp_compute_jobs_total{outcome="success"} 524
+acp_compute_handshake_failures_total{phase="handshake"} 1
+acp_compute_sessions_opened_total 525
+acp_compute_last_success_unix 1792805977
+acp_compute_session_active 1
+acp_compute_start_unix 1792802353

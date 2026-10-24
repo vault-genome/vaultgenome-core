@@ -1,0 +1,38 @@
+=== RUN   TestLiveKMS
+    live_test.go:68: region us-east-2, endpoint kms.us-east-2.amazonaws.com, TLS 1.3, Amazon's four roots
+=== RUN   TestLiveKMS/signed_right,_KMS_accepts_the_signature
+    live_test.go:79: GenerateRandom: HTTP 400 AccessDeniedException (request 3d9b63aa-9a05-4cc3-89db-ed985d620d25): User: arn:aws:iam::<account>:user/rats-probe is not authorized to perform: kms:GenerateRandom on resource: * because no identity-based policy allows the kms:GenerateRandom action
+=== RUN   TestLiveKMS/the_wrong_secret,_KMS_refuses_the_signature
+    live_test.go:88: GenerateRandom: HTTP 400 InvalidSignatureException (request 16a15a0a-bf6d-485b-a977-397956f86594): The request signature we calculated does not match the signature you provided. Check your AWS Secret Access Key and signing method. Consult the service documentation for details.
+        
+        The Canonical String for this request should have been
+        'POST
+        /
+        
+        content-type:application/x-amz-json-1.1
+        host:kms.us-east-2.amazonaws.com
+        x-amz-date:20261023T215820Z
+        x-amz-target:TrentService.GenerateRandom
+        
+        content-type;host;x-amz-date;x-amz-target
+        b386e4217667b85b62d23d3751c5cd6ec17da520661d3785147076dbc373761c'
+        
+        The String-to-Si…
+=== RUN   TestLiveKMS/twenty_minutes_behind,_the_signature_has_expired
+    live_test.go:97: GenerateRandom: HTTP 400 InvalidSignatureException (request de8afe81-633c-4dfb-a1c8-c91e58abc983): Signature expired: 20261023T213820Z is now earlier than 20261023T215320Z (20261023T215820Z - 5 min.)
+=== RUN   TestLiveKMS/an_access_key_nobody_has,_KMS_does_not_recognise_it
+    live_test.go:107: GenerateRandom: HTTP 400 UnrecognizedClientException (request fa1e623c-1022-4297-958b-25e90811b415): The security token included in the request is invalid.
+=== RUN   TestLiveKMS/without_Amazon's_roots,_the_endpoint_is_refused_at_the_handshake
+    live_test.go:113: GenerateRandom with an empty pool: awskms: GenerateRandom: Post "https://kms.us-east-2.amazonaws.com/": tls: failed to verify certificate: x509: certificate signed by unknown authority
+=== RUN   TestLiveKMS/Decrypt_and_GenerateDataKey_reach_authorization
+    live_test.go:125: Decrypt: HTTP 400 InvalidCiphertextException (request 33ae09ed-b407-4893-b171-af8a198c7f48): 
+    live_test.go:129: GenerateDataKey: HTTP 400 AccessDeniedException (request 45f374e1-798a-4a5d-b8a5-5cc25e0bb3a8): User: arn:aws:iam::<account>:user/rats-probe is not authorized to perform: kms:GenerateDataKey on this resource because the resource does not exist in this Region, no resource-based policies allow access, or a resource-based policy explicitly denies access
+--- PASS: TestLiveKMS (0.97s)
+    --- PASS: TestLiveKMS/signed_right,_KMS_accepts_the_signature (0.18s)
+    --- PASS: TestLiveKMS/the_wrong_secret,_KMS_refuses_the_signature (0.22s)
+    --- PASS: TestLiveKMS/twenty_minutes_behind,_the_signature_has_expired (0.12s)
+    --- PASS: TestLiveKMS/an_access_key_nobody_has,_KMS_does_not_recognise_it (0.12s)
+    --- PASS: TestLiveKMS/without_Amazon's_roots,_the_endpoint_is_refused_at_the_handshake (0.09s)
+    --- PASS: TestLiveKMS/Decrypt_and_GenerateDataKey_reach_authorization (0.23s)
+PASS
+ok  	github.com/vault-genome/vaultgenome-core/internal/shared/awskms	1.247s

@@ -1,0 +1,1 @@
+sentinel key sentinel-a9f9b69be188721c (ed25519): key file /root/sentinel.seed (stays on the primary), public key /root/sentinel.pem (pin it in the failover policy)

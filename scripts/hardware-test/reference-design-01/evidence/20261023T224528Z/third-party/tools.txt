@@ -1,0 +1,2 @@
+acpctl: 49a36d2b5f54313f8b0644ad868a9d5463413e5613d28df0d28c62b14c6cd15f (built from the same tree for this machine, Darwin arm64)
+acpctl v0.10.0 (commit 84cc9b91e590f3351a8a035ae1ba78a34af74857) fips140=only module=v1.0.0 enforced=true

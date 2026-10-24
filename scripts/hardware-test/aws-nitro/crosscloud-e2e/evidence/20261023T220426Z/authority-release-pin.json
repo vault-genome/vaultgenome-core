@@ -1,0 +1,14 @@
+{
+  "status": "failed",
+  "error": {
+    "category": "integrity",
+    "code": "attestation_denied",
+    "message": "integrity[attestation_denied]: kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key and suite under this nonce: integrity[signature_invalid]: aws-nitro: PCR2 is not the pinned value (got db3b5358aeb1596d570591550ab093e7763d26107a3fba69e266066cc8f41b2e104b8ddebb415ce49f1411fa45a6f5dd)"
+  },
+  "handshake_request_id": "xcc-req-0fde1743d310a33506eb7590b2ac5285",
+  "handshake_audit_id": "xcc-evt-0000000000000008",
+  "crypto_profile": "general",
+  "audit_chain_length": 9,
+  "audit_tip": "e9c01b16f5cdc7a2a70bf0a9dd477a6bd98e969285b717d5ec9fec7b106dfb1a",
+  "operator_stop_serial": 1
+}

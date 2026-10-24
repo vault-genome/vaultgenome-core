@@ -1,0 +1,28 @@
+INFO	Initializing Management Service	{"version": "+"}
+INFO	initializing policy manager
+INFO	policy-store	store opened	{"driver": "sqlite3", "datasource": "/opt/veraison/stores/po-store.sql", "table": "kvstore", "max_connections": 10}
+INFO	initializing management API HTTPS service	{"address": "0.0.0.0:10443"}
+INFO	gin	[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+INFO	gin	 - using env:	export GIN_MODE=release
+INFO	gin	 - using code:	gin.SetMode(gin.ReleaseMode)
+INFO	gin	
+INFO	gin	
+INFO	gin	[GIN-debug] GET    /.well-known/veraison/management --> github.com/veraison/services/management/api.Handler.GetManagementWellKnownInfo-fm (3 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] POST   /management/v1/policy/:scheme --> github.com/veraison/services/management/api.Handler.CreatePolicy-fm (4 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] POST   /management/v1/policy/:scheme/:uuid/activate --> github.com/veraison/services/management/api.Handler.Activate-fm (4 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] GET    /management/v1/policy/:scheme --> github.com/veraison/services/management/api.Handler.GetActivePolicy-fm (4 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] GET    /management/v1/policy/:scheme/:uuid --> github.com/veraison/services/management/api.Handler.GetPolicy-fm (4 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] POST   /management/v1/policies/:scheme/deactivate --> github.com/veraison/services/management/api.Handler.DeactivateAll-fm (4 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] GET    /management/v1/policies/:scheme --> github.com/veraison/services/management/api.Handler.GetPolicies-fm (4 handlers)
+INFO	gin	
+INFO	gin	[GIN-debug] Listening and serving HTTPS on 0.0.0.0:10443
+INFO	gin	
+INFO	gin	[GIN-debug] [WARNING] You trusted all proxies, this is NOT safe. We recommend you to set a value.
+INFO	gin	Please check https://pkg.go.dev/github.com/gin-gonic/gin#readme-don-t-trust-all-proxies for details.
+INFO	gin	

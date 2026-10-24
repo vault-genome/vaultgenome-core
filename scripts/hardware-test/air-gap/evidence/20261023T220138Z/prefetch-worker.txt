@@ -1,0 +1,3 @@
+prefetched for a gcp-sev-snp peer on this host: its evidence verified under measurement 9fc6d42b3005958a…
+vcek      current            /root/e2e/cache-worker/75bbd2bb8dfeeb00ea0413ffa0f83557331b7aaf30a6be31efa5a43da77f79699545f7cd0d292495c74a572be5f15ac1d7157dadfb7288cc24a2ee131980559c-16004948650744610820.der  SEV-VCEK  valid 2026-10-22 → 2033-10-22T23:05Z (2556d left)  — chip 75bbd2bb8dfeeb00…, TCB 16004948650744610820
+1 of 1 current; the earliest expiry is 2033-10-22T23:05:24Z — run prefetch again before then, with the vendors reachable

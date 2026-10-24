@@ -1,0 +1,19 @@
+== 23:40:51 inputs
+== 23:40:55 provision (keygen), operator stop key, operator recovery key
+== 23:40:55 configfs-tsm (real SEV-SNP reports)
+== 23:40:55 sagvd on SEV-SNP: identity from the chip; the escrow key sealed to it
+seal-keys exit=0 sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+escrow-provision exit=0
+== 23:41:16 hand the primary the escrow key, and the destination its TLS material and token (through the private bucket)
+== 23:41:18 wait for the destination's identity (the orchestrator's hand-off): endpoint, launch measurement, vTPM boot
+destination endpoint=https://20.101.114.226:8443 measurement=63e15b3f246c38becb65c7861547d8a6fb9ac1dc5c8d12c261fb6be91661dd114d5a5ef3030501a5120322c5900311fa pcr_digest=d74bfb368d4bfb59562570d77d34ff153c8aee4b74ee4dd8acc5e068d281d807
+== 23:50:56 wait for the primary's sentinel key and chip identity (the operator pins both)
+primary measurement=69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790
+== 23:50:58 sagvd failover config: the azure-cgpu destination in the registry (Genoa chain, NVIDIA's key set, the GPU policy, the boot pinned) and the primary's SEV-SNP anchors, the allow-list, the operator stop, the sealed escrow key, mTLS to the destination
+seal-keys (failover config) exit=0 sealed=crosscloud.transport_tls.client_key already=5
+sagvd identity exit=0 key_escrow_storage=sealed:gcp-sev-snp
+== 23:51:08 sign the failover policy pinning the primary's chip and the GPU standby
+== 23:51:08 pull the primary's outbox replica, continuously
+== 23:51:08 arm: sagvd failover watches the replica; the standby is the GPU across the Internet
+sagvd failover exit=0
+== 23:55:47 audit log verify (offline, as an auditor would)

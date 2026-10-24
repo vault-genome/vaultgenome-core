@@ -1,0 +1,45 @@
+{
+  "status": "declined",
+  "policy_serial": 2,
+  "policy_sha256": "098340c1bd09c23594bd28f37de14e1e6ba819587145474977b4bbab1836c79f",
+  "sentinel": "sentinel-5fb063636d895acb",
+  "trigger": {
+    "kind": "heartbeat-timeout",
+    "at": "2026-10-23T23:20:48.208791216Z",
+    "observed_at": "2026-10-23T23:21:50.890469667Z",
+    "alive_observed_at": "2026-10-23T23:21:20.837251932Z",
+    "evidence_sha256": "74114690db0a320e8ea49b84a3d5adb24cc99304fa1de8f655568515dbc28be0",
+    "primary_measurement_hex": "69da361d9e3b09fb5fac2972e2a5e3dc45f73295bb11d625a3222cd5fb9c5b6bcd48546876504a99fd261171dffac790",
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "9b2cdf590c0847ea7af8ea05fb6eaaff17f53468602482ada39271c646878856",
+      "sealed_at": "2026-10-23T23:20:36.195611901Z"
+    }
+  },
+  "decision": {
+    "decision": "declined",
+    "reason": "no genome in the verified chain was sealed by 2026-10-22T23:20:48.208791216Z and checks out",
+    "audit_id": "xcc-evt-0000000000000006",
+    "decided_at": "2026-10-23T23:21:50.919898422Z"
+  },
+  "set_aside": [
+    {
+      "file": "gen-000002.seal.json",
+      "reason": "after generation 1, the last the sentinel's heartbeat-timeout names"
+    },
+    {
+      "file": "gen-000001.seal.json",
+      "reason": "sealed at 2026-10-23T23:20:36.195611901Z, after the cutoff 2026-10-22T23:20:48.208791216Z"
+    },
+    {
+      "file": "gen-000000.seal.json",
+      "reason": "sealed at 2026-10-23T23:16:21.197545676Z, after the cutoff 2026-10-22T23:20:48.208791216Z"
+    }
+  ],
+  "ignored": [
+    "heartbeat.json: sentinel: the record's gcp-sev-snp attestation does not verify: integrity[signature_invalid]: gcp-sev: MEASUREMENT 21199b36f500cc26a5d26c92c699fe2820ce217458bf219be18efd761f636b4145fdecbd7249c4b566797b4afd339546 not in acceptable set"
+  ],
+  "audit_chain_length": 6,
+  "audit_tip": "c087497c41df45f3652dd8eecb2252dd3a9962f84a40816188075a05da011c0f",
+  "operator_stop_serial": 1
+}

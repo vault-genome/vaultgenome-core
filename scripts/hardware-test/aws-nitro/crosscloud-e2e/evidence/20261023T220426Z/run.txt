@@ -1,0 +1,12 @@
+commit 84cc9b91e590f3351a8a035ae1ba78a34af74857
+tree clean
+go go1.27.3
+destination: region us-east-2, availability zone us-east-2a, instance type m5.xlarge, AMI ami-053ef5d7ebe355f4a (al2023-ami-kernel-default-x86_64)
+source: vg-nitro-xcc-20261023t220426z, n2d-standard-2 SEV-SNP, zone us-central1-c
+started 20261023T220426Z
+acp-bootstrap in the image sha256 c28b9915c95fd05be65c88fd49e74f74784e28a9ca47888eb2100eff2f60b0ff
+parent program sha256 30c4be5bd05386e1f2938b6ecec0dad53839bc1d808e9fd883ba910a50461e77
+image PCR0 e80a10e420023f1d32198e5d9a130c0017f106da1545e9d3e4488c9d57f1582db723803d810160e7f5e1a943aecf5219
+image PCR1 4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493
+image PCR2 db3b5358aeb1596d570591550ab093e7763d26107a3fba69e266066cc8f41b2e104b8ddebb415ce49f1411fa45a6f5dd
+key arn:aws:kms:us-east-2:<account>:key/b9a4f9ce-f9bb-493b-891e-2f5bc661f995

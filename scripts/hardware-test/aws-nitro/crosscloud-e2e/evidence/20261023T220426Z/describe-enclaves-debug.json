@@ -1,0 +1,22 @@
+[
+  {
+    "EnclaveName": "acp-bootstrap",
+    "EnclaveID": "i-0435089af3e1d6fe7-enc1a16acfd629f1e8",
+    "ProcessID": 28926,
+    "EnclaveCID": 16,
+    "NumberOfCPUs": 2,
+    "CPUIDs": [
+      1,
+      3
+    ],
+    "MemoryMiB": 3072,
+    "State": "RUNNING",
+    "Flags": "DEBUG_MODE",
+    "Measurements": {
+      "HashAlgorithm": "Sha512_48 { .. }",
+      "PCR0": "e80a10e420023f1d32198e5d9a130c0017f106da1545e9d3e4488c9d57f1582db723803d810160e7f5e1a943aecf5219",
+      "PCR1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+      "PCR2": "db3b5358aeb1596d570591550ab093e7763d26107a3fba69e266066cc8f41b2e104b8ddebb415ce49f1411fa45a6f5dd"
+    }
+  }
+]

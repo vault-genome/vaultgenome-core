@@ -1,0 +1,46 @@
+{
+  "authority_kid": "sagvd-authority-demo",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEADcqyYfl+bEMITsDtyaPg9vx75z+IwMESif/NG+WTqSg=\n-----END PUBLIC KEY-----\n",
+  "authority_signature_suite": "ed25519",
+  "tee_provider": "gcp-sev-snp",
+  "tee_measurement_hex": "21199b36f500cc26a5d26c92c699fe2820ce217458bf219be18efd761f636b4145fdecbd7249c4b566797b4afd339546",
+  "sealer": "sev-snp-derived-key",
+  "sev_snp_policy": {
+    "bulletins_read_on": "2026-10-22",
+    "floors": {
+      "Bergamo/Siena": "snp 0x1b microcode 0x1b, mitigation vector bits 0x2, alias check",
+      "Genoa": "snp 0x1b microcode 0x56, mitigation vector bits 0x2, alias check",
+      "Genoa-X": "snp 0x1b microcode 0x51, mitigation vector bits 0x2, alias check",
+      "Milan": "snp 0x1b microcode 0xde, mitigation vector bits 0x2, alias check",
+      "Milan-X": "snp 0x1b microcode 0x47, mitigation vector bits 0x2, alias check",
+      "Turin": "snp 0x4 microcode 0x51, mitigation vector bits 0x1",
+      "Turin Dense": "snp 0x4 microcode 0x4e, mitigation vector bits 0x1"
+    }
+  },
+  "audit_kid": "sagvd-audit-demo",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAI90vYnLY4TWVANNVHHsLTTanlzK40KE/lJfUfexoLIQ=\n-----END PUBLIC KEY-----\n",
+  "audit_signature_suite": "ed25519",
+  "key_escrow_tag": "4bc93d7b00ec2790",
+  "key_escrow_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAr3NwbMi2LL1jROda8DTbocAtJsK2JPs2hGUnRu/dJXA=\n-----END PUBLIC KEY-----\n",
+  "key_escrow_storage": "sealed:gcp-sev-snp",
+  "key_escrow_suite": "hpke-x25519-v2",
+  "crypto_profile": "general",
+  "kem_suites": [
+    "hpke-x25519-v2",
+    "hpke-p384-v2",
+    "hpke-mlkem768-v2",
+    "hpke-mlkem1024-p384-v2",
+    "hpke-xwing-v2"
+  ],
+  "signature_suite": "ed25519",
+  "signature_suites": [
+    "ed25519",
+    "ecdsa-p384-sha384",
+    "ml-dsa-87"
+  ],
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  }
+}

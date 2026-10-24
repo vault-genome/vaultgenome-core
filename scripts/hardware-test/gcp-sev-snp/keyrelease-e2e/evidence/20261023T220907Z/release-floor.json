@@ -1,0 +1,14 @@
+{
+  "status": "failed",
+  "error": {
+    "category": "integrity",
+    "code": "attestation_denied",
+    "message": "integrity[attestation_denied]: kms.CoordinateRestore: destination Evidence does not verify for the presented recipient key and suite under this nonce: integrity[attestation_denied]: gcp-sev: TCB floor: reported TCB snp 0x1d below 0x1e (tee.peer.sev_snp.tcb_floor)"
+  },
+  "handshake_request_id": "xcc-req-fee974ed45bfe98237fb6df1a43d378f",
+  "handshake_audit_id": "xcc-evt-000000000000000b",
+  "crypto_profile": "general",
+  "audit_chain_length": 12,
+  "audit_tip": "6d14b660c13b92523866d3f0fa88a065bcfdaff5fa3a4447637e3dce5eb9148f",
+  "operator_stop_serial": 3
+}

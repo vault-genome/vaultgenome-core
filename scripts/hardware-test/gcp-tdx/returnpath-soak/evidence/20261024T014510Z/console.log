@@ -1,0 +1,13 @@
+== binaries from gs://rats-probe-vg-tdxsoak-20261024t014355z/e2e
+== the Trust Domain: configfs-tsm (tdx_guest)
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== the host's vTPM: tee.sealer auto resolves to tpm2 on a Trust Domain (tpm2-tools)
+== provision (acp-keygen, private modes; every key file is sealed to this host below)
+== identities: each daemon reads MRTD and RTMR0..3 from a quote of this Trust Domain
+== the key files sealed to this host (ADR 0023; tee.sealer unset — auto, which is tpm2 here, ADR 0025 step 1b)
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 623.32it/s]
+== soak: sagvd at max_sessions=3, 3 workers, jobs kept queued for 60 minutes
+== snapshots of the daemons' state at the end
+== verify the audit log of the whole soak with the published key; count its records by kind
+== the Intel PCS documents both verifiers fetched (public), for offline re-verification

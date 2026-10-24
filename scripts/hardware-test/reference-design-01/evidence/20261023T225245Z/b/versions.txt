@@ -1,0 +1,2 @@
+acp-bootstrap v0.10.0 (commit 84cc9b91e590f3351a8a035ae1ba78a34af74857) fips140=only module=v1.0.0 enforced=true
+acpctl v0.10.0 (commit 84cc9b91e590f3351a8a035ae1ba78a34af74857) fips140=only module=v1.0.0 enforced=true

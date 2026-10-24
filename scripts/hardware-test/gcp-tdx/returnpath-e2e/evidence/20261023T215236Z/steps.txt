@@ -1,0 +1,37 @@
+== binaries from gs://rats-probe-vg-tdxrp-20261023t215137z/e2e
+== the Trust Domain: configfs-tsm (tdx_guest)
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== the host's vTPM: tee.sealer auto resolves to tpm2 on a Trust Domain (tpm2-tools)
+== provision (acp-keygen, private modes; every key file is sealed to this host below)
+== identities: each daemon reads MRTD and RTMR0..3 from a quote of this Trust Domain
+sagvd identity exit=0
+acp-compute identity exit=0
+vault_measurement=02de1d974289aa2d164b633b5d290db4611d5080ddd1d668b27c93e507506b6cfff4b7df8ab5231026aff7b97004253d
+worker_measurement=02de1d974289aa2d164b633b5d290db4611d5080ddd1d668b27c93e507506b6cfff4b7df8ab5231026aff7b97004253d
+sagvd-identity.json: provider=gcp-tdx mrtd=c1ee9c16e3afc506… rtmr3=0000000000000000… sha384(mrtd||rtmr0..3)==measurement: True
+acp-compute-identity.json: provider=gcp-tdx mrtd=c1ee9c16e3afc506… rtmr3=0000000000000000… sha384(mrtd||rtmr0..3)==measurement: True
+== the key files sealed to this host (ADR 0023; tee.sealer unset — auto, which is tpm2 here, ADR 0025 step 1b)
+sagvd seal-keys exit=0 sealer=tpm2 sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+acp-compute seal-keys exit=0 sealer=tpm2 sealed=keys.worker_signing.seed_path,vault.tls.client_key
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-33805f1d11ab-g0-d06538ffba5c
+== sagvd on TDX
+sagvd ready after 4s
+== a thief with the sealed key files, off this host: they do not open (ADR 0023; the vTPM's seal)
+rogue with the sealed files exit=1 sealed to gcp-tdx, this host is simulated
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+rogue refused after 1s
+== acp-compute on TDX, the real door
+session opened after 0s
+== the gate job over the Return Path
+job_id=c276ebaab6780dc7a6f9d41b97ab7be7
+job status=succeeded after 4s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-e2e
+== metrics
+== stop both; verify the audit log with the published key
+audit verify exit=0
+audit query exit=0
+== the Intel PCS documents both verifiers fetched (public), for offline re-verification
+elapsed_seconds=100.1

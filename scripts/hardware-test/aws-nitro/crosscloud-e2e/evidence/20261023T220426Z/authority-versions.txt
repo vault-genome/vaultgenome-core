@@ -1,0 +1,2 @@
+sagvd v0.10.0 (commit 84cc9b91e590) fips140=off module=latest enforced=false
+acpctl v0.10.0 (commit 84cc9b91e590) fips140=off module=latest enforced=false

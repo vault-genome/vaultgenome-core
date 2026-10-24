@@ -1,0 +1,66 @@
+profile=fips
+fips=1 GODEBUG=fips140=only
+signature_suite=ecdsa-p384-sha384
+== binaries from gs://rats-probe-vg-rd01-20261023t225245z/in
+== the AMD Milan chain from KDS, verified against the roots acpctl pins (ADR 0024)
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== provision (acp-keygen, private modes; every key file is sealed to the chip below)
+== identities: each daemon reads its launch measurement from the chip
+sagvd identity exit=0
+acp-compute identity exit=0
+sagvd fips140 enabled=true enforced=true version=v1.0.0
+acp-compute fips140 enabled=true enforced=true version=v1.0.0
+vault_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+worker_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf
+sagvd crypto_profile=fips kem_suites=hpke-p384-v2,hpke-mlkem768-v2,hpke-mlkem1024-p384-v2
+sagvd signature_suite=ecdsa-p384-sha384 signature_suites=ed25519,ecdsa-p384-sha384
+sagvd authority_signature_suite=ecdsa-p384-sha384 audit_signature_suite=ecdsa-p384-sha384
+acp-compute signing_signature_suite=ecdsa-p384-sha384
+== the cross-cloud transport's own client pair and the operator's stop key, before sealing; the policy files start as placeholders
+== the standby's bundle, taken before sealing: its TLS material, the CA, a client pair for the bank's transport, the token
+== the key files sealed to this host (ADR 0023)
+sagvd seal-keys exit=0 sealer=sev-snp-derived-key
+acp-compute seal-keys exit=0 sealer=sev-snp-derived-key
+== the quant's fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl (design step 1)
+finetune exit=0
+seal exit=0
+key_id=genome-0659b4cc0722-g0-d3dac915ca94
+== hand-off to the standby through the bucket: its bundle, the base model, the sealed genome (opaque without its key), the authority's public key
+standby bundle removed from the bank host after hand-off
+== sagvd on SEV-SNP
+sagvd ready after 11s
+== a thief with the sealed key files, off the chip: they do not open (ADR 0023)
+rogue with the sealed files exit=1 sealed to gcp-sev-snp, this host is simulated
+== a worker that is not the pinned identity: refused at the Return Path handshake, on the record
+rogue refused after 1s
+== acp-compute on SEV-SNP, the real door: the handshake with the chip's report (design step 3)
+session opened after 8s
+== the operator's gate job over the Return Path (design steps 2, 4, 5)
+job_id=1904431ad82006502bd6143c9718784a
+job status=succeeded after 5s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-e2e request_id=req-39736416c89db76a session_id=ses-faec86b1-0000000000000001
+== the continuity: wait for the standby's identity (its chip's measurement, for the allow-list)
+standby_endpoint=https://10.164.0.14:8443
+standby_measurement=0e017d2fba7c4964575fdd8c770061abf07f0753148d030f94e969a2d1fa5a5747ba0ced9174f2d44b5f6663fa2de00f
+standby crypto_profile=fips kem_suites=hpke-p384-v2,hpke-mlkem768-v2,hpke-mlkem1024-p384-v2
+== the genome's key released to the standby in region B, only after its chip attested (the allow-list, the report against the AMD chain)
+release exit=0
+release suite=hpke-p384-v2
+release profile=fips
+release recipient_key_sha256=08045c3e674854bb990282a450f33faa1aaa652af0433bc8e79bb8c15a4ccc61
+== the standby restores by itself; the restore confirmed from its chip-signed receipt
+confirm exit=0
+== release refused: a guest not on the allow-list
+unlisted exit=1 policy denied key release: destination measurement not in allow-list for 
+== release refused: the operator's stop in force
+stopped exit=1 policy denied key release: operator stop in force 
+== metrics; stop both; both audit logs verified with the published key (design step 6, here first)
+audit verify exit=0
+audit suite=ecdsa-p384-sha384 events=17
+audit query exit=0
+xcc audit verify exit=0
+xcc audit suite=ecdsa-p384-sha384 events=10
+xcc audit query exit=0
+== hand the record to the third party: both audit logs, the published audit key, the job's view
+elapsed_seconds=161.8

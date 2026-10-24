@@ -1,0 +1,31 @@
+{
+  "tee": "gcp-sev-snp",
+  "measurement_hex": "e79ebb5b789ddb6b7a9897f663a655a65c69445aa482c4e1a5ff9fdeb4af1a2c8d5d30fcad5f4f0e04f1a13885eb984d",
+  "sealer": "sev-snp-derived-key",
+  "sealed": [
+    {
+      "name": "keys.authority_signing.seed_path",
+      "path": "/root/xcc/secrets/sagvd/authority_signing_seed"
+    },
+    {
+      "name": "keys.session_sealing.material_path",
+      "path": "/root/xcc/secrets/shared/sealing.key"
+    },
+    {
+      "name": "keys.audit_signing.seed_path",
+      "path": "/root/xcc/secrets/sagvd/audit_signing_seed"
+    },
+    {
+      "name": "vault.tls.server_key",
+      "path": "/root/xcc/secrets/sagvd/tls/server.key"
+    },
+    {
+      "name": "crosscloud.transport_tls.client_key",
+      "path": "/root/xcc/xcc/client.key"
+    },
+    {
+      "name": "http_api.bearer_token_file",
+      "path": "/root/xcc/secrets/sagvd/api_token"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+row T23d
+kit authority-loss rats-probe us-central1-c fips
+tag v0.10.0 84cc9b91e590f3351a8a035ae1ba78a34af74857
+tag signature: Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
+lane /Users/serhiinikolaichuk/dev/vg-trial-a (tracked tree = v0.10.0)
+runner 1ac68993731030d25a1ddf611b4522b133948409
+go go1.27.3 on Darwin arm64
+GOFLAGS '-ldflags=-X main.version=v0.10.0 -X main.commit=84cc9b91e590f3351a8a035ae1ba78a34af74857 -buildid= -s -w'
+git status.showUntrackedFiles=no (environment); FIPS module v1.0.0
+lane build: 10 of 10 equal to the signed assets
+start 2026-10-23T22:37:42Z
+end 2026-10-23T22:54:34Z
+kit exit 0
+evidence 20261023T223742Z
+copy 20261023T223742Z: into the tree, identical
+release bytes: 12 equal, 0 differ (release-bytes.txt)

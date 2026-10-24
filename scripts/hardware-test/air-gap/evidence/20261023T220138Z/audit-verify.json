@@ -1,0 +1,1 @@
+{"ok":true,"audit_path":"audit/airgap-audit.db","archive_dir":"audit/archive","signature_suite":"ed25519","event_count":33,"tip":"2ca30104a6282dc8aa85f7d9949f97bc5bbf6574fd3874537ded3be744bb960a","segments":[{"path":"audit/airgap-audit.db","first_index":0,"events":33,"tip":"2ca30104a6282dc8aa85f7d9949f97bc5bbf6574fd3874537ded3be744bb960a","live":true}]}

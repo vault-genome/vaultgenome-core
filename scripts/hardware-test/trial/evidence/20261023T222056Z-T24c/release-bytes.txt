@@ -1,0 +1,4 @@
+EQUAL  20261023T222101Z/inputs.sha256: sagvd = asset sagvd-fips
+EQUAL  20261023T222101Z/inputs.sha256: acp-bootstrap = asset acp-bootstrap-fips
+EQUAL  20261023T222101Z/inputs.sha256: acpctl = asset acpctl-fips
+EQUAL  20261023T222101Z/inputs.sha256: keygen = asset acp-keygen-fips

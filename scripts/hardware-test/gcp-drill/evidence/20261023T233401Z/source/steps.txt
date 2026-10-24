@@ -1,0 +1,7 @@
+== 23:37:16 inputs
+== 23:37:16 python runtime (CPU)
+== 23:38:32 base model Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775
+== 23:38:46 fine-tune (deterministic, 8 threads, inside the SEV-SNP guest)
+== 23:42:54 seal
+== 23:42:54 restore here from the bundle, gate, measure, replay
+== 23:45:00 hand off the bundle and its key

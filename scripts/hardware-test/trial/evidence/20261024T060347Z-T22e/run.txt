@@ -1,0 +1,17 @@
+row T22e
+kit gcp-sev-snp/returnpath-soak rats-probe
+tag v0.10.0 84cc9b91e590f3351a8a035ae1ba78a34af74857
+tag signature: Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
+lane /Users/serhiinikolaichuk/dev/vg-trial-a (tracked tree = v0.10.0)
+runner 48f140e54eb4e0f3162d13447b8b946242812aea
+go go1.27.3 on Darwin arm64
+env VG_SOAK_MINUTES=120
+GOFLAGS '-ldflags=-X main.version=v0.10.0 -X main.commit=84cc9b91e590f3351a8a035ae1ba78a34af74857 -buildid= -s -w'
+git status.showUntrackedFiles=no (environment); FIPS module v1.0.0
+lane build: 10 of 10 equal to the signed assets
+start 2026-10-24T06:03:53Z
+end 2026-10-24T08:15:10Z
+kit exit 0
+evidence 20261024T060520Z
+copy 20261024T060520Z: into the tree, identical
+release bytes: 4 equal, 0 differ (release-bytes.txt)

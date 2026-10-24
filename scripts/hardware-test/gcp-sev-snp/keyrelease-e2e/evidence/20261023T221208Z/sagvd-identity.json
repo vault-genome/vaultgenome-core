@@ -1,0 +1,28 @@
+{
+  "authority_kid": "sagvd-authority-demo",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEABNgud7KphYUk97oYb8Rq5RCZy4Y8YWaDA+3orBOIlJE=\n-----END PUBLIC KEY-----\n",
+  "authority_signature_suite": "ed25519",
+  "tee_provider": "simulated",
+  "tee_measurement_hex": "d59a461d1130614a2a5e57ea9a8135a034d8a05c4c6ad6d077debaf276ebb068",
+  "tee_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAUxTWtWNmMXgq1I727qmmJpRsbN3uFuJqKWyqnGUu1h0=\n-----END PUBLIC KEY-----\n",
+  "sealer": "simulated",
+  "audit_kid": "sagvd-audit-demo",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAH3xaBMDBlxs2I4toHfyZDAEa6ZhNnyDp/Hk8NURNLZQ=\n-----END PUBLIC KEY-----\n",
+  "audit_signature_suite": "ed25519",
+  "crypto_profile": "fips",
+  "kem_suites": [
+    "hpke-p384-v2",
+    "hpke-mlkem768-v2",
+    "hpke-mlkem1024-p384-v2"
+  ],
+  "signature_suite": "ed25519",
+  "signature_suites": [
+    "ed25519",
+    "ecdsa-p384-sha384"
+  ],
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  }
+}

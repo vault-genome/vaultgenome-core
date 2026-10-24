@@ -1,0 +1,31 @@
+== binaries from gs://rats-probe-vg-p2-20261023t222420z/in
+== configfs-tsm
+== the worker runtime here too: the fine-tune that makes the genome needs it
+== step 1: acpctl provision authority — keygen, sagvd for an azure-sev-snp worker (genoa chain), this chip's milan chain for the worker, identity, sealed keys, the bundle
+provision authority exit=0
+provider=auto worker=azure-sev-snp sealer=auto phase=awaiting-worker
+vault_measurement=9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf vault_sealer=sev-snp-derived-key
+sealed_sagvd=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+amd_cert_chain=/root/deploy/amd-genoa-cert_chain.pem bundle_sha256=bd9040e585fa830481540dae0764389e77dd28a7e2e7097170fb33baf9a8b397
+== the genome: tiny base model built here, LoRA adapter trained by vg_genome, sealed into /root/deploy/genomes
+finetune exit=0
+seal exit=0
+key_id=genome-b686fa51fc1a-g0-e62c5abace05
+== hand-off: the bundle, the base model and provision.json to the bucket; the bundle removed from this host
+bundle removed from the authority host after hand-off
+== wait for the worker's identity (the orchestrator carries it back through the bucket)
+== step 3: acpctl provision pin-worker — the worker's measurement from its own chip, pinned
+provision pin-worker exit=0
+phase=complete worker_measurement=11920f61def85094b343e12e306217e95dace3b19e1aaf9d116749e3655ee73a185f517b08a5fd932a04295a559591c4 worker_provider=azure-sev-snp worker_sealer=tpm2
+== sagvd on what provision wrote, listening on 0.0.0.0:9443 for the worker across the Internet
+sagvd ready after 11s
+session opened after 4s
+== the gate job over the Return Path, to the worker on the other cloud
+job_id=982736fdd6de25c9fa853f9650f047af
+job status=succeeded after 6s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo
+attestation_outcome=allow peer_provider=None
+== metrics; stop sagvd; verify the audit log with the key provision kept for the operator
+audit verify exit=0
+audit query exit=0
+elapsed_seconds=299.1

@@ -1,0 +1,3 @@
+instance=vg-neg-primary-20261023t221534z
+zone=europe-west4-a
+machine=n2d-standard-8

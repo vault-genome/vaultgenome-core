@@ -1,0 +1,2 @@
+EQUAL  20261023T233916Z/destination/inputs.sha256: acp-bootstrap = asset acp-bootstrap
+EQUAL  20261023T233916Z/destination/inputs.sha256: acpctl = asset acpctl

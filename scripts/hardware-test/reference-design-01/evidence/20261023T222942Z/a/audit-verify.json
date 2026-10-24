@@ -1,0 +1,1 @@
+{"ok":true,"audit_path":"audit/returnpath-audit.db","archive_dir":"audit/archive","signature_suite":"ecdsa-p384-sha384","event_count":17,"tip":"4c6b1599ab79b341eb55681c50f664c73ca07ed6237fd9916c746e8b839a6caf","segments":[{"path":"audit/returnpath-audit.db","first_index":0,"events":17,"tip":"4c6b1599ab79b341eb55681c50f664c73ca07ed6237fd9916c746e8b839a6caf","live":true}]}

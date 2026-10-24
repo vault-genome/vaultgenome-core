@@ -41,7 +41,7 @@ nothing but the work.
   of `controls.md` it cites, then the claims and trial rows those cite.
   Every number in the maps is in a record under
   [`VERIFIABLE-CLAIMS.md`](../../VERIFIABLE-CLAIMS.md) or
-  [`TRIAL-2026-10.md`](../TRIAL-2026-10.md).
+  [`TRIAL-v0.10.0.md`](../TRIAL-v0.10.0.md).
 - **For a security questionnaire**: the catalogue answers the questions
   about the software; the questions about the organisation (screening,
   training, insurance, incident reporting) are answered from the

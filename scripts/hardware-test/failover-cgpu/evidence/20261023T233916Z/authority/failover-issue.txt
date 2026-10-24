@@ -1,0 +1,1 @@
+failover policy serial 1 written to /root/failover.json: sentinel sentinel-a9f9b69be188721c (ed25519) -> azure-cgpu https://20.101.114.226:8443, until 2026-11-22T23:51:08Z

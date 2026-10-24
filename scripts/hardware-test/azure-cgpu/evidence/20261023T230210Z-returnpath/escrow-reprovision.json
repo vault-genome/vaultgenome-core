@@ -1,0 +1,10 @@
+{
+  "escrow_key": "80672c37c0fe97f4",
+  "suite": "hpke-x25519-v2",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAM3AEC8KQL5tUlUoO827GdlnLKw3VATCRBXjuLH7RD3M=\n-----END PUBLIC KEY-----\n",
+  "tee": "azure-cgpu",
+  "measurement_hex": "6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48",
+  "source": "stdin",
+  "sealed_path": "escrow-2.sealed",
+  "public_path": "escrow-2.pem"
+}

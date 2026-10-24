@@ -1,0 +1,6 @@
+third-party audit verify (return path) exit=0
+third-party audit verify (cross-cloud) exit=0
+third-party audit query --request req-82dd907db36c74d5 exit=0 events=6
+third-party lineage --session-id ses-5cb09c05-0000000000000001 exit=0
+third-party audit-verify-returnpath signature_suite=ed25519
+third-party audit-verify-crosscloud signature_suite=ed25519

@@ -1,0 +1,1 @@
+{"ok":true,"audit_path":"/root/xcc-audit.db","archive_dir":"/root/archive","signature_suite":"ed25519","event_count":5,"tip":"82332f3485851ee5b29189e40bac7c3bd46ff654a33e5cc4e1e698af32d77027","segments":[{"path":"/root/xcc-audit.db","first_index":0,"events":5,"tip":"82332f3485851ee5b29189e40bac7c3bd46ff654a33e5cc4e1e698af32d77027","live":true}]}

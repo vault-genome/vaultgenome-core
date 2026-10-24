@@ -1,0 +1,7 @@
+{"time":"2026-10-23T23:31:49.807310721Z","level":"INFO","msg":"acp-compute starting","version":"v0.10.0","commit":"84cc9b91e590f3351a8a035ae1ba78a34af74857","config_path":"worker.json","vault_address":"127.0.0.1:9443","workload_descriptor":"acp-compute-returnpath-cgpu-v1"}
+{"time":"2026-10-23T23:31:50.007884411Z","level":"INFO","msg":"worker signing identity","kid":"acp-compute-worker-demo","pubkey_hex":"ac93ac8d58c5a8dfba700c4115209e9e2ccaf9dee6b3526fab2a94bad35c6293"}
+{"time":"2026-10-23T23:31:50.007930812Z","level":"INFO","msg":"worker TEE identity","tee_provider":"azure-cgpu","measurement_hex":"6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48","peer_provider":"azure-cgpu","peer_verifier":"builtin"}
+{"time":"2026-10-23T23:31:50.007941212Z","level":"INFO","msg":"genome door","command":["/opt/vg/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/opt/base","--device","cuda"],"timeout_seconds":600}
+{"time":"2026-10-23T23:31:50.046304099Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9082"}
+{"time":"2026-10-23T23:31:51.288117125Z","level":"INFO","msg":"return-path session opened","peer_measurement":"6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48","peer_evidence_type":"application/vnd.vault-genome.azure-cgpu-evidence","peer_evidence_bytes":19286,"handshake_ms":1239,"ready_at":"2026-10-23T23:31:51.287753519Z"}
+{"time":"2026-10-23T23:36:04.125559576Z","level":"INFO","msg":"acp-compute stopped"}

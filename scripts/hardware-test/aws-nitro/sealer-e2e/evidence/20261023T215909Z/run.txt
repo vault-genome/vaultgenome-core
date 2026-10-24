@@ -1,0 +1,13 @@
+commit 84cc9b91e590f3351a8a035ae1ba78a34af74857
+tree clean
+go go1.27.3
+region us-east-2, availability zone us-east-2a, instance type m5.xlarge
+AMI ami-053ef5d7ebe355f4a (al2023-ami-kernel-default-x86_64)
+started 20261023T215909Z
+enclave program sha256 c9e293b95a8b4b409a7df801bc0db3fef4de44626f0d2546f10f45fb737fa855
+parent program sha256 c47bbadf85fc0f8f3e8371309441b73adced04c12c5d14a8c64a921a9bf47ea4
+image PCR0 bff8e0ca2b4e8299117889c3d88a068201194831a9a350efd170d4403a4d9f719160244dd71e7df70c842c37ccc64c40
+the other key's policy admits PCR0 64b14984aa293ae25016abe15e8ca81369f7f3139fa244367137a531464fc66cbea3c2b841d01152c15160836358da71 (random)
+secret: 64 random bytes made on the operator's machine; sha256 f1a283360bed80817e352a90db4828ede7669b5bbf9cbf0c2090be655dd766b2
+key arn:aws:kms:us-east-2:<account>:key/e8950feb-3349-4d85-8fef-3e3f52097553
+other key arn:aws:kms:us-east-2:<account>:key/1e70849c-24c1-41f6-b9b9-76186f210545
