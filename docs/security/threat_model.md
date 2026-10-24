@@ -1,11 +1,11 @@
 # Vault Genome — STRIDE threat model
 
-| Last updated | 2026-10-14 ([review record](review-2026-10.md)) |
+| Last updated | 2026-10-24 (last review 2026-10-14: [record](review-2026-10.md)) |
 |--------------|------------|
 | Owner        | The maintainers (`GOVERNANCE.md`) |
 | Audience     | Enterprise security teams, regulators, auditors |
 | Methodology  | STRIDE per platform + Vault Genome control plane (Microsoft 2002) |
-| Shipped backends | `gcp-sev-snp`, `gcp-tdx`, `azure-cgpu`; `simulated` for tests only. AWS Nitro, Azure SGX and Intel SGX bare metal are measurement kits (`scripts/hardware-test/`), not shipped verifiers (`VERIFIABLE-CLAIMS.md`) |
+| Shipped backends | `gcp-sev-snp`, `gcp-sev-snp-vtpm`, `gcp-tdx`, `azure-sev-snp`, `azure-cgpu`; `aws-nitro` as a key-release destination; `simulated` for tests only. Azure SGX and Intel SGX bare metal are measurement kits (`scripts/hardware-test/`), not shipped verifiers (`VERIFIABLE-CLAIMS.md`); `azure-sev-snp` is the `azure-cgpu` section without its GPU rows |
 
 This document is the formal threat model for Vault Genome. Each
 section identifies:
@@ -21,10 +21,12 @@ section identifies:
 ## Table of contents
 
 - [Vault Genome control plane](#vault-genome-control-plane)
-- [AWS Nitro Enclaves](#aws-nitro-enclaves-aws-nitro)
+- [AWS Nitro Enclaves (aws-nitro)](#aws-nitro-enclaves-aws-nitro)
 - [Azure Confidential Computing — SGX (azure-sgx)](#azure-confidential-computing--sgx-azure-sgx)
-- [GCP Confidential VMs — SEV-SNP (gcp-sev-snp)](#gcp-confidential-vms--sev-snp-gcp-sev-snp)
+- [GCP Confidential VMs — SEV-SNP (gcp-sev-snp, gcp-sev-snp-vtpm)](#gcp-confidential-vms--sev-snp-gcp-sev-snp-gcp-sev-snp-vtpm-with-the-boot-chain)
 - [Intel SGX bare metal (intel-sgx-dcap)](#intel-sgx-bare-metal-intel-sgx-dcap)
+- [GCP Confidential VMs — Intel TDX (gcp-tdx)](#gcp-confidential-vms--intel-tdx-gcp-tdx)
+- [Azure confidential GPU VM (azure-cgpu, azure-sev-snp)](#azure-confidential-gpu-vm--sev-snp-vtpm-and-an-h100-azure-cgpu)
 - [Simulated backend (simulated)](#simulated-backend-simulated)
 - [Cross-platform residual risks](#cross-platform-residual-risks)
 
@@ -95,53 +97,66 @@ Decisions that moved the control plane's boundary, each with its record:
 
 ## AWS Nitro Enclaves (`aws-nitro`)
 
-> **Kit, not product.** The tree ships no verifier for this backend
-> (`VERIFIABLE-CLAIMS.md`, "What we do not claim"); the section states the
-> boundary and the properties a verifier would have to establish, and is
-> what the measurement kit under `scripts/hardware-test/aws-nitro` is checked
-> against.
+A key-release destination ([ADR 0035](../adr/0035-the-aws-nitro-verifier-from-the-specification.md),
+[0036](../adr/0036-the-nitro-enclave-as-a-key-release-destination.md); proven
+across clouds, VERIFIABLE-CLAIMS C50, C51, C52): `acp-bootstrap` runs in a
+production-mode enclave and receives a genome key from a source `sagvd`
+that verified the enclave's attestation document against its policy.
+`sagvd` and `acp-compute` do not run in an enclave.
 
 ### Trust boundaries
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│ AWS account / VPC                                          │
-│  ┌───────────────────────────────────────────────────────┐│
-│  │ Parent EC2 instance                                    ││
-│  │  ├── KMS endpoint (mTLS via VPC endpoint)              ││  ← AWS region boundary
-│  │  ├── nitro-enclaves-cli (vsock proxy)                  ││  ← parent ↔ enclave boundary
-│  │  └── ┌────────────────────────────────────────────┐   ││
-│  │      │ Nitro Enclave (vault-genome image)          │   ││  ← TEE measurement boundary
-│  │      │  ├── /dev/nsm (NSM)                          │   ││
-│  │      │  ├── attestation document signer (NSM root)   │   ││
-│  │      │  └── sagvd / acp-compute binary               │   ││
-│  │      └────────────────────────────────────────────┘   ││
-│  └───────────────────────────────────────────────────────┘│
-└───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ AWS account                                                  │
+│  ┌──────────────────────────────────────────────────────────┐│
+│  │ Parent EC2 instance                                      ││  ← untrusted: forwards bytes, holds the role's credentials
+│  │  ├── TCP ↔ vsock forwarder to acp-bootstrap's API        ││  ← carries TLS; sees ciphertext
+│  │  ├── vsock proxy to AWS KMS                              ││  ← carries TLS; sees ciphertext
+│  │  └── ┌──────────────────────────────────────────────────┐││
+│  │      │ Nitro Enclave (production mode)                  │││  ← PCR0 = SHA-384 of the image, pinned by the source
+│  │      │  ├── /dev/nsm: attestation documents             │││  ← signed under the AWS Nitro Enclaves Root CA G1
+│  │      │  ├── acp-bootstrap: TLS ends here (AF_VSOCK)     │││
+│  │      │  └── TLS key, bearer token: released by KMS      │││
+│  │      │      to this image only (aws-kms-attested)       │││
+│  │      └──────────────────────────────────────────────────┘││
+│  └──────────────────────────────────────────────────────────┘│
+│ AWS KMS: Decrypt only for a document whose image the key     │
+│ policy names (kms:RecipientAttestation:ImageSha384)          │
+└──────────────────────────────────────────────────────────────┘
+  Source: sagvd on another TEE — verifies the document, releases
+  the key, confirms the restore from the enclave's receipt
 ```
 
 ### Threat table
 
 | STRIDE | Threat | Mitigation |
 |--------|--------|------------|
-| **S** Spoofing | Parent EC2 lies about being a Nitro Enclave when it isn't | NSM device only present inside genuine enclaves; NSM-signed attestation document chains to AWS PCA root (pinned at build); `awsNitroPinnedRoots` |
-| **S** Spoofing | Attacker forges an attestation document | document signed by AWS-managed PCA root; signature verified by `verifyCOSESignature` against pinned root; production verifier rejects debug-mode enclaves (`isDebugAttestation`) |
-| **T** Tampering | Attacker rebuilds the enclave image with malicious code | PCR0 (enclave image hash) changes deterministically; verifier's `AcceptablePCRSet` only includes blessed PCRs; mismatched PCR0 fails Verify with Integrity error |
-| **T** Tampering | KMS key policy modified to allow other principals | AWS IAM audit logs (deployer's responsibility); KMS key policy includes `kms:RecipientAttestation:ImageSha384` condition pinned to expected PCR0 — modifying policy doesn't grant access if PCR0 condition still pins the enclave |
-| **R** Repudiation | Parent EC2 instance owner denies an attestation came from their enclave | attestation document includes Module ID (per-enclave UUID); CloudTrail logs enclave start/stop |
-| **I** Information disclosure | Parent EC2 reads enclave memory | impossible by design — Nitro hypervisor isolates enclave RAM; AWS Nitro hardware-rooted memory protection |
-| **I** Information disclosure | KMS key material leaks | KMS keys never leave HSM; cleartext requested with `RecipientAttestation` only available to enclave bound to the correct PCR0 |
-| **I** Information disclosure | Side-channel via shared CPU caches | AWS publishes Nitro hypervisor security model; cache-partitioning at HV layer; we accept "AWS is honest" as a trust assumption — alternative: deploy on Intel SGX bare metal with PRMRR cache flushing |
-| **D** DoS | Parent EC2 is terminated mid-session | acpctl recover (VG-007) re-runs sagvd on a fresh enclave with same PCR0; sealed material in S3 / KMS unaffected |
-| **D** DoS | NSM device hangs producing attestation | adapter sets per-Quote timeout (default 30s); failed attestation returns Structural error and the daemon refuses to enter the session |
-| **E** Elevation of privilege | Attacker compromises Nitro firmware | out of scope — relies on AWS to patch firmware; we verify attestation against PCA root which AWS rotates on firmware changes |
-| **E** Elevation of privilege | Attacker swaps an unsigned vsock proxy for the official one | vsock proxy is OUTSIDE the trust boundary; attacker who replaces it can drop connections but cannot decrypt the contents (TLS terminates inside the enclave, not at the proxy) |
+| **S** Spoofing | Something other than a Nitro enclave presents a document | the document is a COSE_Sign1 envelope whose protected header names ES384 and no `crit` parameter; its signing certificate chains, at the verifier's clock and without revocation as AWS specifies, to the AWS Nitro Enclaves Root CA G1 pinned in the binary (`aws_nitro_roots.go`), and `cabundle[0]` must be that root (`verifyNitroCertChain`); the ECDSA P-384 signature is checked over the Sig_structure (`verifyCOSESignature`) |
+| **S** Spoofing | A debug-mode enclave of the same image | refused by its all-zero PCR0 (`isDebugAttestation`); pins on PCR3 and PCR4 cannot stand in for PCR0, because a debug-mode enclave keeps its parent's (ADR 0036, decision 5; C51) |
+| **S** Spoofing | A captured document replayed | the challenge is mandatory: a document without the challenger's nonce, or with another, is refused (`nonceMatches`); the document's timestamp must lie within the skew of the verifier's clock (five minutes by default, `nitro.max_clock_skew_seconds`) |
+| **T** Tampering | Bytes crafted to attack the parser | the CBOR and COSE codec is written in the tree from AWS's specification and RFC 9052 (`aws_nitro_cbor.go`, `aws_nitro_cose.go`): the document's subset only, at most 64 KiB, nesting 8 and 4096 items, a closed set of fields; anything else is a refusal before a signature is checked (ADR 0035) |
+| **T** Tampering | The enclave image rebuilt with other code | PCR0 is the measurement: the source's registry entry and allow-list name it (`expected_measurement_hex`), and the policy may pin PCR1, 2, 3, 4 and 8 besides (`nitro.pcrs`, `AWSNitroPolicyConfig`); a pin narrows what PCR0 admits and never replaces it |
+| **T** Tampering | The parent swaps the genome bundle on its way in | the bundle travels sealed, the key comes only from the release, and the enclave's receipt names the bundle's digest, which the source holds to its own (ADR 0011; ADR 0036, decision 3) |
+| **T** Tampering | The KMS key policy is loosened | the condition `kms:RecipientAttestation:ImageSha384` binds Decrypt to the image; the data key's encryption context names the image and the secret, so a file sealed for one image or one secret does not open as another (`aws_nitro_sealer.go`); the policy is the account owner's, and CloudTrail records every call (C51) |
+| **R** Repudiation | A release or a restore is denied | `sagvd` writes what it read of the document — the PCRs, the module id, the timestamp (`AttestationDetail.nitro`) — on the admission and release records before the release takes effect; the restore receipt is signed in the enclave with the NSM and verified by `sagvd crosscloud-confirm` against the release (C52) |
+| **I** Information disclosure | The parent reads the enclave's traffic | TLS terminates inside the enclave for its API and for KMS; the parent's forwarder and proxy carry ciphertext (ADR 0036, decision 2; `internal/shared/vsock`, `internal/shared/awskms`) |
+| **I** Information disclosure | The parent reads the enclave's memory | the Nitro hypervisor isolates the enclave's memory; accepted as AWS's design (residual) |
+| **I** Information disclosure | The enclave's secrets at rest | the enclave has no disk: the TLS server key and the bearer token come in as sealed files — AES-256-GCM under a KMS data key — and open only in the enclave, through KMS Decrypt with the enclave's own document as the recipient; KMS answers in CMS that only the enclave's ephemeral key opens (`aws_nitro_sealer.go`, `internal/shared/cms`; C50, C51) |
+| **I** Information disclosure | Side channels | accepted residual risk (cross-platform table) |
+| **D** DoS | The parent stops forwarding, or KMS or the NSM does not answer | the enclave cannot be reached or cannot open its secrets, and receives no key: a refusal, not a pass; the producer attests itself at start — a document over a random nonce, verified whole by the shipping verifier — and stops before it serves when the device answers wrongly (ADR 0036, decision 1) |
+| **E** Elevation of privilege | The parent's role credentials used against KMS | the enclave signs its KMS requests (Signature Version 4, `internal/shared/awssigv4`) with credentials the parent holds anyway; the key policy protects: Decrypt answers only for a recipient document whose image it names, and sealing (`kms:GenerateDataKey`) is the operator's role's, not the instance's (ADR 0036, decision 4; C51) |
+| **E** Elevation of privilege | The hypervisor or the Nitro firmware compromised | the platform's: its version is not in the document and is not held (C52 scope); trusted with the AWS root |
 
 ### Trust assumptions specific to AWS Nitro
 
-- **Trusted**: AWS Nitro hypervisor, NSM, AWS PCA root, KMS HSMs.
-- **Untrusted**: parent EC2 OS, vsock proxy daemon, AWS console
-  operator (relative to the enclave's running code).
+- **Trusted**: the Nitro hypervisor and the NSM, the AWS Nitro Enclaves
+  Root CA G1 (pinned), AWS KMS's evaluation of the key policy.
+- **Untrusted**: the parent EC2 instance — its operating system, its
+  forwarder and proxy, the credentials of its role.
+- **Not held**: the hypervisor's version; an older sealed file of the
+  same secret for the same image, which the parent can hand the enclave
+  (ADR 0036, part three; C51, C52 scope).
 
 ---
 
