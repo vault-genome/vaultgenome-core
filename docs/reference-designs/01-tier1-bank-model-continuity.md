@@ -172,7 +172,7 @@ The platform table is [`../security/threat_model.md`](../security/threat_model.m
 | The primary is compromised and lies about its state | the failover takes the primary's word only with its chip's report on it, and silence alone triggers the move (ADR 0017; C14, C35) |
 | An operator signs a policy that would move the key somewhere wrong | refused with the reason on the record (C22); an operator who signs a *valid* bad policy is outside the argument |
 | The cloud provider's hypervisor | the chip's memory encryption and attestation are the vendor's; the vendor's silicon is the accepted residual risk |
-| A quantum adversary later | residual risk 6 of the threat model; no post-quantum scheme ships |
+| A quantum adversary later | under the `cnsa` profile the key is released by the MLKEM1024-P384 hybrid, post-quantum (ADR 0029; C40); signatures stay classical until a certified module carries ML-DSA-87 (ADR 0031), and the rest is residual risk 6 of the threat model |
 
 ## Operational concerns
 
