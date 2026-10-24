@@ -1,0 +1,5 @@
+instance=vg-images-20261024t185758z
+zone=us-central1-c
+machine=n2d-standard-4
+captured=20261024T190054Z
+release=v0.11.0
