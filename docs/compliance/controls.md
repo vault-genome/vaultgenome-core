@@ -1,9 +1,9 @@
 # The control catalogue — what the software does, where, and how it is proven
 
-| Last updated | 2026-10-22, on the tree of ADR 0031 and the confidential-GPU measurement of ADR 0030 (VG-004, VG-038) and the acceptance trial of October 2026 |
+| Last updated | 2026-10-24, on the tree of ADR 0031 and the confidential-GPU measurement of ADR 0030 (VG-004, VG-038) and the acceptance trial of v0.10.0 |
 | - | - |
 | Replaces | the catalogue of 2026-05-04 (twenty controls, three of them for files that are no longer in the tree) |
-| Pair documents | [`../adr/README.md`](../adr/README.md) · [`../../VERIFIABLE-CLAIMS.md`](../../VERIFIABLE-CLAIMS.md) · [`../TRIAL-2026-10.md`](../TRIAL-2026-10.md) · [`../security/assurance_case.md`](../security/assurance_case.md) |
+| Pair documents | [`../adr/README.md`](../adr/README.md) · [`../../VERIFIABLE-CLAIMS.md`](../../VERIFIABLE-CLAIMS.md) · [`../TRIAL-v0.10.0.md`](../TRIAL-v0.10.0.md) · [`../security/assurance_case.md`](../security/assurance_case.md) |
 
 This is the list of controls the sector maps in this directory refer to.
 A control is a thing the software does by construction; each row names
@@ -19,8 +19,8 @@ in each sector map.
 
 **How a row is read.** *Where*: the decision record (ADR) and the code
 home. *Proof*: a claim (`Cn`) in `VERIFIABLE-CLAIMS.md` with its
-evidence directory, a trial row (`Tn`) in `TRIAL-2026-10.md` — the same
-kit run again on the released code — and the test or gate that holds
+evidence directory, a trial row (`Tn`) in `TRIAL-v0.10.0.md` — the same
+kit run again on the signed release's own bytes — and the test or gate that holds
 the control in CI. *Boundary*: the trust boundary of the assurance case
 (B1 operator ↔ authority; B2 authority ↔ worker; B3 worker ↔ hardware;
 B4 authority ↔ its storage; B5 source ↔ binary). *Limit*: what the
