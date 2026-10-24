@@ -3293,8 +3293,8 @@ live floors was not available to refuse.
 product's SEV-SNP parse, AMD-chain and signature checks and, on the same
 bytes, Google's `go-sev-guest` v0.15.0 (`tools/oracle`, a module of its
 own) and VirTEE's `snpguest` 0.10.0, on every genuine report on record
-(`test/corpus/sev-snp`: 42 reports on 2026-10-23 — 17 the kits kept, 25
-from the key-release receipts — 25 distinct chips, Milan and Genoa, report
+(`test/corpus/sev-snp`: 55 reports on 2026-10-24 — 21 the kits kept, 34
+from the key-release receipts — 27 distinct chips, Milan and Genoa, report
 versions 3 and 5, firmware from SNP 0x17 to 0x1d, each with its VCEK and
 AMD's chain). Each report verifies under all three; nineteen fields are
 equal between the product and go-sev-guest (version, guest SVN, policy,
@@ -3331,6 +3331,12 @@ refusal counts;
 [`test/corpus/sev-snp/results/harness-oracle-20261023T205108Z.json`](test/corpus/sev-snp/results/harness-oracle-20261023T205108Z.json)
 — the harness with the Google adapter on the 42: eleven fields each,
 eight of eight mutants refused on each;
+[`test/corpus/sev-snp/results/differential-20261024T014520Z.json`](test/corpus/sev-snp/results/differential-20261024T014520Z.json)
+— the corpus at 55, with the receipts and reports of the acceptance
+trial of v0.10.0 (two chips new), the Google reading alone: both verify
+every report, nineteen fields equal, the sweeps as on every other report;
+[`test/corpus/sev-snp/results/harness-oracle-20261024T014543Z.json`](test/corpus/sev-snp/results/harness-oracle-20261024T014543Z.json)
+— the harness with the Google adapter on the 55;
 [`test/corpus/sev-snp/manifest.tsv`](test/corpus/sev-snp/manifest.tsv) and
 [`test/corpus/sev-snp/SHA256SUMS`](test/corpus/sev-snp/SHA256SUMS) — the
 corpus; the `corpus` job of the `differential` workflow on every push.
@@ -3344,7 +3350,7 @@ cargo install snpguest --version 0.10.0 --locked                         # VirTE
 ```
 
 **Scope.** Two readings maintained by others, run on the same bytes: not a
-proof that any of the three is correct, but that they agree on 42 reports
+proof that any of the three is correct, but that they agree on 55 reports
 of two product lines and disagree on none, and that a byte out of place
 is refused by all. The stage of a refusal differs and may: go-sev-guest
 refuses reserved and must-be-one bits at the parse where the product
