@@ -197,4 +197,4 @@ process.
 
 ---
 
-*Vault Genome Inc. · AGPL-3.0-or-later (kit + tools) · NDA-scoped artifacts*
+*The Capital Index LLC · AGPL-3.0-or-later (kit + tools) · NDA-scoped artifacts*
