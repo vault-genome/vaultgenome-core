@@ -229,7 +229,7 @@ extract_identity() {
 
   echo "---"
   echo ""
-  echo "_**Vault Genome Inc.** — AWS Nitro Enclaves hardware validation cohort_"
+  echo "_**The Capital Index LLC** — AWS Nitro Enclaves hardware validation cohort_"
   echo "_AGPL-3.0-or-later (kit + tools) · NDA-scoped artifacts_"
 } > "${OUT}"
 

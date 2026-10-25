@@ -50,7 +50,7 @@ satisfy AGPL's network-distribution clause.
 
 ### Commercial license (paid)
 
-- Sold by Vault Genome Inc. to customers whose deployment cannot
+- Sold by The Capital Index LLC to customers whose deployment cannot
   satisfy AGPL §13 (e.g., closed-source banking apps that link
   Vault Genome client libraries, embedded appliances, white-label
   resellers).
@@ -87,7 +87,7 @@ satisfy AGPL's network-distribution clause.
   abstraction; the licensed grant flows through commercial licenses.
 - Contributors signing the CLA grant both an AGPL-compatible patent
   license (for community use) and an opt-in commercial license
-  (relicensing rights for Vault Genome Inc.). Standard practice;
+  (relicensing rights for The Capital Index LLC). Standard practice;
   see e.g. Apache CLA, Canonical CLA.
 
 **Negative / accepted trade-offs.**
