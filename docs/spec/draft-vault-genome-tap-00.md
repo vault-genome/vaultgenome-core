@@ -3,7 +3,7 @@
 ```
 Internet Engineering Task Force                              S. Nikolaichuk
 Internet-Draft                                            R. Sorokin
-Intended status: Standards Track                          Vault Genome Inc.
+Intended status: Standards Track                      The Capital Index LLC
 Expires: 2026-11-06                                              May 6, 2026
 
 
@@ -370,7 +370,7 @@ This document has no actions for IANA.
               (RATS) Architecture", RFC 9334, January 2023.
 
    [TAP-CONFORMANCE]
-              Vault Genome Inc., "TEE-Agnostic Attestation Protocol
+              The Capital Index LLC, "TEE-Agnostic Attestation Protocol
               Conformance Test Suite", available at
               https://github.com/vault-genome/vaultgenome-core/
                 tree/main/pkg/teeconformance.
@@ -379,21 +379,21 @@ This document has no actions for IANA.
 ### 10.2. Informative References
 
 ```
-   [VG-CORE]  Vault Genome Inc., "Reference implementation",
+   [VG-CORE]  The Capital Index LLC, "Reference implementation",
               https://github.com/vault-genome/vaultgenome-core.
 
    [VG-CONFORMANCE-PKG]
-              Vault Genome Inc., "Public conformance test package",
+              The Capital Index LLC, "Public conformance test package",
               https://github.com/vault-genome/vaultgenome-core/
                 tree/main/pkg/teeconformance.
 
    [VG-PATENT]
-              Vault Genome Inc., "Patent disclosure: TEE-agnostic
+              The Capital Index LLC, "Patent disclosure: TEE-agnostic
               attestation abstraction", available under NDA from
-              ops@vaultgenome.com.
+              info@thecapitalindex.com.
 
    [INCIDENT-DOCTRINE]
-              Vault Genome Inc., "Bootstrap Contracts Doctrine §17:
+              The Capital Index LLC, "Bootstrap Contracts Doctrine §17:
               Incident Detection", private repository.
 
    [AWS-NITRO]
@@ -462,10 +462,10 @@ intended TEE family.)
 
 ```
    Serhii Nikolaichuk
-   Vault Genome Inc.
-   Email: ops@vaultgenome.com
+   The Capital Index LLC
+   Email: serhii@vaultgenome.com
 
    Rodion Sorokin
-   Vault Genome Inc.
-   Email: ops@vaultgenome.com
+   The Capital Index LLC
+   Email: rodion@vaultgenome.com
 ```
