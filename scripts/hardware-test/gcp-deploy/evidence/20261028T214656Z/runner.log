@@ -1,0 +1,7 @@
+21:46:56 == 1. deploy.sh, as a person runs it (release v0.13.0, sev-snp, project rats-probe)
+21:51:23 deploy.sh took 267 s
+21:51:23 deployed v0.13.0 on vg-button-20261028t214656z (us-central1-c); 16 audit events after the first job
+21:51:23 == 2. a reset: the same chip, a fresh boot — the services come back on their own
+21:52:49 back after the reset in 86 s: 2 of 2 services active, the session opened on this boot
+21:52:49 == 3. a second gate job over ssh, and the chain verified across the reboot
+21:54:12 second job: status=succeeded gate=EXACT rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo; the chain verifies, 32 events (was 16)

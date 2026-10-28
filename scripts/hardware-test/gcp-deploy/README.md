@@ -73,3 +73,18 @@ events` each pausing the services for about 3 s. The same day the kit
 ran once more on SEV-SNP with the guest that knows both platforms
 (`evidence/20261028T162801Z/`): 271 s to `PROVEN`, the same figures as
 the first record, the second job EXACT, 32 events.
+On `v0.13.0`, the release whose notes carry the button for its tag
+(release procedure §5.9), both platforms again on 2026-10-28, within an
+hour of the release: `evidence/20261028T214656Z/` — SEV-SNP, `deploy.sh`
+267 s to `PROVEN` (the runtime 47.2 s, provision 10.5 s, `sagvd` ready
+17 s after its start, the session open 0 s after the worker's, the gate
+job EXACT in 5.2 s; 155.9 s on the guest), the reset and the services back
+in 86 s, a second job EXACT over ssh, one chain of 32 events; the chip
+Milan, TCB snp 0x1f, microcode 0xe1, above the floors.
+`evidence/20261028T215508Z/` — TDX, `deploy.sh --platform tdx` 263 s to
+`PROVEN` with the settled-boot reboot (on the settled boot: provision 8.2 s,
+`sagvd` ready 3 s after its start, the session open 1 s after the
+worker's, EXACT in 4.2 s, 30.3 s from its first command to the sealed
+verdict), the reset and the services back in 58 s with the vTPM opening
+the key files again, a second job EXACT, one chain of 32 events.
+

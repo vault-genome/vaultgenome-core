@@ -1,0 +1,11 @@
+== packages
+== configfs-tsm: the hardware's reports
+== the release v0.13.0 from GitHub, held to the signed checksums list
+== the worker runtime from the hash-pinned locks
+== a base model for the first genome: the tiny one the reference deployment gates
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 475.33it/s]
+== acpctl provision: keys, configurations, identities and pins, the key files sealed to this host
+== the first genome: a LoRA fine-tune by vg_genome, sealed by acpctl into the genome directory
+== the daemons as systemd services
+== the gate job over the Return Path
+== metrics; then the audit log verified under the operator's key with both services paused, and the hardware as the verifier read it
