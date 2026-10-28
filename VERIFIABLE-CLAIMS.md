@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -4125,6 +4125,104 @@ means for the pin. The settled-boot rule costs one reboot (84 s on the
 record) and is applied whenever the sealer is the vTPM — `--platform tdx`,
 or `--sealer tpm2` on SEV-SNP. One instance type, one zone, one run on the
 record.
+
+<a id="c57"></a>
+### C57 — The same button deploys the signed release on a real Azure Confidential VM (AMD SEV-SNP under the paravisor): the boot pinned and the key files sealed under the vTPM's PCRs without IMA's PCR 10, a gate job EXACT, the audit log verified, 293 s from the command to `PROVEN`; after `az vm restart` the services come back on their own, the vTPM opens the files again, a second job gates EXACT and one chain of 32 events verifies — and the host Azure chose first, its chip firmware under AMD's floor, was refused
+
+**Claim.** On 2026-10-28 `scripts/hardware-test/azure-deploy/run.sh
+v0.13.0 westeurope` ran `deploy/azure/deploy.sh` as a person does. The
+release was verified first as in [C55](#c55) (the tag's signature, the
+signed list under `release.yml@refs/tags/v0.13.0`, 5 of 5 files, 5 of 5
+provenances), and `azuredeploy.json` — the template behind the Deploy to
+Azure button, generated from the guest script and checked against it —
+was deployed into a resource group of its own: one `Standard_DC4as_v5`
+Confidential VM (Ubuntu 24.04 CVM image, secure boot, vTPM), the verified
+list's hash in its tags. The first host Azure chose ran SNP firmware 0x17,
+under the 0x1B floor AMD-SB-3020 sets for Genoa: the released verifier
+refused it at the handshake (`TCB floor: reported TCB snp 0x17 below
+0x1b`, ADR 0033), the guest named the refusal on its console
+(`refused-host.out`), and the kit deployed again in a second resource
+group, as a person would. On that host (Genoa, SNP 0x1C, microcode 0x58,
+firmware 1.58.2, above the floors) the guest fetched the five files from
+GitHub and held them to the list, installed the worker runtime from the
+hash-pinned locks (52.3 s) and `tpm2-tools`, and **rebooted once** before
+it provisioned; on the settled boot, after `systemd-pcrphase.service`,
+`acpctl provision --provider auto` resolved `azure-sev-snp` from the HCL
+report and wrote the deployment in 2.3 s: both configurations with
+`tee.vtpm_quote_pcrs` and `tee.vtpm_seal_pcrs` as
+`sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14` (ADR 0037, amendment of
+2026-10-28), both identities Azure's launch measurement `6587d41e…` —
+the paravisor and firmware — each pinned by the other side together
+with the boot the vTPM measured over that selection, `dfc99de8…`
+(`provision.json`: `vtpm_pcrs` on both sides, `pcr_digests` in both
+configurations), eight key files sealed to the vTPM under the same PCRs
+(`sealer: tpm2`; five of the authority's, three of the worker's). A first
+genome was fine-tuned and sealed; `sagvd.service` was ready 1 s after its
+start and the worker's session opened 0 s after the worker's — the
+HCL report's SNP report verified under the VCEK chain to AMD's root and
+against the floors, the quote under the key the report names, its digest
+one the policy pins; a gate job over the Return Path came back EXACT, 6
+of 6 fixtures byte for byte, `max_abs_err` 0, 6.3 s after submission;
+sixteen audit events verified under `operator/audit_public_key.pem` with
+both services paused, and both were back with the sealed files opened a
+second time. The `PROVEN` summary was printed 293 s after the command,
+22.6 s of them on the settled boot from its first command to the sealed
+verdict, and the record was fetched over ssh and checked against the
+guest's own `sha256sums.txt`. The kit then ran `az vm restart` and 166 s
+later ssh answered with both services active and the session open on the
+new boot; `vg submit` over ssh gated a second job EXACT, 6 of 6; `vg
+verify` replayed one chain of 32 events, `ok: true` (16 before the
+restart). `tpm2_pcrread` at seal time and after the restart
+(`after-restart/pcrs-diff.txt`) differ in PCR 10 alone — IMA's runtime
+log, which the image extends as files are first read — and PCR 10 is in
+neither the pin nor the seal. Keys, seeds and the operator's token stayed
+on the VM and were deleted with its resource group.
+
+**Evidence.**
+[`scripts/hardware-test/azure-deploy/evidence/20261028T215840Z/`](scripts/hardware-test/azure-deploy/evidence/20261028T215840Z/)
+— `refused-host.out` and `refused-host-record/` (the first host: the
+verifier's refusal, `reported TCB snp 0x17 below 0x1b`), `deploy.out`,
+`deploy/verify/`, `deploy/guest/` (`steps.txt`: `settled_boot`,
+`provider=auto peer=azure-sev-snp`, `vault_sealer=tpm2
+worker_sealer=tpm2`, `gate_level=EXACT … n_exact=6`; `chip.txt`:
+`product=Genoa … snp=0x1c microcode=0x58 … floor_snp=0x1b`;
+`provision.json` with `vtpm_pcrs` and both boot pins; both identities
+with their `vtpm` blocks; `sagvd.json` and `acp-compute.json` with the
+selection; `sealed-files.txt`; `pcrs-at-seal.txt`; `eventlog-at-seal.yaml`;
+`job.json`; `audit-verify.json`; `audit-events.jsonl`;
+`audit-public-key.pem`; `timeline.txt`; `sha256sums.txt`),
+`deploy/serial-console.txt`, `after-restart/` (`health.txt`,
+`journal-this-boot.txt`, `pcrs.txt`, `pcrs-diff.txt`, `submit.txt`,
+`audit-verify.json`, `audit-events.jsonl`), `summary.txt`
+(`platform=azure-sev-snp`, `hosts_refused_by_the_verifier=1`,
+`deploy_seconds=293`, `events_after_first_job=16`,
+`events_after_restart_and_second_job=32`), `runner.log`, `sha256sums.txt`.
+The rehearsal `v0.13.0-rc1` ran the same the same day
+([`evidence/20261028T210406Z/`](scripts/hardware-test/azure-deploy/evidence/20261028T210406Z/):
+252 s to `PROVEN`, back in 67 s after the restart, 32 events, PCR 10 the
+only register that moved), and two hosts under the floor were refused that
+day ([`evidence/20261028T205033Z-refused-host/`](scripts/hardware-test/azure-deploy/evidence/20261028T205033Z-refused-host/),
+[`evidence/20261028T214657Z-refused-host/`](scripts/hardware-test/azure-deploy/evidence/20261028T214657Z-refused-host/)).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/azure-deploy/run.sh v0.13.0 westeurope   # ~15 min, one Standard_DC4as_v5 in a resource group of its own, deleted at the end
+deploy/azure/deploy.sh                                          # the button's command: the VM stays, in the resource group "vaultgenome"
+```
+
+**Scope.** As [C55](#c55), with the cloud swapped: the launch
+measurement is Azure's paravisor and firmware, so the boot is pinned
+from the vTPM's quote (ADR 0037) and the key files are sealed to the
+same vTPM (ADR 0022), both over a selection that leaves out IMA's PCR 10 —
+on `v0.12.0` the same deployment, pinned and sealed over PCRs 0–14, did
+not survive a restart (the amendment of 2026-10-28 records the data). The
+host is Azure's choice: a chip whose firmware is under AMD's floor is
+refused, as the policy says, and the next deployment lands elsewhere —
+three of six hosts in West Europe that day ran SNP firmware 0x1C, three
+0x17. The settled-boot rule costs one reboot (31.3 s on the record). One
+instance type, one region, one run on the record on the release and one on
+its rehearsal.
 
 ---
 

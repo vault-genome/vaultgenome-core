@@ -153,6 +153,16 @@ open(sys.argv[2], "w").write("".join(json.dumps(e) + "\n" for e in conftest.EXAM
 else
   mark settled_boot
   note "settled boot: $(journalctl --list-boots --no-pager 2>/dev/null | wc -l | tr -d ' ') boots on record"
+  # systemd extends PCR 11 with the boot's phases (sysinit, then "ready"
+  # from systemd-pcrphase.service), and a key file sealed to the vTPM's
+  # PCRs opens again only in the phase it was sealed in: the barrier runs
+  # before anything is sealed, and the services start after it (their units).
+  systemctl start systemd-pcrphase.service 2>/dev/null || true
+  note "pcrphase=$(systemctl is-active systemd-pcrphase.service 2>/dev/null || echo absent)"
+  # The vTPM's PCRs and its event log as they are when the key files are
+  # sealed: what a later boot must reproduce for them to open.
+  tpm2_pcrread sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,23 > "$OUT/pcrs-at-seal.txt" 2>&1 || true
+  tpm2_eventlog /sys/kernel/security/tpm0/binary_bios_measurements > "$OUT/eventlog-at-seal.yaml" 2>/dev/null || true
   export PYTHONPATH=$VAR/worker/genome TOKENIZERS_PARALLELISM=false
 fi
 
@@ -204,11 +214,14 @@ RC=$?; note "seal exit=$RC"; [ "$RC" = 0 ] || fail "acpctl genome seal exit $RC 
 note "key_id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["key_id"])' "$OUT/seal.json" 2>/dev/null)"
 
 step "the daemons as systemd services"
+# Both after systemd's PCR phase barrier (see above): a vTPM-sealed key
+# file opens in the boot phase it was sealed in. Harmless where the chip
+# seals, and where the unit does not exist.
 cat > /etc/systemd/system/sagvd.service <<UNIT
 [Unit]
 Description=Vault Genome authority (sagvd), release $TAG
 Documentation=$REPO_URL/blob/$TAG/docs/operator/00_overview.md
-After=network-online.target
+After=network-online.target systemd-pcrphase.service
 Wants=network-online.target
 
 [Service]
@@ -228,7 +241,7 @@ cat > /etc/systemd/system/acp-compute.service <<UNIT
 [Unit]
 Description=Vault Genome worker (acp-compute), release $TAG
 Documentation=$REPO_URL/blob/$TAG/docs/operator/00_overview.md
-After=network-online.target sagvd.service
+After=network-online.target systemd-pcrphase.service sagvd.service
 Wants=network-online.target sagvd.service
 
 [Service]

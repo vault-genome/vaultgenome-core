@@ -1,0 +1,9 @@
+21:58:40 == 1. deploy.sh, as a person runs it (release v0.13.0, westeurope, resource group vg-button-20261028t215840z)
+22:05:27 the host Azure chose was refused by the verifier (its chip firmware is below AMD's floor, ADR 0033): reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE)) ; deploying again in another resource group
+22:05:28 == 1. deploy.sh, as a person runs it (release v0.13.0, westeurope, resource group vg-button-20261028t215840z-2)
+22:10:21 deploy.sh took 293 s
+22:10:21 deployed v0.13.0 on vaultgenome (vg-button-20261028t215840z-2, westeurope, 20.107.43.67); 16 audit events after the first job
+22:10:21 == 2. a restart: the same VM, a fresh boot — the services come back on their own
+22:13:07 back after the restart in 166 s: 2 of 2 services active, the session opened on this boot
+22:13:07 == 3. a second gate job over ssh, and the chain verified across the restart
+22:13:29 second job: status=succeeded gate=EXACT rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo; the chain verifies, 32 events (was 16)

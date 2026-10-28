@@ -11,6 +11,38 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- **One button on Azure** (`deploy/azure/`). `azuredeploy.json`, behind
+  the Deploy to Azure button and `deploy.sh`, deploys one Azure
+  Confidential VM (AMD SEV-SNP, `Standard_DC4as_v5`, secure boot, vTPM,
+  the OS disk encrypted with the VM guest state) whose cloud-init script
+  `guest.sh` verifies the release itself — the signed checksums list
+  under the release workflow's identity for the tag, with cosign at a
+  pinned hash, and the same list `deploy.sh` verified when it ran —
+  reads the chip's product from the SEV-SNP report in the vTPM's HCL
+  report, installs the runtime and `tpm2-tools`, reboots once so the key
+  files are sealed on a settled boot, and on that boot provisions with
+  `acpctl provision --provider auto` (both launch measurements and both
+  boots pinned, the AMD chain from KDS, every key file sealed to the
+  vTPM), makes and seals a first genome, starts both daemons as
+  services, gates a genome and verifies the audit log. `deploy.sh`
+  verifies the release on the deployer's machine too
+  (`deploy/lib/verify-release.sh`, now shared with the Google Cloud
+  button), fetches the record over ssh (the serial console carries a
+  copy, and a `PROVEN` block for the portal's boot diagnostics) and
+  prints the summary; `destroy.sh` removes the VM and its resources;
+  `make-template.sh` keeps the template equal to `guest.sh`. The kit
+  `scripts/hardware-test/azure-deploy` runs it into a resource group of
+  its own, restarts the VM, submits a second job over ssh, verifies the
+  chain across the restart and deletes the group.
+  Claim C57 on `v0.13.0`: 293 s from the command to `PROVEN` (the host
+  Azure chose first ran chip firmware under AMD's floor and was refused
+  by name; the kit deployed again on another), both sides quoting and
+  sealing under `sha256:0-9,11-14`, after `az vm restart` the services
+  back on their own, the key files opened again, a second job EXACT, one
+  chain of 32 events — only PCR 10 moved across the restart.
+
 ## [0.13.0] — 2026-10-28
 
 The release a person deploys with one button, and the one whose Azure
@@ -56,7 +88,6 @@ and its seals, and is re-provisioned to gain the fix (`08_upgrading.md`).
   are sealed on a settled boot (the image's first boot moves a PCR)
   — claim C56: 287 s to `PROVEN`, the vTPM opening the files again
   after a hard reset, a second job EXACT, one chain of 32 events.
-
 ### Fixed
 
 - **The Azure families' boot pin and seal survive a restart.** Their

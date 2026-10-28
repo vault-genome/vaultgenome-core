@@ -127,7 +127,8 @@ The daemon on the VM (root, or a user that may read the vTPM):
   races the barrier seals in one phase and asks in another: on the
   record, a VM sealed before "ready" never opened its key files after a
   restart, and one sealed after it failed its first start of the next
-  boot and succeeded on the retry.
+  boot and succeeded on the retry (the deployment of `deploy/azure`,
+  2026-10-28).
 - No `gpu_attest_command`, `nras_*` or `gpu_policy`: those are the
   `azure-cgpu` family's and are refused here.
 

@@ -1,0 +1,45 @@
+platform=azure-sev-snp sealer=auto settled_boot=1
+== packages
+== the vTPM and the chip's report in it (the HCL report); the chip's product from the report
+product=genoa
+== the release v0.13.0, verified on this guest: the signed list under the release workflow's identity, then the files against the list
+guest_cosign=Verified OK
+checksums_list_sha256=0ea8f0f71c20ee724dfddcdf9f98cd56982bfdb093fa569289136e56aae33e6c
+checksums_list_matches_deployer=true
+checksums_ok=5 of 5 downloaded files on the signed list
+== the worker runtime from the hash-pinned locks
+== a base model for the first genome: the tiny one the reference deployment gates
+== installed; rebooting once so the key files are sealed on a settled boot (the vTPM's PCRs) — this script runs again from vaultgenome-deploy.service
+settled boot: 3 boots on record
+pcrphase=active
+== acpctl provision: keys, configurations, the AMD genoa chain from KDS, identities and boots pinned, the key files sealed to the vTPM
+provision exit=0
+provider=auto peer=azure-sev-snp sealer=auto
+vault_measurement=6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48
+worker_measurement=6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48
+vault_boot=dfc99de8e7711930a19e5dd0f3b6461c5fec7ae3f6f9935150c2dd6ae1a8bbf4
+worker_boot=dfc99de8e7711930a19e5dd0f3b6461c5fec7ae3f6f9935150c2dd6ae1a8bbf4
+vault_sealer=tpm2
+worker_sealer=tpm2
+sealed_sagvd=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+sealed_worker=keys.worker_signing.seed_path,keys.session_sealing.material_path,vault.tls.client_key
+amd_cert_chain=/etc/vaultgenome/amd-genoa-cert_chain.pem
+audit_kid=sagvd-audit-demo authority_kid=sagvd-authority-demo
+== the first genome: a LoRA fine-tune by vg_genome, sealed by acpctl into the genome directory
+finetune exit=0
+seal exit=0
+key_id=genome-17ba01d6e2f6-g0-7c3e8bd4c938
+== the daemons as systemd services
+sagvd_ready_after=1s
+session_opened_after=0s
+== the gate job over the Return Path
+job_id=caa3aea1534503e588100c66386041c0
+job_status=succeeded
+job_wait=6s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo
+== metrics; then the audit log verified under the operator's key with both services paused, and the chip as the verifier read it
+audit verify exit=0
+restart_sagvd_ready_after=1s
+restart_session_opened_after=0s
+peer chip product=Genoa variant=Genoa cpuid=0x19/0x11/0x1 snp=0x1c microcode=0x58 firmware=1.58.2 alias_check=true mit_vector=0x7 floor_snp=0x1b floor_microcode=0x56
+elapsed_seconds=22.6

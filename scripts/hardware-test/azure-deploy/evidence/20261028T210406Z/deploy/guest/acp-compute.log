@@ -1,0 +1,16 @@
+Started acp-compute.service - Vault Genome worker (acp-compute), release v0.13.0-rc1.
+{"time":"2026-10-28T21:07:25.439409891Z","level":"INFO","msg":"acp-compute starting","version":"v0.13.0-rc1","commit":"20a3ee63b7c571944a3ed98e2f69d51057c1d86e","config_path":"/etc/vaultgenome/acp-compute.json","vault_address":"127.0.0.1:9443","workload_descriptor":"acp-compute-azure-deploy-v1"}
+{"time":"2026-10-28T21:07:25.647491254Z","level":"INFO","msg":"worker signing identity","kid":"acp-compute-worker-demo","pubkey_hex":"0dc3cbbecc47bd7ef6f07ee45386d720d6fbc13db1378a331706da8f1c9f318f"}
+{"time":"2026-10-28T21:07:25.647568957Z","level":"INFO","msg":"acp-compute tee.provider auto: the family is the host's to say","resolved_from":"vtpm-hcl","tee_provider":"azure-sev-snp"}
+{"time":"2026-10-28T21:07:25.647612758Z","level":"INFO","msg":"worker TEE identity","tee_provider":"azure-sev-snp","measurement_hex":"6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48","peer_provider":"azure-sev-snp","peer_verifier":"builtin"}
+{"time":"2026-10-28T21:07:25.648135176Z","level":"INFO","msg":"genome door","command":["/var/lib/vaultgenome/venv/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/var/lib/vaultgenome/base","--device","cpu"],"timeout_seconds":300}
+{"time":"2026-10-28T21:07:25.699268887Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9082"}
+{"time":"2026-10-28T21:07:26.265128724Z","level":"INFO","msg":"return-path session opened","peer_measurement":"6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48","peer_evidence_type":"application/vnd.vault-genome.azure-sev-snp-evidence","peer_evidence_bytes":4515,"handshake_ms":562,"ready_at":"2026-10-28T21:07:26.264816213Z"}
+{"time":"2026-10-28T21:07:31.470904434Z","level":"INFO","msg":"return-path session opened","peer_measurement":"6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48","peer_evidence_type":"application/vnd.vault-genome.azure-sev-snp-evidence","peer_evidence_bytes":4515,"handshake_ms":97,"ready_at":"2026-10-28T21:07:31.470719328Z"}
+Stopping acp-compute.service - Vault Genome worker (acp-compute), release v0.13.0-rc1...
+{"time":"2026-10-28T21:07:31.762686899Z","level":"INFO","msg":"acp-compute stopped"}
+acp-compute.service: Deactivated successfully.
+Stopped acp-compute.service - Vault Genome worker (acp-compute), release v0.13.0-rc1.
+acp-compute.service: Consumed 5.405s CPU time.
+Started acp-compute.service - Vault Genome worker (acp-compute), release v0.13.0-rc1.
+{"time":"2026-10-28T21:07:32.88298729Z","level":"INFO","msg":"acp-compute starting","version":"v0.13.0-rc1","commit":"20a3ee63b7c571944a3ed98e2f69d51057c1d86e","config_path":"/etc/vaultgenome/acp-compute.json","vault_address":"127.0.0.1:9443","workload_descriptor":"acp-compute-azure-deploy-v1"}

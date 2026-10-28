@@ -1,0 +1,10 @@
+release=v0.13.0-rc1
+platform=azure-sev-snp
+instance=vaultgenome
+resource_group=vg-button-20261028t210406z
+location=westeurope
+stamp=20261028T210406Z
+hosts_refused_by_the_verifier=0
+events_after_first_job=16
+events_after_restart_and_second_job=32
+deploy_seconds=252

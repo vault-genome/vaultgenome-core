@@ -1,0 +1,18 @@
+{
+  "bootLogCommand": {
+    "type": "String",
+    "value": "az vm boot-diagnostics get-boot-log -g vg-button-20261028t210406z -n vaultgenome -o tsv"
+  },
+  "publicIp": {
+    "type": "String",
+    "value": "52.157.174.202"
+  },
+  "sshCommand": {
+    "type": "String",
+    "value": "ssh vgadmin@52.157.174.202"
+  },
+  "stamp": {
+    "type": "String",
+    "value": "20261028T210406Z"
+  }
+}
