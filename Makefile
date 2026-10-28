@@ -66,19 +66,50 @@ bin/%-fips: cmd/%
 	@mkdir -p bin
 	CGO_ENABLED=0 GOFIPS140=$(FIPS_MODULE) $(GO) build $(GOFLAGS_REPRO) -o $@ ./$<
 
-# verify-reproducible builds every binary twice — the default build and
-# the FIPS build — with identical flags and diffs the resulting bytes. Failure means a non-determinism source
-# crept in (random build IDs, embedded timestamps, GOPATH leakage,
-# CGO non-determinism). CI runs this as sub-check 18 in vault-gate.yml.
+# The two tools a person runs on their own machine — acpctl and acp-keygen —
+# are also built for the platforms a laptop or a workstation is: macOS and
+# Windows on both architectures, Linux on arm64 (bin/<tool>-<os>-<arch>, a
+# .exe on Windows), with the same flags, so they rebuild byte for byte like
+# the others. The daemons stay linux/amd64: they attest with hardware no
+# other platform has, and a binary that has not run on that hardware is
+# not released (KNOWN_ISSUES #1 names what a release runs on).
+CROSS_TOOLS     := acpctl acp-keygen
+CROSS_PLATFORMS := linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64
+cross_name       = $(1)-$(2)$(if $(findstring windows,$(2)),.exe,)
+CROSS_BINARIES  := $(foreach t,$(CROSS_TOOLS),$(foreach p,$(CROSS_PLATFORMS),$(call cross_name,$(t),$(p))))
+
+.PHONY: build-cross
+build-cross: $(CROSS_BINARIES:%=bin/%)
+
+# One rule per tool and platform, so `make bin/acpctl-darwin-arm64` works
+# and the pattern rules above never see these stems.
+define cross_rule
+bin/$(call cross_name,$(1),$(2)): cmd/$(1)
+	@mkdir -p bin
+	CGO_ENABLED=0 GOOS=$(word 1,$(subst -, ,$(2))) GOARCH=$(word 2,$(subst -, ,$(2))) $$(GO) build $$(GOFLAGS_REPRO) -o $$@ ./$$<
+endef
+$(foreach t,$(CROSS_TOOLS),$(foreach p,$(CROSS_PLATFORMS),$(eval $(call cross_rule,$(t),$(p)))))
+
+# release.yml reads the list from here, so the workflow and the Makefile
+# cannot disagree about what a release carries.
+.PHONY: cross-binaries
+cross-binaries:
+	@echo $(CROSS_BINARIES)
+
+# verify-reproducible builds every binary twice — the default build, the
+# FIPS build and the cross builds — with identical flags and diffs the
+# resulting bytes. Failure means a non-determinism source crept in (random
+# build IDs, embedded timestamps, GOPATH leakage, CGO non-determinism). CI
+# runs this as sub-check 18 in vault-gate.yml.
 .PHONY: verify-reproducible
 verify-reproducible:
 	@$(MAKE) --no-print-directory clean-bin
-	@$(MAKE) --no-print-directory build build-fips
+	@$(MAKE) --no-print-directory build build-fips build-cross
 	@mkdir -p dist/repro
-	@for b in $(BINARIES) $(BINARIES:%=%-fips); do cp bin/$$b dist/repro/$$b.first; done
+	@for b in $(BINARIES) $(BINARIES:%=%-fips) $(CROSS_BINARIES); do cp bin/$$b dist/repro/$$b.first; done
 	@$(MAKE) --no-print-directory clean-bin
-	@$(MAKE) --no-print-directory build build-fips
-	@for b in $(BINARIES) $(BINARIES:%=%-fips); do \
+	@$(MAKE) --no-print-directory build build-fips build-cross
+	@for b in $(BINARIES) $(BINARIES:%=%-fips) $(CROSS_BINARIES); do \
 	  if cmp -s dist/repro/$$b.first bin/$$b; then \
 	    echo "  $$b: byte-identical across two builds"; \
 	  else \

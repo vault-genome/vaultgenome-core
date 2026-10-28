@@ -2,7 +2,10 @@
 #
 # Triggered by a signed semver tag matching v*. Produces:
 #   - five binaries (sagvd, acp-compute, acpctl, acp-bootstrap, acp-keygen), built
-#     reproducibly,
+#     reproducibly, their -fips variants on the certified module, and acpctl
+#     and acp-keygen for macOS, Windows and Linux arm64 (the Makefile's
+#     build-cross),
+#   - the worker package and a signed list of every artifact's SHA-256,
 #   - an SBOM per artifact (syft, SPDX-JSON),
 #   - cosign keyless signatures + transparency-log entries,
 #   - a SLSA provenance attestation (slsa-github-generator).
@@ -89,7 +92,10 @@ jobs:
           # SOURCE_DATE_EPOCH = the tagged commit's timestamp, so anything
           # in the build chain that consults it produces deterministic output.
           SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"; export SOURCE_DATE_EPOCH
-          make build build-fips FIPS_MODULE="$FIPS_MODULE"
+          # The tools for the other platforms (bin/<tool>-<os>-<arch>) are
+          # named by the Makefile; the list is read from it, not kept here.
+          RELEASE_CROSS="$(make -s cross-binaries)"; echo "RELEASE_CROSS=$RELEASE_CROSS" >> "$GITHUB_ENV"
+          make build build-fips build-cross FIPS_MODULE="$FIPS_MODULE"
           make verify-reproducible FIPS_MODULE="$FIPS_MODULE"
           # The -fips binaries name the module they were built on, in their
           # build settings and in their version line.
@@ -98,6 +104,14 @@ jobs:
           done
           line="$(./bin/sagvd-fips version)"; echo "$line"
           case "$line" in *"fips140=on module=${FIPS_MODULE} "*) ;; *) echo "sagvd-fips does not report the module"; exit 1;; esac
+          # Each cross build names, in its build settings, the platform its
+          # file name promises.
+          for b in $RELEASE_CROSS; do
+            s="${b%.exe}"; arch="${s##*-}"; r="${s%-*}"; os="${r##*-}"
+            if ! { go version -m "bin/$b" | grep -qE "^\s*build\s+GOOS=${os}$" && go version -m "bin/$b" | grep -qE "^\s*build\s+GOARCH=${arch}$"; }; then
+              echo "$b: not a ${os}/${arch} build"; exit 1
+            fi
+          done
 
       # The worker package: workers/genome (vg_genome, its locks, the
       # examples) as one reproducible tarball — sorted names, the tagged
@@ -121,6 +135,19 @@ jobs:
           cmp "dist/genome-worker-${VERSION}.tar.gz" /tmp/genome-worker-again.tar.gz
           sha256sum "dist/genome-worker-${VERSION}.tar.gz"
 
+      # One signed list of every artifact's SHA-256 — the binaries and the
+      # worker package — in sha256sum's format, so that `sha256sum -c
+      # checksums-<tag>.txt` in a directory of downloaded assets checks them
+      # all at once, and a package manager's formula pins what the list says.
+      - name: Checksums of every artifact
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          # shellcheck disable=SC2086
+          { ( cd bin && sha256sum $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS )
+            ( cd dist && sha256sum "genome-worker-${VERSION}.tar.gz" ); } > "dist/checksums-${VERSION}.txt"
+          cat "dist/checksums-${VERSION}.txt"
+
       - name: Install syft
         id: syft
         uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
@@ -134,7 +161,7 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           mkdir -p dist
-          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS; do
+          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS; do
             syft "bin/$b" -o spdx-json="dist/${b}.sbom.spdx.json"
           done
           syft "dir:workers/genome" -o spdx-json="dist/genome-worker-${VERSION}.sbom.spdx.json"
@@ -159,22 +186,24 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS; do
+          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS; do
             cosign sign-blob --yes --new-bundle-format "bin/$b" \
               --output-signature "dist/${b}.sig" \
               --output-certificate "dist/${b}.cert" \
               --bundle "dist/${b}.sigstore.json"
           done
-          cosign sign-blob --yes --new-bundle-format "dist/genome-worker-${VERSION}.tar.gz" \
-            --output-signature "dist/genome-worker-${VERSION}.tar.gz.sig" \
-            --output-certificate "dist/genome-worker-${VERSION}.tar.gz.cert" \
-            --bundle "dist/genome-worker-${VERSION}.tar.gz.sigstore.json"
+          for f in "genome-worker-${VERSION}.tar.gz" "checksums-${VERSION}.txt"; do
+            cosign sign-blob --yes --new-bundle-format "dist/$f" \
+              --output-signature "dist/$f.sig" \
+              --output-certificate "dist/$f.cert" \
+              --bundle "dist/$f.sigstore.json"
+          done
 
       - name: Sign SBOMs (keyless)
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS; do
+          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS; do
             cosign sign-blob --yes --new-bundle-format "dist/${b}.sbom.spdx.json" \
               --output-signature "dist/${b}.sbom.sig" \
               --output-certificate "dist/${b}.sbom.cert" \
@@ -208,14 +237,15 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          # The subjects are the ten binaries (five and their -fips variants)
-          # and the worker package, by the names they are uploaded under.
+          # The subjects are the twenty binaries (five, their -fips variants
+          # and the ten for the other platforms), the worker package and the
+          # checksums list, by the names they are uploaded under.
           mkdir -p subjects
-          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS; do cp "bin/$b" subjects/; done
-          cp "dist/genome-worker-${VERSION}.tar.gz" subjects/
+          for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS; do cp "bin/$b" subjects/; done
+          cp "dist/genome-worker-${VERSION}.tar.gz" "dist/checksums-${VERSION}.txt" subjects/
           cd subjects
           # shellcheck disable=SC2086
-          HASHES=$(sha256sum $RELEASE_BINARIES $RELEASE_BINARIES_FIPS "genome-worker-${VERSION}.tar.gz" | base64 -w0)
+          HASHES=$(sha256sum $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS "genome-worker-${VERSION}.tar.gz" "checksums-${VERSION}.txt" | base64 -w0)
           echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
 
       # Uploaded one at a time, by gh, on purpose. The action that used to do
@@ -233,12 +263,31 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          # The release page says which file is for which machine; the
+          # CHANGELOG says what changed.
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          See CHANGELOG.md for $TAG.
+
+          | Your machine | Files |
+          | - | - |
+          | Linux x86-64 — a server; the daemons too | \`acpctl\`, \`acp-keygen\`, \`sagvd\`, \`acp-compute\`, \`acp-bootstrap\`; \`<name>-fips\` on the certified module |
+          | Linux arm64 | \`acpctl-linux-arm64\`, \`acp-keygen-linux-arm64\` |
+          | macOS, Apple silicon | \`acpctl-darwin-arm64\`, \`acp-keygen-darwin-arm64\` |
+          | macOS, Intel | \`acpctl-darwin-amd64\`, \`acp-keygen-darwin-amd64\` |
+          | Windows x64 | \`acpctl-windows-amd64.exe\`, \`acp-keygen-windows-amd64.exe\` |
+          | Windows Arm | \`acpctl-windows-arm64.exe\`, \`acp-keygen-windows-arm64.exe\` |
+
+          Check what you downloaded before you run it: \`sha256sum -c checksums-$TAG.txt\` against the signed list, and \`cosign verify-blob\` on any file — README, "Download and verify a release".
+          EOF
           gh release view "$TAG" >/dev/null 2>&1 \
-            || gh release create "$TAG" --title "$TAG" --notes "See CHANGELOG.md for $TAG." --draft=false
+            || gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --draft=false
+          cross_files=""; for b in $RELEASE_CROSS; do cross_files="$cross_files bin/$b"; done
           uploaded=0
+          # shellcheck disable=SC2086
           for f in bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen \
                    bin/sagvd-fips bin/acp-compute-fips bin/acpctl-fips bin/acp-bootstrap-fips bin/acp-keygen-fips \
-                   dist/genome-worker-*.tar.gz dist/*.sbom.spdx.json dist/*.sig dist/*.cert dist/*.sigstore.json; do
+                   $cross_files dist/genome-worker-*.tar.gz dist/checksums-*.txt \
+                   dist/*.sbom.spdx.json dist/*.sig dist/*.cert dist/*.sigstore.json; do
             [ -f "$f" ] || { echo "missing artifact: $f"; exit 1; }
             for attempt in 1 2 3; do
               if gh release upload "$TAG" "$f" --clobber; then
@@ -249,10 +298,12 @@ jobs:
             done
           done
           echo "uploaded $uploaded assets"
-          # 5 binaries + their 5 -fips variants + the worker package = 11
-          # artifacts, each with an SBOM, and for each of those twenty-two
-          # files a signature, a certificate and a Sigstore bundle: 88 assets
-          [ "$uploaded" -eq 88 ] || { echo "expected 88 assets, uploaded $uploaded"; exit 1; }
+          # 5 binaries, their 5 -fips variants, the 10 tools for the other
+          # platforms and the worker package = 21 artifacts, each with an
+          # SBOM, and for each of those forty-two files a signature, a
+          # certificate and a Sigstore bundle: 168; the checksums list with
+          # its signature, certificate and bundle: 172 assets
+          [ "$uploaded" -eq 172 ] || { echo "expected 172 assets, uploaded $uploaded"; exit 1; }
 
   slsa-provenance:
     needs: [build-and-sign]

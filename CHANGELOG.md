@@ -11,6 +11,27 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- **`acpctl` and `acp-keygen` for macOS, Windows and Linux arm64.** The
+  release carries the two tools a person runs on their own machine for
+  `linux-arm64`, `darwin-amd64`, `darwin-arm64`, `windows-amd64` and
+  `windows-arm64` (`<tool>-<os>-<arch>`, `.exe` on Windows; `make
+  build-cross`), built by the same reproducible flags as the rest, each
+  with its signature, certificate, Sigstore bundle and SBOM, in the SLSA
+  provenance and in `verify-reproducible`; the release job refuses a
+  build whose settings do not name the platform in its file name. The
+  daemons stay Linux x86-64: they attest with hardware the other
+  platforms do not have.
+- **`checksums-<tag>.txt`**: every artifact's SHA-256 in `sha256sum`'s
+  format, signed like the others and in the provenance, so `sha256sum -c`
+  checks a whole download at once and a package manager's formula pins
+  what the list says. The release's notes say which file is for which
+  machine.
+- The release-deploy kit verifies, rebuilds and compares the new tools,
+  and checks the signed list against the downloaded files before any
+  single check.
+
 ## [0.11.0] — 2026-10-24
 
 The release that holds the boot where the chip's measurement does not

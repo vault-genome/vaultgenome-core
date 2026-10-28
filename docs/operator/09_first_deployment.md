@@ -24,16 +24,19 @@ reference path; one that does not has found something worth stopping for.
 
 ## 1. Verify the release before it runs anywhere
 
-Nothing from a release runs until its assets verify. Download all 97
+Nothing from a release runs until its assets verify. Download all 181
 assets of the release (the five binaries, their five `-fips` variants on
-the certified module, the worker package, their eleven SBOMs, a
-signature, a certificate and a Sigstore bundle for each of those
-twenty-two, the SLSA provenance, and the images job's eight — the list of
-the four images with its three signature files and the four image SBOMs;
-55 for 0.7.0, 49 before the images, 37 for 0.4.2, which has no bundles)
-to a clean machine and run, for each of `sagvd`, `acp-compute`,
-`acpctl`, `acp-bootstrap`, `acp-keygen`, each `-fips` variant and the
-worker package
+the certified module, `acpctl` and `acp-keygen` for the five other
+platforms, the worker package, their twenty-one SBOMs, a signature, a
+certificate and a Sigstore bundle for each of those forty-two, the
+checksums list with its three, the SLSA provenance, and the images job's
+eight — the list of the four images with its three signature files and
+the four image SBOMs; 97 for 0.11.0, 55 for 0.7.0, 49 before the images,
+37 for 0.4.2, which has no bundles) to a clean machine. First the whole
+download against the signed list — `sha256sum -c checksums-<tag>.txt`,
+every binary and the package `OK` — then, for the list itself and for
+each of `sagvd`, `acp-compute`, `acpctl`, `acp-bootstrap`, `acp-keygen`,
+each `-fips` variant, each `<tool>-<os>-<arch>` and the worker package
 `genome-worker-<tag>.tar.gz`:
 
 ```bash
