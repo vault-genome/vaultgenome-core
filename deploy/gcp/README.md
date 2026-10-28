@@ -6,7 +6,12 @@ A Vault Genome deployment on one Compute Engine Confidential VM (AMD
 SEV-SNP), from the signed release, proven the way the project's reference
 deployment is proven, and left running. The button opens Cloud Shell on
 this directory with [`tutorial.md`](tutorial.md) beside it; the tutorial
-runs `deploy.sh`. From a laptop with `gcloud` signed in, the same:
+runs `deploy.sh`. Cloud Shell asks before it opens a repository that is
+not Google's: with **Trust repo** ticked it opens in your own Cloud
+Shell, signed in, and the record stays in your home directory; unticked,
+the session is temporary and `gcloud auth login` comes first (`deploy.sh`
+says so and stops until then). From a laptop with `gcloud` signed in, the
+same:
 
 ```bash
 deploy/gcp/deploy.sh --project <id>            # the latest release; --tag v0.12.0 for one

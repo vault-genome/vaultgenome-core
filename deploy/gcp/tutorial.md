@@ -24,6 +24,16 @@ Engine instances in it.
 The deployment goes into the project selected above; `deploy.sh` reads it
 from `gcloud` and asks before it creates anything.
 
+When Cloud Shell opened this repository it said the repository is not
+Google's. With **Trust repo** ticked it opened in your own Cloud Shell,
+signed in as you, and the record will stay in your home directory. Left
+unticked, this session is temporary and `gcloud` has no credentials
+until you sign in — `deploy.sh` says so and stops if that is the case:
+
+```sh
+gcloud auth login
+```
+
 ## Turn on Compute Engine
 
 <walkthrough-enable-apis apis="compute.googleapis.com"></walkthrough-enable-apis>
