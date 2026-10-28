@@ -140,7 +140,11 @@ In the order the reference guest script does it
    ([SEV-SNP](runbooks/real-tee-sev-snp.md), [TDX](runbooks/real-tee-tdx.md),
    [Azure cGPU](runbooks/real-tee-azure-cgpu.md)) show the report chained
    to the vendor's root before anything else is trusted.
-2. **Provision — one command, or by hand.** `acpctl provision --out
+2. **Provision — one command, or by hand.** On Google Cloud the whole
+   of this page is one button: [`deploy/gcp`](../../deploy/gcp/README.md)
+   verifies the release as §1 does, creates the Confidential VM, and its
+   guest does §3 and §4 with `acpctl provision` and leaves both daemons
+   running as services, the record in hand. By hand, `acpctl provision --out
    /etc/acp --provider <family> --fetch-amd-chain <milan|genoa|turin>
    --door-python <python> --base-model <dir> --worker-package <dir>`
    does steps 2 and 3 with the release's own binaries (found beside

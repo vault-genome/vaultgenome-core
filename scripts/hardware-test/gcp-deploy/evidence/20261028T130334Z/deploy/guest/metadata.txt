@@ -1,0 +1,6 @@
+instance=vg-button-20261028t130334z
+zone=us-central1-c
+machine=n2d-standard-4
+release=v0.12.0
+sealer=auto
+captured=20261028T130335Z

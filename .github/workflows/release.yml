@@ -329,6 +329,8 @@ jobs:
 
           Python: \`pip install vaultgenome\` (the auditor's verifier of the audit log) and \`pip install "vaultgenome[genome]"\` (the model side of a genome) — the wheel and the sdist here are the files PyPI has.
 
+          A deployment of this release on a Google Cloud Confidential VM (AMD SEV-SNP), verified, proven and left running — [![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/vault-genome/vaultgenome-core&cloudshell_git_branch=$TAG&cloudshell_workspace=deploy/gcp&cloudshell_tutorial=tutorial.md) — or \`deploy/gcp/deploy.sh --tag $TAG\` wherever gcloud is signed in (\`deploy/gcp/README.md\`).
+
           Check what you downloaded before you run it: \`sha256sum -c checksums-$TAG.txt\` against the signed list, and \`cosign verify-blob\` on any file — README, "Download and verify a release".
           EOF
           gh release view "$TAG" >/dev/null 2>&1 \

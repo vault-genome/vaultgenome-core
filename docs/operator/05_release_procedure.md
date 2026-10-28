@@ -370,6 +370,14 @@ Once the release workflow completes:
    `--no-binary :all:` (the sdist) give files whose SHA-256 are the lines
    of `checksums-vX.Y.Z.txt`; the project page shows the attestations of
    `release.yml` on this tag.
+9. The button deploys it: `scripts/hardware-test/gcp-deploy/run.sh
+   <project> vX.Y.Z` runs `deploy/gcp/deploy.sh` against the release as a
+   person does — the release verified, the Confidential VM stood up by
+   `acpctl provision`, the services, the gate job, the audit log — then
+   resets the VM, submits a second job over ssh and verifies the chain
+   across the reboot, and keeps the record (about twelve minutes, one
+   `n2d-standard-4`). The release notes carry the button for this tag
+   (`cloudshell_git_branch=vX.Y.Z`); a person who presses it gets this run.
 
 No audit event is appended for a release; there is no audit kind for one.
 
@@ -411,6 +419,7 @@ it is an unattested binary and per invariant #11 is not shippable.
 [ ] Tag signature verified externally
 [ ] Release hash externally pinned
 [ ] PyPI's wheel and sdist: SHA-256 equal to the release's (final tag)
+[ ] scripts/hardware-test/gcp-deploy/run.sh on the tag: PROVEN, the reboot, the second job
 [ ] "Withdrawn" marker on prior version, if emergency
 ```
 

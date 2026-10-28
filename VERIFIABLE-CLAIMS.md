@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -3828,6 +3828,98 @@ held on the H100 by the failover kits' runs ([C18](#c18)); its Return Path
 kit now writes the boots too and was not run again here. Azure's
 paravisor holds the vTPM inside the TEE and is trusted as the chip's
 intermediary (threat model).
+
+---
+
+<a id="c55"></a>
+### C55 — One button deploys the signed release on real SEV-SNP and leaves it running: the release verified before it runs anywhere, the deployment stood up by `acpctl provision`, both daemons as services, a gate job EXACT and the audit log verified, 251 s from the command to `PROVEN`; after a hard reset the services come back on their own, the sealed key files open again, a second job gates EXACT and one chain of 32 events verifies
+
+**Claim.** On 2026-10-28 `scripts/hardware-test/gcp-deploy/run.sh
+rats-probe v0.12.0` ran `deploy/gcp/deploy.sh` as a person does. Before
+anything ran anywhere, the release was verified on the machine that ran
+the command: the tag's signature good under the ED25519 key pinned on
+`main` (`deploy/verify/tag.txt`); `checksums-v0.12.0.txt` `Verified OK`
+under the release workflow's identity for this very tag,
+`…/release.yml@refs/tags/v0.12.0` (`deploy/verify/cosign.txt`); 5 of 5
+downloaded files on the list (`deploy/verify/checksums.txt`); 5 of 5
+SLSA provenances passed against the source tag (`deploy/verify/slsa.txt`).
+One n2d-standard-4 Confidential VM (AMD Milan, SEV-SNP, Ubuntu 24.04)
+was created with the verified list in its metadata. The guest fetched
+the five files from GitHub and held them to that list (5 of 5,
+`deploy/guest/checksums-check.txt`), installed the worker runtime from
+the hash-pinned locks (torch 2.14.1+cpu, transformers 5.19.0; 46 s), and
+`acpctl provision --provider auto --fetch-amd-chain milan` wrote the
+deployment under `/etc/vaultgenome` in 10.5 s: both configurations for
+`gcp-sev-snp`, the Milan chain from AMD KDS verified against the ARK the
+binary pins (`69d063b4…40bcd`), both identities the chip's launch
+measurement `9fc6d42b…b8cf`, each pinned by the other side, eight key
+files sealed to the chip's derived key — five of the authority's, three
+of the worker's. A first genome was fine-tuned on the guest and sealed
+(5 s). `sagvd.service` and `acp-compute.service` started under systemd:
+`sagvd` ready 13 s after its start and the session open as the worker
+started (handshake 231 ms, 7980 bytes of evidence). A gate job over the
+Return Path came back EXACT, 6 of 6 fixtures byte for byte, `max_abs_err`
+0, the verdict signed by the authority's key, 5.2 s after submission.
+Sixteen audit events verified under `operator/audit_public_key.pem` with
+both services paused for 3.7 s; both were back 11 s later, the sealed key
+files opened a second time. The summary that begins with `PROVEN` was
+printed 251 s after the command, every line from a file of the record
+(`deploy.out`). The kit then reset the VM — a hard reset, as a pulled
+plug — and 87 s later ssh answered with the session open on the new
+boot: systemd had started both units, the worker had dialled five times
+while `sagvd` opened its sealed key files, resumed its job queue from
+disk (one record, finished) and opened the audit log at sixteen events,
+then bound its listener. `vg submit` over ssh gated a second job EXACT, 6
+of 6; `vg verify` replayed one chain of 32 events, `ok: true` — sixteen
+before the reset under tip `093242b5…2e8a`, thirty-two after under
+`99fa6da3…0512`. The worker's chip, as the authority's verifier read it:
+Milan, TCB snp 0x1f, microcode 0xe1, firmware 1.58.3, alias check
+complete, above the floors of AMD's bulletins (0x1b, 0xde). Nothing
+secret was printed: the record's logs, configurations and `provision.out`
+are on the record as printed; keys, seeds and the operator's token stayed
+on the VM and were deleted with it.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-deploy/evidence/20261028T130334Z/`](scripts/hardware-test/gcp-deploy/evidence/20261028T130334Z/)
+— `deploy.out` (what the person saw), `deploy/verify/` (`tag.txt`,
+`cosign.txt`, `checksums.txt`, `slsa.txt`, `assets.sha256`, `tools.txt`),
+`deploy/guest/` (`provision.out`, `provision.json`, both identities, both
+configurations with paths and no secret, `sealed-files.txt`, `chip.txt`,
+`job.json`, `audit-verify.json`, `audit-events.jsonl`,
+`audit-public-key.pem`, `sagvd.log`, `acp-compute.log`, the two units,
+`steps.txt`, `timeline.txt`, `sha256sums.txt`), `deploy/serial-console.txt`
+(the record as the console carried it), `after-reboot/` (`boots.txt`,
+`journal-this-boot.txt`, `health.txt`, `submit.txt`, `audit-verify.json`,
+`status.txt`, `audit-events.jsonl`, `status-live.txt`), `summary.txt`,
+`runner.log`, `sha256sums.txt`. The button:
+[`deploy/gcp/`](deploy/gcp/README.md) — `deploy.sh`, `guest.sh`,
+`tutorial.md`, `destroy.sh`; the kit:
+[`scripts/hardware-test/gcp-deploy/`](scripts/hardware-test/gcp-deploy/).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-deploy/run.sh <gcp-project> v0.12.0   # ~12 min, one n2d-standard-4, deleted at the end
+deploy/gcp/deploy.sh --project <gcp-project>                     # the button itself: the VM stays
+```
+
+**Scope.** One host with both daemons on it, as the reference deployment
+([C37](#c37)); the two-host form is the three commands of [C39](#c39).
+The family is `gcp-sev-snp`: the chip's launch measurement and policy,
+which on Compute Engine is Google's firmware ([C53](#c53)); the boot
+chain is held by `gcp-sev-snp-vtpm`, set up by its runbook once the
+first boot has settled, not by this button. The key files are sealed to
+the chip (`tee.sealer auto`): a reset in place opened them, as the
+record shows; a stop and start that lands the VM on another host would
+not, and the services would say so (`--sealer tpm2` seals to the
+instance's vTPM instead). The guest reads the release from GitHub and
+the chain from AMD KDS over the VM's external address; the record
+travels over the VM's serial console to the machine that ran the
+command, and nowhere else. The pause for the audit read is ADR 0027's:
+the live segment is the authority's while it runs. One project, one
+zone, one run on the record; the kit's run before it that day stopped at
+the kit's own mistake (`vg` was not on `sudo`'s path after the reset),
+fixed here, and is not on the record.
 
 ---
 

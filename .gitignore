@@ -95,3 +95,7 @@ deploy/compose/audit/
 # The Python distribution's build output (pyproject.toml at the root)
 /build/
 *.egg-info/
+
+# the one-button deployment on Google Cloud: its fetched tools and a person's own records
+/deploy/gcp/.tools/
+/deploy/gcp/records/
