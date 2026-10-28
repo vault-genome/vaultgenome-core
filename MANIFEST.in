@@ -1,0 +1,5 @@
+# The sdist of the Python distribution (pyproject.toml) carries the three
+# packages, LICENSE and its own page python/README.md — not the repository's
+# README, whose links are relative to the tree and which setuptools would
+# otherwise add on its own.
+exclude README.md

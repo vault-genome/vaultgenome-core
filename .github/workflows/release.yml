@@ -5,7 +5,9 @@
 #     reproducibly, their -fips variants on the certified module, and acpctl
 #     and acp-keygen for macOS, Windows and Linux arm64 (the Makefile's
 #     build-cross),
-#   - the worker package and a signed list of every artifact's SHA-256,
+#   - the worker package, the Python distribution (the wheel and the sdist
+#     of pyproject.toml, published to PyPI by the `pypi` job on a final tag)
+#     and a signed list of every artifact's SHA-256,
 #   - an SBOM per artifact (syft, SPDX-JSON),
 #   - cosign keyless signatures + transparency-log entries,
 #   - a SLSA provenance attestation (slsa-github-generator).
@@ -84,6 +86,11 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
 
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
       - name: Build binaries (reproducible)
         env:
           VERSION: ${{ github.ref_name }}
@@ -135,17 +142,34 @@ jobs:
           cmp "dist/genome-worker-${VERSION}.tar.gz" /tmp/genome-worker-again.tar.gz
           sha256sum "dist/genome-worker-${VERSION}.tar.gz"
 
-      # One signed list of every artifact's SHA-256 — the binaries and the
-      # worker package — in sha256sum's format, so that `sha256sum -c
-      # checksums-<tag>.txt` in a directory of downloaded assets checks them
-      # all at once, and a package manager's formula pins what the list says.
+      # The Python distribution (pyproject.toml): the wheel and the sdist,
+      # built twice from the hash-pinned tools of python/requirements-build.lock
+      # and compared (scripts/build_python_dist.sh), the version in
+      # pyproject.toml held to the tag. A rehearsal tag (vX.Y.Z-rcN) builds
+      # and signs them like a release and does not publish them (the pypi job).
+      - name: Build the Python distribution (reproducible)
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          PYVER="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          case "$TAG" in "v${PYVER}"|"v${PYVER}"-rc[0-9]*) ;; *) echo "pyproject.toml says ${PYVER}; the tag is ${TAG}"; exit 1;; esac
+          scripts/build_python_dist.sh dist
+          { echo "PYVER=${PYVER}"
+            echo "PY_WHEEL=vaultgenome-${PYVER}-py3-none-any.whl"
+            echo "PY_SDIST=vaultgenome-${PYVER}.tar.gz"; } >> "$GITHUB_ENV"
+
+      # One signed list of every artifact's SHA-256 — the binaries, the
+      # worker package, the wheel and the sdist — in sha256sum's format, so
+      # that `sha256sum -c checksums-<tag>.txt` in a directory of downloaded
+      # assets checks them all at once, and a package manager's formula pins
+      # what the list says.
       - name: Checksums of every artifact
         env:
           VERSION: ${{ github.ref_name }}
         run: |
           # shellcheck disable=SC2086
           { ( cd bin && sha256sum $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS )
-            ( cd dist && sha256sum "genome-worker-${VERSION}.tar.gz" ); } > "dist/checksums-${VERSION}.txt"
+            ( cd dist && sha256sum "genome-worker-${VERSION}.tar.gz" "$PY_WHEEL" "$PY_SDIST" ); } > "dist/checksums-${VERSION}.txt"
           cat "dist/checksums-${VERSION}.txt"
 
       - name: Install syft
@@ -165,6 +189,11 @@ jobs:
             syft "bin/$b" -o spdx-json="dist/${b}.sbom.spdx.json"
           done
           syft "dir:workers/genome" -o spdx-json="dist/genome-worker-${VERSION}.sbom.spdx.json"
+          # The sdist names its package to syft as a file; the wheel does
+          # only once unpacked, so it is scanned unpacked, under its own name.
+          syft "dist/$PY_SDIST" -o spdx-json="dist/${PY_SDIST}.sbom.spdx.json"
+          rm -rf /tmp/wheel && mkdir -p /tmp/wheel && unzip -q "dist/$PY_WHEEL" -d /tmp/wheel
+          syft "dir:/tmp/wheel" --source-name "$PY_WHEEL" --source-version "$PYVER" -o spdx-json="dist/${PY_WHEEL}.sbom.spdx.json"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -192,7 +221,7 @@ jobs:
               --output-certificate "dist/${b}.cert" \
               --bundle "dist/${b}.sigstore.json"
           done
-          for f in "genome-worker-${VERSION}.tar.gz" "checksums-${VERSION}.txt"; do
+          for f in "genome-worker-${VERSION}.tar.gz" "$PY_WHEEL" "$PY_SDIST" "checksums-${VERSION}.txt"; do
             cosign sign-blob --yes --new-bundle-format "dist/$f" \
               --output-signature "dist/$f.sig" \
               --output-certificate "dist/$f.cert" \
@@ -213,6 +242,26 @@ jobs:
             --output-signature "dist/genome-worker-${VERSION}.sbom.sig" \
             --output-certificate "dist/genome-worker-${VERSION}.sbom.cert" \
             --bundle "dist/genome-worker-${VERSION}.sbom.sigstore.json"
+          for f in "$PY_WHEEL" "$PY_SDIST"; do
+            cosign sign-blob --yes --new-bundle-format "dist/${f}.sbom.spdx.json" \
+              --output-signature "dist/${f}.sbom.sig" \
+              --output-certificate "dist/${f}.sbom.cert" \
+              --bundle "dist/${f}.sbom.sigstore.json"
+          done
+
+      # The PyPI job publishes these exact bytes, after verifying them under
+      # this workflow's identity, as the image job does with the binaries.
+      - name: Keep the Python distribution for the PyPI job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: python-distribution
+          path: |
+            dist/vaultgenome-*.whl
+            dist/vaultgenome-*.tar.gz
+            dist/vaultgenome-*.whl.sigstore.json
+            dist/vaultgenome-*.tar.gz.sigstore.json
+          if-no-files-found: error
+          retention-days: 1
 
       # The image job builds on another runner: it takes these exact bytes,
       # with their Sigstore bundles, and verifies them before packing.
@@ -238,14 +287,15 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           # The subjects are the twenty binaries (five, their -fips variants
-          # and the ten for the other platforms), the worker package and the
-          # checksums list, by the names they are uploaded under.
+          # and the ten for the other platforms), the worker package, the
+          # wheel, the sdist and the checksums list, by the names they are
+          # uploaded under.
           mkdir -p subjects
           for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS; do cp "bin/$b" subjects/; done
-          cp "dist/genome-worker-${VERSION}.tar.gz" "dist/checksums-${VERSION}.txt" subjects/
+          cp "dist/genome-worker-${VERSION}.tar.gz" "dist/$PY_WHEEL" "dist/$PY_SDIST" "dist/checksums-${VERSION}.txt" subjects/
           cd subjects
           # shellcheck disable=SC2086
-          HASHES=$(sha256sum $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS "genome-worker-${VERSION}.tar.gz" "checksums-${VERSION}.txt" | base64 -w0)
+          HASHES=$(sha256sum $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS "genome-worker-${VERSION}.tar.gz" "$PY_WHEEL" "$PY_SDIST" "checksums-${VERSION}.txt" | base64 -w0)
           echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
 
       # Uploaded one at a time, by gh, on purpose. The action that used to do
@@ -277,6 +327,8 @@ jobs:
           | Windows x64 | \`acpctl-windows-amd64.exe\`, \`acp-keygen-windows-amd64.exe\` |
           | Windows Arm | \`acpctl-windows-arm64.exe\`, \`acp-keygen-windows-arm64.exe\` |
 
+          Python: \`pip install vaultgenome\` (the auditor's verifier of the audit log) and \`pip install "vaultgenome[genome]"\` (the model side of a genome) — the wheel and the sdist here are the files PyPI has.
+
           Check what you downloaded before you run it: \`sha256sum -c checksums-$TAG.txt\` against the signed list, and \`cosign verify-blob\` on any file — README, "Download and verify a release".
           EOF
           gh release view "$TAG" >/dev/null 2>&1 \
@@ -286,7 +338,7 @@ jobs:
           # shellcheck disable=SC2086
           for f in bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen \
                    bin/sagvd-fips bin/acp-compute-fips bin/acpctl-fips bin/acp-bootstrap-fips bin/acp-keygen-fips \
-                   $cross_files dist/genome-worker-*.tar.gz dist/checksums-*.txt \
+                   $cross_files dist/genome-worker-*.tar.gz dist/vaultgenome-*.whl dist/vaultgenome-*.tar.gz dist/checksums-*.txt \
                    dist/*.sbom.spdx.json dist/*.sig dist/*.cert dist/*.sigstore.json; do
             [ -f "$f" ] || { echo "missing artifact: $f"; exit 1; }
             for attempt in 1 2 3; do
@@ -299,11 +351,63 @@ jobs:
           done
           echo "uploaded $uploaded assets"
           # 5 binaries, their 5 -fips variants, the 10 tools for the other
-          # platforms and the worker package = 21 artifacts, each with an
-          # SBOM, and for each of those forty-two files a signature, a
-          # certificate and a Sigstore bundle: 168; the checksums list with
-          # its signature, certificate and bundle: 172 assets
-          [ "$uploaded" -eq 172 ] || { echo "expected 172 assets, uploaded $uploaded"; exit 1; }
+          # platforms, the worker package, the wheel and the sdist = 23
+          # artifacts, each with an SBOM, and for each of those forty-six
+          # files a signature, a certificate and a Sigstore bundle: 184; the
+          # checksums list with its signature, certificate and bundle: 188 assets
+          [ "$uploaded" -eq 188 ] || { echo "expected 188 assets, uploaded $uploaded"; exit 1; }
+
+  # PyPI: the wheel and the sdist the build job signed, published under the
+  # release workflow's own identity — PyPI's trusted publishing accepts the
+  # OIDC token of this repository, this workflow file and the `pypi`
+  # environment, so no token is stored anywhere — with PyPI's provenance
+  # attestations beside them. A rehearsal tag (vX.Y.Z-rcN) does not reach
+  # this job: PyPI cannot take a version back, and the rehearsal's wheel
+  # carries the final version number.
+  pypi:
+    needs: [build-and-sign]
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/vaultgenome/
+    permissions:
+      id-token: write       # trusted publishing
+    steps:
+      - name: The Python distribution from the build job
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: python-distribution
+          path: dist
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v2.6.5'
+
+      # As the image job does with the binaries: each file must verify under
+      # this workflow's identity on this tag before it is published.
+      - name: The files are the signed ones
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p pypi
+          for f in dist/vaultgenome-*.whl dist/vaultgenome-*.tar.gz; do
+            cosign verify-blob --new-bundle-format --bundle "$f.sigstore.json" \
+              --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${TAG}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com "$f"
+            mv "$f" pypi/
+          done
+          sha256sum pypi/*
+
+      - name: Publish to PyPI (trusted publishing, with attestations)
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: pypi/
+          attestations: true
+          print-hash: true
 
   slsa-provenance:
     needs: [build-and-sign]
