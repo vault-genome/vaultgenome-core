@@ -15,6 +15,12 @@ python3 -I tools/auditor/verify_audit.py --audit returnpath-audit.db --audit-pub
 python3 -I tools/auditor/verify_audit.py --audit xcc-audit.db --audit-pubkey audit.pem --audit-kid sagvd-audit-demo --json
 ```
 
+`pip install vaultgenome` installs this same file as the command
+`vaultgenome-audit` (the package `vaultgenome.auditor`; no dependencies),
+for an auditor who would rather not clone the repository; the wheel is a
+release asset, signed like the binaries, and `genome-worker` CI holds the
+installed command to the file in the tree on a recorded log.
+
 Exit 0 when every event links and verifies, with the count and the tip;
 1 otherwise, naming the first event that does not. Compare the tip with
 the one recorded elsewhere (the kits' `audit-verify.json`, the

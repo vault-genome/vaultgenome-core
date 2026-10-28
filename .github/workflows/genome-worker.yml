@@ -5,7 +5,9 @@
 # random model built in the test itself — nothing is downloaded but the
 # pinned libraries. Then the Go gate runs against the real door on disk,
 # and the acp-compute reconstructor runs the real door on a genome
-# delivered in memory (ADR 0013).
+# delivered in memory (ADR 0013). The second job builds the Python
+# distribution of pyproject.toml (`pip install vaultgenome`) the way the
+# release does and installs it in clean environments.
 name: genome-worker
 
 on:
@@ -16,6 +18,11 @@ on:
       - "internal/validation/**"
       - "internal/compute/worker/**"
       - "cmd/acpctl/**"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - "python/**"
+      - "tools/auditor/**"
+      - "scripts/build_python_dist.sh"
       - ".github/workflows/genome-worker.yml"
   pull_request:
     paths:
@@ -24,6 +31,11 @@ on:
       - "internal/validation/**"
       - "internal/compute/worker/**"
       - "cmd/acpctl/**"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - "python/**"
+      - "tools/auditor/**"
+      - "scripts/build_python_dist.sh"
       - ".github/workflows/genome-worker.yml"
 
 permissions:
@@ -63,3 +75,47 @@ jobs:
         env:
           VG_GENOME_WORKER: ${{ github.workspace }}/workers/genome
         run: go test -count=1 -v -run TestGenomeReconstructor_RealDoor ./internal/compute/worker/
+
+  # The Python distribution (pyproject.toml): built the way the release
+  # builds it — twice, from the hash-pinned tools of
+  # python/requirements-build.lock, byte-identical — then installed from the
+  # wheel and from the sdist in clean environments, and the installed
+  # command held to the script it packages: the same JSON verdict on a
+  # recorded audit log. Last, the wheel over the worker's pinned runtime:
+  # `vg-genome` is the worker.
+  distribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: build twice, compare
+        run: scripts/build_python_dist.sh dist
+      - name: the wheel, installed with no dependencies, against the script in the tree
+        env:
+          EV: scripts/hardware-test/failover-region-loss/evidence/20261017T140018Z/authority
+        run: |
+          python -m venv /tmp/wheel && /tmp/wheel/bin/pip install --quiet dist/vaultgenome-*.whl
+          /tmp/wheel/bin/python -m vaultgenome
+          /tmp/wheel/bin/vaultgenome-audit --audit "$EV/xcc-audit.db" --audit-pubkey "$EV/audit.pem" --audit-kid sagvd-audit-demo --json > /tmp/installed.json
+          python3 -I tools/auditor/verify_audit.py --audit "$EV/xcc-audit.db" --audit-pubkey "$EV/audit.pem" --audit-kid sagvd-audit-demo --json > /tmp/checkout.json
+          cmp /tmp/installed.json /tmp/checkout.json && cat /tmp/installed.json
+      - name: the sdist, installed in a clean environment
+        env:
+          EV: scripts/hardware-test/failover-region-loss/evidence/20261017T140018Z/authority
+        run: |
+          python -m venv /tmp/sdist && /tmp/sdist/bin/pip install --quiet dist/vaultgenome-*.tar.gz
+          /tmp/sdist/bin/vaultgenome-audit --audit "$EV/xcc-audit.db" --audit-pubkey "$EV/audit.pem" --audit-kid sagvd-audit-demo
+      - name: the wheel over the pinned runtime (CPU, every wheel checked against its hash) — vg-genome is the worker
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: \
+            --index-url https://pypi.org/simple \
+            -r workers/genome/requirements-ci.lock
+          python -m pip install --require-hashes --only-binary=:all: --no-deps \
+            --index-url https://download.pytorch.org/whl/cpu \
+            -r workers/genome/requirements-torch-cpu.lock
+          python -m pip install --no-deps dist/vaultgenome-*.whl
+          vg-genome --help | head -3
+          python -c 'import vaultgenome, vg_genome; print("vaultgenome", vaultgenome.__version__, "with", vg_genome.__name__)'

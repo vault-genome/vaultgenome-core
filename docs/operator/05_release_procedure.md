@@ -12,9 +12,11 @@ operational binaries for Linux x86-64 — `sagvd`, `acp-compute`, `acpctl`,
 certified module (ADR 0030); `acpctl` and `acp-keygen` for `linux-arm64`,
 `darwin-amd64`, `darwin-arm64`, `windows-amd64` and `windows-arm64`
 (`<tool>-<os>-<arch>`, `.exe` on Windows; the list lives in the Makefile,
-`make -s cross-binaries` prints it); the worker package; and
-`checksums-<tag>.txt`, every artifact's SHA-256, signed like the rest.
-`acp-demo`, which `make build` also builds, is not published.
+`make -s cross-binaries` prints it); the worker package; the Python
+distribution of `pyproject.toml` — the wheel and the sdist, which the
+`pypi` job publishes to PyPI on a final tag; and `checksums-<tag>.txt`,
+every artifact's SHA-256, signed like the rest. `acp-demo`, which `make
+build` also builds, is not published.
 
 **Related doctrine:** `docs/doctrine/ci-security-policy.md` §6 (supply-chain
 attestation), invariant #11 "supply chain attested".
@@ -52,6 +54,7 @@ workflow.
 | The FIPS variant | `make build-fips && ./bin/sagvd-fips version` | `bin/<binary>-fips` present; the line ends `fips140=on module=v1.0.0 enforced=false` (ADR 0030; `go version -m bin/sagvd-fips` shows `GOFIPS140=v1.0.0-…`) |
 | SBOM generable | `make sbom` | `dist/sbom.spdx.json` present, non-empty |
 | Deps within policy | `make dep-allowlist && make dep-depth` | Both exit 0 |
+| The Python distribution | `scripts/build_python_dist.sh dist` | "built twice … byte-identical"; the `version` in `pyproject.toml` is the tag without its `v` (the release job refuses otherwise; a rehearsal `vX.Y.Z-rcN` passes on `X.Y.Z`) |
 | Doctrine clean | `make test-doctrine` | Every `TestInvariant_NN` passes, including `TestInvariant_11_SupplyChainAttested` |
 | Runbook current | Review `docs/operator/` for drift from the code | Every command, flag and path named still exists |
 
@@ -97,25 +100,31 @@ The tag push runs `.github/workflows/release.yml`:
    do not name the platform in its file name.
 4. Pack `workers/genome` as `genome-worker-<tag>.tar.gz` with GNU tar
    from the tagged commit's time (sorted names, numeric owner 0, `gzip
-   -n`), twice, and compare; write `checksums-<tag>.txt`, the SHA-256 of
-   every binary (the twenty) and of the package in `sha256sum`'s format;
-   `syft`: one SPDX-JSON SBOM per published binary,
-   `dist/<binary>.sbom.spdx.json`, and one for the package.
+   -n`), twice, and compare; build the Python distribution twice from the
+   hash-pinned tools of `python/requirements-build.lock`
+   (`scripts/build_python_dist.sh`: the wheel, and the sdist repacked
+   like the worker package) and compare, the `version` of
+   `pyproject.toml` held to the tag; write `checksums-<tag>.txt`, the
+   SHA-256 of every binary (the twenty), of the package, of the wheel and
+   of the sdist in `sha256sum`'s format; `syft`: one SPDX-JSON SBOM per
+   published binary, `dist/<binary>.sbom.spdx.json`, and one each for the
+   package, the wheel and the sdist.
 5. `cosign sign-blob` (keyless): a signature and certificate for each
-   binary, for the package and for the checksums list
+   binary, for the package, the wheel, the sdist and the checksums list
    (`dist/<artifact>.sig`, `.cert`) and for each SBOM (`.sbom.sig`,
    `.sbom.cert`), and beside each pair the Sigstore bundle
    (`.sigstore.json`, the new bundle format: the signature, the
    certificate and the Rekor entry in one file, for verification with a
    trusted-root file and no route).
-6. Upload the twenty binaries, the package, the checksums list, the
-   SBOMs, signatures, certificates and bundles to the GitHub Release:
-   172 assets (88 before 0.12.0, 48 before 0.8.0). The release's notes
-   say which file is for which machine.
+6. Upload the twenty binaries, the package, the wheel, the sdist, the
+   checksums list, the SBOMs, signatures, certificates and bundles to the
+   GitHub Release: 188 assets (88 before 0.12.0, 48 before 0.8.0). The
+   release's notes say which file is for which machine.
 7. A second job runs the SLSA generic generator
    (`slsa-framework/slsa-github-generator`, `generator_generic_slsa3.yml`
-   v2.1.0) over the twenty binaries', the worker package's and the
-   checksums list's SHA-256 and uploads the provenance to the release.
+   v2.1.0) over the twenty binaries', the worker package's, the wheel's,
+   the sdist's and the checksums list's SHA-256 and uploads the
+   provenance to the release.
 8. The `images` job takes `bin/sagvd`, `bin/acp-compute` and their `-fips`
    variants with their Sigstore bundles from the build job, verifies each
    binary under this workflow's identity on this tag before packing it,
@@ -130,8 +139,8 @@ The tag push runs `.github/workflows/release.yml`:
    (`cosign sign`, keyless), attests an SPDX SBOM of each image to it
    (`cosign attest --type spdxjson`), and uploads `images-<tag>.txt` — the
    four images named by digest — with its signature, certificate and
-   bundle, and the four image SBOMs: 8 more assets, 181 in all (the build
-   job's 172, the provenance, these 8; 97 before 0.12.0, 55 before
+   bundle, and the four image SBOMs: 8 more assets, 197 in all (the build
+   job's 188, the provenance, these 8; 97 before 0.12.0, 55 before
    0.8.0). The first push of
    an image creates its package *private* — the rehearsal `v0.6.1-rc2`
    found it on 2026-10-21 (an anonymous pull answers 403) — so an org
@@ -148,6 +157,19 @@ The tag push runs `.github/workflows/release.yml`:
    (`generator_container_slsa3.yml` v2.1.0) once per image (four), over
    the image's digest, and pushes the provenance to the registry beside
    the image.
+10. The `pypi` job, on a final tag only (a rehearsal `vX.Y.Z-rcN` builds
+    and signs the distribution and stops here: PyPI cannot take a version
+    back, and the rehearsal's wheel carries the final number), takes the
+    wheel and the sdist from the build job, verifies each under this
+    workflow's identity on this tag, and publishes them to PyPI with
+    `pypa/gh-action-pypi-publish` by trusted publishing — PyPI accepts the
+    OIDC token of this repository, `release.yml` and the GitHub
+    environment `pypi`; no token is stored — with PyPI's attestations
+    beside them. The publisher is configured once on PyPI (owner
+    `vault-genome`, repository `vaultgenome-core`, workflow
+    `release.yml`, environment `pypi`); a required reviewer on the
+    `pypi` environment, if the repository sets one, is an approval
+    before the upload.
 
 `TestInvariant_11_SupplyChainAttested` does not run in `release.yml`; it runs
 with the doctrine tests in vault-gate. It reads `release.yml` and fails if the
@@ -237,9 +259,10 @@ Once the release workflow completes:
      sagvd
    ```
    `docs/security/supply_chain.md` explains what a successful check proves.
-   Then the bundle of each of the forty-two (the twenty binaries, the
-   package, their SBOMs; twenty-two before 0.12.0, twelve before 0.8.0)
-   and of the checksums list, with the Sigstore trust root as
+   Then the bundle of each of the forty-six (the twenty binaries, the
+   package, the wheel, the sdist, their SBOMs; twenty-two before 0.12.0,
+   twelve before 0.8.0) and of the checksums list, with the Sigstore
+   trust root as
    a file (`cosign initialize` fetches it into
    `~/.sigstore/root/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json`),
    which needs no route — run it with the network denied, as the
@@ -253,8 +276,8 @@ Once the release workflow completes:
    — the check an air-gapped site runs (`runbooks/air_gap.md`). Not
    `--offline`: on cosign 2.6.5 it still updates TUF from the mirror.
 3. Check that the SLSA provenance attached to the release names each of
-   the twenty binaries', the worker package's and the checksums list's
-   SHA-256 (for example with `slsa-verifier`).
+   the twenty binaries', the worker package's, the wheel's, the sdist's
+   and the checksums list's SHA-256 (for example with `slsa-verifier`).
 4. Rebuild from the tag with Go 1.27.3, from any host — the binaries are
    static (`CGO_ENABLED=0`) and carry the tag's VCS stamp, so the rebuild
    must come from a git checkout of the tag, not from an archive:
@@ -263,6 +286,7 @@ Once the release workflow completes:
    git checkout vX.Y.Z
    GOOS=linux GOARCH=amd64 make build build-fips build-cross VERSION=vX.Y.Z COMMIT=$(git rev-parse HEAD)
    sha256sum bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen bin/*-fips bin/*-*-*
+   scripts/build_python_dist.sh dist     # the wheel and the sdist, with their hashes
    ```
    Every hash must equal the released file's. The worker package repacks
    the same way with GNU tar (`--sort=name --mtime=@SOURCE_DATE_EPOCH
@@ -311,6 +335,11 @@ Once the release workflow completes:
 7. Record the release hashes externally (the external pin is itself a
    defence against a later tag rewrite — see
    `04_observability.md` §2.2 for the parallel idea on audit chains).
+8. PyPI serves the release's bytes: `pip download --no-deps
+   vaultgenome==X.Y.Z -d pypi-check` (the wheel) and the same with
+   `--no-binary :all:` (the sdist) give files whose SHA-256 are the lines
+   of `checksums-vX.Y.Z.txt`; the project page shows the attestations of
+   `release.yml` on this tag.
 
 No audit event is appended for a release; there is no audit kind for one.
 
@@ -341,6 +370,7 @@ it is an unattested binary and per invariant #11 is not shippable.
 [ ] make test-integration and make verify-reproducible pass
 [ ] Runbook reviewed for drift
 [ ] Release notes drafted
+[ ] pyproject.toml version = X.Y.Z; scripts/build_python_dist.sh dist: byte-identical
 [ ] Tag: git tag -s vX.Y.Z
 [ ] Push: git push origin vX.Y.Z
 [ ] release.yml workflow green
@@ -350,6 +380,7 @@ it is an unattested binary and per invariant #11 is not shippable.
 [ ] Rebuild from the tag is byte-identical
 [ ] Tag signature verified externally
 [ ] Release hash externally pinned
+[ ] PyPI's wheel and sdist: SHA-256 equal to the release's (final tag)
 [ ] "Withdrawn" marker on prior version, if emergency
 ```
 

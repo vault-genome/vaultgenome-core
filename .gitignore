@@ -91,3 +91,7 @@ __pycache__/
 deploy/compose/genomes/
 deploy/compose/models/
 deploy/compose/audit/
+
+# The Python distribution's build output (pyproject.toml at the root)
+/build/
+*.egg-info/

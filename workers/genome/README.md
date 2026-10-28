@@ -27,6 +27,11 @@ genome/
 
 ## Commands
 
+From PyPI, the same code as a package: `pip install "vaultgenome[genome]"`
+installs `vg_genome` with this runtime and the command `vg-genome`, which
+is `python -m vg_genome` below (`pyproject.toml` at the repository's root;
+the wheel is a release asset, signed like the binaries). From a checkout:
+
 ```bash
 pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1  # CPU; or the CUDA wheel
 pip install -r requirements.txt

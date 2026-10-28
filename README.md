@@ -131,6 +131,14 @@ platforms do not have
 ([`09_first_deployment.md`](docs/operator/09_first_deployment.md) §2 names
 the hosts a release has run on).
 
+Python: `pip install vaultgenome` is the auditor's own verifier of the
+audit log (`vaultgenome-audit`, no dependencies), and `pip install
+"vaultgenome[genome]"` adds the model side of a genome (`vg-genome`, on
+the worker's pinned runtime). The wheel and the sdist PyPI serves are
+release assets too — `vaultgenome-<version>-py3-none-any.whl` and
+`vaultgenome-<version>.tar.gz`, in the checksums list and signed like the
+rest ([`python/README.md`](python/README.md)).
+
 Releases are cut by [`release.yml`](.github/workflows/release.yml) from a tag
 signed by a key pinned in [`.github/allowed_signers`](.github/allowed_signers):
 every binary and the worker package built reproducibly, each with a
@@ -153,8 +161,8 @@ git verify-tag v0.11.0
 ```
 
 The same two commands verify `acp-compute`, `acpctl`, `acp-bootstrap`,
-`acp-keygen`, their `-fips` variants, the tools for the other platforms
-and the worker package `genome-worker-v0.11.0.tar.gz`; a deployment
+`acp-keygen`, their `-fips` variants, the tools for the other platforms,
+the wheel, the sdist and the worker package `genome-worker-v0.11.0.tar.gz`; a deployment
 needs nothing from the source tree
 ([`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md)).
 On Windows, `certutil -hashfile acpctl-windows-amd64.exe SHA256` prints

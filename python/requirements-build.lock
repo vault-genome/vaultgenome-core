@@ -1,0 +1,16 @@
+# The build tools of the Python distribution (pyproject.toml at the root),
+# hash-pinned. Installed with
+#   pip install --require-hashes --only-binary=:all: -r python/requirements-build.lock
+# before `python -m build --no-isolation`, so that the wheel and the sdist
+# come out byte for byte the same from any machine with the pinned Python —
+# what the release job builds twice and compares, and what the release-deploy
+# kit rebuilds from the tag. Refresh with `pip download --only-binary=:all:
+# --no-deps` and `pip hash`, and say in the pull request why the version moves.
+setuptools==84.2.1 \
+    --hash=sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2
+build==1.6.1 \
+    --hash=sha256:ecd351a4be9d35a9eaaba244a7687143c9c7d4aea6ac964e7e7ddab20cbcf4e7
+packaging==26.3 \
+    --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+pyproject_hooks==1.3.3 \
+    --hash=sha256:5fc53fdac9f7bd63fbcdc868fb5f90b4784d78a53a3d3388cd738b807441a20b

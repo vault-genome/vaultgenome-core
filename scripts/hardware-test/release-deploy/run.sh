@@ -12,8 +12,9 @@
 #      against the source tag, the tag's own signature against the keys
 #      pinned on main;
 #   2. rebuilds every released binary — the five, their -fips variants, the
-#      tools for the other platforms — and the worker package from the tag
-#      and requires every hash to equal the released file's; nothing is taken
+#      tools for the other platforms — the worker package and the Python
+#      distribution from the tag and requires every hash to equal the
+#      released file's; nothing is taken
 #      from this tree — the guest fetches the AMD chain from KDS with the
 #      released acpctl, which verifies it against the roots the binary
 #      pins (ADR 0024);
@@ -25,10 +26,11 @@
 #      and deletes the VM and the bucket — always, also on failure.
 #
 # Usage: run.sh <project> <tag> [zone]        (an n2d-standard-4 for ~15 min)
-# Needs gh, cosign, slsa-verifier, go, gcloud, and for the package rebuild
-# GNU tar and GNU gzip (tar and gzip on Linux; gtar and gzip from Homebrew
-# on macOS — Apple's gzip writes a different deflate stream for the same
-# tar, so the file would not match although its contents do).
+# Needs gh, cosign, slsa-verifier, go, gcloud, python3 (3.12, for the
+# Python distribution's rebuild), and for the package rebuilds GNU tar and
+# GNU gzip (tar and gzip on Linux; gtar and gzip from Homebrew on macOS —
+# Apple's gzip writes a different deflate stream for the same tar, so the
+# file would not match although its contents do).
 set -euo pipefail
 PROJECT="${1:?usage: run.sh <project> <tag> [zone]}"
 TAG="${2:?usage: run.sh <project> <tag> [zone]}"
@@ -92,7 +94,12 @@ if [ -f "$DL/acpctl-darwin-arm64" ]; then
   done; done
 fi
 CHECKSUMS=""; [ -f "$DL/checksums-$TAG.txt" ] && CHECKSUMS="checksums-$TAG.txt"
-N_ART=6; [ -n "$FIPS_BINARIES" ] && N_ART=11; [ -n "$CROSS_BINARIES" ] && N_ART=$((N_ART + 10))
+# The Python distribution (pyproject.toml), from 0.12.0: the wheel and the
+# sdist, named by the version in the wheel's file name; verified like the
+# binaries, rebuilt from the tag by the tag's own scripts/build_python_dist.sh.
+PY_DIST=""
+for w in "$DL"/vaultgenome-*-py3-none-any.whl; do [ -f "$w" ] && PY_DIST="$(basename "$w") $(basename "${w%-py3-none-any.whl}").tar.gz"; done
+N_ART=6; [ -n "$FIPS_BINARIES" ] && N_ART=11; [ -n "$CROSS_BINARIES" ] && N_ART=$((N_ART + 10)); [ -n "$PY_DIST" ] && N_ART=$((N_ART + 2))
 # the signature pairs and the provenances to expect: two per artifact (the
 # file and its SBOM) and one per artifact; the checksums list adds one each
 N_SIG=$((N_ART * 2)); N_PROV=$N_ART
@@ -107,7 +114,7 @@ if [ -n "$CHECKSUMS" ]; then
   test "$(grep -c ': OK$' "$EVIDENCE/verify/checksums.txt")" = "$N_ART" || { echo "ERROR: the signed checksums list does not match the downloaded files"; exit 1; }
 fi
 # shellcheck disable=SC2086
-for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES $CROSS_BINARIES "$WORKER_PKG"; do
+for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES $CROSS_BINARIES $PY_DIST "$WORKER_PKG"; do
   sbom="$b.sbom.spdx.json"; sbomsig="$b.sbom.sig"; sbomcert="$b.sbom.cert"
   [ "$b" = "$WORKER_PKG" ] && { sbom="genome-worker-$TAG.sbom.spdx.json"; sbomsig="genome-worker-$TAG.sbom.sig"; sbomcert="genome-worker-$TAG.sbom.cert"; }
   for f in "$b" "$sbom"; do
@@ -140,7 +147,7 @@ if [ "$(ls "$DL"/*.sigstore.json 2>/dev/null | wc -l | tr -d ' ')" -ge 12 ]; the
   echo "  trusted_root.json: sha256 $(shasum -a 256 "$DL/trusted_root.json" | awk '{print $1}')" | rec tools.txt
   if command -v sandbox-exec >/dev/null 2>&1; then NONET=(sandbox-exec -p '(version 1)(allow default)(deny network*)' env TUF_ROOT=/nonexistent); echo "  the bundle check runs with the network denied (sandbox-exec)"; else NONET=(env); echo "  the bundle check runs with the route (no sandbox-exec here)"; fi
   # shellcheck disable=SC2086
-  for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES $CROSS_BINARIES "$WORKER_PKG" $CHECKSUMS; do
+  for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES $CROSS_BINARIES $PY_DIST "$WORKER_PKG" $CHECKSUMS; do
     sbom="$b.sbom.spdx.json"; sbombundle="$b.sbom.sigstore.json"
     [ "$b" = "$WORKER_PKG" ] && { sbom="genome-worker-$TAG.sbom.spdx.json"; sbombundle="genome-worker-$TAG.sbom.sigstore.json"; }
     [ "$b" = "$CHECKSUMS" ] && sbom=""   # the list has no SBOM of its own
@@ -179,8 +186,12 @@ done
   && SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" \
      "$GTAR" --sort=name --mtime="@$(git log -1 --format=%ct)" --owner=0 --group=0 --numeric-owner \
        --exclude='__pycache__' --exclude='.pytest_cache' -C workers -cf - genome | "$GZIP_BIN" -n > "$REBUILD/$WORKER_PKG" )
+# The Python distribution: the tag's own script builds it twice from the
+# hash-pinned tools and repacks the sdist like the worker package.
+[ -z "$PY_DIST" ] || ( cd "$REBUILD" && scripts/build_python_dist.sh "$REBUILD/pydist" >/dev/null 2>&1 ) \
+  || { echo "ERROR: the Python distribution did not rebuild from the tag (scripts/build_python_dist.sh)"; exit 1; }
 {
-  echo "rebuilt from tag $TAG at $(git -C "$REBUILD" rev-parse HEAD) with $(go version | awk '{print $3}'), $("$GTAR" --version | head -1) and $("$GZIP_BIN" --version | head -1) on $(uname -sm)"
+  echo "rebuilt from tag $TAG at $(git -C "$REBUILD" rev-parse HEAD) with $(go version | awk '{print $3}'), $("$GTAR" --version | head -1), $("$GZIP_BIN" --version | head -1)${PY_DIST:+ and $(python3 --version 2>&1)} on $(uname -sm)"
   # shellcheck disable=SC2086
   for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES $CROSS_BINARIES; do
     r=$(sha256sum "$REBUILD/bin/$b" | awk '{print $1}'); d=$(sha256sum "$DL/$b" | awk '{print $1}')
@@ -188,6 +199,10 @@ done
   done
   r=$(sha256sum "$REBUILD/$WORKER_PKG" | awk '{print $1}'); d=$(sha256sum "$DL/$WORKER_PKG" | awk '{print $1}')
   if [ "$r" = "$d" ]; then echo "$WORKER_PKG: repacked sha256 equals the released file ($d)"; else echo "$WORKER_PKG: MISMATCH repacked=$r released=$d"; fi
+  for f in $PY_DIST; do
+    r=$(sha256sum "$REBUILD/pydist/$f" | awk '{print $1}'); d=$(sha256sum "$DL/$f" | awk '{print $1}')
+    if [ "$r" = "$d" ]; then echo "$f: rebuilt sha256 equals the released file ($d)"; else echo "$f: MISMATCH rebuilt=$r released=$d"; fi
+  done
 } | rec rebuild.txt | sed 's|^|  |'
 grep -q MISMATCH "$EVIDENCE/verify/rebuild.txt" && { echo "ERROR: a rebuilt artifact differs from the released file"; exit 1; }
 
