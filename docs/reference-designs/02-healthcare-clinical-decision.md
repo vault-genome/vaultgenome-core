@@ -155,5 +155,9 @@ Commercial license, $120k/yr scale-up tier:
 - Annual security review with vendor's GRC team.
 
 The 7-year audit retention infrastructure (S3 Object Lock + replica)
-is the vendor's responsibility; Vault Genome ships the Terraform
-modules but the buyer pays AWS directly for storage.
+is the vendor's responsibility: the vendor builds it in its own AWS
+accounts and pays AWS directly for storage; there is no Terraform for
+it in this repository. What the product brings is the log itself —
+closed, hash-linked segments the daemon never deletes, verified across
+segments ([`controls.md`](../compliance/controls.md), VG-021) — and the
+auditor's own verifier that reads them (VG-041).
