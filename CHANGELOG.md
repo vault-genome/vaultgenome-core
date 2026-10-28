@@ -28,9 +28,24 @@ given release can still open.
   checks a whole download at once and a package manager's formula pins
   what the list says. The release's notes say which file is for which
   machine.
-- The release-deploy kit verifies, rebuilds and compares the new tools,
-  and checks the signed list against the downloaded files before any
-  single check.
+- **`pip install vaultgenome`.** The Python distribution of
+  `pyproject.toml`: `vaultgenome-audit`, the auditor's own verifier of the
+  audit log (`tools/auditor`; no dependencies), and, with the extra
+  `[genome]`, `vg-genome` — the model side of a genome on the worker's
+  pinned runtime. Built twice from hash-pinned tools and compared
+  (`scripts/build_python_dist.sh`; the sdist repacked like the worker
+  package, so that its bytes reproduce), the wheel and the sdist are
+  release assets with signatures, SBOMs and provenance like the binaries
+  and in the checksums list, and the `pypi` job publishes them to PyPI
+  under the release workflow's own identity (trusted publishing, no
+  stored token) with PyPI's attestations; a rehearsal tag builds and signs
+  them and does not publish. `genome-worker` CI builds the distribution,
+  installs it from the wheel and from the sdist in clean environments and
+  holds the installed command to the script in the tree on a recorded
+  log.
+- The release-deploy kit verifies, rebuilds and compares the new tools and
+  the Python distribution, and checks the signed list against the
+  downloaded files before any single check.
 
 ## [0.11.0] — 2026-10-24
 

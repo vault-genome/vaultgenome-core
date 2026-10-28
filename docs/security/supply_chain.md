@@ -61,10 +61,22 @@ From 0.12.0 the release also carries `acpctl` and `acp-keygen` for the
 five other platforms — the two tools a person runs on their own machine,
 built by the same reproducible flags, each with its signature,
 certificate, bundle and SBOM, in the provenance and in
-`verify-reproducible` — and the signed checksums list: 172 build assets
-and four images, 181 assets in all (97 before 0.12.0, 55 before 0.8.0).
-The daemons stay Linux x86-64: they attest with hardware the other
-platforms do not have.
+`verify-reproducible` — the Python distribution of `pyproject.toml`
+(`vaultgenome-<version>-py3-none-any.whl` and `vaultgenome-<version>.tar.gz`,
+built twice from the hash-pinned tools of `python/requirements-build.lock`
+and compared, the sdist repacked like the worker package so that its bytes
+reproduce; signed, SBOMed and in the provenance like a binary) and the
+signed checksums list: 188 build assets and four images, 197 assets in all
+(97 before 0.12.0, 55 before 0.8.0). The daemons stay Linux x86-64: they
+attest with hardware the other platforms do not have.
+
+PyPI serves those same two files: the `pypi` job publishes them, on a
+final tag, under the release workflow's own identity — trusted
+publishing, PyPI's trust in the OIDC token of this repository, this
+workflow file and the `pypi` environment; no token is stored — after
+verifying each under that identity, and PyPI keeps its attestations
+beside them. `pip download` of a version gives files whose SHA-256 are
+lines of the release's `checksums-<tag>.txt`.
 
 All artifacts are attached to the GitHub Release for the corresponding
 signed semver tag (`v*.*.*`). Each release tag is itself git-signed by

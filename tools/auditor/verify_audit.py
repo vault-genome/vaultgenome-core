@@ -394,13 +394,13 @@ def verify(audit_path, pubkey_pem, kid):
     return result
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--audit", required=True)
     ap.add_argument("--audit-pubkey", required=True)
     ap.add_argument("--audit-kid", required=True)
     ap.add_argument("--json", action="store_true")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     r = verify(a.audit, a.audit_pubkey, a.audit_kid)
     if a.json:
         print(json.dumps(r, sort_keys=True))
