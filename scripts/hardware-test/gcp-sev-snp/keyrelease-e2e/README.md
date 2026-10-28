@@ -115,6 +115,7 @@ authority signing under ECDSA P-384 and the audit log verified under it
 | `fips` with `ecdsa-p384-sha384`, the release `v0.9.0` | `evidence/20261022T155613Z` | `hpke-p384-v2` | **ok**, recipient key `9a746824…` | **ok** | **ok** | **refused** | **refused** | **ok**, 10 events under `ecdsa-p384-sha384` |
 | `fips` with `ecdsa-p384-sha384`, the release `v0.10.0` | `evidence/20261023T202813Z` | `hpke-p384-v2` | **ok**, recipient key `3b09c391…` | **ok** | **ok** | **refused** | **refused** | **ok**, 12 events |
 | `fips` with `ecdsa-p384-sha384`, the release `v0.11.0` | `evidence/20261024T185758Z` | `hpke-p384-v2` | **ok**, recipient key `38da8f28…` | **ok** | **ok** | **refused** | **refused** | **ok**, 12 events |
+| `fips` with `ecdsa-p384-sha384`, the release `v0.12.0` | `evidence/20261028T030604Z` | `hpke-p384-v2` | **ok**, recipient key `4c1718fd…` | **ok** | **ok** | **refused** | **refused** | **ok**, 12 events |
 
 ## Results — runs `20261021T202413Z`, `20261021T202422Z`, `20261021T202423Z`: the three profiles under the v2 suites (ADR 0030)
 

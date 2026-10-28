@@ -1,0 +1,13 @@
+== binaries from gs://rats-probe-vg-e2e-20261028t030604z/e2e
+== configfs-tsm
+== provision (keygen)
+== sagvd identity
+== seal a genome (a fine-tune output: LoRA weights, config, tokenizer)
+== operator stop key and first list (nothing stopped)
+== acp-bootstrap on SEV-SNP
+== release the genome key to this attested guest
+== the destination restores by itself; confirm from its chip-signed receipt
+== release refused: guest not on the allow-list
+== release refused: operator stop in force
+== release refused: the operator's TCB floor one above this chip (ADR 0033)
+== audit log verified with the published audit key

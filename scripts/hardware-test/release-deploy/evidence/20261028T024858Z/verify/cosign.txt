@@ -1,0 +1,147 @@
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+WARNING: Could not fetch trusted_root.json from the TUF repository. Continuing with individual targets. Error from TUF: error getting live trusted root: failed to create TUF client failed to load metadata: tuf refresh failed: Get "https://tuf-repo-cdn.sigstore.dev/15.root.json": net/http: TLS handshake timeout
+Error: setting up clients and keys: getting rekor public keys: updating local metadata and targets: error updating to TUF remote mirror: tuf: failed to download 13.root.json: Get "https://tuf-repo-cdn.sigstore.dev/13.root.json": net/http: TLS handshake timeout
+error during command execution: setting up clients and keys: getting rekor public keys: updating local metadata and targets: error updating to TUF remote mirror: tuf: failed to download 13.root.json: Get "https://tuf-repo-cdn.sigstore.dev/13.root.json": net/http: TLS handshake timeout
+  (attempt 1 failed; retrying in 5 s)
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
+Flag --signature has been deprecated, please use --bundle to provide a signature
+Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate
+Verified OK
