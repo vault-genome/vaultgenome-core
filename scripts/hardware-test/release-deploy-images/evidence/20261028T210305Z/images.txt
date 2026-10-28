@@ -1,0 +1,4 @@
+ghcr.io/vault-genome/sagvd@sha256:225093fb545550e2edd478b3fb4dc0dca4ebc19f264c08ee02ef5541620d4660
+ghcr.io/vault-genome/acp-compute@sha256:e056f64b2f3b7b84984eafb3f9980a8ea37fc8c3d877aaf50b0e8e3078dfef74
+ghcr.io/vault-genome/sagvd-fips@sha256:dd9592805a38742a62a8ef6a4d143201f2db332fa49f9189b516b26551f4e11d
+ghcr.io/vault-genome/acp-compute-fips@sha256:fecf03a347c5f4b31a8f39dbfdcd433688ae30968403012d165cd922a0ddba52

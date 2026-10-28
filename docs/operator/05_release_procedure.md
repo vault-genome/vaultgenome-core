@@ -271,6 +271,35 @@ Homebrew reads a version from the end of a URL, and
 `acpctl-darwin-arm64` gave it `64` — the formula names the version. The
 rehearsal's GitHub release stays until the formula points at `v0.12.0`,
 then is deleted and the tag kept.
+The Cloud Shell button for the tag in the release notes (0.13.0) was
+rehearsed as `v0.13.0-rc1` on 2026-10-28 (run 40764522013, 20:34–20:49Z
+for the build and the images, the container provenances after): the
+build job built the twenty-two binaries, the worker package and the
+Python distribution twice to byte-identical files, refused nothing, and
+uploaded 188 assets; the images job built, pushed, signed and attested the
+four images; the generic and the four container provenances followed —
+197 assets; the `pypi` job was skipped, as a rehearsal's is; the notes
+carry the button with `cloudshell_git_branch=v0.13.0-rc1`. Verified like
+a release (§5) by the kits against the rehearsal: `release-deploy`
+(`scripts/hardware-test/release-deploy/evidence/20261028T205007Z/`) —
+the signed list against the 23 downloaded artifacts, the forty-seven
+signature pairs and the forty-seven bundles (with `--trusted-root` and
+the network denied), the twenty-four provenances and the tag; the twenty
+binaries, the package, the wheel and the sdist rebuilt from the tag byte
+for byte on a Darwin arm64 host; the guest from release assets alone, the
+released daemons reporting `v0.13.0-rc1` at `20a3ee63`, the gate job
+EXACT, 17 events verified, 128.7 s on the guest — and
+`release-deploy-images`
+(`scripts/hardware-test/release-deploy-images/evidence/20261028T210305Z/`)
+— the four images publicly readable, each signature, SBOM attestation
+and container provenance verified, the binary inside each equal to its
+release asset, the two default images run on the guest, the gate job
+EXACT, 17 events verified, 188.3 s. The rehearsal found one thing: the
+workflow creates a release without the pre-release mark, so for the
+rehearsal's hour GitHub's `latest` release was the rehearsal — a
+`deploy/gcp/deploy.sh` without `--tag` in that hour would have deployed
+it, verified as what it was. The rehearsal's GitHub release is deleted
+once the kits have run, and the tag kept.
 
 ## 5. Post-release verification
 
