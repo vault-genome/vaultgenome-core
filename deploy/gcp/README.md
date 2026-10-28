@@ -15,7 +15,7 @@ temporary and `gcloud auth login` comes first (`deploy.sh` says so and
 stops until then). From a laptop with `gcloud` signed in, the same:
 
 ```bash
-deploy/gcp/deploy.sh --project <id>                 # the latest release on AMD SEV-SNP; --tag v0.12.0 for one
+deploy/gcp/deploy.sh --project <id>                 # the latest release on AMD SEV-SNP; --tag v0.13.0 for one
 deploy/gcp/deploy.sh --project <id> --platform tdx  # the same on an Intel TDX Trust Domain
 deploy/gcp/destroy.sh --project <id>                # the VM, and nothing else
 ```

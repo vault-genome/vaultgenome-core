@@ -11,6 +11,23 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-10-28
+
+The release a person deploys with one button, and the one whose Azure
+deployment survives a restart. `deploy/gcp/deploy.sh` — or the Cloud
+Shell button in the release notes — verifies this release where it runs,
+stands up a Confidential VM (AMD SEV-SNP, or Intel TDX with `--platform
+tdx`), provisions it with `acpctl provision`, runs a gate job over the
+Return Path, verifies the audit log, and leaves the VM running with its
+record (C55, C56). On Azure the boot pin and the sealed key files were
+taken over PCR 10, IMA's runtime log, which the Ubuntu 24.04 image moves
+within a boot, so neither held across a restart; the Azure families now
+quote and seal under the operator's selection, and `acpctl provision`
+writes `sha256:0-9,11-14` (ADR 0037, amended). The daemons' wire, the
+bundle format (v4), the audit schema (v8) and the policy schema are
+unchanged; an Azure host provisioned by an earlier release keeps its pins
+and its seals, and is re-provisioned to gain the fix (`08_upgrading.md`).
+
 ### Added
 
 - **One button on Google Cloud** (`deploy/gcp/`). `deploy.sh` verifies
