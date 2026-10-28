@@ -40,6 +40,26 @@ given release can still open.
   — claim C56: 287 s to `PROVEN`, the vTPM opening the files again
   after a hard reset, a second job EXACT, one chain of 32 events.
 
+### Fixed
+
+- **The Azure families' boot pin and seal survive a restart.** Their
+  quote and seal selection was `sha256:0-14`, and PCR 10 is IMA's runtime
+  log, which the Ubuntu 24.04 Confidential VM image extends as files are
+  first read: the digest `identity` printed named one moment of one boot,
+  and after `az vm restart` neither the pinned boot nor the sealed key
+  files held — both daemons died in a restart loop. `tee.vtpm_quote_pcrs`
+  now applies to `azure-sev-snp` and `azure-cgpu` in `sagvd`,
+  `acp-compute` and `acp-bootstrap` (its form checked under `auto` too;
+  `ak_intermediates_path` stays `gcp-sev-snp-vtpm`'s), the default is
+  unchanged, and `acpctl provision` writes `tee.vtpm_quote_pcrs` and
+  `tee.vtpm_seal_pcrs` as `sha256:0-9,11-14` for the Azure families
+  before the identities are taken, prints the selection, records what
+  each vTPM quoted (`vtpm_pcrs` in `provision.json`) and refuses a daemon
+  whose identity says it quoted another selection than its configuration
+  names; `pin-worker` holds the worker's identity to the same. ADR 0037
+  and ADR 0022 amended; the Azure runbooks name the selection and the
+  PCR-phase rule (seal and start after `systemd-pcrphase.service`).
+
 ## [0.12.0] — 2026-10-28
 
 The release a person installs. `acpctl` and `acp-keygen` come for macOS

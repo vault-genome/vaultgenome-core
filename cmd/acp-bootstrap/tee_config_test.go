@@ -3,7 +3,11 @@
 
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+)
 
 // The sev-guest device the sealing key is derived through is the
 // operator's when named and the kernel's default otherwise.
@@ -98,6 +102,30 @@ func TestValidate_HardwareProviderFields(t *testing.T) {
 			hardware(c, "gcp-tdx")
 			c.TEE.VTPMSealPCRs = "sha256:0,0"
 		}, "listed twice"},
+		// The quote selection is the vTPM families' (ADR 0037, amendment of
+		// 2026-10-28): the boot without IMA's PCR 10 on an Azure host; the
+		// intermediates stay gcp-sev-snp-vtpm's.
+		"azure-sev-snp with the boot pcrs": {func(c *Config) {
+			hardware(c, "azure-sev-snp")
+			c.TEE.VTPMQuotePCRs = tee.TPMBootPCRsWithoutIMA
+			c.TEE.VTPMSealPCRs = tee.TPMBootPCRsWithoutIMA
+		}, ""},
+		"azure-cgpu with the boot pcrs": {func(c *Config) {
+			azure(c)
+			c.TEE.VTPMQuotePCRs = tee.TPMBootPCRsWithoutIMA
+		}, ""},
+		"bad quote pcrs on azure": {func(c *Config) {
+			azure(c)
+			c.TEE.VTPMQuotePCRs = "sha1:0"
+		}, "tee.vtpm_quote_pcrs: PCR selection"},
+		"quote pcrs on tdx": {func(c *Config) {
+			hardware(c, "gcp-tdx")
+			c.TEE.VTPMQuotePCRs = "sha256:0"
+		}, "tee.vtpm_quote_pcrs applies to gcp-sev-snp-vtpm, azure-sev-snp and azure-cgpu only"},
+		"intermediates on azure-sev-snp": {func(c *Config) {
+			hardware(c, "azure-sev-snp")
+			c.TEE.AKIntermediatesPath = "/inter.pem"
+		}, "tee.ak_intermediates_path applies to gcp-sev-snp-vtpm only"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := minimalValidConfig()

@@ -160,6 +160,53 @@ clouds `pin-worker` pinned the Azure worker's boot from its identity. Two
 VMs of one image measured different boots: the pin is a host's, taken from
 its own identity.
 
+## Amendment (2026-10-28): PCR 10 is IMA's, and the Azure families leave it out
+
+The Azure families' boot pin and seal covered PCRs 0–14
+(`DefaultTPMQuotePCRs`, the azure-cgpu quote's selection since ADR 0019 and
+the vTPM sealer's default since ADR 0022). On the Ubuntu 24.04 Confidential
+VM image Azure ships the kernel runs IMA: every file first read or run is
+measured into PCR 10 as the boot goes on, so PCR 10 at the moment the key
+files were sealed and the identity taken was not PCR 10 a minute later, nor
+after a restart — `tpm2_pcrread sha256:0-16,23` at seal time and after `az vm
+restart` differed in PCR 10 alone (a `Standard_DC4as_v5`, Genoa, West Europe,
+2026-10-28: the one-button deployment's kit on Azure and the two experiments
+beside it; the kit's record follows with that deployment). A pin over it
+names one moment of one boot; a seal over it never opens again; after the
+restart both daemons died in a restart loop (`the vTPM refused to unseal`).
+Compute Engine's TDX image has no IMA policy, and `gcp-sev-snp-vtpm` quotes
+`sha256:0-9` (this ADR saw PCRs 8–10 move), which is why neither showed it.
+
+The selection is now the operator's for the Azure families, as it was for
+`gcp-sev-snp-vtpm`:
+
+- `tee.vtpm_quote_pcrs` applies to `azure-sev-snp` and `azure-cgpu` in
+  `sagvd`, `acp-compute` and `acp-bootstrap` (the producers take it; the
+  configuration checks its form, under `auto` too; `ak_intermediates_path`
+  stays `gcp-sev-snp-vtpm`'s). The default stays `sha256:0-14`: a host
+  configured by hand keeps the pins and the seals it has.
+- `acpctl provision` writes `tee.vtpm_quote_pcrs` and `tee.vtpm_seal_pcrs`
+  as `sha256:0-9,11-14` (`tee.TPMBootPCRsWithoutIMA`: the firmware's,
+  GRUB's and the OS's PCRs, without IMA's) into both daemons' configurations
+  before the identities are taken, so each side's pin and each side's seal
+  are over PCRs a restart does not move. It refuses a daemon whose identity
+  says it quoted another selection than its configuration names — a binary
+  that predates the field quotes its default — and `provision.json` records
+  what each vTPM quoted (`vtpm_pcrs`); `pin-worker` holds the worker's
+  identity to the same.
+- The verifier is unchanged: it holds the quote's digest to the pinned set,
+  and the digest is over the quoted selection, so a quote over other PCRs
+  does not match a pin taken over these.
+- Anything that seals to or opens from the vTPM runs after systemd's PCR
+  phase barrier (`After=network-online.target systemd-pcrphase.service`):
+  systemd extends PCR 11 with the boot's phase, and a file sealed before
+  "ready" does not open after it.
+
+A pinned PCR 10 would have been a measurement of what ran, which is what IMA
+is for; it is not a pin of the boot, and a boot pin that moves while the boot
+runs pins nothing. The record of what ran stays in IMA's log and in the audit
+log, where it belongs.
+
 ## Evidence
 
 [C53](../../VERIFIABLE-CLAIMS.md#c53): four boots of one Compute Engine n2d

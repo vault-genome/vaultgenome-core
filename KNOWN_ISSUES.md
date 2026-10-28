@@ -127,7 +127,13 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    in every policy: the vTPM's PCR digest (`pcr_digests`, required, a
    per-boot digest — the launch measurement covers Azure's paravisor and
    firmware, not the OS; ADR 0037). The escrow key on that
-   host is sealed to the same vTPM under the same PCRs (ADR 0022). A key
+   host is sealed to the same vTPM under the same PCRs (ADR 0022). Since
+   2026-10-28 the PCRs quoted are the operator's for both Azure families
+   (`tee.vtpm_quote_pcrs`): the default `sha256:0-14` includes PCR 10,
+   IMA's runtime log, which the Ubuntu 24.04 Confidential VM image extends
+   within a boot, so a pin or a seal over it did not survive a restart;
+   `acpctl provision` writes `sha256:0-9,11-14` for the quote and the seal
+   (ADR 0037, amendment of 2026-10-28). A key
    release to the confidential-GPU destination has run on
    hardware (`scripts/hardware-test/failover-cgpu`, 2026-09-16: a failover
    from a GCP SEV-SNP primary to the Azure H100 host, the boot pinned, the

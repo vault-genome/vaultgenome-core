@@ -256,6 +256,23 @@ func TestNewVTPMSealerValidatesTheSelection(t *testing.T) {
 	require.NoError(t, ValidatePCRSelection("sha256:7"))
 }
 
+// The boot without IMA's PCR 10 is the default quote selection less that
+// one PCR, well formed, and the families whose vTPM quotes the boot are
+// the ones that take it (ADR 0037, amendment of 2026-10-28).
+func TestTPMBootPCRsWithoutIMA(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, ValidatePCRSelection(TPMBootPCRsWithoutIMA))
+	require.NoError(t, ValidatePCRSelection(DefaultTPMQuotePCRs))
+	require.Equal(t, strings.Replace(DefaultTPMQuotePCRs, ",10,", ",", 1), TPMBootPCRsWithoutIMA)
+	require.NotContains(t, strings.Split(strings.TrimPrefix(TPMBootPCRsWithoutIMA, "sha256:"), ","), "10")
+	require.Equal(t, DefaultTPMQuotePCRs, DefaultVTPMSealPCRs, "the sealer's default is the quote's")
+	for _, p := range AllProviders() {
+		want := p == ProviderGCPSEVSNPVTPM || p == ProviderAzureSEVSNP || p == ProviderAzureCGPU
+		require.Equal(t, want, QuotesTheBoot(p), string(p))
+	}
+	require.False(t, QuotesTheBoot(ProviderAuto))
+}
+
 // The contract every sealer in this package keeps.
 func TestContract_VTPM_Sealer(t *testing.T) {
 	newFakeVTPM(t)

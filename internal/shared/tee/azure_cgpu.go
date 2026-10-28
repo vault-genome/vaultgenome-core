@@ -42,9 +42,21 @@ import (
 // AzureCGPUEvidenceSchema names the Evidence envelope.
 const AzureCGPUEvidenceSchema = "vault-genome/azure-cgpu-evidence/v1"
 
-// DefaultTPMQuotePCRs are the PCRs the producer quotes: the measured boot
-// (0–7), the kernel's IMA and the OS (8–14).
+// DefaultTPMQuotePCRs are the PCRs the producer quotes when the
+// configuration names none: the measured boot (0–7), the kernel's IMA and
+// the OS (8–14). PCR 10 is IMA's runtime log, which an image that runs
+// IMA extends as files are first read within a boot, so a digest over this
+// selection names one moment of one boot; a deployment that must survive a
+// restart quotes and seals under TPMBootPCRsWithoutIMA (ADR 0037).
 const DefaultTPMQuotePCRs = "sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14"
+
+// TPMBootPCRsWithoutIMA are the boot PCRs without PCR 10: the firmware's
+// (0–7), GRUB's (8–9) and the OS's (11–14) — the same on every boot of one
+// image, as DefaultTPMQuotePCRs is not where IMA runs. `acpctl provision`
+// writes it for the Azure families as tee.vtpm_quote_pcrs and
+// tee.vtpm_seal_pcrs, so the pinned boot and the sealed key files hold
+// across a restart (ADR 0037, amendment of 2026-10-28).
+const TPMBootPCRsWithoutIMA = "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14"
 
 // AzureCGPUProducerConfig configures the producer on the guest.
 type AzureCGPUProducerConfig struct {
