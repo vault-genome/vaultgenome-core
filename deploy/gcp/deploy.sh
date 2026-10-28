@@ -220,9 +220,11 @@ for _ in $(seq 1 150); do
   if grep -q '===VG-DEPLOY-END===' "$SERIAL"; then RESULT="recorded"; break; fi
   if grep -q '===VG-DEPLOY-FAILED===' "$SERIAL"; then RESULT="failed"; break; fi
   last="$(grep -o 'startup-script: == .*' "$SERIAL" | tail -1 | sed 's/startup-script: == //' || true)"
-  [ -z "$last" ] || printf '\r  %-110s' "$last"
+  # one line, rewritten in place and cut to the terminal's width: a wrapped
+  # line would not be erased by the carriage return
+  [ -z "$last" ] || printf '\r  %.*s\033[K' "$(( ${COLUMNS:-$(tput cols 2>/dev/null || echo 80)} - 4 ))" "$last"
 done
-printf '\n'
+printf '\r\033[K'
 cp "$SERIAL" "$REC/serial-console.txt"
 if [ "$RESULT" = failed ]; then
   sed -n '/===VG-DEPLOY-FAILED===/,/===VG-DEPLOY-FAILED-END===/p' "$SERIAL" | sed 's/^.*startup-script: //' | head -60
