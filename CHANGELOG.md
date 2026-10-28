@@ -11,6 +11,29 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- **One button on Google Cloud** (`deploy/gcp/`). `deploy.sh` verifies
+  the signed release where it runs — the checksums list against the
+  release workflow's identity for the tag, the five files against the
+  list, their SLSA provenance against the source tag, the tag's signature
+  against the keys pinned on `main` — creates an `n2d-standard-4`
+  Confidential VM (AMD Milan, SEV-SNP) with the verified list in its
+  metadata, and the guest (`guest.sh`) fetches the release and runs only
+  what is on the list: the worker runtime from the hash-pinned locks,
+  `acpctl provision`, a first genome made and sealed, `sagvd.service` and
+  `acp-compute.service`, a gate job over the Return Path, the audit log
+  verified under the operator's key. The record comes back over the
+  serial console into `records/<stamp>/` and the summary begins with
+  `PROVEN`; the VM stays, with `vg` on it. `tutorial.md` runs it from
+  the Cloud Shell button; `destroy.sh` removes the VM; `--attach`
+  collects the record of a VM whose session dropped. The kit
+  `scripts/hardware-test/gcp-deploy` runs it on the record and then
+  resets the VM, submits a second job over ssh and verifies the chain
+  across the reboot (claim C55: 251 s from the command to `PROVEN`; after
+  the reset the services back on their own, a second job EXACT, one
+  chain of 32 events).
+
 ## [0.12.0] — 2026-10-28
 
 The release a person installs. `acpctl` and `acp-keygen` come for macOS
