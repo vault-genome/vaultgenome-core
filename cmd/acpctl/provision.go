@@ -216,6 +216,7 @@ type provisionedSide struct {
 	MeasurementHex        string   `json:"measurement_hex"`
 	Sealer                string   `json:"sealer,omitempty"`
 	VTPMPCRDigestHex      string   `json:"vtpm_pcr_digest_hex,omitempty"`
+	VTPMPCRs              string   `json:"vtpm_pcrs,omitempty"`
 	AuditKID              string   `json:"audit_kid,omitempty"`
 	AuditPublicKeyPEM     string   `json:"audit_public_key_pem,omitempty"`
 	AuthorityKID          string   `json:"authority_kid,omitempty"`
@@ -235,7 +236,8 @@ type daemonIdentity struct {
 	AuthorityKID          string `json:"authority_kid"`
 	AuthorityPublicKeyPEM string `json:"authority_public_key_pem"`
 	VTPM                  *struct {
-		PCRDigestHex string `json:"pcr_digest_hex"`
+		PCRs         []string `json:"pcrs"`
+		PCRDigestHex string   `json:"pcr_digest_hex"`
 	} `json:"vtpm"`
 }
 
@@ -475,6 +477,20 @@ func bootPinned(family tee.Provider) bool {
 	return family == tee.ProviderAzureSEVSNP || family == tee.ProviderAzureCGPU || family == tee.ProviderGCPSEVSNPVTPM
 }
 
+// bootPCRsFor is the PCR selection a host of family quotes and seals
+// under, written as tee.vtpm_quote_pcrs and tee.vtpm_seal_pcrs: for the
+// Azure families the boot without PCR 10, IMA's runtime log, which the
+// images Azure ships extend as files are first read — a digest over it
+// names one moment of one boot, and a pin or a seal taken then does not
+// hold across a restart (ADR 0037, amendment of 2026-10-28). Empty where
+// the daemon's default serves.
+func bootPCRsFor(family tee.Provider) string {
+	if family == tee.ProviderAzureSEVSNP || family == tee.ProviderAzureCGPU {
+		return tee.TPMBootPCRsWithoutIMA
+	}
+	return ""
+}
+
 // placeholderBoot is a boot pin until the peer's identity names its own:
 // a digest no boot measures, so a daemon started before the pin refuses
 // every peer, as it does on the measurement's placeholder.
@@ -517,10 +533,21 @@ func pinBoot(res *provisionResult, key, path, digestHex, peerName string, stdout
 	return nil
 }
 
+// printBootPCRs says which PCRs the configurations quote and seal under,
+// where the selection is provision's and not the daemon's default.
+func printBootPCRs(stdout io.Writer, family tee.Provider) {
+	if sel := bootPCRsFor(family); sel != "" {
+		fmt.Fprintf(stdout, "  boot PCRs, quoted and sealed: %s (IMA's PCR 10 left out: it moves within a boot)\n", sel)
+	}
+}
+
 // teeSection is a daemon's tee configuration: this host's family and
 // sealer, the descriptor, and the peer it verifies and pins.
 func teeSection(local, family tee.Provider, sealer, descriptor string, peerCfg map[string]any, peerPin, seed, peerPub string) map[string]any {
 	t := map[string]any{"provider": string(local), "sealer": sealer, "workload_descriptor": descriptor}
+	if sel := bootPCRsFor(family); sel != "" {
+		t["vtpm_quote_pcrs"], t["vtpm_seal_pcrs"] = sel, sel
+	}
 	pc := map[string]any{}
 	for k, v := range peerCfg {
 		pc[k] = v
@@ -639,6 +666,14 @@ func identify(out, key, bin, cfg, pinPath, name string, family, local tee.Provid
 	side.AuthorityKID, side.AuthorityPublicKeyPEM = id.AuthorityKID, id.AuthorityPublicKeyPEM
 	if id.VTPM != nil {
 		side.VTPMPCRDigestHex = id.VTPM.PCRDigestHex
+		side.VTPMPCRs = strings.Join(id.VTPM.PCRs, "+")
+		// The pin is a digest over the PCRs the daemon quoted: those must
+		// be the ones its configuration names, or the pin names another
+		// selection than the operator chose — a daemon that predates
+		// tee.vtpm_quote_pcrs for its family quotes its default.
+		if want := bootPCRsFor(family); want != "" && len(id.VTPM.PCRs) > 0 && side.VTPMPCRs != want {
+			return fmt.Errorf("%s identity: its vTPM quoted %s, not the %s its configuration names (tee.vtpm_quote_pcrs): a %s that predates the selection? the release's binaries go together", name, side.VTPMPCRs, want, key)
+		}
 	}
 	if id.TEEProvider != "" && tee.Provider(id.TEEProvider) != family && tee.Provider(id.TEEProvider) != local {
 		side.Warnings = append(side.Warnings, fmt.Sprintf("%s attests as %s, not the %s this deployment names", name, id.TEEProvider, family))
@@ -805,6 +840,7 @@ func provision(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
 		return nil, err
 	}
 	fmt.Fprintf(stdout, "  configurations: %s, %s\n", sagvdPath, workerPath)
+	printBootPCRs(stdout, family)
 
 	// 5. The identities, and the pins from them: each side pins the other,
 	// its measurement and, where the vTPM measures the OS, its boot.
@@ -1163,6 +1199,7 @@ func provisionAuthority(o provisionOptions, stdout io.Writer) (*provisionResult,
 		return nil, err
 	}
 	fmt.Fprintf(stdout, "  configuration: %s\n", sagvdPath)
+	printBootPCRs(stdout, family)
 
 	// 5. sagvd's identity: the worker's pin, into the bundle.
 	if err := identify(out, "sagvd", bins["sagvd"], sagvdPath, vaultPin, "sagvd", family, local, &res.Vault, stdout); err != nil {
@@ -1373,6 +1410,7 @@ func provisionJoin(o provisionOptions, stdout io.Writer) (*provisionResult, erro
 		return nil, err
 	}
 	fmt.Fprintf(stdout, "  configuration: %s\n", workerPath)
+	printBootPCRs(stdout, family)
 
 	// 4. The worker's identity, for the authority to pin.
 	if err := identify(out, "acp-compute", bins["acp-compute"], workerPath, "", "acp-compute", family, local, &res.Worker, stdout); err != nil {
@@ -1476,6 +1514,12 @@ func provisionPinWorker(o provisionOptions, stdout io.Writer) (*provisionResult,
 		if d, err := hex.DecodeString(id.VTPM.PCRDigestHex); err != nil || len(d) != sha256.Size {
 			return nil, fmt.Errorf("--identity: vtpm.pcr_digest_hex %q is not a 32-byte digest", id.VTPM.PCRDigestHex)
 		}
+		// The digest is over the PCRs the worker quoted: the selection its
+		// configuration names, or the pin is over PCRs the operator did not
+		// choose (a worker that predates the field quotes its default).
+		if want, got := bootPCRsFor(worker), strings.Join(id.VTPM.PCRs, "+"); want != "" && got != "" && got != want {
+			return nil, fmt.Errorf("--identity: the worker's vTPM quoted %s, not the %s its configuration names (tee.vtpm_quote_pcrs): an acp-compute that predates the selection? the release's binaries go together", got, want)
+		}
 	}
 	pinPath := res.Pins["worker"]
 	if pinPath == "" {
@@ -1503,6 +1547,7 @@ func provisionPinWorker(o provisionOptions, stdout io.Writer) (*provisionResult,
 	res.Worker = provisionedSide{Provider: id.TEEProvider, MeasurementHex: id.TEEMeasurementHex, Sealer: id.Sealer, IdentityFile: idFile, Warnings: warnings}
 	if id.VTPM != nil {
 		res.Worker.VTPMPCRDigestHex = id.VTPM.PCRDigestHex
+		res.Worker.VTPMPCRs = strings.Join(id.VTPM.PCRs, "+")
 	}
 	res.Pins["worker"] = pinPath
 	res.Phase = "complete"

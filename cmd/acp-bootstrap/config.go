@@ -206,11 +206,14 @@ type TEEConfig struct {
 	// boot the operator pins). Those providers only.
 	VTPMSealPCRs string `json:"vtpm_seal_pcrs,omitempty"`
 
-	// VTPMQuotePCRs is the PCR selection a gcp-sev-snp-vtpm destination's
-	// vTPM quotes (ADR 0037; default sha256:0-9); AKIntermediatesPath a PEM
-	// file of the certificates between its attestation-key certificate and
-	// Google's EK/AK root (default: the one the certificate's issuer URL
-	// serves). gcp-sev-snp-vtpm only.
+	// VTPMQuotePCRs is the PCR selection the destination's vTPM quotes where
+	// the quote carries the boot (ADR 0037): gcp-sev-snp-vtpm (default
+	// sha256:0-9), azure-sev-snp and azure-cgpu (default sha256:0-14;
+	// sha256:0-9,11-14 leaves out IMA's PCR 10, so the pinned boot holds
+	// across a restart). AKIntermediatesPath is a PEM file of the
+	// certificates between a gcp-sev-snp-vtpm destination's attestation-key
+	// certificate and Google's EK/AK root (default: the one the
+	// certificate's issuer URL serves); gcp-sev-snp-vtpm only.
 	VTPMQuotePCRs       string `json:"vtpm_quote_pcrs,omitempty"`
 	AKIntermediatesPath string `json:"ak_intermediates_path,omitempty"`
 
@@ -629,10 +632,13 @@ func (c Config) Validate() error {
 		(c.TEE.TPM2ToolsDir != "" && lp != tee.ProviderGCPSEVSNPVTPM)) {
 		errs = append(errs, errors.New("tee.gpu_attest_command and ak_handle apply to azure-cgpu and azure-sev-snp only, and tpm2_tools_dir to those and gcp-sev-snp-vtpm"))
 	}
-	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderGCPSEVSNPVTPM && (c.TEE.VTPMQuotePCRs != "" || c.TEE.AKIntermediatesPath != "") {
-		errs = append(errs, errors.New("tee.vtpm_quote_pcrs and ak_intermediates_path apply to gcp-sev-snp-vtpm only"))
-	} else if c.TEE.VTPMQuotePCRs != "" {
-		if err := tee.ValidatePCRSelection(c.TEE.VTPMQuotePCRs); err != nil {
+	if lp, _ := tee.ParseProvider(c.TEE.Provider); lp != tee.ProviderGCPSEVSNPVTPM && c.TEE.AKIntermediatesPath != "" {
+		errs = append(errs, errors.New("tee.ak_intermediates_path applies to gcp-sev-snp-vtpm only"))
+	}
+	if lp, _ := tee.ParseProvider(c.TEE.Provider); c.TEE.VTPMQuotePCRs != "" {
+		if !tee.QuotesTheBoot(lp) && lp != tee.ProviderAuto {
+			errs = append(errs, errors.New("tee.vtpm_quote_pcrs applies to gcp-sev-snp-vtpm, azure-sev-snp and azure-cgpu only, the families whose vTPM quotes the boot"))
+		} else if err := tee.ValidatePCRSelection(c.TEE.VTPMQuotePCRs); err != nil {
 			errs = append(errs, fmt.Errorf("tee.vtpm_quote_pcrs: %w", err))
 		}
 	}

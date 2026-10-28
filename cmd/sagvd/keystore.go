@@ -280,13 +280,13 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 		}
 		return provider, p, nil
 	case tee.ProviderAzureSEVSNP:
-		p, err := tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
+		p, err := tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle, PCRs: cfg.VTPMQuotePCRs})
 		if err != nil {
 			return "", nil, fmt.Errorf("sagvd: tee.provider=azure-sev-snp: %w", err)
 		}
 		return provider, p, nil
 	case tee.ProviderAzureCGPU:
-		p, err := tee.NewAzureCGPUProducer(tee.AzureCGPUProducerConfig{GPUAttestCommand: cfg.GPUAttestCommand, TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
+		p, err := tee.NewAzureCGPUProducer(tee.AzureCGPUProducerConfig{GPUAttestCommand: cfg.GPUAttestCommand, TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle, PCRs: cfg.VTPMQuotePCRs})
 		if err != nil {
 			return "", nil, fmt.Errorf("sagvd: tee.provider=azure-cgpu: %w", err)
 		}

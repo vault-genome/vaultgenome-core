@@ -100,7 +100,28 @@ func TestValidateTEE_FieldsBelongToTheirProvider(t *testing.T) {
 		}(), ""},
 		"vtpm host bad quote pcrs": {func() TEEConfig { c := hardware("gcp-sev-snp-vtpm"); c.VTPMQuotePCRs = "sha1:0"; return c }(), "tee.vtpm_quote_pcrs"},
 		"vtpm host with ak handle": {func() TEEConfig { c := hardware("gcp-sev-snp-vtpm"); c.AKHandle = "0x81000003"; return c }(), "makes its attestation key from Google's template"},
-		"quote pcrs elsewhere":     {func() TEEConfig { c := hardware("gcp-sev-snp"); c.VTPMQuotePCRs = "sha256:0"; return c }(), "apply to gcp-sev-snp-vtpm only"},
+		"quote pcrs elsewhere":     {func() TEEConfig { c := hardware("gcp-sev-snp"); c.VTPMQuotePCRs = "sha256:0"; return c }(), "tee.vtpm_quote_pcrs applies to gcp-sev-snp-vtpm, azure-sev-snp and azure-cgpu only"},
+		"quote pcrs on tdx":        {func() TEEConfig { c := hardware("gcp-tdx"); c.VTPMQuotePCRs = "sha256:0"; return c }(), "the families whose vTPM quotes the boot"},
+		"intermediates elsewhere":  {func() TEEConfig { c := hardware("azure-sev-snp"); c.AKIntermediatesPath = "/inter.pem"; return c }(), "tee.ak_intermediates_path applies to gcp-sev-snp-vtpm only"},
+		// The Azure families quote and seal under the operator's selection
+		// (ADR 0037, amendment of 2026-10-28): the boot without IMA's PCR 10
+		// is what acpctl provision writes; a malformed one is refused by
+		// name; under auto the form is checked here and the fit by the
+		// family resolved.
+		"azure-sev-snp boot pcrs": {func() TEEConfig {
+			c := hardware("azure-sev-snp")
+			c.VTPMQuotePCRs, c.VTPMSealPCRs = tee.TPMBootPCRsWithoutIMA, tee.TPMBootPCRsWithoutIMA
+			return c
+		}(), ""},
+		"azure-sev-snp bad quote pcrs": {func() TEEConfig { c := hardware("azure-sev-snp"); c.VTPMQuotePCRs = "sha1:0"; return c }(), "tee.vtpm_quote_pcrs: PCR selection"},
+		"azure-cgpu boot pcrs": {func() TEEConfig {
+			c := hardware("azure-cgpu")
+			c.VTPMQuotePCRs, c.VTPMSealPCRs = tee.TPMBootPCRsWithoutIMA, tee.TPMBootPCRsWithoutIMA
+			return c
+		}(), ""},
+		"azure-cgpu bad quote pcrs": {func() TEEConfig { c := hardware("azure-cgpu"); c.VTPMQuotePCRs = "sha256:0,0"; return c }(), "tee.vtpm_quote_pcrs: PCR selection"},
+		"auto boot pcrs":            {func() TEEConfig { c := hardware("auto"); c.VTPMQuotePCRs = tee.TPMBootPCRsWithoutIMA; return c }(), ""},
+		"auto bad quote pcrs":       {func() TEEConfig { c := hardware("auto"); c.VTPMQuotePCRs = "sha256:24"; return c }(), "tee.vtpm_quote_pcrs: PCR selection"},
 		"vtpm peer": {peer("gcp-sev-snp-vtpm", func(p *PeerTEEConfig) {
 			p.GCEProjectIDs = []string{"rats-probe"}
 			p.PCRSelection = "sha256:0,1,2,3,4,5,6,7,8,9"

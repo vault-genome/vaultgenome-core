@@ -54,9 +54,12 @@ sudo gpu-attestation --user_mode --nonce <64 hex>   # NVIDIA's own verdict for a
 `tee_measurement_hex`: Azure's SEV-SNP launch measurement, which covers
 the paravisor and firmware Azure measures — the same for every VM of the
 same generation, not the OS. The OS and the driver are in the vTPM's PCRs,
-which the quote records and the verifier does not police (a PCR policy is
-the next step). The GPU's software is pinned through NVIDIA's claims
-instead (`gpu_policy`).
+which the quote records; `identity` prints what this boot measured as
+`vtpm.pcr_digest_hex` (the digest over the PCRs the quote selects —
+`tee.vtpm_quote_pcrs`, `sha256:0-14` by default), and a peer pins it with
+`pcr_digests`, which is required: the launch measurement says nothing of
+the OS (ADR 0037). The GPU's software is pinned through NVIDIA's claims
+(`gpu_policy`).
 
 ## C. Configuration
 
@@ -66,6 +69,8 @@ GPU verifier):
 ```json
 "tee": {
   "provider": "azure-cgpu", "workload_descriptor": "acp-compute-v1",
+  "vtpm_quote_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
+  "vtpm_seal_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
   "gpu_attest_command": ["/usr/local/lib/local_gpu_verifier/.venv/bin/python", "/opt/vg/gpu-token.py"],
   "peer": { "provider": "azure-cgpu",
             "measurement_path": "/etc/acp/pins/vault.measurement",
@@ -131,11 +136,20 @@ GPU verifier):
   measured); `allow_secure_boot_off`, `allow_debug`, `allow_unsigned_rim`
   relax the defaults, knowingly.
 - `pcr_digests` (required): what the peer's vTPM measured of its boot —
-  `identity` prints it as `vtpm.pcr_digest_hex` (the digest over PCRs 0–14
-  of the SHA-256 bank, as TPM2_Quote computes it) — pinned to one of these;
-  a kernel or driver update changes it. A configuration without it does not
-  start: the launch measurement is Azure's paravisor and firmware and says
-  nothing of the OS (ADR 0037).
+  `identity` prints it as `vtpm.pcr_digest_hex` (the digest over the PCRs
+  the peer's `vtpm_quote_pcrs` selects, as TPM2_Quote computes it) — pinned
+  to one of these; a kernel or driver update changes it. A configuration
+  without it does not start: the launch measurement is Azure's paravisor
+  and firmware and says nothing of the OS (ADR 0037).
+- `vtpm_quote_pcrs` and `vtpm_seal_pcrs` (set both, to the same): the
+  PCRs the quote covers and the key files are sealed to. The default is
+  `sha256:0-14`, and PCR 10 is IMA's runtime log, which an image that runs
+  IMA — Azure's Ubuntu 24.04 Confidential VM image does — extends as files
+  are first read: a pin or a seal over it does not hold across a restart.
+  Name `sha256:0-9,11-14` (ADR 0037, amendment of 2026-10-28) before
+  `identity` and `seal-keys`; seal and start after
+  `systemd-pcrphase.service` (PCR 11 carries the boot's phase; the
+  `azure-sev-snp` runbook, §C).
 - A destination reached by IP whose certificate names it otherwise: the
   authority's `crosscloud.transport_tls.server_name` is the name to verify
   the certificate against.
@@ -173,7 +187,8 @@ NVIDIA's word, the genome gated EQUIVALENT on the H100, RTO 24.99 s.
 
 No derived-key interface from the TEE; the escrow key is sealed to the
 guest's vTPM under a policy of the pinned PCRs (ADR 0022,
-`tee.vtpm_seal_pcrs`, default sha256:0-14), with tpm2-tools on the guest;
+`tee.vtpm_seal_pcrs`, default sha256:0-14; name sha256:0-9,11-14 where
+the image runs IMA, §C), with tpm2-tools on the guest;
 `sagvd seal-keys`, `acp-compute seal-keys` and `acp-bootstrap seal-keys`
 seal the daemons' other secret files — seeds, TLS keys, tokens — the same
 way (ADR 0023).

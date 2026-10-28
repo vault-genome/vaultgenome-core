@@ -49,9 +49,11 @@ sudo tpm2_nvread -C o 0x1400001 | head -c 4  # "HCLA"
 the paravisor and firmware Azure measures — the same for every VM of the
 same generation, not the OS. The OS is in the vTPM's PCRs, which the quote
 records; `identity` prints what this boot measured as
-`vtpm.pcr_digest_hex` (the digest over PCRs 0–14 of the SHA-256 bank, as
-TPM2_Quote computes it), and a peer pins it with `pcr_digests`, which is
-required: the launch measurement says nothing of the OS (ADR 0037).
+`vtpm.pcr_digest_hex` (the digest over the PCRs the quote selects —
+`tee.vtpm_quote_pcrs`: `sha256:0-14` by default, `sha256:0-9,11-14` as
+`acpctl provision` writes it — as TPM2_Quote computes it), and a peer pins
+it with `pcr_digests`, which is required: the launch measurement says
+nothing of the OS (ADR 0037).
 
 The report is issued at boot, so its own REPORT_DATA is Azure's (the
 SHA-256 of the vTPM's runtime data, which names the attestation key); the
@@ -66,6 +68,8 @@ The daemon on the VM (root, or a user that may read the vTPM):
 ```json
 "tee": {
   "provider": "azure-sev-snp", "workload_descriptor": "acp-compute-v1",
+  "vtpm_quote_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
+  "vtpm_seal_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
   "peer": { "provider": "azure-sev-snp",
             "measurement_path": "/etc/acp/pins/vault.measurement",
             "pcr_digests": ["<the peer's vtpm.pcr_digest_hex>"],
@@ -73,6 +77,16 @@ The daemon on the VM (root, or a user that may read the vTPM):
             "vcek_cache_dir": "/var/lib/acp/vcek-cache" } }
 ```
 
+- `vtpm_quote_pcrs` and `vtpm_seal_pcrs` (set both, to the same): the
+  PCRs the quote covers and the key files are sealed to. The default is
+  `sha256:0-14`, and PCR 10 is IMA's runtime log, which the Ubuntu 24.04
+  Confidential VM image extends as files are first read: a pin or a seal
+  over it does not hold across a restart — after `az vm restart` both
+  daemons die in a restart loop (`the vTPM refused to unseal`). Name
+  `sha256:0-9,11-14`, as `acpctl provision` does (ADR 0037, amendment of
+  2026-10-28), before `identity` and `seal-keys`: the digest is over the
+  PCRs selected, so a pin taken under one selection does not match a quote
+  under another.
 - `tpm2_tools_dir` and `ak_handle` are optional: tpm2-tools on PATH, and
   the attestation key found among the persistent handles by its public
   key (`0x81000003` on the machines measured).
@@ -102,7 +116,18 @@ The daemon on the VM (root, or a user that may read the vTPM):
 - `tee.sealer`: `auto` (the default) is the vTPM (`tpm2`, ADR 0022): the
   paravisor gives the guest no derived key of its own, and `tee.sealer:
   "tee"` is refused by name. `tee.vtpm_seal_pcrs` selects the PCRs the key
-  files are sealed to.
+  files are sealed to (above).
+- **Seal and start after systemd's PCR phase barrier.** systemd extends
+  PCR 11 with the boot's phases — `systemd-pcrphase-sysinit.service`,
+  then `systemd-pcrphase.service` ("ready"), and again at shutdown — and
+  a file sealed under a selection that includes PCR 11 opens only in the
+  phase it was sealed in. Run `seal-keys` (and `acpctl provision`) after
+  `systemd-pcrphase.service` has finished, and give the daemons' units
+  `After=network-online.target systemd-pcrphase.service`. A unit that
+  races the barrier seals in one phase and asks in another: on the
+  record, a VM sealed before "ready" never opened its key files after a
+  restart, and one sealed after it failed its first start of the next
+  boot and succeeded on the retry.
 - No `gpu_attest_command`, `nras_*` or `gpu_policy`: those are the
   `azure-cgpu` family's and are refused here.
 

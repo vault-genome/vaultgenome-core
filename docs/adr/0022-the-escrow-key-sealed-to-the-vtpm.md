@@ -88,3 +88,16 @@ a machine in a known state can have back.
   re-sealed through the recovery ceremony, unsealed by `sagvd failover`
   at start, and the failover completed with RTO 20.27 s. The Azure
   confidential GPU host: the same, on an NCC H100 v5 (`scripts/hardware-test/azure-cgpu/evidence/20260916T204311Z-returnpath/`, key `11e87307c4f33f8c` sealed under the same fifteen PCRs and re-sealed through the ceremony).
+
+## Amendment (2026-10-28): PCR 10 where IMA runs
+
+The default selection (`sha256:0-14`) includes PCR 10, IMA's runtime
+measurement log. On an image that runs IMA — Azure's Ubuntu 24.04
+Confidential VM image does — PCR 10 is extended as files are first read, so
+a key sealed under it opens only until the next file is measured, and never
+after a restart. The selection stays the operator's and the default stays;
+`acpctl provision` names `sha256:0-9,11-14` for the Azure families (ADR
+0037, amendment of 2026-10-28), and a host configured by hand on such an
+image should too. Where the image runs no IMA policy — Compute Engine's TDX
+image, C56 — the default holds across a reboot. Seal after systemd's PCR
+phase barrier either way: PCR 11 carries the boot's phase.

@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // stubRelease is a bin directory with the three binaries provision runs,
@@ -29,6 +30,16 @@ func stubRelease(t *testing.T, measurementBytes int, identityProvider string) (b
 // stubReleaseBoot is stubRelease whose identity prints boot as the vTPM's
 // PCR digest.
 func stubReleaseBoot(t *testing.T, measurementBytes int, identityProvider, boot string) (binDir, record string) {
+	pcrs := ""
+	if tee.QuotesTheBoot(tee.Provider(identityProvider)) {
+		pcrs = tee.TPMBootPCRsWithoutIMA
+	}
+	return stubReleaseBootPCRs(t, measurementBytes, identityProvider, boot, pcrs)
+}
+
+// stubReleaseBootPCRs is stubReleaseBoot with the PCR selection the
+// identity says its vTPM quoted (empty: the identity does not say).
+func stubReleaseBootPCRs(t *testing.T, measurementBytes int, identityProvider, boot, pcrs string) (binDir, record string) {
 	t.Helper()
 	binDir = t.TempDir()
 	record = filepath.Join(binDir, "calls.log")
@@ -47,7 +58,7 @@ echo "the-bearer-token-0123456789abcdef" > "$out/sagvd/api_token"
 		return `#!/bin/sh
 echo "` + name + ` $*" >> ` + record + `
 case "$1" in
-  identity) printf '%s\n' '{"tee_provider":"` + identityProvider + `","tee_measurement_hex":"` + m + `","sealer":"stub","audit_kid":"sagvd-audit-demo","audit_public_key_pem":"-----BEGIN PUBLIC KEY-----\nstub\n-----END PUBLIC KEY-----\n","authority_kid":"sagvd-authority-demo","vtpm":{"pcr_digest_hex":"` + boot + `"}}' ;;
+  identity) printf '%s\n' '{"tee_provider":"` + identityProvider + `","tee_measurement_hex":"` + m + `","sealer":"stub","audit_kid":"sagvd-audit-demo","audit_public_key_pem":"-----BEGIN PUBLIC KEY-----\nstub\n-----END PUBLIC KEY-----\n","authority_kid":"sagvd-authority-demo","vtpm":{` + vtpmPCRsJSON(pcrs) + `"pcr_digest_hex":"` + boot + `"}}' ;;
   seal-keys) printf '%s\n' '{"tee":"` + identityProvider + `","measurement_hex":"` + m + `","sealer":"stub","sealed":[{"name":"keys.one","path":"/x"},{"name":"keys.two","path":"/y"}]}' ;;
   *) echo "unknown $1" >&2; exit 2 ;;
 esac
@@ -57,6 +68,14 @@ esac
 		require.NoError(t, os.WriteFile(filepath.Join(binDir, name), []byte(body), 0o755))
 	}
 	return binDir, record
+}
+
+// vtpmPCRsJSON is the identity's "pcrs" member for a selection, or nothing.
+func vtpmPCRsJSON(pcrs string) string {
+	if pcrs == "" {
+		return ""
+	}
+	return `"pcrs":["` + pcrs + `"],`
 }
 
 func readJSON(t *testing.T, path string) map[string]any {
@@ -155,6 +174,8 @@ func TestProvision_HardwareFamilyPinsTheChainAndTheMeasurement(t *testing.T) {
 	require.Equal(t, "gcp-sev-snp", teeCfg["provider"])
 	require.Equal(t, "tpm2", teeCfg["sealer"])
 	require.Nil(t, teeCfg["seed_path"], "no seed for a hardware family")
+	require.Nil(t, teeCfg["vtpm_quote_pcrs"], "the selection is the Azure families'")
+	require.Nil(t, teeCfg["vtpm_seal_pcrs"])
 	peer := teeCfg["peer"].(map[string]any)
 	require.Equal(t, chain, peer["amd_cert_chain_path"])
 	require.Equal(t, filepath.Join(out, "vcek-cache"), peer["vcek_cache_dir"])
@@ -188,13 +209,22 @@ func TestProvision_AzurePinsEachSidesBoot(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, provisionCmd(args, &stdout, &stderr), stderr.String())
 	for _, name := range []string{"sagvd.json", "acp-compute.json"} {
-		peer := readJSON(t, filepath.Join(out, name))["tee"].(map[string]any)["peer"].(map[string]any)
+		teeCfg := readJSON(t, filepath.Join(out, name))["tee"].(map[string]any)
+		peer := teeCfg["peer"].(map[string]any)
 		require.Equal(t, "azure-sev-snp", peer["provider"], name)
 		require.Equal(t, []any{boot}, peer["pcr_digests"], name)
+		// The boot without IMA's PCR 10, quoted and sealed under (ADR 0037,
+		// amendment of 2026-10-28): a pin or a seal over PCR 10 does not
+		// hold across a restart on the images Azure ships.
+		require.Equal(t, tee.TPMBootPCRsWithoutIMA, teeCfg["vtpm_quote_pcrs"], name)
+		require.Equal(t, tee.TPMBootPCRsWithoutIMA, teeCfg["vtpm_seal_pcrs"], name)
 	}
+	require.Contains(t, stdout.String(), "boot PCRs, quoted and sealed: "+tee.TPMBootPCRsWithoutIMA+" (IMA's PCR 10 left out")
 	require.Contains(t, stdout.String(), "sagvd pins acp-compute's boot: "+boot)
 	require.Contains(t, stdout.String(), "acp-compute pins sagvd's boot: "+boot)
 	res := readJSON(t, filepath.Join(out, "provision.json"))
+	require.Equal(t, tee.TPMBootPCRsWithoutIMA, res["worker"].(map[string]any)["vtpm_pcrs"], "the record says which PCRs the worker's vTPM quoted")
+	require.Equal(t, tee.TPMBootPCRsWithoutIMA, res["vault"].(map[string]any)["vtpm_pcrs"])
 	for key, path := range res["configs"].(map[string]any) {
 		raw, err := os.ReadFile(path.(string))
 		require.NoError(t, err)
@@ -202,6 +232,26 @@ func TestProvision_AzurePinsEachSidesBoot(t *testing.T) {
 		require.Equal(t, hex.EncodeToString(sum[:]), res["configs_sha256"].(map[string]any)[key], "the digest of %s as it stands", key)
 	}
 	require.Equal(t, boot, res["worker"].(map[string]any)["vtpm_pcr_digest_hex"])
+
+	// A daemon that quoted another selection than its configuration names
+	// — one that predates tee.vtpm_quote_pcrs for its family quotes its
+	// default — is refused: the pin would be a digest over PCRs the
+	// operator did not choose, PCR 10 among them.
+	binDir, _ = stubReleaseBootPCRs(t, 48, "azure-sev-snp", boot, tee.DefaultTPMQuotePCRs)
+	stdout.Reset()
+	stderr.Reset()
+	args[1], args[3] = filepath.Join(t.TempDir(), "deploy"), binDir
+	require.Equal(t, 1, provisionCmd(args, &stdout, &stderr))
+	require.Contains(t, stderr.String(), "sagvd identity: its vTPM quoted "+tee.DefaultTPMQuotePCRs+", not the "+tee.TPMBootPCRsWithoutIMA+" its configuration names (tee.vtpm_quote_pcrs)")
+	require.Contains(t, stderr.String(), "predates the selection")
+
+	// An identity that does not say what it quoted is taken at its digest.
+	binDir, _ = stubReleaseBootPCRs(t, 48, "azure-sev-snp", boot, "")
+	stdout.Reset()
+	stderr.Reset()
+	args[1], args[3] = filepath.Join(t.TempDir(), "deploy"), binDir
+	require.Equal(t, 0, provisionCmd(args, &stdout, &stderr), stderr.String())
+	require.Nil(t, readJSON(t, filepath.Join(args[1], "provision.json"))["worker"].(map[string]any)["vtpm_pcrs"])
 
 	// An identity whose vTPM digest is not a digest pins nothing.
 	binDir, _ = stubRelease(t, 48, "azure-sev-snp")

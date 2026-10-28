@@ -1,6 +1,6 @@
 # Vault Genome — STRIDE threat model
 
-| Last updated | 2026-10-24 (last review 2026-10-14: [record](review-2026-10.md)) |
+| Last updated | 2026-10-28 (last review 2026-10-14: [record](review-2026-10.md)) |
 |--------------|------------|
 | Owner        | The maintainers (`GOVERNANCE.md`) |
 | Audience     | Enterprise security teams, regulators, auditors |
@@ -331,18 +331,20 @@ Added 2026-10-14 ([ADR 0019](../adr/0019-a-confidential-gpu-worker-on-azure.md),
 Assets crossing the boundaries: the nonce, the three-part evidence
 (`vault-genome/azure-cgpu-evidence/v1`: HCL report, TPM quote, NVIDIA
 tokens, and the GPU's SPDM report and certificate chain when the policy
-asks for them); the pins (launch measurement, the vTPM's PCRs 0–14, the
-GPU model, driver and VBIOS); the escrow key and key files sealed to the
-vTPM.
+asks for them); the pins (launch measurement, the vTPM's PCRs the quote
+selects — 0–14 by default, 0–9 and 11–14 where `acpctl provision` wrote
+the configuration, IMA's PCR 10 left out since it moves within a boot
+(ADR 0037, amendment of 2026-10-28) — the GPU model, driver and VBIOS);
+the escrow key and key files sealed to the vTPM under the same PCRs.
 
 ### Threat table
 
 | STRIDE | Threat | Mitigation |
 |--------|--------|------------|
 | **S** Spoofing | A forged SEV-SNP report | the HCL report's SNP report is signed by the chip's VCEK, whose chain is verified to AMD's root (`verifyAMDChain`, as on GCP); the report's REPORT_DATA is the SHA-256 of the runtime data that names the vTPM's attestation key (`azure_cgpu_hcl.go`) |
-| **S** Spoofing | A report from boot replayed for a later handshake | the handshake is bound by a TPM quote under the key the report vouches for, over PCRs 0–14, with `SHA-256(nonce)` in `extraData` (`azure_cgpu_tpm.go`); the report alone proves nothing about this handshake |
+| **S** Spoofing | A report from boot replayed for a later handshake | the handshake is bound by a TPM quote under the key the report vouches for, over the selected PCRs, with `SHA-256(nonce)` in `extraData` (`azure_cgpu_tpm.go`); the report alone proves nothing about this handshake |
 | **S** Spoofing | A forged GPU verdict | NVIDIA's tokens (Entity Attestation Tokens) are verified against NRAS's keys and carry the handshake's nonce (`nvidia_eat.go`); under `gpu_policy.evaluation: both` the verifier also evaluates the GPU's own SPDM report: its signature (ECDSA P-384) under the device certificate, that certificate's chain to the NVIDIA Device Identity CA pinned in the binary, the firmware id in the certificate's DICE extension (`nvidia_gpu_report.go`, `TestGPUReport_ChainToThePinnedNVIDIARootAndFirmwareID`) |
-| **T** Tampering | The guest image or boot is changed | the SNP launch measurement (what Azure measures of the paravisor and firmware) is pinned; the vTPM's PCRs 0–14 (the OS and the driver) are pinned as the boot, required in every peer and registry entry (`pcr_digests`; a policy without it is refused, ADR 0037) and in the seal (`tee.vtpm_seal_pcrs`) |
+| **T** Tampering | The guest image or boot is changed | the SNP launch measurement (what Azure measures of the paravisor and firmware) is pinned; the vTPM's selected PCRs (the OS and the driver; 0–14 by default, without IMA's PCR 10 where `acpctl provision` configured the host) are pinned as the boot, required in every peer and registry entry (`pcr_digests`; a policy without it is refused, ADR 0037) and in the seal (`tee.vtpm_seal_pcrs`) |
 | **T** Tampering | The GPU's driver or VBIOS is swapped | NVIDIA's verdict names driver and VBIOS and the operator may pin them (`gpu_policy`); the verifier's own evaluation checks every runtime measurement against NVIDIA's reference manifests for those versions, the manifests hashed to the service's SHA-256 and signed under the NVIDIA CoRIM root pinned in the binary (`nvidia_rim.go`, `TestRIM_ParsesNVIDIAsManifests`); `both` refuses a report NVIDIA's verdict disagrees with |
 | **T** Tampering | A revoked GPU certificate | OCSP for the device chain with a nonce, answers checked for the nonce in the response extensions (`nvidia_ocsp.go`, `gpu_policy.revocation`, ADR 0021 amendment) |
 | **R** Repudiation | A host denies what it attested or what the GPU ran | the evaluation of every check is on the audit record with the verdict (`GPUEvaluation`, ADR 0021 amendment; ADR 0014) |

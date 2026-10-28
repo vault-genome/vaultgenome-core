@@ -77,6 +77,41 @@ func TestConfig_Validate_HardwareProviderFields(t *testing.T) {
 			hardwareLocal(c, "gcp-tdx")
 			c.TEE.AKHandle = "0x81000001"
 		}, []string{"apply to azure-cgpu and azure-sev-snp only"}},
+		// The quote selection is the vTPM families' (ADR 0037, amendment of
+		// 2026-10-28): the boot without IMA's PCR 10 on an Azure host, the
+		// form checked under auto too; the intermediates stay gcp-sev-snp-vtpm's.
+		"azure-sev-snp with the boot pcrs": {func(c *Config) {
+			hardwareLocal(c, "azure-sev-snp")
+			c.TEE.VTPMQuotePCRs, c.TEE.VTPMSealPCRs = tee.TPMBootPCRsWithoutIMA, tee.TPMBootPCRsWithoutIMA
+		}, nil},
+		"azure-cgpu with the boot pcrs": {func(c *Config) {
+			azureLocal(c)
+			c.TEE.VTPMQuotePCRs, c.TEE.VTPMSealPCRs = tee.TPMBootPCRsWithoutIMA, tee.TPMBootPCRsWithoutIMA
+		}, nil},
+		"bad quote pcrs on azure-sev-snp": {func(c *Config) {
+			hardwareLocal(c, "azure-sev-snp")
+			c.TEE.VTPMQuotePCRs = "sha1:0"
+		}, []string{"tee.vtpm_quote_pcrs: PCR selection"}},
+		"bad quote pcrs on azure-cgpu": {func(c *Config) {
+			azureLocal(c)
+			c.TEE.VTPMQuotePCRs = "sha256:0,0"
+		}, []string{"tee.vtpm_quote_pcrs: PCR selection"}},
+		"quote pcrs under auto": {func(c *Config) {
+			hardwareLocal(c, "auto")
+			c.TEE.VTPMQuotePCRs = tee.TPMBootPCRsWithoutIMA
+		}, nil},
+		"bad quote pcrs under auto": {func(c *Config) {
+			hardwareLocal(c, "auto")
+			c.TEE.VTPMQuotePCRs = "sha256:24"
+		}, []string{"tee.vtpm_quote_pcrs: PCR selection"}},
+		"quote pcrs on tdx": {func(c *Config) {
+			hardwareLocal(c, "gcp-tdx")
+			c.TEE.VTPMQuotePCRs = "sha256:0"
+		}, []string{"tee.vtpm_quote_pcrs applies to gcp-sev-snp-vtpm, azure-sev-snp and azure-cgpu only, the families whose vTPM quotes the boot"}},
+		"intermediates on azure-sev-snp": {func(c *Config) {
+			hardwareLocal(c, "azure-sev-snp")
+			c.TEE.AKIntermediatesPath = "/inter.pem"
+		}, []string{"tee.ak_intermediates_path applies to gcp-sev-snp-vtpm only"}},
 
 		"tdx peer clean": {func(c *Config) {
 			hardwarePeer(c, "gcp-tdx")

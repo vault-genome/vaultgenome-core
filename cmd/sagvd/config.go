@@ -331,9 +331,12 @@ type TEEConfig struct {
 	// empty means every PCR the azure-cgpu quote covers (sha256:0-14).
 	VTPMSealPCRs string `json:"vtpm_seal_pcrs,omitempty"`
 
-	// VTPMQuotePCRs is the PCR selection a gcp-sev-snp-vtpm producer's vTPM
-	// quotes (ADR 0037); empty means sha256:0-9, the firmware's and GRUB's —
-	// the kernel, its command line and initrd among them.
+	// VTPMQuotePCRs is the PCR selection the vTPM quotes where the quote
+	// carries the boot (ADR 0037): gcp-sev-snp-vtpm (empty means sha256:0-9,
+	// the firmware's and GRUB's — the kernel, its command line and initrd
+	// among them), azure-sev-snp and azure-cgpu (empty means sha256:0-14;
+	// `acpctl provision` writes sha256:0-9,11-14, the boot without IMA's
+	// PCR 10, so the pinned boot holds across a restart).
 	VTPMQuotePCRs string `json:"vtpm_quote_pcrs,omitempty"`
 
 	// AKIntermediatesPath is a PEM file of the certificates between the
@@ -743,9 +746,11 @@ func validateTEE(t TEEConfig) []error {
 		if t.SeedPath != "" || t.InsecureSimulation {
 			errs = append(errs, errors.New("tee.seed_path and tee.insecure_simulation apply to the simulated provider only; tee.provider=auto runs the family configfs-tsm, or the vTPM's HCL report under Azure's paravisor, serves"))
 		}
-		if t.VTPMSealPCRs != "" {
-			if err := tee.ValidatePCRSelection(t.VTPMSealPCRs); err != nil {
-				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+		for _, sel := range []struct{ name, v string }{{"tee.vtpm_seal_pcrs", t.VTPMSealPCRs}, {"tee.vtpm_quote_pcrs", t.VTPMQuotePCRs}} {
+			if sel.v != "" {
+				if err := tee.ValidatePCRSelection(sel.v); err != nil {
+					errs = append(errs, fmt.Errorf("%s: %w", sel.name, err))
+				}
 			}
 		}
 	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX:
@@ -791,9 +796,11 @@ func validateTEE(t TEEConfig) []error {
 		if t.TSMReportDir != "" || t.SEVGuestDevice != "" {
 			errs = append(errs, errors.New("tee.tsm_report_dir and tee.sev_guest_device do not apply to azure-sev-snp (the report comes from the vTPM)"))
 		}
-		if t.VTPMSealPCRs != "" {
-			if err := tee.ValidatePCRSelection(t.VTPMSealPCRs); err != nil {
-				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+		for _, sel := range []struct{ name, v string }{{"tee.vtpm_seal_pcrs", t.VTPMSealPCRs}, {"tee.vtpm_quote_pcrs", t.VTPMQuotePCRs}} {
+			if sel.v != "" {
+				if err := tee.ValidatePCRSelection(sel.v); err != nil {
+					errs = append(errs, fmt.Errorf("%s: %w", sel.name, err))
+				}
 			}
 		}
 		if len(t.GPUAttestCommand) > 0 {
@@ -806,9 +813,11 @@ func validateTEE(t TEEConfig) []error {
 		if t.TSMReportDir != "" || t.SEVGuestDevice != "" {
 			errs = append(errs, errors.New("tee.tsm_report_dir and tee.sev_guest_device do not apply to azure-cgpu (the report comes from the vTPM)"))
 		}
-		if t.VTPMSealPCRs != "" {
-			if err := tee.ValidatePCRSelection(t.VTPMSealPCRs); err != nil {
-				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
+		for _, sel := range []struct{ name, v string }{{"tee.vtpm_seal_pcrs", t.VTPMSealPCRs}, {"tee.vtpm_quote_pcrs", t.VTPMQuotePCRs}} {
+			if sel.v != "" {
+				if err := tee.ValidatePCRSelection(sel.v); err != nil {
+					errs = append(errs, fmt.Errorf("%s: %w", sel.name, err))
+				}
 			}
 		}
 		if len(t.GPUAttestCommand) == 0 {
@@ -819,8 +828,11 @@ func validateTEE(t TEEConfig) []error {
 		(t.TPM2ToolsDir != "" && lp != tee.ProviderGCPSEVSNPVTPM)) {
 		errs = append(errs, errors.New("tee.gpu_attest_command and ak_handle apply to azure-cgpu and azure-sev-snp only, and tpm2_tools_dir to those and gcp-sev-snp-vtpm"))
 	}
-	if lp, _ := t.ProviderKind(); lp != tee.ProviderGCPSEVSNPVTPM && (t.VTPMQuotePCRs != "" || t.AKIntermediatesPath != "") {
-		errs = append(errs, errors.New("tee.vtpm_quote_pcrs and ak_intermediates_path apply to gcp-sev-snp-vtpm only"))
+	if lp, _ := t.ProviderKind(); lp != tee.ProviderGCPSEVSNPVTPM && t.AKIntermediatesPath != "" {
+		errs = append(errs, errors.New("tee.ak_intermediates_path applies to gcp-sev-snp-vtpm only"))
+	}
+	if lp, _ := t.ProviderKind(); t.VTPMQuotePCRs != "" && !tee.QuotesTheBoot(lp) && lp != tee.ProviderAuto {
+		errs = append(errs, errors.New("tee.vtpm_quote_pcrs applies to gcp-sev-snp-vtpm, azure-sev-snp and azure-cgpu only, the families whose vTPM quotes the boot"))
 	}
 	if t.Peer.MeasurementPath == "" {
 		errs = append(errs, errors.New("tee.peer.measurement_path required"))

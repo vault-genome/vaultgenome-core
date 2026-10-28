@@ -99,6 +99,14 @@ func AllProviders() []Provider {
 	}
 }
 
+// QuotesTheBoot reports whether a family's evidence carries its boot in a
+// vTPM quote — the families whose launch measurement is the cloud's and
+// whose OS only the vTPM measures (ADR 0037): the PCR selection quoted is
+// the operator's (tee.vtpm_quote_pcrs), and a peer pins the digest over it.
+func QuotesTheBoot(p Provider) bool {
+	return p == ProviderGCPSEVSNPVTPM || p == ProviderAzureSEVSNP || p == ProviderAzureCGPU
+}
+
 // ParseProvider parses a string into a Provider, normalising case and
 // hyphenation. Returns an error if the value is not recognised.
 func ParseProvider(s string) (Provider, error) {

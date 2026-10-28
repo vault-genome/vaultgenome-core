@@ -413,9 +413,9 @@ func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 		return tee.NewGCPSEVVTPMProducer(tee.GCPSEVVTPMProducerConfig{SEV: tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir},
 			TPM2ToolsDir: cfg.TPM2ToolsDir, PCRs: cfg.VTPMQuotePCRs, IntermediatesPEM: inter})
 	case string(tee.ProviderAzureSEVSNP):
-		return tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
+		return tee.NewAzureSEVSNPProducer(tee.AzureSEVSNPProducerConfig{TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle, PCRs: cfg.VTPMQuotePCRs})
 	case string(tee.ProviderAzureCGPU):
-		return tee.NewAzureCGPUProducer(tee.AzureCGPUProducerConfig{GPUAttestCommand: cfg.GPUAttestCommand, TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle})
+		return tee.NewAzureCGPUProducer(tee.AzureCGPUProducerConfig{GPUAttestCommand: cfg.GPUAttestCommand, TPM2ToolsDir: cfg.TPM2ToolsDir, AKHandle: cfg.AKHandle, PCRs: cfg.VTPMQuotePCRs})
 	case string(tee.ProviderAWSNitro):
 		// The NSM device; the producer attests itself before it serves.
 		return tee.NewAWSNitroProducer(tee.AWSNitroProducerConfig{})

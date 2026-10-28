@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
 // Provisioning across two hosts (ADR 0028): the authority writes the
@@ -328,6 +329,9 @@ func TestProvisionTwoHosts_AzurePinsTheBoots(t *testing.T) {
 	require.Equal(t, 0, code, msg)
 	sagvdPath := filepath.Join(authority, "sagvd.json")
 	require.Equal(t, []any{placeholderBoot}, peerOf(sagvdPath)["pcr_digests"], "no boot pinned before pin-worker")
+	teeOf := func(path string) map[string]any { return readJSON(t, path)["tee"].(map[string]any) }
+	require.Equal(t, tee.TPMBootPCRsWithoutIMA, teeOf(sagvdPath)["vtpm_quote_pcrs"], "the authority quotes the boot without IMA's PCR 10")
+	require.Equal(t, tee.TPMBootPCRsWithoutIMA, teeOf(sagvdPath)["vtpm_seal_pcrs"])
 	m, files, err := readWorkerBundle(filepath.Join(authority, bundleName))
 	require.NoError(t, err)
 	require.Equal(t, authorityBoot, m.Authority.PCRDigestHex)
@@ -339,6 +343,8 @@ func TestProvisionTwoHosts_AzurePinsTheBoots(t *testing.T) {
 	require.Equal(t, 0, code, msg)
 	require.Equal(t, []any{authorityBoot}, peerOf(filepath.Join(worker, "acp-compute.json"))["pcr_digests"])
 	require.Equal(t, authorityBoot, readJSON(t, filepath.Join(worker, "provision.json"))["vault"].(map[string]any)["vtpm_pcr_digest_hex"])
+	require.Equal(t, tee.TPMBootPCRsWithoutIMA, teeOf(filepath.Join(worker, "acp-compute.json"))["vtpm_quote_pcrs"], "and so does the worker")
+	require.Equal(t, tee.TPMBootPCRsWithoutIMA, teeOf(filepath.Join(worker, "acp-compute.json"))["vtpm_seal_pcrs"])
 
 	// A bundle that names no boot for an Azure authority is refused.
 	stale := t.TempDir()
@@ -364,6 +370,14 @@ func TestProvisionTwoHosts_AzurePinsTheBoots(t *testing.T) {
 	code, _, msg = run("pin-worker", "--out", authority, "--identity", bare)
 	require.Equal(t, 1, code)
 	require.Contains(t, msg, "no vtpm.pcr_digest_hex")
+	// A worker that quoted its default selection, not the one its
+	// configuration names (a binary that predates the field): refused,
+	// the pin would be over PCR 10.
+	wide := filepath.Join(t.TempDir(), "acp-compute-identity.json")
+	require.NoError(t, os.WriteFile(wide, []byte(`{"tee_provider":"azure-sev-snp","tee_measurement_hex":"`+strings.Repeat("cd", 48)+`","vtpm":{"pcrs":["`+tee.DefaultTPMQuotePCRs+`"],"pcr_digest_hex":"`+workerBoot+`"}}`), 0o600))
+	code, _, msg = run("pin-worker", "--out", authority, "--identity", wide)
+	require.Equal(t, 1, code)
+	require.Contains(t, msg, "the worker's vTPM quoted "+tee.DefaultTPMQuotePCRs+", not the "+tee.TPMBootPCRsWithoutIMA+" its configuration names")
 	pin, err := os.ReadFile(filepath.Join(authority, "pins", "worker.measurement"))
 	require.NoError(t, err)
 	require.Equal(t, make([]byte, 48), pin, "nothing pinned by a refusal")
