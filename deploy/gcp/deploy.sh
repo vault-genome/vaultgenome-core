@@ -41,16 +41,11 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-REPO="vault-genome/vaultgenome-core"
-REPO_URL="https://github.com/$REPO"
-ISSUER='https://token.actions.githubusercontent.com'
+# The release verified before anything runs: the part the buttons share.
+# shellcheck disable=SC1091
+. "$ROOT/deploy/lib/verify-release.sh"
+REPO="$VG_REPO"
 ZONES_DEFAULT="us-central1-c us-central1-b us-central1-a us-central1-f"
-# The verification tools, when they are not on PATH (Linux x86-64 only):
-# cosign 2.6.5, the version the release signs with, by the hash in its
-# release's checksums list (signed by the cosign project); slsa-verifier
-# 2.7.1 by the hash its own SLSA provenance verified.
-COSIGN_VERSION=v2.6.5;        COSIGN_SHA256=c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644
-SLSA_VERIFIER_VERSION=v2.7.1; SLSA_VERIFIER_SHA256=946dbec729094195e88ef78e1734324a27869f03e2c6bd2f61cbc06bd5350339
 
 PROJECT=""; ZONE=""; NAME="vaultgenome"; TAG=""; PLATFORM="sev-snp"; SEALER="auto"; YES=0; ATTACH=0
 while [ $# -gt 0 ]; do
@@ -81,7 +76,7 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "$1 is needed: $2"; }
 need gcloud "https://cloud.google.com/sdk/docs/install (Cloud Shell has it)"
 need curl "curl"; need git "git"; need python3 "python3"
-if command -v sha256sum >/dev/null 2>&1; then SHA256="sha256sum"; else need shasum "sha256sum or shasum"; SHA256="shasum -a 256"; fi
+command -v sha256sum >/dev/null 2>&1 || need shasum "sha256sum or shasum"
 b64() { base64 < "$1" | tr -d '\n'; }
 
 # The release: --tag, else this checkout's tag, else the latest release —
@@ -130,61 +125,14 @@ else
 say "Vault Genome $TAG → project $PROJECT, as $ACCOUNT; the record goes to $REC"
 
 say "== 1. the verification tools"
-TOOLS="$HERE/.tools"; mkdir -p "$TOOLS"
-fetch_tool() { # name url sha256
-  local out="$TOOLS/$1"
-  if [ ! -x "$out" ] || [ "$($SHA256 "$out" | cut -d' ' -f1)" != "$3" ]; then
-    curl -fsSL --retry 3 -o "$out.part" "$2" || die "could not download $1 from $2"
-    [ "$($SHA256 "$out.part" | cut -d' ' -f1)" = "$3" ] || die "$1 downloaded from $2 does not have the pinned hash $3"
-    mv "$out.part" "$out"; chmod 0755 "$out"
-  fi
-}
-if command -v cosign >/dev/null 2>&1; then COSIGN="$(command -v cosign)"; else
-  [ "$(uname -sm)" = "Linux x86_64" ] || die "cosign is needed (brew install cosign; on Linux x86-64 it is fetched at a pinned hash)"
-  fetch_tool cosign "https://github.com/sigstore/cosign/releases/download/$COSIGN_VERSION/cosign-linux-amd64" "$COSIGN_SHA256"; COSIGN="$TOOLS/cosign"
-fi
-if command -v slsa-verifier >/dev/null 2>&1; then SLSA="$(command -v slsa-verifier)"; else
-  [ "$(uname -sm)" = "Linux x86_64" ] || die "slsa-verifier is needed (brew install slsa-verifier; on Linux x86-64 it is fetched at a pinned hash)"
-  fetch_tool slsa-verifier "https://github.com/slsa-framework/slsa-verifier/releases/download/$SLSA_VERIFIER_VERSION/slsa-verifier-linux-amd64" "$SLSA_VERIFIER_SHA256"; SLSA="$TOOLS/slsa-verifier"
-fi
 { echo "release: $TAG"; echo "verified at: $(date -u +%Y-%m-%dT%H:%M:%SZ) by $ACCOUNT on $(uname -sm)"
-  echo "cosign: $("$COSIGN" version 2>&1 | grep GitVersion | awk '{print $2}') ($COSIGN)"; echo "slsa-verifier: $("$SLSA" version 2>&1 | grep GitVersion | awk '{print $2}') ($SLSA)"
+  vg_verify_tools "$HERE/.tools"
   echo "gcloud: $(gcloud version 2>/dev/null | head -1)"; } > "$REC/verify/tools.txt"
 say "  $(sed -n '3,4p' "$REC/verify/tools.txt" | tr '\n' ';' | sed 's/;$//')"
 
 say "== 2. the release $TAG, verified before it runs anywhere"
-DL="$WORK/assets"; mkdir -p "$DL"
-LIST="checksums-$TAG.txt"; PKG="genome-worker-$TAG.tar.gz"
-ARTIFACTS="sagvd acp-compute acpctl acp-keygen $PKG"
-for f in "$LIST" "$LIST.sig" "$LIST.cert" multiple.intoto.jsonl $ARTIFACTS; do
-  curl -fsSL --retry 3 --retry-delay 5 -o "$DL/$f" "$REPO_URL/releases/download/$TAG/$f" || die "could not download $f of release $TAG"
-done
-( cd "$DL" && $SHA256 -- * ) > "$REC/verify/assets.sha256"
-# 2a. the signed list, under the release workflow's identity for this tag
-IDENTITY="https://github.com/$REPO/.github/workflows/release.yml@refs/tags/$TAG"
-( cd "$DL" && "$COSIGN" verify-blob --signature "$LIST.sig" --certificate "$LIST.cert" \
-    --certificate-identity "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$LIST" ) > "$REC/verify/cosign.txt" 2>&1 \
-  || { cat "$REC/verify/cosign.txt"; die "the checksums list of $TAG did not verify against $IDENTITY"; }
-say "  cosign: $LIST signed by $IDENTITY — $(tail -1 "$REC/verify/cosign.txt")"
-# 2b. the files against the list
-( cd "$DL" && $SHA256 -c --ignore-missing "$LIST" ) > "$REC/verify/checksums.txt" 2>&1 || true
-OKS=$(grep -c ': OK$' "$REC/verify/checksums.txt" || true)
-say "  checksums: $OKS of 5 downloaded files are on the signed list"
-[ "$OKS" = 5 ] || { cat "$REC/verify/checksums.txt"; die "a downloaded file is not on the signed checksums list"; }
-# 2c. the provenance of each file against the source tag
-: > "$REC/verify/slsa.txt"
-for f in $ARTIFACTS; do
-  ( cd "$DL" && "$SLSA" verify-artifact "$f" --provenance-path multiple.intoto.jsonl --source-uri "github.com/$REPO" --source-tag "$TAG" ) >> "$REC/verify/slsa.txt" 2>&1 \
-    || { tail -3 "$REC/verify/slsa.txt"; die "the SLSA provenance of $f did not verify against the source tag $TAG"; }
-done
-say "  slsa-verifier: $(grep -c 'PASSED: SLSA verification passed' "$REC/verify/slsa.txt") of 5 provenances passed against github.com/$REPO@$TAG"
-# 2d. the tag, against the keys pinned on main
-git -C "$ROOT" fetch -q origin main "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || git -C "$ROOT" fetch -q origin main 2>/dev/null || die "could not fetch origin/main for the pinned signing keys"
-git -C "$ROOT" show origin/main:.github/allowed_signers > "$WORK/allowed_signers" || die "no .github/allowed_signers on origin/main"
-( cd "$ROOT" && git -c gpg.ssh.allowedSignersFile="$WORK/allowed_signers" verify-tag "$TAG" ) > "$REC/verify/tag.txt" 2>&1 \
-  || { cat "$REC/verify/tag.txt"; die "the signature of tag $TAG did not verify against the keys pinned on main"; }
-grep -q 'Good "git" signature' "$REC/verify/tag.txt" || { cat "$REC/verify/tag.txt"; die "the tag $TAG has no good signature"; }
-say "  tag: $(grep 'Good "git" signature' "$REC/verify/tag.txt" | head -1)"
+DL="$WORK/assets"; LIST="checksums-$TAG.txt"
+vg_verify_release "$TAG" "$DL" "$REC/verify"
 
 say "== 3. the project"
 if ! gcloud services list --enabled --project "$PROJECT" --filter='name:compute.googleapis.com' --format='value(name)' 2>/dev/null | grep -q compute; then

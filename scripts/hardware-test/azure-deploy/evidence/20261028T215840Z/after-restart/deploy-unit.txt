@@ -1,0 +1,4 @@
+== metrics; then the audit log verified under the operator's key with both services paused, and the chip as the verifier read it
+== emit
+VG DEPLOY DONE 20261028T220528Z size=87624 sha256=5d542b87ebb571e17d36c5a5a28920f157b4215aafad751180f4987c43b2fdbc lines=1153
+disabled

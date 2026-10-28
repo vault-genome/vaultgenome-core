@@ -1,0 +1,11 @@
+resource_group=vg-button-20261028t215840z-2
+instance=vaultgenome
+location=westeurope
+machine=Standard_DC4as_v5
+platform=azure-sev-snp
+release=v0.13.0
+admin=vgadmin
+ip=20.107.43.67
+ssh_from=104.14.24.198/32
+started=20261028T220528Z
+guest_stamp=20261028T220528Z

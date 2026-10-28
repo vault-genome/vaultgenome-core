@@ -1,0 +1,7 @@
+instance=vaultgenome
+location=westeurope
+machine=Standard_DC4as_v5
+platform=azure-sev-snp
+release=v0.13.0-rc1
+sealer=auto
+captured=20261028T210406Z

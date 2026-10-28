@@ -406,9 +406,15 @@ Once the release workflow completes:
    resets the VM, submits a second job over ssh and verifies the chain
    across the reboot, and keeps the record (about twelve minutes, one
    `n2d-standard-4`); the same with `'' tdx` as the third and fourth
-   arguments on a `c3-standard-4` Trust Domain. The release notes carry
-   the button for this tag (`cloudshell_git_branch=vX.Y.Z`); a person who
-   presses it gets this run.
+   arguments on a `c3-standard-4` Trust Domain; and
+   `scripts/hardware-test/azure-deploy/run.sh vX.Y.Z` the same on an
+   Azure Confidential VM (`Standard_DC4as_v5`, a resource group of its
+   own, deleted at the end). The release notes carry the Cloud Shell
+   button for this tag (`cloudshell_git_branch=vX.Y.Z`); a person who
+   presses it gets this run. The Azure button's template names the
+   release in its `release` parameter: bump its default to vX.Y.Z in
+   `deploy/azure/make-template.sh` and regenerate `azuredeploy.json`
+   before the tag, so the portal offers the new release.
 
 No audit event is appended for a release; there is no audit kind for one.
 
@@ -451,6 +457,7 @@ it is an unattested binary and per invariant #11 is not shippable.
 [ ] Release hash externally pinned
 [ ] PyPI's wheel and sdist: SHA-256 equal to the release's (final tag)
 [ ] scripts/hardware-test/gcp-deploy/run.sh on the tag: PROVEN, the reboot, the second job
+[ ] deploy/azure/make-template.sh: release default = vX.Y.Z, azuredeploy.json regenerated; scripts/hardware-test/azure-deploy/run.sh on the tag
 [ ] "Withdrawn" marker on prior version, if emergency
 ```
 

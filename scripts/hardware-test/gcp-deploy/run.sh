@@ -78,6 +78,11 @@ ssh_vm "sudo vg health" > "$EVIDENCE/after-reboot/health.txt" 2>>"$EVIDENCE/ssh.
 ssh_vm "sudo journalctl -b -u sagvd -u acp-compute --no-pager -o short-iso" > "$EVIDENCE/after-reboot/journal-this-boot.txt" 2>>"$EVIDENCE/ssh.err" || true
 ssh_vm "sudo journalctl --list-boots --no-pager" > "$EVIDENCE/after-reboot/boots.txt" 2>>"$EVIDENCE/ssh.err" || true
 ssh_vm "sudo tail -3 /var/log/vaultgenome-deploy.log" > "$EVIDENCE/after-reboot/startup-second-boot.txt" 2>>"$EVIDENCE/ssh.err" || true
+# The vTPM's PCRs on this boot, beside the record's at seal time (a vTPM host).
+if [ -f "$EVIDENCE/deploy/guest/pcrs-at-seal.txt" ]; then
+  ssh_vm "sudo tpm2_pcrread sha256:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,23" > "$EVIDENCE/after-reboot/pcrs.txt" 2>>"$EVIDENCE/ssh.err" || true
+  diff "$EVIDENCE/deploy/guest/pcrs-at-seal.txt" "$EVIDENCE/after-reboot/pcrs.txt" > "$EVIDENCE/after-reboot/pcrs-diff.txt" 2>&1 || true
+fi
 grep -q 'sagvd session opened' "$EVIDENCE/after-reboot/journal-this-boot.txt" || { log "after the reset the worker did not open a session (after-reboot/journal-this-boot.txt)"; exit 1; }
 log "back after the reset in $(( $(date +%s) - T1 )) s: $(grep -c 'Active: active' "$EVIDENCE/after-reboot/health.txt" || true) of 2 services active, the session opened on this boot"
 

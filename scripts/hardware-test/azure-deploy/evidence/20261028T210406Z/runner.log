@@ -1,0 +1,7 @@
+21:04:06 == 1. deploy.sh, as a person runs it (release v0.13.0-rc1, westeurope, resource group vg-button-20261028t210406z)
+21:08:18 deploy.sh took 252 s
+21:08:18 deployed v0.13.0-rc1 on vaultgenome (vg-button-20261028t210406z, westeurope, 52.157.174.202); 16 audit events after the first job
+21:08:18 == 2. a restart: the same VM, a fresh boot — the services come back on their own
+21:09:25 back after the restart in 67 s: 2 of 2 services active, the session opened on this boot
+21:09:25 == 3. a second gate job over ssh, and the chain verified across the restart
+21:09:46 second job: status=succeeded gate=EXACT rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo; the chain verifies, 32 events (was 16)

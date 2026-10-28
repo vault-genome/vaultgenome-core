@@ -76,7 +76,10 @@ open in 15 s, the gate job 5 s, the audit read 4 s, the services back in
   measurement (the RTMRs), and the key files are sealed to the vTPM under
   this boot's PCRs: a reboot of the same image opens them, a new kernel
   does not — the [TDX runbook](../../docs/operator/runbooks/real-tee-tdx.md)
-  says what a new image means for the pin.
+  says what a new image means for the pin. systemd extends PCR 11 with
+  the boot's phases, so the guest seals after `systemd-pcrphase.service`
+  and the daemons' units start after it: a file sealed in one phase opens
+  only in that phase.
 - **The network.** The Return Path, the REST API and the health listeners
   bind loopback only; the operator reaches them over `gcloud compute ssh`.
   The VM has an external address for its own fetches (GitHub, PyPI, AMD

@@ -1,0 +1,52 @@
+{
+  "authority_kid": "sagvd-authority-demo",
+  "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxhQQA2vaiN3hfoUa20Plh3tFVEyq/2ClYmZZXwTI0YI=\n-----END PUBLIC KEY-----\n",
+  "authority_signature_suite": "ed25519",
+  "tee_provider": "azure-sev-snp",
+  "tee_measurement_hex": "6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48",
+  "sealer": "tpm2",
+  "vtpm": {
+    "pcrs": [
+      "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14"
+    ],
+    "pcr_digest_hex": "dfc99de8e7711930a19e5dd0f3b6461c5fec7ae3f6f9935150c2dd6ae1a8bbf4"
+  },
+  "sev_snp_policy": {
+    "bulletins_read_on": "2026-10-22",
+    "floors": {
+      "Bergamo/Siena": "snp 0x1b microcode 0x1b, mitigation vector bits 0x2, alias check",
+      "Genoa": "snp 0x1b microcode 0x56, mitigation vector bits 0x2, alias check",
+      "Genoa-X": "snp 0x1b microcode 0x51, mitigation vector bits 0x2, alias check",
+      "Milan": "snp 0x1b microcode 0xde, mitigation vector bits 0x2, alias check",
+      "Milan-X": "snp 0x1b microcode 0x47, mitigation vector bits 0x2, alias check",
+      "Turin": "snp 0x4 microcode 0x51, mitigation vector bits 0x1",
+      "Turin Dense": "snp 0x4 microcode 0x4e, mitigation vector bits 0x1"
+    }
+  },
+  "audit_kid": "sagvd-audit-demo",
+  "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA6UNFoxFc91+K5kCNH9dkkX2JhQpxddLjh6JLGHtSy5c=\n-----END PUBLIC KEY-----\n",
+  "audit_signature_suite": "ed25519",
+  "policy_version": "gate-policy/v1;atol=0.01;rtol=0.001;outliers=0",
+  "policy_profiles": [
+    "gate"
+  ],
+  "crypto_profile": "general",
+  "kem_suites": [
+    "hpke-x25519-v2",
+    "hpke-p384-v2",
+    "hpke-mlkem768-v2",
+    "hpke-mlkem1024-p384-v2",
+    "hpke-xwing-v2"
+  ],
+  "signature_suite": "ed25519",
+  "signature_suites": [
+    "ed25519",
+    "ecdsa-p384-sha384",
+    "ml-dsa-87"
+  ],
+  "fips140": {
+    "enabled": false,
+    "enforced": false,
+    "version": "latest"
+  }
+}

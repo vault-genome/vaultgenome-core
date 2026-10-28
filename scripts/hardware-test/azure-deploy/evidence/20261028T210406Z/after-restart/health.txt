@@ -1,0 +1,6 @@
+sagvd: ready
+acp-compute: ok
+● sagvd.service - Vault Genome authority (sagvd), release v0.13.0-rc1
+     Active: active (running) since Wed 2026-10-28 21:09:05 UTC; 10s ago
+● acp-compute.service - Vault Genome worker (acp-compute), release v0.13.0-rc1
+     Active: active (running) since Wed 2026-10-28 21:09:05 UTC; 10s ago

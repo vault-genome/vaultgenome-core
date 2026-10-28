@@ -1,0 +1,72 @@
+{
+  "genome": {
+    "door": {
+      "command": [
+        "/var/lib/vaultgenome/venv/bin/python3",
+        "-m",
+        "vg_genome",
+        "door",
+        "--stdin-genome",
+        "--base",
+        "/var/lib/vaultgenome/base",
+        "--device",
+        "cpu"
+      ],
+      "env": [
+        "PYTHONPATH=/var/lib/vaultgenome/worker/genome",
+        "TOKENIZERS_PARALLELISM=false"
+      ],
+      "timeout_seconds": 300
+    }
+  },
+  "health": {
+    "listen_address": "127.0.0.1:9082"
+  },
+  "keys": {
+    "session_sealing": {
+      "kid": "session-sealing-demo",
+      "material_path": "/etc/vaultgenome/secrets/acp-compute/sealing.key"
+    },
+    "worker_signing": {
+      "kid": "acp-compute-worker-demo",
+      "seed_path": "/etc/vaultgenome/secrets/acp-compute/worker_signing_seed"
+    }
+  },
+  "log": {
+    "format": "json",
+    "level": "info"
+  },
+  "runtime": {
+    "dial_backoff_initial_ms": 500,
+    "dial_backoff_max_ms": 5000,
+    "handshake_timeout_seconds": 30,
+    "idle_between_jobs_ms": 200,
+    "job_timeout_seconds": 600
+  },
+  "tee": {
+    "peer": {
+      "amd_cert_chain_path": "/etc/vaultgenome/amd-genoa-cert_chain.pem",
+      "measurement_path": "/etc/vaultgenome/pins/vault.measurement",
+      "pcr_digests": [
+        "e6dded5d5b5ada53048cc45b522e0f82823c21e550429fe43bc7a6bf9db5b4ca"
+      ],
+      "provider": "azure-sev-snp",
+      "vcek_cache_dir": "/etc/vaultgenome/vcek-cache"
+    },
+    "provider": "auto",
+    "sealer": "auto",
+    "vtpm_quote_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
+    "vtpm_seal_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
+    "workload_descriptor": "acp-compute-azure-deploy-v1"
+  },
+  "vault": {
+    "address": "127.0.0.1:9443",
+    "tls": {
+      "ca_bundle": "/etc/vaultgenome/secrets/shared/tls/ca.crt",
+      "client_cert": "/etc/vaultgenome/secrets/acp-compute/tls/client.crt",
+      "client_key": "/etc/vaultgenome/secrets/acp-compute/tls/client.key",
+      "enabled": true,
+      "server_name": "localhost"
+    }
+  }
+}

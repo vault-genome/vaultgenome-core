@@ -1,0 +1,1445 @@
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-init-local.service[0m …ud-init: Local Stage (pre-network).
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork-pre.target[0m - Preparation for Network.
+         Starting [0;1;39msystemd-networkd.service[0m - Network Configuration...
+[[0;32m  OK  [0m] Started [0;1;39msystemd-networkd.service[0m - Network Configuration.
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork.target[0m - Network.
+         Starting [0;1;39msystemd-networkd-wait-onl…[0mait for Network to be Configured...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-networkd-wait-onl…[0m Wait for Network to be Configured.
+         Starting [0;1;39mcloud-init.service[0m - Cloud-init: Network Stage...
+[  627.040672] cloud-init[822]: Cloud-init v. 26.2-0ubuntu1~24.04.1 running 'init' at Wed, 28 Oct 2026 21:59:24 +0000. Up 627.02 seconds.
+[  627.054558] cloud-init[822]: ci-info: +++++++++++++++++++++++++++++++++++++++Net device info+++++++++++++++++++++++++++++++++++++++
+[  627.058146] cloud-init[822]: ci-info: +--------+------+------------------------------+---------------+--------+-------------------+
+[  627.061531] cloud-init[822]: ci-info: | Device |  Up  |           Address            |      Mask     | Scope  |     Hw-Address    |
+[  627.064859] cloud-init[822]: ci-info: +--------+------+------------------------------+---------------+--------+-------------------+
+[  627.068259] cloud-init[822]: ci-info: |  eth0  | True |          10.42.0.4           | 255.255.255.0 | global | 7c:1e:52:28:f1:3a |
+[  627.072447] cloud-init[822]: ci-info: |  eth0  | True | fe80::7e1e:52ff:fe28:f13a/64 |       .       |  link  | 7c:1e:52:28:f1:3a |
+[  627.075902] cloud-init[822]: ci-info: |   lo   | True |          127.0.0.1           |   255.0.0.0   |  host  |         .         |
+[  627.079316] cloud-init[822]: ci-info: |   lo   | True |           ::1/128            |       .       |  host  |         .         |
+[  627.082835] cloud-init[822]: ci-info: +--------+------+------------------------------+---------------+--------+-------------------+
+[  627.086355] cloud-init[822]: ci-info: +++++++++++++++++++++++++++++++Route IPv4 info+++++++++++++++++++++++++++++++
+[  627.089346] cloud-init[822]: ci-info: +-------+-----------------+-----------+-----------------+-----------+-------+
+[  627.093424] cloud-init[822]: ci-info: | Route |   Destination   |  Gateway  |     Genmask     | Interface | Flags |
+[  627.096315] cloud-init[822]: ci-info: +-------+-----------------+-----------+-----------------+-----------+-------+
+[  627.099261] cloud-init[822]: ci-info: |   0   |     0.0.0.0     | 10.42.0.1 |     0.0.0.0     |    eth0   |   UG  |
+[  627.102117] cloud-init[822]: ci-info: |   1   |    10.42.0.0    |  0.0.0.0  |  255.255.255.0  |    eth0   |   U   |
+[  627.104804] cloud-init[822]: ci-info: |   2   |    10.42.0.1    |  0.0.0.0  | 255.255.255.255 |    eth0   |   UH  |
+[  627.108772] cloud-init[822]: ci-info: |   3   |  168.63.129.16  | 10.42.0.1 | 255.255.255.255 |    eth0   |  UGH  |
+[  627.111864] cloud-init[822]: ci-info: |   4   | 169.254.169.254 | 10.42.0.1 | 255.255.255.255 |    eth0   |  UGH  |
+[  627.114801] cloud-init[822]: ci-info: +-------+-----------------+-----------+-----------------+-----------+-------+
+[  627.117819] cloud-init[822]: ci-info: +++++++++++++++++++Route IPv6 info+++++++++++++++++++
+[  627.120402] cloud-init[822]: ci-info: +-------+-------------+---------+-----------+-------+
+[  627.122982] cloud-init[822]: ci-info: | Route | Destination | Gateway | Interface | Flags |
+[  627.125386] cloud-init[822]: ci-info: +-------+-------------+---------+-----------+-------+
+[  627.127787] cloud-init[822]: ci-info: |   0   |  fe80::/64  |    ::   |    eth0   |   U   |
+[  627.130324] cloud-init[822]: ci-info: |   2   |    local    |    ::   |    eth0   |   U   |
+[  627.132692] cloud-init[822]: ci-info: |   3   |  multicast  |    ::   |    eth0   |   U   |
+[  627.135056] cloud-init[822]: ci-info: +-------+-------------+---------+-----------+-------+
+[  630.697209] cloud-init[822]: Generating public/private rsa key pair.
+[  630.699278] cloud-init[822]: Your identification has been saved in /etc/ssh/ssh_host_rsa_key
+[  630.701721] cloud-init[822]: Your public key has been saved in /etc/ssh/ssh_host_rsa_key.pub
+[  630.704313] cloud-init[822]: The key fingerprint is:
+[  630.705787] cloud-init[822]: SHA256:xbnVXeoUIJtoOF8cYCD6T7lXd+EKaLkv3ttzd9IgdVE root@vaultgenome
+[  630.711827] cloud-init[822]: The key's randomart image is:
+[  630.713635] cloud-init[822]: +---[RSA 3072]----+
+[  630.715310] cloud-init[822]: |    . ..o.o ... E|
+[  630.718153] cloud-init[822]: |   . . o + * . =.|
+[  630.721156] cloud-init[822]: |  .   o o O . = o|
+[  630.724155] cloud-init[822]: |   .   = = o +...|
+[  630.727168] cloud-init[822]: |    . o S + ..+. |
+[  630.729164] cloud-init[822]: |     o o o o.o.  |
+[  630.730570] cloud-init[822]: |      o o   .. o |
+[  630.732093] cloud-init[822]: |       ..o .. o +|
+[  630.733429] cloud-init[822]: |       ...+..o o.|
+[  630.734785] cloud-init[822]: +----[SHA256]-----+
+[  630.737850] cloud-init[822]: Generating public/private ecdsa key pair.
+[  630.739901] cloud-init[822]: Your identification has been saved in /etc/ssh/ssh_host_ecdsa_key
+[  630.748907] cloud-init[822]: Your public key has been saved in /etc/ssh/ssh_host_ecdsa_key.pub
+[  630.754169] cloud-init[822]: The key fingerprint is:
+[  630.755781] cloud-init[822]: SHA256:0Tl0QntfsDb6RUaRjLqc4kOAjHXuf8F7DrVpWeFTKbo root@vaultgenome
+[  630.758544] cloud-init[822]: The key's randomart image is:
+[  630.762144] cloud-init[822]: +---[ECDSA 256]---+
+[  630.763697] cloud-init[822]: |         .+ . +.+|
+[  630.767729] cloud-init[822]: |     . . o = . *.|
+[  630.771141] cloud-init[822]: |    + + . = o.+o=|
+[  630.772679] cloud-init[822]: |   . o o . +.+o=o|
+[  630.774337] cloud-init[822]: |      . S o.+..+.|
+[  630.775821] cloud-init[822]: |       . o *o.=..|
+[  630.777493] cloud-init[822]: |        + .Eo=.  |
+[  630.779118] cloud-init[822]: |         + oo.   |
+[  630.780669] cloud-init[822]: |          o o.   |
+[  630.783208] cloud-init[822]: +----[SHA256]-----+
+[  630.784760] cloud-init[822]: Generating public/private ed25519 key pair.
+[  630.786879] cloud-init[822]: Your identification has been saved in /etc/ssh/ssh_host_ed25519_key
+[  630.789623] cloud-init[822]: Your public key has been saved in /etc/ssh/ssh_host_ed25519_key.pub
+[  630.792116] cloud-init[822]: The key fingerprint is:
+[  630.793627] cloud-init[822]: SHA256:Gi1c6qX1jobUsxdbk4r/xRP0BEkl45dtnwDveV+VagU root@vaultgenome
+[  630.798153] cloud-init[822]: The key's randomart image is:
+[  630.799704] cloud-init[822]: +--[ED25519 256]--+
+[  630.801195] cloud-init[822]: |           . E=o.|
+[  630.802625] cloud-init[822]: |            o.o++|
+[  630.804548] cloud-init[822]: |        .    oo+*|
+[  630.805908] cloud-init[822]: |     . +    ..==+|
+[  630.807475] cloud-init[822]: |      =.S    *.o+|
+[  630.808935] cloud-init[822]: |     ..Bo.. =...o|
+[  630.810470] cloud-init[822]: |     .+. +.= .+ .|
+[  630.811817] cloud-init[822]: |      . +o+  . . |
+[  630.813390] cloud-init[822]: |       ..oo..    |
+[  630.814992] cloud-init[822]: +----[SHA256]-----+
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-init.service[0m - Cloud-init: Network Stage.
+[[0;32m  OK  [0m] Reached target [0;1;39mcloud-config.target[0m - Cloud-config availability.
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork-online.target[0m - Network is Online.
+[[0;32m  OK  [0m] Reached target [0;1;39msysinit.target[0m - System Initialization.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-tmpfiles-clean.tim…[0my Cleanup of Temporary Directories.
+[[0;32m  OK  [0m] Started [0;1;39mupdate-notifier-download.t…[0mhat failed at package install time.
+[[0;32m  OK  [0m] Reached target [0;1;39mpaths.target[0m - Path Units.
+[[0;32m  OK  [0m] Listening on [0;1;39mcloud-init-hotplugd.s…t[0m - cloud-init hotplug hook socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mdbus.socket[0m - D-Bus System Message Bus Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39miscsid.socket[0m - Open-iSCSI iscsid Socket.
+         Starting [0;1;39mlxd-installer.socket[0m - He…er to install lxd snap on demand...
+         Starting [0;1;39msnapd.socket[0m - Socket activation for snappy daemon...
+[[0;32m  OK  [0m] Listening on [0;1;39mssh.socket[0m - OpenBSD Secure Shell server socket.
+[[0;32m  OK  [0m] Listening on [0;1;39muuidd.socket[0m - UUID daemon activation socket.
+[[0;32m  OK  [0m] Finished [0;1;39mblk-availability.service[0m - Availability of block devices.
+         Starting [0;1;39msystemd-pcrphase-sysinit.…[0mPM2 PCR Barrier (Initialization)...
+[[0;32m  OK  [0m] Listening on [0;1;39mlxd-installer.socket[0m …lper to install lxd snap on demand.
+[[0;32m  OK  [0m] Listening on [0;1;39msnapd.socket[0m - Socket activation for snappy daemon.
+[[0;32m  OK  [0m] Reached target [0;1;39msockets.target[0m - Socket Units.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-pcrphase-sysinit.…[0m TPM2 PCR Barrier (Initialization).
+[[0;32m  OK  [0m] Reached target [0;1;39mbasic.target[0m - Basic System.
+         Starting [0;1;39mchrony.service[0m - chrony, an NTP client/server...
+         Starting [0;1;39mcloud-config.service[0m - Cloud-init: Config Stage...
+         Starting [0;1;39mdbus.service[0m - D-Bus System Message Bus...
+[[0;32m  OK  [0m] Started [0;1;39mdmesg.service[0m - Save initial kernel messages after boot.
+         Starting [0;1;39me2scrub_reap.service[0m - Re…ne ext4 Metadata Check Snapshots...
+         Starting [0;1;39mnetworkd-dispatcher.servi…[0mcher daemon for systemd-networkd...
+         Starting [0;1;39mnvmf-autoconnect.service[0m …ystems automatically during boot...
+         Starting [0;1;39mpolkit.service[0m - Authorization Manager...
+         Starting [0;1;39mpollinate.service[0m - Polli…e pseudo random number generator...
+         Starting [0;1;39mrsyslog.service[0m - System Logging Service...
+         Starting [0;1;39msnapd.core-fixup.service[0m …wner/permissions on core devices...
+         Starting [0;1;39msnapd.seeded.service[0m - Wait until snapd is fully seeded...
+         Starting [0;1;39msysstat.service[0m - Resets System Activity Logs...
+         Starting [0;1;39msystemd-logind.service[0m - User Login Management...
+[[0;32m  OK  [0m] Started [0;1;39mubuntu-advantage.service[0m - Ubuntu Pro Background Auto Attach.
+         Starting [0;1;39mudisks2.service[0m - Disk Manager...
+         Starting [0;1;39mupdate-notifier-download.…[0mt failed at package install time...
+[[0;32m  OK  [0m] Started [0;1;39mwalinuxagent.service[0m - Azure Linux Agent.
+[[0;32m  OK  [0m] Started [0;1;39mdbus.service[0m - D-Bus System Message Bus.
+[[0;32m  OK  [0m] Finished [0;1;39me2scrub_reap.service[0m - Re…line ext4 Metadata Check Snapshots.
+[[0;32m  OK  [0m] Finished [0;1;39mnvmf-autoconnect.service[0m …bsystems automatically during boot.
+[[0;32m  OK  [0m] Finished [0;1;39msnapd.core-fixup.service[0m … owner/permissions on core devices.
+[[0;32m  OK  [0m] Finished [0;1;39msysstat.service[0m - Resets System Activity Logs.
+[[0;32m  OK  [0m] Reached target [0;1;39mremote-fs-pre.targe…[0mreparation for Remote File Systems.
+[[0;32m  OK  [0m] Reached target [0;1;39mremote-fs.target[0m - Remote File Systems.
+         Starting [0;1;39mapport.service[0m - automatic crash report generation...
+[[0;32m  OK  [0m] Started [0;1;39mcron.service[0m - Regular background program processing daemon.
+         Starting [0;1;39msnapd.service[0m - Snap Daemon...
+         Starting [0;1;39msystemd-pcrphase.service[0m - TPM2 PCR Barrier (User)...
+[[0;32m  OK  [0m] Started [0;1;39msystemd-logind.service[0m - User Login Management.
+[[0;32m  OK  [0m] Started [0;1;39munattended-upgrades.service[0m - Unattended Upgrades Shutdown.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-pcrphase.service[0m - TPM2 PCR Barrier (User).
+         Starting [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions...
+[[0;32m  OK  [0m] Started [0;1;39mnetworkd-dispatcher.servic…[0matcher daemon for systemd-networkd.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions.
+         Starting [0;1;39mplymouth-quit-wait.servic…[0md until boot process finishes up...
+         Starting [0;1;39mplymouth-quit.service[0m - Terminate Plymouth Boot Screen...
+[[0;32m  OK  [0m] Started [0;1;39mchrony.service[0m - chrony, an NTP client/server.
+[[0;32m  OK  [0m] Finished [0;1;39mplymouth-quit-wait.servic…[0mold until boot process finishes up.
+[[0;32m  OK  [0m] Started [0;1;39mpolkit.service[0m - Authorization Manager.
+[[0;32m  OK  [0m] Finished [0;1;39mplymouth-quit.service[0m - Terminate Plymouth Boot Screen.
+[[0;32m  OK  [0m] Reached target [0;1;39mtime-sync.target[0m - System Time Synchronized.
+[[0;32m  OK  [0m] Started [0;1;39mapt-daily.timer[0m - Daily apt download activities.
+[[0;32m  OK  [0m] Started [0;1;39mapt-daily-upgrade.timer[0m - …y apt upgrade and clean activities.
+[[0;32m  OK  [0m] Started [0;1;39mdpkg-db-backup.timer[0m - Daily dpkg database backup timer.
+[[0;32m  OK  [0m] Started [0;1;39me2scrub_all.timer[0m - Period…Metadata Check for All Filesystems.
+[[0;32m  OK  [0m] Started [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.
+[[0;32m  OK  [0m] Started [0;1;39mfwupd-refresh.timer[0m - Refresh fwupd metadata regularly.
+[[0;32m  OK  [0m] Started [0;1;39mlogrotate.timer[0m - Daily rotation of log files.
+[[0;32m  OK  [0m] Started [0;1;39mman-db.timer[0m - Daily man-db regeneration.
+[[0;32m  OK  [0m] Started [0;1;39mmotd-news.timer[0m - Message of the Day.
+[[0;32m  OK  [0m] Started [0;1;39msnapd.snap-repair.timer[0m - …ly fetch and run repair assertions.
+[[0;32m  OK  [0m] Started [0;1;39msysstat-collect.timer[0m - Ru…y accounting tool every 10 minutes.
+[[0;32m  OK  [0m] Started [0;1;39msysstat-summary.timer[0m - Ge… of yesterday's process accounting.
+[[0;32m  OK  [0m] Started [0;1;39mupdate-notifier-motd.timer[0m… a new version of Ubuntu available.
+[[0;32m  OK  [0m] Reached target [0;1;39mtimers.target[0m - Timer Units.
+         Starting [0;1;39mModemManager.service[0m - Modem Manager...
+[[0;32m  OK  [0m] Started [0;1;39mserial-getty@ttyS0.service[0m - Serial Getty on ttyS0.
+         Starting [0;1;39msetvtrgb.service[0m - Set console scheme...
+[[0;32m  OK  [0m] Started [0;1;39mrsyslog.service[0m - System Logging Service.
+[[0;32m  OK  [0m] Finished [0;1;39mupdate-notifier-download.…[0mhat failed at package install time.
+[[0;32m  OK  [0m] Started [0;1;39mudisks2.service[0m - Disk Manager.
+[[0;32m  OK  [0m] Finished [0;1;39msetvtrgb.service[0m - Set console scheme.
+[[0;32m  OK  [0m] Created slice [0;1;39msystem-getty.slice[0m - Slice /system/getty.
+[[0;32m  OK  [0m] Started [0;1;39mgetty@tty1.service[0m - Getty on tty1.
+[[0;32m  OK  [0m] Reached target [0;1;39mgetty.target[0m - Login Prompts.
+[[0;32m  OK  [0m] Finished [0;1;39mpollinate.service[0m - Polli…the pseudo random number generator.
+[[0;32m  OK  [0m] Finished [0;1;39mapport.service[0m - automatic crash report generation.
+[  631.852314] cloud-init[1258]: Cloud-init v. 26.2-0ubuntu1~24.04.1 running 'modules:config' at Wed, 28 Oct 2026 21:59:28 +0000. Up 631.78 seconds.
+2026-10-28T21:59:29.037243Z INFO Daemon Daemon Azure Linux Agent Version: 2.15.0.1
+2026-10-28T21:59:29.040104Z INFO Daemon Daemon OS: ubuntu 24.04
+2026-10-28T21:59:29.042246Z INFO Daemon Daemon Python: 3.12.3
+2026-10-28T21:59:29.044182Z INFO Daemon Daemon Run daemon
+2026-10-28T21:59:29.057732Z INFO Daemon Daemon cloud-init is enabled: True
+[[0;32m  OK  [0m] Started [0;1;39mModemManager.service[0m - Modem Manager.
+2026-10-28T21:59:29.063046Z INFO Daemon Daemon Using cloud-init for provisioning
+2026-10-28T21:59:29.068800Z INFO Daemon Daemon Clean protocol and wireserver endpoint
+2026-10-28T21:59:29.071340Z INFO Daemon Daemon Running CloudInit provisioning handler
+2026-10-28T21:59:29.080181Z INFO Daemon Daemon Detect protocol endpoint
+2026-10-28T21:59:29.082273Z INFO Daemon Daemon Clean protocol and wireserver endpoint
+2026-10-28T21:59:29.086071Z INFO Daemon Daemon WireServer endpoint is not found. Rerun dhcp handler
+2026-10-28T21:59:29.088547Z INFO Daemon Daemon Test for route to 168.63.129.16
+2026-10-28T21:59:29.093151Z INFO Daemon Daemon Route to 168.63.129.16 exists
+2026-10-28T21:59:29.097039Z INFO Daemon Daemon Wire server endpoint:168.63.129.16
+2026-10-28T21:59:29.104143Z INFO Daemon Daemon Fabric preferred wire protocol version:2015-04-05
+2026-10-28T21:59:29.113239Z INFO Daemon Daemon Wire protocol version:2012-11-30
+2026-10-28T21:59:29.115364Z INFO Daemon Daemon Server preferred version:2015-04-05
+[[0;32m  OK  [0m] Started [0;1;39msnapd.service[0m - Snap Daemon.
+         Starting [0;1;39msystemd-timedated.service[0m - Time & Date Service...
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-config.service[0m - Cloud-init: Config Stage.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-timedated.service[0m - Time & Date Service.
+[[0;32m  OK  [0m] Finished [0;1;39msnapd.seeded.service[0m - Wait until snapd is fully seeded.
+         Starting [0;1;39msnapd.autoimport.service[0m …rt assertions from block devices...
+[[0;32m  OK  [0m] Finished [0;1;39msnapd.autoimport.service[0m …port assertions from block devices.
+[[0;32m  OK  [0m] Reached target [0;1;39mmulti-user.target[0m - Multi-User System.
+[[0;32m  OK  [0m] Reached target [0;1;39mgraphical.target[0m - Graphical Interface.
+         Starting [0;1;39mcloud-final.service[0m - Cloud-init: Final Stage...
+         Starting [0;1;39msystemd-update-utmp-runle…[0m- Record Runlevel Change in UTMP...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-update-utmp-runle…e[0m - Record Runlevel Change in UTMP.
+[  633.272560] cloud-init[1336]: Cloud-init v. 26.2-0ubuntu1~24.04.1 running 'modules:final' at Wed, 28 Oct 2026 21:59:30 +0000. Up 633.22 seconds.
+2026-10-28T21:59:30.387807Z INFO Daemon Daemon Initializing goal state during protocol detection
+2026-10-28T21:59:30.391002Z INFO Daemon Daemon Forcing an update of the goal state.
+2026-10-28T21:59:30.405166Z INFO Daemon Fetched a new incarnation for the WireServer goal state [incarnation 1]
+2026-10-28T21:59:30.433568Z INFO Daemon Daemon HostGAPlugin version: 1.0.8.189
+2026-10-28T21:59:30.436383Z INFO Daemon 
+2026-10-28T21:59:30.440208Z INFO Daemon Fetched new vmSettings [HostGAPlugin correlation ID: c8eb30a8-5f93-4279-9997-9c4c2d880012 eTag: 7795272172825464640 source: Fabric]
+2026-10-28T21:59:30.448426Z INFO Daemon The vmSettings originated via Fabric; will ignore them.
+2026-10-28T21:59:30.455334Z INFO Daemon 
+2026-10-28T21:59:30.457291Z INFO Daemon Fetching full goal state from the WireServer [incarnation 1]
+2026-10-28T21:59:30.469452Z INFO Daemon Daemon Downloading artifacts profile blob
+[  633.541503] cloud-init[1336]: == packages
+         Starting [0;1;39mapt-news.service[0m - Update APT News...
+         Starting [0;1;39mesm-cache.service[0m - Update the local ESM caches...
+2026-10-28T21:59:30.781230Z INFO Daemon Downloaded certificate {'thumbprint': '9364E48045C0B7A1BF8D5CE1B7AE9790B55C3885', 'hasPrivateKey': True}
+2026-10-28T21:59:30.786225Z INFO Daemon Fetch goal state from WireServer completed
+2026-10-28T21:59:30.795314Z INFO Daemon Daemon ssh host key found at: /etc/ssh/ssh_host_rsa_key.pub
+2026-10-28T21:59:30.812770Z INFO Daemon Daemon Thumbprint obtained from : /etc/ssh/ssh_host_rsa_key.pub
+2026-10-28T21:59:30.816885Z INFO Daemon Daemon Finished provisioning
+[[0;32m  OK  [0m] Finished [0;1;39mapt-news.service[0m - Update APT News.
+2026-10-28T21:59:31.842772Z INFO Daemon Daemon RDMA capabilities are not enabled, skipping
+2026-10-28T21:59:31.845543Z INFO Daemon Daemon End of log to /dev/console. The agent will now check for updates and then will process extensions.
+[[0;32m  OK  [0m] Finished [0;1;39mesm-cache.service[0m - Update the local ESM caches.
+
+Ubuntu 24.04.5 LTS vaultgenome ttyS0
+
+vaultgenome login:          Starting [0;1;39mpackagekit.service[0m - PackageKit Daemon...
+[[0;32m  OK  [0m] Started [0;1;39mpackagekit.service[0m - PackageKit Daemon.
+         Starting [0;1;39msysstat-collect.service[0m - system activity accounting tool...
+[[0;32m  OK  [0m] Finished [0;1;39msysstat-collect.service[0m - system activity accounting tool.
+         Stopping [0;1;39mpackagekit.service[0m - PackageKit Daemon...
+[[0;32m  OK  [0m] Stopped [0;1;39mpackagekit.service[0m - PackageKit Daemon.
+         Stopping [0;1;39mModemManager.service[0m - Modem Manager...
+         Starting [0;1;39mpackagekit.service[0m - PackageKit Daemon...
+         Stopping [0;1;39mrsyslog.service[0m - System Logging Service...
+         Stopping [0;1;39mudisks2.service[0m - Disk Manager...
+         Stopping [0;1;39mwalinuxagent.service[0m - Azure Linux Agent...
+[[0;32m  OK  [0m] Stopped [0;1;39mrsyslog.service[0m - System Logging Service.
+         Starting [0;1;39mrsyslog.service[0m - System Logging Service...
+[[0;32m  OK  [0m] Stopped [0;1;39mModemManager.service[0m - Modem Manager.
+         Stopping [0;1;39mpolkit.service[0m - Authorization Manager...
+[[0;32m  OK  [0m] Stopped [0;1;39mudisks2.service[0m - Disk Manager.
+         Starting [0;1;39mudisks2.service[0m - Disk Manager...
+[[0;32m  OK  [0m] Stopped [0;1;39mpolkit.service[0m - Authorization Manager.
+[[0;32m  OK  [0m] Stopped [0;1;39mwalinuxagent.service[0m - Azure Linux Agent.
+         Starting [0;1;39mpolkit.service[0m - Authorization Manager...
+[[0;32m  OK  [0m] Started [0;1;39mwalinuxagent.service[0m - Azure Linux Agent.
+[[0;32m  OK  [0m] Started [0;1;39mpolkit.service[0m - Authorization Manager.
+         Starting [0;1;39mModemManager.service[0m - Modem Manager...
+[[0;32m  OK  [0m] Started [0;1;39mpackagekit.service[0m - PackageKit Daemon.
+[[0;32m  OK  [0m] Started [0;1;39mrsyslog.service[0m - System Logging Service.
+[[0;32m  OK  [0m] Started [0;1;39mModemManager.service[0m - Modem Manager.
+[[0;32m  OK  [0m] Started [0;1;39mudisks2.service[0m - Disk Manager.
+[  730.720837] cloud-init[1336]: == the vTPM and the chip's report in it (the HCL report); the chip's product from the report
+[  730.871187] cloud-init[1336]: == the release v0.13.0, verified on this guest: the signed list under the release workflow's identity, then the files against the list
+[  736.369486] cloud-init[1336]: == the worker runtime from the hash-pinned locks
+[  790.881793] cloud-init[1336]: == a base model for the first genome: the tiny one the reference deployment gates
+[  795.508134] cloud-init[1336]: Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 468.53it/s]
+[  796.306674] cloud-init[1336]: == installed; rebooting once so the key files are sealed on a settled boot (the vTPM's PCRs) — this script runs again from vaultgenome-deploy.service
+         Starting [0;1;39mmotd-news.service[0m - Message of the Day...
+[[0;32m  OK  [0m] Finished [0;1;39mmotd-news.service[0m - Message of the Day.
+ci-info: ++++++++++++++++++++++++++++++++++++++++Authorized keys from /home/vgadmin/.ssh/authorized_keys for user vgadmin++++++++++++++++++++++++++++++++++++++++
+ci-info: +-------------+-------------------------------------------------------------------------------------------------+---------+----------------------------+
+ci-info: |   Keytype   |                                       Fingerprint (sha256)                                      | Options |          Comment           |
+ci-info: +-------------+-------------------------------------------------------------------------------------------------+---------+----------------------------+
+ci-info: | ssh-ed25519 | cc:b8:14:ef:e6:56:f4:5b:2b:3a:d8:40:b2:11:1d:64:f6:e1:dc:c1:1a:14:47:b7:6f:5a:85:e8:33:b1:67:b8 |    -    | vg-button 20261028T215840Z |
+ci-info: +-------------+-------------------------------------------------------------------------------------------------+---------+----------------------------+
+[[0;32m  OK  [0m] Removed slice [0;1;39msystem-modprobe.slice[0m - Slice /system/modprobe.
+[[0;32m  OK  [0m] Stopped target [0;1;39mgraphical.target[0m - Graphical Interface.
+[[0;32m  OK  [0m] Stopped target [0;1;39mnss-lookup.target[0m - Host and Network Name Lookups.
+[[0;32m  OK  [0m] Stopped target [0;1;39mtimers.target[0m - Timer Units.
+[[0;32m  OK  [0m] Stopped [0;1;39mapt-daily-upgrade.timer[0m - …y apt upgrade and clean activities.
+[[0;32m  OK  [0m] Stopped [0;1;39mapt-daily.timer[0m - Daily apt download activities.
+[[0;32m  OK  [0m] Stopped [0;1;39mdpkg-db-backup.timer[0m - Daily dpkg database backup timer.
+[[0;32m  OK  [0m] Stopped [0;1;39me2scrub_all.timer[0m - Period…Metadata Check for All Filesystems.
+[[0;32m  OK  [0m] Stopped [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.
+[[0;32m  OK  [0m] Stopped [0;1;39mfwupd-refresh.timer[0m - Refresh fwupd metadata regularly.
+[[0;32m  OK  [0m] Stopped [0;1;39mlogrotate.timer[0m - Daily rotation of log files.
+[[0;32m  OK  [0m] Stopped [0;1;39mman-db.timer[0m - Daily man-db regeneration.
+[[0;32m  OK  [0m] Stopped [0;1;39mmotd-news.timer[0m - Message of the Day.
+[[0;32m  OK  [0m] Stopped [0;1;39msnapd.snap-repair.timer[0m - …ly fetch and run repair assertions.
+[[0;32m  OK  [0m] Stopped [0;1;39msysstat-collect.timer[0m - Ru…y accounting tool every 10 minutes.
+[[0;32m  OK  [0m] Stopped [0;1;39msysstat-summary.timer[0m - Ge… of yesterday's process accounting.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-clean.tim…[0my Cleanup of Temporary Directories.
+[[0;32m  OK  [0m] Stopped [0;1;39mupdate-notifier-download.t…[0mhat failed at package install time.
+[[0;32m  OK  [0m] Stopped [0;1;39mupdate-notifier-motd.timer[0m… a new version of Ubuntu available.
+[[0;32m  OK  [0m] Closed [0;1;39mcloud-init-hotplugd.socket[0m - cloud-init hotplug hook socket.
+[[0;32m  OK  [0m] Closed [0;1;39mlvm2-lvmpolld.socket[0m - LVM2 poll daemon socket.
+[[0;32m  OK  [0m] Closed [0;1;39msystemd-rfkill.socket[0m - Loa…ll Switch Status /dev/rfkill Watch.
+<14>Oct 28 22:02:28 cloud-init: #############################################################
+<14>Oct 28 22:02:28 cloud-init: -----BEGIN SSH HOST KEY FINGERPRINTS-----
+<14>Oct 28 22:02:28 cloud-init: 256 SHA256:0Tl0QntfsDb6RUaRjLqc4kOAjHXuf8F7DrVpWeFTKbo root@vaultgenome (ECDSA)
+<14>Oct 28 22:02:28 cloud-init: 256 SHA256:Gi1c6qX1jobUsxdbk4r/xRP0BEkl45dtnwDveV+VagU root@vaultgenome (ED25519)
+<14>Oct 28 22:02:28 cloud-init: 3072 SHA256:xbnVXeoUIJtoOF8cYCD6T7lXd+EKaLkv3ttzd9IgdVE root@vaultgenome (RSA)
+<14>Oct 28 22:02:28 cloud-init: -----END SSH HOST KEY FINGERPRINTS-----
+<14>Oct 28 22:02:28 cloud-init: #############################################################
+-----BEGIN SSH HOST KEY KEYS-----
+ecdsa-sha2-nistp256 AAAAE2VjZHNh[[0;32m  OK  [0m] Stopped [0;1;39msnapd.core-fixup.service[0m -… owner/permissions on core devices.
+[[0;32m  OK  [0m] Stopped [0;1;39msnapd.seeded.service[0m - Wait until snapd is fully seeded.
+[[0;32m  OK  [0m] Stopped [0;1;39msysstat.service[0m - Resets System Activity Logs.
+         Stopping [0;1;39msystemd-logind.service[0m - User Login Management...
+         Stopping [0;1;39mwalinuxagent.service[0m - Azure Linux Agent...
+[[0;32m  OK  [0m] Stopped [0;1;39mnetworkd-dispatcher.servic…[0matcher daemon for systemd-networkd.
+[[0;32m  OK  [0m] Stopped [0;1;39mcron.service[0m - Regular background program processing daemon.
+[[0;32m  OK  [0m] Stopped [0;1;39mchrony.service[0m - chrony, an NTP client/server.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-logind.service[0m - User Login Management.
+[[0;32m  OK  [0m] Stopped [0;1;39mserial-getty@ttyS0.service[0m - Serial Getty on ttyS0.
+[[0;32m  OK  [0m] Stopped [0;1;39mgetty@tty1.service[0m - Getty on tty1.
+[[0;32m  OK  [0m] Stopped [0;1;39mpackagekit.service[0m - PackageKit Daemon.
+[[0;32m  OK  [0m] Stopped [0;1;39mudisks2.service[0m - Disk Manager.
+[[0;32m  OK  [0m] Stopped [0;1;39mrsyslog.service[0m - System Logging Service.
+[[0;32m  OK  [0m] Stopped [0;1;39mModemManager.service[0m - Modem Manager.
+[[0;32m  OK  [0m] Stopped [0;1;39mwalinuxagent.service[0m - Azure Linux Agent.
+[[0;32m  OK  [0m] Stopped [0;1;39mblk-availability.service[0m - Availability of block devices.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-random-seed.service[0m - Load/Save OS Random Seed.
+[[0;32m  OK  [0m] Removed slice [0;1;39msystem-getty.slice[0m - Slice /system/getty.
+[[0;32m  OK  [0m] Removed slice [0;1;39msystem-serial\x2dget…slice[0m - Slice /system/serial-getty.
+[[0;32m  OK  [0m] Stopped target [0;1;39mgetty-pre.target[0m - Preparation for Logins.
+[[0;32m  OK  [0m] Stopped target [0;1;39mnetwork-online.target[0m - Network is Online.
+[[0;32m  OK  [0m] Stopped [0;1;39mplymouth-quit-wait.service[0m…old until boot process finishes up.
+         Stopping [0;1;39mpolkit.service[0m - Authorization Manager...
+         Stopping [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions...
+[[0;32m  OK  [0m] Stopped [0;1;39mpolkit.service[0m - Authorization Manager.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions.
+[[0;32m  OK  [0m] Stopped target [0;1;39mnetwork.target[0m - Network.
+         Stopping [0;1;39msystemd-pcrphase.service[0m - TPM2 PCR Barrier (User)...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-pcrphase.service[0m - TPM2 PCR Barrier (User).
+[[0;32m  OK  [0m] Stopped [0;1;39mapport.service[0m - automatic crash report generation.
+[[0;32m  OK  [0m] Stopped target [0;1;39mbasic.target[0m - Basic System.
+[[0;32m  OK  [0m] Stopped target [0;1;39mpaths.target[0m - Path Units.
+[[0;32m  OK  [0m] Stopped target [0;1;39mremote-fs.target[0m - Remote File Systems.
+[[0;32m  OK  [0m] Stopped target [0;1;39mremote-fs-pre.targe…[0mreparation for Remote File Systems.
+[[0;32m  OK  [0m] Stopped target [0;1;39mslices.target[0m - Slice Units.
+[[0;32m  OK  [0m] Removed slice [0;1;39muser.slice[0m - User and Session Slice.
+[[0;32m  OK  [0m] Stopped target [0;1;39msockets.target[0m - Socket Units.
+[[0;32m  OK  [0m] Closed [0;1;39miscsid.socket[0m - Open-iSCSI iscsid Socket.
+[[0;32m  OK  [0m] Closed [0;1;39mlxd-installer.socket[0m - Helper to install lxd snap on demand.
+[[0;32m  OK  [0m] Closed [0;1;39msnapd.socket[0m - Socket activation for snappy daemon.
+[[0;32m  OK  [0m] Closed [0;1;39mssh.socket[0m - OpenBSD Secure Shell server socket.
+[[0;32m  OK  [0m] Closed [0;1;39msyslog.socket[0m - Syslog Socket.
+[[0;32m  OK  [0m] Closed [0;1;39muuidd.socket[0m - UUID daemon activation socket.
+         Stopping [0;1;39msystemd-pcrphase-sysinit.…[0mPM2 PCR Barrier (Initialization)...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-pcrphase-sysinit.s…[0m TPM2 PCR Barrier (Initialization).
+[[0;32m  OK  [0m] Stopped target [0;1;39msysinit.target[0m - System Initialization.
+[[0;32m  OK  [0m] Stopped target [0;1;39mcryptsetup.target[0m - Local Encrypted Volumes.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-ask-password-conso…[0mequests to Console Directory Watch.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-ask-password-wall.…[0md Requests to Wall Directory Watch.
+[[0;32m  OK  [0m] Stopped target [0;1;39mintegritysetup.targ…[0m Local Integrity Protected Volumes.
+[[0;32m  OK  [0m] Stopped target [0;1;39mswap.target[0m - Swaps.
+[[0;32m  OK  [0m] Stopped target [0;1;39mveritysetup.target[0m - Local Verity Protected Volumes.
+[[0;32m  OK  [0m] Stopped [0;1;39mcloud-init.service[0m - Cloud-init: Network Stage.
+         Stopping [0;1;39msystemd-binfmt.service[0m - Set Up Additional Binary Formats...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-networkd-wait-onli…[0m Wait for Network to be Configured.
+         Stopping [0;1;39msystemd-networkd.service[0m - Network Configuration...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-pcrmachine.service[0m - TPM2 PCR Machine ID Measurement.
+         Stopping [0;1;39msystemd-resolved.service[0m - Network Name Resolution...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tpm2-setup.service[0m - TPM2 SRK Setup.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tpm2-setup-early.service[0m - TPM2 SRK Setup (Early).
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-update-done.service[0m - Update is Completed.
+[[0;32m  OK  [0m] Stopped [0;1;39mldconfig.service[0m - Rebuild Dynamic Linker Cache.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-journal-catalog-up….service[0m - Rebuild Journal Catalog.
+         Stopping [0;1;39msystemd-update-utmp.servi…[0mord System Boot/Shutdown in UTMP...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-resolved.service[0m - Network Name Resolution.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-networkd.service[0m - Network Configuration.
+[[0;32m  OK  [0m] Stopped [0;1;39mfinalrd.service[0m - Create f…untime dir for shutdown pivot root.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-binfmt.service[0m - Set Up Additional Binary Formats.
+[[0;32m  OK  [0m] Unset automount [0;1;39mproc-sys-fs-binfmt…[0mormats File System Automount Point.
+[[0;32m  OK  [0m] Stopped target [0;1;39mnetwork-pre.target[0m - Preparation for Network.
+[[0;32m  OK  [0m] Closed [0;1;39msystemd-networkd.socket[0m - Network Service Netlink Socket.
+[[0;32m  OK  [0m] Stopped [0;1;39mcloud-init-local.service[0m -…ud-init: Local Stage (pre-network).
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-sysctl.service[0m - Apply Kernel Variables.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-modules-load.service[0m - Load Kernel Modules.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-update-utmp.servic…[0mecord System Boot/Shutdown in UTMP.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-setup.ser…[0mate Volatile Files and Directories.
+[[0;32m  OK  [0m] Stopped target [0;1;39mlocal-fs.target[0m - Local File Systems.
+[[0;32m  OK  [0m] Stopped target [0;1;39msnapd.mounts.target[0m - Mounted snaps.
+[[0;32m  OK  [0m] Stopped target [0;1;39msnapd.mounts-pre.target[0m - Mounting snaps.
+         Unmounting [0;1;39mboot-efi.mount[0m - /boot/efi...
+         Unmounting [0;1;39mrun-mnt-data.mount[0m - /run/mnt/data...
+         Unmounting [0;1;39mrun-mnt-ubuntu\x2dseed.mount[0m - /run/mnt/ubuntu-seed...
+[[0;32m  OK  [0m] Unmounted [0;1;39mboot-efi.mount[0m - /boot/efi.
+[[0;32m  OK  [0m] Unmounted [0;1;39mrun-mnt-data.mount[0m - /run/mnt/data.
+[[0;32m  OK  [0m] Unmounted [0;1;39mrun-mnt-ubuntu\x2dseed.mount[0m - /run/mnt/ubuntu-seed.
+[[0;32m  OK  [0m] Reached target [0;1;39mumount.target[0m - Unmount All Filesystems.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-fsck@dev-disk-by\x…[0meck on /dev/disk/by-uuid/CC26-5AB2.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-fsck@dev-dm\x2d0.s…e[0m - File System Check on /dev/dm-0.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-fsck@dev-sda15.ser…[0m - File System Check on /dev/sda15.
+[[0;32m  OK  [0m] Removed slice [0;1;39msystem-systemd\x2dfs…slice[0m - Slice /system/systemd-fsck.
+[[0;32m  OK  [0m] Stopped target [0;1;39mlocal-fs-pre.target[0m…Preparation for Local File Systems.
+         Stopping [0;1;39mlvm2-monitor.service[0m - Mo…ing dmeventd or progress polling...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-setup-dev…[0mCreate Static Device Nodes in /dev.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-sysusers.service[0m - Create System Users.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-remount-fs.service[0m…mount Root and Kernel File Systems.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-setup-dev…[0mic Device Nodes in /dev gracefully.
+[[0;32m  OK  [0m] Stopped [0;1;39mlvm2-monitor.service[0m - Mon…using dmeventd or progress polling.
+[[0;32m  OK  [0m] Reached target [0;1;39mshutdown.target[0m - System Shutdown.
+[[0;32m  OK  [0m] Reached target [0;1;39mfinal.target[0m - Late Shutdown Services.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-reboot.service[0m - System Reboot.
+[[0;32m  OK  [0m] Reached target [0;1;39mreboot.target[0m - System Reboot.
+[  812.815989] reboot: Restarting system
+[2J[01;01H[=3h[2J[01;01H[    0.000000] Linux version 7.0.0-1016-azure-fde (buildd@lcy02-amd64-026) (x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, GNU ld (GNU Binutils for Ubuntu) 2.42) #16~24.04.1-Ubuntu SMP PREEMPT Thu Sep 24 18:43:30 UTC 2026 (Ubuntu 7.0.0-1016.16~24.04.1-azure-fde 7.0.14)
+[    0.000000] Command line: snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0 panic=60
+[    0.000000] KERNEL supported cpus:
+[    0.000000]   Intel GenuineIntel
+[    0.000000]   AMD AuthenticAMD
+[    0.000000]   Hygon HygonGenuine
+[    0.000000]   Centaur CentaurHauls
+[    0.000000]   zhaoxin   Shanghai  
+[    0.000000] BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009ffff]  System RAM
+[    0.000000] BIOS-e820: [gap 0x00000000000a0000-0x00000000000bffff]
+[    0.000000] BIOS-e820: [mem 0x00000000000c0000-0x00000000000fffff]  device reserved
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x00000000019fffff]  System RAM
+[    0.000000] BIOS-e820: [gap 0x0000000001a00000-0x00000000021fffff]
+[    0.000000] BIOS-e820: [mem 0x0000000002200000-0x0000000005ecafff]  System RAM
+[    0.000000] BIOS-e820: [mem 0x0000000005ecb000-0x0000000005eccfff]  device reserved
+[    0.000000] BIOS-e820: [mem 0x0000000005ecd000-0x0000000005ef3fff]  System RAM
+[    0.000000] BIOS-e820: [mem 0x0000000005ef4000-0x00000000062f3fff]  device reserved
+[    0.000000] BIOS-e820: [mem 0x00000000062f4000-0x00000000beca2fff]  System RAM
+[    0.000000] BIOS-e820: [mem 0x00000000beca3000-0x00000000becaefff]  ACPI data
+[    0.000000] BIOS-e820: [mem 0x00000000becaf000-0x00000000becf0fff]  System RAM
+[    0.000000] BIOS-e820: [mem 0x00000000becf1000-0x00000000becf8fff]  ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x00000000becf9000-0x00000000bff1efff]  System RAM
+[    0.000000] BIOS-e820: [mem 0x00000000bff1f000-0x00000000bffc8fff]  device reserved
+[    0.000000] BIOS-e820: [mem 0x00000000bffc9000-0x00000000bfffafff]  ACPI data
+[    0.000000] BIOS-e820: [mem 0x00000000bfffb000-0x00000000bfffefff]  ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x00000000bffff000-0x00000000bfffffff]  System RAM
+[    0.000000] BIOS-e820: [gap 0x00000000c0000000-0x00000000ffffffff]
+[    0.000000] BIOS-e820: [mem 0x0000000100000000-0x000000043fffffff]  System RAM
+[    0.000000] printk: legacy bootconsole [earlyser0] enabled
+[    0.000000] NX (Execute Disable) protection: active
+[    0.000000] APIC: Static calls initialized
+[    0.000000] efi: EFI v2.7 by Microsoft
+[    0.000000] efi: ACPI=0xbfffa000 ACPI 2.0=0xbfffa014 SMBIOS=0xbff88000 SMBIOS 3.0=0xbff86000 TPMFinalLog=0xbecf1000 MEMATTR=0xbed00118 MOKvar=0xbff84000 INITRD=0xbecc5f98 RNG=0xbffd2018 TPMEventLog=0xbeca3018 
+[    0.000000] random: crng init done
+[    0.000000] SMBIOS 3.1.0 present.
+[    0.000000] DMI: Microsoft Corporation Virtual Machine/Virtual Machine, BIOS Hyper-V UEFI Release v4.1 01/08/2026
+[    0.000000] DMI: Memory slots populated: 3/3
+[    0.000000] secureboot: Secure boot enabled
+[    0.000000] Kernel is locked down from EFI Secure Boot mode; see man kernel_lockdown.7
+[    0.000000] Hypervisor detected: Microsoft Hyper-V
+[    0.000000] Hyper-V: privilege flags low 0xa7e, high 0x688000, ext 0x0, hints 0x200e2c, misc 0x4018c110
+[    0.000000] Hyper-V: Isolation Config: Group A 0x1, Group B 0xba2
+[    0.000000] Hyper-V: Nested features: 0x0
+[    0.000000] Hyper-V: LAPIC Timer Frequency: 0x30d40
+[    0.000000] Hyper-V: Using hypercall for remote TLB flush
+[    0.000000] clocksource: hyperv_clocksource_tsc_page: mask: 0xffffffffffffffff max_cycles: 0x24e6a1710, max_idle_ns: 440795202120 ns
+[    0.000019] clocksource: hyperv_clocksource_msr: mask: 0xffffffffffffffff max_cycles: 0x24e6a1710, max_idle_ns: 440795202120 ns
+[    0.005430] tsc: Marking TSC unstable due to running on Hyper-V
+[    0.008893] tsc: Detected 2596.128 MHz processor
+[    0.012144] last_pfn = 0x440000 max_arch_pfn = 0x400000000
+[    0.015183] MTRR map: 0 entries (0 fixed + 0 variable; max 0), built from 0 variable MTRRs
+[    0.019488] MTRRs set to read-only
+[    0.021075] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+Memory KASLR using RDRAND RDTSC...
+[    0.026194] x2apic: enabled by BIOS, switching to x2apic ops
+[    0.032950] last_pfn = 0xc0000 max_arch_pfn = 0x400000000
+[    0.041151] software IO TLB: SWIOTLB bounce buffer size adjusted to 982MB
+[    0.041166] Using GB pages for direct mapping
+[    0.047289] secureboot: Secure boot enabled
+[    0.049125] RAMDISK: [mem 0xb20df000-0xb52b5fff]
+[    0.051283] ACPI: Early table checksum verification disabled
+[    0.054224] ACPI: RSDP 0x00000000BFFFA014 000024 (v02 VRTUAL)
+[    0.059717] ACPI: XSDT 0x00000000BFFF90E8 00005C (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.064537] ACPI: FACP 0x00000000BFFF8000 000114 (v06 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.072943] ACPI: DSDT 0x00000000BFFD6000 01E22B (v02 MSFTVM DSDT01   00000001 INTL 20230628)
+[    0.087554] ACPI: FACS 0x00000000BFFFE000 000040
+[    0.095289] ACPI: OEM0 0x00000000BFFF7000 000064 (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.099148] ACPI: SPCR 0x00000000BFFF6000 000050 (v02 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.103592] ACPI: WAET 0x00000000BFFF5000 000028 (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.107255] ACPI: APIC 0x00000000BFFD5000 000068 (v04 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.111188] ACPI: SRAT 0x00000000BFFD4000 000200 (v02 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.115728] ACPI: TPM2 0x00000000BFFD3000 000034 (v03 VRTUAL VTPM     00000001 MSFT 00000001)
+[    0.120341] ACPI: Reserving FACP table memory at [mem 0xbfff8000-0xbfff8113]
+[    0.124082] ACPI: Reserving DSDT table memory at [mem 0xbffd6000-0xbfff422a]
+[    0.128031] ACPI: Reserving FACS table memory at [mem 0xbfffe000-0xbfffe03f]
+[    0.137012] ACPI: Reserving OEM0 table memory at [mem 0xbfff7000-0xbfff7063]
+[    0.140237] ACPI: Reserving SPCR table memory at [mem 0xbfff6000-0xbfff604f]
+[    0.143719] ACPI: Reserving WAET table memory at [mem 0xbfff5000-0xbfff5027]
+[    0.147391] ACPI: Reserving APIC table memory at [mem 0xbffd5000-0xbffd5067]
+[    0.150911] ACPI: Reserving SRAT table memory at [mem 0xbffd4000-0xbffd41ff]
+[    0.154011] ACPI: Reserving TPM2 table memory at [mem 0xbffd3000-0xbffd3033]
+[    0.161690] APIC: Switched APIC routing to: physical x2apic
+[    0.164535] ACPI: SRAT: Node 0 PXM 0 [mem 0x00000000-0xbfffffff] hotplug
+[    0.168065] ACPI: SRAT: Node 0 PXM 0 [mem 0x100000000-0x43fffffff] hotplug
+[    0.172374] ACPI: SRAT: Node 0 PXM 0 [mem 0x440000000-0xfdfffffff] hotplug
+[    0.175259] ACPI: SRAT: Node 0 PXM 0 [mem 0x1000000000-0xfcffffffff] hotplug
+[    0.178686] ACPI: SRAT: Node 0 PXM 0 [mem 0x10000000000-0x1ffffffffff] hotplug
+[    0.182076] ACPI: SRAT: Node 0 PXM 0 [mem 0x20000000000-0x3ffffffffff] hotplug
+[    0.185647] ACPI: SRAT: Node 0 PXM 0 [mem 0x40000000000-0x7ffffffffff] hotplug
+[    0.189298] ACPI: SRAT: Node 0 PXM 0 [mem 0x80000000000-0xfffffffffff] hotplug
+[    0.194784] ACPI: SRAT: Node 0 PXM 0 [mem 0x100000000000-0x1fffffffffff] hotplug
+[    0.201328] ACPI: SRAT: Node 0 PXM 0 [mem 0x200000000000-0x3fffffffffff] hotplug
+[    0.205307] NUMA: Node 0 [mem 0x00001000-0xbfffffff] + [mem 0x100000000-0x43fffffff] -> [mem 0x00001000-0x43fffffff]
+[    0.210370] NODE_DATA(0) allocated [mem 0x43ffd5280-0x43fffffff]
+[    0.215003] ACPI: LAPIC_NMI (acpi_id[0x01] dfl dfl lint[0x1])
+[    0.218002] IOAPIC[0]: apic_id 4, version 17, address 0xfec00000, GSI 0-23
+[    0.221455] ACPI: INT_SRC_OVR (bus 0 bus_irq 9 global_irq 9 high level)
+[    0.224461] ACPI: Using ACPI (MADT) for SMP configuration information
+[    0.227798] ACPI: SPCR: console: uart,io,0x3f8,115200
+[    0.230024] CPU topo: Max. logical packages:   1
+[    0.231826] CPU topo: Max. logical nodes:      1
+[    0.233929] CPU topo: Num. nodes per package:  1
+[    0.236020] CPU topo: Max. logical dies:       1
+[    0.238282] CPU topo: Max. dies per package:   1
+[    0.240395] CPU topo: Max. threads per core:   2
+[    0.242589] CPU topo: Num. cores per package:     2
+[    0.244888] CPU topo: Num. threads per package:   4
+[    0.247296] CPU topo: Allowing 4 present CPUs plus 0 hotplug CPUs
+[    0.249968] PM: hibernation: Registered nosave memory: [mem 0x00000000-0x00000fff]
+[    0.255540] PM: hibernation: Registered nosave memory: [mem 0x000a0000-0x000fffff]
+[    0.258854] PM: hibernation: Registered nosave memory: [mem 0x01a00000-0x021fffff]
+[    0.262578] PM: hibernation: Registered nosave memory: [mem 0x05ecb000-0x05eccfff]
+[    0.266441] PM: hibernation: Registered nosave memory: [mem 0x05ef4000-0x062f3fff]
+[    0.273724] PM: hibernation: Registered nosave memory: [mem 0xbeca3000-0xbecaefff]
+[    0.278075] PM: hibernation: Registered nosave memory: [mem 0xbecf1000-0xbecf8fff]
+[    0.281716] PM: hibernation: Registered nosave memory: [mem 0xbff1f000-0xbfffefff]
+[    0.285803] PM: hibernation: Registered nosave memory: [mem 0xc0000000-0xffffffff]
+[    0.289559] [gap 0xc0000000-0xffffffff] available for PCI devices
+[    0.292977] Booting paravirtualized kernel on Hyper-V
+[    0.295672] clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1910969940391419 ns
+[    0.300855] Zone ranges:
+[    0.302074]   DMA      [mem 0x0000000000001000-0x0000000000ffffff]
+[    0.305403]   DMA32    [mem 0x0000000001000000-0x00000000ffffffff]
+[    0.309016]   Normal   [mem 0x0000000100000000-0x000000043fffffff]
+[    0.311603]   Device   empty
+[    0.312760] Movable zone start for each node
+[    0.314667] Early memory node ranges
+[    0.316446]   node   0: [mem 0x0000000000001000-0x000000000009ffff]
+[    0.319194]   node   0: [mem 0x0000000000100000-0x00000000019fffff]
+[    0.322148]   node   0: [mem 0x0000000002200000-0x0000000005ecafff]
+[    0.332211]   node   0: [mem 0x0000000005ecd000-0x0000000005ef3fff]
+[    0.335464]   node   0: [mem 0x00000000062f4000-0x00000000beca2fff]
+[    0.342243]   node   0: [mem 0x00000000becaf000-0x00000000becf0fff]
+[    0.344951]   node   0: [mem 0x00000000becf9000-0x00000000bff1efff]
+[    0.348220]   node   0: [mem 0x00000000bffff000-0x00000000bfffffff]
+[    0.350945]   node   0: [mem 0x0000000100000000-0x000000043fffffff]
+[    0.360226] Initmem setup node 0 [mem 0x0000000000001000-0x000000043fffffff]
+[    0.364077] On node 0, zone DMA: 1 pages in unavailable ranges
+[    0.367258] On node 0, zone DMA: 96 pages in unavailable ranges
+[    0.370963] On node 0, zone DMA32: 2048 pages in unavailable ranges
+[    0.374250] On node 0, zone DMA32: 2 pages in unavailable ranges
+[    0.383762] On node 0, zone DMA32: 1024 pages in unavailable ranges
+[    0.388043] On node 0, zone DMA32: 12 pages in unavailable ranges
+[    0.390891] On node 0, zone DMA32: 8 pages in unavailable ranges
+[    0.393586] On node 0, zone DMA32: 224 pages in unavailable ranges
+[    0.414361] setup_percpu: NR_CPUS:8192 nr_cpumask_bits:4 nr_cpu_ids:4 nr_node_ids:1
+[    0.423177] percpu: Embedded 85 pages/cpu s225280 r8192 d114688 u524288
+[    0.427478] Hyper-V: PV spinlocks disabled
+[    0.429150] Kernel command line: snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0 panic=60
+[    0.434453] Unknown kernel command line parameters "snapd_recovery_mode=cloudimg-rootfs", will be passed to user space.
+[    0.439928] printk: log buffer data + meta data: 262144 + 1114112 = 1376256 bytes
+[    0.445933] Dentry cache hash table entries: 2097152 (order: 12, 16777216 bytes, linear)
+[    0.450913] Inode-cache hash table entries: 1048576 (order: 11, 8388608 bytes, linear)
+[    0.454514] software IO TLB: area num 4.
+[    0.456141] software IO TLB: SWIOTLB bounce buffer size roundup to 1024MB
+[    0.568859] Fallback order for Node 0: 0 
+[    0.568867] Built 1 zonelists, mobility grouping on.  Total pages: 4190889
+[    0.585926] Policy zone: Normal
+[    0.587733] mem auto-init: stack:all(zero), heap alloc:on, heap free:off
+[    0.591576] KHO: Failed to reserve lowmem scratch buffer
+[    0.594795] KHO: Failed to reserve scratch area, disabling kexec handover
+[    0.619719] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+Poking KASLR using RDRAND RDTSC...
+[    0.640317] ftrace: allocating 64706 entries in 256 pages
+[    0.643293] ftrace: allocated 256 pages with 1 groups
+[    0.645943] rcu: Hierarchical RCU implementation.
+[    0.648262] rcu: 	RCU restricting CPUs from NR_CPUS=8192 to nr_cpu_ids=4.
+[    0.651738] 	Trampoline variant of Tasks RCU enabled.
+[    0.654498] 	Rude variant of Tasks RCU enabled.
+[    0.657512] 	Tracing variant of Tasks RCU enabled.
+[    0.660644] rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+[    0.664270] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.667618] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.672731] RCU Tasks Rude: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.680926] NR_IRQS: 524544, nr_irqs: 440, preallocated irqs: 0
+[    0.683942] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.687819] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+[    0.692940] Console: colour dummy device 80x25
+[    0.695249] printk: legacy console [tty1] enabled
+[    0.698181] printk: console [ttyS0] enabled
+[    0.698181] printk: console [ttyS0] enabled
+[    0.702930] printk: legacy bootconsole [earlyser0] disabled
+[    0.702930] printk: legacy bootconsole [earlyser0] disabled
+[    0.709465] ACPI: Core revision 20251212
+[    0.711459] APIC: Switch to symmetric I/O mode setup
+[    0.717645] Hyper-V: Hypervisor Build 10.0.26102.1478-1-0
+[    0.721603] Hyper-V: Using IPI hypercalls
+[    0.723492] APIC: send_IPI() replaced with hv_send_ipi()
+[    0.726535] APIC: send_IPI_mask() replaced with hv_send_ipi_mask()
+[    0.729787] APIC: send_IPI_mask_allbutself() replaced with hv_send_ipi_mask_allbutself()
+[    0.733904] APIC: send_IPI_allbutself() replaced with hv_send_ipi_allbutself()
+[    0.737376] APIC: send_IPI_all() replaced with hv_send_ipi_all()
+[    0.741713] APIC: send_IPI_self() replaced with hv_send_ipi_self()
+[    0.745104] Hyper-V: Using enlightened APIC (x2apic mode)
+[    0.745117] APIC: eoi() replaced with hv_apic_eoi_write()
+[    0.757256] Calibrating delay loop (skipped), value calculated using timer frequency.. 5192.25 BogoMIPS (lpj=2596128)
+[    0.758251] x86/cpu: User Mode Instruction Prevention (UMIP) activated
+[    0.758251] Last level iTLB entries: 4KB 512, 2MB 512, 4MB 256
+[    0.758251] Last level dTLB entries: 4KB 3072, 2MB 3072, 4MB 1536, 1GB 0
+[    0.758251] mitigations: Enabled attack vectors: user_kernel, user_user, guest_host, guest_guest, SMT mitigations: auto
+[    0.758251] Speculative Store Bypass: Vulnerable
+[    0.758251] Speculative Return Stack Overflow: IBPB-extending microcode not applied!
+[    0.758251] Speculative Return Stack Overflow: WARNING: See https://kernel.org/doc/html/latest/admin-guide/hw-vuln/srso.html for mitigation options.
+[    0.758251] Transient Scheduler Attacks: Vulnerable: No microcode
+[    0.758251] Spectre V2 : Mitigation: Retpolines
+[    0.758251] Speculative Return Stack Overflow: Vulnerable: Safe RET, no microcode
+[    0.758251] Spectre V1 : Mitigation: usercopy/swapgs barriers and __user pointer sanitization
+[    0.758251] Spectre V2 : Spectre v2 / SpectreRSB: Filling RSB on context switch and VMEXIT
+[    0.758251] active return thunk: srso_alias_return_thunk
+[    0.758251] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.758251] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.758251] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.758251] x86/fpu: Supporting XSAVE feature 0x800: 'Control-flow User registers'
+[    0.758251] x86/fpu: Supporting XSAVE feature 0x1000: 'Control-flow Kernel registers (KVM only)'
+[    0.758251] x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+[    0.758251] x86/fpu: xstate_offset[11]:  832, xstate_sizes[11]:   16
+[    0.758251] x86/fpu: xstate_offset[12]:  848, xstate_sizes[12]:   24
+[    0.758251] x86/fpu: Enabled xstate features 0x1807, context size is 872 bytes, using 'compacted' format.
+[    0.758251] Freeing SMP alternatives memory: 56K
+[    0.758251] Memory Encryption Features active: AMD SEV
+[    0.758251] SEV: Status: vTom 
+[    0.758251] pid_max: default: 32768 minimum: 301
+[    0.758251] landlock: Up and running.
+[    0.758251] Yama: becoming mindful.
+[    0.758251] AppArmor: AppArmor initialized
+[    0.758251] AppArmor: AppArmor secmark mediation reserved: ready to be enabled
+[    0.758251] Mount-cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.758251] Mountpoint-cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.758251] VFS: Finished mounting rootfs on nullfs
+[    0.758251] smpboot: CPU0: AMD EPYC 9V74 80-Core Processor (family: 0x19, model: 0x11, stepping: 0x1)
+[    0.758606] Performance Events: PMU not available due to virtualization, using software events only.
+[    0.759305] signal: max sigframe size: 1776
+[    0.760366] rcu: Hierarchical SRCU implementation.
+[    0.760372] rcu: 	Max phase no-delay instances is 400.
+[    0.762354] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.769786] NMI watchdog: Perf NMI watchdog permanently disabled
+[    0.770362] smp: Bringing up secondary CPUs ...
+[    0.771448] smpboot: x86: Booting SMP configuration:
+[    0.771468] .... node  #0, CPUs:      #2 #1 #3
+[    0.955384] smp: Brought up 1 node, 4 CPUs
+[    0.955413] smpboot: Total of 4 processors activated (21068.29 BogoMIPS)
+[    0.958419] Memory: 15276192K/16763556K available (23395K kernel code, 5003K rwdata, 16704K rodata, 5460K init, 5636K bss, 1476784K reserved, 0K cma-reserved)
+[    0.963325] devtmpfs: initialized
+[    0.963325] x86/mm: Memory block size: 128MB
+[    0.966365] ACPI: PM: Registering ACPI NVS region [mem 0xbecf1000-0xbecf8fff] (32768 bytes)
+[    0.966373] ACPI: PM: Registering ACPI NVS region [mem 0xbfffb000-0xbfffefff] (16384 bytes)
+[    0.966520] posixtimers hash table entries: 2048 (order: 3, 32768 bytes, linear)
+[    0.966520] futex hash table entries: 1024 (65536 bytes on 1 NUMA nodes, total 64 KiB, linear).
+[    0.967571] PM: RTC time: 22:02:41, date: 2026-10-28
+[    0.969147] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.970306] DMA: preallocated 2048 KiB GFP_KERNEL pool for atomic allocations
+[    0.972303] DMA: preallocated 2048 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.974302] DMA: preallocated 2048 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.974323] audit: initializing netlink subsys (disabled)
+[    0.974379] audit: type=2000 audit(1793224960.217:1): state=initialized audit_enabled=0 res=1
+[    0.974626] thermal_sys: Registered thermal governor 'fair_share'
+[    0.974629] thermal_sys: Registered thermal governor 'bang_bang'
+[    0.974634] thermal_sys: Registered thermal governor 'step_wise'
+[    0.974640] thermal_sys: Registered thermal governor 'user_space'
+[    0.974644] thermal_sys: Registered thermal governor 'power_allocator'
+[    0.976306] cpuidle: using governor ladder
+[    0.982296] cpuidle: using governor menu
+[    0.992649] efi: Freeing EFI boot services memory: 16492K
+[    0.992660] acpiphp: ACPI Hot Plug PCI Controller Driver version: 0.5
+[    0.993035] e820: register RAM buffer resource [mem 0x01a00000-0x03ffffff]
+[    0.993042] e820: register RAM buffer resource [mem 0x05ecb000-0x07ffffff]
+[    0.993048] e820: register RAM buffer resource [mem 0x05ef4000-0x07ffffff]
+[    0.993053] e820: register RAM buffer resource [mem 0xbeca3000-0xbfffffff]
+[    0.993058] e820: register RAM buffer resource [mem 0xbecf1000-0xbfffffff]
+[    0.993064] e820: register RAM buffer resource [mem 0xbff1f000-0xbfffffff]
+[    0.993335] kprobes: kprobe jump-optimization is enabled. All kprobes are optimized if possible.
+[    0.994375] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.994385] HugeTLB: 16380 KiB vmemmap can be freed for a 1.00 GiB page
+[    0.994393] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.994399] HugeTLB: 28 KiB vmemmap can be freed for a 2.00 MiB page
+[    1.022316] fbcon: Taking over console
+[    1.022392] ACPI: Added _OSI(Module Device)
+[    1.022398] ACPI: Added _OSI(Processor Device)
+[    1.022403] ACPI: Added _OSI(Processor Aggregator Device)
+[    1.045033] ACPI: 1 ACPI AML tables successfully acquired and loaded
+[    1.046281] ACPI: \_SB_: platform _OSC: OS support mask [006e7eff]
+[    1.046648] ACPI: Interpreter enabled
+[    1.046673] ACPI: PM: (supports S0)
+[    1.046678] ACPI: Using IOAPIC for interrupt routing
+[    1.046812] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+[    1.046819] PCI: Ignoring E820 reservations for host bridge windows
+[    1.046819] iommu: Default domain type: Translated
+[    1.046819] iommu: DMA domain TLB invalidation policy: lazy mode
+[    1.050565] SCSI subsystem initialized
+[    1.050598] ACPI: bus type USB registered
+[    1.050598] usbcore: registered new interface driver usbfs
+[    1.050598] usbcore: registered new interface driver hub
+[    1.050598] usbcore: registered new device driver usb
+[    1.050598] pps_core: LinuxPPS API ver. 1 registered
+[    1.050598] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    1.050598] PTP clock support registered
+[    1.050598] EDAC MC: Ver: 3.0.0
+[    1.050598] efivars: Registered efivars operations
+[    1.050598] hv_vmbus: hv_mmio=[mem 0xc0000000-0xfed3ffff],[mem 0xfe0000000-0xfffffffff] fb=[mem 0xc0000000-0xc7ffffff]
+[    1.054269] hv_vmbus: Vmbus version:6.0
+[    1.058358] hv_vmbus: Invalid offer 2 from the host supporting isolation
+[    1.058797] NetLabel: Initializing
+[    1.058797] NetLabel:  domain hash size = 128
+[    1.058797] NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+[    1.058806] NetLabel:  unlabeled traffic allowed by default
+[    1.059294] mctp: management component transport protocol core
+[    1.059294] NET: Registered PF_MCTP protocol family
+[    1.059299] PCI: Using ACPI for IRQ routing
+[    1.059304] PCI: System does not support PCI
+[    1.059400] vgaarb: loaded
+[    1.060251] clocksource: Switched to clocksource hyperv_clocksource_tsc_page
+[    1.061235] VFS: Disk quotas dquot_6.6.0
+[    1.061235] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    1.063764] AppArmor: AppArmor Filesystem Enabled
+[    1.063795] pnp: PnP ACPI init
+[    1.064106] pnp: PnP ACPI: found 3 devices
+[    1.072402] NET: Registered PF_INET protocol family
+[    1.072660] IP idents hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+[    1.099981] tcp_listen_portaddr_hash hash table entries: 8192 (order: 5, 131072 bytes, linear)
+[    1.100014] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    1.100147] TCP established hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+[    1.100326] TCP bind hash table entries: 65536 (order: 9, 2097152 bytes, linear)
+[    1.100484] TCP: Hash tables configured (established 131072 bind 65536)
+[    1.100572] MPTCP token hash table entries: 16384 (order: 7, 393216 bytes, linear)
+[    1.100622] UDP hash table entries: 8192 (order: 7, 524288 bytes, linear)
+[    1.100674] UDP-Lite hash table entries: 8192 (order: 7, 524288 bytes, linear)
+[    1.100788] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    1.100805] NET: Registered PF_XDP protocol family
+[    1.100819] PCI: CLS 0 bytes, default 64
+[    1.100856] PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+[    1.100871] software IO TLB: mapped [mem 0x00000000720df000-0x00000000b20df000] (1024MB)
+[    1.100973] Trying to unpack rootfs image as initramfs...
+[    1.102182] Initialise system trusted keyrings
+[    1.102215] Key type blacklist registered
+[    1.102558] workingset: timestamp_bits=36 max_order=22 bucket_order=0
+[    1.103306] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    1.104145] fuse: init (API version 7.45)
+[    1.137190] integrity: Platform Keyring initialized
+[    1.137219] integrity: Machine keyring initialized
+[    1.197686] Key type asymmetric registered
+[    1.197765] Asymmetric key parser 'x509' registered
+[    1.198092] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 242)
+[    1.198582] io scheduler mq-deadline registered
+[    1.221572] ledtrig-cpu: registered to indicate activity on CPUs
+[    1.221755] hv_vmbus: registering driver hv_pci
+[    1.244718] Serial: 8250/16550 driver, 32 ports, IRQ sharing enabled
+[    1.275224] 00:00: ttyS0 at I/O 0x3f8 (irq = 26, base_baud = 115200) is a 16550A
+[    1.281296] Freeing initrd memory: 51036K
+[    1.288082] Linux agpgart interface v0.103
+[    1.296916] tpm_crb MSFT1001:00: Disabling hwrng
+[    1.303121] loop: module loaded
+[    1.303820] hv_vmbus: registering driver hv_storvsc
+[    1.304008] Key type psk registered
+[    1.306252] ACPI: bus type drm_connector registered
+[    1.306354] scsi host0: storvsc_host_t
+[    1.306828] tun: Universal TUN/TAP device driver, 1.6
+[    1.307107] software IO TLB: Memory encryption is active and system is using DMA bounce buffers
+[    1.307152] PPP generic driver version 2.4.2
+[    1.307262] scsi 0:0:0:0: Direct-Access     Msft     Virtual Disk     1.0  PQ: 0 ANSI: 5
+[    1.307335] hv_vmbus: registering driver hv_netvsc
+[    1.309239] scsi 0:0:0:2: CD-ROM            Msft     Virtual DVD-ROM  1.0  PQ: 0 ANSI: 5
+[    1.310083] hv_netvsc 7c1e5228-f13a-7c1e-5228-f13a7c1e5228 (unnamed net_device) (uninitialized): SR-IOV not advertised by guests on the host supporting isolation
+[    1.310576] scsi host1: storvsc_host_t
+[    1.315608] sd 0:0:0:0: Attached scsi generic sg0 type 0
+[    1.315979] sr 0:0:0:2: [sr0] scsi-1 drive
+[    1.316043] sd 0:0:0:0: [sda] 67108864 512-byte logical blocks: (34.4 GB/32.0 GiB)
+[    1.316052] sd 0:0:0:0: [sda] 4096-byte physical blocks
+[    1.316169] cdrom: Uniform CD-ROM driver Revision: 3.20
+[    1.316172] sd 0:0:0:0: [sda] Write Protect is off
+[    1.316518] sd 0:0:0:0: [sda] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[    1.317174] sr 0:0:0:2: Attached scsi generic sg1 type 5
+[    1.328956]  sda: sda1 sda14 sda15
+[    1.330142] sd 0:0:0:0: [sda] Attached SCSI disk
+[    1.468820] i8042: PNP: No PS/2 controller found.
+[    1.469376] mousedev: PS/2 mouse device common for all mice
+[    1.473344] rtc_cmos 00:02: registered as rtc0
+[    1.473691] rtc_cmos 00:02: setting system clock to 2026-10-28T22:02:41 UTC (1793224961)
+[    1.473736] rtc_cmos 00:02: alarms up to one day, 114 bytes nvram
+[    1.473784] device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+[    1.473820] device-mapper: uevent: version 1.0.3
+[    1.474002] device-mapper: ioctl: 4.50.0-ioctl (2025-04-28) initialised: dm-devel@lists.linux.dev
+[    1.474016] amd_pstate: The CPPC feature is supported but currently disabled by the BIOS.
+[    1.474016] Please enable it if your BIOS has the CPPC option.
+[    1.474027] amd_pstate: the _CPC object is not present in SBIOS or ACPI disabled
+[    1.474132] hv_utils: Registering HyperV Utility Driver
+[    1.474139] hv_vmbus: registering driver hv_utils
+[    1.474197] hv_vmbus: registering driver hv_balloon
+[    1.474280] drop_monitor: Initializing network drop monitor service
+[    1.475619] hv_utils: Heartbeat IC version 3.0
+[    1.475652] hv_utils: Shutdown IC version 3.2
+[    1.475665] hv_utils: TimeSync IC version 4.0
+[    1.516353] NET: Registered PF_INET6 protocol family
+[    1.517578] Segment Routing with IPv6
+[    1.517614] In-situ OAM (IOAM) with IPv6
+[    1.517671] NET: Registered PF_PACKET protocol family
+[    1.517894] Key type dns_resolver registered
+[    1.521518] IPI shorthand broadcast: enabled
+[    1.521690] kvm-guest: setup_efi_kvm_sev_migration : EFI live migration variable not found
+[    1.528557] sched_clock: Marking stable (1459024300, 69432500)->(2345143100, -816686300)
+[    1.537605] registered taskstats version 1
+[    1.545018] Loading compiled-in X.509 certificates
+[    1.546700] Loaded X.509 cert 'Build time autogenerated kernel key: 72d1b463da88d462d8a3c15eb688ca7d432d6994'
+[    1.547818] Loaded X.509 cert 'Canonical Ltd. Live Patch Signing 2025 Kmod: d541cef61dc7e793b7eb7e899970a2eef0b5dc8c'
+[    1.548931] Loaded X.509 cert 'Canonical Ltd. Live Patch Signing: 14df34d1a87cf37625abec039ef2bf521249b969'
+[    1.550084] Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing 2025 Kmod: 4627603d2357a2a3f81006370894c221175893e9'
+[    1.551183] Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing: 88f752e560a1e0737e31163a466ad7b70a850c19'
+[    1.551197] blacklist: Loading compiled-in revocation X.509 certificates
+[    1.551238] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing: 61482aa2830d0ab2ad5af10b7250da9033ddcef0'
+[    1.551278] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2017): 242ade75ac4a15e50d50c84b0d45ff3eae707a03'
+[    1.551317] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (ESM 2018): 365188c1d374d6b07c3c8f240f8ef722433d6a8b'
+[    1.551356] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2019): c0746fd6c5da3ae827864651ad66ae47fe24b3e8'
+[    1.551396] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v1): a8d54bbb3825cfb94fa13c9f8a594a195c107b8d'
+[    1.551537] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v2): 4cf046892d6fd3c9a5b03f98d845f90851dc6a8c'
+[    1.551579] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v3): 100437bb6de6e469b581e61cd66bce3ef4ed53af'
+[    1.551617] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (Ubuntu Core 2019): c1d57b8f6b743f23ee41f4f7ee292f06eecadfb9'
+[    1.563844] Demotion targets for Node 0: null
+[    1.564230] Key type .fscrypt registered
+[    1.564243] Key type fscrypt-provisioning registered
+[    1.564526] Key type big_key registered
+[    1.564539] Key type trusted registered
+[    1.671530] Key type encrypted registered
+[    1.671574] AppArmor: AppArmor sha256 policy hashing enabled
+[    1.671599] Loading compiled-in module X.509 certificates
+[    1.672362] Loaded X.509 cert 'Build time autogenerated kernel key: 72d1b463da88d462d8a3c15eb688ca7d432d6994'
+[    1.672371] ima: Allocated hash algorithm: sha256
+[    1.676089] audit: type=1807 audit(1793224965.663:2): action=measure func=KEXEC_KERNEL_CHECK res=1
+[    1.676107] evm: Initialising EVM extended attributes:
+[    1.676110] audit: type=1807 audit(1793224965.663:3): action=measure func=MODULE_CHECK res=1
+[    1.676118] evm: security.selinux
+[    1.676122] evm: security.SMACK64
+[    1.676136] evm: security.SMACK64EXEC
+[    1.676143] evm: security.SMACK64TRANSMUTE
+[    1.676148] evm: security.SMACK64MMAP
+[    1.676152] evm: security.apparmor
+[    1.676156] evm: security.ima
+[    1.676160] evm: security.capability
+[    1.676164] evm: HMAC attrs: 0x1
+[    1.676780] integrity: Loading X.509 certificate: UEFI:db
+[    1.676874] integrity: Loaded X.509 cert 'Microsoft Corporation UEFI CA 2011: 13adbf4309bd82709c8cd54f316ed522988a1bd4'
+[    1.676900] integrity: Loading X.509 certificate: UEFI:db
+[    1.676943] integrity: Loaded X.509 cert 'Microsoft UEFI CA 2023: 81aa6b3244c935bce0d6628af39827421e32497d'
+[    1.676950] integrity: Loading X.509 certificate: UEFI:db
+[    1.676994] integrity: Loaded X.509 cert 'Microsoft Corporation: Azure Services Linux Kmod PCA: 697cc4f41a2209a7abd0604c1f196f4d8c5735d9'
+[    1.680640] integrity: Loading X.509 certificate: UEFI:MokListRT (MOKvar table)
+[    1.681211] integrity: Loaded X.509 cert 'Canonical Ltd. Master Certificate Authority: ad91990bc22ab1f517048c23b6655a268e345a63'
+[    1.681884] PM:   Magic number: 14:426:48
+[    1.681979] memory memory80: hash matches
+[    1.682713] RAS: Correctable Errors collector initialized.
+[    1.683323] Lockdown: swapper/0: hibernation is restricted; see man kernel_lockdown.7
+[    1.683592] clk: Disabling unused clocks
+[    1.683602] PM: genpd: Disabling unused power domains
+[    1.708207] Freeing unused decrypted memory: 2028K
+[    1.709853] Freeing unused kernel image (initmem) memory: 5460K
+[    1.709892] Write protecting the kernel read-only data: 43008k
+[    1.711134] Freeing unused kernel image (text/rodata gap) memory: 1180K
+[    1.711978] Freeing unused kernel image (rodata/data gap) memory: 1728K
+[    1.802351] x86/mm: Checked W+X mappings: passed, no W+X pages found.
+[    1.802402] Run /init as init process
+[    1.813531] systemd[1]: Inserted module 'autofs4'
+[    1.833687] systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    1.833738] systemd[1]: Detected virtualization microsoft.
+[    1.833829] systemd[1]: Detected confidential virtualization sev-snp.
+[    1.833838] systemd[1]: Detected architecture x86-64.
+
+[    1.833844] systemd[1]: Running in initrd.
+Welcome to [1mUbuntu Core 24 Initramfs[0m!
+
+[    1.844905] systemd[1]: No hostname configured, using default hostname.
+[    1.844999] systemd[1]: Hostname set to <localhost>.
+[    1.845079] systemd[1]: Initializing machine ID from random generator.
+[    1.915475] systemd[1]: Queued start job for default target initrd.target.
+[    1.928068] systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+[[0;32m  OK  [0m] Created slice [0;1;39msystem-modprobe.slice[0m - Slice /system/modprobe.
+[    1.932035] systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-ask-password-conso…[0mequests to Console Directory Watch.
+[    1.936700] systemd[1]: Expecting device dev-disk-snapd-disk.device - /dev/disk/snapd/disk...
+         Expecting device [0;1;39mdev-disk-snapd-disk.device[0m - /dev/disk/snapd/disk...
+[    1.940680] systemd[1]: Reached target cryptsetup.target - Local Encrypted Volumes.
+[[0;32m  OK  [0m] Reached target [0;1;39mcryptsetup.target[0m - Local Encrypted Volumes.
+[    1.948535] systemd[1]: Reached target integritysetup.target - Local Integrity Protected Volumes.
+[[0;32m  OK  [0m] Reached target [0;1;39mintegritysetup.targ…[0m Local Integrity Protected Volumes.
+[[0;32m  OK  [[    1.952800] systemd[1]: Reached target paths.target - Path Units.
+0m] Reached target [0;1;39mpaths.target[0m - Path Units.
+[[0;32m  OK  [[    1.961516] systemd[1]: Reached target remote-cryptsetup.target - Remote Encrypted Volumes.
+0m] Reached target [0;1;39mremote-cryptsetup.target[0m - Remote Encrypted Volumes.
+[[0;32m  OK  [0m] Reached targ[    1.967516] systemd[1]: Reached target remote-veritysetup.target - Remote Verity Protected Volumes.
+et [0;1;39mremote-veritysetup.…[0m - Remote Verity Protected Volumes.
+[[0;32m  OK  [0m] Reached targ[    1.972364] systemd[1]: Reached target slices.target - Slice Units.
+et [0;1;39mslices.target[0m - Slice Units.
+[    1.975535] systemd[1]: Reached target swap.target - Swaps.
+[[0;32m  OK  [0m] Reached target [0;1;39mswap.target[0m - Swaps.
+[    1.978396] systemd[1]: Reached target veritysetup.target - Local Verity Protected Volumes.
+[[0;32m  OK  [0m] Reached target [0;1;39mveritysetup.target[0m - Local Verity Protected Volumes.
+[[0;32m  OK  [[    1.984634] systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+0m] Listening on [0;1;39msystemd-initctl.socke…[0m- initctl Compatibility Named Pipe.
+[    1.989525] systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-journald-dev-…socket[0m - Journal Socket (/dev/log).
+[    1.994410] systemd[1]: Listening on systemd-journald.socket - Journal Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-journald.socket[0m - Journal Socket.
+[    1.999561] systemd[1]: Listening on systemd-pcrextend.socket - TPM2 PCR Extension (Varlink).
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-pcrextend.socket[0m - TPM2 PCR Extension (Varlink).
+[    2.004277] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-udevd-control.socket[0m - udev Control Socket.
+[    2.008656] systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-udevd-kernel.socket[0m - udev Kernel Socket.
+[    2.020677] systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+         Mounting [0;1;39mdev-hugepages.mount[0m - Huge Pages File System...
+[    2.025633] systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+         Mounting [0;1;39mdev-mqueue.mount[0m - POSIX Message Queue File System...
+[    2.031053] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+         Mounting [0;1;39msys-kernel-debug.mount[0m - Kernel Debug File System...
+[    2.036807] systemd[1]: Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+         Mounting [0;1;39msys-kernel-tracing.mount[0m - Kernel Trace File System...
+         Starting [0;1;39msystemd-journald.serv[    2.044284] systemd[1]: Starting systemd-journald.service - Journal Service...
+ice[0m - Journal Service...
+[    2.051712] systemd[1]: Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+         Starting [0;1;39mkmod-static-nodes.service[0m…eate List of Static Device Nodes...
+         Starting [0;1;39mmodpr[    2.057319] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+obe@configfs.service[0m - Load Kernel Module configfs...
+         Starting [0;1;39mmodpr[    2.064685] systemd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+obe@dm_mod.service[0m - Load Kernel Module dm_mod...
+[    2.072431] systemd-journald[127]: Collecting audit messages is disabled.
+[    2.074766] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+         Starting [0;1;39mmodprobe@fuse.service[0m - Load Kernel Module fuse...
+         Starting [0;1;39mmodprobe@loop.service[0m - Load Kern[    2.085230] systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+el Module loop...
+[    2.091613] systemd[1]: plymouth-set-keymap.service - Set Plymouth Keymap was skipped because of an unmet condition check (ConditionKernelCommandLine=snapd.xkb).
+[    2.091734] systemd[1]: systemd-bootchart.service - Boot Process Profiler was skipped because of an unmet condition check (ConditionKernelCommandLine=ubuntu_core.bootchart).
+[    2.091802] systemd[1]: systemd-hwdb-update.service - Rebuild Hardware Database was skipped because of an unmet condition check (ConditionNeedsUpdate=/etc).
+[    2.091981] systemd[1]: systemd-modules-load.service - Load Kernel Modules was skipped because no trigger condition checks were met.
+[    2.092018] systemd[1]: systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionPathExists=!/etc/initrd-release).
+[    2.092052] systemd[1]: systemd-random-seed.service - Load/Save OS Random Seed was skipped because of an unmet condition check (ConditionPathExists=!/etc/initrd-release).
+         Startin[    2.119744] systemd[1]: Starting systemd-sysctl.service - Apply Kernel Variables...
+g [0;1;39msystemd-sysctl.service[0m - Apply Kernel Variables...
+[    2.124893] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+         Starting [0;1;39msystemd-udev-trigger.service[0m - Coldplug All udev Devices...
+[    2.130346] systemd[1]: Started systemd-journald.service - Journal Service.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-journald.service[0m - Journal Service.
+[[0;32m  OK  [0m] Mounted [0;1;39mdev-hugepages.mount[0m - Huge Pages File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mdev-mqueue.mount[0m - POSIX Message Queue File System.
+[[0;32m  OK  [0m] Mounted [0;1;39msys-kernel-debug.mount[0m - Kernel Debug File System.
+[[0;32m  OK  [0m] Mounted [0;1;39msys-kernel-tracing.mount[0m - Kernel Trace File System.
+[[0;32m  OK  [0m] Finished [0;1;39mkmod-static-nodes.service[0m…Create List of Static Device Nodes.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@configfs.service[0m - Load Kernel Module configfs.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@dm_mod.service[0m - Load Kernel Module dm_mod.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@fuse.service[0m - Load Kernel Module fuse.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@loop.service[0m - Load Kernel Module loop.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-sysctl.service[0m - Apply Kernel Variables.
+         Mounting [0;1;39msys-fs-fuse-connections.mount[0m - FUSE Control File System...
+         Mounting [0;1;39msys-kernel-config.mount[0m - Kernel Configuration File System...
+         Starting [0;1;39msystemd-tmpfiles-setup-de…[0m Device Nodes in /dev gracefully...
+[[0;32m  OK  [0m] Mounted [0;1;39msys-fs-fuse-connections.mount[0m - FUSE Control File System.
+[[0;32m  OK  [0m] Mounted [0;1;39msys-kernel-config.mount[0m - Kernel Configuration File System.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tmpfiles-setup-de…[0mic Device Nodes in /dev gracefully.
+         Starting [0;1;39msystemd-tmpfiles-setup-de…[0meate Static Device Nodes in /dev...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tmpfiles-setup-de…[0mCreate Static Device Nodes in /dev.
+[[0;32m  OK  [0m] Reached target [0;1;39mlocal-fs-pre.target[0m…Preparation for Local File Systems.
+[[0;32m  OK  [0m] Reached target [0;1;39mlocal-fs.target[0m - Local File Systems.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-sysext.socket[0m…tension Image Management (Varlink).
+[[0;32m  OK  [0m] Reached target [0;1;39msockets.target[0m - Socket Units.
+         Starting [0;1;39msystemd-tmpfiles-setup.se…[0me Volatile Files and Directories...
+         Starting [0;1;39msystemd-udevd.service[0m - R…ager for Device Events and Files...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tmpfiles-setup.se…[0mate Volatile Files and Directories.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-udevd.service[0m - Ru…anager for Device Events and Files.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-udev-trigger.service[0m - Coldplug All udev Devices.
+[[0;32m  OK  [0m] Reached target [0;1;39msysinit.target[0m - System Initialization.
+[[0;32m  OK  [0m] Reached target [0;1;39mtimers.target[0m - Timer Units.
+[[0;32m  OK  [0m] Listening on [0;1;39mdbus.socket[0m - D-Bus System Message Bus Socket.
+[[0;32m  OK  [0m] Reached target [0;1;39mbasic.target[0m - Basic System.
+[[0;32m  OK  [0m] Reached target [0;1;39mgetty-pre.target[0m - Preparation for Logins.
+[    2.421973] hv_storvsc f8b3781a-1e82-4818-a1c3-63d806ec15bb: tag#138 cmd 0x85 status: scsi 0x2 srb 0x6 host 0xc0000001
+[[0;32m  OK  [0m] Found device [0;1;39mdev-disk-snapd-disk.device[0m - Virtual_Disk.
+         Starting [0;1;39msnap-initramfs-mounts.service[0m - Mount initial filesystems...
+[    2.455870] snap-bootstrap[206]: 2026/10/28 22:02:46.513123 cmd_initramfs_mounts.go:91: snap-bootstrap version unknown starting
+[    2.485914] snap-bootstrap[206]: 2026/10/28 22:02:46.543683 disk.go:190: WARNING: no filesystem type on partition 14 of /dev/sda: probe value was not found: TYPE
+[    2.490168] snap-bootstrap[206]: 2026/10/28 22:02:46.543728 disk.go:197: WARNING: no filesystem label on partition 14 of /dev/sda: probe value was not found: LABEL
+[    2.494316] snap-bootstrap[206]: 2026/10/28 22:02:46.543736 disk.go:201: WARNING: no filesystem UUID on partition 14 of /dev/sda: probe value was not found: UUID
+[[0;32m  OK  [0m] Created slice [0;1;39msystem-systemd\x2dfs…slice[0m - Slice /system/systemd-fsck.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-fsckd.socket[0m …fsck to fsckd communication Socket.
+         Starting [0;1;39msystemd-fsck@dev-sda15.se…[0m File System Check on /dev/sda15...
+[[0;32m  OK  [0m] Started [0;1;39msystemd-fsckd.service[0m - Fi…stem Check Daemon to report status.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-fsck@dev-sda15.se…[0m - File System Check on /dev/sda15.
+         Mounting [0;1;39mrun-mnt-ubuntu\x2dseed.mount[0m - /run/mnt/ubuntu-seed...
+[[0;32m  OK  [0m] Mounted [0;1;39mrun-mnt-ubuntu\x2dseed.mount[0m - /run/mnt/ubuntu-seed.
+[    2.781649] workqueue: tpm_dev_async_work hogged CPU for >10000us 4 times, consider switching to WQ_UNBOUND
+[    2.786936] snap-bootstrap[206]: 2026/10/28 22:02:46.844620 secboot_sb.go:394: successfully activated encrypted device "/dev/disk/by-uuid/5dbc319c-7aaf-4c2a-8cec-fafb2c54732c" with TPM
+         Starting [0;1;39msystemd-fsck@dev-dm\x2d0.…[0m- File System Check on /dev/dm-0...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-fsck@dev-dm\x2d0.…e[0m - File System Check on /dev/dm-0.
+         Mounting [0;1;39mrun-mnt-data.mount[0m - /run/mnt/data...
+[    2.952958] EXT4-fs (dm-0): mounted filesystem eb4a3df8-73d7-4029-bf3c-348f54ca3456 r/w with ordered data mode. Quota mode: none.
+[[0;32m  OK  [0m] Mounted [0;1;39mrun-mnt-data.mount[0m - /run/mnt/data.
+         Starting [0;1;39mmodprobe@dm_mod.service[0m - Load Kernel Module dm_mod...
+         Starting [0;1;39mmodprobe@loop.service[0m - Load Kernel Module loop...
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@dm_mod.service[0m - Load Kernel Module dm_mod.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@loop.service[0m - Load Kernel Module loop.
+         Unmounting [0;1;39mrun-mnt-ubuntu\x2dseed.mount[0m - /run/mnt/ubuntu-seed...
+[[0;32m  OK  [0m] Unmounted [0;1;39mrun-mnt-ubuntu\x2dseed.mount[0m - /run/mnt/ubuntu-seed.
+[[0;32m  OK  [0m] Finished [0;1;39msnap-initramfs-mounts.service[0m - Mount initial filesystems.
+[[0;32m  OK  [0m] Reached target [0;1;39minitrd-root-device.target[0m - Initrd Root Device.
+         Mounting [0;1;39msysroot.mount[0m - /sysroot...
+[[0;32m  OK  [0m] Mounted [0;1;39msysroot.mount[0m - /sysroot.
+         Starting [0;1;39minitrd-core-tmpfiles-setu…[0mate initial writable directories...
+[[0;1;31mFAILED[0m] Failed to start [0;1;39minitrd-core-tmpfil…[0mreate initial writable directories.
+See 'systemctl status initrd-core-tmpfiles-setup.service' for details.
+[[0;32m  OK  [0m] Reached target [0;1;39minitrd-root-fs.target[0m - Initrd Root File System.
+         Starting [0;1;39minitrd-parse-etc.service[0m …ints Configured in the Real Root...
+[[0;32m  OK  [0m] Finished [0;1;39minitrd-parse-etc.service[0m …points Configured in the Real Root.
+[[0;32m  OK  [0m] Reached target [0;1;39minitrd-fs.target[0m - Initrd File Systems.
+[[0;32m  OK  [0m] Reached target [0;1;39minitrd.target[0m - Initrd Default Target.
+         Starting [0;1;39minitrd-cleanup.service[0m - …ing Up and Shutting Down Daemons...
+[[0;32m  OK  [0m] Stopped target [0;1;39minitrd.target[0m - Initrd Default Target.
+[[0;32m  OK  [0m] Stopped target [0;1;39mbasic.target[0m - Basic System.
+[[0;32m  OK  [0m] Stopped target [0;1;39minitrd-root-device.target[0m - Initrd Root Device.
+[[0;32m  OK  [0m] Stopped target [0;1;39mpaths.target[0m - Path Units.
+[[0;32m  OK  [0m] Stopped target [0;1;39mremote-cryptsetup.target[0m - Remote Encrypted Volumes.
+[[0;32m  OK  [0m] Stopped target [0;1;39mremote-veritysetup.…[0m - Remote Verity Protected Volumes.
+[[0;32m  OK  [0m] Stopped target [0;1;39mslices.target[0m - Slice Units.
+[[0;32m  OK  [0m] Stopped target [0;1;39msockets.target[0m - Socket Units.
+[[0;32m  OK  [0m] Stopped target [0;1;39mtimers.target[0m - Timer Units.
+[[0;32m  OK  [0m] Closed [0;1;39msystemd-initctl.socket[0m - initctl Compatibility Named Pipe.
+[[0;32m  OK  [0m] Closed [0;1;39msystemd-pcrextend.socket[0m - TPM2 PCR Extension (Varlink).
+[[0;32m  OK  [0m] Closed [0;1;39msystemd-sysext.socket[0m - Sys…tension Image Management (Varlink).
+         Starting [0;1;39mplymouth-switch-root.serv…e[0m - Plymouth switch root service...
+         Starting [0;1;39mrecovery-chooser-trigger-…[0moser trigger switch root service...
+[[0;32m  OK  [0m] Stopped [0;1;39msnap-initramfs-mounts.service[0m - Mount initial filesystems.
+[[0;32m  OK  [0m] Closed [0;1;39mdbus.socket[0m - D-Bus System Message Bus Socket.
+[[0;32m  OK  [0m] Stopped target [0;1;39msysinit.target[0m - System Initialization.
+[[0;32m  OK  [0m] Stopped target [0;1;39mcryptsetup.target[0m - Local Encrypted Volumes.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-ask-password-conso…[0mequests to Console Directory Watch.
+[[0;32m  OK  [0m] Stopped target [0;1;39mintegritysetup.targ…[0m Local Integrity Protected Volumes.
+[[0;32m  OK  [0m] Stopped target [0;1;39mswap.target[0m - Swaps.
+[[0;32m  OK  [0m] Stopped target [0;1;39mveritysetup.target[0m - Local Verity Protected Volumes.
+         Starting [0;1;39minitrd-core-tmpfiles-setu…[0mate initial writable directories...
+         Starting [0;1;39mmodprobe@dm_mod.service[0m - Load Kernel Module dm_mod...
+         Starting [0;1;39mmodprobe@loop.service[0m - Load Kernel Module loop...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-sysctl.service[0m - Apply Kernel Variables.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-setup.ser…[0mate Volatile Files and Directories.
+[[0;32m  OK  [0m] Stopped target [0;1;39mlocal-fs.target[0m - Local File Systems.
+[[0;32m  OK  [0m] Stopped target [0;1;39mlocal-fs-pre.target[0m…Preparation for Local File Systems.
+         Mounting [0;1;39mrun-mnt-ubuntu\x2dseed.mount[0m - /run/mnt/ubuntu-seed...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-udev-trigger.service[0m - Coldplug All udev Devices.
+         Stopping [0;1;39msystemd-udevd.service[0m - R…ager for Device Events and Files...
+[[0;32m  OK  [0m] Finished [0;1;39mplymouth-switch-root.service[0m - Plymouth switch root service.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39minitrd-core-tmpfil…[0mreate initial writable directories.
+See 'systemctl status initrd-core-tmpfiles-setup.service' for details.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-udevd.service[0m - Ru…anager for Device Events and Files.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@dm_mod.service[0m - Load Kernel Module dm_mod.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@loop.service[0m - Load Kernel Module loop.
+[[0;32m  OK  [0m] Mounted [0;1;39mrun-mnt-ubuntu\x2dseed.mount[0m - /run/mnt/ubuntu-seed.
+[[0;32m  OK  [0m] Finished [0;1;39minitrd-cleanup.service[0m - …aning Up and Shutting Down Daemons.
+[[0;32m  OK  [0m] Closed [0;1;39msystemd-udevd-control.socket[0m - udev Control Socket.
+[[0;32m  OK  [0m] Closed [0;1;39msystemd-udevd-kernel.socket[0m - udev Kernel Socket.
+         Starting [0;1;39minitrd-udevadm-cleanup-db.service[0m - Cleanup udev Database...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-setup-dev…[0mCreate Static Device Nodes in /dev.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-setup-dev…[0mic Device Nodes in /dev gracefully.
+[[0;32m  OK  [0m] Stopped [0;1;39mkmod-static-nodes.service[0m …Create List of Static Device Nodes.
+[[0;32m  OK  [0m] Finished [0;1;39mrecovery-chooser-trigger-…[0mhooser trigger switch root service.
+[[0;32m  OK  [0m] Finished [0;1;39minitrd-udevadm-cleanup-db.service[0m - Cleanup udev Database.
+[[0;32m  OK  [0m] Reached target [0;1;39minitrd-switch-root.target[0m - Switch Root.
+         Starting [0;1;39minitrd-switch-root.service[0m - Switch Root...
+[    3.535576] systemd-journald[127]: Received SIGTERM from PID 1 (systemd).
+[    3.663575] systemd[1]: systemd 255.4-1ubuntu8.18 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+
+[    3.663658] systemd[1]: Detected virtualization microsoft.
+Welcome to [1mU[    3.663795] systemd[1]: Detected confidential virtualization sev-snp.
+buntu 24.04.5 LT[    3.663813] systemd[1]: Detected architecture x86-64.
+S[0m!
+
+[    3.677256] systemd[1]: Hostname set to <vaultgenome>.
+[    4.031905] systemd[1]: systemd-fsckd.service: Deactivated successfully.
+[    4.033656] systemd[1]: initrd-switch-root.service: Deactivated successfully.
+[    4.033923] systemd[1]: Stopped initrd-switch-root.service - Switch Root.
+[[0;32m  OK  [0m] Stopped [0;1;39minitrd-switch-root.service[0m - Switch Root.
+[    4.042409] systemd[1]: systemd-journald.service: Scheduled restart job, restart counter is at 1.
+[    4.043116] systemd[1]: Created slice azure.slice - Slice for Azure VM Agent and Extensions.
+[[0;32m  OK  [0m] Created slice [0;1;39mazure.slice[0m - Slice for Azure VM Agent and Extensions.
+[    4.048748] systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+[[0;32m  OK  [0m] Created slice [0;1;39msystem-serial\x2dget…slice[0m - Slice /system/serial-getty.
+[    4.058890] systemd[1]: Created slice user.slice - User and Session Slice.
+[[0;32m  OK  [0m] Created slice [0;1;39muser.slice[0m - User and Session Slice.
+[    4.062636] systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-ask-password-wall.…[0md Requests to Wall Directory Watch.
+[    4.067425] systemd[1]: Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+[[0;32m  OK  [0m] Set up automount [0;1;39mproc-sys-fs-binfm…[0mormats File System Automount Point.
+[    4.073530] systemd[1]: Expecting device dev-disk-by\x2duuid-CC26\x2d5AB2.device - /dev/disk/by-uuid/CC26-5AB2...
+         Expecting device [0;1;39mdev-disk-by\x2duu…ce[0m - /dev/disk/by-uuid/CC26-5AB2...
+[    4.083422] systemd[1]: Expecting device dev-ttyS0.device - /dev/ttyS0...
+         Expecting device [0;1;39mdev-ttyS0.device[0m - /dev/ttyS0...
+[    4.091689] systemd[1]: Stopped target initrd-switch-root.target - Switch Root.
+[[0;32m  OK  [0m] Stopped target [0;1;39minitrd-switch-root.target[0m - Switch Root.
+[    4.095373] systemd[1]: Stopped target initrd-fs.target - Initrd File Systems.
+[[0;32m  OK  [0m] Stopped target [0;1;39minitrd-fs.target[0m - Initrd File Systems.
+[    4.099555] systemd[1]: Stopped target initrd-root-fs.target - Initrd Root File System.
+[[0;32m  OK  [0m] Stopped target [0;1;39minitrd-root-fs.target[0m - Initrd Root File System.
+[    4.104948] systemd[1]: Reached target integritysetup.target - Local Integrity Protected Volumes.
+[[0;32m  OK  [0m] Reached target [0;1;39mintegritysetup.targ…[0m Local Integrity Protected Volumes.
+[    4.108974] systemd[1]: Reached target slices.target - Slice Units.
+[[0;32m  OK  [0m] Reached target [0;1;39mslices.target[0m - Slice Units.
+[    4.112107] systemd[1]: Reached target snapd.mounts-pre.target - Mounting snaps.
+[[0;32m  OK  [0m] Reached target [0;1;39msnapd.mounts-pre.target[0m - Mounting snaps.
+[    4.115775] systemd[1]: Reached target snapd.mounts.target - Mounted snaps.
+[[0;32m  OK  [0m] Reached target [0;1;39msnapd.mounts.target[0m - Mounted snaps.
+[    4.119082] systemd[1]: Reached target swap.target - Swaps.
+[[0;32m  OK  [0m] Reached target [0;1;39mswap.target[0m - Swaps.
+[    4.123186] systemd[1]: Reached target time-set.target - System Time Set.
+[[0;32m  OK  [0m] Reached target [0;1;39mtime-set.target[0m - System Time Set.
+[    4.126646] systemd[1]: Reached target veritysetup.target - Local Verity Protected Volumes.
+[[0;32m  OK  [0m] Reached target [0;1;39mveritysetup.target[0m - Local Verity Protected Volumes.
+[    4.130942] systemd[1]: Listening on dm-event.socket - Device-mapper event daemon FIFOs.
+[[0;32m  OK  [0m] Listening on [0;1;39mdm-event.socket[0m - Device-mapper event daemon FIFOs.
+[    4.135110] systemd[1]: Listening on lvm2-lvmpolld.socket - LVM2 poll daemon socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mlvm2-lvmpolld.socket[0m - LVM2 poll daemon socket.
+[    4.139145] systemd[1]: Listening on syslog.socket - Syslog Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39msyslog.socket[0m - Syslog Socket.
+[    4.142343] systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-initctl.socke…[0m- initctl Compatibility Named Pipe.
+[    4.148728] systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-networkd.socket[0m - Network Service Netlink Socket.
+[    4.159263] systemd[1]: Listening on systemd-pcrextend.socket - TPM2 PCR Extension (Varlink).
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-pcrextend.socket[0m - TPM2 PCR Extension (Varlink).
+[    4.167989] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-udevd-control.socket[0m - udev Control Socket.
+[    4.172221] systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-udevd-kernel.socket[0m - udev Kernel Socket.
+[    4.181744] systemd[1]: Starting systemd-journald.service - Journal Service...
+         Starting [0;1;39msystemd-journald.service[0m - Journal Service...
+[    4.188158] systemd[1]: Starting keyboard-setup.service - Set the console keyboard layout...
+         Starting [0;1;39mkeyboard-setup.service[0m - Set the console keyboard layout...
+         Startin[    4.194046] systemd[1]: Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+g [0;1;39mkmod-static-nodes.service[0m…eate List of Static Device Nodes...
+         Starting [0;1;39mlvm2-[    4.201688] systemd[1]: Starting lvm2-monitor.service - Monitoring of LVM2 mirrors, snapshots etc. using dmeventd or progress polling...
+monitor.service[0m - Mo…ing dmeventd or progress polling...
+[    4.208890] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+         Starting [0;1;39mmodprobe@configfs.service[0m - Load Kernel Module configfs...
+[    4.218119] systemd-journald[337]: Collecting audit messages is disabled.
+[    4.220556] systemd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+         Starting [0;1;39mmodprobe@dm_mod.service[0m - Load Kernel Module dm_mod...
+         Startin[    4.235015] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+g [0;1;39mmodprobe@drm.service[0m - Load Kernel Module drm...
+         Starting [0;1;39mmodpr[    4.240786] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+obe@efi_pstore.servi…[0m - Load Kernel Module efi_pstore...
+         Starting [0;1;39mmodpr[    4.248685] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+obe@fuse.service[0m - Load Kernel Module fuse...
+         Starting [0;1;39mmodprobe@loop.service[    4.254677] systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+[0m - Load Kernel Module loop...
+         Startin[    4.264559] systemd[1]: Starting modprobe@nvme_fabrics.service - Load Kernel Module nvme_fabrics...
+g [0;1;39mmodprobe@nvme_fabrics.ser…[0m Load Kernel Module nvme_fabrics...
+[    4.268965] systemd[1]: netplan-ovs-cleanup.service - OpenVSwitch configuration for cleanup was skipped because of an unmet condition check (ConditionFileIsExecutable=/usr/bin/ovs-vsctl).
+[    4.269148] systemd[1]: plymouth-switch-root.service: Deactivated successfully.
+[    4.269268] systemd[1]: Stopped plymouth-switch-root.service - Plymouth switch root service.
+[[0;32m  OK  [0m] Stopped [0;[    4.273902] pstore: Using crash dump compression: deflate
+1;39mplymouth-switch-root.service[0m - Plymouth switch root service.
+[    4.278940] systemd[1]: recovery-chooser-trigger-switchroot.service: Deactivated successfully.
+[    4.279070] systemd[1]: Stopped recovery-chooser-trigger-switchroot.service.
+[    4.279660] pstore: Registered efi_pstore as persistent store backend
+[[0;32m  OK  [0m] Stopped [0;[    4.283995] systemd[1]: systemd-fsck-root.service - File System Check on Root Device was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/).
+1;39mrecovery-chooser-trigger-switchroot.service[0m.
+[    4.294775] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+         Starting [0;1;39msystemd-modules-load.service[0m - Load Kernel Modules...
+         Starting [0;1;39msystemd-pcrmachine.servic…[0m TPM2 PCR Machine ID Measurement...
+[    4.300376] systemd[1]: Starting systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement...
+[    4.310804] systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+[    4.311431] i2c_dev: i2c /dev entries driver
+         Starting [0;1;39msystemd-remount-fs.servic…[0munt Root and Kernel File Systems...
+         Starting [0;1;39msystemd-tpm2-setup-early.service[0m - TPM2 SRK Setup (Early)...
+[    4.316778] systemd[1]: Starting systemd-tpm2-setup-early.service - TPM2 SRK Setup (Early)...
+[    4.324736] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+         Starting [0;1;39msystemd-udev-trigger.service[0m - Coldplug All udev Devices...
+[    4.332090] systemd[1]: Started systemd-journald.service - Journal Service.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-journald.service[0m - Journal Service.
+[[0;32m  OK  [0m] Finished [0;1;39mkeyboard-setup.service[0m - Set the console keyboard layout.
+[[0;32m  OK  [0m] Finished [0;1;39mkmod-static-nodes.service[0m…Create List of Static Device Nodes.
+[[0;32m  OK  [0m] Finished [0;1;39mlvm2-monitor.service[0m - Mo…using dmeventd or progress polling.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@configfs.service[0m - Load Kernel Module configfs.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@dm_mod.service[0m - Load Kernel Module dm_mod.
+[    4.353243] EXT4-fs (dm-0): re-mounted eb4a3df8-73d7-4029-bf3c-348f54ca3456.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@drm.service[0m - Load Kernel Module drm.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@efi_pstore.service[0m - Load Kernel Module efi_pstore.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@fuse.service[0m - Load Kernel Module fuse.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@loop.service[0m - Load Kernel Module loop.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@nvme_fabrics.ser…[0m - Load Kernel Module nvme_fabrics.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-modules-load.service[0m - Load Kernel Modules.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-remount-fs.servic…[0mmount Root and Kernel File Systems.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-pcrmachine.service[0m - TPM2 PCR Machine ID Measurement.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tpm2-setup-early.service[0m - TPM2 SRK Setup (Early).
+         Starting [0;1;39msystemd-journal-flush.ser…[0msh Journal to Persistent Storage...
+         Starting [0;1;39msystemd-random-seed.service[0m - Load/Save OS Random Seed...
+         Starting [0;1;39msystemd-sysctl.service[0m - Apply Kernel Variables..[    4.418624] systemd-journald[337]: Received client request to flush runtime journal.
+.
+         Starting [0;1;39msystemd-tmpfiles-setup-de…[0m Device Nodes in /dev gracefully...
+         Starting [0;1;39msystemd-tpm2-setup.service[0m - TPM2 SRK Setup...
+[    4.445729] systemd-journald[337]: /var/log/journal/c44b4de3a1dd4eae84d33be3658ae67c/system.journal: Journal file uses a different sequence number ID, rotating.
+[    4.445774] systemd-journald[337]: Rotating system journal.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-sysctl.service[0m - Apply Kernel Variables.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-random-seed.service[0m - Load/Save OS Random Seed.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tpm2-setup.service[0m - TPM2 SRK Setup.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tmpfiles-setup-de…[0mic Device Nodes in /dev gracefully.
+         Starting [0;1;39msystemd-tmpfiles-setup-de…[0meate Static Device Nodes in /dev...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tmpfiles-setup-de…[0mCreate Static Device Nodes in /dev.
+         Starting [0;1;39msystemd-udevd.service[0m - R…ager for Device Events and Files...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-udev-trigger.service[0m - Coldplug All udev Devices.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-journal-flush.ser…[0mlush Journal to Persistent Storage.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-udevd.service[0m - Ru…anager for Device Events and Files.
+[[0;32m  OK  [0m] Reached target [0;1;39mlocal-fs-pre.target[0m…Preparation for Local File Systems.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-ask-password-conso…[0mequests to Console Directory Watch.
+[[0;32m  OK  [0m] Reached target [0;1;39mcryptsetup.target[0m - Local Encrypted Volumes.
+         Starting [0;1;39mmodprobe@configfs.service[0m - Load Kernel Module configfs...
+         Starting [0;1;39mmodprobe@fuse.service[0m - Load Kernel Module fuse...
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@configfs.service[0m - Load Kernel Module configfs.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@fuse.service[0m - Load Kernel Module fuse.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-rfkill.socket[0m…ll Switch Status /dev/rfkill Watch.
+         Starting [0;1;39msystemd-fsck@dev-disk-by\…[0mk on /dev/disk/by-uuid/CC26-5AB2...
+[[0;32m  OK  [0m] Started [0;1;39msystemd-fsckd.service[0m - Fi…stem Check Daemon to report status.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-fsck@dev-disk-by\…[0meck on /dev/disk/by-uuid/CC26-5AB2.
+         Mounting [0;1;39mboot-efi.mount[0m - /boot/efi...
+[[0;32m  OK  [0m] Mounted [0;1;39mboot-efi.mount[0m - /boot/efi.
+[[0;32m  OK  [0m] Reached target [0;1;39mlocal-fs.target[0m - Local File Systems.
+[[0;32m  OK  [0m] Listening on [0;1;39msystemd-sysext.socket[0m…tension Image Management (Varlink).
+         Starting [0;1;39mapparmor.service[0m - Load AppArmor profiles...
+         Starting [0;1;39mconsole-setup.service[0m - Set console font and keymap...
+         Starting [0;1;39mfinalrd.service[0m - Create …time dir for shutdown pivot root...
+         Starting [0;1;39mplymouth-read-write.servi…[0mymouth To Write Out Runtime Data...
+         Starting [0;1;39msystemd-binfmt.service[0m - Set Up Additional Binary Formats...
+         Starting [0;1;39msystemd-tmpfiles-setup.se…[0me Volatile Files and Directories...
+         Starting [0;1;39mufw.service[0m - Uncomplicated firewall...
+         Starting [0;1;39mwalinuxagent-network-setu…[0mp network rules for WALinuxAgent...
+[[0;32m  OK  [0m] Finished [0;1;39mconsole-setup.service[0m - Set console font and keymap.
+[[0;32m  OK  [0m] Finished [0;1;39mfinalrd.service[0m - Create …untime dir for shutdown pivot root.
+[[0;32m  OK  [0m] Finished [0;1;39mplymouth-read-write.servi…[0mPlymouth To Write Out Runtime Data.
+         Mounting [0;1;39mproc-sys-fs-binfmt_misc.m…[0mcutable File Formats File System...
+[[0;32m  OK  [0m] Finished [0;1;39mufw.service[0m - Uncomplicated firewall.
+[[0;32m  OK  [0m] Mounted [0;1;39mproc-sys-fs-binfmt_misc.mo…[0mxecutable File Formats File System.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tmpfiles-setup.se…[0mate Volatile Files and Directories.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-binfmt.service[0m - Set Up Additional Binary Formats.
+         Starting [0;1;39msystemd-resolved.service[0m - Network Name Resolution...
+         Starting [0;1;39msystemd-update-utmp.servi…[0mord System Boot/Shutdown in UTMP...
+         Starting [0;1;39mcloud-init-local.service[0m …-init: Local Stage (pre-network)...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-update-utmp.servi…[0mecord System Boot/Shutdown in UTMP.
+[[0;32m  OK  [0m] Finished [0;1;39mapparmor.service[0m - Load AppArmor profiles.
+         Starting [0;1;39msnapd.apparmor.service[0m - …iles managed internally by snapd...
+[[0;32m  OK  [0m] Finished [0;1;39msnapd.apparmor.service[0m - …ofiles managed internally by snapd.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-resolved.service[0m - Network Name Resolution.
+[[0;32m  OK  [0m] Reached target [0;1;39mnss-lookup.target[0m - Host and Network Name Lookups.
+[    5.750622] cloud-init[689]: Cloud-init v. 26.2-0ubuntu1~24.04.1 running 'init-local' at Wed, 28 Oct 2026 22:02:49 +0000. Up 5.73 seconds.
+[    5.912270] /dev/sr0: Can't open blockdev
+[[0;32m  OK  [0m] Finished [0;1;39mwalinuxagent-network-setu…[0mtup network rules for WALinuxAgent.
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-init-local.service[0m …ud-init: Local Stage (pre-network).
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork-pre.target[0m - Preparation for Network.
+         Starting [0;1;39msystemd-networkd.service[0m - Network Configuration...
+[[0;32m  OK  [0m] Started [0;1;39msystemd-networkd.service[0m - Network Configuration.
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork.target[0m - Network.
+         Starting [0;1;39msystemd-networkd-wait-onl…[0mait for Network to be Configured...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-networkd-wait-onl…[0m Wait for Network to be Configured.
+         Starting [0;1;39mcloud-init.service[0m - Cloud-init: Network Stage...
+[    8.142361] cloud-init[749]: Cloud-init v. 26.2-0ubuntu1~24.04.1 running 'init' at Wed, 28 Oct 2026 22:02:52 +0000. Up 8.12 seconds.
+[    8.153552] cloud-init[749]: ci-info: +++++++++++++++++++++++++++++++++++++++Net device info+++++++++++++++++++++++++++++++++++++++
+[    8.158191] cloud-init[749]: ci-info: +--------+------+------------------------------+---------------+--------+-------------------+
+[    8.163180] cloud-init[749]: ci-info: | Device |  Up  |           Address            |      Mask     | Scope  |     Hw-Address    |
+[    8.166942] cloud-init[749]: ci-info: +--------+------+------------------------------+---------------+--------+-------------------+
+[    8.170206] cloud-init[749]: ci-info: |  eth0  | True |          10.42.0.4           | 255.255.255.0 | global | 7c:1e:52:28:f1:3a |
+[    8.173708] cloud-init[749]: ci-info: |  eth0  | True | fe80::7e1e:52ff:fe28:f13a/64 |       .       |  link  | 7c:1e:52:28:f1:3a |
+[    8.177140] cloud-init[749]: ci-info: |   lo   | True |          127.0.0.1           |   255.0.0.0   |  host  |         .         |
+[    8.180439] cloud-init[749]: ci-info: |   lo   | True |           ::1/128            |       .       |  host  |         .         |
+[    8.183676] cloud-init[749]: ci-info: +--------+------+------------------------------+---------------+--------+-------------------+
+[    8.187165] cloud-init[749]: ci-info: +++++++++++++++++++++++++++++++Route IPv4 info+++++++++++++++++++++++++++++++
+[    8.190113] cloud-init[749]: ci-info: +-------+-----------------+-----------+-----------------+-----------+-------+
+[    8.194802] cloud-init[749]: ci-info: | Route |   Destination   |  Gateway  |     Genmask     | Interface | Flags |
+[    8.197843] cloud-init[749]: ci-info: +-------+-----------------+-----------+-----------------+-----------+-------+
+[    8.203615] cloud-init[749]: ci-info: |   0   |     0.0.0.0     | 10.42.0.1 |     0.0.0.0     |    eth0   |   UG  |
+[    8.206837] cloud-init[749]: ci-info: |   1   |    10.42.0.0    |  0.0.0.0  |  255.255.255.0  |    eth0   |   U   |
+[    8.210068] cloud-init[749]: ci-info: |   2   |    10.42.0.1    |  0.0.0.0  | 255.255.255.255 |    eth0   |   UH  |
+[    8.213130] cloud-init[749]: ci-info: |   3   |  168.63.129.16  | 10.42.0.1 | 255.255.255.255 |    eth0   |  UGH  |
+[    8.215962] cloud-init[749]: ci-info: |   4   | 169.254.169.254 | 10.42.0.1 | 255.255.255.255 |    eth0   |  UGH  |
+[    8.219195] cloud-init[749]: ci-info: +-------+-----------------+-----------+-----------------+-----------+-------+
+[    8.222108] cloud-init[749]: ci-info: +++++++++++++++++++Route IPv6 info+++++++++++++++++++
+[    8.226175] cloud-init[749]: ci-info: +-------+-------------+---------+-----------+-------+
+[    8.228511] cloud-init[749]: ci-info: | Route | Destination | Gateway | Interface | Flags |
+[    8.230929] cloud-init[749]: ci-info: +-------+-------------+---------+-----------+-------+
+[    8.233207] cloud-init[749]: ci-info: |   0   |  fe80::/64  |    ::   |    eth0   |   U   |
+[    8.237171] cloud-init[749]: ci-info: |   2   |    local    |    ::   |    eth0   |   U   |
+[    8.239475] cloud-init[749]: ci-info: |   3   |  multicast  |    ::   |    eth0   |   U   |
+[    8.241933] cloud-init[749]: ci-info: +-------+-------------+---------+-----------+-------+
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-init.service[0m - Cloud-init: Network Stage.
+[[0;32m  OK  [0m] Reached target [0;1;39mcloud-config.target[0m - Cloud-config availability.
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork-online.target[0m - Network is Online.
+[[0;32m  OK  [0m] Reached target [0;1;39msysinit.target[0m - System Initialization.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-tmpfiles-clean.tim…[0my Cleanup of Temporary Directories.
+[[0;32m  OK  [0m] Started [0;1;39mupdate-notifier-download.t…[0mhat failed at package install time.
+[[0;32m  OK  [0m] Reached target [0;1;39mpaths.target[0m - Path Units.
+[[0;32m  OK  [0m] Listening on [0;1;39mcloud-init-hotplugd.s…t[0m - cloud-init hotplug hook socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mdbus.socket[0m - D-Bus System Message Bus Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39miscsid.socket[0m - Open-iSCSI iscsid Socket.
+         Starting [0;1;39mlxd-installer.socket[0m - He…er to install lxd snap on demand...
+         Starting [0;1;39msnapd.socket[0m - Socket activation for snappy daemon...
+[[0;32m  OK  [0m] Listening on [0;1;39mssh.socket[0m - OpenBSD Secure Shell server socket.
+[[0;32m  OK  [0m] Listening on [0;1;39muuidd.socket[0m - UUID daemon activation socket.
+[[0;32m  OK  [0m] Finished [0;1;39mblk-availability.service[0m - Availability of block devices.
+         Starting [0;1;39msystemd-pcrphase-sysinit.…[0mPM2 PCR Barrier (Initialization)...
+[[0;32m  OK  [0m] Listening on [0;1;39mlxd-installer.socket[0m …lper to install lxd snap on demand.
+[[0;32m  OK  [0m] Listening on [0;1;39msnapd.socket[0m - Socket activation for snappy daemon.
+[[0;32m  OK  [0m] Reached target [0;1;39msockets.target[0m - Socket Units.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-pcrphase-sysinit.…[0m TPM2 PCR Barrier (Initialization).
+[[0;32m  OK  [0m] Reached target [0;1;39mbasic.target[0m - Basic System.
+         Starting [0;1;39mchrony.service[0m - chrony, an NTP client/server...
+         Starting [0;1;39mcloud-config.service[0m - Cloud-init: Config Stage...
+         Starting [0;1;39mdbus.service[0m - D-Bus System Message Bus...
+[[0;32m  OK  [0m] Started [0;1;39mdmesg.service[0m - Save initial kernel messages after boot.
+         Starting [0;1;39me2scrub_reap.service[0m - Re…ne ext4 Metadata Check Snapshots...
+         Starting [0;1;39mnetworkd-dispatcher.servi…[0mcher daemon for systemd-networkd...
+         Starting [0;1;39mnvmf-autoconnect.service[0m …ystems automatically during boot...
+         Starting [0;1;39mpolkit.service[0m - Authorization Manager...
+         Starting [0;1;39mrsyslog.service[0m - System Logging Service...
+         Starting [0;1;39msnapd.core-fixup.service[0m …wner/permissions on core devices...
+         Starting [0;1;39msnapd.seeded.service[0m - Wait until snapd is fully seeded...
+         Starting [0;1;39msysstat.service[0m - Resets System Activity Logs...
+         Starting [0;1;39msystemd-logind.service[0m - User Login Management...
+[[0;32m  OK  [0m] Started [0;1;39mubuntu-advantage.service[0m - Ubuntu Pro Background Auto Attach.
+         Starting [0;1;39mudisks2.service[0m - Disk Manager...
+[[0;32m  OK  [0m] Started [0;1;39mwalinuxagent.service[0m - Azure Linux Agent.
+[[0;32m  OK  [0m] Started [0;1;39mdbus.service[0m - D-Bus System Message Bus.
+[[0;32m  OK  [0m] Finished [0;1;39me2scrub_reap.service[0m - Re…line ext4 Metadata Check Snapshots.
+[[0;32m  OK  [0m] Finished [0;1;39mnvmf-autoconnect.service[0m …bsystems automatically during boot.
+[[0;32m  OK  [0m] Finished [0;1;39msnapd.core-fixup.service[0m … owner/permissions on core devices.
+[[0;32m  OK  [0m] Finished [0;1;39msysstat.service[0m - Resets System Activity Logs.
+[[0;32m  OK  [0m] Reached target [0;1;39mremote-fs-pre.targe…[0mreparation for Remote File Systems.
+[[0;32m  OK  [0m] Reached target [0;1;39mremote-fs.target[0m - Remote File Systems.
+         Starting [0;1;39mapport.service[0m - automatic crash report generation...
+[[0;32m  OK  [0m] Started [0;1;39mcron.service[0m - Regular background program processing daemon.
+         Starting [0;1;39msnapd.service[0m - Snap Daemon...
+         Starting [0;1;39msystemd-pcrphase.service[0m - TPM2 PCR Barrier (User)...
+[[0;32m  OK  [0m] Started [0;1;39msystemd-logind.service[0m - User Login Management.
+[[0;32m  OK  [0m] Started [0;1;39mnetworkd-dispatcher.servic…[0matcher daemon for systemd-networkd.
+[[0;32m  OK  [0m] Started [0;1;39munattended-upgrades.service[0m - Unattended Upgrades Shutdown.
+[[0;32m  OK  [0m] Started [0;1;39mrsyslog.service[0m - System Logging Service.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-pcrphase.service[0m - TPM2 PCR Barrier (User).
+         Starting [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions...
+         Starting [0;1;39mvaultgenome-deploy.servic…[0mled-boot phase (release v0.13.0)...
+[[0;32m  OK  [0m] Started [0;1;39mchrony.service[0m - chrony, an NTP client/server.
+[[0;32m  OK  [0m] Started [0;1;39mpolkit.service[0m - Authorization Manager.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions.
+[[0;32m  OK  [0m] Reached target [0;1;39mtime-sync.target[0m - System Time Synchronized.
+[[0;32m  OK  [0m] Started [0;1;39mapt-daily.timer[0m - Daily apt download activities.
+[[0;32m  OK  [0m] Started [0;1;39mapt-daily-upgrade.timer[0m - …y apt upgrade and clean activities.
+[[0;32m  OK  [0m] Started [0;1;39mdpkg-db-backup.timer[0m - Daily dpkg database backup timer.
+[[0;32m  OK  [0m] Started [0;1;39me2scrub_all.timer[0m - Period…Metadata Check for All Filesystems.
+[[0;32m  OK  [0m] Started [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.
+[[0;32m  OK  [0m] Started [0;1;39mfwupd-refresh.timer[0m - Refresh fwupd metadata regularly.
+[[0;32m  OK  [0m] Started [0;1;39mlogrotate.timer[0m - Daily rotation of log files.
+[[0;32m  OK  [0m] Started [0;1;39mman-db.timer[0m - Daily man-db regeneration.
+[[0;32m  OK  [0m] Started [0;1;39mmotd-news.timer[0m - Message of the Day.
+[[0;32m  OK  [0m] Started [0;1;39msnapd.snap-repair.timer[0m - …ly fetch and run repair assertions.
+[[0;32m  OK  [0m] Started [0;1;39msysstat-collect.timer[0m - Ru…y accounting tool every 10 minutes.
+[[0;32m  OK  [0m] Started [0;1;39msysstat-summary.timer[0m - Ge… of yesterday's process accounting.
+[[0;32m  OK  [0m] Started [0;1;39mupdate-notifier-motd.timer[0m… a new version of Ubuntu available.
+[[0;32m  OK  [0m] Reached target [0;1;39mtimers.target[0m - Timer Units.
+         Starting [0;1;39mModemManager.service[0m - Modem Manager...
+         Starting [0;1;39mplymouth-quit-wait.servic…[0md until boot process finishes up...
+         Starting [0;1;39mplymouth-quit.service[0m - Terminate Plymouth Boot Screen...
+[[0;32m  OK  [0m] Started [0;1;39mudisks2.service[0m - Disk Manager.
+[[0;32m  OK  [0m] Finished [0;1;39mplymouth-quit-wait.servic…[0mold until boot process finishes up.
+[[0;32m  OK  [0m] Started [0;1;39mserial-getty@ttyS0.service[0m - Serial Getty on ttyS0.
+         Starting [0;1;39msetvtrgb.service[0m - Set console scheme...
+[[0;32m  OK  [0m] Finished [0;1;39mplymouth-quit.service[0m - Terminate Plymouth Boot Screen.
+[[0;32m  OK  [0m] Finished [0;1;39mapport.service[0m - automatic crash report generation.
+[[0;32m  OK  [0m] Finished [0;1;39msetvtrgb.service[0m - Set console scheme.
+[[0;32m  OK  [0m] Created slice [0;1;39msystem-getty.slice[0m - Slice /system/getty.
+[[0;32m  OK  [0m] Started [0;1;39mgetty@tty1.service[0m - Getty on tty1.
+[[0;32m  OK  [0m] Reached target [0;1;39mgetty.target[0m - Login Prompts.
+[    9.436103] cloud-init[965]: Cloud-init v. 26.2-0ubuntu1~24.04.1 running 'modules:config' at Wed, 28 Oct 2026 22:02:53 +0000. Up 9.36 seconds.
+[[0;32m  OK  [0m] Started [0;1;39mModemManager.service[0m - Modem Manager.
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-config.service[0m - Cloud-init: Config Stage.
+[[0;32m  OK  [0m] Started [0;1;39msnapd.service[0m - Snap Daemon.
+         Starting [0;1;39msystemd-timedated.service[0m - Time & Date Service...
+[[0;32m  OK  [0m] Started [0;1;39msystemd-timedated.service[0m - Time & Date Service.
+[[0;32m  OK  [0m] Finished [0;1;39msnapd.seeded.service[0m - Wait until snapd is fully seeded.
+         Starting [0;1;39msnapd.autoimport.service[0m …rt assertions from block devices...
+[[0;32m  OK  [0m] Finished [0;1;39msnapd.autoimport.service[0m …port assertions from block devices.
+
+Ubuntu 24.04.5 LTS vaultgenome ttyS0
+
+vaultgenome login: [[0;32m  OK  [0m] Started [0;1;39msagvd.service[0m - Vault Geno…authority (sagvd), release v0.13.0.
+[[0;32m  OK  [0m] Started [0;1;39macp-compute.service[0m - Vaul…ker (acp-compute), release v0.13.0.
+
+===VG-DEPLOY-FAILED=== 20261028T215840Z REFUSED by the verifier, not by this deployment: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE)) — the host Azure chose runs chip firmware below AMD's floor (ADR 0033). Destroy this deployment and deploy again: Azure places the VM on another host, and the next is usually current
+{"time":"2026-10-28T22:03:30.45007932Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:39320","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:03:35.516069634Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:03:35.516159233Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:39324","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:03:40.589477514Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:03:40.589554913Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:55350","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:03:45.65481874Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:03:45.654963137Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:55360","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:03:50.720972551Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:58370","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:03:50.720990451Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:03:55.793803441Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:03:55.794007438Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:58376","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:00.863712485Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:00.86393768Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:41738","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:05.933328419Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:05.933383223Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:41752","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:11.003987775Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:11.004081882Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:57022","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:16.084288735Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:16.084380241Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:57034","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:21.150978969Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:21.151092067Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:39030","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:26.221062338Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:26.221253035Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:39034","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:31.292807777Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:31.292975274Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:54166","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:36.356364263Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:36.356427762Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:54174","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:41.423594683Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:41.423666582Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:48550","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:46.494017746Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:46.494103544Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:48566","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:51.56214285Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:51.562279947Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:60844","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:04:56.628170991Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:04:56.62822959Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:60860","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:05:01.690297903Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:05:01.6904641Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:60514","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+{"time":"2026-10-28T22:05:06.757022532Z","level":"WARN","msg":"return-path cycle failed","err":"acp-compute: client.Dial: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))","category":"authority","code":"handshake_failure","backoff_ms":5000}
+{"time":"2026-10-28T22:05:06.75715123Z","level":"WARN","msg":"sagvd return-path handshake failed","remote_addr":"127.0.0.1:60520","code":"handshake_failure","err":"authority[handshake_failure]: returnpath/transport: authority[handshake_failure]: returnpath/transport: server TEE evidence verification failed: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE))"}
+FAILED: REFUSED by the verifier, not by this deployment: integrity[attestation_denied]: azure-sev-snp: TCB floor: reported TCB snp 0x17 below 0x1b (AMD bulletins read 2026-10-22 for Genoa: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0x56; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE)) — the host Azure chose runs chip firmware below AMD's floor (ADR 0033). Destroy this deployment and deploy again: Azure places the VM on another host, and the next is usually current
+===VG-DEPLOY-FAILED-END===
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mvaultgenome-deploy…[0mttled-boot phase (release v0.13.0).
+See 'systemctl status vaultgenome-deploy.service' for details.
+[[0;32m  OK  [0m] Reached target [0;1;39mmulti-user.target[0m - Multi-User System.
+[[0;32m  OK  [0m] Reached target [0;1;39mgraphical.target[0m - Graphical Interface.
+         Starting [0;1;39mcloud-final.service[0m - Cloud-init: Final Stage...
+         Starting [0;1;39msystemd-update-utmp-runle…[0m- Record Runlevel Change in UTMP...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-update-utmp-runle…e[0m - Record Runlevel Change in UTMP.
+[  145.827352] cloud-init[1895]: Cloud-init v. 26.2-0ubuntu1~24.04.1 running 'modules:final' at Wed, 28 Oct 2026 22:05:09 +0000. Up 145.78 seconds.
+[  145.858341] cloud-init[1895]: Cloud-init v. 26.2-0ubuntu1~24.04.1 finished at Wed, 28 Oct 2026 22:05:09 +0000. Datasource DataSourceAzure [seed=/var/lib/waagent].  Up 145.85 seconds
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-final.service[0m - Cloud-init: Final Stage.
+[[0;32m  OK  [0m] Reached target [0;1;39mcloud-init.target[0m - Cloud-init target.
+                                                                                                                          

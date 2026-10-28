@@ -182,7 +182,14 @@ a destination, or the release
 authority — proven as the authority of a failover in
 [`scripts/hardware-test/failover-tdx-authority/`](../../../scripts/hardware-test/failover-tdx-authority/README.md).
 A kernel or firmware update changes the PCRs: re-provision from the
-recovery envelope after one.
+recovery envelope after one. And seal after systemd's PCR phase
+barrier: systemd extends PCR 11 with the boot's phases
+(`systemd-pcrphase-sysinit.service`, then `systemd-pcrphase.service`,
+"ready"), so a file sealed under the default selection opens only in the
+phase it was sealed in — run `seal-keys` after `systemd-pcrphase.service`
+has finished and give the daemons' units `After=network-online.target
+systemd-pcrphase.service` (the Azure runbook has the record of the
+mistake; `deploy/gcp` and `deploy/azure` do it this way).
 
 ## Cleanup (cost hygiene)
 
