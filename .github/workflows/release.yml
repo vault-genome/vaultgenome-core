@@ -154,8 +154,9 @@ jobs:
           PYVER="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
           case "$TAG" in "v${PYVER}"|"v${PYVER}"-rc[0-9]*) ;; *) echo "pyproject.toml says ${PYVER}; the tag is ${TAG}"; exit 1;; esac
           scripts/build_python_dist.sh dist
-          echo "PY_WHEEL=vaultgenome-${PYVER}-py3-none-any.whl" >> "$GITHUB_ENV"
-          echo "PY_SDIST=vaultgenome-${PYVER}.tar.gz" >> "$GITHUB_ENV"
+          { echo "PYVER=${PYVER}"
+            echo "PY_WHEEL=vaultgenome-${PYVER}-py3-none-any.whl"
+            echo "PY_SDIST=vaultgenome-${PYVER}.tar.gz"; } >> "$GITHUB_ENV"
 
       # One signed list of every artifact's SHA-256 — the binaries, the
       # worker package, the wheel and the sdist — in sha256sum's format, so
@@ -188,9 +189,11 @@ jobs:
             syft "bin/$b" -o spdx-json="dist/${b}.sbom.spdx.json"
           done
           syft "dir:workers/genome" -o spdx-json="dist/genome-worker-${VERSION}.sbom.spdx.json"
-          for f in "$PY_WHEEL" "$PY_SDIST"; do
-            syft "dist/$f" -o spdx-json="dist/${f}.sbom.spdx.json"
-          done
+          # The sdist names its package to syft as a file; the wheel does
+          # only once unpacked, so it is scanned unpacked, under its own name.
+          syft "dist/$PY_SDIST" -o spdx-json="dist/${PY_SDIST}.sbom.spdx.json"
+          rm -rf /tmp/wheel && mkdir -p /tmp/wheel && unzip -q "dist/$PY_WHEEL" -d /tmp/wheel
+          syft "dir:/tmp/wheel" --source-name "$PY_WHEEL" --source-version "$PYVER" -o spdx-json="dist/${PY_WHEEL}.sbom.spdx.json"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
