@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # One button on Google Cloud: a Vault Genome deployment on a Compute Engine
-# Confidential VM (AMD SEV-SNP) from the signed release, proven the way the
-# reference deployment is proven, and left running.
+# Confidential VM — AMD SEV-SNP (n2d) or Intel TDX (c3) — from the signed
+# release, proven the way the reference deployment is proven, and left
+# running.
 #
 #   1. the release is verified here, before anything runs anywhere: the
 #      signed checksums list against the release workflow's identity for
@@ -12,10 +13,11 @@
 #      the list, their SLSA provenance against the source tag
 #      (slsa-verifier), and the tag's own signature against the keys pinned
 #      on main — never against keys in the tagged tree;
-#   2. an n2d-standard-4 Confidential VM (AMD Milan, SEV-SNP) is created
-#      with guest.sh as its startup script and the verified list in its
-#      metadata: the guest fetches the release itself and runs only what is
-#      on the list;
+#   2. a Confidential VM — an n2d-standard-4 on AMD Milan with SEV-SNP, or
+#      with --platform tdx a c3-standard-4 Trust Domain on Intel TDX — is
+#      created with guest.sh as its startup script and the verified list in
+#      its metadata: the guest fetches the release itself and runs only
+#      what is on the list;
 #   3. the guest provisions the deployment with `acpctl provision`, starts
 #      both daemons as systemd services, gates a first genome over the
 #      Return Path and verifies its audit log (guest.sh);
@@ -24,14 +26,15 @@
 #      of step 1; the summary says what was proven. The VM stays.
 #
 # Usage: deploy.sh [--project ID] [--zone ZONE] [--name NAME] [--tag TAG]
-#                  [--sealer auto|tee|tpm2] [--yes]
+#                  [--platform sev-snp|tdx] [--sealer auto|tee|tpm2] [--yes]
 #        deploy.sh --attach [--project ID] [--name NAME] [--zone ZONE]
 #                  (a session that dropped while the guest was at work:
 #                  wait for the record of the VM that exists, nothing else)
 # Defaults: the gcloud project; us-central1-c (then -b, -a, -f when the
 # zone has no capacity); the name "vaultgenome"; the release this checkout
-# is tagged as, or the latest release when it is not at a tag; tee.sealer
-# auto (the chip's own key: the key files open on this chip only — ADR
+# is tagged as, or the latest release when it is not at a tag; sev-snp;
+# tee.sealer auto — on SEV-SNP the chip's own key (the key files open on
+# this chip only), on TDX the guest's vTPM under this boot's PCRs (ADR
 # 0023, 0025 step 1b).
 # Needs gcloud (signed in), curl, git, python3; cosign and slsa-verifier
 # on PATH, or on Linux x86-64 they are fetched at pinned hashes.
@@ -41,7 +44,6 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 REPO="vault-genome/vaultgenome-core"
 REPO_URL="https://github.com/$REPO"
 ISSUER='https://token.actions.githubusercontent.com'
-MACHINE="n2d-standard-4"
 ZONES_DEFAULT="us-central1-c us-central1-b us-central1-a us-central1-f"
 # The verification tools, when they are not on PATH (Linux x86-64 only):
 # cosign 2.6.5, the version the release signs with, by the hash in its
@@ -50,21 +52,29 @@ ZONES_DEFAULT="us-central1-c us-central1-b us-central1-a us-central1-f"
 COSIGN_VERSION=v2.6.5;        COSIGN_SHA256=c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644
 SLSA_VERIFIER_VERSION=v2.7.1; SLSA_VERIFIER_SHA256=946dbec729094195e88ef78e1734324a27869f03e2c6bd2f61cbc06bd5350339
 
-PROJECT=""; ZONE=""; NAME="vaultgenome"; TAG=""; SEALER="auto"; YES=0; ATTACH=0
+PROJECT=""; ZONE=""; NAME="vaultgenome"; TAG=""; PLATFORM="sev-snp"; SEALER="auto"; YES=0; ATTACH=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --project) PROJECT="${2:?}"; shift 2;;
     --zone) ZONE="${2:?}"; shift 2;;
     --name) NAME="${2:?}"; shift 2;;
     --tag) TAG="${2:?}"; shift 2;;
+    --platform) PLATFORM="${2:?}"; shift 2;;
     --sealer) SEALER="${2:?}"; shift 2;;
     --yes|-y) YES=1; shift;;
     --attach) ATTACH=1; shift;;
-    -h|--help) sed -n '5,37p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    -h|--help) sed -n '5,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "unknown argument: $1 (see --help)" >&2; exit 2;;
   esac
 done
 case "$SEALER" in auto|tee|tpm2) ;; *) echo "--sealer must be auto, tee or tpm2" >&2; exit 2;; esac
+# The machine and its TEE, by platform (the kits' shapes: gcp-sev-snp and
+# gcp-tdx); the vTPM is on for both, the boot-chain family's later use.
+case "$PLATFORM" in
+  sev-snp) MACHINE="n2d-standard-4"; HW="AMD Milan, SEV-SNP"; TEE_FLAGS=(--min-cpu-platform "AMD Milan" --confidential-compute-type SEV_SNP); PRICE="about USD 0.20 an hour (Google's N2D price plus its SEV-SNP premium)";;
+  tdx)     MACHINE="c3-standard-4"; HW="Intel TDX"; TEE_FLAGS=(--confidential-compute-type TDX); PRICE="about USD 0.25 an hour (Google's C3 price plus its TDX premium)";;
+  *) echo "--platform must be sev-snp or tdx" >&2; exit 2;;
+esac
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -109,11 +119,13 @@ if [ "$ATTACH" = 1 ]; then
   # it, whose records/ directory holds that.
   [ -n "$ZONE" ] || ZONE="$(gcloud compute instances list --project "$PROJECT" --filter="name=$NAME" --format='value(zone.basename())' 2>/dev/null | head -1 || true)"
   [ -n "$ZONE" ] || die "no instance named $NAME in $PROJECT to attach to"
-  TAG="$(gcloud compute instances describe "$NAME" --project "$PROJECT" --zone "$ZONE" --format=json 2>/dev/null \
-    | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((i["value"] for i in (d.get("metadata") or {}).get("items", []) if i["key"] == "vg-tag"), ""))' || true)"
+  META="$(gcloud compute instances describe "$NAME" --project "$PROJECT" --zone "$ZONE" --format=json 2>/dev/null \
+    | python3 -c 'import json,sys; d=json.load(sys.stdin); m={i["key"]: i["value"] for i in (d.get("metadata") or {}).get("items", [])}; print(m.get("vg-tag", ""), m.get("vg-platform", "sev-snp"), d.get("machineType", "").rsplit("/", 1)[-1])' || true)"
+  read -r TAG PLATFORM MACHINE <<< "$META"
   [ -n "$TAG" ] || die "$NAME in $ZONE was not created by deploy.sh (no vg-tag in its metadata)"
-  say "attached to $NAME ($ZONE, project $PROJECT), release $TAG; the record goes to $REC"
-  { echo "project=$PROJECT"; echo "instance=$NAME"; echo "zone=$ZONE"; echo "machine=$MACHINE"; echo "release=$TAG"; echo "attached=$STAMP"; } > "$REC/deployment.txt"
+  case "$PLATFORM" in tdx) HW="Intel TDX";; *) PLATFORM="sev-snp"; HW="AMD Milan, SEV-SNP";; esac
+  say "attached to $NAME ($ZONE, project $PROJECT), release $TAG on $HW; the record goes to $REC"
+  { echo "project=$PROJECT"; echo "instance=$NAME"; echo "zone=$ZONE"; echo "machine=$MACHINE"; echo "platform=$PLATFORM"; echo "release=$TAG"; echo "attached=$STAMP"; } > "$REC/deployment.txt"
 else
 say "Vault Genome $TAG → project $PROJECT, as $ACCOUNT; the record goes to $REC"
 
@@ -182,9 +194,9 @@ fi
 if gcloud compute instances list --project "$PROJECT" --filter="name=$NAME" --format='value(name,zone)' 2>/dev/null | grep -q .; then
   die "an instance named $NAME exists in $PROJECT already: pass --name <other>, or remove it with destroy.sh"
 fi
-say "  one $MACHINE Confidential VM, AMD Milan, SEV-SNP, Ubuntu 24.04, 20 GB disk: about USD 0.20 an hour while it runs (Google's N2D price plus its SEV-SNP premium); destroy.sh removes it"
+say "  one $MACHINE Confidential VM, $HW, Ubuntu 24.04, 20 GB disk: $PRICE while it runs; destroy.sh removes it"
 if [ "$YES" != 1 ]; then
-  printf 'Deploy Vault Genome %s into project %s as %s? [y/N] ' "$TAG" "$PROJECT" "$NAME"
+  printf 'Deploy Vault Genome %s on %s into project %s as %s? [y/N] ' "$TAG" "$HW" "$PROJECT" "$NAME"
   read -r answer; case "$answer" in y|Y|yes) ;; *) say "not deployed"; exit 0;; esac
 fi
 
@@ -192,12 +204,11 @@ say "== 4. the Confidential VM"
 CREATED=""
 for z in ${ZONE:-$ZONES_DEFAULT}; do
   if out=$(gcloud compute instances create "$NAME" --project "$PROJECT" --zone "$z" \
-      --machine-type "$MACHINE" --min-cpu-platform "AMD Milan" \
-      --confidential-compute-type SEV_SNP --maintenance-policy TERMINATE \
+      --machine-type "$MACHINE" "${TEE_FLAGS[@]}" --maintenance-policy TERMINATE \
       --shielded-vtpm --shielded-integrity-monitoring \
       --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
-      --boot-disk-size 20GB --labels "app=vaultgenome" \
-      --metadata "vg-tag=$TAG,vg-sealer=$SEALER,vg-stamp=$STAMP,vg-checksums=$(b64 "$DL/$LIST")" \
+      --boot-disk-size 20GB --labels "app=vaultgenome,platform=$PLATFORM" \
+      --metadata "vg-tag=$TAG,vg-platform=$PLATFORM,vg-sealer=$SEALER,vg-stamp=$STAMP,vg-checksums=$(b64 "$DL/$LIST")" \
       --metadata-from-file "startup-script=$HERE/guest.sh" 2>&1); then
     CREATED="$z"; break
   fi
@@ -208,8 +219,12 @@ for z in ${ZONE:-$ZONES_DEFAULT}; do
 done
 [ -n "$CREATED" ] || die "no zone of ${ZONE:-$ZONES_DEFAULT} had capacity for $MACHINE; try again later or pass --zone"
 ZONE="$CREATED"
-say "  $NAME is up in $ZONE; the guest is installing, provisioning and proving — about three minutes"
-{ echo "project=$PROJECT"; echo "instance=$NAME"; echo "zone=$ZONE"; echo "machine=$MACHINE"; echo "release=$TAG"; echo "sealer=$SEALER"; echo "started=$STAMP"; } > "$REC/deployment.txt"
+if [ "$PLATFORM" = tdx ] || [ "$SEALER" = tpm2 ]; then
+  say "  $NAME is up in $ZONE; the guest is installing, then reboots once so the key files are sealed on a settled boot, then provisions and proves — about four minutes"
+else
+  say "  $NAME is up in $ZONE; the guest is installing, provisioning and proving — about three minutes"
+fi
+{ echo "project=$PROJECT"; echo "instance=$NAME"; echo "zone=$ZONE"; echo "machine=$MACHINE"; echo "platform=$PLATFORM"; echo "release=$TAG"; echo "sealer=$SEALER"; echo "started=$STAMP"; } > "$REC/deployment.txt"
 fi
 
 say "== 5. waiting for the guest's record (up to 25 minutes)"
@@ -264,9 +279,9 @@ sys.exit("no intact copy of the record in the serial output")
 PY
 
 say "== 6. what was proven"
-python3 - "$REC" "$TAG" "$NAME" "$ZONE" "$PROJECT" <<'PY'
+python3 - "$REC" "$TAG" "$NAME" "$ZONE" "$PROJECT" "$PLATFORM" "$HW" <<'PY'
 import json, os, re, sys
-rec, tag, name, zone, project = sys.argv[1:6]
+rec, tag, name, zone, project, platform, hw = sys.argv[1:8]
 g = os.path.join(rec, "guest")
 def kv(path):
     d = {}
@@ -294,7 +309,7 @@ def secs(a, b):
     except Exception:
         return "?"
 m = re.search(r"product=(\S+).*?snp=(\S+) microcode=(\S+) firmware=(\S+) alias_check=(\S+)", chip)
-print(f"PROVEN — Vault Genome {tag} on {name} ({zone}, project {project}): {meta.get('machine')}, AMD SEV-SNP")
+print(f"PROVEN — Vault Genome {tag} on {name} ({zone}, project {project}): {meta.get('machine')}, {hw}")
 if verified:
     print(f"  release      {tagline}")
     print(f"               the checksums list signed by release.yml@{tag} (cosign); {oks} of 5 files on the list; {slsa} of 5 SLSA provenances against the source tag")
@@ -303,9 +318,15 @@ else:
 print(f"               on the guest: {guest_oks} of 5 files fetched from GitHub are on the signed list it was given (guest/checksums-check.txt)")
 if m:
     print(f"  chip         AMD {m.group(1)}: TCB snp={m.group(2)} microcode={m.group(3)} firmware={m.group(4)} alias_check={m.group(5)} — the VCEK chain to AMD's root, the TCB against the floors of AMD's bulletins (ADR 0033)")
-print(f"  identities   vault {prov['vault']['measurement_hex'][:16]}… = worker {prov['worker']['measurement_hex'][:16]}…: this VM's launch measurement, read from the chip by each daemon and pinned by the other")
+    print(f"  identities   vault {prov['vault']['measurement_hex'][:16]}… = worker {prov['worker']['measurement_hex'][:16]}…: this VM's launch measurement, read from the chip by each daemon and pinned by the other")
+else:
+    t = re.search(r"mrtd=(\S+) rtmr0=(\S+) rtmr1=(\S+) rtmr2=(\S+) rtmr3=(\S+) measurement=(\S+) fmspc=(\S+)", chip)
+    if t:
+        print(f"  trust domain MRTD {t.group(1)[:16]}…, RTMR0 {t.group(2)[:16]}…, RTMR1 {t.group(3)[:16]}…, RTMR2 {t.group(4)[:16]}… — the firmware, its configuration, the kernel, initrd and command line in the hardware's own registers; the quote under the PCK chain to Intel's root, Intel's TCB info (FMSPC {t.group(7)}) and QE identity from PCS")
+    print(f"  identities   vault {prov['vault']['measurement_hex'][:16]}… = worker {prov['worker']['measurement_hex'][:16]}…: SHA-384 over MRTD and RTMR0–3 of this Trust Domain, read by each daemon and pinned by the other")
 sealed = prov.get("sealed", {})
-print(f"  key files    {len(sealed.get('sagvd', []))} + {len(sealed.get('acp-compute', []))} sealed to this host (tee.sealer {prov.get('sealer')}: {prov['vault'].get('sealer')}) — provision {secs('provision_start', 'provision_end')}")
+settled = "; sealed on a settled boot, after one reboot" if "reboot" in tl else ""
+print(f"  key files    {len(sealed.get('sagvd', []))} + {len(sealed.get('acp-compute', []))} sealed to this host (tee.sealer {prov.get('sealer')}: {prov['vault'].get('sealer')}) — provision {secs('provision_start', 'provision_end')}{settled}")
 print(f"  services     sagvd ready {steps.get('sagvd_ready_after', '?')} after its start, the worker's session opened {steps.get('session_opened_after', '?')} after the worker's (sagvd.service, acp-compute.service); paused {secs('pause_start', 'pause_end')} for the audit read, back with the sealed key files opened again (ready {steps.get('restart_sagvd_ready_after', '?')}, session {steps.get('restart_session_opened_after', '?')})")
 print(f"  gate         job {job.get('job_id', '?')}: {gate.get('level')} at rung {gate.get('rung')}, {verdict.get('n_exact')} of {gate.get('fixtures')} fixtures byte for byte (max_abs_err {verdict.get('max_abs_err')}), the verdict signed by {gate.get('signer_key_id')} — {secs('job_submit', 'job_done')} from submission")
 print(f"  audit log    ok={str(audit.get('ok')).lower()}, {audit.get('events', audit.get('event_count', '?'))} events verified under the operator's key (records/{os.path.basename(rec)}/guest/audit-public-key.pem)")

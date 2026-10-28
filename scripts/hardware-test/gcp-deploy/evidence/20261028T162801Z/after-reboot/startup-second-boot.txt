@@ -1,0 +1,3 @@
+== the gate job over the Return Path
+== metrics; then the audit log verified under the operator's key with both services paused, and the hardware as the verifier read it
+vaultgenome: deployed already (v0.12.0 20261028T162802Z sev-snp); the services are systemd's

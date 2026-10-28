@@ -16,7 +16,8 @@ newcomer would and then does what tells a deployment from a demo:
 3. the VM is deleted, always, also on failure.
 
 ```bash
-scripts/hardware-test/gcp-deploy/run.sh <project> [tag] [zone]   # ~12 min, one n2d-standard-4
+scripts/hardware-test/gcp-deploy/run.sh <project> [tag] [zone]          # ~12 min, one n2d-standard-4 (AMD SEV-SNP)
+scripts/hardware-test/gcp-deploy/run.sh <project> [tag] [zone] tdx      # the same on a c3-standard-4 Intel TDX Trust Domain
 ```
 
 What comes back (`evidence/<stamp>/`): `deploy/` — the record `deploy.sh`
@@ -54,3 +55,21 @@ of 6; `vg verify` replayed one chain of 32 events (16 before the reset).
 The chip, as the authority's verifier read it: Milan, TCB snp 0x1f,
 microcode 0xe1, firmware 1.58.3, alias check complete, above the floors
 of AMD's bulletins (0x1b, 0xde).
+
+On Intel TDX: `evidence/20261028T162741Z/` (claim C56) — a c3-standard-4
+Trust Domain in `us-central1-c`. `deploy.sh --platform tdx` 287 s to
+`PROVEN`: the guest installed the runtime (44 s) and `tpm2-tools`, then
+rebooted once so the key files would be sealed on a settled boot; on
+that boot `acpctl provision` 7.8 s (`provider=auto` resolved `gcp-tdx`,
+both measurements SHA-384 over MRTD and RTMR0–3, eight key files sealed
+to the vTPM), the first genome 8 s, `sagvd` ready 3 s after its start,
+the session open 1 s after the worker's (the quote under the PCK chain
+to Intel's root, Intel's TCB info for FMSPC `00806f050000` and QE
+identity on the record), the gate EXACT 6 of 6 in 4.2 s, sixteen events
+verified, the services back in 3 s — 29.8 s on the settled boot. After
+the reset, the third boot: ssh and the session back 59 s later, the
+second job EXACT 6 of 6, 32 events on one chain, `vg audit` and `vg
+events` each pausing the services for about 3 s. The same day the kit
+ran once more on SEV-SNP with the guest that knows both platforms
+(`evidence/20261028T162801Z/`): 271 s to `PROVEN`, the same figures as
+the first record, the second job EXACT, 32 events.

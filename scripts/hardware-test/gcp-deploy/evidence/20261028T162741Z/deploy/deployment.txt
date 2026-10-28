@@ -1,0 +1,8 @@
+project=rats-probe
+instance=vg-button-20261028t162741z
+zone=us-central1-c
+machine=c3-standard-4
+platform=tdx
+release=v0.12.0
+sealer=auto
+started=20261028T162742Z

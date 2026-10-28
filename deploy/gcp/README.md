@@ -2,9 +2,10 @@
 
 [![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/vault-genome/vaultgenome-core&cloudshell_git_branch=main&cloudshell_workspace=deploy/gcp&cloudshell_tutorial=tutorial.md)
 
-A Vault Genome deployment on one Compute Engine Confidential VM (AMD
-SEV-SNP), from the signed release, proven the way the project's reference
-deployment is proven, and left running. The button opens Cloud Shell on
+A Vault Genome deployment on one Compute Engine Confidential VM — AMD
+SEV-SNP, or Intel TDX with `--platform tdx` — from the signed release,
+proven the way the project's reference deployment is proven, and left
+running. The button opens Cloud Shell on
 this directory with [`tutorial.md`](tutorial.md) beside it; the tutorial
 runs `deploy.sh`. Cloud Shell asks before it opens a repository that is
 not Google's: with **Trust repo** ticked it opens in your own Cloud
@@ -14,23 +15,31 @@ temporary and `gcloud auth login` comes first (`deploy.sh` says so and
 stops until then). From a laptop with `gcloud` signed in, the same:
 
 ```bash
-deploy/gcp/deploy.sh --project <id>            # the latest release; --tag v0.12.0 for one
-deploy/gcp/destroy.sh --project <id>           # the VM, and nothing else
+deploy/gcp/deploy.sh --project <id>                 # the latest release on AMD SEV-SNP; --tag v0.12.0 for one
+deploy/gcp/deploy.sh --project <id> --platform tdx  # the same on an Intel TDX Trust Domain
+deploy/gcp/destroy.sh --project <id>                # the VM, and nothing else
 ```
+
+| `--platform` | The machine | What the hardware measures | How the key files are sealed |
+| - | - | - | - |
+| `sev-snp` (default) | `n2d-standard-4`, AMD Milan | the launch measurement: Google's firmware for this vCPU count ([C53](../../VERIFIABLE-CLAIMS.md#c53)) | to the chip's derived key — this chip, this firmware, this guest policy (ADR 0023) |
+| `tdx` | `c3-standard-4`, Intel TDX | MRTD and RTMR0–3: the firmware, its configuration, the kernel, initrd and command line, in the hardware's own registers (ADR 0018) | to the guest's vTPM under this boot's PCRs (ADR 0022, 0025 step 1b); the guest reboots once before it provisions, so the files are sealed on a settled boot — the image's first boot grows its root partition and moves a PCR |
 
 | What | Where |
 | - | - |
 | The release verified before it runs anywhere: the signed checksums list against the release workflow's identity for the tag (cosign), the five files against the list, their SLSA provenance against the source tag (slsa-verifier), the tag's signature against the keys pinned on `main` | [`deploy.sh`](deploy.sh) §2, `records/<stamp>/verify/` |
-| One `n2d-standard-4` Confidential VM, AMD Milan, SEV-SNP, Ubuntu 24.04, 20 GB, with the verified list in its metadata | [`deploy.sh`](deploy.sh) §4 |
+| One Confidential VM — `n2d-standard-4` on AMD Milan with SEV-SNP, or `c3-standard-4` on Intel TDX — Ubuntu 24.04, 20 GB, with the verified list in its metadata | [`deploy.sh`](deploy.sh) §4 |
 | The guest fetches the release and runs only what is on the list; the worker runtime from the hash-pinned locks; `acpctl provision` — keys, both configurations, the AMD chain from KDS, each identity from the chip pinned by the other, every key file sealed to the chip; a first genome made and sealed; both daemons as systemd services; a gate job over the Return Path; the audit log verified under the operator's key | [`guest.sh`](guest.sh), `records/<stamp>/guest/` |
 | The summary that begins with `PROVEN`, each line from a file of the record | [`deploy.sh`](deploy.sh) §6 |
 
-About USD 0.20 an hour while the VM runs (Google's N2D price plus its
-SEV-SNP premium of USD 0.0169 an hour for this shape); about four
-minutes from the command to the summary (251 s on the record, of which
-154 s on the guest: the runtime's install 46 s, `acpctl provision` 10.5 s,
-the first genome 5 s, the services up and the session open in 15 s, the
-gate job 5 s, the audit read 4 s, the services back in 11 s).
+About USD 0.20 an hour while the VM runs on SEV-SNP (Google's N2D price
+plus its SEV-SNP premium of USD 0.0169 an hour for this shape), about
+USD 0.25 on TDX (the C3 price plus the TDX premium of USD 0.021); about
+four minutes from the command to the summary on SEV-SNP (251 s on the
+record, of which 154 s on the guest: the runtime's install 46 s, `acpctl
+provision` 10.5 s, the first genome 5 s, the services up and the session
+open in 15 s, the gate job 5 s, the audit read 4 s, the services back in
+11 s), a minute more on TDX for the reboot.
 
 ## What it is, and what it is not
 
@@ -52,16 +61,22 @@ gate job 5 s, the audit read 4 s, the services back in 11 s).
   worker on another, across clouds — is three commands of `acpctl
   provision` ([first deployment §3](../../docs/operator/09_first_deployment.md),
   ADR 0028, claim C39).
-- **Held to the chip.** With `tee.sealer auto` the key files are sealed to
-  the chip's derived key: this chip, Google's firmware, the guest policy
-  (ADR 0023). A stop and start that lands the VM on another host does not
-  open them; `deploy.sh` again gives a fresh deployment with fresh keys
-  and a new audit chain, or `--sealer tpm2` seals to the instance's vTPM
-  instead (ADR 0025 step 1b). The boot chain — kernel, initrd, command
-  line — is held by the `gcp-sev-snp-vtpm` family, set up by its
+- **Held to the hardware.** On SEV-SNP, with `tee.sealer auto`, the key
+  files are sealed to the chip's derived key: this chip, Google's
+  firmware, the guest policy (ADR 0023). A stop and start that lands the
+  VM on another host does not open them; `deploy.sh` again gives a fresh
+  deployment with fresh keys and a new audit chain, or `--sealer tpm2`
+  seals to the instance's vTPM instead (ADR 0025 step 1b). The boot chain
+  — kernel, initrd, command line — is held by the `gcp-sev-snp-vtpm`
+  family, set up by its
   [runbook](../../docs/operator/runbooks/real-tee-gcp-sev-snp-vtpm.md)
-  once the image's first boot has settled (ADR 0037); this deployment is
-  the chip-only `gcp-sev-snp` family, as the reference deployment is.
+  once the image's first boot has settled (ADR 0037); the SEV-SNP
+  deployment is the chip-only `gcp-sev-snp` family, as the reference
+  deployment is. On TDX the boot chain is in the hardware's own
+  measurement (the RTMRs), and the key files are sealed to the vTPM under
+  this boot's PCRs: a reboot of the same image opens them, a new kernel
+  does not — the [TDX runbook](../../docs/operator/runbooks/real-tee-tdx.md)
+  says what a new image means for the pin.
 - **The network.** The Return Path, the REST API and the health listeners
   bind loopback only; the operator reaches them over `gcloud compute ssh`.
   The VM has an external address for its own fetches (GitHub, PyPI, AMD

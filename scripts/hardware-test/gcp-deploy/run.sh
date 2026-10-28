@@ -17,12 +17,13 @@
 #      evidence/<stamp>/ holds deploy.sh's record (verify/, guest/,
 #      the serial console), the post-reboot results and the runner's log.
 #
-# Usage: run.sh <project> [tag] [zone]       (one n2d-standard-4 for ~12 min)
+# Usage: run.sh <project> [tag] [zone] [sev-snp|tdx]   (one n2d-standard-4 or c3-standard-4 for ~12 min)
 # Needs gcloud (signed in), curl, git, python3, cosign, slsa-verifier.
 set -euo pipefail
-PROJECT="${1:?usage: run.sh <project> [tag] [zone]}"
+PROJECT="${1:?usage: run.sh <project> [tag] [zone] [sev-snp|tdx]}"
 TAG="${2:-}"
 ZONE="${3:-}"
+PLATFORM="${4:-sev-snp}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 DEPLOY="$ROOT/deploy/gcp"
@@ -45,12 +46,12 @@ cleanup() {
 trap cleanup EXIT
 ssh_vm() { gcloud compute ssh "$NAME" --project "$PROJECT" --zone "$ZONE" --quiet --command "$*"; }
 
-log "== 1. deploy.sh, as a person runs it (release ${TAG:-latest}, project $PROJECT)"
+log "== 1. deploy.sh, as a person runs it (release ${TAG:-latest}, $PLATFORM, project $PROJECT)"
 # deploy.sh keeps its record under deploy/gcp/records/<its stamp>/; this
 # run's copy of it moves under the evidence, and that directory is removed.
 RECORDS_BEFORE="$(ls "$DEPLOY/records" 2>/dev/null || true)"
 T0=$(date +%s)
-"$DEPLOY/deploy.sh" --project "$PROJECT" --name "$NAME" --yes ${TAG:+--tag "$TAG"} ${ZONE:+--zone "$ZONE"} 2>&1 | tee "$EVIDENCE/deploy.out"
+"$DEPLOY/deploy.sh" --project "$PROJECT" --name "$NAME" --platform "$PLATFORM" --yes ${TAG:+--tag "$TAG"} ${ZONE:+--zone "$ZONE"} 2>&1 | tee "$EVIDENCE/deploy.out"
 test "${PIPESTATUS[0]}" = 0 || { log "deploy.sh failed"; exit 1; }
 log "deploy.sh took $(( $(date +%s) - T0 )) s"
 REC=""
@@ -93,7 +94,7 @@ EVENTS2="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["even
 OK2="$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["ok"]).lower())' "$EVIDENCE/after-reboot/audit-verify.json")"
 [ "$OK2" = true ] && [ "$EVENTS2" -gt "$EVENTS1" ] || { log "the audit chain after the reboot: ok=$OK2 events=$EVENTS2 (was $EVENTS1)"; exit 1; }
 log "second job: $(cat "$EVIDENCE/after-reboot/submit.txt" | tail -1); the chain verifies, $EVENTS2 events (was $EVENTS1)"
-{ echo "release=$TAG"; echo "instance=$NAME"; echo "zone=$ZONE"; echo "project=$PROJECT"; echo "stamp=$STAMP"; echo "events_after_first_job=$EVENTS1"; echo "events_after_reboot_and_second_job=$EVENTS2"; echo "deploy_seconds=$(( T1 - T0 ))"; } > "$EVIDENCE/summary.txt"
+{ echo "release=$TAG"; echo "platform=$PLATFORM"; echo "instance=$NAME"; echo "zone=$ZONE"; echo "project=$PROJECT"; echo "stamp=$STAMP"; echo "events_after_first_job=$EVENTS1"; echo "events_after_reboot_and_second_job=$EVENTS2"; echo "deploy_seconds=$(( T1 - T0 ))"; } > "$EVIDENCE/summary.txt"
 
 ( cd "$EVIDENCE" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 > "$WORK/sha256sums.txt" ) && mv "$WORK/sha256sums.txt" "$EVIDENCE/sha256sums.txt"
 FINAL="$HERE/evidence/$STAMP"; mkdir -p "$HERE/evidence"
