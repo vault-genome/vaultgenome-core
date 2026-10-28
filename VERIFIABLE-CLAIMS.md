@@ -3465,8 +3465,8 @@ live floors was not available to refuse.
 product's SEV-SNP parse, AMD-chain and signature checks and, on the same
 bytes, Google's `go-sev-guest` v0.15.0 (`tools/oracle`, a module of its
 own) and VirTEE's `snpguest` 0.10.0, on every genuine report on record
-(`test/corpus/sev-snp`: 67 reports on 2026-10-28 — 31 the kits kept, 36
-from the key-release receipts — 27 distinct chips, Milan and Genoa, report
+(`test/corpus/sev-snp`: 68 reports on 2026-10-28 — 31 the kits kept, 37
+from the key-release receipts — 28 distinct chips, Milan and Genoa, report
 versions 3 and 5, firmware from SNP 0x17 to 0x1d, each with its VCEK and
 AMD's chain). Each report verifies under all three; nineteen fields are
 equal between the product and go-sev-guest (version, guest SVN, policy,
@@ -3545,7 +3545,7 @@ cargo install snpguest --version 0.10.0 --locked                         # VirTE
 ```
 
 **Scope.** Two readings maintained by others, run on the same bytes: not a
-proof that any of the three is correct, but that they agree on 67 reports
+proof that any of the three is correct, but that they agree on 68 reports
 of two product lines and disagree on none, and that a byte out of place
 is refused by all. The stage of a refusal differs and may: go-sev-guest
 refuses reserved and must-be-one bits at the parse where the product

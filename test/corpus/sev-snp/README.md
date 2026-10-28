@@ -4,7 +4,7 @@ This directory is whole on its own: every genuine AMD SEV-SNP attestation
 report Vault Genome has on record, the VCEK each one verifies under, AMD's
 ASK+ARK chain for each product, what every verifier must read from each
 report, and the digests of all of it. A tarball of this directory is the
-corpus. On 2026-10-28: 67 reports from 27 distinct chips, Milan and Genoa,
+corpus. On 2026-10-28, later: 68 reports from 28 distinct chips, Milan and Genoa,
 report versions 3 and 5, firmware from SNP 0x17 to 0x1d.
 
 | File | What it is |
@@ -108,6 +108,13 @@ must be refused. The product's own reading is the first user
   no mutant verified by either.
 - `results/harness-oracle-20261028T031120Z.json` — the harness with the Google
   adapter on the 67: eleven fields each, eight of eight mutants refused on
+  each.
+- `results/differential-20261028T221802Z.json` — the corpus at 68 (the
+  receipt of the 0.13.0 record added, a chip new on the record: 28), the
+  Google reading alone: both verify every report, nineteen fields equal,
+  no mutant verified by either.
+- `results/harness-oracle-20261028T221802Z.json` — the harness with the Google
+  adapter on the 68: eleven fields each, eight of eight mutants refused on
   each.
 
 ## Licence
