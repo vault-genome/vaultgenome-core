@@ -1,0 +1,4 @@
+    binary inside = release asset (2e75a9aee02b984336749062a9ddbc5f443d943a7b139b518f21d5a3c92be88e)
+    binary inside = release asset (a328f0551b972224bbb5a4f78b74ee32ecf458cc4f2a8812fe3b0bdbb3061b28)
+    binary inside = release asset (333ef21f0bb0088f86d5df741cdba1450d8530328bc4d2bb1fd788e1f25eddba)
+    binary inside = release asset (42086f585bb01c836c2ded2f895e26e6f23a7578a575108c1a081f09efa571bc)

@@ -241,6 +241,36 @@ twelve pairs online, the twelve bundles with `--trusted-root` and the
 network denied, 6 provenances and the tag verified, the six artifacts
 rebuilt byte for byte; on the air-gap drill's guest the twelve bundles
 verified with egress denied, `scripts/hardware-test/air-gap/`).
+The tools for the other platforms, the checksums list and the Python
+distribution (0.12.0) were rehearsed as `v0.12.0-rc1` on 2026-10-28 (run
+40616916087, 01:45–01:57Z on the tag's push): the build job built the
+twenty-two binaries, the worker package and the Python distribution
+twice to byte-identical files, refused nothing, and uploaded 188 assets;
+the images job built, pushed, signed and attested the four images; the
+generic and the four container provenances followed — 197 assets; the
+`pypi` job was skipped, as a rehearsal's is. Verified like a release
+(§5) by the kits against the rehearsal: `release-deploy`
+(`scripts/hardware-test/release-deploy/evidence/20261028T020143Z/`) —
+the signed list against the 23 downloaded artifacts, the forty-seven
+signature pairs and the forty-seven bundles (with `--trusted-root` and
+the network denied), the twenty-four provenances and the tag; the
+twenty binaries, the package, the wheel and the sdist rebuilt from the
+tag byte for byte on a Darwin arm64 host (each cross build for its own
+platform, the distribution by the tag's `scripts/build_python_dist.sh`);
+the guest from release assets alone, the gate job EXACT, 17 events
+verified — and `release-deploy-images`
+(`scripts/hardware-test/release-deploy-images/evidence/20261028T021319Z/`)
+— the four images publicly readable, each signature, SBOM attestation
+and container provenance verified, the binary inside each equal to its
+release asset, the two default images run on the guest, the gate job
+EXACT, 17 events verified. The Homebrew formula written from the
+rehearsal's checksums list installed on an Apple-silicon Mac and on
+x86-64 Linux (`brew install`, `brew test`, `brew audit --strict
+--online`; the tap's own workflow). The rehearsal found one thing:
+Homebrew reads a version from the end of a URL, and
+`acpctl-darwin-arm64` gave it `64` — the formula names the version. The
+rehearsal's GitHub release stays until the formula points at `v0.12.0`,
+then is deleted and the tag kept.
 
 ## 5. Post-release verification
 

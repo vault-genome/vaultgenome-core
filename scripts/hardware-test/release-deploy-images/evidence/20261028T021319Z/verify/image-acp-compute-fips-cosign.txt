@@ -1,0 +1,14 @@
+
+Verification for ghcr.io/vault-genome/acp-compute-fips@sha256:f2939d1a5a09ebedb5435c2f69135893ab226e572f3b02dc685af87b1185aaa2 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The code-signing certificate was verified using trusted certificate authority certificates
+Certificate subject: https://github.com/vault-genome/vaultgenome-core/.github/workflows/release.yml@refs/tags/v0.12.0-rc1
+Certificate issuer URL: https://token.actions.githubusercontent.com
+GitHub Workflow Trigger: push
+GitHub Workflow SHA: 9d51661be094de44b40b004998749894ed747712
+GitHub Workflow Name: release
+GitHub Workflow Repository: vault-genome/vaultgenome-core
+GitHub Workflow Ref: refs/tags/v0.12.0-rc1
+{"critical":{"identity":{"docker-reference":"ghcr.io/vault-genome/acp-compute-fips"},"image":{"docker-manifest-digest":"sha256:f2939d1a5a09ebedb5435c2f69135893ab226e572f3b02dc685af87b1185aaa2"},"type":"cosign container image signature"},"optional":null}

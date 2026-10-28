@@ -1,0 +1,1 @@
+{"ok":true,"audit_path":"audit/returnpath-audit.db","archive_dir":"audit/archive","signature_suite":"ed25519","event_count":17,"tip":"cee1a1fde48fde23d91a799d3f24a5f1c7b7ca6e543e273a8df28f5f8120d34e","segments":[{"path":"audit/returnpath-audit.db","first_index":0,"events":17,"tip":"cee1a1fde48fde23d91a799d3f24a5f1c7b7ca6e543e273a8df28f5f8120d34e","live":true}]}

@@ -1,0 +1,2 @@
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0" at commit 9d51661be094de44b40b004998749894ed747712
+PASSED: SLSA verification passed
