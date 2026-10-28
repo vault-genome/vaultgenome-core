@@ -89,7 +89,7 @@ case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) die "--tag must be a release tag suc
 # hands gcloud the person's credentials on the first real request (its
 # "Authorize Cloud Shell" prompt), and lists no account before that.
 gcloud auth print-access-token >/dev/null 2>&1 \
-  || die "gcloud has no credentials here: in Cloud Shell allow its Authorize prompt and try again; elsewhere run 'gcloud auth login' first"
+  || die "gcloud has no credentials here. In your own Cloud Shell: allow the Authorize prompt when it appears, then try again. In a temporary Cloud Shell session, or anywhere else: run 'gcloud auth login' first"
 ACCOUNT="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | head -1 || true)"
 [ -n "$ACCOUNT" ] || ACCOUNT="$(gcloud config get-value account 2>/dev/null || true)"
 [ -n "$ACCOUNT" ] || ACCOUNT="the signed-in account"
