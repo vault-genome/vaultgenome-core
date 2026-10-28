@@ -85,9 +85,18 @@ if [ -z "$TAG" ]; then
 fi
 case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) die "--tag must be a release tag such as v0.12.0";; esac
 
+# Credentials are proven by a token, not by a listed account: Cloud Shell
+# hands gcloud the person's credentials on the first real request (its
+# "Authorize Cloud Shell" prompt), and lists no account before that.
+gcloud auth print-access-token >/dev/null 2>&1 \
+  || die "gcloud has no credentials here: in Cloud Shell allow its Authorize prompt and try again; elsewhere run 'gcloud auth login' first"
 ACCOUNT="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | head -1 || true)"
-[ -n "$ACCOUNT" ] || die "gcloud is not signed in here: run 'gcloud auth login' and try again"
-[ -n "$PROJECT" ] || PROJECT="$(gcloud config get-value project 2>/dev/null || true)"
+[ -n "$ACCOUNT" ] || ACCOUNT="$(gcloud config get-value account 2>/dev/null || true)"
+[ -n "$ACCOUNT" ] || ACCOUNT="the signed-in account"
+if [ -z "$PROJECT" ]; then
+  PROJECT="$(gcloud config get-value project 2>/dev/null || true)"
+  [ -n "$PROJECT" ] && [ "$PROJECT" != "(unset)" ] || PROJECT="${GOOGLE_CLOUD_PROJECT:-${DEVSHELL_PROJECT_ID:-}}"
+fi
 [ -n "$PROJECT" ] && [ "$PROJECT" != "(unset)" ] || die "no project: pass --project <id> or 'gcloud config set project <id>'"
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"

@@ -8,10 +8,10 @@ deployment is proven, and left running. The button opens Cloud Shell on
 this directory with [`tutorial.md`](tutorial.md) beside it; the tutorial
 runs `deploy.sh`. Cloud Shell asks before it opens a repository that is
 not Google's: with **Trust repo** ticked it opens in your own Cloud
-Shell, signed in, and the record stays in your home directory; unticked,
-the session is temporary and `gcloud auth login` comes first (`deploy.sh`
-says so and stops until then). From a laptop with `gcloud` signed in, the
-same:
+Shell, where the first `gcloud` request asks you to authorize Cloud Shell
+and the record stays in your home directory; unticked, the session is
+temporary and `gcloud auth login` comes first (`deploy.sh` says so and
+stops until then). From a laptop with `gcloud` signed in, the same:
 
 ```bash
 deploy/gcp/deploy.sh --project <id>            # the latest release; --tag v0.12.0 for one

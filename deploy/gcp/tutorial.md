@@ -26,9 +26,10 @@ from `gcloud` and asks before it creates anything.
 
 When Cloud Shell opened this repository it said the repository is not
 Google's. With **Trust repo** ticked it opened in your own Cloud Shell,
-signed in as you, and the record will stay in your home directory. Left
-unticked, this session is temporary and `gcloud` has no credentials
-until you sign in — `deploy.sh` says so and stops if that is the case:
+and the record will stay in your home directory; the first `gcloud`
+request asks you to authorize Cloud Shell — allow it. Left unticked,
+this session is temporary and `gcloud` has no credentials until you sign
+in; `deploy.sh` says so and stops if that is the case:
 
 ```sh
 gcloud auth login
@@ -38,7 +39,7 @@ gcloud auth login
 
 <walkthrough-enable-apis apis="compute.googleapis.com"></walkthrough-enable-apis>
 
-(`deploy.sh` turns it on too when it is off; the button is faster.)
+(`deploy.sh` turns it on too when it is off.)
 
 ## Deploy
 
