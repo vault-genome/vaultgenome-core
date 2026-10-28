@@ -1,0 +1,66 @@
+{
+  "genome": {
+    "door": {
+      "command": [
+        "/var/lib/vaultgenome/venv/bin/python3",
+        "-m",
+        "vg_genome",
+        "door",
+        "--stdin-genome",
+        "--base",
+        "/var/lib/vaultgenome/base",
+        "--device",
+        "cpu"
+      ],
+      "env": [
+        "PYTHONPATH=/var/lib/vaultgenome/worker/genome",
+        "TOKENIZERS_PARALLELISM=false"
+      ],
+      "timeout_seconds": 300
+    }
+  },
+  "health": {
+    "listen_address": "127.0.0.1:9082"
+  },
+  "keys": {
+    "session_sealing": {
+      "kid": "session-sealing-demo",
+      "material_path": "/etc/vaultgenome/secrets/acp-compute/sealing.key"
+    },
+    "worker_signing": {
+      "kid": "acp-compute-worker-demo",
+      "seed_path": "/etc/vaultgenome/secrets/acp-compute/worker_signing_seed"
+    }
+  },
+  "log": {
+    "format": "json",
+    "level": "info"
+  },
+  "runtime": {
+    "dial_backoff_initial_ms": 500,
+    "dial_backoff_max_ms": 5000,
+    "handshake_timeout_seconds": 30,
+    "idle_between_jobs_ms": 200,
+    "job_timeout_seconds": 600
+  },
+  "tee": {
+    "peer": {
+      "measurement_path": "/etc/vaultgenome/pins/vault.measurement",
+      "pcs_cache_dir": "/etc/vaultgenome/pcs-cache",
+      "provider": "gcp-tdx"
+    },
+    "provider": "auto",
+    "sealer": "auto",
+    "workload_descriptor": "acp-compute-gcp-deploy-v1"
+  },
+  "vault": {
+    "address": "127.0.0.1:9443",
+    "tls": {
+      "ca_bundle": "/etc/vaultgenome/secrets/shared/tls/ca.crt",
+      "client_cert": "/etc/vaultgenome/secrets/acp-compute/tls/client.crt",
+      "client_key": "/etc/vaultgenome/secrets/acp-compute/tls/client.key",
+      "enabled": true,
+      "server_name": "localhost"
+    }
+  }
+}

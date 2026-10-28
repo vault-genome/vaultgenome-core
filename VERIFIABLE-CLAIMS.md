@@ -2621,13 +2621,71 @@ signing under `ecdsa-p384-sha384` and accepting `ed25519` and
 the chip receipt, `genome verify` ok, the unlisted guest, the operator
 stop and the TCB floor one above the chip refused, `acpctl audit
 verify` at exit 0 reporting `signature_suite` `ecdsa-p384-sha384` over
-12 events — C42 and C43 on the released commit.
+12 events — C42 and C43 on the released commit. The release-deploy and images kits on
+`v0.13.0` (2026-10-28, published 21:37:32Z; the release with the one-button
+deployment and the Azure families' quote and seal selection without PCR
+10, rehearsed as `v0.13.0-rc1`, §4.1 of the release procedure). The release
+itself, 9 minutes after:
+[`scripts/hardware-test/release-deploy/evidence/20261028T214656Z/`](scripts/hardware-test/release-deploy/evidence/20261028T214656Z/)
+— `verify/assets.sha256` 197 assets; `verify/checksums.txt` the signed
+list verified, then `sha256sum -c` over the download: 23 of 23
+artifacts; `verify/cosign.txt` forty-seven "Verified OK";
+`verify/cosign-bundle-nonet.txt` the same forty-seven from their
+bundles with `--trusted-root` and no route; `verify/slsa.txt` the
+twenty-four artifacts' provenance verified; `verify/tag.txt` the tag's
+signature under the pinned key; `verify/rebuild.txt` the twenty
+binaries, the package, the wheel and the sdist rebuilt from the tag
+(commit `22e4439119d5`, go1.27.3, GNU tar 1.35, GNU gzip 1.15 and Python
+3.12.2 on Darwin arm64) with the same sha256 as the released files
+(`sagvd` `f20619f7…`, `sagvd-fips` `cec890e2…`, `acp-compute`
+`349f2719…`, `acp-compute-fips` `8de3e85b…`, `acpctl` `c63e68cf…`,
+`acpctl-fips` `37537e59…`, `acp-bootstrap` `96a71b6e…`,
+`acp-bootstrap-fips` `f0a01498…`, `acp-keygen` `0f6a07a0…`,
+`acp-keygen-fips` `2ea00556…`; `acpctl` for `linux-arm64` `610ed104…`,
+`darwin-amd64` `3f607562…`, `darwin-arm64` `c67b7f0a…`, `windows-amd64`
+`cd973057…`, `windows-arm64` `17511c11…`; `acp-keygen` for the same five
+`03e5edb9…`, `2b219d85…`, `03d8f7a3…`, `db6bb244…`, `8a4d2c5a…`; the
+wheel `9e02d0ec…`, the sdist `3937c7b9…`); `results/versions.txt` the
+released binaries reporting `v0.13.0` at the tag's commit; both daemons
+read `9fc6d42b…8b8cf` from the chip and sealed their key files to it;
+the thief with the sealed files and the unpinned worker refused;
+`results/job.json` gate level EXACT, 6 of 6, `max_abs_err` 0;
+`results/audit-verify.json` `ok: true`, 17 events; 121.5 s on the
+guest. The four container images, 18 minutes after:
+[`scripts/hardware-test/release-deploy-images/evidence/20261028T215842Z/`](scripts/hardware-test/release-deploy-images/evidence/20261028T215842Z/)
+— `sagvd@sha256:d1096286…`, `acp-compute@sha256:a5836e2e…`,
+`sagvd-fips@sha256:6c1b4b64…`, `acp-compute-fips@sha256:5f969cf9…`, all
+four publicly readable; each verified by digest on the runner
+(signature, SBOM attestation, SLSA provenance, the binary inside equal
+to its release asset: `f20619f7…`, `349f2719…`, `cec890e2…`,
+`8de3e85b…`); each loaded image's `RootFS.Layers` equal to the signed
+config's `diff_ids` (13 layers for the `sagvd` images, 9 for the
+workers); both daemons from their images, the key files sealed, both
+rogues refused, gate level EXACT, the audit log verified (17 events);
+295.0 s. And the button on the release (§5.9 of the procedure), within the
+hour: `scripts/hardware-test/gcp-deploy/evidence/20261028T214656Z/`
+on SEV-SNP — 267 s from the command to `PROVEN`, the reset and the
+services back in 86 s, a second job EXACT, one chain of 32 events — and
+`scripts/hardware-test/gcp-deploy/evidence/20261028T215508Z/` on TDX —
+263 s to `PROVEN` with the settled-boot reboot, back in 58 s after the
+reset with the vTPM opening the key files again, a second job EXACT, 32
+events ([C55](#c55), [C56](#c56) on the release). And the released commit under `fips` with `VG_FIPS=1` and
+`VG_SIGSUITE=ecdsa-p384-sha384`, on the certified module with
+enforcement on, by the key-release kit 30 minutes after:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261028T220713Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261028T220713Z/)
+— `versions.txt`: `sagvd v0.13.0 (commit 22e4439119d5) fips140=only
+module=v1.0.0 enforced=true`, the same for `acp-bootstrap`; `build.txt`
+every binary `GOFIPS140=v1.0.0-c2097c7c` at that commit; a key released
+across clouds under `hpke-p384-v2` (recipient key `fa7ff4d0…`), the
+restore confirmed by the chip receipt, the unlisted guest, the operator stop and the TCB floor one above the chip refused, `acpctl audit verify` at exit 0
+reporting `signature_suite` `ecdsa-p384-sha384` over 12 events — C42
+and C43 on the released commit.
 
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.12.0          # ~15 min, one n2d-standard-4, deletes it
-scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.12.0   # the images; ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.13.0          # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.13.0   # the images; ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---

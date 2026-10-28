@@ -1,0 +1,40 @@
+profile=fips
+fips=1 GODEBUG=fips140=only
+signature_suite=ecdsa-p384-sha384
+== binaries from gs://rats-probe-vg-e2e-20261028t220713z/e2e
+== configfs-tsm
+== provision (keygen)
+== sagvd identity
+sagvd crypto_profile=fips kem_suites=hpke-p384-v2,hpke-mlkem768-v2,hpke-mlkem1024-p384-v2
+sagvd signature_suite=ecdsa-p384-sha384 signature_suites=ed25519,ecdsa-p384-sha384
+sagvd authority_signature_suite=ecdsa-p384-sha384 audit_signature_suite=ecdsa-p384-sha384
+sagvd fips140 enabled=true enforced=true version=v1.0.0
+== seal a genome (a fine-tune output: LoRA weights, config, tokenizer)
+seal exit=0
+key_id=genome-fd49b5820ec1-g0-034cca18396d
+== operator stop key and first list (nothing stopped)
+== acp-bootstrap on SEV-SNP
+identity exit=0
+destination crypto_profile=fips kem_suites=hpke-p384-v2,hpke-mlkem768-v2,hpke-mlkem1024-p384-v2
+destination signature_suites=ed25519,ecdsa-p384-sha384
+destination fips140 enabled=true enforced=true version=v1.0.0
+measurement=e79ebb5b789ddb6b7a9897f663a655a65c69445aa482c4e1a5ff9fdeb4af1a2c8d5d30fcad5f4f0e04f1a13885eb984d
+== release the genome key to this attested guest
+release exit=0
+chip product=Milan variant=Milan cpuid=0x19/0x1/0x1 snp=0x1f microcode=0xe1 bootloader=0x4 firmware=1.58.3 alias_check=true mit_vector=0xfeb floor_snp=0x1b floor_microcode=0xde floor_from=AMD bulletins read 2026-10-22 for Milan
+release suite=hpke-p384-v2
+release profile=fips
+release recipient_key_sha256=fa7ff4d016ac2a44a9d3812296e78b85b92d03ddd5807bff4f4bfd1476c55582
+== the destination restores by itself; confirm from its chip-signed receipt
+confirm exit=0
+verify exit=0
+== release refused: guest not on the allow-list
+unlisted exit=1
+== release refused: operator stop in force
+stopped exit=1
+== release refused: the operator's TCB floor one above this chip (ADR 0033)
+floor exit=1
+floor chip_snp=0x1f floor_snp=0x20 reason=TCB floor: reported TCB snp 0x1f below 0x20 (tee.peer.sev_snp.tcb_floor) denied_on_record=1
+== audit log verified with the published audit key
+audit verify exit=0
+audit suite=ecdsa-p384-sha384 events=12

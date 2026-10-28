@@ -11,6 +11,18 @@ signed config's `diff_ids` (13 layers for the two `sagvd` images, 9 for the
 two workers); on the guest, from the two default images, `gate_level=EXACT`
 6/6, both rogues refused, the audit log verified (17 events), 188.3 s.
 
+`20261028T215842Z` is the run on `v0.13.0`, 18 minutes after it was
+published: PASS — the four images `sagvd@sha256:d1096286…`,
+`acp-compute@sha256:a5836e2e…`, `sagvd-fips@sha256:6c1b4b64…` and
+`acp-compute-fips@sha256:5f969cf9…`, all publicly readable; each
+signature, SBOM attestation and container provenance verified; the
+binary inside each equal to its release asset (`f20619f7…`,
+`349f2719…`, `cec890e2…`, `8de3e85b…`); each loaded image's
+`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
+the two `sagvd` images, 9 for the two workers); on the guest, from the
+two default images, `gate_level=EXACT` 6/6, both rogues refused, the
+audit log verified (17 events), 295.0 s.
+
  release-deploy-images — the Return Path on SEV-SNP from the release's container images
 
 What it proves: a deployment that starts from the registry — the two
