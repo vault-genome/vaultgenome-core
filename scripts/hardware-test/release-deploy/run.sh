@@ -11,8 +11,9 @@
 #      signatures against the release workflow's identity, SLSA provenance
 #      against the source tag, the tag's own signature against the keys
 #      pinned on main;
-#   2. rebuilds the five binaries and the worker package from the tag and
-#      requires every hash to equal the released file's; nothing is taken
+#   2. rebuilds every released binary — the five, their -fips variants, the
+#      tools for the other platforms — and the worker package from the tag
+#      and requires every hash to equal the released file's; nothing is taken
 #      from this tree — the guest fetches the AMD chain from KDS with the
 #      released acpctl, which verifies it against the roots the binary
 #      pins (ADR 0024);
@@ -77,12 +78,36 @@ IDENTITY='^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/
 ISSUER='https://token.actions.githubusercontent.com'
 WORKER_PKG="genome-worker-$TAG.tar.gz"
 # The artifacts: five binaries, from 0.8.0 their -fips variants on the
-# certified module (ADR 0030), and the worker package. Each has a
-# signature, a certificate and an SBOM signed the same way.
+# certified module (ADR 0030), from 0.12.0 acpctl and acp-keygen for the
+# other platforms (<tool>-<os>-<arch>, .exe on Windows; the Makefile's
+# build-cross), and the worker package. Each has a signature, a certificate
+# and an SBOM signed the same way. From 0.12.0 a signed list of every
+# artifact's SHA-256, checksums-<tag>.txt, is beside them: verified like
+# the others, then checked against the downloaded files.
 FIPS_BINARIES=""; [ -f "$DL/sagvd-fips" ] && FIPS_BINARIES="sagvd-fips acp-compute-fips acpctl-fips acp-bootstrap-fips acp-keygen-fips"
-N_ART=6; [ -n "$FIPS_BINARIES" ] && N_ART=11
+CROSS_BINARIES=""
+if [ -f "$DL/acpctl-darwin-arm64" ]; then
+  for t in acpctl acp-keygen; do for p in linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64; do
+    case "$p" in windows-*) CROSS_BINARIES="$CROSS_BINARIES $t-$p.exe";; *) CROSS_BINARIES="$CROSS_BINARIES $t-$p";; esac
+  done; done
+fi
+CHECKSUMS=""; [ -f "$DL/checksums-$TAG.txt" ] && CHECKSUMS="checksums-$TAG.txt"
+N_ART=6; [ -n "$FIPS_BINARIES" ] && N_ART=11; [ -n "$CROSS_BINARIES" ] && N_ART=$((N_ART + 10))
+# the signature pairs and the provenances to expect: two per artifact (the
+# file and its SBOM) and one per artifact; the checksums list adds one each
+N_SIG=$((N_ART * 2)); N_PROV=$N_ART
+[ -n "$CHECKSUMS" ] && { N_SIG=$((N_SIG + 1)); N_PROV=$((N_PROV + 1)); }
+if [ -n "$CHECKSUMS" ]; then
+  ( cd "$DL" && retry cosign verify-blob --signature "$CHECKSUMS.sig" --certificate "$CHECKSUMS.cert" \
+      --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$CHECKSUMS" ) 2>&1 | rec cosign.txt | tail -1 | sed "s|^|  $CHECKSUMS: |"
+  ( cd "$DL" && retry slsa-verifier verify-artifact "$CHECKSUMS" --provenance-path multiple.intoto.jsonl \
+      --source-uri "github.com/$REPO" --source-tag "$TAG" ) 2>&1 | rec slsa.txt | tail -1 | sed "s|^|  $CHECKSUMS: |"
+  ( cd "$DL" && sha256sum -c --strict "$CHECKSUMS" ) 2>&1 | rec checksums.txt >/dev/null || true
+  echo "  $CHECKSUMS: $(grep -c ': OK$' "$EVIDENCE/verify/checksums.txt") of $N_ART downloaded files match the signed list"
+  test "$(grep -c ': OK$' "$EVIDENCE/verify/checksums.txt")" = "$N_ART" || { echo "ERROR: the signed checksums list does not match the downloaded files"; exit 1; }
+fi
 # shellcheck disable=SC2086
-for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES "$WORKER_PKG"; do
+for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES $CROSS_BINARIES "$WORKER_PKG"; do
   sbom="$b.sbom.spdx.json"; sbomsig="$b.sbom.sig"; sbomcert="$b.sbom.cert"
   [ "$b" = "$WORKER_PKG" ] && { sbom="genome-worker-$TAG.sbom.spdx.json"; sbomsig="genome-worker-$TAG.sbom.sig"; sbomcert="genome-worker-$TAG.sbom.cert"; }
   for f in "$b" "$sbom"; do
@@ -99,7 +124,7 @@ done
 { echo "release: $TAG"; echo "verified at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"; echo "cosign: $(cosign version 2>&1 | grep GitVersion | awk '{print $2}')"; echo "slsa-verifier: $(slsa-verifier version 2>&1 | grep GitVersion | awk '{print $2}')"; } | rec tools.txt >/dev/null
 grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt" | sed 's/^/  cosign Verified OK: /'
 grep -c 'PASSED: SLSA verification passed' "$EVIDENCE/verify/slsa.txt" | sed 's/^/  slsa PASSED: /'
-test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = $((N_ART * 2)) || { echo "ERROR: a signature did not verify"; exit 1; }
+test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign.txt")" = "$N_SIG" || { echo "ERROR: a signature did not verify"; exit 1; }
 # From 0.4.3 the release carries a Sigstore bundle beside each pair: the
 # same twelve files verified from their bundles with the Sigstore trust
 # root as a file (cosign initialize fetches it) and no route — the check
@@ -115,28 +140,30 @@ if [ "$(ls "$DL"/*.sigstore.json 2>/dev/null | wc -l | tr -d ' ')" -ge 12 ]; the
   echo "  trusted_root.json: sha256 $(shasum -a 256 "$DL/trusted_root.json" | awk '{print $1}')" | rec tools.txt
   if command -v sandbox-exec >/dev/null 2>&1; then NONET=(sandbox-exec -p '(version 1)(allow default)(deny network*)' env TUF_ROOT=/nonexistent); echo "  the bundle check runs with the network denied (sandbox-exec)"; else NONET=(env); echo "  the bundle check runs with the route (no sandbox-exec here)"; fi
   # shellcheck disable=SC2086
-  for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES "$WORKER_PKG"; do
+  for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES $CROSS_BINARIES "$WORKER_PKG" $CHECKSUMS; do
     sbom="$b.sbom.spdx.json"; sbombundle="$b.sbom.sigstore.json"
     [ "$b" = "$WORKER_PKG" ] && { sbom="genome-worker-$TAG.sbom.spdx.json"; sbombundle="genome-worker-$TAG.sbom.sigstore.json"; }
-    for f in "$b" "$sbom"; do
+    [ "$b" = "$CHECKSUMS" ] && sbom=""   # the list has no SBOM of its own
+    for f in "$b" $sbom; do
       bundle="$f.sigstore.json"; [ "$f" = "$sbom" ] && bundle="$sbombundle"
       ( cd "$DL" && "${NONET[@]}" cosign verify-blob --new-bundle-format --bundle "$bundle" --trusted-root trusted_root.json \
           --certificate-identity-regexp "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$f" ) 2>&1 | rec cosign-bundle-nonet.txt | tail -1 | sed "s|^|  bundle, no route, $f: |"
     done
   done
   grep -c 'Verified OK' "$EVIDENCE/verify/cosign-bundle-nonet.txt" | sed 's/^/  cosign bundle with --trusted-root Verified OK: /'
-  test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign-bundle-nonet.txt")" = $((N_ART * 2)) || { echo "ERROR: a bundle did not verify with --trusted-root"; exit 1; }
+  test "$(grep -c 'Verified OK' "$EVIDENCE/verify/cosign-bundle-nonet.txt")" = "$N_SIG" || { echo "ERROR: a bundle did not verify with --trusted-root"; exit 1; }
 else
   echo "  no Sigstore bundles in this release (before 0.4.3): the pairs only"
 fi
-test "$(grep -c 'PASSED: SLSA verification passed' "$EVIDENCE/verify/slsa.txt")" = "$N_ART" || { echo "ERROR: a provenance did not verify"; exit 1; }
+test "$(grep -c 'PASSED: SLSA verification passed' "$EVIDENCE/verify/slsa.txt")" = "$N_PROV" || { echo "ERROR: a provenance did not verify"; exit 1; }
 grep -q 'Good "git" signature' "$EVIDENCE/verify/tag.txt" || { echo "ERROR: the tag's signature did not verify against .github/allowed_signers"; exit 1; }
 
 echo "== 2b. rebuild from the tag and compare with the released binaries and package (release procedure §5.4)"
 REBUILD="$WORK/rebuild"
 git clone -q --no-checkout "https://github.com/$REPO.git" "$REBUILD"
 # The same inputs release.yml uses: the tag as VERSION, the full commit as
-# COMMIT, the commit's time as SOURCE_DATE_EPOCH, CGO off, linux/amd64;
+# COMMIT, the commit's time as SOURCE_DATE_EPOCH, CGO off, linux/amd64 (the
+# cross builds set their own GOOS/GOARCH in the Makefile's rules);
 # the package with the same tar flags (GNU tar: gtar on macOS) and GNU
 # gzip: the same tar compressed by Apple's gzip is a different file (the
 # rehearsal of 0.4.2 found it), so a gzip that is not GNU's stops the run.
@@ -148,14 +175,14 @@ done
 [ -n "$GZIP_BIN" ] || { echo "ERROR: the package rebuild needs GNU gzip (brew install gzip on macOS); $(gzip --version 2>&1 | head -1) is not it"; exit 1; }
 ( cd "$REBUILD" && git checkout -q "$TAG" \
   && SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-     make -s build ${FIPS_BINARIES:+build-fips} VERSION="$TAG" COMMIT="$(git rev-parse HEAD)" >/dev/null 2>&1 \
+     make -s build ${FIPS_BINARIES:+build-fips} ${CROSS_BINARIES:+build-cross} VERSION="$TAG" COMMIT="$(git rev-parse HEAD)" >/dev/null 2>&1 \
   && SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" \
      "$GTAR" --sort=name --mtime="@$(git log -1 --format=%ct)" --owner=0 --group=0 --numeric-owner \
        --exclude='__pycache__' --exclude='.pytest_cache' -C workers -cf - genome | "$GZIP_BIN" -n > "$REBUILD/$WORKER_PKG" )
 {
   echo "rebuilt from tag $TAG at $(git -C "$REBUILD" rev-parse HEAD) with $(go version | awk '{print $3}'), $("$GTAR" --version | head -1) and $("$GZIP_BIN" --version | head -1) on $(uname -sm)"
   # shellcheck disable=SC2086
-  for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES; do
+  for b in sagvd acp-compute acpctl acp-bootstrap acp-keygen $FIPS_BINARIES $CROSS_BINARIES; do
     r=$(sha256sum "$REBUILD/bin/$b" | awk '{print $1}'); d=$(sha256sum "$DL/$b" | awk '{print $1}')
     if [ "$r" = "$d" ]; then echo "$b: rebuilt sha256 equals the released file ($d)"; else echo "$b: MISMATCH rebuilt=$r released=$d"; fi
   done

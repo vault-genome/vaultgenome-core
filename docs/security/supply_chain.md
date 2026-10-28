@@ -17,17 +17,22 @@ infrastructure or signing keys are trusted parties.
 
 ## What ships with every release
 
-For each binary (`sagvd`, `acp-compute`, `acpctl`):
+For each binary — the five for Linux x86-64 (`sagvd`, `acp-compute`,
+`acpctl`, `acp-bootstrap`, `acp-keygen`), their `-fips` variants, and
+`acpctl` and `acp-keygen` for `linux-arm64`, `darwin-amd64`,
+`darwin-arm64`, `windows-amd64` and `windows-arm64` (`<tool>-<os>-<arch>`,
+`.exe` on Windows):
 
 | Asset                         | Format       | Source           | Verification path |
 |-------------------------------|--------------|------------------|--------------------|
-| `<binary>`                    | Linux ELF    | reproducible Go build | rebuild from source |
+| `<binary>`                    | ELF, Mach-O or PE, static (`CGO_ENABLED=0`) | reproducible Go build | rebuild from source |
 | `<binary>.sig`                | Sigstore sig | cosign keyless | `cosign verify-blob` |
 | `<binary>.cert`               | x509 cert    | sigstore Fulcio | embedded in `verify-blob` |
 | `<binary>.sbom.spdx.json`     | SPDX 2.3 JSON| syft DIR scan   | parse + cross-check go.mod |
 | `<binary>.sbom.sig`           | Sigstore sig | cosign keyless | same as `.sig` |
 | `<binary>.sigstore.json`, `<binary>.sbom.sigstore.json` (from 0.4.3) | Sigstore bundle (v0.3): the signature, the certificate and the Rekor entry in one file | cosign keyless (`--new-bundle-format --bundle`) | `cosign verify-blob --new-bundle-format --bundle`, with `--trusted-root` and no route |
 | SLSA provenance (`*.intoto.jsonl`) | in-toto v1.0 | slsa-github-generator | SLSA verifier CLI |
+| `checksums-<tag>.txt`, with its `.sig`, `.cert` and `.sigstore.json` (from 0.12.0) | `sha256sum` format: every binary and the worker package | the release build | `sha256sum -c` over the downloaded assets; `cosign verify-blob` on the list; in the provenance |
 
 From 0.6.1 the two container images ship with it:
 `ghcr.io/vault-genome/sagvd` (distroless static) and
@@ -49,8 +54,17 @@ From 0.8.0 the release also carries a `-fips` variant of every binary
 `ghcr.io/vault-genome/acp-compute-fips`), built on the certified Go
 Cryptographic Module v1.0.0 (`GOFIPS140=v1.0.0`; ADR 0030) from the same
 commit by the same reproducible build, with the same signatures, SBOMs
-and provenance: 88 build assets and four images, 97 assets in all. A
-`-fips` image carries its binary at the same path as the default one.
+and provenance. A `-fips` image carries its binary at the same path as
+the default one.
+
+From 0.12.0 the release also carries `acpctl` and `acp-keygen` for the
+five other platforms — the two tools a person runs on their own machine,
+built by the same reproducible flags, each with its signature,
+certificate, bundle and SBOM, in the provenance and in
+`verify-reproducible` — and the signed checksums list: 172 build assets
+and four images, 181 assets in all (97 before 0.12.0, 55 before 0.8.0).
+The daemons stay Linux x86-64: they attest with hardware the other
+platforms do not have.
 
 All artifacts are attached to the GitHub Release for the corresponding
 signed semver tag (`v*.*.*`). Each release tag is itself git-signed by

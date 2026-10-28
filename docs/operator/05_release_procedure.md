@@ -5,11 +5,16 @@
 evidence (SBOM + SLSA provenance + signed tag + cosign signatures), as
 `.github/workflows/release.yml` implements it.
 
-**What a release contains.** `release.yml` builds with `make build` (five
-binaries: `sagvd`, `acp-compute`, `acpctl`, `acp-bootstrap`, `acp-demo`) and
-signs, SBOMs and publishes the four operational ones: `sagvd`, `acp-compute`,
-`acpctl` and `acp-bootstrap`, the cross-cloud destination daemon. `acp-demo`
-is not published.
+**What a release contains.** `release.yml` builds with `make build
+build-fips build-cross` and signs, SBOMs and publishes: the five
+operational binaries for Linux x86-64 — `sagvd`, `acp-compute`, `acpctl`,
+`acp-bootstrap`, `acp-keygen` — and their `-fips` variants on the
+certified module (ADR 0030); `acpctl` and `acp-keygen` for `linux-arm64`,
+`darwin-amd64`, `darwin-arm64`, `windows-amd64` and `windows-arm64`
+(`<tool>-<os>-<arch>`, `.exe` on Windows; the list lives in the Makefile,
+`make -s cross-binaries` prints it); the worker package; and
+`checksums-<tag>.txt`, every artifact's SHA-256, signed like the rest.
+`acp-demo`, which `make build` also builds, is not published.
 
 **Related doctrine:** `docs/doctrine/ci-security-policy.md` §6 (supply-chain
 attestation), invariant #11 "supply chain attested".
@@ -79,32 +84,38 @@ The tag push runs `.github/workflows/release.yml`:
 1. Check out the tag and run `git verify-tag` on it against the keys pinned on
    the default branch.
 2. Set up Go 1.27.3 (the toolchain `go.mod` names).
-3. `make build build-fips` and `make verify-reproducible`, with `VERSION` =
-   the tag name, `COMMIT` = the full commit SHA and `SOURCE_DATE_EPOCH` =
-   the tagged commit's timestamp. The `-fips` variants (ADR 0030) are the
-   same five binaries built on the certified Go Cryptographic Module
-   (`GOFIPS140=v1.0.0`, the version named, never an alias) from the same
-   commit by the same reproducible build; the job refuses a `-fips`
-   binary whose build settings do not name the module, and prints
-   `sagvd-fips version` (`fips140=on module=v1.0.0`).
+3. `make build build-fips build-cross` and `make verify-reproducible`,
+   with `VERSION` = the tag name, `COMMIT` = the full commit SHA and
+   `SOURCE_DATE_EPOCH` = the tagged commit's timestamp. The `-fips`
+   variants (ADR 0030) are the same five binaries built on the certified
+   Go Cryptographic Module (`GOFIPS140=v1.0.0`, the version named, never
+   an alias) from the same commit by the same reproducible build; the job
+   refuses a `-fips` binary whose build settings do not name the module,
+   and prints `sagvd-fips version` (`fips140=on module=v1.0.0`). The
+   cross builds are `acpctl` and `acp-keygen` for the five other
+   platforms, by the same flags; the job refuses one whose build settings
+   do not name the platform in its file name.
 4. Pack `workers/genome` as `genome-worker-<tag>.tar.gz` with GNU tar
    from the tagged commit's time (sorted names, numeric owner 0, `gzip
-   -n`), twice, and compare; `syft`: one SPDX-JSON SBOM per published
-   binary (the ten), `dist/<binary>.sbom.spdx.json`, and one for the package.
-5. `cosign sign-blob` (keyless): a signature and certificate for each binary
-   and for the package (`dist/<artifact>.sig`, `.cert`) and for each SBOM
-   (`.sbom.sig`, `.sbom.cert`), and beside each pair the Sigstore bundle
+   -n`), twice, and compare; write `checksums-<tag>.txt`, the SHA-256 of
+   every binary (the twenty) and of the package in `sha256sum`'s format;
+   `syft`: one SPDX-JSON SBOM per published binary,
+   `dist/<binary>.sbom.spdx.json`, and one for the package.
+5. `cosign sign-blob` (keyless): a signature and certificate for each
+   binary, for the package and for the checksums list
+   (`dist/<artifact>.sig`, `.cert`) and for each SBOM (`.sbom.sig`,
+   `.sbom.cert`), and beside each pair the Sigstore bundle
    (`.sigstore.json`, the new bundle format: the signature, the
    certificate and the Rekor entry in one file, for verification with a
    trusted-root file and no route).
-6. Upload `bin/sagvd`, `bin/acp-compute`, `bin/acpctl`, `bin/acp-bootstrap`,
-   `bin/acp-keygen`, their five `-fips` variants, the package, the SBOMs,
-   signatures, certificates and bundles to the GitHub Release: 88 assets
-   (48 before 0.8.0).
+6. Upload the twenty binaries, the package, the checksums list, the
+   SBOMs, signatures, certificates and bundles to the GitHub Release:
+   172 assets (88 before 0.12.0, 48 before 0.8.0). The release's notes
+   say which file is for which machine.
 7. A second job runs the SLSA generic generator
    (`slsa-framework/slsa-github-generator`, `generator_generic_slsa3.yml`
-   v2.1.0) over the ten binaries' and the worker package's SHA-256 and uploads the provenance to the
-   release.
+   v2.1.0) over the twenty binaries', the worker package's and the
+   checksums list's SHA-256 and uploads the provenance to the release.
 8. The `images` job takes `bin/sagvd`, `bin/acp-compute` and their `-fips`
    variants with their Sigstore bundles from the build job, verifies each
    binary under this workflow's identity on this tag before packing it,
@@ -119,8 +130,9 @@ The tag push runs `.github/workflows/release.yml`:
    (`cosign sign`, keyless), attests an SPDX SBOM of each image to it
    (`cosign attest --type spdxjson`), and uploads `images-<tag>.txt` — the
    four images named by digest — with its signature, certificate and
-   bundle, and the four image SBOMs: 8 more assets, 97 in all (the build
-   job's 88, the provenance, these 8; 55 before 0.8.0). The first push of
+   bundle, and the four image SBOMs: 8 more assets, 181 in all (the build
+   job's 172, the provenance, these 8; 97 before 0.12.0, 55 before
+   0.8.0). The first push of
    an image creates its package *private* — the rehearsal `v0.6.1-rc2`
    found it on 2026-10-21 (an anonymous pull answers 403) — so an org
    owner makes `ghcr.io/vault-genome/sagvd`,
@@ -213,9 +225,11 @@ verified with egress denied, `scripts/hardware-test/air-gap/`).
 Once the release workflow completes:
 
 1. Download all release artifacts to a clean environment (not a
-   developer machine).
-2. Verify every binary, the worker package and every SBOM with `cosign
-   verify-blob`, for example:
+   developer machine). `sha256sum -c checksums-<tag>.txt` there: every
+   binary and the package against the signed list, before any single
+   check.
+2. Verify the checksums list, every binary, the worker package and every
+   SBOM with `cosign verify-blob`, for example:
    ```
    cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
      --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
@@ -223,8 +237,9 @@ Once the release workflow completes:
      sagvd
    ```
    `docs/security/supply_chain.md` explains what a successful check proves.
-   Then the bundle of each of the twenty-two (the ten binaries, the
-   package, their SBOMs; twelve before 0.8.0), with the Sigstore trust root as
+   Then the bundle of each of the forty-two (the twenty binaries, the
+   package, their SBOMs; twenty-two before 0.12.0, twelve before 0.8.0)
+   and of the checksums list, with the Sigstore trust root as
    a file (`cosign initialize` fetches it into
    `~/.sigstore/root/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json`),
    which needs no route — run it with the network denied, as the
@@ -238,16 +253,16 @@ Once the release workflow completes:
    — the check an air-gapped site runs (`runbooks/air_gap.md`). Not
    `--offline`: on cosign 2.6.5 it still updates TUF from the mirror.
 3. Check that the SLSA provenance attached to the release names each of
-   the ten binaries' and the worker package's SHA-256 (for example with
-   `slsa-verifier`).
+   the twenty binaries', the worker package's and the checksums list's
+   SHA-256 (for example with `slsa-verifier`).
 4. Rebuild from the tag with Go 1.27.3, from any host — the binaries are
    static (`CGO_ENABLED=0`) and carry the tag's VCS stamp, so the rebuild
    must come from a git checkout of the tag, not from an archive:
    ```
    git clone https://github.com/vault-genome/vaultgenome-core.git && cd vaultgenome-core
    git checkout vX.Y.Z
-   GOOS=linux GOARCH=amd64 make build build-fips VERSION=vX.Y.Z COMMIT=$(git rev-parse HEAD)
-   sha256sum bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen bin/*-fips
+   GOOS=linux GOARCH=amd64 make build build-fips build-cross VERSION=vX.Y.Z COMMIT=$(git rev-parse HEAD)
+   sha256sum bin/sagvd bin/acp-compute bin/acpctl bin/acp-bootstrap bin/acp-keygen bin/*-fips bin/*-*-*
    ```
    Every hash must equal the released file's. The worker package repacks
    the same way with GNU tar (`--sort=name --mtime=@SOURCE_DATE_EPOCH
@@ -257,7 +272,8 @@ Once the release workflow completes:
    the same tar, so a repack on macOS needs `gzip` from Homebrew beside
    `gtar` (the rehearsal of 0.4.2 found it: the tar inside identical, the
    file not);
-   `scripts/hardware-test/release-deploy/run.sh` does all six. `go version -m <binary>`
+   `scripts/hardware-test/release-deploy/run.sh` does all of them, the
+   cross builds included. `go version -m <binary>`
    prints the build settings a released binary was made with (Go
    version, GOOS/GOARCH, CGO_ENABLED, -trimpath, the VCS revision and
    time; for a `-fips` binary `GOFIPS140=v1.0.0-…`, the module snapshot
@@ -328,7 +344,8 @@ it is an unattested binary and per invariant #11 is not shippable.
 [ ] Tag: git tag -s vX.Y.Z
 [ ] Push: git push origin vX.Y.Z
 [ ] release.yml workflow green
-[ ] cosign verify-blob on every binary and SBOM: the pair, and the bundle with --trusted-root and the network denied
+[ ] sha256sum -c checksums-vX.Y.Z.txt over the downloaded assets
+[ ] cosign verify-blob on every binary, the checksums list and every SBOM: the pair, and the bundle with --trusted-root and the network denied
 [ ] SLSA provenance names every binary's SHA-256
 [ ] Rebuild from the tag is byte-identical
 [ ] Tag signature verified externally

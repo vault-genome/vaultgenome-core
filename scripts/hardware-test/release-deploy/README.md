@@ -16,25 +16,30 @@ created and deleted by the run.
 ## What the run does
 
 1. **Downloads the release's assets** — the five binaries, from 0.8.0
-   their `-fips` variants on the certified module (ADR 0030), and the
-   worker package, their keyless cosign signatures and certificates, the
-   SBOMs with theirs, and the SLSA provenance — and **verifies every one**
-   before anything runs: `cosign verify-blob` against the release
-   workflow's identity and the GitHub OIDC issuer (twelve signatures;
-   twenty-two from 0.8.0), `slsa-verifier verify-artifact` against the
-   source repository and the tag (six artifacts; eleven from 0.8.0), and the tag's own signature against the keys pinned on
-   `main` (`.github/allowed_signers`). A signature that does not verify
-   stops the run. From 0.4.3 the release carries a Sigstore bundle beside
-   each pair, and the kit verifies the same twelve files from their
-   bundles with the Sigstore trust root as a file (`--trusted-root`, the
-   file from `cosign initialize`'s cache) and, on macOS, the network
-   denied to cosign — the check an air-gapped site runs. (A release before
-   0.4.2 has four binaries and no
-   package: eight signatures, four provenances, and the pieces below from
-   the tag's source — the record of `v0.4.1` says so.)
-2. **Rebuilds the five binaries (and the `-fips` five, from 0.8.0) and the worker package from the tag** with
+   their `-fips` variants on the certified module (ADR 0030), from 0.12.0
+   `acpctl` and `acp-keygen` for the five other platforms
+   (`<tool>-<os>-<arch>`) and the signed checksums list, and the worker
+   package, their keyless cosign signatures and certificates, the SBOMs
+   with theirs, and the SLSA provenance — and **verifies every one**
+   before anything runs: from 0.12.0 `sha256sum -c` of every binary and
+   the package against the signed list first; `cosign verify-blob`
+   against the release workflow's identity and the GitHub OIDC issuer
+   (twelve signatures; twenty-two from 0.8.0; forty-three from 0.12.0),
+   `slsa-verifier verify-artifact` against the source repository and the
+   tag (six artifacts; eleven from 0.8.0; twenty-two from 0.12.0), and
+   the tag's own signature against the keys pinned on `main`
+   (`.github/allowed_signers`). A signature that does not verify stops
+   the run. From 0.4.3 the release carries a Sigstore bundle beside each
+   pair, and the kit verifies the same files from their bundles with the
+   Sigstore trust root as a file (`--trusted-root`, the file from `cosign
+   initialize`'s cache) and, on macOS, the network denied to cosign — the
+   check an air-gapped site runs. (A release before 0.4.2 has four
+   binaries and no package: eight signatures, four provenances, and the
+   pieces below from the tag's source — the record of `v0.4.1` says so.)
+2. **Rebuilds every released binary (the five; the `-fips` five from 0.8.0; the ten cross builds from 0.12.0) and the worker package from the tag** with
    the inputs `release.yml` uses (the tag as VERSION, the commit as COMMIT,
-   its time as SOURCE_DATE_EPOCH, CGO off, linux/amd64; GNU tar with sorted
+   its time as SOURCE_DATE_EPOCH, CGO off, linux/amd64 — the cross builds
+   name their own GOOS/GOARCH in the Makefile; GNU tar with sorted
    names, numeric owner 0 and that time as every mtime, GNU gzip without a
    name or a timestamp) and requires every rebuilt artifact's SHA-256 to
    equal the released file's — the release procedure's §5.4, done by the

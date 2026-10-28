@@ -108,17 +108,42 @@ Every binary reads its secrets from files it seals to the host it runs on:
 run `sagvd seal-keys`, `acp-compute seal-keys` and `acp-bootstrap seal-keys`
 once after provisioning ([ADR 0023](docs/adr/0023-the-daemons-key-files-sealed-to-the-host.md)).
 
-## Verify a release
+## Download and verify a release
+
+A release carries the five binaries for Linux x86-64 — `sagvd`,
+`acp-compute`, `acpctl`, `acp-bootstrap`, `acp-keygen` — and their `-fips`
+variants on the certified Go Cryptographic Module v1.0.0 (ADR 0030); the
+two tools a person runs on their own machine, `acpctl` and `acp-keygen`,
+for the other platforms as well; the worker package; and a signed list of
+every artifact's SHA-256, `checksums-<tag>.txt`.
+
+| Your machine | Files |
+| - | - |
+| Linux x86-64 — a server; the daemons too | `acpctl`, `acp-keygen`, `sagvd`, `acp-compute`, `acp-bootstrap`; `<name>-fips` on the certified module |
+| Linux arm64 | `acpctl-linux-arm64`, `acp-keygen-linux-arm64` |
+| macOS, Apple silicon | `acpctl-darwin-arm64`, `acp-keygen-darwin-arm64` |
+| macOS, Intel | `acpctl-darwin-amd64`, `acp-keygen-darwin-amd64` |
+| Windows x64 | `acpctl-windows-amd64.exe`, `acp-keygen-windows-amd64.exe` |
+| Windows Arm | `acpctl-windows-arm64.exe`, `acp-keygen-windows-arm64.exe` |
+
+The daemons are Linux x86-64 only: they attest with hardware the other
+platforms do not have
+([`09_first_deployment.md`](docs/operator/09_first_deployment.md) §2 names
+the hosts a release has run on).
 
 Releases are cut by [`release.yml`](.github/workflows/release.yml) from a tag
 signed by a key pinned in [`.github/allowed_signers`](.github/allowed_signers):
-five binaries and the worker package built reproducibly — and, from
-0.8.0, a `-fips` variant of each binary and image on the certified Go
-Cryptographic Module v1.0.0 (ADR 0030) — each with a keyless cosign
-signature and a transparency-log entry, an SPDX SBOM, and a SLSA level
-3 provenance attestation. Check what you downloaded before you run it:
+every binary and the worker package built reproducibly, each with a
+keyless cosign signature and a transparency-log entry, an SPDX SBOM, and
+a SLSA level 3 provenance attestation. Check what you downloaded before
+you run it — the whole download at once against the signed list, then
+any file on its own:
 
 ```bash
+sha256sum -c checksums-<tag>.txt            # every downloaded file against the list
+cosign verify-blob --signature checksums-<tag>.txt.sig --certificate checksums-<tag>.txt.cert \
+  --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums-<tag>.txt
 cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
@@ -128,10 +153,12 @@ git verify-tag v0.11.0
 ```
 
 The same two commands verify `acp-compute`, `acpctl`, `acp-bootstrap`,
-`acp-keygen`, their `-fips` variants and the worker package
-`genome-worker-v0.11.0.tar.gz`; a
-deployment needs nothing from the source tree
+`acp-keygen`, their `-fips` variants, the tools for the other platforms
+and the worker package `genome-worker-v0.11.0.tar.gz`; a deployment
+needs nothing from the source tree
 ([`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md)).
+On Windows, `certutil -hashfile acpctl-windows-amd64.exe SHA256` prints
+the hash to compare with the list's line, and cosign has a Windows build.
 
 From 0.4.3 on, every signed file also has a Sigstore bundle,
 `<asset>.sigstore.json` — the signature, the certificate and the Rekor
