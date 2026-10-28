@@ -7,12 +7,14 @@ Confidential VM (AMD SEV-SNP) from the signed release, proves it the way
 the project's own reference deployment is proven, and leaves it running
 for you.
 
-What you get: one `n2d-standard-4` Confidential VM — AMD Milan, SEV-SNP,
-Ubuntu 24.04 — with the authority daemon `sagvd` and the worker
-`acp-compute` as systemd services, their key files sealed to the chip, a
-first genome gated over the Return Path, and the audit log verified. It
-costs about USD 0.20 an hour while it runs (Google's N2D price plus its
-SEV-SNP premium); the last step removes it.
+What you get: one Confidential VM — an `n2d-standard-4` on AMD Milan
+with SEV-SNP, or with `--platform tdx` a `c3-standard-4` Trust Domain on
+Intel TDX — Ubuntu 24.04, with the authority daemon `sagvd` and the
+worker `acp-compute` as systemd services, their key files sealed to the
+hardware, a first genome gated over the Return Path, and the audit log
+verified. It costs about USD 0.20 an hour while it runs (USD 0.25 on
+TDX: Google's machine price plus its confidential-computing premium);
+the last step removes it.
 
 What you need: a project with billing, and the right to create Compute
 Engine instances in it.
@@ -47,6 +49,12 @@ gcloud auth login
 ./deploy.sh
 ```
 
+Or, for an Intel TDX Trust Domain instead of an AMD SEV-SNP VM:
+
+```sh
+./deploy.sh --platform tdx
+```
+
 Answer `y` when it names the project. What it does, in order:
 
 1. **Verifies the release before anything runs anywhere.** The signed
@@ -60,11 +68,14 @@ Answer `y` when it names the project. What it does, in order:
 3. **The guest stands itself up**: it fetches the release and runs only
    what is on the list, installs the worker runtime from the hash-pinned
    locks, runs `acpctl provision` — key material, both daemons'
-   configurations, the AMD chain from KDS verified against the pinned
-   roots, each daemon's identity read from the chip and pinned by the
-   other, every key file sealed to the chip — makes and seals a first
-   genome, starts both daemons as services, gates the genome over the
-   Return Path and verifies the audit log.
+   configurations, each daemon's identity read from the hardware and
+   pinned by the other, every key file sealed to the hardware (on
+   SEV-SNP the AMD chain from KDS verified against the pinned roots and
+   the chip's derived key; on TDX Intel's documents from PCS and the
+   guest's vTPM, after one reboot so the files are sealed on a settled
+   boot) — makes and seals a first genome, starts both daemons as
+   services, gates the genome over the Return Path and verifies the
+   audit log.
 4. **The record comes back** over the serial console into
    `records/<stamp>/`, beside the verification outputs of step 1.
 
@@ -77,10 +88,13 @@ and from which file of the record:
 
 - **release** — the tag's signature, the signed list, 5 of 5 files on it,
   5 of 5 provenances (`records/<stamp>/verify/`);
-- **chip** — the AMD product and its TCB as the authority's verifier read
-  them from the worker's report, the VCEK chain to AMD's root
-  (`guest/chip.txt`, from the `TRUST_EVALUATED` event of the audit log);
-- **identities** — the launch measurement each daemon read from the chip
+- **chip** or **trust domain** — on SEV-SNP the AMD product and its TCB
+  as the authority's verifier read them from the worker's report, the
+  VCEK chain to AMD's root (`guest/chip.txt`, from the `TRUST_EVALUATED`
+  event of the audit log); on TDX the MRTD and RTMRs of the Trust Domain
+  and the Intel documents the verifier took from PCS (`guest/chip.txt`,
+  `guest/pcs-*`);
+- **identities** — the measurement each daemon read from the hardware
   and the other pinned (`guest/provision.json`);
 - **key files** — how many were sealed, and to what (`guest/sealed-files.txt`);
 - **gate** — the job's verdict: `EXACT`, every fixture byte for byte,
@@ -115,10 +129,12 @@ guide's [first deployment, §4](https://github.com/vault-genome/vaultgenome-core
 has the steps, and what comes next: monitoring, the failover drill, the
 next release.
 
-<walkthrough-footnote>The key files are sealed to this chip: a stop and
-start that lands the VM on another host does not open them, and the
-services say so. Run `deploy.sh` again for a fresh deployment, or pass
-`--sealer tpm2` to seal to the instance's vTPM instead (ADR 0025, step 1b).</walkthrough-footnote>
+<walkthrough-footnote>On SEV-SNP the key files are sealed to this chip: a
+stop and start that lands the VM on another host does not open them, and
+the services say so. Run `deploy.sh` again for a fresh deployment, or
+pass `--sealer tpm2` to seal to the instance's vTPM instead (ADR 0025,
+step 1b). On TDX they are sealed to the vTPM under this boot's PCRs: a
+reboot of the same image opens them, a new kernel does not.</walkthrough-footnote>
 
 ## Remove it
 

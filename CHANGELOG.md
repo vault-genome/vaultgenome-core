@@ -32,7 +32,13 @@ given release can still open.
   resets the VM, submits a second job over ssh and verifies the chain
   across the reboot (claim C55: 251 s from the command to `PROVEN`; after
   the reset the services back on their own, a second job EXACT, one
-  chain of 32 events).
+  chain of 32 events). `--platform tdx` deploys the same on a
+  `c3-standard-4` Intel TDX Trust Domain: the measurement is MRTD and
+  RTMR0–3, the key files are sealed to the guest's vTPM under this
+  boot's PCRs, and the guest reboots once before it provisions so they
+  are sealed on a settled boot (the image's first boot moves a PCR)
+  — claim C56: 287 s to `PROVEN`, the vTPM opening the files again
+  after a hard reset, a second job EXACT, one chain of 32 events.
 
 ## [0.12.0] — 2026-10-28
 

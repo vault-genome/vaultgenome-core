@@ -376,8 +376,10 @@ Once the release workflow completes:
    `acpctl provision`, the services, the gate job, the audit log — then
    resets the VM, submits a second job over ssh and verifies the chain
    across the reboot, and keeps the record (about twelve minutes, one
-   `n2d-standard-4`). The release notes carry the button for this tag
-   (`cloudshell_git_branch=vX.Y.Z`); a person who presses it gets this run.
+   `n2d-standard-4`); the same with `'' tdx` as the third and fourth
+   arguments on a `c3-standard-4` Trust Domain. The release notes carry
+   the button for this tag (`cloudshell_git_branch=vX.Y.Z`); a person who
+   presses it gets this run.
 
 No audit event is appended for a release; there is no audit kind for one.
 

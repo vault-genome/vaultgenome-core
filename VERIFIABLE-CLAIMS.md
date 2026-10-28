@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -3983,7 +3983,90 @@ command, and nowhere else. The pause for the audit read is ADR 0027's:
 the live segment is the authority's while it runs. One project, one
 zone, one run on the record; the kit's run before it that day stopped at
 the kit's own mistake (`vg` was not on `sudo`'s path after the reset),
-fixed here, and is not on the record.
+fixed here, and is not on the record. The same kit ran again on SEV-SNP
+after the guest learned Intel TDX ([C56](#c56)):
+[`evidence/20261028T162801Z/`](scripts/hardware-test/gcp-deploy/evidence/20261028T162801Z/)
+— 271 s to `PROVEN`, the same chip and TCB, the gate EXACT 6 of 6 in
+5.2 s, sixteen events, the services back after the pause; after the
+reset, ssh and the session in 87 s, the second job EXACT, 32 events on
+one chain.
+
+---
+
+<a id="c56"></a>
+### C56 — The same button deploys the signed release on a real Intel TDX Trust Domain: the key files sealed to the guest's vTPM on a settled boot, after one reboot, the measurement SHA-384 over MRTD and RTMR0–3, a gate job EXACT, the audit log verified, 287 s from the command to `PROVEN`; after a hard reset the services come back on their own, the vTPM opens the files again, a second job gates EXACT and one chain of 32 events verifies
+
+**Claim.** On 2026-10-28 `scripts/hardware-test/gcp-deploy/run.sh
+rats-probe v0.12.0 '' tdx` ran `deploy/gcp/deploy.sh --platform tdx` as a
+person does. The release was verified first as in [C55](#c55) (the tag's
+signature, the signed list under `release.yml@refs/tags/v0.12.0`, 5 of 5
+files, 5 of 5 provenances). One c3-standard-4 Confidential VM with Intel
+TDX (Ubuntu 24.04) was created with the verified list in its metadata.
+The guest fetched the five files from GitHub and held them to the list
+(5 of 5), installed the worker runtime from the hash-pinned locks (44 s)
+and `tpm2-tools`, and **rebooted once** before it provisioned: the vTPM
+sealer binds a key file to this boot's PCRs (`sha256:0-14` by default),
+and the image's first boot grows its root partition and moves a PCR, so
+what is sealed before that boot has settled does not open on the next
+one — the rule the vTPM runbook states, done by the script
+(`guest/timeline.txt`: `reboot` 16:30:15, `settled_boot` 16:31:39). On
+the settled boot `acpctl provision --provider auto` resolved `gcp-tdx`
+from configfs-tsm and wrote the deployment in 7.8 s: both configurations
+for `gcp-tdx`, both identities the Trust Domain's measurement
+`6f13cd51…` — SHA-384 over MRTD `f21e6b48…` and RTMR0–3 — each pinned by
+the other side, eight key files sealed to the vTPM (`sealer: tpm2`; five
+of the authority's, three of the worker's; `guest/sealed-files.txt`). A
+first genome was fine-tuned and sealed (8 s); `sagvd.service` was ready
+3 s after its start and the worker's session opened 1 s after the
+worker's — the quote verified under the PCK chain to Intel's root and
+Intel's TCB info for FMSPC `00806f050000` and QE identity from PCS, both
+on the record (`guest/pcs-*`); a gate job over the Return Path came back
+EXACT, 6 of 6 fixtures byte for byte, `max_abs_err` 0, 4.2 s after
+submission; sixteen audit events verified under
+`operator/audit_public_key.pem` with both services paused, and both were
+back 3 s later, the vTPM opening the sealed files a second time. The
+`PROVEN` summary was printed 287 s after the command, 29.8 s of them on
+the settled boot from its first command to the sealed verdict. The kit
+then reset the VM — the third boot — and 59 s later ssh answered with
+the session open on the new boot; `vg submit` over ssh gated a second
+job EXACT, 6 of 6; `vg verify` replayed one chain of 32 events, `ok:
+true` (16 before the reset); `vg audit` and `vg events` each paused the
+services for about 3 s and brought them back. Keys, seeds and the
+operator's token stayed on the VM and were deleted with it.
+
+**Evidence.**
+[`scripts/hardware-test/gcp-deploy/evidence/20261028T162741Z/`](scripts/hardware-test/gcp-deploy/evidence/20261028T162741Z/)
+— `deploy.out`, `deploy/verify/`, `deploy/guest/` (`metadata.txt`:
+`platform=tdx`; `steps.txt`: `settled_boot=1`, `provider=auto
+peer=gcp-tdx`, `vault_sealer=tpm2 worker_sealer=tpm2`, `gate_level=EXACT
+… n_exact=6`, `peer trust domain tdx mrtd=… rtmr0=… fmspc=00806f050000`;
+`tsm.txt` with `/dev/tdx_guest`; `chip.txt`; `provision.json`; both
+identities with their `tdx` blocks; `sealed-files.txt`; `job.json`;
+`audit-verify.json`; `audit-events.jsonl`; `audit-public-key.pem`;
+`pcs-tdx-tcb-00806f050000.json` and `pcs-tdx-qe-identity.json` with
+their issuer chains; `timeline.txt`; `sha256sums.txt`),
+`deploy/serial-console.txt`, `after-reboot/`, `summary.txt`
+(`platform=tdx`, `deploy_seconds=287`, `events_after_first_job=16`,
+`events_after_reboot_and_second_job=32`), `sha256sums.txt`.
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/gcp-deploy/run.sh <gcp-project> v0.12.0 '' tdx   # ~12 min, one c3-standard-4, deleted at the end
+deploy/gcp/deploy.sh --project <gcp-project> --platform tdx            # the button itself: the VM stays
+```
+
+**Scope.** As [C55](#c55), with the TEE swapped: the measurement is the
+hardware's own — MRTD and the RTMRs carry the firmware, its
+configuration, the kernel, initrd and command line (ADR 0018) — and the
+key files are sealed to the guest's vTPM, which on Compute Engine is
+Google's software outside the Trust Domain ([C53](#c53), ADR 0022): a
+reboot of the same image opens them, as the record shows across two
+reboots; a new kernel does not, and the runbook says what a new image
+means for the pin. The settled-boot rule costs one reboot (84 s on the
+record) and is applied whenever the sealer is the vTPM — `--platform tdx`,
+or `--sealer tpm2` on SEV-SNP. One instance type, one zone, one run on the
+record.
 
 ---
 

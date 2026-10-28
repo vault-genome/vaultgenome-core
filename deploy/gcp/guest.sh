@@ -3,21 +3,28 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # The guest side of the one-button deployment on Google Cloud (deploy.sh):
-# the startup script of a Compute Engine Confidential VM on AMD SEV-SNP
-# (Ubuntu 24.04). On its first boot the VM stands itself up from the signed
-# release and proves the deployment the way the reference deployment is
-# proven (scripts/hardware-test/release-deploy, gcp-sev-snp/provision-e2e),
-# then keeps running: the daemons are systemd services from here on.
+# the startup script of a Compute Engine Confidential VM — AMD SEV-SNP
+# (n2d) or Intel TDX (c3), Ubuntu 24.04. On its first boot the VM stands
+# itself up from the signed release and proves the deployment the way the
+# reference deployment is proven (scripts/hardware-test/release-deploy,
+# gcp-sev-snp/provision-e2e, gcp-tdx/returnpath-e2e), then keeps running:
+# the daemons are systemd services from here on.
 #
 #   1. the release's binaries and worker package come from GitHub and are
 #      held to the signed checksums list deploy.sh verified and passed in
 #      (vg-checksums): a file that is not on the list does not run;
 #   2. the worker runtime is installed from the hash-pinned locks;
 #   3. `acpctl provision` writes the deployment under /etc/vaultgenome: the
-#      key material, both daemons' configurations, the AMD chain from KDS
-#      verified against the pinned roots, each daemon's identity read from
-#      the chip and pinned on the other side, every key file sealed to the
-#      chip (ADR 0023; tee.sealer from vg-sealer, `auto` is the chip's key);
+#      key material, both daemons' configurations, each daemon's identity
+#      read from the hardware and pinned on the other side, every key file
+#      sealed to the host (ADR 0023; tee.sealer from vg-sealer). On SEV-SNP
+#      the AMD chain comes from KDS verified against the pinned roots and
+#      `auto` seals to the chip's derived key; on TDX the verifier takes
+#      Intel's documents from PCS and `auto` seals to the guest's vTPM
+#      under this boot's PCRs — so a host that seals to the vTPM reboots
+#      once before it provisions: the image's first boot grows its root
+#      partition and moves a PCR, and what is sealed before that would not
+#      open again (the vTPM runbook's rule, docs/operator/runbooks);
 #   4. a genome is made and sealed — the same tiny fine-tune the reference
 #      deployment gates — and both daemons start as services;
 #   5. a gate job goes over the Return Path and the audit log is verified
@@ -29,7 +36,8 @@
 #
 # A later boot finds /etc/vaultgenome/provision.json and leaves the
 # deployment to systemd. Inputs (instance metadata): vg-tag, vg-checksums
-# (base64 of checksums-<tag>.txt), vg-sealer (auto|tee|tpm2), vg-stamp.
+# (base64 of checksums-<tag>.txt), vg-platform (sev-snp|tdx), vg-sealer
+# (auto|tee|tpm2), vg-stamp.
 set -u
 LOG=/var/log/vaultgenome-deploy.log
 exec > >(tee -a "$LOG") 2>&1
@@ -47,7 +55,11 @@ fi
 TAG=$(md attributes/vg-tag 2>/dev/null || true)
 STAMP=$(md attributes/vg-stamp 2>/dev/null || true); case "$STAMP" in 20[0-9][0-9][01][0-9][0-3][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;; *) STAMP=$(date -u +%Y%m%dT%H%M%SZ);; esac
 SEALER=$(md attributes/vg-sealer 2>/dev/null || true); case "$SEALER" in auto|tee|tpm2) ;; *) SEALER=auto;; esac
-WORK=/root/vg-deploy; OUT=$VAR/record/$STAMP; mkdir -p "$WORK" "$OUT" "$BIN" "$VAR"; cd "$WORK" || exit 1
+PLATFORM=$(md attributes/vg-platform 2>/dev/null || true); case "$PLATFORM" in sev-snp|tdx) ;; *) PLATFORM=sev-snp;; esac
+# A host that seals to the vTPM provisions on a settled boot (see above).
+SETTLE=0; { [ "$PLATFORM" = tdx ] || [ "$SEALER" = tpm2 ]; } && SETTLE=1
+WORK=/root/vg-deploy; OUT=$VAR/record/$STAMP; INSTALLED=$VAR/.installed
+mkdir -p "$WORK" "$OUT" "$BIN" "$VAR"; cd "$WORK" || exit 1
 T0=$(date +%s.%N)
 mark() { echo "$1=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" >> "$OUT/timeline.txt"; }
 step() { echo "== $*"; echo "== $*" >> "$OUT/steps.txt"; }
@@ -60,64 +72,94 @@ fail() {
   exit 1
 }
 retry() { local n; for n in 1 2 3; do "$@" && return 0; [ "$n" = 3 ] && return 1; echo "  (attempt $n failed; retrying in $((n * 5)) s)"; sleep $((n * 5)); done; }
+apt_install() { # waits for the image's own unattended upgrade to let go of the lock
+  local n=0; while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && [ $n -lt 120 ]; do sleep 2; n=$((n+1)); done
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$@" >/dev/null 2>&1
+}
 
 [ -n "$TAG" ] || fail "no vg-tag in the instance metadata"
-md attributes/vg-checksums 2>/dev/null | base64 -d > "$WORK/checksums-$TAG.txt" || fail "no vg-checksums in the instance metadata"
-[ -s "$WORK/checksums-$TAG.txt" ] || fail "vg-checksums is empty"
-mark boot
-{ echo "instance=$(md name)"; echo "zone=$(md zone | awk -F/ '{print $NF}')"; echo "machine=$(md machine-type | awk -F/ '{print $NF}')"; echo "release=$TAG"; echo "sealer=$SEALER"; echo "captured=$STAMP"; } > "$OUT/metadata.txt"
-uname -a > "$OUT/kernel.txt"
 
-step "packages"
-# The image's own unattended upgrade may hold the package lock on first boot.
-n=0; while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && [ $n -lt 120 ]; do sleep 2; n=$((n+1)); done
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq >/dev/null 2>&1 || true
-apt-get install -y -qq python3-venv python3-pip curl ca-certificates >/dev/null 2>&1 || fail "apt-get install python3-venv python3-pip"
+if [ ! -f "$INSTALLED" ]; then
+  md attributes/vg-checksums 2>/dev/null | base64 -d > "$WORK/checksums-$TAG.txt" || fail "no vg-checksums in the instance metadata"
+  [ -s "$WORK/checksums-$TAG.txt" ] || fail "vg-checksums is empty"
+  mark boot
+  { echo "instance=$(md name)"; echo "zone=$(md zone | awk -F/ '{print $NF}')"; echo "machine=$(md machine-type | awk -F/ '{print $NF}')"; echo "platform=$PLATFORM"; echo "release=$TAG"; echo "sealer=$SEALER"; echo "captured=$STAMP"; } > "$OUT/metadata.txt"
+  uname -a > "$OUT/kernel.txt"
+  note "platform=$PLATFORM sealer=$SEALER settled_boot=$SETTLE"
 
-step "configfs-tsm: the chip's reports"
-modprobe sev-guest 2>/dev/null || {
-  apt-get install -y -qq "linux-modules-extra-$(uname -r)" >/dev/null 2>&1
-  modprobe sev-guest 2>/dev/null || true
-}
-mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
-n=0; while [ ! -d /sys/kernel/config/tsm/report ] && [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done
-{ ls -la /sys/kernel/config/tsm/report 2>&1; dmesg | grep -i -E "sev|snp|tsm" | tail -20; } > "$OUT/tsm.txt"
-[ -d /sys/kernel/config/tsm/report ] || fail "no configfs-tsm on this guest: not a SEV-SNP Confidential VM?"
+  step "packages"
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq >/dev/null 2>&1 || true
+  apt_install python3-venv python3-pip curl ca-certificates || fail "apt-get install python3-venv python3-pip"
+  if [ "$SETTLE" = 1 ]; then
+    # the vTPM sealer runs tpm2-tools as processes (ADR 0025 step 1b)
+    retry apt_install tpm2-tools || fail "apt-get install tpm2-tools"
+  fi
 
-step "the release $TAG from GitHub, held to the signed checksums list"
-mark download_start
-PKG="genome-worker-$TAG.tar.gz"
-for f in sagvd acp-compute acpctl acp-keygen "$PKG"; do
-  retry curl -fsSL --retry 3 --retry-delay 5 -o "$WORK/$f" "$REPO_URL/releases/download/$TAG/$f" || fail "download of $f"
-done
-sha256sum sagvd acp-compute acpctl acp-keygen "$PKG" > "$OUT/inputs.sha256"
-sha256sum -c --ignore-missing "checksums-$TAG.txt" > "$OUT/checksums-check.txt" 2>&1 || true
-OKS=$(grep -c ': OK$' "$OUT/checksums-check.txt"); note "checksums_ok=$OKS of 5 downloaded files on the signed list"
-[ "$OKS" = 5 ] || fail "a downloaded file is not on the signed checksums list (see checksums-check.txt)"
-mark download_end
-install -m 0755 sagvd acp-compute acpctl acp-keygen "$BIN/"
-mkdir -p "$VAR/worker"
-tar xzf "$PKG" -C "$VAR/worker" || fail "unpacking $PKG"
-{ "$BIN/sagvd" version; "$BIN/acp-compute" version; "$BIN/acpctl" version; "$BIN/acp-keygen" -version 2>/dev/null || true; } > "$OUT/versions.txt" 2>&1
+  step "configfs-tsm: the hardware's reports"
+  if [ "$PLATFORM" = sev-snp ]; then
+    modprobe sev-guest 2>/dev/null || {
+      apt_install "linux-modules-extra-$(uname -r)"
+      modprobe sev-guest 2>/dev/null || true
+    }
+  fi
+  mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
+  n=0; while [ ! -d /sys/kernel/config/tsm/report ] && [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done
+  { ls -la /sys/kernel/config/tsm/report 2>&1; ls -la /dev/sev-guest /dev/tdx_guest /dev/tpmrm0 2>&1; grep -m1 'model name' /proc/cpuinfo; dmesg | grep -i -E "sev|snp|tdx|tsm" | tail -20; } > "$OUT/tsm.txt"
+  [ -d /sys/kernel/config/tsm/report ] || fail "no configfs-tsm on this guest: not a Confidential VM?"
+  case "$PLATFORM" in
+    sev-snp) [ -e /dev/sev-guest ] || fail "no /dev/sev-guest: not a SEV-SNP guest";;
+    tdx)     [ -e /dev/tdx_guest ] || fail "no /dev/tdx_guest: not a TDX Trust Domain";;
+  esac
 
-step "the worker runtime from the hash-pinned locks"
-mark runtime_install_start
-python3 -m venv "$VAR/venv" || fail "python3 -m venv"
-"$VAR/venv/bin/pip" install --require-hashes --only-binary=:all: --index-url https://pypi.org/simple -r "$VAR/worker/genome/requirements-ci.lock" > "$OUT/pip-requirements.log" 2>&1 || fail "pip install requirements-ci.lock (see pip-requirements.log)"
-"$VAR/venv/bin/pip" install --require-hashes --only-binary=:all: --no-deps --index-url https://download.pytorch.org/whl/cpu -r "$VAR/worker/genome/requirements-torch-cpu.lock" > "$OUT/pip-torch.log" 2>&1 || fail "pip install requirements-torch-cpu.lock (see pip-torch.log)"
-"$VAR/venv/bin/python3" -c 'import torch, transformers, safetensors; print("torch", torch.__version__, "transformers", transformers.__version__, "safetensors", safetensors.__version__)' > "$OUT/runtime.txt" 2>&1
-mark runtime_install_end
+  step "the release $TAG from GitHub, held to the signed checksums list"
+  mark download_start
+  PKG="genome-worker-$TAG.tar.gz"
+  for f in sagvd acp-compute acpctl acp-keygen "$PKG"; do
+    retry curl -fsSL --retry 3 --retry-delay 5 -o "$WORK/$f" "$REPO_URL/releases/download/$TAG/$f" || fail "download of $f"
+  done
+  sha256sum sagvd acp-compute acpctl acp-keygen "$PKG" > "$OUT/inputs.sha256"
+  sha256sum -c --ignore-missing "checksums-$TAG.txt" > "$OUT/checksums-check.txt" 2>&1 || true
+  OKS=$(grep -c ': OK$' "$OUT/checksums-check.txt"); note "checksums_ok=$OKS of 5 downloaded files on the signed list"
+  [ "$OKS" = 5 ] || fail "a downloaded file is not on the signed checksums list (see checksums-check.txt)"
+  mark download_end
+  install -m 0755 sagvd acp-compute acpctl acp-keygen "$BIN/"
+  mkdir -p "$VAR/worker"
+  tar xzf "$PKG" -C "$VAR/worker" || fail "unpacking $PKG"
+  { "$BIN/sagvd" version; "$BIN/acp-compute" version; "$BIN/acpctl" version; "$BIN/acp-keygen" -version 2>/dev/null || true; } > "$OUT/versions.txt" 2>&1
+  rm -f "$WORK"/sagvd "$WORK"/acp-compute "$WORK"/acpctl "$WORK"/acp-keygen "$WORK/$PKG"
 
-step "a base model for the first genome: the tiny one the reference deployment gates"
-export PYTHONPATH=$VAR/worker/genome TOKENIZERS_PARALLELISM=false
-( cd "$VAR/worker/genome" && "$VAR/venv/bin/python3" -c 'import sys, json; sys.path.insert(0, "tests"); import conftest
+  step "the worker runtime from the hash-pinned locks"
+  mark runtime_install_start
+  python3 -m venv "$VAR/venv" || fail "python3 -m venv"
+  "$VAR/venv/bin/pip" install --require-hashes --only-binary=:all: --index-url https://pypi.org/simple -r "$VAR/worker/genome/requirements-ci.lock" > "$OUT/pip-requirements.log" 2>&1 || fail "pip install requirements-ci.lock (see pip-requirements.log)"
+  "$VAR/venv/bin/pip" install --require-hashes --only-binary=:all: --no-deps --index-url https://download.pytorch.org/whl/cpu -r "$VAR/worker/genome/requirements-torch-cpu.lock" > "$OUT/pip-torch.log" 2>&1 || fail "pip install requirements-torch-cpu.lock (see pip-torch.log)"
+  "$VAR/venv/bin/python3" -c 'import torch, transformers, safetensors; print("torch", torch.__version__, "transformers", transformers.__version__, "safetensors", safetensors.__version__)' > "$OUT/runtime.txt" 2>&1
+  mark runtime_install_end
+
+  step "a base model for the first genome: the tiny one the reference deployment gates"
+  export PYTHONPATH=$VAR/worker/genome TOKENIZERS_PARALLELISM=false
+  ( cd "$VAR/worker/genome" && "$VAR/venv/bin/python3" -c 'import sys, json; sys.path.insert(0, "tests"); import conftest
 conftest.make_base(sys.argv[1])
 open(sys.argv[2], "w").write("".join(json.dumps(e) + "\n" for e in conftest.EXAMPLES))' "$VAR/base" "$VAR/train.jsonl" ) || fail "making the base model"
 
-step "acpctl provision: keys, configurations, the AMD chain, identities and pins, the key files sealed to the chip"
+  touch "$INSTALLED"; sync
+  if [ "$SETTLE" = 1 ]; then
+    step "installed; rebooting once so the key files are sealed on a settled boot (the vTPM's PCRs)"
+    mark reboot
+    sleep 3; reboot
+    exit 0
+  fi
+else
+  mark settled_boot
+  note "settled boot: $(journalctl --list-boots --no-pager 2>/dev/null | wc -l | tr -d ' ') boots on record"
+  export PYTHONPATH=$VAR/worker/genome TOKENIZERS_PARALLELISM=false
+fi
+
+step "acpctl provision: keys, configurations, identities and pins, the key files sealed to this host"
 mark provision_start
-"$BIN/acpctl" provision --out "$ETC" --bin-dir "$BIN" --provider auto --sealer "$SEALER" --fetch-amd-chain milan \
+PROV_CHAIN=(); [ "$PLATFORM" = sev-snp ] && PROV_CHAIN=(--fetch-amd-chain milan)
+"$BIN/acpctl" provision --out "$ETC" --bin-dir "$BIN" --provider auto --sealer "$SEALER" "${PROV_CHAIN[@]}" \
   --door-python "$VAR/venv/bin/python3" --base-model "$VAR/base" --worker-package "$VAR/worker/genome" \
   --genome-dir "$VAR/genomes" --audit-log "$VAR/audit/audit.db" --queue-path "$VAR/queue/jobs.db" \
   --vault-descriptor sagvd-gcp-deploy-v1 --worker-descriptor acp-compute-gcp-deploy-v1 > "$OUT/provision.out" 2> "$OUT/provision.err"
@@ -147,6 +189,9 @@ for p in ("sagvd/authority_signing_seed", "sagvd/audit_signing_seed", "sagvd/api
     except Exception as e:
         print(p, "not a sealed file:", type(e).__name__)
 SHAPE
+# What provision wrote and what was sealed is on disk before anything
+# runs on it: a reset in the next seconds must not find empty files.
+sync
 
 step "the first genome: a LoRA fine-tune by vg_genome, sealed by acpctl into the genome directory"
 mark finetune_start
@@ -246,8 +291,6 @@ esac
 VG
 chmod 0755 "$BIN/vg"; ln -sf "$BIN/vg" /usr/local/bin/vg   # on sudo's path
 cp /etc/systemd/system/sagvd.service /etc/systemd/system/acp-compute.service "$OUT/"
-# What provision wrote and what was sealed is on disk before anything
-# runs on it: a reset in the next seconds must not find empty files.
 sync
 systemctl daemon-reload
 mark services_start
@@ -287,12 +330,12 @@ with open(sys.argv[2], "a") as f:
 PY
 [ "$ST" = succeeded ] || fail "the gate job did not succeed (status $ST; see job.json)"
 
-step "metrics; then the audit log verified under the operator's key with both services paused, and the chip as the verifier read it"
+step "metrics; then the audit log verified under the operator's key with both services paused, and the hardware as the verifier read it"
 curl -s http://127.0.0.1:9081/metrics | grep -E "^(sagvd|rp|vg_tee)_" > "$OUT/sagvd-metrics.txt"
 curl -s http://127.0.0.1:9082/metrics | grep -E "^(acp_compute|rp|vg_tee)_" > "$OUT/acp-compute-metrics.txt"
 # The live segment is the authority's while it runs (ADR 0027): a read
 # pauses both services, as the first-deployment guide's §4.5 does, and
-# starts them again — the key files sealed to this chip open a second time.
+# starts them again — the key files sealed to this host open a second time.
 KID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["vault"]["audit_kid"])' "$OUT/provision.json" 2>/dev/null); KID=${KID:-sagvd-audit-demo}
 mark pause_start
 systemctl stop acp-compute.service sagvd.service
@@ -310,27 +353,40 @@ note "restart_session_opened_after=${n}s"; mark restarted
 [ "$RC" = 0 ] || fail "acpctl audit verify exit $RC (see audit-verify.err)"
 curl -sf http://127.0.0.1:9081/readyz >/dev/null || { journalctl -u sagvd --no-pager -n 30 -o cat; fail "sagvd did not come back after the pause"; }
 [ "$(journalctl -u sagvd --no-pager -o cat | grep -c "sagvd session opened")" -ge 2 ] || { journalctl -u sagvd -u acp-compute --no-pager -n 40 -o cat; fail "the worker did not open a session again after the pause"; }
-# The admitted worker's chip, as the vault's verifier read it (ADR 0033),
-# from the TRUST_EVALUATED record of the session it opened.
-python3 - "$OUT/audit-events.jsonl" > "$OUT/chip.txt" <<'PY'
-import json, sys
-for line in open(sys.argv[1]):
-    e = json.loads(line)
-    if e.get("kind") != "TRUST_EVALUATED": continue
-    s = ((e.get("payload") or {}).get("peer_detail") or {}).get("sev_snp") or {}
-    if not s: continue
-    t, c, f = s["tcb"]["reported"], s["cpuid"], s["floor"]
-    print("peer chip product=%s variant=%s cpuid=%#x/%#x/%#x snp=%#x microcode=%#x firmware=%s alias_check=%s mit_vector=%s floor_snp=%#x floor_microcode=%#x" % (
-        s["product"], s.get("variant"), c["family"], c["model"], c["stepping"], t["snp"], t["microcode"], s["firmware"]["current"],
-        str(s["platform_info"]["alias_check_complete"]).lower(), s["mitigation_vector"]["current_hex"], f["snp"], f["microcode"]))
-    break
+# The admitted worker's hardware, as the vault's verifier read it: on
+# SEV-SNP the chip from the TRUST_EVALUATED record (ADR 0033); on TDX the
+# Trust Domain's measurement registers from the worker's identity and the
+# Intel documents the verifier took from PCS.
+python3 - "$OUT/audit-events.jsonl" "$OUT/acp-compute-identity.json" "$ETC/pcs-cache" "$PLATFORM" > "$OUT/chip.txt" <<'PY'
+import json, os, sys
+events, identity, pcs, platform = sys.argv[1:5]
+if platform == "sev-snp":
+    for line in open(events):
+        e = json.loads(line)
+        if e.get("kind") != "TRUST_EVALUATED": continue
+        s = ((e.get("payload") or {}).get("peer_detail") or {}).get("sev_snp") or {}
+        if not s: continue
+        t, c, f = s["tcb"]["reported"], s["cpuid"], s["floor"]
+        print("peer chip product=%s variant=%s cpuid=%#x/%#x/%#x snp=%#x microcode=%#x firmware=%s alias_check=%s mit_vector=%s floor_snp=%#x floor_microcode=%#x" % (
+            s["product"], s.get("variant"), c["family"], c["model"], c["stepping"], t["snp"], t["microcode"], s["firmware"]["current"],
+            str(s["platform_info"]["alias_check_complete"]).lower(), s["mitigation_vector"]["current_hex"], f["snp"], f["microcode"]))
+        break
+else:
+    d = json.load(open(identity)); t = d.get("tdx") or {}
+    docs = sorted(os.listdir(pcs)) if os.path.isdir(pcs) else []
+    fmspc = [n[len("tdx-tcb-"):-len(".json")] for n in docs if n.startswith("tdx-tcb-") and n.endswith(".json")]
+    print("peer trust domain tdx mrtd=%s rtmr0=%s rtmr1=%s rtmr2=%s rtmr3=%s measurement=%s fmspc=%s pcs_documents=%s" % (
+        t.get("mrtd_hex", "?"), *(t.get("rtmr_hex") or ["?"] * 4)[:4], d.get("tee_measurement_hex", "?"), ",".join(fmspc) or "?", ",".join(docs) or "none"))
 PY
 cat "$OUT/chip.txt" >> "$OUT/steps.txt"
+if [ "$PLATFORM" = tdx ]; then
+  # the Intel documents both verifiers fetched (public), for re-verification
+  for f in "$ETC"/pcs-cache/*; do [ -f "$f" ] && cp "$f" "$OUT/pcs-$(basename "$f")"; done
+fi
 journalctl -u sagvd --no-pager -o cat > "$OUT/sagvd.log"; journalctl -u acp-compute --no-pager -o cat > "$OUT/acp-compute.log"
 python3 -c 'import sys,time; t0=float(sys.argv[1]); print("elapsed_seconds=%.1f" % (time.time()-t0))' "$T0" >> "$OUT/steps.txt"
 mark finished
-echo "$TAG $STAMP" > "$ETC/DEPLOYED"; chmod 0600 "$ETC/DEPLOYED"
-rm -f "$WORK"/sagvd "$WORK"/acp-compute "$WORK"/acpctl "$WORK"/acp-keygen "$WORK/$PKG"
+echo "$TAG $STAMP $PLATFORM" > "$ETC/DEPLOYED"; chmod 0600 "$ETC/DEPLOYED"
 
 cp "$LOG" "$OUT/console.log"
 ( cd "$OUT" && sha256sum -- * > "$WORK/sha256sums.txt" ); mv "$WORK/sha256sums.txt" "$OUT/"
