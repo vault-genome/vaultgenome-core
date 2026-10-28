@@ -139,6 +139,12 @@ release assets too — `vaultgenome-<version>-py3-none-any.whl` and
 `vaultgenome-<version>.tar.gz`, in the checksums list and signed like the
 rest ([`python/README.md`](python/README.md)).
 
+Homebrew, on macOS and Linux: `brew install vault-genome/tap/vaultgenome`
+— the formula of
+[`vault-genome/homebrew-tap`](https://github.com/vault-genome/homebrew-tap)
+is written from the release's signed `checksums-<tag>.txt`, so what it
+installs is what the list names.
+
 Releases are cut by [`release.yml`](.github/workflows/release.yml) from a tag
 signed by a key pinned in [`.github/allowed_signers`](.github/allowed_signers):
 every binary and the worker package built reproducibly, each with a
@@ -156,13 +162,13 @@ cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
 slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
-  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.11.0
-git verify-tag v0.11.0
+  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.12.0
+git verify-tag v0.12.0
 ```
 
 The same two commands verify `acp-compute`, `acpctl`, `acp-bootstrap`,
 `acp-keygen`, their `-fips` variants, the tools for the other platforms,
-the wheel, the sdist and the worker package `genome-worker-v0.11.0.tar.gz`; a deployment
+the wheel, the sdist and the worker package `genome-worker-v0.12.0.tar.gz`; a deployment
 needs nothing from the source tree
 ([`docs/operator/09_first_deployment.md`](docs/operator/09_first_deployment.md)).
 On Windows, `certutil -hashfile acpctl-windows-amd64.exe SHA256` prints

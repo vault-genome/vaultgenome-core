@@ -185,3 +185,17 @@ binary inside each equal to its release asset (`b982b6f5…`,
 the two `sagvd` images, 9 for the two workers); on the guest, from the
 two default images, `gate_level=EXACT` 6/6, both rogues refused, the
 audit log verified (17 events), 180.5 s.
+
+`20261028T021319Z` is the run on the rehearsal `v0.12.0-rc1` (the tools
+for the other platforms, the checksums list and the Python distribution;
+release procedure §4.1), 12 minutes after the rehearsal's release was
+published: PASS — the four images `sagvd@sha256:eda7853a…`,
+`acp-compute@sha256:c50fde5e…`, `sagvd-fips@sha256:97c04daa…` and
+`acp-compute-fips@sha256:f2939d1a…`, all publicly readable; each
+signature, SBOM attestation and container provenance verified; the
+binary inside each equal to its release asset (`2e75a9ae…`,
+`a328f055…`, `333ef21f…`, `42086f58…`); each loaded image's
+`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
+the two `sagvd` images, 9 for the two workers); on the guest, from the
+two default images, `gate_level=EXACT` 6/6, both rogues refused, the
+audit log verified (17 events), 183.2 s.

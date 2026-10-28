@@ -11,8 +11,31 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-10-28
+
+The release a person installs. `acpctl` and `acp-keygen` come for macOS
+(Apple silicon and Intel), Windows (x64 and Arm) and Linux arm64 beside
+the Linux x86-64 binaries; `pip install vaultgenome` brings the auditor's
+own verifier of the audit log and, with `[genome]`, the model side of a
+genome; `brew install vault-genome/tap/vaultgenome` installs the tools from
+the release's signed hashes; and one signed list, `checksums-<tag>.txt`,
+names every artifact's SHA-256. All of it from the same reproducible
+build — twenty-two binaries, the worker package, the wheel and the sdist
+byte-identical across two builds, each signed, with its SBOM and in the
+provenance — rehearsed as `v0.12.0-rc1` and verified by the release-deploy
+kit on SEV-SNP: 197 assets, every rebuilt artifact equal to the released
+file, the Return Path from release assets alone. The daemons are
+unchanged, as are the bundle format (v4), the audit schema (v8) and the
+policy schema.
+
 ### Added
 
+- **`brew install vault-genome/tap/vaultgenome`** — the tap
+  [vault-genome/homebrew-tap](https://github.com/vault-genome/homebrew-tap):
+  a formula a script writes from the release's signed `checksums-<tag>.txt`
+  after verifying the list under the release workflow's identity, for
+  macOS and Linux on both architectures; `brew test` runs the installed
+  `acpctl version`.
 - **`acpctl` and `acp-keygen` for macOS, Windows and Linux arm64.** The
   release carries the two tools a person runs on their own machine for
   `linux-arm64`, `darwin-amd64`, `darwin-arm64`, `windows-amd64` and

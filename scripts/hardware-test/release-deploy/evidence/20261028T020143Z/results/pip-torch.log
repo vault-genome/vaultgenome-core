@@ -1,0 +1,6 @@
+Looking in indexes: https://download.pytorch.org/whl/cpu
+Collecting torch==2.14.1+cpu (from -r workers/genome/requirements-torch-cpu.lock (line 5))
+  Downloading https://download-r2.pytorch.org/whl/cpu/torch-2.14.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl (196.3 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 196.3/196.3 MB 5.1 MB/s eta 0:00:00
+Installing collected packages: torch
+Successfully installed torch-2.14.1+cpu

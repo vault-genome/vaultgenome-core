@@ -1,0 +1,4 @@
+instance=vg-release-20261028t020143z
+zone=us-central1-c
+machine=n2d-standard-4
+captured=20261028T020633Z
