@@ -1,0 +1,96 @@
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact checksums-v0.13.0-rc1.txt: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact sagvd: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-compute: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acpctl: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-bootstrap: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-keygen: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact sagvd-fips: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-compute-fips: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acpctl-fips: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-bootstrap-fips: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-keygen-fips: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acpctl-linux-arm64: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acpctl-darwin-amd64: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acpctl-darwin-arm64: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acpctl-windows-amd64.exe: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acpctl-windows-arm64.exe: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-keygen-linux-arm64: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-keygen-darwin-amd64: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-keygen-darwin-arm64: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-keygen-windows-amd64.exe: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact acp-keygen-windows-arm64.exe: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact vaultgenome-0.13.0-py3-none-any.whl: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact vaultgenome-0.13.0.tar.gz: PASSED
+
+PASSED: SLSA verification passed
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0" at commit 20a3ee63b7c571944a3ed98e2f69d51057c1d86e
+Verifying artifact genome-worker-v0.13.0-rc1.tar.gz: PASSED
+
+PASSED: SLSA verification passed

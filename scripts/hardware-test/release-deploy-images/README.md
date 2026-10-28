@@ -1,4 +1,17 @@
-# release-deploy-images — the Return Path on SEV-SNP from the release's container images
+#`20261028T210305Z` is the run on the rehearsal `v0.13.0-rc1` (the Cloud
+Shell button for the tag in the release notes; release procedure §4.1),
+19 minutes after the rehearsal's release was published: PASS — the four
+images `sagvd@sha256:225093fb…`, `acp-compute@sha256:e056f64b…`,
+`sagvd-fips@sha256:dd959280…` and `acp-compute-fips@sha256:fecf03a3…`,
+all publicly readable; each signature, SBOM attestation and container
+provenance verified; the binary inside each equal to its release asset
+(`0c20c56d…`, `fe3023c2…`, `9ff2f42e…`,
+`41c75532…`); each loaded image's `RootFS.Layers` equal to the
+signed config's `diff_ids` (13 layers for the two `sagvd` images, 9 for the
+two workers); on the guest, from the two default images, `gate_level=EXACT`
+6/6, both rogues refused, the audit log verified (17 events), 188.3 s.
+
+ release-deploy-images — the Return Path on SEV-SNP from the release's container images
 
 What it proves: a deployment that starts from the registry — the two
 images a release carries (`docs/security/supply_chain.md`), verified by
