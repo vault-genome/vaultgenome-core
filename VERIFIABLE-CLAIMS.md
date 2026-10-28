@@ -2565,13 +2565,69 @@ signing under `ecdsa-p384-sha384` and accepting `ed25519` and
 the chip receipt, `genome verify` ok, the unlisted guest, the operator
 stop and the TCB floor one above the chip refused, `acpctl audit
 verify` at exit 0 reporting `signature_suite` `ecdsa-p384-sha384` over
+12 events — C42 and C43 on the released commit. The same three kits on
+`v0.12.0` (2026-10-28, published 02:39:57Z), the first release with the
+tools for the other platforms, the Python distribution and the signed
+checksums list. The release itself, 9 minutes after:
+[`scripts/hardware-test/release-deploy/evidence/20261028T024858Z/`](scripts/hardware-test/release-deploy/evidence/20261028T024858Z/)
+— `verify/assets.sha256` 197 assets; `verify/checksums.txt` the signed
+list, verified like any other asset, then `sha256sum -c` over the
+download: 23 of 23 artifacts; `verify/cosign.txt` forty-seven "Verified
+OK" (the pairs); `verify/cosign-bundle-nonet.txt` the same forty-seven
+from their bundles with `--trusted-root trusted_root.json` and no route;
+`verify/slsa.txt` the twenty-four artifacts' provenance verified;
+`verify/tag.txt` the tag's signature under the pinned key;
+`verify/rebuild.txt` the twenty binaries, the package, the wheel and the
+sdist rebuilt from the tag (commit `ed9f6d35fa23`, go1.27.3, GNU tar
+1.35, GNU gzip 1.15 and Python 3.12.2 on Darwin arm64 — each cross build
+for its own platform, the distribution by
+`scripts/build_python_dist.sh`) with the same sha256 as the released
+files (`sagvd` `c34b2f94…`, `sagvd-fips` `feeeb663…`, `acp-compute`
+`0b0b7bb0…`, `acp-compute-fips` `79f473f6…`, `acpctl` `4ff10b5b…`,
+`acpctl-fips` `25be131b…`, `acp-bootstrap` `24f5deac…`,
+`acp-bootstrap-fips` `4ca75f5d…`, `acp-keygen` `8352a8f6…`,
+`acp-keygen-fips` `6bfb744b…`; `acpctl` for `linux-arm64` `5013a582…`,
+`darwin-amd64` `e4c91441…`, `darwin-arm64` `fbf5eb0a…`,
+`windows-amd64` `f4a92d05…`, `windows-arm64` `4791df57…`; `acp-keygen`
+for the same five `6bb2831a…`, `816c37ec…`, `3aff7058…`, `90f89183…`,
+`5a2acb4d…`; the package `7e8acc32…`, the wheel `a07766e5…`, the sdist
+`715acd5d…`); `results/versions.txt` the released binaries reporting
+`v0.12.0` at the tag's commit; both daemons read `9fc6d42b…8b8cf` from
+the chip and sealed their key files to it; the thief with the sealed
+files and the unpinned worker refused; `results/job.json` gate level
+EXACT, 6 of 6, `max_abs_err` 0, `release_authorized`;
+`results/audit-verify.json` `ok: true`, 17 events; 127.8 s on the
+guest. The four container images, 14 minutes after:
+[`scripts/hardware-test/release-deploy-images/evidence/20261028T025338Z/`](scripts/hardware-test/release-deploy-images/evidence/20261028T025338Z/)
+— `sagvd@sha256:72d74d0b…`, `acp-compute@sha256:03eff4c0…`,
+`sagvd-fips@sha256:bf33ef13…`, `acp-compute-fips@sha256:8d46b0b9…`, all
+four publicly readable; each verified by digest on the runner
+(signature, SBOM attestation, SLSA provenance, the binary inside equal
+to its release asset: `c34b2f94…`, `0b0b7bb0…`, `feeeb663…`,
+`79f473f6…`); each loaded image's `RootFS.Layers` equal to the signed
+config's `diff_ids` (13 layers for the `sagvd` images, 9 for the
+workers); both daemons from their images, the key files sealed, both
+rogues refused, gate level EXACT, the audit log verified (17 events);
+183.1 s. And the released commit under `fips` with `VG_FIPS=1` and
+`VG_SIGSUITE=ecdsa-p384-sha384`, on the certified module with
+enforcement on, by the key-release kit 26 minutes after:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261028T030604Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261028T030604Z/)
+— `versions.txt`: `sagvd v0.12.0 (commit ed9f6d35fa23…) fips140=only
+module=v1.0.0 enforced=true`, the same for `acp-bootstrap`; `build.txt`
+every binary `GOFIPS140=v1.0.0-c2097c7c` at that commit; the authority
+signing under `ecdsa-p384-sha384` and accepting `ed25519` and
+`ecdsa-p384-sha384` (`steps.txt`); a key released across clouds under
+`hpke-p384-v2` (recipient key `4c1718fd…`), the restore confirmed by
+the chip receipt, `genome verify` ok, the unlisted guest, the operator
+stop and the TCB floor one above the chip refused, `acpctl audit
+verify` at exit 0 reporting `signature_suite` `ecdsa-p384-sha384` over
 12 events — C42 and C43 on the released commit.
 
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.11.0          # ~15 min, one n2d-standard-4, deletes it
-scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.11.0   # the images; ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.12.0          # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.12.0   # the images; ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
@@ -3344,14 +3400,14 @@ kit's way to show the refusal on the hardware at hand — a chip below the
 live floors was not available to refuse.
 
 <a id="c47"></a>
-### C47 — The SEV-SNP verifier's reading is equal to two implementations nobody here wrote, on every genuine report on record, and no single-byte mutant verifies on any side: Google's go-sev-guest and VirTEE's snpguest on 66 reports from 27 chips, reproduced in CI
+### C47 — The SEV-SNP verifier's reading is equal to two implementations nobody here wrote, on every genuine report on record, and no single-byte mutant verifies on any side: Google's go-sev-guest and VirTEE's snpguest on 67 reports from 27 chips, reproduced in CI
 
 **Claim.** One test ([ADR 0034](docs/adr/0034-the-differential-corpus.md);
 `internal/shared/tee/differential_test.go`, `make differential`) calls the
 product's SEV-SNP parse, AMD-chain and signature checks and, on the same
 bytes, Google's `go-sev-guest` v0.15.0 (`tools/oracle`, a module of its
 own) and VirTEE's `snpguest` 0.10.0, on every genuine report on record
-(`test/corpus/sev-snp`: 66 reports on 2026-10-24 — 31 the kits kept, 35
+(`test/corpus/sev-snp`: 67 reports on 2026-10-28 — 31 the kits kept, 36
 from the key-release receipts — 27 distinct chips, Milan and Genoa, report
 versions 3 and 5, firmware from SNP 0x17 to 0x1d, each with its VCEK and
 AMD's chain). Each report verifies under all three; nineteen fields are
@@ -3410,6 +3466,14 @@ record), the Google reading alone: both verify every report, nineteen
 fields equal, the sweeps as on every other report;
 [`test/corpus/sev-snp/results/harness-oracle-20261024T190756Z.json`](test/corpus/sev-snp/results/harness-oracle-20261024T190756Z.json)
 — the harness with the Google adapter on the 66;
+[`test/corpus/sev-snp/results/differential-20261028T031120Z.json`](test/corpus/sev-snp/results/differential-20261028T031120Z.json)
+— the corpus at 67, with the receipt of the 0.12.0 record
+(`gcp-sev-snp-keyrelease-e2e-20261028T030604Z`, a chip already on
+record), the Google reading alone: both verify every report, nineteen
+fields equal, the sweeps as on every other report;
+[`test/corpus/sev-snp/results/harness-oracle-20261028T031120Z.json`](test/corpus/sev-snp/results/harness-oracle-20261028T031120Z.json)
+— the harness with the Google adapter on the 67: eleven fields each,
+eight of eight mutants refused on each, 29.1 s;
 [`test/corpus/sev-snp/manifest.tsv`](test/corpus/sev-snp/manifest.tsv) and
 [`test/corpus/sev-snp/SHA256SUMS`](test/corpus/sev-snp/SHA256SUMS) — the
 corpus; the `corpus` job of the `differential` workflow on every push.
@@ -3423,7 +3487,7 @@ cargo install snpguest --version 0.10.0 --locked                         # VirTE
 ```
 
 **Scope.** Two readings maintained by others, run on the same bytes: not a
-proof that any of the three is correct, but that they agree on 66 reports
+proof that any of the three is correct, but that they agree on 67 reports
 of two product lines and disagree on none, and that a byte out of place
 is refused by all. The stage of a refusal differs and may: go-sev-guest
 refuses reserved and must-be-one bits at the parse where the product

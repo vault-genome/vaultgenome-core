@@ -1,0 +1,14 @@
+
+Verification for ghcr.io/vault-genome/sagvd-fips@sha256:bf33ef1307ea856a29cfbefe26fcea417361a9d7811eea49d72e133a91e53d6d --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The code-signing certificate was verified using trusted certificate authority certificates
+Certificate subject: https://github.com/vault-genome/vaultgenome-core/.github/workflows/release.yml@refs/tags/v0.12.0
+Certificate issuer URL: https://token.actions.githubusercontent.com
+GitHub Workflow Trigger: push
+GitHub Workflow SHA: ed9f6d35fa235cdccf6bd90936fd302b50444401
+GitHub Workflow Name: release
+GitHub Workflow Repository: vault-genome/vaultgenome-core
+GitHub Workflow Ref: refs/tags/v0.12.0
+{"critical":{"identity":{"docker-reference":"ghcr.io/vault-genome/sagvd-fips"},"image":{"docker-manifest-digest":"sha256:bf33ef1307ea856a29cfbefe26fcea417361a9d7811eea49d72e133a91e53d6d"},"type":"cosign container image signature"},"optional":null}

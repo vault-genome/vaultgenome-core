@@ -199,3 +199,20 @@ binary inside each equal to its release asset (`2e75a9ae…`,
 the two `sagvd` images, 9 for the two workers); on the guest, from the
 two default images, `gate_level=EXACT` 6/6, both rogues refused, the
 audit log verified (17 events), 183.2 s.
+
+`20261028T025338Z` is the run on `v0.12.0`, 14 minutes after it was
+published: PASS — the four images `sagvd@sha256:72d74d0b…`,
+`acp-compute@sha256:03eff4c0…`, `sagvd-fips@sha256:bf33ef13…` and
+`acp-compute-fips@sha256:8d46b0b9…`, all publicly readable; each
+signature, SBOM attestation and container provenance verified; the
+binary inside each equal to its release asset (`c34b2f94…`,
+`0b0b7bb0…`, `feeeb663…`, `79f473f6…`); each loaded image's
+`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
+the two `sagvd` images, 9 for the two workers); on the guest, from the
+two default images, `gate_level=EXACT` 6/6, both rogues refused, the
+audit log verified (17 events), 183.1 s. A first run against the same
+release, five minutes earlier, stopped on the runner at the second
+image's config: a few seconds of TLS handshake timeouts to GitHub left
+`crane` with an empty answer and the kit's JSON reader with nothing to
+read; nothing had reached the cloud, and its log is kept outside the
+tree.

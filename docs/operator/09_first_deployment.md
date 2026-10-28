@@ -12,8 +12,8 @@ downloads a release's assets, verifies every signature, the SLSA provenance
 and the tag, rebuilds the binaries from the tag and requires the hashes to
 equal the released files, then runs the Return Path on a fresh SEV-SNP
 Confidential VM with the released daemons and records what the guest did.
-Its record of `v0.11.0` is
-[`evidence/20261024T185656Z/`](../../scripts/hardware-test/release-deploy/evidence/20261024T185656Z/)
+Its record of `v0.12.0` is
+[`evidence/20261028T024858Z/`](../../scripts/hardware-test/release-deploy/evidence/20261028T024858Z/)
 — nothing from the source tree: the key helper, the worker package and
 the AMD chain are the release's too; the numbers below are that record's
 (the record of `v0.7.0`, the first of this kind, is
@@ -45,7 +45,7 @@ cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
 slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
-  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.11.0
+  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.12.0
 ```
 
 and the same `cosign verify-blob` for each `*.sbom.spdx.json` with its
@@ -61,16 +61,17 @@ cosign 2.6.5 still reaches for the TUF mirror. Then the tag, against the
 keys pinned on `main`, never against keys in the tagged tree:
 
 ```bash
-git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.11.0
+git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.12.0
 ```
 
-| Check | What the reference saw for `v0.11.0` | Where |
+| Check | What the reference saw for `v0.12.0` | Where |
 | - | - | - |
-| cosign, artifacts and SBOMs | twenty-two `Verified OK` from the pairs, and the same twenty-two from their Sigstore bundles with `--trusted-root` and the network denied (twelve for `v0.7.0`, eight for `v0.4.1`, which had four artifacts) | `verify/cosign.txt`, `verify/cosign-bundle-nonet.txt` |
-| slsa-verifier, the artifacts | eleven `PASSED: SLSA verification passed` (six for `v0.7.0`, four for `v0.4.1`) | `verify/slsa.txt` |
+| the signed list | `checksums-v0.12.0.txt` verified like any asset, then `sha256sum -c`: 23 of 23 artifacts `OK` (the twenty binaries, the package, the wheel, the sdist) | `verify/checksums.txt` |
+| cosign, artifacts and SBOMs | forty-seven `Verified OK` from the pairs, and the same forty-seven from their Sigstore bundles with `--trusted-root` and the network denied (twenty-two for `v0.11.0`, twelve for `v0.7.0`, eight for `v0.4.1`, which had four artifacts) | `verify/cosign.txt`, `verify/cosign-bundle-nonet.txt` |
+| slsa-verifier, the artifacts | twenty-four `PASSED: SLSA verification passed` (eleven for `v0.11.0`, six for `v0.7.0`, four for `v0.4.1`) | `verify/slsa.txt` |
 | the tag | `Good "git" signature` with the ED25519 key of `.github/allowed_signers` | `verify/tag.txt` |
-| the assets' hashes | 97 lines — the `-fips` variants' 40 and the images job's eight among them (55 for `v0.7.0`, 49 for `v0.6.0`, 37 for `v0.4.2`, 25 for `v0.4.1`) | `verify/assets.sha256` |
-| rebuilt from the tag on another machine | every sha256 equal to the released file's: the five binaries, their five `-fips` variants (`GOFIPS140=v1.0.0`), and the worker package repacked with GNU tar and GNU gzip | `verify/rebuild.txt` |
+| the assets' hashes | 197 lines — the ten tools for the other platforms' 80, the Python distribution's 16 and the checksums list's four among them (97 for `v0.11.0`, 55 for `v0.7.0`, 49 for `v0.6.0`, 37 for `v0.4.2`, 25 for `v0.4.1`) | `verify/assets.sha256` |
+| rebuilt from the tag on another machine | every sha256 equal to the released file's: the five binaries, their five `-fips` variants (`GOFIPS140=v1.0.0`), `acpctl` and `acp-keygen` for the five other platforms, the worker package repacked with GNU tar and GNU gzip, and the wheel and the sdist by `scripts/build_python_dist.sh` | `verify/rebuild.txt` |
 | uploaded to the guest | five files, every one a release asset: `sagvd`, `acp-compute`, `acpctl`, `acp-keygen` (as `keygen`) and the worker package; the AMD chain fetched on the guest by the released `acpctl` and checked against the pinned root (`results/amd-chain.txt`) | `verify/uploaded.sha256`, `verify/tools.txt` |
 
 The hashes in `verify/assets.sha256` are the hashes of the files you
@@ -82,7 +83,7 @@ If you have a GCP project, run the kit itself and compare its record with
 the one in the tree:
 
 ```bash
-./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.11.0
+./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.12.0
 ```
 
 About fifteen minutes and one `n2d-standard-4`, created and deleted by the

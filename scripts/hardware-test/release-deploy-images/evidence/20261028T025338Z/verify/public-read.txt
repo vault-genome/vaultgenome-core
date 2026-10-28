@@ -1,0 +1,4 @@
+  ghcr.io/vault-genome/sagvd@sha256:72d74d0b2ec06823448dbf5285db447caaa2baccbfca2322fee9d8d3e7025ac6: anonymous manifest HTTP 200
+  ghcr.io/vault-genome/acp-compute@sha256:03eff4c07e98c891f72c426d77784554be006c6cde11c140015a7d635efe1e20: anonymous manifest HTTP 200
+  ghcr.io/vault-genome/sagvd-fips@sha256:bf33ef1307ea856a29cfbefe26fcea417361a9d7811eea49d72e133a91e53d6d: anonymous manifest HTTP 200
+  ghcr.io/vault-genome/acp-compute-fips@sha256:8d46b0b928d98a6e509a61dd1d3b131f1ec7755801340ad8088c35834330a993: anonymous manifest HTTP 200
