@@ -11,6 +11,8 @@
 *.exe
 *.test
 *.out
+# a hardware kit's record of what the person saw (guest.out, provision.out) is evidence, not build output
+!scripts/hardware-test/**/evidence/**/*.out
 *.prof
 *.trace
 
@@ -48,6 +50,10 @@ coverage.txt
 # Amazon Trust Services' four public root certificates, which the KMS
 # client embeds to verify KMS (ADR 0036, part three): certificates, not keys.
 !internal/shared/awskms/roots/*.pem
+# The EC2 SEV-SNP capture of ADR 0038: the host's VLEK, AMD's VLEK and VCEK
+# chains from KDS and the ASVK/ARK as snpguest wrote them — certificates, not
+# keys; the family's fixture and the corpus's source of VLEK-signed reports.
+!internal/shared/tee/testdata/aws-sev-snp/**/*.pem
 
 # Key material provisioned by deploy/compose/keygen (NEVER commit)
 /deploy/compose/secrets/
