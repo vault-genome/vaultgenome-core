@@ -1,0 +1,22 @@
+[
+    {
+        "OutputKey": "Stamp",
+        "OutputValue": "20261029T201002Z"
+    },
+    {
+        "OutputKey": "InstanceId",
+        "OutputValue": "i-05d175ac2d11bf9f0"
+    },
+    {
+        "OutputKey": "PublicIp",
+        "OutputValue": "18.227.107.185"
+    },
+    {
+        "OutputKey": "SshCommand",
+        "OutputValue": "ssh ubuntu@18.227.107.185"
+    },
+    {
+        "OutputKey": "ConsoleCommand",
+        "OutputValue": "aws ec2 get-console-output --region us-east-2 --instance-id i-05d175ac2d11bf9f0 --latest --output text"
+    }
+]

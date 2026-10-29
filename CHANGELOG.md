@@ -68,6 +68,43 @@ cloud is not asked to do anything (`08_upgrading.md`).
   instance and holds the measurement against the published UEFI — one run
   on the record, an `m6a.xlarge` in us-east-2 (claim C58). Runbook:
   `docs/operator/runbooks/real-tee-aws-sev-snp.md`.
+- **One button on AWS** (`deploy/aws/`). `template.json`, behind the
+  Launch Stack button and `deploy.sh`, deploys one EC2 instance with AMD
+  SEV-SNP enabled (shared tenancy, `m6a.xlarge` by default; Canonical's
+  current Ubuntu 24.04 AMI from AWS's public SSM parameter; a key pair
+  from the deployer's public key, port 22 to the deployer's address, a
+  32 GB encrypted disk) whose user-data script `guest.sh` verifies the
+  release itself — the signed checksums list under the release
+  workflow's identity for the tag, with cosign at a pinned hash, and the
+  same list `deploy.sh` verified when it ran — reads the chip's first
+  report through configfs-tsm (a VLEK's signature, no CHIP_ID; a
+  VCEK-signed host, a Dedicated Host, is refused by name), installs the
+  runtime, provisions with `acpctl provision --provider auto` (the
+  family `aws-sev-snp`, the product's VLEK chain from AMD KDS, the launch
+  measurement and the provider's CSP_ID pinned on both sides, every key
+  file sealed with the firmware's derived key — the fleet's on EC2, so
+  no reboot before sealing), makes and seals a first genome, starts both
+  daemons as services, gates a genome and verifies the audit log.
+  `deploy.sh` verifies the release on the deployer's machine too
+  (`deploy/lib/verify-release.sh`), waits on the serial console and over
+  ssh, fetches the record and prints the summary; `destroy.sh` deletes
+  the stack; `make-template.sh` keeps the template equal to `guest.sh`;
+  `publish-template.sh` puts the committed template where the console's
+  quick-create link can read it (Amazon S3) and checks it byte for byte;
+  `deployer-policy.json` names what the deployer's identity needs. The
+  kit `scripts/hardware-test/aws-deploy` runs it into a stack of its own,
+  stops and starts the instance — a move to another host — shows the
+  services back and the sealed key files opened again under the fleet's
+  key, submits a second job over ssh, verifies the chain across the
+  move, holds the measurement against AWS's published UEFI measured for
+  the vCPU count, checks that the record names no account, and deletes
+  the stack. Rehearsed on `v0.14.0-rc1` (2026-10-29,
+  `scripts/hardware-test/aws-deploy/evidence/20261029T201000Z/`): `PROVEN`
+  290 s after the command, 160.1 s on the guest; stopped in 32 s, back on
+  another host with the key files opened and the session on the new boot
+  87 s after the stop; a second job EXACT 6/6; one chain of 32 events; a
+  new REPORT_ID, the same VLEK, the same measurement, equal to AWS's UEFI
+  20260814 measured for 4 vCPUs.
 - **The proof clock** ([`vault-genome/proof-clock`](https://github.com/vault-genome/proof-clock)):
   GitHub Actions runs `deploy/gcp/deploy.sh` against the latest release
   twice a day on a real Confidential VM — AMD SEV-SNP at 06:00 UTC, Intel

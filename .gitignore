@@ -105,6 +105,9 @@ deploy/compose/audit/
 # the one-button deployment on Google Cloud: its fetched tools and a person's own records
 /deploy/gcp/.tools/
 /deploy/gcp/records/
+# the one-button deployment on AWS: the same
+/deploy/aws/.tools/
+/deploy/aws/records/
 
 # the one-button deployment on Azure: its fetched tools and a person's own records
 /deploy/azure/.tools/
