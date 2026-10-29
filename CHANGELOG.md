@@ -11,7 +11,7 @@ given release can still open.
 
 ## [Unreleased]
 
-## [0.14.0] — 2026-10-30
+## [0.14.0] — 2026-10-29
 
 The release that runs on a fourth cloud and is proven twice a day without
 a person. An EC2 instance on AMD SEV-SNP signs its reports with the key
