@@ -30,7 +30,7 @@ a computation problem third.
 ## Measured on real hardware
 
 Every number links to the claim, its evidence files and the command that
-reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C58).
+reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C59).
 The verifier itself is held to readings nobody here wrote on every
 genuine SEV-SNP report on record, and that corpus is published for any
 verifier to run ([`test/corpus/sev-snp/`](test/corpus/sev-snp/), C47;
@@ -240,7 +240,7 @@ summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
 
 - Real attestation is verified here for AMD SEV-SNP (GCP, Azure, and EC2
   under the provider's VLEK — a family that names no machine and seals to
-  the fleet's key, C58), Intel TDX (GCP), the Azure confidential GPU VM and
+  the fleet's key, C58; the button on EC2, C59), Intel TDX (GCP), the Azure confidential GPU VM and
   AWS Nitro Enclaves — a genome key released across clouds into a
   production-mode enclave by a SEV-SNP authority, once (C52); the Intel SGX
   family is refused until an enclave has taken a key release end to end.

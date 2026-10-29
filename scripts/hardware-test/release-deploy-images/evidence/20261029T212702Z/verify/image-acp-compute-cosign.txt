@@ -1,0 +1,14 @@
+
+Verification for ghcr.io/vault-genome/acp-compute@sha256:e24375d47afc02f9910c7ff928108180d156f10326035bed611eee41364c5e0c --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The code-signing certificate was verified using trusted certificate authority certificates
+Certificate subject: https://github.com/vault-genome/vaultgenome-core/.github/workflows/release.yml@refs/tags/v0.14.0
+Certificate issuer URL: https://token.actions.githubusercontent.com
+GitHub Workflow Trigger: push
+GitHub Workflow SHA: 3c5e632c4ea2f1bc78352f415c15b0c97d9b28ca
+GitHub Workflow Name: release
+GitHub Workflow Repository: vault-genome/vaultgenome-core
+GitHub Workflow Ref: refs/tags/v0.14.0
+{"critical":{"identity":{"docker-reference":"ghcr.io/vault-genome/acp-compute"},"image":{"docker-manifest-digest":"sha256:e24375d47afc02f9910c7ff928108180d156f10326035bed611eee41364c5e0c"},"type":"cosign container image signature"},"optional":null}

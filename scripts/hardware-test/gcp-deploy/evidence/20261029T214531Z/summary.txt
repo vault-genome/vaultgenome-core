@@ -1,0 +1,9 @@
+release=v0.14.0
+platform=tdx
+instance=vg-button-20261029t214531z
+zone=us-central1-c
+project=rats-probe
+stamp=20261029T214531Z
+events_after_first_job=16
+events_after_reboot_and_second_job=32
+deploy_seconds=276

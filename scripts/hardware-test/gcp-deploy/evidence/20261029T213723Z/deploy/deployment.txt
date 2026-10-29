@@ -1,0 +1,8 @@
+project=rats-probe
+instance=vg-button-20261029t213723z
+zone=us-central1-c
+machine=n2d-standard-4
+platform=sev-snp
+release=v0.14.0
+sealer=auto
+started=20261029T213724Z

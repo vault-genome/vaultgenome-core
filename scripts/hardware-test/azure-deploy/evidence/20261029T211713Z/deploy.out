@@ -1,0 +1,35 @@
+Vault Genome v0.14.0 → Azure, resource group vg-button-20261029t211713z in westeurope, as Azure subscription 1 nikolaichuk.s.f@gmail.com; the record goes to /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/azure/records/20261029T211714Z
+== 1. the verification tools
+  cosign: v3.1.3 (/opt/homebrew/bin/cosign);slsa-verifier: 2.7.1 (/opt/homebrew/bin/slsa-verifier)
+== 2. the release v0.14.0, verified before it runs anywhere
+  cosign: checksums-v0.14.0.txt signed by https://github.com/vault-genome/vaultgenome-core/.github/workflows/release.yml@refs/tags/v0.14.0 — Verified OK
+  checksums: 5 of 5 downloaded files are on the signed list
+  slsa-verifier: 5 of 5 provenances passed against github.com/vault-genome/vaultgenome-core@v0.14.0
+  tag: Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
+== 3. the resource group, the template, the address
+  creating the resource group vg-button-20261029t211713z in westeurope
+  one Standard_DC4as_v5 Confidential VM, AMD SEV-SNP, Ubuntu 24.04 CVM image, secure boot and vTPM, 32 GB disk, ssh from 104.14.24.198/32: about USD 0.21 an hour in West Europe, 0.17 in East US (Azure's DC4as v5 price) while it runs; destroy.sh removes it
+== 4. the Confidential VM
+  vaultgenome is up at 20.4.38.210 (westeurope); the guest is installing, then reboots once so the key files are sealed on a settled boot, then provisions and proves — about six minutes
+== 5. waiting for the guest's record (up to 30 minutes)
+  packages[K  packages[K  packages[K  packages[K  the wo[K  the wo[K  the wo[K  installed; [K  installed; [K  20261029T211714Z size=87576 sha256=55a5c62ad8dae046952ab8185a39f715d21effa9f[K[K  the guest's record: fetched over ssh from /var/lib/vaultgenome/record/20261029T211714Z, every file as its sha256sums.txt names it -> /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/azure/records/20261029T211714Z/guest
+== 6. what was proven
+PROVEN — Vault Genome v0.14.0 on vaultgenome (resource group vg-button-20261029t211713z, westeurope): Standard_DC4as_v5, Azure Confidential VM, AMD SEV-SNP (genoa) under the paravisor
+  release      Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
+               the checksums list signed by release.yml@v0.14.0 (cosign); 5 of 5 files on the list; 5 of 5 SLSA provenances against the source tag
+               on the guest: the list verified again under the release identity (Verified OK), the same list this machine verified; 5 of 5 files fetched from GitHub on it
+  chip         AMD Genoa: TCB snp=0x1c microcode=0x58 firmware=1.58.2 alias_check=true — the report from the vTPM's HCL report, the VCEK chain to AMD's root, the TCB against the floors of AMD's bulletins (ADR 0033); the quote by the vTPM's attestation key binds the handshake
+  identities   vault 6587d41e46995d71… = worker 6587d41e46995d71…: Azure's launch measurement (the paravisor and firmware), pinned on both sides; the boot the vTPM measured, 02be54f26a8db430…, pinned too (ADR 0037)
+  key files    5 + 3 sealed to the vTPM (tee.sealer auto: tpm2) — provision 2.3 s; sealed on a settled boot, after one reboot
+  services     sagvd ready 1s after its start, the worker's session opened 0s after the worker's (sagvd.service, acp-compute.service); paused 0.1 s for the audit read, back with the sealed key files opened again (ready 1s, session 0s)
+  gate         job e005dbcbf55a21cf488d60ada468dfe8: EXACT at rung 0, 6 of 6 fixtures byte for byte (max_abs_err 0), the verdict signed by sagvd-authority-demo — 6.3 s from submission
+  audit log    ok=true, 16 events verified under the operator's key (records/20261029T211714Z/guest/audit-public-key.pem)
+  time         22.0 s on the settled boot from its first command to the sealed verdict; the record's hashes in guest/sha256sums.txt
+
+The deployment is running. Its record: /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/azure/records/20261029T211714Z
+  on the VM        ssh -i /var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.RSwlIkLBJI/key vgadmin@20.4.38.210
+  look             sudo vg health · sudo vg status · sudo vg logs sagvd
+  the audit log    sudo vg verify · sudo vg audit · sudo vg events 20   (the services pause for the read, about 15 s)
+  another job      sudo vg submit gen-0.genome gen-0.key
+  your own model   seal its genome with acpctl (docs/operator/09_first_deployment.md §4) into /var/lib/vaultgenome/genomes, then vg submit
+  remove it        /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/azure/destroy.sh --resource-group vg-button-20261029t211713z --name vaultgenome

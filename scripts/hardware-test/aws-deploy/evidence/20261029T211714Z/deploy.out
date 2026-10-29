@@ -1,0 +1,36 @@
+Vault Genome v0.14.0 → AWS, stack vg-button-20261029t211714z in us-east-2; the record goes to /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/aws/records/20261029T211717Z
+== 1. the verification tools
+  cosign: v3.1.3 (/opt/homebrew/bin/cosign);slsa-verifier: 2.7.1 (/opt/homebrew/bin/slsa-verifier)
+== 2. the release v0.14.0, verified before it runs anywhere
+  cosign: checksums-v0.14.0.txt signed by https://github.com/vault-genome/vaultgenome-core/.github/workflows/release.yml@refs/tags/v0.14.0 — Verified OK
+  checksums: 5 of 5 downloaded files are on the signed list
+  slsa-verifier: 5 of 5 provenances passed against github.com/vault-genome/vaultgenome-core@v0.14.0
+  tag: Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
+== 3. the stack, the template, the address
+  one m6a.xlarge with AmdSevSnp enabled, Ubuntu 24.04 (Canonical's current AMI, UEFI), 32 GB encrypted disk, ssh from 104.14.24.198/32: about USD 0.19 an hour for an m6a.xlarge in Ohio (the on-demand rate plus AWS's 10 percent for SEV-SNP) while it runs; destroy.sh removes the stack
+== 4. the instance
+  i-0148450046e9781f2 is up at 18.188.108.40 (us-east-2c); the guest is reading the chip, installing, provisioning and proving — about five minutes
+== 5. waiting for the guest's record (up to 30 minutes)
+  the netwo[K  the netwo[K  the netwo[K  the wo[K  the wo[K  the wo[K  the wo[K  the wo[K  the gate job ove[K  the gate job ove[K[K  the guest's record: fetched over ssh from /var/lib/vaultgenome/record/20261029T211717Z, every file as its sha256sums.txt names it -> /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/aws/records/20261029T211717Z/guest
+== 6. what was proven
+PROVEN — Vault Genome v0.14.0 on i-0148450046e9781f2 (stack vg-button-20261029t211714z, us-east-2c): m6a.xlarge, Amazon EC2, AMD SEV-SNP (milan) under the provider's key, a VLEK
+  release      Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
+               the checksums list signed by release.yml@v0.14.0 (cosign); 5 of 5 files on the list; 5 of 5 SLSA provenances against the source tag
+               on the guest: the list verified again under the release identity (Verified OK), the same list this machine verified; 5 of 5 files fetched from GitHub on it
+  chip         AMD Milan: the report signed by a VLEK (REPORT_ID ff13b2ee7190d0b4…, no CHIP_ID), the VLEK CN=cc-us-east-2.amazonaws.com valid to 2027-10-01, chained to AMD's root; TCB snp=0x1f microcode=0xe1 firmware=1.58.3 alias_check=true against the floors of AMD's bulletins (ADR 0033, 0038)
+  identities   vault 1d8ee9bae96e2b88… = worker 1d8ee9bae96e2b88…: the launch measurement — AWS's published UEFI measured for 4 vCPUs (the runbook says how to compute it) — pinned on both sides; the provider CN=cc-us-east-2.amazonaws.com pinned on both sides
+  key files    5 + 3 sealed with the firmware's derived key (tee.sealer auto: sev-snp-derived-key) — on EC2 the fleet's: they open on any EC2 SEV-SNP guest of this measurement and policy, and so survive a stop/start (KNOWN_ISSUES 19) — provision 0.5 s
+  services     sagvd ready 1s after its start, the worker's session opened 0s after the worker's (sagvd.service, acp-compute.service); paused 0.2 s for the audit read, back with the sealed key files opened again (ready 1s, session 0s)
+  gate         job ec7bb3813b02eb9e4f7d754bd85e5469: EXACT at rung 0, 6 of 6 fixtures byte for byte (max_abs_err 0), the verdict signed by sagvd-authority-demo — 8.7 s from submission
+  audit log    ok=true, 16 events verified under the operator's key (records/20261029T211717Z/guest/audit-public-key.pem)
+  time         184.2 s on the guest from its first command to the verified audit log; the record's hashes in guest/sha256sums.txt
+
+The deployment is running. Its record: /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/aws/records/20261029T211717Z
+  on the instance  ssh -i /var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.uDsIHeALQM/key ubuntu@18.188.108.40
+  look             sudo vg health · sudo vg status · sudo vg logs sagvd
+  the audit log    sudo vg verify · sudo vg audit · sudo vg events 20   (the services pause for the read, about 15 s)
+  another job      sudo vg submit gen-0.genome gen-0.key
+  your own model   seal its genome with acpctl (docs/operator/09_first_deployment.md §4) into /var/lib/vaultgenome/genomes, then vg submit
+  the console      aws ec2 get-console-output --region us-east-2 --instance-id i-0148450046e9781f2 --latest --output text
+  a stop/start     moves the instance to another host and gives it a new public address (aws ec2 describe-instances --instance-ids i-0148450046e9781f2); the services and the sealed key files come back on their own
+  remove it        /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/aws/destroy.sh --region us-east-2 --stack vg-button-20261029t211714z

@@ -1,0 +1,21 @@
+Started acp-compute.service - Vault Genome worker (acp-compute), release v0.14.0.
+{"time":"2026-10-29T21:41:05.209685713Z","level":"INFO","msg":"acp-compute starting","version":"v0.14.0","commit":"3c5e632c4ea2f1bc78352f415c15b0c97d9b28ca","config_path":"/etc/vaultgenome/acp-compute.json","vault_address":"127.0.0.1:9443","workload_descriptor":"acp-compute-gcp-deploy-v1"}
+{"time":"2026-10-29T21:41:05.244194501Z","level":"INFO","msg":"worker signing identity","kid":"acp-compute-worker-demo","pubkey_hex":"5e2fe2c42acc2bcac675f8815f58d342014313e6fa80be6c439d5fe0dba5ba62"}
+{"time":"2026-10-29T21:41:05.244232811Z","level":"INFO","msg":"acp-compute tee.provider auto: the family is the host's to say","resolved_from":"sev_guest","tee_provider":"gcp-sev-snp"}
+{"time":"2026-10-29T21:41:05.244243821Z","level":"INFO","msg":"worker TEE identity","tee_provider":"gcp-sev-snp","measurement_hex":"9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf","peer_provider":"gcp-sev-snp","peer_verifier":"builtin"}
+{"time":"2026-10-29T21:41:05.244251691Z","level":"INFO","msg":"genome door","command":["/var/lib/vaultgenome/venv/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/var/lib/vaultgenome/base","--device","cpu"],"timeout_seconds":300}
+{"time":"2026-10-29T21:41:05.25463478Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9082"}
+{"time":"2026-10-29T21:41:05.50109361Z","level":"INFO","msg":"return-path session opened","peer_measurement":"9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf","peer_evidence_type":"application/vnd.veraison.tsm-report+json","peer_evidence_bytes":7980,"handshake_ms":243,"ready_at":"2026-10-29T21:41:05.50084385Z"}
+Stopping acp-compute.service - Vault Genome worker (acp-compute), release v0.14.0...
+{"time":"2026-10-29T21:41:11.516670992Z","level":"INFO","msg":"acp-compute stopped"}
+acp-compute.service: Deactivated successfully.
+Stopped acp-compute.service - Vault Genome worker (acp-compute), release v0.14.0.
+acp-compute.service: Consumed 4.892s CPU time.
+Started acp-compute.service - Vault Genome worker (acp-compute), release v0.14.0.
+{"time":"2026-10-29T21:41:26.153180645Z","level":"INFO","msg":"acp-compute starting","version":"v0.14.0","commit":"3c5e632c4ea2f1bc78352f415c15b0c97d9b28ca","config_path":"/etc/vaultgenome/acp-compute.json","vault_address":"127.0.0.1:9443","workload_descriptor":"acp-compute-gcp-deploy-v1"}
+{"time":"2026-10-29T21:41:26.183325575Z","level":"INFO","msg":"worker signing identity","kid":"acp-compute-worker-demo","pubkey_hex":"5e2fe2c42acc2bcac675f8815f58d342014313e6fa80be6c439d5fe0dba5ba62"}
+{"time":"2026-10-29T21:41:26.183364895Z","level":"INFO","msg":"acp-compute tee.provider auto: the family is the host's to say","resolved_from":"sev_guest","tee_provider":"gcp-sev-snp"}
+{"time":"2026-10-29T21:41:26.183382665Z","level":"INFO","msg":"worker TEE identity","tee_provider":"gcp-sev-snp","measurement_hex":"9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf","peer_provider":"gcp-sev-snp","peer_verifier":"builtin"}
+{"time":"2026-10-29T21:41:26.183407385Z","level":"INFO","msg":"genome door","command":["/var/lib/vaultgenome/venv/bin/python3","-m","vg_genome","door","--stdin-genome","--base","/var/lib/vaultgenome/base","--device","cpu"],"timeout_seconds":300}
+{"time":"2026-10-29T21:41:26.195734465Z","level":"INFO","msg":"health server listening","addr":"127.0.0.1:9082"}
+{"time":"2026-10-29T21:41:36.486270704Z","level":"INFO","msg":"return-path session opened","peer_measurement":"9fc6d42b3005958a32056a75f2ecf1d28a5b9f2a3b5b93a9eb7a67e10be295c235f74fd6c4ab3522b9a588740708b8cf","peer_evidence_type":"application/vnd.veraison.tsm-report+json","peer_evidence_bytes":7980,"handshake_ms":10287,"ready_at":"2026-10-29T21:41:36.486026134Z"}

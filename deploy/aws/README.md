@@ -140,4 +140,11 @@ command (160.1 s on the guest; provision 0.38 s; the gate EXACT 6/6 in
 sealed key files opened and the session on the new boot 87 s after the
 stop, a second job EXACT 6/6, one chain of 32 events, a new REPORT_ID,
 the same VLEK and the same measurement — AWS's UEFI 20260814 for 4 vCPUs,
-measured locally. The claim on the release follows the release.
+measured locally. And on the release itself, claim
+[C59](../../VERIFIABLE-CLAIMS.md#c59): `v0.14.0`, nine minutes after it was
+published (`evidence/20261029T211714Z/`) — `PROVEN` 328 s after the
+command (184.2 s on the guest; provision 0.51 s; the gate EXACT 6/6 in
+8.7 s; sixteen events), stopped in 33 s, back on another host with the
+key files opened and the session on the new boot 82 s after the stop, a
+second job EXACT 6/6, one chain of 32 events, a new REPORT_ID, the same
+VLEK and measurement.
