@@ -52,6 +52,14 @@ given release can still open.
   but the log carried no reason. The pipeline is a condition now, as in
   the `azure-deploy` kit since 0.13.0.
 
+### Changed
+
+- Actions: `codeql-action` 4.39.1, `setup-python` 7.1.0,
+  `docker/login-action` 4.7.0 (the five pins Dependabot proposed in #194,
+  committed by hand so that each commit carries its sign-off). Two of them
+  are in `release.yml`, so the next release rehearses on an `-rc1` tag
+  first (release procedure §4.1).
+
 ## [0.13.0] — 2026-10-28
 
 The release a person deploys with one button, and the one whose Azure
