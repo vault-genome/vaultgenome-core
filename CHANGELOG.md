@@ -43,6 +43,23 @@ given release can still open.
   back on their own, the key files opened again, a second job EXACT, one
   chain of 32 events — only PCR 10 moved across the restart.
 
+### Fixed
+
+- **The `gcp-deploy` kit logs a failed `deploy.sh`.** Its pipeline
+  `deploy.sh … | tee deploy.out` ran as a statement under `set -e` with
+  `pipefail`, so a failing `deploy.sh` ended the kit at that line and the
+  `PIPESTATUS` test after it never ran — the cleanup still removed the VM,
+  but the log carried no reason. The pipeline is a condition now, as in
+  the `azure-deploy` kit since 0.13.0.
+
+### Changed
+
+- Actions: `codeql-action` 4.39.1, `setup-python` 7.1.0,
+  `docker/login-action` 4.7.0 (the five pins Dependabot proposed in #194,
+  committed by hand so that each commit carries its sign-off). Two of them
+  are in `release.yml`, so the next release rehearses on an `-rc1` tag
+  first (release procedure §4.1).
+
 ## [0.13.0] — 2026-10-28
 
 The release a person deploys with one button, and the one whose Azure

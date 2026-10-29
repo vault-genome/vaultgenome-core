@@ -51,8 +51,9 @@ log "== 1. deploy.sh, as a person runs it (release ${TAG:-latest}, $PLATFORM, pr
 # run's copy of it moves under the evidence, and that directory is removed.
 RECORDS_BEFORE="$(ls "$DEPLOY/records" 2>/dev/null || true)"
 T0=$(date +%s)
-"$DEPLOY/deploy.sh" --project "$PROJECT" --name "$NAME" --platform "$PLATFORM" --yes ${TAG:+--tag "$TAG"} ${ZONE:+--zone "$ZONE"} 2>&1 | tee "$EVIDENCE/deploy.out"
-test "${PIPESTATUS[0]}" = 0 || { log "deploy.sh failed"; exit 1; }
+# The pipeline's status is deploy.sh's (pipefail); as a condition it does
+# not end the script under set -e, so the failure below is logged.
+if ! "$DEPLOY/deploy.sh" --project "$PROJECT" --name "$NAME" --platform "$PLATFORM" --yes ${TAG:+--tag "$TAG"} ${ZONE:+--zone "$ZONE"} 2>&1 | tee "$EVIDENCE/deploy.out"; then log "deploy.sh failed"; exit 1; fi
 log "deploy.sh took $(( $(date +%s) - T0 )) s"
 REC=""
 for d in "$DEPLOY"/records/*/; do
