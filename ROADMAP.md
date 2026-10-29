@@ -2,7 +2,7 @@
 
 What is next, what is out of reach today and why, and what will never be
 claimed. The record of what is done is [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md)
-(C1–C58) and [`CHANGELOG.md`](CHANGELOG.md); the open limits are
+(C1–C59) and [`CHANGELOG.md`](CHANGELOG.md); the open limits are
 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md). Nothing here is a promise with a date.
 
 ## Next

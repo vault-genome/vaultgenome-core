@@ -2,7 +2,7 @@
 
 The authoritative maturity summary of this repository. Every statement
 below is backed by an evidence file and a reproduction command in
-[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C58); the open limits
+[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C59); the open limits
 are in [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) and
 [what we do not claim](../VERIFIABLE-CLAIMS.md#what-we-do-not-claim); what
 is next is in [`ROADMAP.md`](../ROADMAP.md). Component-level design
@@ -160,8 +160,9 @@ Intel Xeon CPUs for the determinism measurements.
   files are sealed with a key the firmware derives for the fleet, which
   opens on any EC2 SEV-SNP guest of the same launch measurement and guest
   policy; no vTPM is combined with it in this build, so the boot is not
-  pinned. One run on the record (C58): one region, one instance type, the
-  binaries built from the tree, no reset.
+  pinned. Two runs on the record — the family from the tree's binaries
+  (C58) and the button on the release (C59), with a stop and a start, not
+  a reboot in place — in one region, on one instance type.
 - The largest model measured is 32B, on one confidential GPU, on the pinned
   runtime; cross-device equivalence is measured at 0.5B and 7B; every
   failover number is at 0.5B.

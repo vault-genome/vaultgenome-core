@@ -1,0 +1,12 @@
+== packages
+== the vTPM and the chip's report in it (the HCL report); the chip's product from the report
+== the release v0.14.0, verified on this guest: the signed list under the release workflow's identity, then the files against the list
+== the worker runtime from the hash-pinned locks
+== a base model for the first genome: the tiny one the reference deployment gates
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 438.60it/s]
+== installed; rebooting once so the key files are sealed on a settled boot (the vTPM's PCRs) — this script runs again from vaultgenome-deploy.service
+== acpctl provision: keys, configurations, the AMD genoa chain from KDS, identities and boots pinned, the key files sealed to the vTPM
+== the first genome: a LoRA fine-tune by vg_genome, sealed by acpctl into the genome directory
+== the daemons as systemd services
+== the gate job over the Return Path
+== metrics; then the audit log verified under the operator's key with both services paused, and the chip as the verifier read it

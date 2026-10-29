@@ -1,0 +1,41 @@
+platform=aws-sev-snp sealer=auto vcpus=4
+== the network, then packages
+== the host as the guest sees it: configfs-tsm's report, the VLEK beside it, the chip's product
+probe: report version=5 signing_key=1 chip_id_zero=True measurement=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+product=milan
+== the release v0.14.0, verified on this guest: the signed list under the release workflow's identity, then the files against the list
+guest_cosign=Verified OK
+checksums_list_sha256=3371626d5c9f09620650d5771bbdf5c33989129dde813eea3cdd42925f9a2f2e
+checksums_list_matches_deployer=true
+checksums_ok=5 of 5 downloaded files on the signed list
+== the worker runtime from the hash-pinned locks
+== a base model for the first genome: the tiny one the reference deployment gates
+== acpctl provision: keys, configurations, the AMD milan VLEK chain from KDS, identities and the provider's CSP_ID pinned, the key files sealed with the derived key
+provision exit=0
+provider=auto peer=aws-sev-snp sealer=auto
+vault_measurement=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+worker_measurement=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+vault_sealer=sev-snp-derived-key worker_sealer=sev-snp-derived-key
+vault_vlek_csp_id=CN=cc-us-east-2.amazonaws.com worker_vlek_csp_id=CN=cc-us-east-2.amazonaws.com
+sealed_sagvd=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+sealed_worker=keys.worker_signing.seed_path,keys.session_sealing.material_path,vault.tls.client_key
+amd_cert_chain=/etc/vaultgenome/amd-milan-vlek-cert_chain.pem
+audit_kid=sagvd-audit-demo authority_kid=sagvd-authority-demo
+== the first genome: a LoRA fine-tune by vg_genome, sealed by acpctl into the genome directory
+finetune exit=0
+seal exit=0
+key_id=genome-9215e444e4cb-g0-7f527563583b
+== the daemons as systemd services
+sagvd_ready_after=1s
+session_opened_after=0s
+== the gate job over the Return Path
+job_id=ec7bb3813b02eb9e4f7d754bd85e5469
+job_status=succeeded
+job_wait=8s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo
+== metrics; then the audit log verified under the operator's key with both services paused, and the chip as the verifier read it
+audit verify exit=0
+restart_sagvd_ready_after=1s
+restart_session_opened_after=0s
+peer chip product=Milan signing_key=vlek report_id=ff13b2ee7190d0b40d174f02df9fbb2103fad34681b31a7bd4a32c99f5b6e144 cpuid=0x19/0x1/0x1 snp=0x1f microcode=0xe1 firmware=1.58.3 alias_check=true mit_vector=0xfef floor_snp=0x1b floor_microcode=0xde vlek_csp_id=CN=cc-us-east-2.amazonaws.com vlek_not_after=2027-10-01T05:01:23Z vlek_sha256=65d5b55ba7bb976aa327d7d1203620d6d132d08f5407c37d694c2e073b7f0f4f chip_id_hex=00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+elapsed_seconds=184.2

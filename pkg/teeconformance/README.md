@@ -68,8 +68,8 @@ like.
 
 `RunSEVSNPCorpus` holds a SEV-SNP verifier to every genuine attestation
 report Vault Genome has on record (`test/corpus/sev-snp/` in the module:
-68 reports from 28 chips on 2026-10-28, Milan and Genoa, each with the
-VCEK it verifies under and AMD's chain for its product), to the fields
+78 reports from 28 chips on 2026-10-29, Milan and Genoa, each with the
+key it verifies under and AMD's chain for its product), to the fields
 every verifier must read from each (`expected.tsv`: version, policy,
 PLATFORM_INFO, the reported TCB, the measurement, the chip id), and to
 two mutants of every report, which must be refused:

@@ -254,3 +254,17 @@ provenance verified; the binary inside each equal to its release asset
 the two `sagvd` images, 9 for the two workers); on the guest, from the
 two default images, `gate_level=EXACT` 6/6, both rogues refused, the
 audit log verified (17 events), 186.2 s.
+
+`20261029T212702Z` is the run on `v0.14.0`, 19 minutes after it was
+published: PASS — the four images `sagvd@sha256:273faaf9…`,
+`acp-compute@sha256:e24375d4…`, `sagvd-fips@sha256:560dbdba…` and
+`acp-compute-fips@sha256:9a985634…`, all publicly readable; each
+signature, SBOM attestation and container provenance verified; the
+binary inside each equal to its release asset (`964a23f0…`,
+`5151207d…`, `3d2912a1…`, `aca58ed8…`); each loaded image's
+`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
+the two `sagvd` images, 9 for the two workers); on the guest, from the
+two default images, `gate_level=EXACT` 6/6, both rogues refused, the
+audit log verified (17 events), 548.8 s — the slowest guest on the
+record, the time in the image pulls and the runtime install, not in
+the proof (the job came back in 6 s).

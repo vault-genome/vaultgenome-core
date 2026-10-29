@@ -12,8 +12,8 @@ downloads a release's assets, verifies every signature, the SLSA provenance
 and the tag, rebuilds the binaries from the tag and requires the hashes to
 equal the released files, then runs the Return Path on a fresh SEV-SNP
 Confidential VM with the released daemons and records what the guest did.
-Its record of `v0.13.0` is
-[`evidence/20261028T214656Z/`](../../scripts/hardware-test/release-deploy/evidence/20261028T214656Z/)
+Its record of `v0.14.0` is
+[`evidence/20261029T211713Z/`](../../scripts/hardware-test/release-deploy/evidence/20261029T211713Z/)
 — nothing from the source tree: the key helper, the worker package and
 the AMD chain are the release's too; the numbers below are that record's
 (the record of `v0.7.0`, the first of this kind, is
@@ -45,7 +45,7 @@ cosign verify-blob --signature sagvd.sig --certificate sagvd.cert \
   --certificate-identity-regexp '^https://github\.com/vault-genome/vaultgenome-core/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com sagvd
 slsa-verifier verify-artifact sagvd --provenance-path multiple.intoto.jsonl \
-  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.13.0
+  --source-uri github.com/vault-genome/vaultgenome-core --source-tag v0.14.0
 ```
 
 and the same `cosign verify-blob` for each `*.sbom.spdx.json` with its
@@ -61,12 +61,12 @@ cosign 2.6.5 still reaches for the TUF mirror. Then the tag, against the
 keys pinned on `main`, never against keys in the tagged tree:
 
 ```bash
-git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.13.0
+git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.14.0
 ```
 
-| Check | What the reference saw for `v0.13.0` | Where |
+| Check | What the reference saw for `v0.14.0` | Where |
 | - | - | - |
-| the signed list | `checksums-v0.13.0.txt` verified like any asset, then `sha256sum -c`: 23 of 23 artifacts `OK` (the twenty binaries, the package, the wheel, the sdist) | `verify/checksums.txt` |
+| the signed list | `checksums-v0.14.0.txt` verified like any asset, then `sha256sum -c`: 23 of 23 artifacts `OK` (the twenty binaries, the package, the wheel, the sdist) | `verify/checksums.txt` |
 | cosign, artifacts and SBOMs | forty-seven `Verified OK` from the pairs, and the same forty-seven from their Sigstore bundles with `--trusted-root` and the network denied (twenty-two for `v0.11.0`, twelve for `v0.7.0`, eight for `v0.4.1`, which had four artifacts) | `verify/cosign.txt`, `verify/cosign-bundle-nonet.txt` |
 | slsa-verifier, the artifacts | twenty-four `PASSED: SLSA verification passed` (eleven for `v0.11.0`, six for `v0.7.0`, four for `v0.4.1`) | `verify/slsa.txt` |
 | the tag | `Good "git" signature` with the ED25519 key of `.github/allowed_signers` | `verify/tag.txt` |
@@ -83,7 +83,7 @@ If you have a GCP project, run the kit itself and compare its record with
 the one in the tree:
 
 ```bash
-./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.13.0
+./scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.14.0
 ```
 
 About fifteen minutes and one `n2d-standard-4`, created and deleted by the

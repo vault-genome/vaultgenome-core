@@ -1,0 +1,11 @@
+== the network, then packages
+== the host as the guest sees it: configfs-tsm's report, the VLEK beside it, the chip's product
+== the release v0.14.0, verified on this guest: the signed list under the release workflow's identity, then the files against the list
+== the worker runtime from the hash-pinned locks
+== a base model for the first genome: the tiny one the reference deployment gates
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 219.24it/s]
+== acpctl provision: keys, configurations, the AMD milan VLEK chain from KDS, identities and the provider's CSP_ID pinned, the key files sealed with the derived key
+== the first genome: a LoRA fine-tune by vg_genome, sealed by acpctl into the genome directory
+== the daemons as systemd services
+== the gate job over the Return Path
+== metrics; then the audit log verified under the operator's key with both services paused, and the chip as the verifier read it

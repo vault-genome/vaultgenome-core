@@ -1,0 +1,5 @@
+release: v0.14.0
+verified at: 2026-10-29T21:17:17Z on Darwin arm64
+cosign: v3.1.3 (/opt/homebrew/bin/cosign)
+slsa-verifier: 2.7.1 (/opt/homebrew/bin/slsa-verifier)
+aws: aws-cli/2.36.43

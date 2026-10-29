@@ -1,0 +1,2 @@
+job d50e51cbcc7bc93ea4fc64c5f300b9b8 submitted
+status=succeeded gate=EXACT rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo

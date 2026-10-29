@@ -1,0 +1,68 @@
+{
+  "schema": "vault-genome/acpctl-provision/v1",
+  "role": "both",
+  "phase": "complete",
+  "out": "/etc/vaultgenome",
+  "provider": "auto",
+  "peer_provider": "azure-sev-snp",
+  "sealer": "auto",
+  "binaries": {
+    "acp-compute": "/opt/vaultgenome/bin/acp-compute",
+    "keygen": "/opt/vaultgenome/bin/acp-keygen",
+    "sagvd": "/opt/vaultgenome/bin/sagvd"
+  },
+  "secrets": "/etc/vaultgenome/secrets",
+  "configs": {
+    "acp-compute": "/etc/vaultgenome/acp-compute.json",
+    "sagvd": "/etc/vaultgenome/sagvd.json"
+  },
+  "configs_sha256": {
+    "acp-compute": "5c98d5a38653cb7280dd78f159b520d3d4bc34b9eb1710dae2011f6c0fc09277",
+    "sagvd": "5c9f41ff0a2b08acf0ae4e346caebd15409e917b9d0e8f42aef6f93f0940c730"
+  },
+  "pins": {
+    "vault": "/etc/vaultgenome/pins/vault.measurement",
+    "worker": "/etc/vaultgenome/pins/worker.measurement"
+  },
+  "amd_cert_chain": "/etc/vaultgenome/amd-genoa-cert_chain.pem",
+  "vault": {
+    "provider": "azure-sev-snp",
+    "measurement_hex": "6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48",
+    "sealer": "tpm2",
+    "vtpm_pcr_digest_hex": "02be54f26a8db430d4c2c09dd7461d3ef072d8075ffd6530363e882c4a1a7e80",
+    "vtpm_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
+    "audit_kid": "sagvd-audit-demo",
+    "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEANpwIeLUnwMIN4+LtMvZaVaOdoSYP/KTU79gxFYQtHTY=\n-----END PUBLIC KEY-----\n",
+    "authority_kid": "sagvd-authority-demo",
+    "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAR8gcNxn/lXq13nOE1iAtXGy7U0XMRKSOpNy+9jo6RmY=\n-----END PUBLIC KEY-----\n",
+    "identity_file": "/etc/vaultgenome/sagvd-identity.json"
+  },
+  "worker": {
+    "provider": "azure-sev-snp",
+    "measurement_hex": "6587d41e46995d71808f7d92d859e0ed093bea3c55a342c866a20cd1a213ae4e20241bdbc44d5255222da65cce1c7f48",
+    "sealer": "tpm2",
+    "vtpm_pcr_digest_hex": "02be54f26a8db430d4c2c09dd7461d3ef072d8075ffd6530363e882c4a1a7e80",
+    "vtpm_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
+    "identity_file": "/etc/vaultgenome/acp-compute-identity.json"
+  },
+  "api_token_file": "/etc/vaultgenome/operator/api_token",
+  "sealed": {
+    "acp-compute": [
+      "keys.worker_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "vault.tls.client_key"
+    ],
+    "sagvd": [
+      "keys.authority_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "keys.audit_signing.seed_path",
+      "vault.tls.server_key",
+      "http_api.bearer_token_file"
+    ]
+  },
+  "next": [
+    "/opt/vaultgenome/bin/sagvd -config /etc/vaultgenome/sagvd.json",
+    "/opt/vaultgenome/bin/acp-compute -config /etc/vaultgenome/acp-compute.json",
+    "acpctl genome seal --content-dir \u003cgenome\u003e --output /var/lib/vaultgenome/genomes/gen-0.genome --key-out /var/lib/vaultgenome/genomes/gen-0.key"
+  ]
+}

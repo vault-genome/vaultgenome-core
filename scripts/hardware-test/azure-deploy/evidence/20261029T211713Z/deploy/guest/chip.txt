@@ -1,0 +1,1 @@
+peer chip product=Genoa variant=Genoa cpuid=0x19/0x11/0x1 snp=0x1c microcode=0x58 firmware=1.58.2 alias_check=true mit_vector=0x7 floor_snp=0x1b floor_microcode=0x56

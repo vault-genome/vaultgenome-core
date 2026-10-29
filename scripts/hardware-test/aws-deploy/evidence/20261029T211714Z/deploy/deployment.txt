@@ -1,0 +1,12 @@
+region=us-east-2
+stack=vg-button-20261029t211714z
+instance=i-0148450046e9781f2
+zone=us-east-2c
+machine=m6a.xlarge
+platform=aws-sev-snp
+release=v0.14.0
+admin=ubuntu
+ip=18.188.108.40
+ssh_from=104.14.24.198/32
+started=20261029T211717Z
+guest_stamp=20261029T211717Z

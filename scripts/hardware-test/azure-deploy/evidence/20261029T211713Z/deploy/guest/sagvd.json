@@ -1,0 +1,82 @@
+{
+  "audit": {
+    "log_path": "/var/lib/vaultgenome/audit/audit.db",
+    "segment_events": 100000,
+    "segment_max_age_seconds": 86400
+  },
+  "genome": {
+    "bundle_dir": "/var/lib/vaultgenome/genomes",
+    "gate": {
+      "atol": 0.01,
+      "max_non_critical_outliers": 0,
+      "rtol": 0.001
+    }
+  },
+  "health": {
+    "listen_address": "127.0.0.1:9081"
+  },
+  "http_api": {
+    "bearer_token_file": "/etc/vaultgenome/secrets/sagvd/api_token",
+    "listen_address": "127.0.0.1:9080"
+  },
+  "keys": {
+    "audit_signing": {
+      "kid": "sagvd-audit-demo",
+      "seed_path": "/etc/vaultgenome/secrets/sagvd/audit_signing_seed"
+    },
+    "authority_signing": {
+      "kid": "sagvd-authority-demo",
+      "seed_path": "/etc/vaultgenome/secrets/sagvd/authority_signing_seed"
+    },
+    "session_sealing": {
+      "kid": "session-sealing-demo",
+      "material_path": "/etc/vaultgenome/secrets/shared/sealing.key"
+    }
+  },
+  "log": {
+    "format": "json",
+    "level": "info"
+  },
+  "queue": {
+    "path": "/var/lib/vaultgenome/queue/jobs.db",
+    "retain_finished_seconds": 2592000
+  },
+  "runtime": {
+    "default_job_deadline_seconds": 600,
+    "handshake_timeout_seconds": 30,
+    "http_read_header_timeout_seconds": 5,
+    "http_write_timeout_seconds": 30,
+    "job_timeout_seconds": 600,
+    "max_payload_bytes": 4194304,
+    "max_sessions": 1,
+    "queue_poll_ms": 50
+  },
+  "tee": {
+    "peer": {
+      "amd_cert_chain_path": "/etc/vaultgenome/amd-genoa-cert_chain.pem",
+      "measurement_path": "/etc/vaultgenome/pins/worker.measurement",
+      "pcr_digests": [
+        "02be54f26a8db430d4c2c09dd7461d3ef072d8075ffd6530363e882c4a1a7e80"
+      ],
+      "provider": "azure-sev-snp",
+      "vcek_cache_dir": "/etc/vaultgenome/vcek-cache"
+    },
+    "provider": "auto",
+    "sealer": "auto",
+    "vtpm_quote_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
+    "vtpm_seal_pcrs": "sha256:0,1,2,3,4,5,6,7,8,9,11,12,13,14",
+    "workload_descriptor": "sagvd-azure-deploy-v1"
+  },
+  "vault": {
+    "listen_address": "127.0.0.1:9443",
+    "tls": {
+      "client_cas": "/etc/vaultgenome/secrets/shared/tls/ca.crt",
+      "enabled": true,
+      "server_cert": "/etc/vaultgenome/secrets/sagvd/tls/server.crt",
+      "server_key": "/etc/vaultgenome/secrets/sagvd/tls/server.key"
+    }
+  },
+  "workers": {
+    "registry_path": "/etc/vaultgenome/secrets/shared/workers.json"
+  }
+}

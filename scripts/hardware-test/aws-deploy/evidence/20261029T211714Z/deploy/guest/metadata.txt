@@ -1,0 +1,9 @@
+instance=i-0148450046e9781f2
+machine=m6a.xlarge
+location=us-east-2c
+region=us-east-2
+ami=ami-0fc53b217ec1ad816
+platform=aws-sev-snp
+release=v0.14.0
+sealer=auto
+captured=20261029T211717Z

@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), [C58](#c58), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), [C58](#c58), [C59](#c59), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -2679,13 +2679,80 @@ every binary `GOFIPS140=v1.0.0-c2097c7c` at that commit; a key released
 across clouds under `hpke-p384-v2` (recipient key `fa7ff4d0…`), the
 restore confirmed by the chip receipt, the unlisted guest, the operator stop and the TCB floor one above the chip refused, `acpctl audit verify` at exit 0
 reporting `signature_suite` `ecdsa-p384-sha384` over 12 events — C42
-and C43 on the released commit.
+and C43 on the released commit. The release-deploy and images kits on
+`v0.14.0` (2026-10-29, published 21:08:27Z; the release with the fourth
+cloud's family and the fourth button, rehearsed as `v0.14.0-rc1`, §4.1 of
+the release procedure). The release itself, 9 minutes after:
+[`scripts/hardware-test/release-deploy/evidence/20261029T211713Z/`](scripts/hardware-test/release-deploy/evidence/20261029T211713Z/)
+— `verify/assets.sha256` 197 assets; `verify/checksums.txt` the signed
+list verified, then `sha256sum -c` over the download: 23 of 23
+artifacts; `verify/cosign.txt` forty-seven "Verified OK";
+`verify/cosign-bundle-nonet.txt` the same forty-seven from their
+bundles with `--trusted-root` and no route; `verify/slsa.txt` the
+twenty-four artifacts' provenance verified; `verify/tag.txt` the tag's
+signature under the pinned key; `verify/rebuild.txt` the twenty
+binaries, the package, the wheel and the sdist rebuilt from the tag
+(commit `3c5e632c4ea2`, go1.27.3, GNU tar, GNU gzip and Python 3.12.2 on
+Darwin arm64) with the same sha256 as the released files
+(`sagvd` `964a23f0…`, `sagvd-fips` `3d2912a1…`, `acp-compute`
+`5151207d…`, `acp-compute-fips` `aca58ed8…`, `acpctl` `7b73ca6a…`,
+`acpctl-fips` `2be2fff9…`, `acp-bootstrap` `513bf5fa…`,
+`acp-bootstrap-fips` `30b70143…`, `acp-keygen` `af83eacc…`,
+`acp-keygen-fips` `c0e2e8f3…`; `acpctl` for `linux-arm64` `d4ac0b3d…`,
+`darwin-amd64` `f65584d0…`, `darwin-arm64` `8f22ad16…`, `windows-amd64`
+`c0f22ded…`, `windows-arm64` `cf216bab…`; `acp-keygen` for the same five
+`e3c1e8cc…`, `ccc94b09…`, `2c90e84d…`, `54dcdc04…`, `30b4c02e…`; the
+package `af89cbca…`, the wheel `15d9556f…`, the sdist `94053092…`);
+`results/versions.txt` the released binaries reporting `v0.14.0` at the
+tag's commit; both daemons read `9fc6d42b…8b8cf` from the chip and
+sealed their key files to it; the thief with the sealed files and the
+unpinned worker refused; `results/job.json` gate level EXACT, 6 of 6,
+`max_abs_err` 0; `results/audit-verify.json` `ok: true`, 17 events;
+129.7 s on the guest. The four container images, 19 minutes after:
+[`scripts/hardware-test/release-deploy-images/evidence/20261029T212702Z/`](scripts/hardware-test/release-deploy-images/evidence/20261029T212702Z/)
+— `sagvd@sha256:273faaf9…`, `acp-compute@sha256:e24375d4…`,
+`sagvd-fips@sha256:560dbdba…`, `acp-compute-fips@sha256:9a985634…`, all
+four publicly readable; each verified by digest on the runner
+(signature, SBOM attestation, SLSA provenance, the binary inside equal
+to its release asset: `964a23f0…`, `5151207d…`, `3d2912a1…`,
+`aca58ed8…`); each loaded image's `RootFS.Layers` equal to the signed
+config's `diff_ids` (13 layers for the `sagvd` images, 9 for the
+workers); both daemons from their images, the key files sealed, both
+rogues refused, gate level EXACT, the audit log verified (17 events);
+548.8 s. And the buttons on the release (§5.9 of the procedure), within
+the hour: `scripts/hardware-test/gcp-deploy/evidence/20261029T213723Z/`
+on SEV-SNP — 264 s from the command to `PROVEN`, the reset and the
+services back in 87 s, a second job EXACT, one chain of 32 events — and
+`scripts/hardware-test/gcp-deploy/evidence/20261029T214531Z/` on TDX —
+276 s to `PROVEN` with the settled-boot reboot, back in 57 s after the
+reset with the vTPM opening the key files again, a second job EXACT, 32
+events ([C55](#c55), [C56](#c56) on the release);
+`scripts/hardware-test/azure-deploy/evidence/20261029T211713Z/` on an
+Azure Confidential VM — a Genoa host, not refused, 310 s to `PROVEN`,
+back in 122 s after `az vm restart`, a second job EXACT, 32 events, only
+PCR 10 moved ([C57](#c57) on the release); and
+`scripts/hardware-test/aws-deploy/evidence/20261029T211714Z/` on an EC2
+instance under the provider's VLEK — 328 s to `PROVEN`, stopped and
+started onto another host and back in 82 s with the fleet's sealed key
+files opened, a second job EXACT, 32 events, the same VLEK and
+measurement ([C59](#c59)). And the released commit under `fips` with
+`VG_FIPS=1` and `VG_SIGSUITE=ecdsa-p384-sha384`, on the certified module
+with enforcement on, by the key-release kit 49 minutes after:
+[`scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261029T215743Z/`](scripts/hardware-test/gcp-sev-snp/keyrelease-e2e/evidence/20261029T215743Z/)
+— `versions.txt`: `sagvd v0.14.0 (commit 3c5e632c4ea2) fips140=only
+module=v1.0.0 enforced=true`, the same for `acp-bootstrap`; `build.txt`
+every binary `GOFIPS140=v1.0.0-c2097c7c` at that commit; a key released
+across clouds under `hpke-p384-v2` (recipient key `03d1fb88…`), the
+restore confirmed by the chip receipt, the unlisted guest, the operator
+stop and the TCB floor one above the chip refused, `acpctl audit verify`
+at exit 0 reporting `signature_suite` `ecdsa-p384-sha384` over 12 events
+— C42 and C43 on the released commit.
 
 **Reproduce:**
 
 ```bash
-scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.13.0          # ~15 min, one n2d-standard-4, deletes it
-scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.13.0   # the images; ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy/run.sh <gcp-project> v0.14.0          # ~15 min, one n2d-standard-4, deletes it
+scripts/hardware-test/release-deploy-images/run.sh <gcp-project> v0.14.0   # the images; ~15 min, one n2d-standard-4, deletes it
 ```
 
 ---
@@ -3465,10 +3532,10 @@ live floors was not available to refuse.
 product's SEV-SNP parse, AMD-chain and signature checks and, on the same
 bytes, Google's `go-sev-guest` v0.15.0 (`tools/oracle`, a module of its
 own) and VirTEE's `snpguest` 0.10.0, on every genuine report on record
-(`test/corpus/sev-snp`: 68 reports on 2026-10-28 — 31 the kits kept, 37
-from the key-release receipts — 28 distinct chips, Milan and Genoa, report
-versions 3 and 5, firmware from SNP 0x17 to 0x1d, each with its VCEK and
-AMD's chain). Each report verifies under all three; nineteen fields are
+(`test/corpus/sev-snp`: 78 reports on 2026-10-29 — 40 the kits kept, nine
+of them EC2 reports signed by a VLEK, 38 from the key-release receipts —
+28 distinct chips, Milan and Genoa, report versions 3 and 5, firmware from
+SNP 0x17 to 0x1f, each with the key it verifies under and AMD's chain). Each report verifies under all three; nineteen fields are
 equal between the product and go-sev-guest (version, guest SVN, policy,
 PLATFORM_INFO, VMPL, signature algorithm, the current, reported, committed
 and launch TCBs, measurement, host data, report data, chip id, both
@@ -3545,7 +3612,7 @@ cargo install snpguest --version 0.10.0 --locked                         # VirTE
 ```
 
 **Scope.** Two readings maintained by others, run on the same bytes: not a
-proof that any of the three is correct, but that they agree on 68 reports
+proof that any of the three is correct, but that they agree on 78 reports
 of two product lines and disagree on none, and that a byte out of place
 is refused by all. The stage of a refusal differs and may: go-sev-guest
 refuses reserved and must-be-one bits at the parse where the product
@@ -4047,7 +4114,12 @@ after the guest learned Intel TDX ([C56](#c56)):
 — 271 s to `PROVEN`, the same chip and TCB, the gate EXACT 6 of 6 in
 5.2 s, sixteen events, the services back after the pause; after the
 reset, ssh and the session in 87 s, the second job EXACT, 32 events on
-one chain.
+one chain. And on `v0.14.0`, 29 minutes after it was published
+([`evidence/20261029T213723Z/`](scripts/hardware-test/gcp-deploy/evidence/20261029T213723Z/)):
+264 s to `PROVEN`, the same chip and TCB (Milan, snp 0x1f, microcode
+0xe1), provision 10.5 s, the gate EXACT 6 of 6 in 5.2 s, sixteen events,
+the services back after the pause; after the reset, ssh and the session
+in 87 s, the second job EXACT, 32 events on one chain.
 
 ---
 
@@ -4124,7 +4196,14 @@ reboots; a new kernel does not, and the runbook says what a new image
 means for the pin. The settled-boot rule costs one reboot (84 s on the
 record) and is applied whenever the sealer is the vTPM — `--platform tdx`,
 or `--sealer tpm2` on SEV-SNP. One instance type, one zone, one run on the
-record.
+record. And on `v0.14.0`, 37 minutes after it was published
+([`evidence/20261029T214531Z/`](scripts/hardware-test/gcp-deploy/evidence/20261029T214531Z/)):
+276 s to `PROVEN` with the settled-boot reboot (on the settled boot:
+provision 8.1 s, `sagvd` ready 3 s after its start, the session open 1 s
+after the worker's, the gate EXACT 6 of 6 in 4.2 s, 30.3 s from its first
+command to the sealed verdict), the reset and the services back in 57 s
+with the vTPM opening the key files again, a second job EXACT, one chain
+of 32 events.
 
 <a id="c57"></a>
 ### C57 — The same button deploys the signed release on a real Azure Confidential VM (AMD SEV-SNP under the paravisor): the boot pinned and the key files sealed under the vTPM's PCRs without IMA's PCR 10, a gate job EXACT, the audit log verified, 293 s from the command to `PROVEN`; after `az vm restart` the services come back on their own, the vTPM opens the files again, a second job gates EXACT and one chain of 32 events verifies — and the host Azure chose first, its chip firmware under AMD's floor, was refused
@@ -4222,7 +4301,16 @@ refused, as the policy says, and the next deployment lands elsewhere —
 three of six hosts in West Europe that day ran SNP firmware 0x1C, three
 0x17. The settled-boot rule costs one reboot (31.3 s on the record). One
 instance type, one region, one run on the record on the release and one on
-its rehearsal.
+its rehearsal. The same kit ran again on `v0.14.0`, nine minutes after it
+was published
+([`evidence/20261029T211713Z/`](scripts/hardware-test/azure-deploy/evidence/20261029T211713Z/)):
+a Genoa host (SNP firmware 0x1C, microcode 0x58, above the floors), not
+refused — `PROVEN` 310 s after the command (provision 2.3 s, 22.0 s on the
+settled boot to the sealed verdict), both sides quoting and sealing under
+`sha256:0-9,11-14`, the boot `02be54f2…` pinned on both sides; after
+`az vm restart` the services back in 122 s with the key files opened
+again, a second job EXACT 6/6, one chain of 32 events; only PCR 10 moved
+across the restart.
 
 ---
 
@@ -4347,6 +4435,136 @@ here, with every line of the hardware green, and is not on the record.
 
 ---
 
+<a id="c59"></a>
+### C59 — The same button on AWS: one EC2 instance with AMD SEV-SNP stood up from the signed release under the provider's VLEK, proven and left running — the release verified on the deployer's machine and on the guest, `acpctl provision` resolving the family from the host and pinning AWS's CSP_ID, the key files sealed with the fleet's derived key, a gate job EXACT, the audit log verified, 328 s from the command to `PROVEN`; then a stop and a start — a move to another host — after which the services come back on their own, the sealed key files open again, a second job gates EXACT and one chain of 32 events verifies, under a new REPORT_ID, the same VLEK and the same launch measurement, which is AWS's published UEFI measured locally
+
+**Claim.** On 2026-10-29, nine minutes after `v0.14.0` was published,
+`scripts/hardware-test/aws-deploy/run.sh v0.14.0 us-east-2 m6a.xlarge
+--published vaultgenome-deploy` ran `deploy/aws/deploy.sh` as a person
+does, after checking that the committed `template.json` is what
+`guest.sh` makes and that the bucket behind the Launch Stack button
+serves it byte for byte (`runner.log`). Before anything ran anywhere, the
+release was verified on the machine that ran the command: the tag's
+signature good under the key pinned on `main` (`deploy/verify/tag.txt`);
+`checksums-v0.14.0.txt` `Verified OK` under the release workflow's
+identity for this very tag (`deploy/verify/cosign.txt`); 5 of 5
+downloaded files on the list (`deploy/verify/checksums.txt`); 5 of 5
+SLSA provenances passed against the source tag (`deploy/verify/slsa.txt`).
+One CloudFormation stack was created from the template — a key pair from
+the run's public key, a security group with port 22 open to the deployer's
+address, a launch template with `AmdSevSnp` enabled, IMDSv2 and the
+instance's tags in the metadata, one `m6a.xlarge` (AMD Milan, 4 vCPUs) in
+`us-east-2c` from Canonical's current Ubuntu 24.04 AMI read from AWS's
+public SSM parameter, a 32 GB encrypted disk — with the list's SHA-256,
+the release and the record's stamp in the instance's tags
+(`deploy/deployment.txt`, `deploy/deployment-outputs.json`). The guest
+read its tags from the instance metadata, verified the list again under
+the release identity and found it the same list the deployer had verified
+(`checksums_list_matches_deployer=true`), fetched the five files from
+GitHub and held them to it (5 of 5, `deploy/guest/checksums-check.txt`);
+its first report through configfs-tsm had FLAGS.SIGNING_KEY = 1 and
+sixty-four zero bytes of CHIP_ID, the certificate table beside it
+(`probe-report.bin`, `probe-certs.bin`, `steps.txt`); it installed the
+worker runtime from the hash-pinned locks, built the base model, and
+`acpctl provision --provider auto --fetch-amd-chain milan --sealer auto`
+wrote the deployment in 0.51 s: both sides `auto` resolved to
+`aws-sev-snp` from the host, the VLEK chain from AMD KDS under the pinned
+ARK (`amd-milan-vlek-cert_chain.pem`), both identities the launch
+measurement `1d8ee9ba…cb5b` and `aws_sev_snp.csp_id`
+`CN=cc-us-east-2.amazonaws.com`, each pinned by the other side, eight key
+files sealed with the firmware's derived key — five of the authority's,
+three of the worker's — each header `tee: aws-sev-snp`, `sealer:
+sev-snp-derived-key` (`provision.json`, `sealed-files.txt`). A first
+genome was fine-tuned on the guest and sealed (8.5 s). `sagvd.service` and
+`acp-compute.service` started under systemd: `sagvd` ready 1 s after its
+start and the session open 3.3 s after the services started, the
+handshake carrying the family's envelope. A gate job over the Return
+Path came back EXACT, 6 of 6 fixtures byte for byte, `max_abs_err` 0, the
+verdict signed by the authority's key, 8.7 s after submission (`job.json`).
+Sixteen audit events verified under `operator/audit_public_key.pem` with
+both services paused (`audit-verify.json`); both were back with the sealed
+key files opened again. The admission record (`TRUST_EVALUATED`,
+`peer_detail.sev_snp`; `chip.txt`) says what signed the report and what
+the chip said: `signing_key: vlek`, REPORT_ID `ff13b2ee…e144`,
+`chip_id_hex` all zero, the VLEK `65d5b55b…` — subject `SEV-VLEK`, issuer
+`SEV-VLEK-Milan`, CSP_ID `CN=cc-us-east-2.amazonaws.com`, valid to
+2027-10-01 — Milan, TCB snp 0x1f, microcode 0xe1, firmware 1.58.3, alias
+check complete, above the floors of AMD's bulletins (0x1b, 0xde). The
+summary that begins with `PROVEN` was printed 328 s after the command,
+every line from a file of the record (`deploy.out`); the guest took
+184.2 s from its first command to the verified audit log. The kit then
+stopped the instance (33 s to `stopped`) and started it again: it came up
+on a new address 18 s later — on shared tenancy a stop and start is a
+move to another host — and 82 s after the stop both services were active
+with the session opened on the new boot (`after-move/health.txt`,
+`journal-this-boot.txt`), the sealed key files having opened again under
+the fleet's derived key. `vg submit` over ssh gated a second job EXACT, 6
+of 6 (`after-move/submit.txt`); `vg verify` replayed one chain of 32
+events, `ok: true` (`after-move/audit-verify.json`; sixteen before the
+move). The chip on the new host, as the verifier read it: a new REPORT_ID
+`cec18f74…`, the same VLEK, the same launch measurement
+(`after-move/identity.txt`). On the machine that ran the command the kit
+downloaded AWS's published EC2 UEFI, release 20260814 (sha256
+`67aaae01…2bc9`, equal to the pin in `run.sh`), and measured it with
+sev-snp-measure 0.0.13 for 4 vCPUs: `1d8ee9ba…cb5b`, equal to what the
+chip reported and both daemons pinned (`measurement.txt`). The record was
+checked for anything naming the account — an ARN, an IAM unique id, the
+twelve digits — and names none; the stack was deleted
+(`stack-deleted.txt`). Nothing secret was printed: keys, seeds and the
+operator's token stayed on the instance and died with it; no IAM role was
+attached to the instance.
+
+**Evidence.**
+[`scripts/hardware-test/aws-deploy/evidence/20261029T211714Z/`](scripts/hardware-test/aws-deploy/evidence/20261029T211714Z/)
+— `deploy.out` (what the person saw), `deploy/verify/` (`tag.txt`,
+`cosign.txt`, `checksums.txt`, `slsa.txt`, `assets.sha256`, `tools.txt`),
+`deploy/deployment.txt`, `deploy/deployment-outputs.json`,
+`deploy/serial-console.txt`, `deploy/guest/` (`provision.out`,
+`provision.json`, both identities, both configurations with paths and no
+secret, `sealed-files.txt`, the probe, `chip.txt`, `job.json`,
+`audit-verify.json`, `audit-events.jsonl`, `audit-public-key.pem`,
+`sagvd.log`, `acp-compute.log`, the two units, `steps.txt`,
+`timeline.txt`, `sha256sums.txt`), `after-move/` (`addresses.txt`,
+`identity.txt`, `health.txt`, `journal-this-boot.txt`, `boots.txt`,
+`host.txt`, `submit.txt`, `status-live.txt`, `audit-verify.json`,
+`status.txt`, `audit-events.jsonl`, `chip.txt`), `measurement.txt`,
+`summary.txt`, `stack-deleted.txt`, `runner.log`, `sha256sums.txt`. The
+button: [`deploy/aws/`](deploy/aws/README.md) — `template.json` (made
+from `guest.sh` by `make-template.sh`), `deploy.sh`, `destroy.sh`,
+`publish-template.sh`, the two policies; the kit:
+[`scripts/hardware-test/aws-deploy/`](scripts/hardware-test/aws-deploy/README.md),
+whose README carries the rehearsal `v0.14.0-rc1` the same evening
+(`evidence/20261029T201000Z/`: `PROVEN` 290 s after the command, back
+after the move in 87 s, the same checks green).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/aws-deploy/run.sh v0.14.0 us-east-2 m6a.xlarge --published vaultgenome-deploy   # ~8 min, one m6a.xlarge, deleted at the end
+deploy/aws/deploy.sh --tag v0.14.0                                                                      # the button itself: the instance stays
+```
+
+**Scope.** One host with both daemons on it, as the reference deployment
+([C37](#c37)); the two-host form is the three commands of [C39](#c39).
+The family is `aws-sev-snp` ([C58](#c58), ADR 0038): the report is
+signed by the key AMD issues to the provider, so the policy pins the
+provider's CSP_ID and no machine; the launch measurement is AWS's
+published firmware; the key files are sealed with the firmware's derived
+key, which on EC2 is the fleet's — that is why they open again on the
+other host, and why they would open on any EC2 SEV-SNP guest of the same
+measurement and policy; no vTPM is combined with the family, so the boot
+after AWS's UEFI is not pinned. The kit drove the same template the
+console's Launch Stack link serves (checked equal to the committed file),
+through the AWS CLI with the same parameters; a person's own click in the
+console is not itself on the record. The move was a stop and a start, not
+a reboot in place; the instance's public address changes with it. One
+region (Ohio), one instance type, one run on the release and one on its
+rehearsal; the deployer's identity needs the actions of
+`deployer-policy.json`, and the template is served from a maintainer's
+bucket, public for the template alone.
+
+---
+
 ## What we do not claim
 
 This section is load-bearing. We would rather lose a deal than win one on a
@@ -4403,10 +4621,11 @@ sentence we cannot defend.
    not a host; its key files are sealed with a key the firmware derives for
    the fleet, which opens on any EC2 SEV-SNP guest of the same launch
    measurement and guest policy; no vTPM is combined with it in this build,
-   so the boot is not pinned. One run, in one region, on one instance type,
-   from the tree's binaries, without a reset; the one-button deployment on
-   EC2 is not claimed until a release carries the family and the kit has
-   run it.
+   so the boot is not pinned. Two runs on the record — the family from the
+   tree's binaries ([C58](#c58)) and the button on the release
+   ([C59](#c59)), with a stop and a start, not a reboot in place — in one
+   region, on one instance type; a person's own click in the console is
+   the same template, not itself on the record.
 5. **We do not claim this at frontier scale.** The largest model measured is
    Qwen/Qwen2.5-32B-Instruct — on an attested confidential GPU VM ([C26](#c26));
    Qwen2.5-7B-Instruct ran on one 24 GB GPU ([C16](#c16)) and on the same

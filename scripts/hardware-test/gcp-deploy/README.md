@@ -87,4 +87,16 @@ Milan, TCB snp 0x1f, microcode 0xe1, above the floors.
 worker's, EXACT in 4.2 s, 30.3 s from its first command to the sealed
 verdict), the reset and the services back in 58 s with the vTPM opening
 the key files again, a second job EXACT, one chain of 32 events.
-
+On `v0.14.0`, both platforms again on 2026-10-29, within the hour of the
+release: `evidence/20261029T213723Z/` — SEV-SNP, `deploy.sh` 264 s to
+`PROVEN` (provision 10.5 s, `sagvd` ready 17 s after its start, the
+session open 0 s after the worker's, the gate job EXACT in 5.2 s; 155.7 s
+on the guest), the reset and the services back in 87 s, a second job
+EXACT over ssh, one chain of 32 events; the chip Milan, TCB snp 0x1f,
+microcode 0xe1, above the floors. `evidence/20261029T214531Z/` — TDX,
+`deploy.sh --platform tdx` 276 s to `PROVEN` with the settled-boot reboot
+(on the settled boot: provision 8.1 s, `sagvd` ready 3 s after its start,
+the session open 1 s after the worker's, EXACT in 4.2 s, 30.3 s from its
+first command to the sealed verdict), the reset and the services back in
+57 s with the vTPM opening the key files again, a second job EXACT, one
+chain of 32 events.

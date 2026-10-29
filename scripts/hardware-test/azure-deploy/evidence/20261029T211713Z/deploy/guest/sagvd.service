@@ -1,0 +1,18 @@
+[Unit]
+Description=Vault Genome authority (sagvd), release v0.14.0
+Documentation=https://github.com/vault-genome/vaultgenome-core/blob/v0.14.0/docs/operator/00_overview.md
+After=network-online.target systemd-pcrphase.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/opt/vaultgenome/bin/sagvd -config /etc/vaultgenome/sagvd.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/vaultgenome /etc/vaultgenome
+
+[Install]
+WantedBy=multi-user.target

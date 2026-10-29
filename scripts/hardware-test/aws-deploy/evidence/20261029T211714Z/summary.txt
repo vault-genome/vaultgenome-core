@@ -1,0 +1,11 @@
+release=v0.14.0
+platform=aws-sev-snp
+instance=i-0148450046e9781f2
+stack=vg-button-20261029t211714z
+region=us-east-2
+machine=m6a.xlarge
+stamp=20261029T211714Z
+events_after_first_job=16
+events_after_move_and_second_job=32
+deploy_seconds=328
+move_seconds=113

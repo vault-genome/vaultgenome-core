@@ -1,0 +1,16 @@
+{
+  "status": "failed",
+  "error": {
+    "category": "authority",
+    "code": "attestation_denied",
+    "message": "authority[attestation_denied]: kms.CoordinateRestore: policy denied key release: destination measurement not in allow-list for \"gcp-sev-snp\""
+  },
+  "handshake_request_id": "xcc-req-a8372226a175263483d6cae8c6f74a9e",
+  "handshake_audit_id": "xcc-evt-0000000000000005",
+  "attestation_audit_id": "xcc-evt-0000000000000006",
+  "destination_measurement_hex": "e79ebb5b789ddb6b7a9897f663a655a65c69445aa482c4e1a5ff9fdeb4af1a2c8d5d30fcad5f4f0e04f1a13885eb984d",
+  "crypto_profile": "fips",
+  "audit_chain_length": 7,
+  "audit_tip": "b6d38a039e47955be10dfb78ba427ace49b80f365f901e48c29fe9b9e255bb83",
+  "operator_stop_serial": 1
+}
