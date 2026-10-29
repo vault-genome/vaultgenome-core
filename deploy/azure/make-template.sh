@@ -31,7 +31,7 @@ t = {
     "vmSize": {"type": "string", "defaultValue": "Standard_DC4as_v5", "allowedValues": ["Standard_DC2as_v5", "Standard_DC4as_v5", "Standard_DC8as_v5", "Standard_DC16as_v5", "Standard_DC2ads_v5", "Standard_DC4ads_v5", "Standard_DC8ads_v5"], "metadata": {"description": "An AMD SEV-SNP Confidential VM size."}},
     "adminUsername": {"type": "string", "defaultValue": "vgadmin", "metadata": {"description": "The ssh user (sudo). The daemons run as root services; the record is readable by this user."}},
     "sshPublicKey": {"type": "string", "metadata": {"description": "The ssh public key of the person deploying (one line, ssh-ed25519 or ssh-rsa)."}},
-    "release": {"type": "string", "defaultValue": "v0.13.0", "metadata": {"description": "The signed release to deploy (a tag). The guest verifies its checksums list under the release workflow's identity for this tag before it runs anything."}},
+    "release": {"type": "string", "defaultValue": "v0.14.0", "metadata": {"description": "The signed release to deploy (a tag). The guest verifies its checksums list under the release workflow's identity for this tag before it runs anything."}},
     "sshSourcePrefix": {"type": "string", "defaultValue": "*", "metadata": {"description": "Who may reach port 22: your address as a.b.c.d/32, or * for anyone with the key. The Vault Genome listeners bind loopback only."}},
     "checksumsSha256": {"type": "string", "defaultValue": "", "metadata": {"description": "Set by deploy.sh: the SHA-256 of the checksums list it verified; the guest refuses a different list."}},
     "stamp": {"type": "string", "defaultValue": "[utcNow('yyyyMMddTHHmmssZ')]", "metadata": {"description": "Names the record (UTC)."}}

@@ -52,7 +52,7 @@
     },
     "release": {
       "type": "string",
-      "defaultValue": "v0.13.0",
+      "defaultValue": "v0.14.0",
       "metadata": {
         "description": "The signed release to deploy (a tag). The guest verifies its checksums list under the release workflow's identity for this tag before it runs anything."
       }
