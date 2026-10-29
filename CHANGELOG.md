@@ -13,6 +13,20 @@ given release can still open.
 
 ### Added
 
+- **The proof clock** ([`vault-genome/proof-clock`](https://github.com/vault-genome/proof-clock)):
+  GitHub Actions runs `deploy/gcp/deploy.sh` against the latest release
+  twice a day on a real Confidential VM — AMD SEV-SNP at 06:00 UTC, Intel
+  TDX at 18:00 UTC — under Workload Identity Federation (no key anywhere),
+  decides the status from the guest's own record (proven only when the
+  gate came back EXACT and the audit log replayed ok; deploy.sh asserts
+  neither), removes the VM and commits the record, the counter
+  (`latest.json`) and a badge as a commit GitHub signs for the run. A
+  stranger checks a record with `tools/check-record.py`: offline (the
+  guest's bytes, the verdict's Ed25519 signature, one launch measurement
+  in five places), against AMD's key server, against GitHub Releases. The
+  README carries the badge and the row. First records, 29.10.2026: v0.13.0
+  proven on AMD Milan in 262 s and on Intel TDX in 264 s from the button
+  to the record.
 - **One button on Azure** (`deploy/azure/`). `azuredeploy.json`, behind
   the Deploy to Azure button and `deploy.sh`, deploys one Azure
   Confidential VM (AMD SEV-SNP, `Standard_DC4as_v5`, secure boot, vTPM,
