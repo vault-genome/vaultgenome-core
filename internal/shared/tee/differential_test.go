@@ -193,8 +193,9 @@ func toPEM(der []byte) []byte {
 }
 
 // snpguestCertsDir lays the chain out the way snpguest reads it: ark.pem,
-// ask.pem and vcek.pem in one directory.
-func snpguestCertsDir(t *testing.T, vcek, chainPEM []byte) string {
+// ask.pem and vcek.pem in one directory — or ark.pem, asvk.pem and
+// vlek.pem for a report a VLEK signed (ADR 0038).
+func snpguestCertsDir(t *testing.T, vcek, chainPEM []byte, signer string) string {
 	t.Helper()
 	dir := t.TempDir()
 	rest := chainPEM
@@ -207,6 +208,9 @@ func snpguestCertsDir(t *testing.T, vcek, chainPEM []byte) string {
 		c, err := x509.ParseCertificate(blk.Bytes)
 		require.NoError(t, err)
 		name := "ask.pem"
+		if signer == AMDSignerVLEK {
+			name = "asvk.pem"
+		}
 		if c.Subject.String() == c.Issuer.String() {
 			name = "ark.pem"
 		}
@@ -216,7 +220,11 @@ func snpguestCertsDir(t *testing.T, vcek, chainPEM []byte) string {
 	if !bytes.HasPrefix(v, []byte("-----BEGIN")) {
 		v = toPEM(v)
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "vcek.pem"), v, 0o644))
+	leaf := "vcek.pem"
+	if signer == AMDSignerVLEK {
+		leaf = "vlek.pem"
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, leaf), v, 0o644))
 	return dir
 }
 
@@ -250,10 +258,21 @@ func TestDifferential_SEVSNP(t *testing.T) {
 			chain, err := os.ReadFile(filepath.Join(differentialRoot, differentialCorpus, r["chain"]))
 			require.NoError(t, err)
 
-			// The product's reading: parse, AMD's chain, the chip's signature, the detail.
+			// The product's reading: parse, AMD's chain (the VCEK's, or a
+			// VLEK's through the ASVK — ADR 0038), the signature, the detail.
 			rep, err := parseSEVSNPReport(raw)
 			require.NoError(t, err, "product: parse")
-			require.NoError(t, verifyAMDChain(vcek, chain), "product: AMD chain")
+			signer := r["signer"]
+			if signer == "" {
+				signer = AMDSignerVCEK
+			}
+			require.Equal(t, signer, sevSigningKeyName(rep.SigningKey), "the manifest's signer is the report's FLAGS.SIGNING_KEY")
+			if signer == AMDSignerVLEK {
+				require.NoError(t, verifyAMDChainVLEK(vcek, chain), "product: AMD VLEK chain")
+				require.Error(t, verifyAMDChain(vcek, chain), "product: a VLEK is refused under the VCEK chain check")
+			} else {
+				require.NoError(t, verifyAMDChain(vcek, chain), "product: AMD chain")
+			}
 			require.NoError(t, verifySEVReportSignature(rep, vcek), "product: signature")
 			det := sevSNPReportDetail(rep)
 
@@ -310,7 +329,7 @@ func TestDifferential_SEVSNP(t *testing.T) {
 			// VirTEE's reading, when the tool is here.
 			virtee := "not run (VG_SNPGUEST unset)"
 			if snpguest != "" {
-				dir := snpguestCertsDir(t, vcek, chain)
+				dir := snpguestCertsDir(t, vcek, chain, signer)
 				for _, args := range [][]string{{"verify", "certs", dir}, {"verify", "attestation", dir, filepath.Join(differentialRoot, differentialCorpus, r["report"])}} {
 					o, err := exec.Command(snpguest, args...).CombinedOutput()
 					require.NoError(t, err, "snpguest %v: %s", args, o)

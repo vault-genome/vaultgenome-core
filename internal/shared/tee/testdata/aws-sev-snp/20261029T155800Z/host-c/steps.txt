@@ -1,0 +1,17 @@
+== the host as the guest sees it
+   exit=0
+== configfs-tsm: two reports with their own nonces, the host's certificate table as auxblob
+   exit=0
+== snpguest v0.11.0: the extended report, the host's certificates, the AMD chains, the verification, the derived keys
+   exit=0
+   exit=0
+   exit=0
+   exit=0
+   exit=2
+   exit=1
+   exit=0
+   exit=0
+   exit=1
+== AMD's key server: the VLEK and VCEK chains for Milan
+   exit=0
+   exit=0

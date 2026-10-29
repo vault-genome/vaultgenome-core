@@ -17,7 +17,8 @@
 //     vTPM and NVIDIA's attestation ("azure-cgpu"), an Azure SEV-SNP
 //     Confidential VM without a GPU ("azure-sev-snp"), a Nitro enclave
 //     through the NSM, reached over vsock, its key files opened through
-//     KMS ("aws-nitro", ADR 0036), or the simulated backend for development
+//     KMS ("aws-nitro", ADR 0036), an EC2 instance on SEV-SNP whose report the
+//     provider's VLEK signs ("aws-sev-snp", ADR 0038), or the simulated backend for development
 //   - Source-authority pubkey (pinned out-of-band from
 //     `sagvd identity`; identifies the source authority)
 //   - Local keystore (where released DEKs are registered)

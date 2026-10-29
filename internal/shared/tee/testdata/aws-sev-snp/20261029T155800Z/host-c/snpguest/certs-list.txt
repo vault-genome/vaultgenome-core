@@ -1,0 +1,4 @@
+total 12
+drwxrwxr-x 2 ubuntu ubuntu 4096 Oct 29 16:13 .
+drwxrwxr-x 3 ubuntu ubuntu 4096 Oct 29 16:13 ..
+-rw-r--r-- 1 ubuntu ubuntu 1842 Oct 29 16:13 vlek.pem

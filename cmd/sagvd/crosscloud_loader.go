@@ -145,6 +145,11 @@ type verifierEntry struct {
 	// VCEKCacheDir keeps fetched VCEK certificates between runs so each
 	// chip's certificate is asked of AMD KDS once (KDS rate-limits).
 	VCEKCacheDir string `json:"vcek_cache_dir,omitempty"`
+	// CSPIDs (provider "aws-sev-snp") are the providers whose VLEK may sign
+	// the destination's report, as the VLEK's CSP_ID spells them; empty
+	// accepts any VLEK that chains to AMD's root. amd_cert_chain_path is
+	// then the ASVK+ARK chain (ADR 0038).
+	CSPIDs []string `json:"csp_ids,omitempty"`
 
 	// TDX (provider "gcp-tdx"): the Intel PCS base URL (a mirror, a
 	// PCCS), the directory the TCB info and QE identity documents are
@@ -370,6 +375,18 @@ func loadVerifierSpecs(path string, allowSimulated bool) ([]tee.RegistrySpec, er
 				MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol,
 				VCEKCacheDir: e.VCEKCacheDir,
 			}
+		case tee.ProviderAWSSEVSNP:
+			if e.AMDCertChainPath == "" {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: aws-sev-snp requires amd_cert_chain_path (the AMD ASVK+ARK chain a VLEK must chain to: acpctl tee fetch-amd-chain --signer vlek)", i)
+			}
+			if e.VCEKCacheDir != "" || e.AMDKDSURL != "" {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: vcek_cache_dir and amd_kds_url do not apply to aws-sev-snp (no VCEK under a VLEK)", i)
+			}
+			chain, err := os.ReadFile(e.AMDCertChainPath)
+			if err != nil {
+				return nil, fmt.Errorf("sagvd: verifier_registry[%d].amd_cert_chain_path: %w", i, err)
+			}
+			spec.AWSSEVSNP = tee.AWSSEVSNPVerifierConfig{SEV: tee.GCPSEVVerifierConfig{AMDRootPEM: chain, MinReportedTCB: e.MinReportedTCB, SEVSNP: snpPol}, CSPIDs: e.CSPIDs}
 		case tee.ProviderGCPSEVSNPVTPM:
 			if e.AMDCertChainPath == "" {
 				return nil, fmt.Errorf("sagvd: verifier_registry[%d]: gcp-sev-snp-vtpm requires amd_cert_chain_path (the AMD ASK+ARK chain the VCEK must chain to)", i)

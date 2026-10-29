@@ -38,6 +38,8 @@ type workerIdentity struct {
 	TDX *tdxIdentity `json:"tdx,omitempty"`
 	// VTPM is what an azure-cgpu guest's vTPM measured of its boot.
 	VTPM *vtpmIdentity `json:"vtpm,omitempty"`
+	// AWSSEVSNP is what an EC2 SEV-SNP guest's VLEK says (ADR 0038).
+	AWSSEVSNP *awsSEVSNPIdentity `json:"aws_sev_snp,omitempty"`
 	// SEVSNPPolicy is what the vault's SEV-SNP report is held to (ADR 0033).
 	SEVSNPPolicy *tee.SEVSNPPolicySummary `json:"sev_snp_policy,omitempty"`
 }
@@ -93,7 +95,8 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	}
 	id.TDX = tdxIdentityOf(mat.Producer)
 	id.VTPM = vtpmIdentityOf(mat.Producer)
-	id.SEVSNPPolicy = sevSNPPolicyIdentity(cfg.TEE.Peer.Provider, cfg.TEE.Peer.SEVSNP)
+	id.AWSSEVSNP = awsSEVSNPIdentityOf(mat.Producer)
+	id.SEVSNPPolicy = sevSNPPolicyIdentity(cfg.TEE.Peer.Provider, cfg.TEE.Peer.SEVSNP, cfg.TEE.Peer.CSPIDs)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(id)
@@ -138,9 +141,9 @@ func vtpmIdentityOf(p tee.Producer) *vtpmIdentity {
 
 // sevSNPPolicyIdentity is the policy the vault's SEV-SNP report is held
 // to, for identity; nil for a vault of another family.
-func sevSNPPolicyIdentity(peer string, c *tee.SEVSNPPolicyConfig) *tee.SEVSNPPolicySummary {
+func sevSNPPolicyIdentity(peer string, c *tee.SEVSNPPolicyConfig, cspIDs []string) *tee.SEVSNPPolicySummary {
 	p, err := tee.ParseProvider(peer)
-	if err != nil || (p != tee.ProviderGCPSEVSNP && p != tee.ProviderGCPSEVSNPVTPM && p != tee.ProviderAzureSEVSNP && p != tee.ProviderAzureCGPU) {
+	if err != nil || (p != tee.ProviderGCPSEVSNP && p != tee.ProviderGCPSEVSNPVTPM && p != tee.ProviderAzureSEVSNP && p != tee.ProviderAzureCGPU && p != tee.ProviderAWSSEVSNP) {
 		return nil
 	}
 	pol, err := c.Policy()
@@ -148,5 +151,26 @@ func sevSNPPolicyIdentity(peer string, c *tee.SEVSNPPolicyConfig) *tee.SEVSNPPol
 		return nil
 	}
 	s := pol.Summary()
+	if p == tee.ProviderAWSSEVSNP {
+		s.CSPIDs = cspIDs
+	}
 	return &s
+}
+
+// awsSEVSNPIdentity is what an EC2 SEV-SNP guest's VLEK says: whose it is
+// (the provider's CSP_ID, which the authority pins as tee.peer.csp_ids),
+// for which product and TCB, until when (ADR 0038).
+type awsSEVSNPIdentity struct {
+	CSPID        string `json:"csp_id"`
+	Product      string `json:"product"`
+	VLEKSHA256   string `json:"vlek_sha256"`
+	VLEKNotAfter string `json:"vlek_not_after"`
+}
+
+func awsSEVSNPIdentityOf(p tee.Producer) *awsSEVSNPIdentity {
+	d, ok := tee.VLEKOf(p)
+	if !ok {
+		return nil
+	}
+	return &awsSEVSNPIdentity{CSPID: d.CSPID, Product: d.ProductName, VLEKSHA256: d.SHA256, VLEKNotAfter: d.NotAfter}
 }

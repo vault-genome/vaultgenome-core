@@ -38,6 +38,8 @@ type authorityIdentity struct {
 	TDX *tdxIdentity `json:"tdx,omitempty"`
 	// VTPM is what an azure-cgpu guest's vTPM measured of its boot.
 	VTPM *vtpmIdentity `json:"vtpm,omitempty"`
+	// AWSSEVSNP is what an EC2 SEV-SNP guest's VLEK says (ADR 0038).
+	AWSSEVSNP *awsSEVSNPIdentity `json:"aws_sev_snp,omitempty"`
 	// SEVSNPPolicy is what a SEV-SNP peer's report is held to (ADR 0033).
 	SEVSNPPolicy *tee.SEVSNPPolicySummary `json:"sev_snp_policy,omitempty"`
 	// The key auditors verify the cross-cloud audit log with, when
@@ -139,7 +141,8 @@ func runIdentityCmd(args []string, w io.Writer) error {
 	}
 	id.TDX = tdxIdentityOf(mat.Producer)
 	id.VTPM = vtpmIdentityOf(mat.Producer)
-	id.SEVSNPPolicy = sevSNPPolicyIdentity(cfg.TEE.Peer.Provider, cfg.TEE.Peer.SEVSNP)
+	id.AWSSEVSNP = awsSEVSNPIdentityOf(mat.Producer)
+	id.SEVSNPPolicy = sevSNPPolicyIdentity(cfg.TEE.Peer.Provider, cfg.TEE.Peer.SEVSNP, cfg.TEE.Peer.CSPIDs)
 	if a := cfg.Keys.AuditSigning; a.KeyID != "" && a.SeedPath != "" {
 		auditKey, err := loadSigningKey(cfg.TEE, a, "keys.audit_signing")
 		if err != nil {
@@ -215,9 +218,9 @@ func vtpmIdentityOf(p tee.Producer) *vtpmIdentity {
 // sevSNPPolicyIdentity is the policy a SEV-SNP peer's report is held to,
 // for identity; nil for a peer of another family or a policy that does
 // not load (validation reports that).
-func sevSNPPolicyIdentity(peer string, c *tee.SEVSNPPolicyConfig) *tee.SEVSNPPolicySummary {
+func sevSNPPolicyIdentity(peer string, c *tee.SEVSNPPolicyConfig, cspIDs []string) *tee.SEVSNPPolicySummary {
 	p, err := tee.ParseProvider(peer)
-	if err != nil || (p != tee.ProviderGCPSEVSNP && p != tee.ProviderGCPSEVSNPVTPM && p != tee.ProviderAzureSEVSNP && p != tee.ProviderAzureCGPU) {
+	if err != nil || (p != tee.ProviderGCPSEVSNP && p != tee.ProviderGCPSEVSNPVTPM && p != tee.ProviderAzureSEVSNP && p != tee.ProviderAzureCGPU && p != tee.ProviderAWSSEVSNP) {
 		return nil
 	}
 	pol, err := c.Policy()
@@ -225,5 +228,26 @@ func sevSNPPolicyIdentity(peer string, c *tee.SEVSNPPolicyConfig) *tee.SEVSNPPol
 		return nil
 	}
 	s := pol.Summary()
+	if p == tee.ProviderAWSSEVSNP {
+		s.CSPIDs = cspIDs
+	}
 	return &s
+}
+
+// awsSEVSNPIdentity is what an EC2 SEV-SNP guest's VLEK says: whose it is
+// (the provider's CSP_ID, which a peer pins as tee.peer.csp_ids), for
+// which product and TCB, until when (ADR 0038).
+type awsSEVSNPIdentity struct {
+	CSPID        string `json:"csp_id"`
+	Product      string `json:"product"`
+	VLEKSHA256   string `json:"vlek_sha256"`
+	VLEKNotAfter string `json:"vlek_not_after"`
+}
+
+func awsSEVSNPIdentityOf(p tee.Producer) *awsSEVSNPIdentity {
+	d, ok := tee.VLEKOf(p)
+	if !ok {
+		return nil
+	}
+	return &awsSEVSNPIdentity{CSPID: d.CSPID, Product: d.ProductName, VLEKSHA256: d.SHA256, VLEKNotAfter: d.NotAfter}
 }

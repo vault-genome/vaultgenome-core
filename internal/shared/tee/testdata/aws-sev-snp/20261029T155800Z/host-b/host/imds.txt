@@ -1,0 +1,4 @@
+instance-type=m6a.large
+placement/availability-zone=us-east-2b
+placement/region=us-east-2
+ami-id=ami-0fc53b217ec1ad816

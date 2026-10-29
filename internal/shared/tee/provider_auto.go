@@ -105,9 +105,17 @@ func FamilyForTSMProvider(name string) (Provider, error) {
 	}
 }
 
+// AutoResolvedFromEC2DMI is the second answer of ResolveAuto when the
+// kernel's sev_guest serves an EC2 instance: the family is told apart from
+// gcp-sev-snp by the machine's DMI vendor, because the kernel's name is the
+// same for both and the report's signer (a VLEK on EC2) is known only once
+// a report is read (ADR 0038).
+const AutoResolvedFromEC2DMI = "sev_guest (Amazon EC2)"
+
 // ResolveAuto returns the family this host attests with and where the
 // answer came from, for a daemon whose tee.provider is "auto": the family
-// configfs-tsm serves and the kernel's name for it, or — when the kernel
+// configfs-tsm serves and the kernel's name for it (sev_guest on an EC2
+// instance is aws-sev-snp, AutoResolvedFromEC2DMI), or — when the kernel
 // has no configfs-tsm, as under Azure's paravisor — the family the vTPM's
 // HCL report names and AutoResolvedFromAzureHCL (provider_auto_azure.go).
 // A host with neither is refused with both answers.
@@ -117,6 +125,9 @@ func ResolveAuto(dir string) (Provider, string, error) {
 		family, err := FamilyForTSMProvider(name)
 		if err != nil {
 			return "", name, err
+		}
+		if family == ProviderGCPSEVSNP && hostIsEC2() {
+			return ProviderAWSSEVSNP, AutoResolvedFromEC2DMI, nil
 		}
 		return family, name, nil
 	}

@@ -24,6 +24,7 @@ section identifies:
 - [AWS Nitro Enclaves (aws-nitro)](#aws-nitro-enclaves-aws-nitro)
 - [Azure Confidential Computing — SGX (azure-sgx)](#azure-confidential-computing--sgx-azure-sgx)
 - [GCP Confidential VMs — SEV-SNP (gcp-sev-snp, gcp-sev-snp-vtpm)](#gcp-confidential-vms--sev-snp-gcp-sev-snp-gcp-sev-snp-vtpm-with-the-boot-chain)
+- [AWS EC2 — SEV-SNP under a VLEK (aws-sev-snp)](#aws-ec2--sev-snp-under-a-vlek-aws-sev-snp)
 - [Intel SGX bare metal (intel-sgx-dcap)](#intel-sgx-bare-metal-intel-sgx-dcap)
 - [GCP Confidential VMs — Intel TDX (gcp-tdx)](#gcp-confidential-vms--intel-tdx-gcp-tdx)
 - [Azure confidential GPU VM (azure-cgpu, azure-sev-snp)](#azure-confidential-gpu-vm--sev-snp-vtpm-and-an-h100-azure-cgpu)
@@ -215,6 +216,40 @@ measures the boot and is software outside the TEE).
 | **E** Elevation of privilege | SEV-SNP TCB rollback to vulnerable firmware | `MinReportedTCB` floor in verifier; AMD security advisories trigger TCB bump; failed match raises Integrity error |
 
 ---
+
+## AWS EC2 — SEV-SNP under a VLEK (`aws-sev-snp`)
+
+An EC2 instance on AMD SEV-SNP (`m6a`, `c6a`, `r6a`; ADR 0038) runs the same
+chip firmware as Compute Engine, held to the same attack record (ADR 0033)
+and the same pinned AMD root (ADR 0024), with three differences a reader of
+the record must know. The report is signed by a **VLEK** — the key AMD issues
+to the provider for a product line and a TCB, loaded on every host of the
+fleet — not by the chip's VCEK; the host shows the VLEK beside the report and
+the evidence carries it, since no key server serves it. **CHIP_ID is zero:**
+the report names the provider (the VLEK's CSP_ID, `CN=cc-<region>.amazonaws.com`),
+not a machine; REPORT_ID names the boot. And the firmware's **derived key is
+the fleet's**, not a chip's: a sealed file opens on any EC2 SEV-SNP guest of
+the same launch measurement and guest policy. The launch measurement is AWS's
+published UEFI per vCPU count, computable from the binary; the operating
+system is not in it, and this build offers no vTPM on EC2 to pin the boot.
+Trusted: AMD (the chip, its firmware at the floors, its issuance of the VLEK
+to AWS), and AWS (its UEFI, which the chip measures; its custody of the VLEK;
+its fleet, within which a sealed file is portable).
+
+### Threat table
+
+| STRIDE | Threat | Mitigation |
+|--------|--------|------------|
+| **S** Spoofing | Attacker forges a report | the report is signed by the VLEK the evidence carries; the VLEK chains VLEK ← ASVK (`SEV-VLEK-<product>`) ← ARK to the pinned root (`realVerifyAMDChainVLEK`); an ASK chain is refused by name |
+| **S** Spoofing | A VLEK of another product, TCB or provider beside the report | the VLEK's AMD extensions are held to the report: product name, the four SPLs equal to REPORTED_TCB, no hardware id; its CSP_ID is held to `tee.peer.csp_ids` when set and recorded always; validity checked |
+| **S** Spoofing | A VCEK-signed report presented as this family, or the reverse | FLAGS.SIGNING_KEY must be 1 here and 0 under `gcp-sev-snp`; the sealed-file header names the family (`tee: aws-sev-snp`) |
+| **T** Tampering | Attacker edits the report | ECDSA P-384 under the VLEK over report[:0x2A0]; the signature block's reserved bytes must be zero, as under the VCEK |
+| **R** Repudiation | Two guests claim to be one machine, or one guest denies a session | no machine identity exists (CHIP_ID zero) — the record says so, carrying `signing_key: vlek`, the VLEK's facts and REPORT_ID per boot; the policy names the provider, not a chip (residual: a machine cannot be pinned on EC2) |
+| **I** Information disclosure | Hypervisor reads guest memory | SEV-SNP encrypts guest memory; the host is outside the trust boundary, as on GCP |
+| **I** Information disclosure | A sealed key file taken to another EC2 host | opens there when the launch measurement and guest policy match — the derived key is the fleet's; the file does not leave the fleet (residual, on the record and in KNOWN_ISSUES 19); an operator who needs host binding runs GCP or Azure |
+| **D** DoS | AMD KDS unavailable | not consulted at verification: the VLEK travels with the report; the ASVK+ARK chain is the operator's file, fetched once |
+| **E** Elevation of privilege | TCB rollback to vulnerable firmware | the attack record's floors per variant (ADR 0033), the mitigation vector, ALIAS_CHECK_COMPLETE, `MinReportedTCB` — as under `gcp-sev-snp`; a new TCB is a new VLEK from AWS |
+| **E** Elevation of privilege | A guest with DEBUG, or at another VMPL | refused as under `gcp-sev-snp` |
 
 ## Intel SGX bare metal (`intel-sgx-dcap`)
 

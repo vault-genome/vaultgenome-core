@@ -13,6 +13,42 @@ given release can still open.
 
 ### Added
 
+- **EC2 on AMD SEV-SNP: the `aws-sev-snp` family** (ADR 0038). An EC2
+  instance with `AmdSevSnp` enabled signs its reports with a VLEK — the
+  key AMD issues to the cloud provider for a product line and a TCB — not
+  with the chip's VCEK, names no chip (CHIP_ID is zero), and shows the VLEK
+  in the certificate table beside the report, which no key server serves.
+  The family's evidence is an envelope of the report and that VLEK
+  (`application/vnd.vault-genome.aws-sev-snp-evidence`); its verifier holds
+  the VLEK to the report (subject, issuer per product, the AMD extensions:
+  product name, the four SPLs equal to REPORTED_TCB, no hardware id, a
+  CSP_ID, the validity), chains it VLEK ← ASVK ← ARK to the pinned root,
+  checks the signature, then holds the report to everything `gcp-sev-snp`
+  holds one to. The policy pins the provider (`tee.peer.csp_ids`, the
+  VLEK's CSP_ID — `CN=cc-us-east-2.amazonaws.com` on the first capture) and
+  refuses `chip_ids`; every SEV-SNP record now carries `signing_key` and
+  `report_id_hex`, and this family's the VLEK's facts. `tee.provider: auto`
+  tells EC2 from Compute Engine by the machine's DMI vendor. `acpctl tee
+  fetch-amd-chain --signer vlek` fetches the ASVK+ARK chain; `acpctl
+  provision --provider auto` sets a host up and pins each side's CSP_ID
+  from its identity (`aws_sev_snp.csp_id`). The sealer is the firmware's
+  derived key, which on EC2 is the fleet's: a sealed file opens on any EC2
+  SEV-SNP guest of the same launch measurement and guest policy (the
+  record and the runbook say so; `tee.sealer tpm2`/`both` are refused —
+  no vTPM on EC2 in this build). The launch measurement is AWS's published
+  UEFI (release 20260814) measured for the vCPU count with sev-snp-measure,
+  computable from the binary. The first capture — three m6a instances in
+  two zones, their reports, certificate tables, the VLEK, AMD's VLEK and
+  VCEK chains, the derived keys across a reboot and two stop/starts — is
+  `internal/shared/tee/testdata/aws-sev-snp/20261029T155800Z/`; the
+  verifier's real cryptography runs on it offline (`aws_sev_snp_test.go`),
+  go-sev-guest verifies the same report under the same chain through the
+  oracle and refuses it under the VCEK chain, and the corpus of ADR 0034
+  takes VLEK-signed reports (a `signer` column; nine rows). The kit
+  `scripts/hardware-test/aws-sev-snp/` runs the daemons on a fresh
+  instance and holds the measurement against the published UEFI — one run
+  on the record, an `m6a.xlarge` in us-east-2 (claim C58). Runbook:
+  `docs/operator/runbooks/real-tee-aws-sev-snp.md`.
 - **The proof clock** ([`vault-genome/proof-clock`](https://github.com/vault-genome/proof-clock)):
   GitHub Actions runs `deploy/gcp/deploy.sh` against the latest release
   twice a day on a real Confidential VM — AMD SEV-SNP at 06:00 UTC, Intel

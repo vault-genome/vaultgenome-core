@@ -2,7 +2,7 @@
 
 The authoritative maturity summary of this repository. Every statement
 below is backed by an evidence file and a reproduction command in
-[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C52); the open limits
+[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C58); the open limits
 are in [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) and
 [what we do not claim](../VERIFIABLE-CLAIMS.md#what-we-do-not-claim); what
 is next is in [`ROADMAP.md`](../ROADMAP.md). Component-level design
@@ -20,7 +20,7 @@ gitleaks, sbom, license-headers, doctrine-tests, dep-allowlist, dep-depth,
 verify-reproducible), plus CodeQL, Semgrep, a benchmark comparison, the
 Python worker's tests and OpenSSF Scorecard.
 **Module path:** `github.com/vault-genome/vaultgenome-core`. **Go:** 1.26.
-**Hardware measured:** AMD SEV-SNP (GCP, Azure), Intel TDX (GCP), an
+**Hardware measured:** AMD SEV-SNP (GCP, Azure, AWS EC2), Intel TDX (GCP), an
 NVIDIA H100 in confidential-computing mode (Azure); NVIDIA L4 and T4 and
 Intel Xeon CPUs for the determinism measurements.
 
@@ -154,6 +154,14 @@ Intel Xeon CPUs for the determinism measurements.
   image. No Intel SGX adapter attests: the SGX verifiers do not exist, and
   the registry refuses that family until a live enclave has been verified
   end to end ([ROADMAP.md](../ROADMAP.md)).
+- An EC2 instance on AMD SEV-SNP (`aws-sev-snp`, ADR 0038) is attested
+  through the provider's VLEK, not a chip's VCEK: the report names no
+  machine, so the policy pins AWS's CSP_ID per region, not a host; the key
+  files are sealed with a key the firmware derives for the fleet, which
+  opens on any EC2 SEV-SNP guest of the same launch measurement and guest
+  policy; no vTPM is combined with it in this build, so the boot is not
+  pinned. One run on the record (C58): one region, one instance type, the
+  binaries built from the tree, no reset.
 - The largest model measured is 32B, on one confidential GPU, on the pinned
   runtime; cross-device equivalence is measured at 0.5B and 7B; every
   failover number is at 0.5B.

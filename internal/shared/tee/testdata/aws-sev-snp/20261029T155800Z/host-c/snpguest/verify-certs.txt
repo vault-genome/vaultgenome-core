@@ -1,0 +1,2 @@
+ERROR: ark certificate not found in directory
+Error: ark certificate not found in directory

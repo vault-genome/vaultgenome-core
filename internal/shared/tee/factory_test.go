@@ -70,6 +70,7 @@ func TestAllProviders_StableOrder(t *testing.T) {
 		ProviderAzureCGPU,
 		ProviderAzureSEVSNP,
 		ProviderGCPSEVSNPVTPM,
+		ProviderAWSSEVSNP,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("AllProviders length = %d, want %d", len(got), len(want))

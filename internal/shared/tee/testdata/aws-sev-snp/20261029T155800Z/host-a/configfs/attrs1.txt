@@ -1,0 +1,4 @@
+provider=sev_guest
+generation=1
+privlevel_floor=0
+privlevel=

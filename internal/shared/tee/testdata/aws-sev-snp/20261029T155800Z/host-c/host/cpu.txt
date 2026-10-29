@@ -1,0 +1,3 @@
+4
+model name	: AMD EPYC 7R13 Processor
+

@@ -47,7 +47,7 @@ func TestTeeFetchAMDChain_WritesTheVerifiedChain(t *testing.T) {
 	got, err := os.ReadFile(out)
 	require.NoError(t, err)
 	require.Equal(t, kdsChainFixture(t, "Genoa"), got, "written byte for byte as KDS served it")
-	require.Contains(t, stdout.String(), "the Genoa chain")
+	require.Contains(t, stdout.String(), "the Genoa VCEK chain")
 	require.Contains(t, stdout.String(), "CN=ARK-Genoa, sha256 4c6598d19c18719c5dfd4a7d335f674e5bfe1d8f800cea2cf270c10d103db2f1")
 
 	// An existing file is kept unless --force.
@@ -93,5 +93,5 @@ func TestTeeFetchAMDChain_Refusals(t *testing.T) {
 	// Unreachable.
 	stderr.Reset()
 	require.Equal(t, 1, teeCmd([]string{"fetch-amd-chain", "--product", "milan", "--out", out, "--kds-url", srv.URL + "/missing"}, &stdout, &stderr))
-	require.Contains(t, stderr.String(), "fetch Milan chain")
+	require.Contains(t, stderr.String(), "fetch Milan vcek chain")
 }

@@ -1,0 +1,7 @@
+total 24
+drwxrwxr-x 2 ubuntu ubuntu 4096 Oct 29 16:06 .
+drwxrwxr-x 3 ubuntu ubuntu 4096 Oct 29 16:04 ..
+-rw-rw-r-- 1 ubuntu ubuntu 2277 Oct 29 16:06 ark.pem
+-rw-rw-r-- 1 ubuntu ubuntu 2334 Oct 29 16:06 asvk.pem
+-rw-r--r-- 1 ubuntu ubuntu 1842 Oct 29 16:03 vlek.pem
+-rw-rw-r-- 1 ubuntu ubuntu 3931 Oct 29 16:04 vlek.pem.txt

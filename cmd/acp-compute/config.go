@@ -223,6 +223,12 @@ type PeerTEEConfig struct {
 	MinReportedTCB uint64 `json:"min_reported_tcb,omitempty"`
 	// SEVSNP holds the vault's report to the attack record (ADR 0033).
 	SEVSNP *tee.SEVSNPPolicyConfig `json:"sev_snp,omitempty"`
+
+	// CSPIDs, for an aws-sev-snp peer, are the cloud providers whose VLEK
+	// may sign the peer's report, as the VLEK's CSP_ID extension spells
+	// them ("CN=cc-us-east-2.amazonaws.com", one per AWS region); empty
+	// accepts any VLEK that chains to AMD's root, recorded (ADR 0038).
+	CSPIDs []string `json:"csp_ids,omitempty"`
 	// PCSURL overrides the Intel PCS base URL (a mirror, a PCCS); PCSCacheDir
 	// keeps the TCB info and QE identity documents between runs, each
 	// checked like a fresh one on every use; AcceptableTCBStatuses lists
@@ -445,7 +451,7 @@ func (g *GPUPolicyConfig) apply(cfg *tee.AzureCGPUVerifierConfig) error {
 
 // supportedProviders are the TEE backends this build can attest with
 // on the Return Path, and verify a peer's Evidence for.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPSEVSNPVTPM, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderSimulated, tee.ProviderAuto}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPSEVSNPVTPM, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderAWSSEVSNP, tee.ProviderSimulated, tee.ProviderAuto}
 
 // DefaultSEVGuestDevice is where the Linux sev-guest driver appears.
 const DefaultSEVGuestDevice = "/dev/sev-guest"
@@ -633,12 +639,20 @@ func validateTEE(t TEEConfig) []error {
 				}
 			}
 		}
-	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX || provider == tee.ProviderGCPSEVSNPVTPM:
+	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX || provider == tee.ProviderGCPSEVSNPVTPM || provider == tee.ProviderAWSSEVSNP:
 		if t.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
 		}
 		if t.InsecureSimulation {
 			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
+		}
+		if provider == tee.ProviderAWSSEVSNP {
+			if m := t.SealerMode(); m == tee.SealerModeBoth || m == tee.SealerModeTPM2 {
+				errs = append(errs, errors.New("tee.sealer: an EC2 SEV-SNP instance has no vTPM in this build; aws-sev-snp seals with the firmware's derived key (tee.sealer auto or tee; ADR 0038)"))
+			}
+			if t.VTPMSealPCRs != "" || t.VTPMQuotePCRs != "" {
+				errs = append(errs, errors.New("tee.vtpm_seal_pcrs and tee.vtpm_quote_pcrs do not apply to aws-sev-snp (no vTPM)"))
+			}
 		}
 		if provider == tee.ProviderGCPSEVSNPVTPM {
 			for _, sel := range []struct{ name, v string }{{"tee.vtpm_seal_pcrs", t.VTPMSealPCRs}, {"tee.vtpm_quote_pcrs", t.VTPMQuotePCRs}} {
@@ -699,7 +713,7 @@ func validateTEE(t TEEConfig) []error {
 	}
 	switch peer, err := t.Peer.ProviderKind(); {
 	case peer == tee.ProviderAuto:
-		errs = append(errs, errors.New("tee.peer.provider cannot be auto: name the family the peer must attest as (gcp-sev-snp, gcp-tdx, azure-cgpu, azure-sev-snp or simulated); only the daemon's own tee.provider may be auto"))
+		errs = append(errs, errors.New("tee.peer.provider cannot be auto: name the family the peer must attest as (gcp-sev-snp, gcp-tdx, azure-cgpu, azure-sev-snp, aws-sev-snp or simulated); only the daemon's own tee.provider may be auto"))
 	case err != nil:
 		errs = append(errs, fmt.Errorf("tee.peer.provider invalid: %w", err))
 	case !slices.Contains(supportedProviders, peer):
@@ -709,7 +723,7 @@ func validateTEE(t TEEConfig) []error {
 			errs = append(errs, errors.New("tee.peer.public_key_path required when tee.peer.provider=simulated"))
 		}
 		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 || t.Peer.SEVSNP != nil {
-			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir, min_reported_tcb and sev_snp apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"))
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir, min_reported_tcb and sev_snp apply to a gcp-sev-snp, azure-cgpu, azure-sev-snp or aws-sev-snp peer only"))
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
@@ -723,6 +737,30 @@ func validateTEE(t TEEConfig) []error {
 		}
 		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
 			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
+		}
+	case peer == tee.ProviderAWSSEVSNP:
+		if t.Peer.PublicKeyPath != "" {
+			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; an EC2 SEV-SNP report is signed by the provider's VLEK"))
+		}
+		if t.Peer.Verifier.delegated() {
+			errs = append(errs, errors.New("tee.peer.verifier: an aws-sev-snp peer is appraised by this verifier only — the evidence carries the VLEK beside the report, which the delegated Verifiers do not read yet (ADR 0038)"))
+		}
+		if t.Peer.AMDCertChainPath == "" {
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path required when tee.peer.provider=aws-sev-snp (the AMD ASVK+ARK chain a VLEK must chain to: acpctl tee fetch-amd-chain --signer vlek)"))
+		}
+		if t.Peer.VCEKCacheDir != "" || t.Peer.AMDKDSURL != "" {
+			errs = append(errs, errors.New("tee.peer.vcek_cache_dir and amd_kds_url do not apply to an aws-sev-snp peer: there is no VCEK under a VLEK, and the VLEK travels with the report"))
+		}
+		if t.Peer.SEVSNP != nil && len(t.Peer.SEVSNP.ChipIDs) > 0 {
+			errs = append(errs, errors.New("tee.peer.sev_snp.chip_ids does not apply to an aws-sev-snp peer: an EC2 report names no chip (CHIP_ID is zero under a VLEK); pin the measurement and csp_ids instead"))
+		}
+		if t.Peer.PCSURL != "" || t.Peer.PCSCacheDir != "" || len(t.Peer.AcceptableTCBStatuses) > 0 {
+			errs = append(errs, errors.New("tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"))
+		}
+		for i, c := range t.Peer.CSPIDs {
+			if strings.TrimSpace(c) == "" {
+				errs = append(errs, fmt.Errorf("tee.peer.csp_ids[%d] is empty", i))
+			}
 		}
 	case peer == tee.ProviderGCPSEVSNPVTPM:
 		if t.Peer.PublicKeyPath != "" {
@@ -750,7 +788,7 @@ func validateTEE(t TEEConfig) []error {
 			errs = append(errs, errors.New("tee.peer.public_key_path applies to a simulated peer only; a TDX quote chains to the Intel SGX Root CA"))
 		}
 		if t.Peer.AMDCertChainPath != "" || t.Peer.AMDKDSURL != "" || t.Peer.VCEKCacheDir != "" || t.Peer.MinReportedTCB != 0 || t.Peer.SEVSNP != nil {
-			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir, min_reported_tcb and sev_snp apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"))
+			errs = append(errs, errors.New("tee.peer.amd_cert_chain_path, amd_kds_url, vcek_cache_dir, min_reported_tcb and sev_snp apply to a gcp-sev-snp, azure-cgpu, azure-sev-snp or aws-sev-snp peer only"))
 		}
 	case peer == tee.ProviderAzureSEVSNP:
 		if t.Peer.PublicKeyPath != "" {
@@ -796,6 +834,9 @@ func validateTEE(t TEEConfig) []error {
 	}
 	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderGCPSEVSNPVTPM && (t.Peer.PCRSelection != "" || len(t.Peer.GCEProjectIDs) > 0 || t.Peer.GCEEKAKRootsPath != "") {
 		errs = append(errs, errors.New("tee.peer.pcr_selection, gce_project_ids and gce_ek_ak_roots_path apply to a gcp-sev-snp-vtpm peer only"))
+	}
+	if peer, _ := t.Peer.ProviderKind(); peer != tee.ProviderAWSSEVSNP && len(t.Peer.CSPIDs) > 0 {
+		errs = append(errs, errors.New("tee.peer.csp_ids applies to an aws-sev-snp peer only (the VLEK's CSP_ID; ADR 0038)"))
 	}
 	if _, err := pcrDigests(t.Peer.PCRDigests); err != nil {
 		errs = append(errs, fmt.Errorf("tee.peer.%w", err))

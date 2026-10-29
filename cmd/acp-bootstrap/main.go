@@ -399,6 +399,8 @@ func buildTEEProducer(cfg TEEConfig) (tee.Producer, error) {
 	switch provider {
 	case string(tee.ProviderGCPSEVSNP):
 		return tee.NewGCPSEVProducer(tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir})
+	case string(tee.ProviderAWSSEVSNP):
+		return tee.NewAWSSEVSNPProducer(tee.AWSSEVSNPProducerConfig{SEV: tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir}})
 	case string(tee.ProviderGCPTDX):
 		return tee.NewGCPTDXProducer(tee.GCPTDXProducerConfig{TSMReportDir: cfg.TSMReportDir})
 	case string(tee.ProviderGCPSEVSNPVTPM):

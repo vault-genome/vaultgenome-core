@@ -1,0 +1,12 @@
+== the host as the guest sees it
+== binaries from /home/ubuntu/e2e
+== configfs-tsm: the report and the certificate table the host shows beside it
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== acpctl provision: one command — keygen, the configurations, the VLEK chain, the identities and pins, the key files sealed with the derived key
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 328.45it/s]
+== sagvd on what provision wrote
+== acp-compute on what provision wrote, the real door
+== the gate job over the Return Path
+== metrics
+== stop both; verify the audit log with the key provision kept for the operator

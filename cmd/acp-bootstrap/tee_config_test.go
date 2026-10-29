@@ -79,11 +79,11 @@ func TestValidate_HardwareProviderFields(t *testing.T) {
 			c.TEE.SEVGuestDevice = "/dev/sev-guest-1"
 		}, ""},
 		"sev device on simulated": {func(c *Config) { c.TEE.SEVGuestDevice = "/dev/sev-guest-1" },
-			"tee.sev_guest_device applies to gcp-sev-snp and gcp-sev-snp-vtpm only"},
+			"tee.sev_guest_device applies to gcp-sev-snp, gcp-sev-snp-vtpm and aws-sev-snp only"},
 		"sev device on tdx": {func(c *Config) {
 			hardware(c, "gcp-tdx")
 			c.TEE.SEVGuestDevice = "/dev/sev-guest"
-		}, "tee.sev_guest_device applies to gcp-sev-snp and gcp-sev-snp-vtpm only"},
+		}, "tee.sev_guest_device applies to gcp-sev-snp, gcp-sev-snp-vtpm and aws-sev-snp only"},
 		"vtpm pcrs on simulated": {func(c *Config) { c.TEE.VTPMSealPCRs = "sha256:0" },
 			"tee.vtpm_seal_pcrs applies where a vTPM seals"},
 		"vtpm pcrs on sev-snp": {func(c *Config) {
