@@ -98,7 +98,13 @@ cloud is not asked to do anything (`08_upgrading.md`).
   key, submits a second job over ssh, verifies the chain across the
   move, holds the measurement against AWS's published UEFI measured for
   the vCPU count, checks that the record names no account, and deletes
-  the stack.
+  the stack. Rehearsed on `v0.14.0-rc1` (2026-10-29,
+  `scripts/hardware-test/aws-deploy/evidence/20261029T201000Z/`): `PROVEN`
+  290 s after the command, 160.1 s on the guest; stopped in 32 s, back on
+  another host with the key files opened and the session on the new boot
+  87 s after the stop; a second job EXACT 6/6; one chain of 32 events; a
+  new REPORT_ID, the same VLEK, the same measurement, equal to AWS's UEFI
+  20260814 measured for 4 vCPUs.
 - **The proof clock** ([`vault-genome/proof-clock`](https://github.com/vault-genome/proof-clock)):
   GitHub Actions runs `deploy/gcp/deploy.sh` against the latest release
   twice a day on a real Confidential VM — AMD SEV-SNP at 06:00 UTC, Intel

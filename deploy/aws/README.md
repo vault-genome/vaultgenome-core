@@ -131,5 +131,13 @@ The kit [`scripts/hardware-test/aws-deploy`](../../scripts/hardware-test/aws-dep
 runs `deploy.sh` as a newcomer would, then stops and starts the instance
 — a move to another host — and shows the services back, the sealed key
 files opened again under the fleet's key, a second job EXACT and the audit
-chain grown across the move, and deletes the stack. Its records are under
-`scripts/hardware-test/aws-deploy/evidence/`.
+chain grown across the move, holds the measurement against AWS's
+published UEFI, and deletes the stack. On the rehearsal `v0.14.0-rc1`,
+2026-10-29 (`scripts/hardware-test/aws-deploy/evidence/20261029T201000Z/`):
+the release verified here and on the guest, `PROVEN` 290 s after the
+command (160.1 s on the guest; provision 0.38 s; the gate EXACT 6/6 in
+8.6 s; sixteen events), stopped in 32 s, back on another host with the
+sealed key files opened and the session on the new boot 87 s after the
+stop, a second job EXACT 6/6, one chain of 32 events, a new REPORT_ID,
+the same VLEK and the same measurement — AWS's UEFI 20260814 for 4 vCPUs,
+measured locally. The claim on the release follows the release.

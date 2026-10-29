@@ -1,0 +1,77 @@
+provision: /etc/vaultgenome (family aws-sev-snp, peer aws-sev-snp, sealer auto)
+  key material: /etc/vaultgenome/secrets (acp-keygen, private modes)
+  AMD VLEK chain (the chip's product): /etc/vaultgenome/amd-milan-vlek-cert_chain.pem (Milan; ARK 69d063b45344d26a2e94e1f4210de49ef555308287d4c174445c95639a540bcd, a root this build pins)
+  configurations: /etc/vaultgenome/sagvd.json, /etc/vaultgenome/acp-compute.json
+  sagvd identity: 1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b (aws-sev-snp)
+  acp-compute identity: 1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b (aws-sev-snp)
+  audit public key: /etc/vaultgenome/operator/audit_public_key.pem (keep it off the host: it verifies the log)
+  sagvd key files sealed (sev-snp-derived-key): keys.authority_signing.seed_path, keys.session_sealing.material_path, keys.audit_signing.seed_path, vault.tls.server_key, http_api.bearer_token_file
+  acp-compute key files sealed (sev-snp-derived-key): keys.worker_signing.seed_path, keys.session_sealing.material_path, vault.tls.client_key
+provision.json: /etc/vaultgenome/provision.json
+  REST token (the operator's copy): /etc/vaultgenome/operator/api_token (not printed)
+{
+  "schema": "vault-genome/acpctl-provision/v1",
+  "role": "both",
+  "phase": "complete",
+  "out": "/etc/vaultgenome",
+  "provider": "auto",
+  "peer_provider": "aws-sev-snp",
+  "sealer": "auto",
+  "binaries": {
+    "acp-compute": "/opt/vaultgenome/bin/acp-compute",
+    "keygen": "/opt/vaultgenome/bin/acp-keygen",
+    "sagvd": "/opt/vaultgenome/bin/sagvd"
+  },
+  "secrets": "/etc/vaultgenome/secrets",
+  "configs": {
+    "acp-compute": "/etc/vaultgenome/acp-compute.json",
+    "sagvd": "/etc/vaultgenome/sagvd.json"
+  },
+  "configs_sha256": {
+    "acp-compute": "02dceeb5f63439524da7d6ceb91efdc3df44690862aef6f70ada9e911e110756",
+    "sagvd": "a2d92676fd567f779f710af133d7729f7a2cf3b31b8d2e7132a37a2163958b0d"
+  },
+  "pins": {
+    "vault": "/etc/vaultgenome/pins/vault.measurement",
+    "worker": "/etc/vaultgenome/pins/worker.measurement"
+  },
+  "amd_cert_chain": "/etc/vaultgenome/amd-milan-vlek-cert_chain.pem",
+  "vault": {
+    "provider": "aws-sev-snp",
+    "measurement_hex": "1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b",
+    "sealer": "sev-snp-derived-key",
+    "vlek_csp_id": "CN=cc-us-east-2.amazonaws.com",
+    "audit_kid": "sagvd-audit-demo",
+    "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAnjjvFNSvVzTOthglAHy8DgvWizgL8/cJWbaPv9RN8wk=\n-----END PUBLIC KEY-----\n",
+    "authority_kid": "sagvd-authority-demo",
+    "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAHRWc93PU67dTswlvVEMp4cGKTy59ETdjT/aSKJDvwss=\n-----END PUBLIC KEY-----\n",
+    "identity_file": "/etc/vaultgenome/sagvd-identity.json"
+  },
+  "worker": {
+    "provider": "aws-sev-snp",
+    "measurement_hex": "1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b",
+    "sealer": "sev-snp-derived-key",
+    "vlek_csp_id": "CN=cc-us-east-2.amazonaws.com",
+    "identity_file": "/etc/vaultgenome/acp-compute-identity.json"
+  },
+  "api_token_file": "/etc/vaultgenome/operator/api_token",
+  "sealed": {
+    "acp-compute": [
+      "keys.worker_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "vault.tls.client_key"
+    ],
+    "sagvd": [
+      "keys.authority_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "keys.audit_signing.seed_path",
+      "vault.tls.server_key",
+      "http_api.bearer_token_file"
+    ]
+  },
+  "next": [
+    "/opt/vaultgenome/bin/sagvd -config /etc/vaultgenome/sagvd.json",
+    "/opt/vaultgenome/bin/acp-compute -config /etc/vaultgenome/acp-compute.json",
+    "acpctl genome seal --content-dir \u003cgenome\u003e --output /var/lib/vaultgenome/genomes/gen-0.genome --key-out /var/lib/vaultgenome/genomes/gen-0.key"
+  ]
+}
