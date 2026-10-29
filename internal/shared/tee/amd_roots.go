@@ -215,13 +215,58 @@ func errForeignAMDRoot(ark *x509.Certificate) error {
 		ark.Subject.CommonName, certFingerprintSHA256(ark))
 }
 
+// The two kinds of AMD endorsement key a chain vouches for: the VCEK of a
+// chip, under the ASK (CN SEV-<product>); the VLEK a cloud provider loads
+// on its hosts, under the ASVK (CN SEV-VLEK-<product>). Both intermediates
+// are signed by the product line's ARK (ADR 0038).
+const (
+	AMDSignerVCEK = "vcek"
+	AMDSignerVLEK = "vlek"
+)
+
+// AMDSigners lists the signer kinds, for messages and flags.
+var AMDSigners = []string{AMDSignerVCEK, AMDSignerVLEK}
+
+// amdIntermediateSigner says which kind of leaf an intermediate vouches
+// for, by its common name; "" for a certificate that is neither.
+func amdIntermediateSigner(c *x509.Certificate) string {
+	cn := c.Subject.CommonName
+	switch {
+	case strings.HasPrefix(cn, "SEV-VLEK-"):
+		return AMDSignerVLEK
+	case strings.HasPrefix(cn, "SEV-"):
+		return AMDSignerVCEK
+	}
+	return ""
+}
+
+// amdIntermediateShort is the intermediate of a signer kind, by its
+// initials: ASK for a VCEK, ASVK for a VLEK.
+func amdIntermediateShort(signer string) string {
+	if signer == AMDSignerVLEK {
+		return "ASVK"
+	}
+	return "ASK"
+}
+
+// amdIntermediateName names the intermediate of a signer kind.
+func amdIntermediateName(signer string) string {
+	if signer == AMDSignerVLEK {
+		return "the ASVK (SEV-VLEK-<product>)"
+	}
+	return "the ASK (SEV-<product>)"
+}
+
 // AMDChainInfo is what VerifyAMDCertChain learned about a chain.
 type AMDChainInfo struct {
 	// Product is the line whose pinned root the chain ends in: Milan,
 	// Genoa or Turin.
 	Product string
+	// Signer is the kind of leaf the chain vouches for: AMDSignerVCEK
+	// (the intermediate is the ASK) or AMDSignerVLEK (the ASVK).
+	Signer string
 	// ASKSubjectCN and ARKSubjectCN are the certificates' common names
-	// (SEV-<product>, ARK-<product>).
+	// (SEV-<product> or SEV-VLEK-<product>, ARK-<product>).
 	ASKSubjectCN string
 	ARKSubjectCN string
 	// ARKFingerprintSHA256 is the root's fingerprint, hex.
@@ -248,8 +293,16 @@ func VerifyAMDCertChain(chainPEM []byte) (AMDChainInfo, error) {
 	if product == "" {
 		return AMDChainInfo{}, errForeignAMDRoot(ark)
 	}
+	signer := amdIntermediateSigner(ask)
+	if signer == "" {
+		return AMDChainInfo{}, fmt.Errorf("the intermediate %q is neither an ASK (SEV-<product>) nor an ASVK (SEV-VLEK-<product>)", ask.Subject.CommonName)
+	}
+	if !strings.HasSuffix(ask.Subject.CommonName, "-"+product) {
+		return AMDChainInfo{}, fmt.Errorf("the intermediate %q is not of the product line of the root %q", ask.Subject.CommonName, ark.Subject.CommonName)
+	}
 	return AMDChainInfo{
 		Product:              product,
+		Signer:               signer,
 		ASKSubjectCN:         ask.Subject.CommonName,
 		ARKSubjectCN:         ark.Subject.CommonName,
 		ARKFingerprintSHA256: certFingerprintSHA256(ark),
@@ -271,13 +324,29 @@ func amdProductName(product string) (string, error) {
 // verifies it against the pinned roots before returning it, so what it
 // returns is a chain the verifiers will accept and nothing else.
 func FetchAMDCertChain(baseURL, product string) ([]byte, AMDChainInfo, error) {
+	return FetchAMDCertChainSigned(baseURL, product, AMDSignerVCEK)
+}
+
+// FetchAMDCertChainSigned is FetchAMDCertChain for either signer kind: the
+// ASK+ARK bundle (/vcek/v1/<product>/cert_chain) for VCEKs, the ASVK+ARK
+// bundle (/vlek/v1/<product>/cert_chain) for the VLEKs a cloud provider
+// loads (ADR 0038). The bundle served must be of the kind asked.
+func FetchAMDCertChainSigned(baseURL, product, signer string) ([]byte, AMDChainInfo, error) {
 	p, err := amdProductName(product)
 	if err != nil {
 		return nil, AMDChainInfo{}, err
 	}
-	chain, err := realAMDKDSGetCertChainFor(baseURL, p)
+	var chain []byte
+	switch signer {
+	case AMDSignerVCEK:
+		chain, err = realAMDKDSGetCertChainFor(baseURL, p)
+	case AMDSignerVLEK:
+		chain, err = realAMDKDSGetVLEKCertChainFor(baseURL, p)
+	default:
+		return nil, AMDChainInfo{}, fmt.Errorf("unknown AMD signer kind %q (one of vcek, vlek)", signer)
+	}
 	if err != nil {
-		return nil, AMDChainInfo{}, fmt.Errorf("fetch %s chain: %w", p, err)
+		return nil, AMDChainInfo{}, fmt.Errorf("fetch %s %s chain: %w", p, signer, err)
 	}
 	info, err := VerifyAMDCertChain(chain)
 	if err != nil {
@@ -285,6 +354,9 @@ func FetchAMDCertChain(baseURL, product string) ([]byte, AMDChainInfo, error) {
 	}
 	if info.Product != p {
 		return nil, AMDChainInfo{}, errors.New("the server returned a " + info.Product + " chain for " + p)
+	}
+	if info.Signer != signer {
+		return nil, AMDChainInfo{}, fmt.Errorf("the server returned a %s chain (%s) for %s", info.Signer, info.ASKSubjectCN, signer)
 	}
 	return chain, info, nil
 }

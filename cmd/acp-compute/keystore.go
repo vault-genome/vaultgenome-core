@@ -157,6 +157,12 @@ func buildTEEProducer(cfg TEEConfig) (tee.Provider, tee.Producer, error) {
 			return "", nil, fmt.Errorf("acp-compute: tee.provider=gcp-sev-snp: %w", err)
 		}
 		return provider, p, nil
+	case tee.ProviderAWSSEVSNP:
+		p, err := tee.NewAWSSEVSNPProducer(tee.AWSSEVSNPProducerConfig{SEV: tee.GCPSEVProducerConfig{TSMReportDir: cfg.TSMReportDir}})
+		if err != nil {
+			return "", nil, fmt.Errorf("acp-compute: tee.provider=aws-sev-snp: %w", err)
+		}
+		return provider, p, nil
 	case tee.ProviderGCPTDX:
 		p, err := tee.NewGCPTDXProducer(tee.GCPTDXProducerConfig{TSMReportDir: cfg.TSMReportDir})
 		if err != nil {
@@ -250,6 +256,15 @@ func buildPeerVerifier(cfg PeerTEEConfig) (tee.Provider, tee.Verifier, error) {
 			VCEKCacheDir:   cfg.VCEKCacheDir,
 			MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol,
 		}
+	case tee.ProviderAWSSEVSNP:
+		if len(measurement) != 48 {
+			return "", nil, fmt.Errorf("acp-compute: tee.peer.measurement_path (%q) must hold a 48-byte SEV-SNP launch measurement (got %d bytes)", cfg.MeasurementPath, len(measurement))
+		}
+		chain, err := os.ReadFile(cfg.AMDCertChainPath)
+		if err != nil {
+			return "", nil, fmt.Errorf("acp-compute: read tee.peer.amd_cert_chain_path (%q): %w", cfg.AMDCertChainPath, err)
+		}
+		spec.AWSSEVSNP = tee.AWSSEVSNPVerifierConfig{SEV: tee.GCPSEVVerifierConfig{AMDRootPEM: chain, MinReportedTCB: cfg.MinReportedTCB, SEVSNP: snpPol}, CSPIDs: cfg.CSPIDs}
 	case tee.ProviderGCPSEVSNPVTPM:
 		if len(measurement) != 48 {
 			return "", nil, fmt.Errorf("acp-compute: tee.peer.measurement_path (%q) must hold a 48-byte SEV-SNP launch measurement (got %d bytes)", cfg.MeasurementPath, len(measurement))

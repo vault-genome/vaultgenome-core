@@ -27,6 +27,7 @@ import (
 const (
 	sevOffVersion        = 0x000 // u32
 	sevOffGuestSVN       = 0x004 // u32
+	sevOffReportID       = 0x140 // 32 bytes: the firmware's identity for this guest, this boot
 	sevOffCurrentTCB     = 0x038 // u64
 	sevOffPlatformInfo   = 0x040 // u64
 	sevOffCommittedTCB   = 0x1E0 // u64
@@ -249,6 +250,10 @@ type SEVSNPPolicySummary struct {
 	AcceptBelowBulletin  bool              `json:"accept_below_bulletin,omitempty"`
 	RequireSMTDisallowed bool              `json:"require_smt_disallowed,omitempty"`
 	ChipIDs              []string          `json:"chip_ids,omitempty"`
+	// CSPIDs are the providers whose VLEK an aws-sev-snp peer's report
+	// may be signed by (tee.peer.csp_ids); empty means any VLEK that
+	// chains to AMD's root, recorded (ADR 0038).
+	CSPIDs []string `json:"csp_ids,omitempty"`
 }
 
 // Summary is the policy in force, for identity.
@@ -321,6 +326,17 @@ type SEVSNPReportDetail struct {
 	} `json:"mitigation_vector"`
 	ChipIDHex      string `json:"chip_id_hex"`
 	ReportedTCBRaw uint64 `json:"reported_tcb_raw"`
+	// SigningKey names the key that signed the report (FLAGS.SIGNING_KEY):
+	// vcek for a chip's own key, vlek for the key AMD issues to a cloud
+	// provider (aws-sev-snp, ADR 0038), none.
+	SigningKey string `json:"signing_key"`
+	// ReportIDHex is REPORT_ID: the firmware's identity for this guest
+	// for this boot — the only machine-side identity a report signed by a
+	// VLEK carries, since its CHIP_ID is zero.
+	ReportIDHex string `json:"report_id_hex"`
+	// VLEK is what an aws-sev-snp verifier read from the VLEK beside the
+	// report: whose it is (CSP_ID), for which product and TCB, until when.
+	VLEK *VLEKDetail `json:"vlek,omitempty"`
 	// Floor is the TCB floor the report was held to, and FloorSource where it came from.
 	Floor       SEVTCBFloor `json:"floor"`
 	FloorSource string      `json:"floor_source"`
@@ -389,6 +405,8 @@ func sevSNPReportDetail(r *sevSNPReport) *SEVSNPReportDetail {
 	d.MitigationVector.Current = fmt.Sprintf("%#x", u64(sevOffCurrentMitVec))
 	d.ChipIDHex = hex.EncodeToString(r.ChipID[:])
 	d.ReportedTCBRaw = r.ReportedTCB
+	d.SigningKey = sevSigningKeyName(r.SigningKey)
+	d.ReportIDHex = hex.EncodeToString(raw[sevOffReportID : sevOffReportID+32])
 	return d
 }
 

@@ -11,6 +11,10 @@
 //
 //	oracle sevsnp -report report.bin -vcek vcek.der|pem -chain ask_ark.pem [-product Milan] [-sweep]
 //
+// A report signed by a VLEK (FLAGS.SIGNING_KEY 1; EC2, ADR 0038) takes the
+// VLEK as -vcek and the ASVK+ARK bundle as -chain: the oracle reads the
+// signer from the report and hands go-sev-guest the certificate as a VLEK.
+//
 // -sweep flips every byte of the report in turn and prints, per offset,
 // whether the mutated report still verifies — the same sweep the product
 // side runs, so that the two refusal maps can be compared.
@@ -54,8 +58,8 @@ func main() {
 	}
 	fs := flag.NewFlagSet("sevsnp", flag.ExitOnError)
 	reportPath := fs.String("report", "", "the raw 1184-byte attestation report")
-	vcekPath := fs.String("vcek", "", "the VCEK (DER or PEM)")
-	chainPath := fs.String("chain", "", "AMD's ASK+ARK bundle for the product (PEM, as KDS serves it)")
+	vcekPath := fs.String("vcek", "", "the endorsement key certificate that signed the report: the VCEK, or the VLEK (DER or PEM)")
+	chainPath := fs.String("chain", "", "AMD's ASK+ARK bundle for the product (PEM, as KDS serves it), or the ASVK+ARK bundle for a VLEK")
 	product := fs.String("product", "", "product line (Milan, Genoa, Turin); taken from the report's CPUID when empty")
 	sweep := fs.Bool("sweep", false, "flip every byte in turn and record which mutants still verify")
 	_ = fs.Parse(os.Args[2:])
@@ -118,7 +122,15 @@ func verifyOne(raw, vcek, ask, ark, chainPEM []byte, product string) error {
 	if err != nil {
 		return err
 	}
-	att := &spb.Attestation{Report: r, CertificateChain: &spb.CertificateChain{VcekCert: vcek, AskCert: ask, ArkCert: ark}}
+	chain := &spb.CertificateChain{AskCert: ask, ArkCert: ark}
+	// The report says which key signed it; go-sev-guest looks the
+	// certificate up by that kind and refuses the other.
+	if r.GetSignerInfo()>>2&7 == uint32(abi.VlekReportSigner) {
+		chain.VlekCert = vcek
+	} else {
+		chain.VcekCert = vcek
+	}
+	att := &spb.Attestation{Report: r, CertificateChain: chain}
 	root := trust.AMDRootCertsProduct(product)
 	if err := root.FromKDSCertBytes(chainPEM); err != nil {
 		return fmt.Errorf("chain: %w", err)

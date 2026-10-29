@@ -268,7 +268,7 @@ func (t TEEConfig) SEVDevice() string {
 }
 
 // supportedProviders are the TEE backends this build can run.
-var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPSEVSNPVTPM, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderAWSNitro, tee.ProviderSimulated, tee.ProviderAuto}
+var supportedProviders = []tee.Provider{tee.ProviderGCPSEVSNP, tee.ProviderGCPSEVSNPVTPM, tee.ProviderGCPTDX, tee.ProviderAzureCGPU, tee.ProviderAzureSEVSNP, tee.ProviderAWSSEVSNP, tee.ProviderAWSNitro, tee.ProviderSimulated, tee.ProviderAuto}
 
 // SourceAuthorityConfig points at the source-authority signing
 // public key file. Used by the receiver to verify every handshake +
@@ -594,12 +594,17 @@ func (c Config) Validate() error {
 				errs = append(errs, fmt.Errorf("tee.vtpm_seal_pcrs: %w", err))
 			}
 		}
-	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX || provider == tee.ProviderGCPSEVSNPVTPM:
+	case provider == tee.ProviderGCPSEVSNP || provider == tee.ProviderGCPTDX || provider == tee.ProviderGCPSEVSNPVTPM || provider == tee.ProviderAWSSEVSNP:
 		if c.TEE.SeedPath != "" {
 			errs = append(errs, errors.New("tee.seed_path applies to the simulated provider only; a hardware TEE signs with its own key"))
 		}
 		if c.TEE.InsecureSimulation {
 			errs = append(errs, errors.New("tee.insecure_simulation applies to the simulated provider only"))
+		}
+		if provider == tee.ProviderAWSSEVSNP {
+			if m := c.TEE.SealerMode(); m == tee.SealerModeBoth || m == tee.SealerModeTPM2 {
+				errs = append(errs, errors.New("tee.sealer: an EC2 SEV-SNP instance has no vTPM in this build; aws-sev-snp seals with the firmware's derived key (tee.sealer auto or tee; ADR 0038)"))
+			}
 		}
 	case provider == tee.ProviderAzureSEVSNP:
 		if c.TEE.SeedPath != "" || c.TEE.InsecureSimulation {
@@ -675,8 +680,8 @@ func (c Config) Validate() error {
 	}
 
 	if provider, err := tee.ParseProvider(c.TEE.Provider); err == nil {
-		if c.TEE.SEVGuestDevice != "" && provider != tee.ProviderGCPSEVSNP && provider != tee.ProviderGCPSEVSNPVTPM {
-			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp and gcp-sev-snp-vtpm only"))
+		if c.TEE.SEVGuestDevice != "" && provider != tee.ProviderGCPSEVSNP && provider != tee.ProviderGCPSEVSNPVTPM && provider != tee.ProviderAWSSEVSNP {
+			errs = append(errs, errors.New("tee.sev_guest_device applies to gcp-sev-snp, gcp-sev-snp-vtpm and aws-sev-snp only"))
 		}
 		if c.TEE.VTPMSealPCRs != "" {
 			switch {

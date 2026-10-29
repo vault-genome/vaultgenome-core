@@ -64,7 +64,14 @@ func init() {
 	parseSEVSNPReport = realParseSEVSNPReport
 	verifySEVReportSignature = realVerifySEVReportSignature
 	verifyAMDChain = realVerifyAMDChain
+	verifyAMDChainVLEK = realVerifyAMDChainVLEK
 	amdKDSGetVCEK = realAMDKDSGetVCEK
+}
+
+// verifyAMDChainVLEK is the VLEK chain check, a var so integration tests
+// can substitute a fake host.
+var verifyAMDChainVLEK = func(_ []byte, _ []byte) error {
+	return errors.New("verifyAMDChainVLEK: not wired")
 }
 
 // realParseSEVSNPReport reads the fixed-offset fields from a 1184-byte report.
@@ -134,19 +141,38 @@ func realVerifySEVReportSignature(report *sevSNPReport, vcekCert []byte) error {
 // (RSASSA-PSS) so CA/key-usage policy quirks in AMD certs do not block a
 // cryptographically valid chain.
 func realVerifyAMDChain(vcekCert []byte, chainPEM []byte) error {
-	vcek, err := parseCert(vcekCert)
+	return realVerifyAMDChainSigned(vcekCert, chainPEM, AMDSignerVCEK)
+}
+
+// realVerifyAMDChainVLEK validates VLEK <- ASVK <- ARK: the chain KDS serves
+// under /vlek/v1/<product>/cert_chain, the same pinned root (ADR 0038).
+func realVerifyAMDChainVLEK(vlekCert []byte, chainPEM []byte) error {
+	return realVerifyAMDChainSigned(vlekCert, chainPEM, AMDSignerVLEK)
+}
+
+// realVerifyAMDChainSigned validates a leaf under the intermediate of its
+// signer kind — the ASK (CN SEV-<product>) for a VCEK, the ASVK (CN
+// SEV-VLEK-<product>) for a VLEK — and the intermediate under a pinned
+// ARK. A chain of the other kind is refused by name: an ASK does not
+// vouch for a VLEK, nor an ASVK for a VCEK.
+func realVerifyAMDChainSigned(leafCert []byte, chainPEM []byte, signer string) error {
+	leafName := strings.ToUpper(signer)
+	leaf, err := parseCert(leafCert)
 	if err != nil {
-		return fmt.Errorf("parse VCEK: %w", err)
+		return fmt.Errorf("parse %s: %w", leafName, err)
 	}
 	ask, ark, err := parseASKARK(chainPEM)
 	if err != nil {
 		return err
 	}
-	if err := ask.CheckSignature(vcek.SignatureAlgorithm, vcek.RawTBSCertificate, vcek.Signature); err != nil {
-		return fmt.Errorf("VCEK not signed by ASK: %w", err)
+	if err := ask.CheckSignature(leaf.SignatureAlgorithm, leaf.RawTBSCertificate, leaf.Signature); err != nil {
+		if got := amdIntermediateSigner(ask); got != "" && got != signer {
+			return fmt.Errorf("%s not signed by the chain's intermediate %q, which vouches for %ss; a %s chains through %s: %w", leafName, ask.Subject.CommonName, strings.ToUpper(got), leafName, amdIntermediateName(signer), err)
+		}
+		return fmt.Errorf("%s not signed by %s %q: %w", leafName, amdIntermediateShort(signer), ask.Subject.CommonName, err)
 	}
 	if err := ark.CheckSignature(ask.SignatureAlgorithm, ask.RawTBSCertificate, ask.Signature); err != nil {
-		return fmt.Errorf("ASK not signed by ARK: %w", err)
+		return fmt.Errorf("%s not signed by ARK: %w", amdIntermediateShort(signer), err)
 	}
 	if err := ark.CheckSignature(ark.SignatureAlgorithm, ark.RawTBSCertificate, ark.Signature); err != nil {
 		return fmt.Errorf("ARK not self-signed (root mismatch): %w", err)
@@ -155,6 +181,11 @@ func realVerifyAMDChain(vcekCert []byte, chainPEM []byte) error {
 	// is one of the certificates this build pins (ADR 0024).
 	if pinnedAMDRootFor(ark) == "" {
 		return errForeignAMDRoot(ark)
+	}
+	// The intermediate is of the kind the leaf needs: an ASK vouches for a
+	// VCEK, an ASVK for a VLEK, and AMD names them apart (ADR 0038).
+	if got := amdIntermediateSigner(ask); got != signer {
+		return fmt.Errorf("the chain's intermediate is %q (a %s chain); a %s chains through %s", ask.Subject.CommonName, strings.ToUpper(got), leafName, amdIntermediateName(signer))
 	}
 	return nil
 }
@@ -205,6 +236,15 @@ func realAMDKDSGetCertChainFor(baseURL, product string) ([]byte, error) {
 		baseURL = "https://kdsintf.amd.com"
 	}
 	return httpGet(baseURL + "/vcek/v1/" + product + "/cert_chain")
+}
+
+// realAMDKDSGetVLEKCertChainFor fetches the ASVK+ARK PEM bundle of a
+// product line from AMD KDS or a mirror: the chain above a VLEK (ADR 0038).
+func realAMDKDSGetVLEKCertChainFor(baseURL, product string) ([]byte, error) {
+	if baseURL == "" {
+		baseURL = "https://kdsintf.amd.com"
+	}
+	return httpGet(baseURL + "/vlek/v1/" + product + "/cert_chain")
 }
 
 // ---- helpers ---------------------------------------------------------------

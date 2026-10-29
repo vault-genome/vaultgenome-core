@@ -1,0 +1,4 @@
+error: invalid value 'snpguest/certs' for '[processor-model]'
+  [possible values: milan, genoa, bergamo, siena, turin]
+
+For more information, try '--help'.

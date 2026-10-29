@@ -56,6 +56,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -387,27 +388,39 @@ func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPR
 		)
 	}
 
+	return v.afterSignature(report, nonce, "gcp-sev", sevSigningKeyVCEK)
+}
+
+// afterSignature holds a parsed, signature-verified report to the policy:
+// the signing key and algorithm, the guest's DEBUG bit, the VMPL, the
+// minimum TCB, the attack record (ADR 0033), the challenger's nonce,
+// HOST_DATA and the launch measurement. family prefixes every refusal;
+// signingKey is the FLAGS.SIGNING_KEY the family's reports carry (the
+// VCEK here, a VLEK on EC2 — aws_sev_snp.go, which checks the chain and
+// the signature its own way and comes here for the rest).
+func (v *GCPSEVVerifier) afterSignature(report *sevSNPReport, nonce Nonce, family string, signingKey uint8) (Measurement, *SEVSNPReportDetail, error) {
+	var zero Measurement
 	// Guest policy and report provenance, read from the now-verified
-	// report: signed by the VCEK this verifier fetched, with the
+	// report: signed by the key this verifier checked, with the
 	// algorithm it checked, for a non-debug guest at the expected VMPL.
-	if report.SignatureAlgo != 1 || report.SigningKey != 0 {
+	if report.SignatureAlgo != 1 || report.SigningKey != signingKey {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev: report signed with algorithm %d by key kind %d; this verifier accepts ECDSA P-384 (1) by the VCEK (0)", report.SignatureAlgo, report.SigningKey),
+			fmt.Sprintf("%s: report signed with algorithm %d by key kind %d; this verifier accepts ECDSA P-384 (1) by the %s (%d)", family, report.SignatureAlgo, report.SigningKey, strings.ToUpper(sevSigningKeyName(signingKey)), signingKey),
 			nil,
 		)
 	}
 	if report.Policy&sevPolicyDebug != 0 {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
-			"gcp-sev: guest policy allows DEBUG — the hypervisor can read this guest's memory",
+			family+": guest policy allows DEBUG — the hypervisor can read this guest's memory",
 			nil,
 		)
 	}
 	if report.VMPL != v.cfg.VMPL {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeAttestationDenied,
-			fmt.Sprintf("gcp-sev: report requested at VMPL %d, expected %d", report.VMPL, v.cfg.VMPL),
+			fmt.Sprintf("%s: report requested at VMPL %d, expected %d", family, report.VMPL, v.cfg.VMPL),
 			nil,
 		)
 	}
@@ -416,11 +429,11 @@ func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPR
 	if report.ReportedTCB < v.minReportedTCB {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev: ReportedTCB %d below minimum %d", report.ReportedTCB, v.minReportedTCB),
+			fmt.Sprintf("%s: ReportedTCB %d below minimum %d", family, report.ReportedTCB, v.minReportedTCB),
 			nil,
 		)
 	}
-	snpDetail, err := checkSEVSNPPolicy(report, v.cfg.SEVSNP, "gcp-sev")
+	snpDetail, err := checkSEVSNPPolicy(report, v.cfg.SEVSNP, family)
 	if err != nil {
 		return zero, nil, err
 	}
@@ -429,7 +442,7 @@ func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPR
 	if !nonceMatchesReportDataSEV(report.ReportData, nonce) {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			"gcp-sev: REPORT_DATA does not bind challenger nonce (replay?)",
+			family+": REPORT_DATA does not bind challenger nonce (replay?)",
 			nil,
 		)
 	}
@@ -446,7 +459,7 @@ func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPR
 		if !ok {
 			return zero, nil, shared_errors.Integrity(
 				shared_errors.CodeSignatureInvalid,
-				fmt.Sprintf("gcp-sev: HOST_DATA %x not in acceptable set", report.HostData),
+				fmt.Sprintf("%s: HOST_DATA %x not in acceptable set", family, report.HostData),
 				nil,
 			)
 		}
@@ -458,7 +471,7 @@ func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPR
 	if mErr != nil {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev: unexpected MEASUREMENT length: %v", mErr),
+			fmt.Sprintf("%s: unexpected MEASUREMENT length: %v", family, mErr),
 			nil,
 		)
 	}
@@ -472,7 +485,7 @@ func (v *GCPSEVVerifier) verify(ev Evidence, nonce Nonce) (Measurement, *SEVSNPR
 	if !matched {
 		return zero, nil, shared_errors.Integrity(
 			shared_errors.CodeSignatureInvalid,
-			fmt.Sprintf("gcp-sev: MEASUREMENT %x not in acceptable set", reported),
+			fmt.Sprintf("%s: MEASUREMENT %x not in acceptable set", family, reported),
 			nil,
 		)
 	}

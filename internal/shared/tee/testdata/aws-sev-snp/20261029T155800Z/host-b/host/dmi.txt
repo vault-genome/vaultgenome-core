@@ -1,0 +1,8 @@
+bios_vendor=Amazon EC2
+bios_version=1.0
+bios_date=10/16/2017
+bios_release=1.0
+product_name=m6a.large
+product_version=
+sys_vendor=Amazon EC2
+chassis_asset_tag=Amazon EC2

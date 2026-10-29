@@ -1,0 +1,11 @@
+== after stop/start (this is a new host or not — compare the key with the first boot's e37ea08659a68fef):
+key e37ea08659a68fef report_id ed3c3979cd42fa64438dbc762f0a26b0 measurement 7a89cceaaba0bbdd vlek fac7c425c72b48ef boot 1c465c92 uptime 74.92
+== reboot (the same host)
+   ssh after 10 s
+== after reboot:
+key e37ea08659a68fef report_id 291aa28924bcad499d8fe3289417dda7 measurement 7a89cceaaba0bbdd vlek fac7c425c72b48ef boot dfd7ef4f uptime 20.02
+== stop/start once more
+   new ip 3.150.109.205
+   ssh after 10 s
+== after the second stop/start:
+key e37ea08659a68fef report_id ece300a5f7c6fcf1cc8bdecd080cfdf4 measurement 7a89cceaaba0bbdd vlek fac7c425c72b48ef boot bc55b2c4 uptime 24.09

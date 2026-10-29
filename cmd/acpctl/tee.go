@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
@@ -17,7 +18,7 @@ import (
 // teeCmd dispatches `acpctl tee <subcommand>`: what an operator needs from
 // the hardware vendors before the daemons verify a peer.
 //
-//	fetch-amd-chain  — the ASK+ARK chain of an AMD product line from AMD
+//	fetch-amd-chain  — the ASK+ARK (or, --signer vlek, ASVK+ARK) chain of an AMD product line from AMD
 //	                   KDS, verified against the roots this build pins
 //	                   (ADR 0024), written for amd_cert_chain_path
 //	prefetch         — fill the peer verifier's caches (VCEK from AMD KDS,
@@ -39,7 +40,7 @@ func teeCmd(args []string, stdout, stderr io.Writer) int {
 		return teeCacheStatusCmd(args[1:], stdout, stderr)
 	case "help", "--help", "-h":
 		fmt.Fprintln(stdout, "tee subcommands:")
-		fmt.Fprintln(stdout, "  fetch-amd-chain  — fetch an AMD product line's ASK+ARK chain from AMD KDS, verify it against the pinned roots, write it for amd_cert_chain_path")
+		fmt.Fprintln(stdout, "  fetch-amd-chain  — fetch an AMD product line's ASK+ARK chain (or, with --signer vlek, its ASVK+ARK chain) from AMD KDS, verify it against the pinned roots, write it for amd_cert_chain_path")
 		fmt.Fprintln(stdout, "  prefetch         — fill the peer verifier's caches (the VCEK of this chip from AMD KDS; the TCB info and QE identity of this platform from Intel PCS) while the vendors are reachable: --config <daemon config>")
 		fmt.Fprintln(stdout, "  cache-status     — what the caches a configuration names hold, and until when: --config <daemon config>; exit 1 when anything is expired, unusable or missing")
 		return 0
@@ -53,7 +54,8 @@ func teeFetchAMDChainCmd(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("tee fetch-amd-chain", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	product := flags.String("product", "", "the chip's AMD product line: milan, genoa or turin (required)")
-	out := flags.String("out", "", "where to write the ASK+ARK chain, PEM (required)")
+	signer := flags.String("signer", tee.AMDSignerVCEK, "the key the reports are signed by: vcek (a chip's own key; the ASK+ARK chain) or vlek (the key AMD issues to a cloud provider — EC2; the ASVK+ARK chain, ADR 0038)")
+	out := flags.String("out", "", "where to write the chain, PEM (required)")
 	kdsURL := flags.String("kds-url", "", "AMD KDS base URL (default https://kdsintf.amd.com; a mirror for a site that cannot reach it)")
 	force := flags.Bool("force", false, "overwrite --out if it exists")
 	if err := flags.Parse(args); err != nil {
@@ -71,7 +73,7 @@ func teeFetchAMDChainCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl tee fetch-amd-chain: stat %s: %v\n", *out, err)
 		return 1
 	}
-	chain, info, err := tee.FetchAMDCertChain(*kdsURL, *product)
+	chain, info, err := tee.FetchAMDCertChainSigned(*kdsURL, *product, strings.ToLower(strings.TrimSpace(*signer)))
 	if err != nil {
 		fmt.Fprintf(stderr, "acpctl tee fetch-amd-chain: %v\n", err)
 		return 1
@@ -80,8 +82,12 @@ func teeFetchAMDChainCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl tee fetch-amd-chain: write %s: %v\n", *out, err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "wrote %s: the %s chain, %d bytes\n", *out, info.Product, len(chain))
-	fmt.Fprintf(stdout, "  ASK: CN=%s\n", info.ASKSubjectCN)
+	fmt.Fprintf(stdout, "wrote %s: the %s %s chain, %d bytes\n", *out, info.Product, strings.ToUpper(info.Signer), len(chain))
+	if info.Signer == tee.AMDSignerVLEK {
+		fmt.Fprintf(stdout, "  ASVK: CN=%s\n", info.ASKSubjectCN)
+	} else {
+		fmt.Fprintf(stdout, "  ASK: CN=%s\n", info.ASKSubjectCN)
+	}
 	fmt.Fprintf(stdout, "  ARK: CN=%s, sha256 %s — a root this build pins (ADR 0024)\n", info.ARKSubjectCN, info.ARKFingerprintSHA256)
 	return 0
 }

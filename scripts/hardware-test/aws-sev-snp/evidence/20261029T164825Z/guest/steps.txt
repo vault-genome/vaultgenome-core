@@ -1,0 +1,33 @@
+== the host as the guest sees it
+== binaries from /home/ubuntu/e2e
+== configfs-tsm: the report and the certificate table the host shows beside it
+probe: report version=5 signing_key=1 chip_id_zero=True measurement=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+== the worker runtime: python, the pinned CPU torch (the door needs it)
+== acpctl provision: one command — keygen, the configurations, the VLEK chain, the identities and pins, the key files sealed with the derived key
+provision exit=0
+provider=auto peer=aws-sev-snp sealer=auto
+vault_measurement=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+worker_measurement=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+vault_sealer=sev-snp-derived-key worker_sealer=sev-snp-derived-key
+vault_vlek_csp_id=CN=cc-us-east-2.amazonaws.com worker_vlek_csp_id=CN=cc-us-east-2.amazonaws.com
+sealed_sagvd=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+sealed_worker=keys.worker_signing.seed_path,keys.session_sealing.material_path,vault.tls.client_key
+amd_cert_chain=/root/deploy/amd-milan-vlek-cert_chain.pem
+== a real fine-tune: tiny base model built here, LoRA adapter trained by vg_genome, sealed by acpctl
+finetune exit=0
+seal exit=0
+key_id=genome-de9302083f8c-g0-d18595aeaeae
+== sagvd on what provision wrote
+sagvd ready after 1s
+== acp-compute on what provision wrote, the real door
+session opened after 0s
+== the gate job over the Return Path
+job_id=743bc03a806d565a39d8a891cb1d1d02
+job status=succeeded after 7s
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo
+== metrics
+== stop both; verify the audit log with the key provision kept for the operator
+audit verify exit=0
+audit query exit=0
+peer chip product=Milan signing_key=vlek report_id=53d72f8a5ae6aec40df458559202f721cea326a3cd4923804dc38a28d6c56331 snp=0x1f microcode=0xe1 firmware=1.58.3 alias_check=true mit_vector=0xfef floor_snp=0x1b floor_microcode=0xde vlek_csp_id=CN=cc-us-east-2.amazonaws.com vlek_not_after=2027-10-01T05:01:23Z chip_id_hex=00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+elapsed_seconds=140.6

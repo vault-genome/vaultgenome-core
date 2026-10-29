@@ -152,6 +152,11 @@ func SealerKindForProvider(p Provider, mode SealerMode) (SealerKind, error) {
 		return SealerKindSimulated, nil
 	case ProviderGCPSEVSNP:
 		return SealerKindSEVDerivedKey, nil
+	case ProviderAWSSEVSNP:
+		// The firmware's derived key, as on Compute Engine; on EC2 it is
+		// the fleet's, not a chip's: a file opens on any EC2 SEV-SNP guest
+		// of the same launch measurement and guest policy (ADR 0038).
+		return SealerKindSEVDerivedKey, nil
 	case ProviderGCPSEVSNPVTPM:
 		// The family that attests with the vTPM seals to it too: under
 		// auto, the chip's key nested in the vTPM's (ADR 0037); tee keeps
@@ -181,6 +186,8 @@ func providerOf(p Producer) (Provider, bool) {
 		return ProviderGCPSEVSNP, true
 	case *GCPSEVVTPMProducer:
 		return ProviderGCPSEVSNPVTPM, true
+	case *AWSSEVSNPProducer:
+		return ProviderAWSSEVSNP, true
 	case *GCPTDXProducer:
 		return ProviderGCPTDX, true
 	case *AzureCGPUProducer:

@@ -1,0 +1,41 @@
+16:48:25 == 0. build (linux/amd64) from 460db390d22c
+16:48:29 == 1. the instance: m6a.xlarge with AmdSevSnp enabled in us-east-2
+16:49:31    i-01e4069f1f74fb096 at 18.191.34.68, ssh after 15 s
+16:49:31 == 2. the binaries, the worker package and guest.sh over ssh; guest.sh runs as root
+16:52:00    guest.sh exit 0
+16:52:00 == 3. the results back
+775f7e2dfb5ada0c9533033b0dbceb184da40855a4de7e475feb888b7510a4d7  /Users/serhiinikolaichuk/dev/vg-aws-snp/scripts/hardware-test/aws-sev-snp/evidence/20261029T164825Z/results.tgz
+16:52:02 == 4. what was proven
+probe: report version=5 signing_key=1 chip_id_zero=True measurement=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+provider=auto peer=aws-sev-snp sealer=auto
+vault_measurement=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+vault_sealer=sev-snp-derived-key worker_sealer=sev-snp-derived-key
+vault_vlek_csp_id=CN=cc-us-east-2.amazonaws.com worker_vlek_csp_id=CN=cc-us-east-2.amazonaws.com
+gate_level=EXACT door=pinned replay rung=0 fixtures=6 n_exact=6 max_abs_err=0 signer=sagvd-authority-demo
+audit verify exit=0
+peer chip product=Milan signing_key=vlek report_id=53d72f8a5ae6aec40df458559202f721cea326a3cd4923804dc38a28d6c56331 snp=0x1f microcode=0xe1 firmware=1.58.3 alias_check=true mit_vector=0xfef floor_snp=0x1b floor_microcode=0xde vlek_csp_id=CN=cc-us-east-2.amazonaws.com vlek_not_after=2027-10-01T05:01:23Z chip_id_hex=00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+elapsed_seconds=140.6
+16:52:02    ok    provision kept tee.provider auto and resolved the peer to aws-sev-snp
+16:52:02    ok    sagvd identity: tee_provider aws-sev-snp, aws_sev_snp.csp_id present
+16:52:02    ok    acp-compute identity: tee_provider aws-sev-snp, aws_sev_snp.csp_id present
+16:52:02    ok    both daemons resolved auto from configfs-tsm and the DMI vendor to aws-sev-snp
+16:52:02    ok    the handshake carried the aws-sev-snp envelope (report and VLEK)
+16:52:02    ok    the key files are sealed with the firmware's derived key
+16:52:02    ok    both identities name the VLEK's CSP_ID
+16:52:02    ok    the host's reports are signed by a VLEK and name no chip
+16:52:02    ok    the gate job came back EXACT
+16:52:02    ok    the audit log verifies under the operator's key
+16:52:02    ok    the admission record says: Milan, a VLEK, REPORT_ID, the provider
+   ok     8 of 8 sealed files name tee aws-sev-snp and sealer sev-snp-derived-key
+16:52:02 == 5. the launch measurement against AWS's published UEFI (release 20260814, sev-snp-measure)
+uefi_release=20260814
+uefi_sha256=67aaae01a6f4245cc071e008859b00ea2b5c05824362c41d165c3b4751372bc9
+uefi_sha256_pinned=67aaae01a6f4245cc071e008859b00ea2b5c05824362c41d165c3b4751372bc9
+vcpus=4
+measure=sev-snp-measure==0.0.13 --mode snp --vcpus 4 --vmm-type ec2
+expected=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+reported=1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+16:52:07    ok    the chip's launch measurement is AWS's published UEFI 20260814 measured for 4 vCPUs
+16:52:07 == evidence: /Users/serhiinikolaichuk/dev/vg-aws-snp/scripts/hardware-test/aws-sev-snp/evidence/20261029T164825Z (      49 files)
+16:52:07 RESULT: PASS
+16:52:07 cleanup: terminating vg-awssnp-20261029t164825z (i-01e4069f1f74fb096), removing the key pair and the security group

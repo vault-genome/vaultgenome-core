@@ -644,3 +644,23 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    nothing was resubmitted, and the chain ran on from the replica's 81
    events to 113, verified offline. What remains is a continuous replica
    in place of the drill's per-job copies.
+
+19. **EC2 on AMD SEV-SNP (`aws-sev-snp`, ADR 0038) names no machine, and its
+   sealing key is the fleet's.** The report is signed by the provider's VLEK
+   and carries no CHIP_ID (sixty-four zero bytes), so a policy cannot pin an
+   EC2 machine (`sev_snp.chip_ids` is refused for the family); it pins the
+   provider instead (`tee.peer.csp_ids`, the VLEK's CSP_ID, one per region)
+   and the record carries REPORT_ID per boot. The firmware's derived key —
+   the sealer on SEV-SNP — gave the same bytes on three EC2 hosts in two
+   zones and across a reboot and two stop/starts (the first capture,
+   2026-10-29): a key file sealed on EC2 opens on any EC2 SEV-SNP guest of
+   the same launch measurement and guest policy, not on one machine. There
+   is no vTPM on EC2 in this build, so the boot after AWS's UEFI is not in
+   the measurement and not pinned (`tee.sealer tpm2`/`both` refused), and
+   the delegated Verifier (`tee.peer.verifier`) does not read the VLEK
+   beside the report yet. A customer who needs a machine or a boot pinned
+   has GCP and Azure for that; the claim for EC2 (C58) is a deployment
+   attested under AMD's root through the provider's key, gated EXACT, the
+   audit log verified — once, in one region, on one instance type, from
+   the tree's binaries, without a reset; the one-button deployment on EC2
+   comes with the release that carries the family.

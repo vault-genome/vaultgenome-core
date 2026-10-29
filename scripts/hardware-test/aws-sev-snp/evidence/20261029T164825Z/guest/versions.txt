@@ -1,0 +1,4 @@
+sagvd 0.0.0-dev (commit 460db390d22c-dirty) fips140=off module=latest enforced=false
+acp-compute 0.0.0-dev (commit 460db390d22c-dirty) fips140=off module=latest enforced=false
+acpctl 0.0.0-dev (commit 460db390d22c-dirty) fips140=off module=latest enforced=false
+acp-keygen 0.0.0-dev (commit 460db390d22c-dirty)

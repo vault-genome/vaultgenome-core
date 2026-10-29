@@ -140,7 +140,7 @@ type provisionOptions struct {
 func (o *provisionOptions) commonFlags(flags *flag.FlagSet) {
 	flags.StringVar(&o.out, "out", "", "the deployment directory to write (required; created 0700)")
 	flags.StringVar(&o.binDir, "bin-dir", "", "where the release's acp-keygen, sagvd and acp-compute are (default: beside acpctl, then PATH)")
-	flags.StringVar(&o.provider, "provider", "", "the TEE family the daemon(s) on this host attest with: gcp-sev-snp, gcp-tdx, azure-sev-snp, simulated, or auto (configfs-tsm says which, or the vTPM's HCL report under Azure's paravisor)")
+	flags.StringVar(&o.provider, "provider", "", "the TEE family the daemon(s) on this host attest with: gcp-sev-snp, aws-sev-snp, gcp-tdx, azure-sev-snp, simulated, or auto (configfs-tsm says which — on EC2 the machine's vendor — or the vTPM's HCL report under Azure's paravisor)")
 	flags.StringVar(&o.sealer, "sealer", "auto", "tee.sealer for the daemon(s) on this host: auto, tee or tpm2 (ADR 0025 step 1b)")
 	flags.BoolVar(&o.insecureSimulation, "insecure-simulation", false, "allow the simulated TEE (development only; the daemons refuse it otherwise)")
 	flags.StringVar(&o.logLevel, "log-level", "info", "the daemons' log level")
@@ -156,7 +156,7 @@ func (o *provisionOptions) authorityFlags(flags *flag.FlagSet) {
 	flags.StringVar(&o.apiListen, "api-listen", "127.0.0.1:9080", "sagvd's REST API listen address")
 	flags.StringVar(&o.vaultHealth, "vault-health", "127.0.0.1:9081", "sagvd's health and metrics listen address")
 	flags.StringVar(&o.amdCertChain, "amd-cert-chain", "", "the AMD ASK+ARK chain (PEM) of the worker's chip's product, for sagvd's verifier of a SEV-SNP worker")
-	flags.StringVar(&o.fetchAMDChain, "fetch-amd-chain", "", "fetch the AMD chain for the worker's product (milan, genoa, turin) from AMD KDS into the deployment directory, verified against the pinned roots (ADR 0024)")
+	flags.StringVar(&o.fetchAMDChain, "fetch-amd-chain", "", "fetch the AMD chain for the worker's product (milan, genoa, turin) from AMD KDS into the deployment directory, verified against the pinned roots (ADR 0024); the VLEK chain for an aws-sev-snp worker (ADR 0038)")
 	flags.StringVar(&o.kdsURL, "kds-url", "", "AMD KDS base URL for the chain fetches (default https://kdsintf.amd.com)")
 	flags.StringVar(&o.pcsCacheDir, "pcs-cache-dir", "", "Intel PCS cache directory for a gcp-tdx peer (default <out>/pcs-cache)")
 	flags.StringVar(&o.genomeDir, "genome-dir", "", "sagvd's genome.bundle_dir (default <out>/genomes)")
@@ -217,6 +217,7 @@ type provisionedSide struct {
 	Sealer                string   `json:"sealer,omitempty"`
 	VTPMPCRDigestHex      string   `json:"vtpm_pcr_digest_hex,omitempty"`
 	VTPMPCRs              string   `json:"vtpm_pcrs,omitempty"`
+	VLEKCSPID             string   `json:"vlek_csp_id,omitempty"`
 	AuditKID              string   `json:"audit_kid,omitempty"`
 	AuditPublicKeyPEM     string   `json:"audit_public_key_pem,omitempty"`
 	AuthorityKID          string   `json:"authority_kid,omitempty"`
@@ -235,7 +236,10 @@ type daemonIdentity struct {
 	AuditPublicKeyPEM     string `json:"audit_public_key_pem"`
 	AuthorityKID          string `json:"authority_kid"`
 	AuthorityPublicKeyPEM string `json:"authority_public_key_pem"`
-	VTPM                  *struct {
+	AWSSEVSNP             *struct {
+		CSPID string `json:"csp_id"`
+	} `json:"aws_sev_snp"`
+	VTPM *struct {
 		PCRs         []string `json:"pcrs"`
 		PCRDigestHex string   `json:"pcr_digest_hex"`
 	} `json:"vtpm"`
@@ -327,14 +331,14 @@ func provisionFamily(name string) (local, resolved tee.Provider, err error) {
 		}
 		_ = tsm
 		return tee.ProviderAuto, family, nil
-	case tee.ProviderGCPSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureSEVSNP, tee.ProviderSimulated:
+	case tee.ProviderGCPSEVSNP, tee.ProviderAWSSEVSNP, tee.ProviderGCPTDX, tee.ProviderAzureSEVSNP, tee.ProviderSimulated:
 		return p, p, nil
 	case tee.ProviderAzureCGPU:
 		return "", "", errors.New("--provider azure-cgpu: the confidential GPU VM needs its GPU attestation command and policy; set it up by the runbook (docs/operator/runbooks/real-tee-azure-cgpu.md)")
 	case tee.ProviderGCPSEVSNPVTPM:
 		return "", "", errors.New("--provider gcp-sev-snp-vtpm: each host's boot (pcr_digests) is pinned from its own identity after its first boot has settled; set it up by the runbook (docs/operator/runbooks/real-tee-gcp-sev-snp-vtpm.md)")
 	default:
-		return "", "", fmt.Errorf("--provider %q: no deployment this command can set up (supported: gcp-sev-snp, gcp-tdx, azure-sev-snp, simulated, auto)", name)
+		return "", "", fmt.Errorf("--provider %q: no deployment this command can set up (supported: gcp-sev-snp, aws-sev-snp, gcp-tdx, azure-sev-snp, simulated, auto)", name)
 	}
 }
 
@@ -416,20 +420,34 @@ func prepareOut(o provisionOptions, subdirs ...string) (string, error) {
 	return out, nil
 }
 
+// amdSignerFor is the key a family's reports are signed by: a VLEK on EC2
+// (the ASVK+ARK chain), the chip's VCEK elsewhere (ADR 0038).
+func amdSignerFor(family tee.Provider) string {
+	if family == tee.ProviderAWSSEVSNP {
+		return tee.AMDSignerVLEK
+	}
+	return tee.AMDSignerVCEK
+}
+
 // amdChain resolves a SEV-SNP peer's chain: the PEM given, or fetched for
-// the product named into out; the result is an absolute path.
-func amdChain(out, given, fetch, kdsURL, what string, stdout io.Writer) (string, error) {
+// the product named into out — the chain of signer (vcek or vlek); the
+// result is an absolute path.
+func amdChain(out, given, fetch, kdsURL, signer, what string, stdout io.Writer) (string, error) {
 	chain := given
 	if fetch != "" {
-		chain = filepath.Join(out, "amd-"+strings.ToLower(fetch)+"-cert_chain.pem")
-		pem, info, err := tee.FetchAMDCertChain(kdsURL, fetch)
+		name := "amd-" + strings.ToLower(fetch) + "-cert_chain.pem"
+		if signer == tee.AMDSignerVLEK {
+			name = "amd-" + strings.ToLower(fetch) + "-vlek-cert_chain.pem"
+		}
+		chain = filepath.Join(out, name)
+		pem, info, err := tee.FetchAMDCertChainSigned(kdsURL, fetch, signer)
 		if err != nil {
-			return "", fmt.Errorf("fetch the AMD chain for %s: %w", fetch, err)
+			return "", fmt.Errorf("fetch the AMD %s chain for %s: %w", signer, fetch, err)
 		}
 		if err := os.WriteFile(chain, pem, 0o600); err != nil {
 			return "", err
 		}
-		fmt.Fprintf(stdout, "  AMD chain (%s): %s (%s; ARK %s, a root this build pins)\n", what, chain, info.Product, info.ARKFingerprintSHA256)
+		fmt.Fprintf(stdout, "  AMD %s chain (%s): %s (%s; ARK %s, a root this build pins)\n", strings.ToUpper(signer), what, chain, info.Product, info.ARKFingerprintSHA256)
 	}
 	if chain == "" {
 		return "", nil
@@ -456,6 +474,14 @@ func peerConfig(out string, family tee.Provider, chain, pcsCacheDir string) (map
 		}
 		cfg["amd_cert_chain_path"] = chain
 		cfg["vcek_cache_dir"] = vcek
+	case tee.ProviderAWSSEVSNP:
+		// No VCEK to cache: the VLEK travels with the report; the chain is
+		// the ASVK+ARK bundle. csp_ids is pinned from the peer's identity
+		// (its VLEK's CSP_ID) once that is known.
+		if chain == "" {
+			return nil, fmt.Errorf("a %s peer needs the AMD VLEK chain of its chip's product: --amd-cert-chain PATH or --fetch-amd-chain milan (ADR 0038)", family)
+		}
+		cfg["amd_cert_chain_path"] = chain
 	case tee.ProviderGCPTDX:
 		pcs := orDefault(pcsCacheDir, filepath.Join(out, "pcs-cache"))
 		if err := os.MkdirAll(pcs, 0o700); err != nil {
@@ -664,6 +690,9 @@ func identify(out, key, bin, cfg, pinPath, name string, family, local tee.Provid
 	side.MeasurementHex, side.Sealer, side.IdentityFile = id.TEEMeasurementHex, id.Sealer, idFile
 	side.AuditKID, side.AuditPublicKeyPEM = id.AuditKID, id.AuditPublicKeyPEM
 	side.AuthorityKID, side.AuthorityPublicKeyPEM = id.AuthorityKID, id.AuthorityPublicKeyPEM
+	if id.AWSSEVSNP != nil {
+		side.VLEKCSPID = id.AWSSEVSNP.CSPID
+	}
 	if id.VTPM != nil {
 		side.VTPMPCRDigestHex = id.VTPM.PCRDigestHex
 		side.VTPMPCRs = strings.Join(id.VTPM.PCRs, "+")
@@ -804,7 +833,7 @@ func provision(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
 	// 2. What the peer's verifier needs: one chip, one chain, both ways.
 	res := &provisionResult{Schema: "vault-genome/acpctl-provision/v1", Role: "both", Phase: "complete", Out: out, Provider: string(local), PeerProvider: string(peer), Sealer: o.sealer,
 		Binaries: bins, Secrets: secrets, Configs: map[string]string{}, ConfigsSHA256: map[string]string{}, Pins: map[string]string{}, APITokenFile: tokenCopy, Sealed: map[string][]string{}}
-	chain, err := amdChain(out, o.amdCertChain, o.fetchAMDChain, o.kdsURL, "the chip's product", stdout)
+	chain, err := amdChain(out, o.amdCertChain, o.fetchAMDChain, o.kdsURL, amdSignerFor(peer), "the chip's product", stdout)
 	if err != nil {
 		return nil, err
 	}
@@ -911,6 +940,9 @@ type bundleAuthority struct {
 	// PCRDigestHex is the authority's boot as its vTPM measured it, for the
 	// worker's pin of an authority whose OS only the vTPM measures.
 	PCRDigestHex string `json:"pcr_digest_hex,omitempty"`
+	// CSPID is the authority's VLEK's CSP_ID, for the worker's pin of an
+	// aws-sev-snp authority (tee.peer.csp_ids; ADR 0038).
+	CSPID string `json:"csp_id,omitempty"`
 }
 
 type bundleWorker struct {
@@ -1155,7 +1187,7 @@ func provisionAuthority(o provisionOptions, stdout io.Writer) (*provisionResult,
 	// 2. What sagvd's verifier needs of the worker's family, and what the
 	// worker's verifier needs of this host's: two chains when both are
 	// SEV-SNP chips.
-	chain, err := amdChain(out, o.amdCertChain, o.fetchAMDChain, o.kdsURL, "the worker's product, for sagvd", stdout)
+	chain, err := amdChain(out, o.amdCertChain, o.fetchAMDChain, o.kdsURL, amdSignerFor(worker), "the worker's product, for sagvd", stdout)
 	if err != nil {
 		return nil, err
 	}
@@ -1165,8 +1197,8 @@ func provisionAuthority(o provisionOptions, stdout io.Writer) (*provisionResult,
 		return nil, err
 	}
 	var ownChain string
-	if family == tee.ProviderGCPSEVSNP || family == tee.ProviderAzureSEVSNP {
-		ownChain, err = amdChain(out, o.ownAMDCertChain, o.fetchOwnAMDChain, o.kdsURL, "this host's product, for the worker", stdout)
+	if family == tee.ProviderGCPSEVSNP || family == tee.ProviderAzureSEVSNP || family == tee.ProviderAWSSEVSNP {
+		ownChain, err = amdChain(out, o.ownAMDCertChain, o.fetchOwnAMDChain, o.kdsURL, amdSignerFor(family), "this host's product, for the worker", stdout)
 		if err != nil {
 			return nil, err
 		}
@@ -1222,7 +1254,7 @@ func provisionAuthority(o provisionOptions, stdout io.Writer) (*provisionResult,
 	}
 	_ = workerSealingKey
 	manifest := workerBundle{Schema: workerBundleSchema,
-		Authority: bundleAuthority{Provider: string(family), MeasurementHex: res.Vault.MeasurementHex, VaultAddress: o.vaultAddress, VaultServerName: o.vaultServerName},
+		Authority: bundleAuthority{Provider: string(family), MeasurementHex: res.Vault.MeasurementHex, VaultAddress: o.vaultAddress, VaultServerName: o.vaultServerName, CSPID: res.Vault.VLEKCSPID},
 		Worker:    bundleWorker{Provider: string(worker), Descriptor: o.workerDescriptor, Simulated: worker == tee.ProviderSimulated}}
 	if bootPinned(family) {
 		if d, err := hex.DecodeString(res.Vault.VTPMPCRDigestHex); err != nil || len(d) != sha256.Size {
@@ -1393,6 +1425,12 @@ func provisionJoin(o provisionOptions, stdout io.Writer) (*provisionResult, erro
 		}
 		peerCfg["pcr_digests"] = []string{m.Authority.PCRDigestHex}
 		res.Vault.VTPMPCRDigestHex = m.Authority.PCRDigestHex
+	}
+	if authorityFamily == tee.ProviderAWSSEVSNP && m.Authority.CSPID != "" {
+		// The provider whose VLEK signs the authority's reports, pinned
+		// from the authority's own identity (ADR 0038).
+		peerCfg["csp_ids"] = []string{m.Authority.CSPID}
+		res.Vault.VLEKCSPID = m.Authority.CSPID
 	}
 
 	// 3. acp-compute's configuration.

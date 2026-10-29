@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), [C58](#c58), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -4226,6 +4226,127 @@ its rehearsal.
 
 ---
 
+<a id="c58"></a>
+### C58 — AMD SEV-SNP on EC2 under the provider's key: `acpctl provision --provider auto` told EC2 from Compute Engine on the host, fetched AMD's VLEK chain and sealed eight key files with the firmware's derived key; both daemons opened a session on a report signed by a VLEK that names no chip, the record holding the VLEK's TCB to the chip's and naming AWS's CSP_ID; a gate job EXACT, sixteen audit events verified, and the chip's launch measurement equal to AWS's published UEFI measured from the binary — 141 s on the guest, `PASS` 222 s after the command, the instance deleted
+
+**Claim.** On 2026-10-29 `scripts/hardware-test/aws-sev-snp/run.sh
+us-east-2 m6a.xlarge` built `sagvd`, `acp-compute`, `acpctl` and
+`acp-keygen` for linux/amd64 from the tree of this change (`main` at
+`460db390` with the family not yet committed: the binaries report
+`460db390d22c-dirty`; `binaries.sha256` fixes them), launched one
+`m6a.xlarge` (AMD Milan, 4 vCPUs) with `--cpu-options AmdSevSnp=enabled`
+in `us-east-2c` from Canonical's Ubuntu 24.04 AMI (`ami-0fc53b217ec1ad816`,
+kernel 7.0.0-1014-aws) under a key pair and a security group made for the
+run, and ran `guest.sh` on it as root over ssh. The guest's first report
+through configfs-tsm had FLAGS.SIGNING_KEY = 1 and sixty-four zero bytes
+of CHIP_ID, with the certificate table beside it (`probe-report.bin`,
+`probe-certs.bin`, `steps.txt`); the machine's DMI vendor read `Amazon EC2`
+(`dmi.txt`). The worker runtime was installed from the hash-pinned locks
+(torch 2.14.1+cpu, transformers 5.19.0; 116 s), and `acpctl provision
+--provider auto --fetch-amd-chain milan --sealer auto` wrote the
+deployment in 0.41 s (`provision.out`, `provision.json`): `tee.provider
+auto` kept on both sides and the peer resolved to `aws-sev-snp`; the
+**VLEK** chain fetched from AMD KDS — `/vlek/v1/Milan/cert_chain`, the
+ASVK and the ARK `69d063b4…40bcd` this build pins
+(`amd-milan-vlek-cert_chain.pem`); both identities the chip's launch
+measurement `1d8ee9ba…cb5b` with `aws_sev_snp.csp_id`
+`CN=cc-us-east-2.amazonaws.com`, each pinned by the other side and the
+CSP_ID written into both `tee.peer.csp_ids`; eight key files sealed with
+the firmware's derived key — five of the authority's, three of the
+worker's — each header naming `tee: aws-sev-snp` and `sealer:
+sev-snp-derived-key` (`sealed-files.txt`). A tiny base model was built on
+the guest, a LoRA adapter trained on it and sealed (13 s; `finetune.json`,
+`seal.json`). Both daemons started on what provision wrote and said how
+they had resolved the family — `resolved_from: sev_guest (Amazon EC2)`,
+`tee_provider: aws-sev-snp` (`sagvd.log`, `acp-compute.log`); the session
+opened 1.2 s after `sagvd` started, the handshake carrying the family's
+envelope — `application/vnd.vault-genome.aws-sev-snp-evidence`, 3402
+bytes: the 1184-byte report and the VLEK beside it — in 49 ms. A gate job
+over the Return Path came back EXACT, 6 of 6 fixtures byte for byte,
+`max_abs_err` 0, the verdict signed by the authority's key, 7.3 s after
+submission (`job.json`, `state: release_authorized`). With both daemons
+stopped, sixteen audit events verified under `operator/audit_public_key.pem`
+(`audit-verify.json`: `ok: true`, `event_count: 16`, Ed25519). The
+admission record (`TRUST_EVALUATED`, `peer_detail.sev_snp` in
+`audit-events.jsonl`; `chip.txt` reads it) says what signed the report and
+what the chip said: `signing_key: vlek`; `report_id_hex` `53d72f8a…6331`;
+`chip_id_hex` all zero; the VLEK — subject `SEV-VLEK`, issuer
+`SEV-VLEK-Milan`, product Milan, CSP_ID `CN=cc-us-east-2.amazonaws.com`,
+valid 2026-10-01 to 2027-10-01, its TCB (bootloader 4, TEE 0, SNP 0x1f,
+microcode 0xe1) equal to the chip's reported, committed, current and
+launch TCB; firmware 1.58.3, mitigation vector 0xfef, alias check
+complete, the DEBUG bit clear; above the floors of AMD's bulletins (SNP
+0x1b, microcode 0xde). The VLEK is the certificate the morning's three
+hosts had shown (`vlek.sha256` `65d5b55b…0f4f`, the capture's `vlek.pem`
+as DER): one key for the region's fleet, as ADR 0038 says. `guest.sh`
+finished 140.6 s after its first command. On the machine that ran the command the kit downloaded AWS's
+published EC2 UEFI, release 20260814 (`ovmf_img.fd`, sha256
+`67aaae01…2bc9`, equal to the pin in `run.sh`), and measured it with
+sev-snp-measure 0.0.13 (`--mode snp --vcpus 4 --vmm-type ec2`):
+`1d8ee9ba…cb5b`, equal to what the chip reported and both daemons pinned
+(`measurement.txt`). `RESULT: PASS` was printed 222 s after the command;
+the instance, the key pair and the security group were deleted
+(`vm-deleted.txt`: terminated at 16:52:40Z). Nothing secret was printed:
+keys, seeds and the operator's token stayed on the instance and died with
+it; no IAM role was attached and no identifier that encodes the account is
+on the record.
+
+**Evidence.**
+[`scripts/hardware-test/aws-sev-snp/evidence/20261029T164825Z/`](scripts/hardware-test/aws-sev-snp/evidence/20261029T164825Z/)
+— `guest.out` (what the person saw), `binaries.sha256`, `code-rev.txt`,
+`instance.json`, `guest/` (`dmi.txt`, `kernel.txt`, `tsm.txt`,
+`probe-report.bin`, `probe-certs.bin`, `probe-nonce.bin`, `provision.out`,
+`provision.json`, `amd-milan-vlek-cert_chain.pem`, both identities, both
+configurations with paths and no secret, `sealed-files.txt`,
+`finetune.json`, `seal.json`, `sagvd.log`, `acp-compute.log`, `job.json`,
+`chip.txt`, `audit-verify.json`, `audit-events.jsonl`,
+`audit-public-key.pem`, `steps.txt`, `timeline.txt`, `console.log`,
+`sha256sums.txt`), `measurement.txt`, `vm-deleted.txt`, `runner.log`,
+`sha256sums.txt`. The family's first capture, which the verifier's offline
+tests run on:
+[`internal/shared/tee/testdata/aws-sev-snp/20261029T155800Z/`](internal/shared/tee/testdata/aws-sev-snp/20261029T155800Z/CAPTURE.md)
+— three instances' reports and certificate tables, the VLEK, AMD's VLEK
+and VCEK chains, snpguest's own verification, the derived keys across a
+reboot and two stop/starts. The decision record:
+[ADR 0038](docs/adr/0038-ec2-sev-snp-under-a-vlek.md); the kit:
+[`scripts/hardware-test/aws-sev-snp/`](scripts/hardware-test/aws-sev-snp/README.md).
+
+**Reproduce:**
+
+```bash
+scripts/hardware-test/aws-sev-snp/run.sh us-east-2 m6a.xlarge   # ~4 min, one m6a.xlarge, deleted at the end
+go test ./internal/shared/tee/ -run 'AWSSEVSNP|VLEK' -count=1    # the verifier's cryptography on the capture, offline
+```
+
+**Scope.** One host with both daemons on it, as the reference deployment
+([C37](#c37)); the two-host form is `acpctl provision` with `--role` as in
+[C39](#c39), the authority's CSP_ID carried in the worker's bundle. The
+family is `aws-sev-snp` (ADR 0038): the report is signed by the key AMD
+issues to the provider, so the policy pins the provider — `CN=cc-<region>.amazonaws.com`,
+one per region — and **not a machine**: CHIP_ID is zero on EC2 and
+`sev_snp.chip_ids` is refused for the family; REPORT_ID names the boot on
+the record. The key files are sealed with the firmware's derived key,
+which on EC2 is **the fleet's**: the capture's probe gave the same key on
+three hosts in two zones and across a reboot and two stop/starts, so a
+file sealed here opens on any EC2 SEV-SNP guest of the same launch
+measurement and guest policy; no vTPM is combined with the family in this
+build (`tee.sealer tpm2`/`both` refused), so the boot after AWS's UEFI is
+not pinned, and the operating system is not in the measurement ([C53](#c53)'s
+finding holds). The binaries were built from the tree and copied over
+ssh, not verified from a signed release as [C55](#c55)–[C57](#c57)'s
+buttons do: the one-button deployment on EC2 comes with the release that
+carries the family. The run did not reset or stop/start the instance — the
+derived key's survival of a stop/start is the capture's finding, not this
+run's; the kit does not yet do what [C55](#c55)'s does after the reset.
+The delegated Verifier (`tee.peer.verifier`) is refused for the family:
+it does not read the VLEK beside the report yet. One region, one instance
+type, one run on the record; the kit's run before it that day stopped at
+the kit's own check (it expected `provider=aws-sev-snp` where
+`provision.json` rightly records `auto` with the peer resolved), fixed
+here, with every line of the hardware green, and is not on the record.
+
+---
+
 ## What we do not claim
 
 This section is load-bearing. We would rather lose a deal than win one on a
@@ -4256,7 +4377,7 @@ sentence we cannot defend.
    its tokens carry. The GPU leg ran once, at 0.5B, with an EQUIVALENT
    gate, and so did the TDX leg ([C21](#c21)): each other-family standby
    has taken one key release, once, at 0.5B.
-4. **We do not claim an SGX key release, nor Nitro beyond one run.**
+4. **We do not claim an SGX key release, nor Nitro or EC2 SEV-SNP beyond one run each.**
    SEV-SNP and Intel TDX are proven many times over ([C15](#c15)).
    Adapter dispatch for others exists (ADR 0002). The
    AWS Nitro verifier is written from AWS's specification and verifies
@@ -4276,6 +4397,16 @@ sentence we cannot defend.
    A Compute Engine SEV-SNP host under `gcp-sev-snp-vtpm` seals to its chip
    and its vTPM together, and attests with both (ADR 0037); the vTPM there
    is Google's software, outside the TEE ([C53](#c53)).
+   An EC2 instance under `aws-sev-snp` ([C58](#c58), ADR 0038) is attested
+   through the provider's VLEK, not a chip's VCEK: the report names no
+   machine (CHIP_ID is zero), so the policy pins AWS's CSP_ID per region,
+   not a host; its key files are sealed with a key the firmware derives for
+   the fleet, which opens on any EC2 SEV-SNP guest of the same launch
+   measurement and guest policy; no vTPM is combined with it in this build,
+   so the boot is not pinned. One run, in one region, on one instance type,
+   from the tree's binaries, without a reset; the one-button deployment on
+   EC2 is not claimed until a release carries the family and the kit has
+   run it.
 5. **We do not claim this at frontier scale.** The largest model measured is
    Qwen/Qwen2.5-32B-Instruct — on an attested confidential GPU VM ([C26](#c26));
    Qwen2.5-7B-Instruct ran on one 24 GB GPU ([C16](#c16)) and on the same

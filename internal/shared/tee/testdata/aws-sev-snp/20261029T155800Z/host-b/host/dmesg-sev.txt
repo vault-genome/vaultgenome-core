@@ -1,0 +1,13 @@
+[    3.295410] Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP
+[    3.296249] SEV: Status: SEV SEV-ES SEV-SNP 
+[    3.412270] SEV: APIC: wakeup_secondary_cpu() replaced with wakeup_cpu_via_vmgexit()
+[    3.685595] SEV: Using SNP CPUID table, 38 entries present.
+[    3.685595] SEV: SNP running at VMPL0.
+[    3.864860] SEV: SNP guest platform devices initialized.
+[    4.315024] software IO TLB: Memory encryption is active and system is using DMA bounce buffers
+[    4.640406] ima: No TPM chip found, activating TPM-bypass!
+[    6.533391] systemd[1]: systemd 255.4-1ubuntu8.18 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    7.875193] systemd[1]: systemd-pcrextend.socket - TPM2 PCR Extension (Varlink) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    8.642883] systemd[1]: systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    8.647289] systemd[1]: systemd-tpm2-setup-early.service - TPM2 SRK Setup (Early) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[   11.090391] sev-guest sev-guest: Initialized SEV guest driver (using VMPCK0 communication key)

@@ -1,0 +1,129 @@
+    0:d=0  hl=4 l=1315 cons: SEQUENCE          
+    4:d=1  hl=4 l= 727 cons:  SEQUENCE          
+    8:d=2  hl=2 l=   3 cons:   cont [ 0 ]        
+   10:d=3  hl=2 l=   1 prim:    INTEGER           :02
+   13:d=2  hl=2 l=   1 prim:   INTEGER           :00
+   16:d=2  hl=2 l=  65 cons:   SEQUENCE          
+   18:d=3  hl=2 l=   9 prim:    OBJECT            :rsassaPss
+   29:d=3  hl=2 l=  52 cons:    SEQUENCE          
+   31:d=4  hl=2 l=  15 cons:     cont [ 0 ]        
+   33:d=5  hl=2 l=  13 cons:      SEQUENCE          
+   35:d=6  hl=2 l=   9 prim:       OBJECT            :sha384
+   46:d=6  hl=2 l=   0 prim:       NULL              
+   48:d=4  hl=2 l=  28 cons:     cont [ 1 ]        
+   50:d=5  hl=2 l=  26 cons:      SEQUENCE          
+   52:d=6  hl=2 l=   9 prim:       OBJECT            :mgf1
+   63:d=6  hl=2 l=  13 cons:       SEQUENCE          
+   65:d=7  hl=2 l=   9 prim:        OBJECT            :sha384
+   76:d=7  hl=2 l=   0 prim:        NULL              
+   78:d=4  hl=2 l=   3 cons:     cont [ 2 ]        
+   80:d=5  hl=2 l=   1 prim:      INTEGER           :30
+   83:d=2  hl=3 l= 128 cons:   SEQUENCE          
+   86:d=3  hl=2 l=  20 cons:    SET               
+   88:d=4  hl=2 l=  18 cons:     SEQUENCE          
+   90:d=5  hl=2 l=   3 prim:      OBJECT            :organizationalUnitName
+   95:d=5  hl=2 l=  11 prim:      UTF8STRING        :Engineering
+  108:d=3  hl=2 l=  11 cons:    SET               
+  110:d=4  hl=2 l=   9 cons:     SEQUENCE          
+  112:d=5  hl=2 l=   3 prim:      OBJECT            :countryName
+  117:d=5  hl=2 l=   2 prim:      PRINTABLESTRING   :US
+  121:d=3  hl=2 l=  20 cons:    SET               
+  123:d=4  hl=2 l=  18 cons:     SEQUENCE          
+  125:d=5  hl=2 l=   3 prim:      OBJECT            :localityName
+  130:d=5  hl=2 l=  11 prim:      UTF8STRING        :Santa Clara
+  143:d=3  hl=2 l=  11 cons:    SET               
+  145:d=4  hl=2 l=   9 cons:     SEQUENCE          
+  147:d=5  hl=2 l=   3 prim:      OBJECT            :stateOrProvinceName
+  152:d=5  hl=2 l=   2 prim:      UTF8STRING        :CA
+  156:d=3  hl=2 l=  31 cons:    SET               
+  158:d=4  hl=2 l=  29 cons:     SEQUENCE          
+  160:d=5  hl=2 l=   3 prim:      OBJECT            :organizationName
+  165:d=5  hl=2 l=  22 prim:      UTF8STRING        :Advanced Micro Devices
+  189:d=3  hl=2 l=  23 cons:    SET               
+  191:d=4  hl=2 l=  21 cons:     SEQUENCE          
+  193:d=5  hl=2 l=   3 prim:      OBJECT            :commonName
+  198:d=5  hl=2 l=  14 prim:      UTF8STRING        :SEV-VLEK-Milan
+  214:d=2  hl=2 l=  30 cons:   SEQUENCE          
+  216:d=3  hl=2 l=  13 prim:    UTCTIME           :261001050123Z
+  231:d=3  hl=2 l=  13 prim:    UTCTIME           :271001050123Z
+  246:d=2  hl=2 l= 122 cons:   SEQUENCE          
+  248:d=3  hl=2 l=  20 cons:    SET               
+  250:d=4  hl=2 l=  18 cons:     SEQUENCE          
+  252:d=5  hl=2 l=   3 prim:      OBJECT            :organizationalUnitName
+  257:d=5  hl=2 l=  11 prim:      UTF8STRING        :Engineering
+  270:d=3  hl=2 l=  11 cons:    SET               
+  272:d=4  hl=2 l=   9 cons:     SEQUENCE          
+  274:d=5  hl=2 l=   3 prim:      OBJECT            :countryName
+  279:d=5  hl=2 l=   2 prim:      PRINTABLESTRING   :US
+  283:d=3  hl=2 l=  20 cons:    SET               
+  285:d=4  hl=2 l=  18 cons:     SEQUENCE          
+  287:d=5  hl=2 l=   3 prim:      OBJECT            :localityName
+  292:d=5  hl=2 l=  11 prim:      UTF8STRING        :Santa Clara
+  305:d=3  hl=2 l=  11 cons:    SET               
+  307:d=4  hl=2 l=   9 cons:     SEQUENCE          
+  309:d=5  hl=2 l=   3 prim:      OBJECT            :stateOrProvinceName
+  314:d=5  hl=2 l=   2 prim:      UTF8STRING        :CA
+  318:d=3  hl=2 l=  31 cons:    SET               
+  320:d=4  hl=2 l=  29 cons:     SEQUENCE          
+  322:d=5  hl=2 l=   3 prim:      OBJECT            :organizationName
+  327:d=5  hl=2 l=  22 prim:      UTF8STRING        :Advanced Micro Devices
+  351:d=3  hl=2 l=  17 cons:    SET               
+  353:d=4  hl=2 l=  15 cons:     SEQUENCE          
+  355:d=5  hl=2 l=   3 prim:      OBJECT            :commonName
+  360:d=5  hl=2 l=   8 prim:      UTF8STRING        :SEV-VLEK
+  370:d=2  hl=2 l= 118 cons:   SEQUENCE          
+  372:d=3  hl=2 l=  16 cons:    SEQUENCE          
+  374:d=4  hl=2 l=   7 prim:     OBJECT            :id-ecPublicKey
+  383:d=4  hl=2 l=   5 prim:     OBJECT            :secp384r1
+  390:d=3  hl=2 l=  98 prim:    BIT STRING        
+  490:d=2  hl=3 l= 242 cons:   cont [ 3 ]        
+  493:d=3  hl=3 l= 239 cons:    SEQUENCE          
+  496:d=4  hl=2 l=  16 cons:     SEQUENCE          
+  498:d=5  hl=2 l=   9 prim:      OBJECT            :1.3.6.1.4.1.3704.1.1
+  509:d=5  hl=2 l=   3 prim:      OCTET STRING      [HEX DUMP]:020100
+  514:d=4  hl=2 l=  20 cons:     SEQUENCE          
+  516:d=5  hl=2 l=   9 prim:      OBJECT            :1.3.6.1.4.1.3704.1.2
+  527:d=5  hl=2 l=   7 prim:      OCTET STRING      [HEX DUMP]:16054D696C616E
+  536:d=4  hl=2 l=  17 cons:     SEQUENCE          
+  538:d=5  hl=2 l=  10 prim:      OBJECT            :1.3.6.1.4.1.3704.1.3.1
+  550:d=5  hl=2 l=   3 prim:      OCTET STRING      [HEX DUMP]:020104
+  555:d=4  hl=2 l=  17 cons:     SEQUENCE          
+  557:d=5  hl=2 l=  10 prim:      OBJECT            :1.3.6.1.4.1.3704.1.3.2
+  569:d=5  hl=2 l=   3 prim:      OCTET STRING      [HEX DUMP]:020100
+  574:d=4  hl=2 l=  17 cons:     SEQUENCE          
+  576:d=5  hl=2 l=  10 prim:      OBJECT            :1.3.6.1.4.1.3704.1.3.4
+  588:d=5  hl=2 l=   3 prim:      OCTET STRING      [HEX DUMP]:020100
+  593:d=4  hl=2 l=  17 cons:     SEQUENCE          
+  595:d=5  hl=2 l=  10 prim:      OBJECT            :1.3.6.1.4.1.3704.1.3.5
+  607:d=5  hl=2 l=   3 prim:      OCTET STRING      [HEX DUMP]:020100
+  612:d=4  hl=2 l=  17 cons:     SEQUENCE          
+  614:d=5  hl=2 l=  10 prim:      OBJECT            :1.3.6.1.4.1.3704.1.3.6
+  626:d=5  hl=2 l=   3 prim:      OCTET STRING      [HEX DUMP]:020100
+  631:d=4  hl=2 l=  17 cons:     SEQUENCE          
+  633:d=5  hl=2 l=  10 prim:      OBJECT            :1.3.6.1.4.1.3704.1.3.7
+  645:d=5  hl=2 l=   3 prim:      OCTET STRING      [HEX DUMP]:020100
+  650:d=4  hl=2 l=  17 cons:     SEQUENCE          
+  652:d=5  hl=2 l=  10 prim:      OBJECT            :1.3.6.1.4.1.3704.1.3.3
+  664:d=5  hl=2 l=   3 prim:      OCTET STRING      [HEX DUMP]:02011F
+  669:d=4  hl=2 l=  18 cons:     SEQUENCE          
+  671:d=5  hl=2 l=  10 prim:      OBJECT            :1.3.6.1.4.1.3704.1.3.8
+  683:d=5  hl=2 l=   4 prim:      OCTET STRING      [HEX DUMP]:020200E1
+  689:d=4  hl=2 l=  44 cons:     SEQUENCE          
+  691:d=5  hl=2 l=   9 prim:      OBJECT            :1.3.6.1.4.1.3704.1.5
+  702:d=5  hl=2 l=  31 prim:      OCTET STRING      [HEX DUMP]:161D434E3D63632D75732D656173742D322E616D617A6F6E6177732E636F6D
+  735:d=1  hl=2 l=  65 cons:  SEQUENCE          
+  737:d=2  hl=2 l=   9 prim:   OBJECT            :rsassaPss
+  748:d=2  hl=2 l=  52 cons:   SEQUENCE          
+  750:d=3  hl=2 l=  15 cons:    cont [ 0 ]        
+  752:d=4  hl=2 l=  13 cons:     SEQUENCE          
+  754:d=5  hl=2 l=   9 prim:      OBJECT            :sha384
+  765:d=5  hl=2 l=   0 prim:      NULL              
+  767:d=3  hl=2 l=  28 cons:    cont [ 1 ]        
+  769:d=4  hl=2 l=  26 cons:     SEQUENCE          
+  771:d=5  hl=2 l=   9 prim:      OBJECT            :mgf1
+  782:d=5  hl=2 l=  13 cons:      SEQUENCE          
+  784:d=6  hl=2 l=   9 prim:       OBJECT            :sha384
+  795:d=6  hl=2 l=   0 prim:       NULL              
+  797:d=3  hl=2 l=   3 cons:    cont [ 2 ]        
+  799:d=4  hl=2 l=   1 prim:     INTEGER           :30
+  802:d=1  hl=4 l= 513 prim:  BIT STRING        

@@ -35,22 +35,33 @@ type SEVSNPReading struct {
 	ReportedTCB  uint64
 	Measurement  []byte
 	ChipID       []byte
+	// SigningKey names the key the verifier found the report signed by, as
+	// FLAGS.SIGNING_KEY says: "vcek" or "vlek". Empty is not compared.
+	SigningKey string
 }
 
 // SEVSNPCase is one report of the corpus with its certificates and the
 // reading the corpus expects.
 type SEVSNPCase struct {
-	ID       string
-	Product  string // Milan, Genoa, Turin — the KDS product line
+	ID      string
+	Product string // Milan, Genoa, Turin — the KDS product line
+	// Signer is the kind of key that signed the report, as the manifest
+	// says and the report's FLAGS.SIGNING_KEY confirms: "vcek" (a chip's
+	// own key, under the ASK) or "vlek" (the key AMD issues to a cloud
+	// provider — EC2 — under the ASVK; ADR 0038).
+	Signer   string
 	Report   []byte // the raw 1184-byte attestation report
-	VCEK     []byte // DER
-	Chain    []byte // AMD's ASK+ARK bundle for the product, PEM as KDS serves it
+	VCEK     []byte // the endorsement key certificate of the kind Signer names, DER
+	Chain    []byte // AMD's bundle for the product and the signer (ASK+ARK, or ASVK+ARK), PEM as KDS serves it
 	Expected SEVSNPReading
 }
 
 // SEVSNPReader is a verifier's reading of one report under the given
-// VCEK and chain. A report that does not verify is reported with
-// Verified false or with an error; either counts as refused.
+// endorsement key certificate and chain — the VCEK and the ASK+ARK
+// bundle, or, for a report whose FLAGS.SIGNING_KEY says VLEK, the VLEK
+// and the ASVK+ARK bundle; the report itself says which. A report that
+// does not verify is reported with Verified false or with an error;
+// either counts as refused.
 type SEVSNPReader func(report, vcek, chain []byte) (SEVSNPReading, error)
 
 // LoadSEVSNPCorpus reads the corpus directory: manifest.tsv names the
@@ -74,7 +85,10 @@ func LoadSEVSNPCorpus(dir string) ([]SEVSNPCase, error) {
 		if !ok {
 			return nil, fmt.Errorf("corpus: %s has no row in expected.tsv", r["id"])
 		}
-		c := SEVSNPCase{ID: r["id"], Product: r["product"]}
+		c := SEVSNPCase{ID: r["id"], Product: r["product"], Signer: r["signer"]}
+		if c.Signer == "" {
+			c.Signer = "vcek"
+		}
 		for _, f := range []struct {
 			dst  *[]byte
 			path string
@@ -88,6 +102,7 @@ func LoadSEVSNPCorpus(dir string) ([]SEVSNPCase, error) {
 		if c.Expected, err = expectedReading(e); err != nil {
 			return nil, fmt.Errorf("corpus: %s: %w", r["id"], err)
 		}
+		c.Expected.SigningKey = c.Signer
 		cases = append(cases, c)
 	}
 	if len(cases) == 0 {
@@ -146,6 +161,9 @@ func compareReading(got, want SEVSNPReading) []string {
 	}
 	if got.Measurement != nil && !bytes.Equal(got.Measurement, want.Measurement) {
 		d = append(d, fmt.Sprintf("measurement: read %x, the corpus says %x", got.Measurement, want.Measurement))
+	}
+	if got.SigningKey != "" && got.SigningKey != want.SigningKey {
+		d = append(d, fmt.Sprintf("signing_key: read %q, the corpus says %q", got.SigningKey, want.SigningKey))
 	}
 	if got.ChipID != nil && !bytes.Equal(got.ChipID, want.ChipID) {
 		d = append(d, fmt.Sprintf("chip_id: read %x…, the corpus says %x…", got.ChipID[:8], want.ChipID[:8]))

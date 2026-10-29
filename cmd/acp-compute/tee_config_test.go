@@ -124,7 +124,7 @@ func TestConfig_Validate_HardwareProviderFields(t *testing.T) {
 		"tdx peer with AMD fields": {func(c *Config) {
 			hardwarePeer(c, "gcp-tdx")
 			c.TEE.Peer.AMDKDSURL = "https://kds.example"
-		}, []string{"apply to a gcp-sev-snp, azure-cgpu or azure-sev-snp peer only"}},
+		}, []string{"apply to a gcp-sev-snp, azure-cgpu, azure-sev-snp or aws-sev-snp peer only"}},
 		"simulated peer with PCS fields": {func(c *Config) { c.TEE.Peer.PCSURL = "https://pccs.example" },
 			[]string{"tee.peer.pcs_url, pcs_cache_dir and acceptable_tcb_statuses apply to a gcp-tdx peer only"}},
 		"sev-snp peer with PCS fields": {func(c *Config) {

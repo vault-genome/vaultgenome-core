@@ -30,7 +30,7 @@ a computation problem third.
 ## Measured on real hardware
 
 Every number links to the claim, its evidence files and the command that
-reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C52).
+reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C58).
 The verifier itself is held to readings nobody here wrote on every
 genuine SEV-SNP report on record, and that corpus is published for any
 verifier to run ([`test/corpus/sev-snp/`](test/corpus/sev-snp/), C47;
@@ -237,11 +237,12 @@ Stage E: the release side is doctrine-closed and measured on hardware; the
 receive side that bootstraps itself is deferred to V2. The full maturity
 summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
 
-- Real attestation is verified here for AMD SEV-SNP (GCP, Azure), Intel TDX
-  (GCP), the Azure confidential GPU VM and AWS Nitro Enclaves — a genome
-  key released across clouds into a production-mode enclave by a SEV-SNP
-  authority, once (C52); the Intel SGX family is refused until an enclave
-  has taken a key release end to end.
+- Real attestation is verified here for AMD SEV-SNP (GCP, Azure, and EC2
+  under the provider's VLEK — a family that names no machine and seals to
+  the fleet's key, C58), Intel TDX (GCP), the Azure confidential GPU VM and
+  AWS Nitro Enclaves — a genome key released across clouds into a
+  production-mode enclave by a SEV-SNP authority, once (C52); the Intel SGX
+  family is refused until an enclave has taken a key release end to end.
 - The largest model measured is 32B, on one confidential GPU; cross-device
   equivalence is measured at 0.5B and 7B; every failover number is at 0.5B.
 - Byte-identical float inference across CPUs and GPUs is not achievable, and

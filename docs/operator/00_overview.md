@@ -82,7 +82,10 @@ issue a ReleaseDecision; sagvd judges what it returns.
 
 **Must have:** a TEE to attest with — `tee.provider: "gcp-sev-snp"` on an
 AMD SEV-SNP guest (the chip signs; see
-[runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md)), `"gcp-tdx"`
+[runbooks/real-tee-sev-snp.md](runbooks/real-tee-sev-snp.md)), `"aws-sev-snp"`
+on an EC2 instance with AMD SEV-SNP (the provider's VLEK signs, carried
+with the report; see
+[runbooks/real-tee-aws-sev-snp.md](runbooks/real-tee-aws-sev-snp.md)), `"gcp-tdx"`
 on an Intel TDX guest (a TDX quote; see
 [runbooks/real-tee-tdx.md](runbooks/real-tee-tdx.md)), `"azure-sev-snp"`
 on an Azure SEV-SNP Confidential VM (the chip's report from the vTPM and a

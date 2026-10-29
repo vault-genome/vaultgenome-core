@@ -20,7 +20,13 @@ func TestSEVSNPCorpus_ProductReading(t *testing.T) {
 		if err != nil {
 			return teeconformance.SEVSNPReading{}, err
 		}
-		if err := verifyAMDChain(vcek, chain); err != nil {
+		// The report says which key signed it: the chip's VCEK under the
+		// ASK, or a provider's VLEK under the ASVK (ADR 0038).
+		chainCheck := verifyAMDChain
+		if rep.SigningKey == sevSigningKeyVLEK {
+			chainCheck = verifyAMDChainVLEK
+		}
+		if err := chainCheck(vcek, chain); err != nil {
 			return teeconformance.SEVSNPReading{}, err
 		}
 		if err := verifySEVReportSignature(rep, vcek); err != nil {
@@ -28,6 +34,7 @@ func TestSEVSNPCorpus_ProductReading(t *testing.T) {
 		}
 		return teeconformance.SEVSNPReading{
 			Verified:     true,
+			SigningKey:   sevSigningKeyName(rep.SigningKey),
 			Version:      binary.LittleEndian.Uint32(rep.Raw[sevOffVersion:]),
 			Policy:       rep.Policy,
 			PlatformInfo: binary.LittleEndian.Uint64(rep.Raw[sevOffPlatformInfo:]),

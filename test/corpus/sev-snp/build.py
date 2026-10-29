@@ -24,12 +24,22 @@ kept. `expected.tsv` holds what every verifier must read from each report,
 taken from the raw bytes at the specification's offsets. Nothing here is
 secret: reports, VCEKs and chains are what a verifier is handed. The
 standard library only.
+
+Reports signed by a VLEK (FLAGS.SIGNING_KEY 1; EC2, ADR 0038) are taken
+from the aws-sev-snp captures under internal/shared/tee/testdata: the VLEK
+beside each report is the one the host's certificate table showed
+(vlek.pem, as snpguest read it), never fetched — KDS does not serve
+VLEKs — and the chain is the product's VLEK chain (ASVK and ARK,
+chains/<product>-vlek.pem, copied from the capture's kds/ directory). The
+manifest's `signer` column says vcek or vlek, and the `vcek` column holds
+the endorsement key of either kind.
 """
 import base64, hashlib, json, os, sys, time, urllib.request, urllib.error
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 OUT = os.path.join(ROOT, "test", "corpus", "sev-snp")
 SRC = os.path.join(ROOT, "scripts", "hardware-test")
+VLEK_SRC = os.path.join(ROOT, "internal", "shared", "tee", "testdata", "aws-sev-snp")
 KDS = "https://kdsintf.amd.com/vcek/v1"
 REPORT_LEN = 1184
 FILE_NAMES = ("report-vaultgenome.bin", "snp-report.bin", "snp-attestation-report.bin", "report.bin")
@@ -47,6 +57,7 @@ def meta(raw):
         "version": u32(0x000), "guest_svn": u32(0x004), "policy": u64(0x008),
         "cpuid": (fam, model, step), "reported_tcb": u64(0x180),
         "chip_id": raw[0x1A0:0x1E0].hex(), "measurement": raw[0x090:0x0C0].hex(),
+        "signer": {0: "vcek", 1: "vlek"}.get((u32(0x048) >> 2) & 7, "signing-key-%d" % ((u32(0x048) >> 2) & 7)),
     }
 
 
@@ -83,6 +94,9 @@ def expected_row(cid, raw):
 
 
 def corpus_id(path):
+    if path.startswith(VLEK_SRC):
+        rel = os.path.relpath(path, VLEK_SRC).split(os.sep)   # <stamp>/<host>/<configfs|snpguest>/<report>.bin
+        return "aws-sev-snp-" + "-".join([rel[0], rel[1], rel[2], os.path.splitext(rel[3])[0]])
     rel = os.path.relpath(os.path.dirname(path), SRC).split(os.sep)
     parts = [p for p in rel if p not in ("evidence", "keybind-evidence", "live-evidence")]
     if "live-evidence" in rel:
@@ -130,6 +144,20 @@ def is_report(raw):
     return 2 <= version <= 5 and sig_algo == 1
 
 
+def vlek_sources():
+    """The aws-sev-snp captures: every raw report under a capture's host directories
+    (configfs/report*.bin, snpguest/report.bin), with the VLEK beside it."""
+    if not os.path.isdir(VLEK_SRC):
+        return
+    for dirpath, _, files in os.walk(VLEK_SRC):
+        for f in sorted(files):
+            if (f.startswith("report") and f.endswith(".bin")) and os.path.basename(dirpath) in ("configfs", "snpguest"):
+                p = os.path.join(dirpath, f)
+                raw = open(p, "rb").read()
+                if is_report(raw):
+                    yield "file", p, raw
+
+
 def sources():
     for dirpath, _, files in os.walk(SRC):
         for f in sorted(files):
@@ -155,11 +183,42 @@ def main():
     os.makedirs(os.path.join(OUT, "vcek"), exist_ok=True)
     os.makedirs(os.path.join(OUT, "chains"), exist_ok=True)
     rows, chains_done, fetched = [], {}, 0
-    for kind, path, raw in sorted(sources(), key=lambda s: s[1]):
+    for kind, path, raw in sorted(list(sources()) + list(vlek_sources()), key=lambda s: s[1]):
         m = meta(raw)
         product, psrc = product_of(m, path)
         cid = corpus_id(path)
         source = os.path.relpath(path, ROOT)
+        if m["signer"] == "vlek":
+            # A VLEK-signed report (ADR 0038): the VLEK from beside it (the capture's vlek.pem — the
+            # certificate table's entry), never from KDS; the chain the product's VLEK chain, copied once.
+            host_dir = os.path.dirname(os.path.dirname(path))
+            report_rel = os.path.join("reports", cid + ".bin")
+            open(os.path.join(OUT, report_rel), "wb").write(raw)
+            vlek_pem = os.path.join(host_dir, "snpguest", "certs", "vlek.pem")
+            vcek_rel, vsrc = "", ""
+            if os.path.exists(vlek_pem):
+                der = pem_to_der(open(vlek_pem, "rb").read())
+                vcek_rel, vsrc = os.path.join("vcek", cid + ".der"), "capture:" + os.path.relpath(vlek_pem, ROOT)
+                open(os.path.join(OUT, vcek_rel), "wb").write(der)
+            else:
+                print(f"  {cid}: no vlek.pem beside the report", file=sys.stderr)
+            key = product + "-vlek"
+            if key not in chains_done:
+                chain_path = os.path.join(OUT, "chains", key + ".pem")
+                src_chain = os.path.join(host_dir, "kds", f"vlek-{product}-cert_chain.pem")
+                if not os.path.exists(chain_path) and os.path.exists(src_chain):
+                    open(chain_path, "wb").write(open(src_chain, "rb").read())
+                    print(f"  chain for {key} copied from the capture", file=sys.stderr)
+                chains_done[key] = os.path.join("chains", key + ".pem") if os.path.exists(chain_path) else ""
+            rows.append({
+                "id": cid, "kind": kind, "product": product, "product_source": psrc, "signer": "vlek",
+                "version": m["version"], "cpuid": "%#x/%#x/%#x" % m["cpuid"],
+                "reported_tcb": "%#018x" % m["reported_tcb"], "chip_id": m["chip_id"],
+                "report": report_rel, "report_sha256": hashlib.sha256(raw).hexdigest(),
+                "vcek": vcek_rel, "vcek_source": vsrc, "chain": chains_done[key], "source": source,
+                "_raw": raw,
+            })
+            continue
         # every report lives in the corpus, so that the directory is whole on its own
         report_rel = os.path.join("reports", cid + ".bin")
         open(os.path.join(OUT, report_rel), "wb").write(raw)
@@ -204,14 +263,14 @@ def main():
                 print(f"  chain for {product} fetched from KDS", file=sys.stderr)
             chains_done[product] = os.path.join("chains", product + ".pem") if os.path.exists(chain_path) else ""
         rows.append({
-            "id": cid, "kind": kind, "product": product, "product_source": psrc,
+            "id": cid, "kind": kind, "product": product, "product_source": psrc, "signer": "vcek",
             "version": m["version"], "cpuid": "%#x/%#x/%#x" % m["cpuid"],
             "reported_tcb": "%#018x" % m["reported_tcb"], "chip_id": m["chip_id"],
             "report": report_rel, "report_sha256": hashlib.sha256(raw).hexdigest(),
             "vcek": vcek_rel, "vcek_source": vsrc, "chain": chains_done[product], "source": source,
             "_raw": raw,
         })
-    cols = ["id", "kind", "product", "product_source", "version", "cpuid", "reported_tcb", "chip_id", "report", "report_sha256", "vcek", "vcek_source", "chain", "source"]
+    cols = ["id", "kind", "product", "product_source", "signer", "version", "cpuid", "reported_tcb", "chip_id", "report", "report_sha256", "vcek", "vcek_source", "chain", "source"]
     with open(os.path.join(OUT, "manifest.tsv"), "w") as f:
         f.write("\t".join(cols) + "\n")
         for r in rows:
@@ -235,7 +294,7 @@ def main():
         for fp in files:
             sums.append(f"{hashlib.sha256(open(fp, 'rb').read()).hexdigest()}  {os.path.relpath(fp, OUT)}")
     open(os.path.join(OUT, "SHA256SUMS"), "w").write("\n".join(sums) + "\n")
-    chips = len({r["chip_id"] for r in rows})
+    chips = len({r["chip_id"] for r in rows if r["signer"] == "vcek"})
     print(f"corpus: {len(rows)} reports ({sum(1 for r in rows if r['kind']=='file')} files, {sum(1 for r in rows if r['kind']=='receipt')} receipts), "
           f"{chips} distinct chips, products {sorted(set(r['product'] for r in rows))}, "
           f"{sum(1 for r in rows if r['vcek'])} with a VCEK ({sum(1 for r in rows if r['vcek_source']=='kds')} from KDS), {fetched} fetched now")

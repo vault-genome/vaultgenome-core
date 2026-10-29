@@ -48,6 +48,10 @@ const (
 	// envelope (gcp_sev_snp_vtpm.go): the chip's report, the AK's
 	// certificate chain and the TPM quote, provisional.
 	MediaTypeGCPSEVVTPMEvidence = "application/vnd.vault-genome.gcp-sev-snp-vtpm-evidence"
+	// MediaTypeAWSSEVSNPEvidence is the EC2 SEV-SNP envelope
+	// (aws_sev_snp.go): the chip's report and the VLEK the host showed
+	// beside it, provisional.
+	MediaTypeAWSSEVSNPEvidence = "application/vnd.vault-genome.aws-sev-snp-evidence"
 	// MediaTypeSGXQuote is a DCAP quote (azure-sgx, intel-sgx-dcap),
 	// provisional.
 	MediaTypeSGXQuote = "application/vnd.vault-genome.sgx-quote"
@@ -70,6 +74,8 @@ func EvidenceMediaType(p Provider) (string, error) {
 		return MediaTypeAzureSEVSNPEvidence, nil
 	case ProviderGCPSEVSNPVTPM:
 		return MediaTypeGCPSEVVTPMEvidence, nil
+	case ProviderAWSSEVSNP:
+		return MediaTypeAWSSEVSNPEvidence, nil
 	case ProviderAzureSGX, ProviderIntelSGXDCAP:
 		return MediaTypeSGXQuote, nil
 	case ProviderAWSNitro:

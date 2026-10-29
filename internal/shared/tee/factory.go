@@ -81,6 +81,13 @@ const (
 	// measurement there is Google's firmware; the vTPM carries the kernel.
 	// See gcp_sev_snp_vtpm.go and ADR 0037.
 	ProviderGCPSEVSNPVTPM Provider = "gcp-sev-snp-vtpm"
+
+	// ProviderAWSSEVSNP is an EC2 instance on AMD SEV-SNP (m6a, c6a, r6a
+	// with AmdSevSnp enabled): the report signed by the VLEK AMD issues to
+	// the cloud provider, not by the chip's VCEK, and carried with the
+	// VLEK the host shows beside it; no chip identity, a provider identity
+	// instead. See aws_sev_snp.go and ADR 0038.
+	ProviderAWSSEVSNP Provider = "aws-sev-snp"
 )
 
 // AllProviders returns every Provider compiled into this binary, in
@@ -96,6 +103,7 @@ func AllProviders() []Provider {
 		ProviderAzureCGPU,
 		ProviderAzureSEVSNP,
 		ProviderGCPSEVSNPVTPM,
+		ProviderAWSSEVSNP,
 	}
 }
 
@@ -162,6 +170,7 @@ type ProducerSpec struct {
 	AzureCGPU   AzureCGPUProducerConfig
 	AzureSEVSNP AzureSEVSNPProducerConfig
 	GCPSEVVTPM  GCPSEVVTPMProducerConfig
+	AWSSEVSNP   AWSSEVSNPProducerConfig
 }
 
 // VerifierSpec is the verifier-side counterpart to ProducerSpec.
@@ -185,6 +194,7 @@ type VerifierSpec struct {
 	AzureCGPU   AzureCGPUVerifierConfig
 	AzureSEVSNP AzureSEVSNPVerifierConfig
 	GCPSEVVTPM  GCPSEVVTPMVerifierConfig
+	AWSSEVSNP   AWSSEVSNPVerifierConfig
 }
 
 // BuildProducer constructs a Producer for the given Provider. This is the
@@ -224,6 +234,8 @@ func BuildProducer(spec ProducerSpec) (Producer, error) {
 		return NewAzureSEVSNPProducer(spec.AzureSEVSNP)
 	case ProviderGCPSEVSNPVTPM:
 		return NewGCPSEVVTPMProducer(spec.GCPSEVVTPM)
+	case ProviderAWSSEVSNP:
+		return NewAWSSEVSNPProducer(spec.AWSSEVSNP)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -259,6 +271,8 @@ func BuildVerifier(spec VerifierSpec) (Verifier, error) {
 		return NewAzureSEVSNPVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.AzureSEVSNP)
 	case ProviderGCPSEVSNPVTPM:
 		return NewGCPSEVVTPMVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.GCPSEVVTPM)
+	case ProviderAWSSEVSNP:
+		return NewAWSSEVSNPVerifier(spec.AttestorPubKey, spec.ExpectedMeasurement, spec.AWSSEVSNP)
 	default:
 		return nil, shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
@@ -287,6 +301,9 @@ func Capability(p Provider) (available bool, reason string) {
 		if name == AutoResolvedFromAzureHCL {
 			return true, fmt.Sprintf("auto: the vTPM's HCL report is SEV-SNP (no configfs-tsm under the paravisor), this build runs it as %s", family)
 		}
+		if name == AutoResolvedFromEC2DMI {
+			return true, fmt.Sprintf("auto: configfs-tsm serves sev_guest on an EC2 instance (DMI), this build runs it as %s", family)
+		}
 		return true, fmt.Sprintf("auto: configfs-tsm serves %s, this build runs it as %s", name, family)
 	case ProviderSimulated:
 		return true, "simulated TEE always available (software-only)"
@@ -306,6 +323,8 @@ func Capability(p Provider) (available bool, reason string) {
 		return azureSEVSNPCapability()
 	case ProviderGCPSEVSNPVTPM:
 		return gcpSEVVTPMCapability()
+	case ProviderAWSSEVSNP:
+		return awsSEVSNPCapability()
 	default:
 		return false, fmt.Sprintf("unknown provider %q", p)
 	}
