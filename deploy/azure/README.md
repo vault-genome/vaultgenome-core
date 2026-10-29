@@ -11,7 +11,7 @@ laptop with `az` signed in, the same template with the record brought
 back to you:
 
 ```bash
-deploy/azure/deploy.sh                                    # the latest release; --tag v0.13.0 for one
+deploy/azure/deploy.sh                                    # the latest release; --tag v0.14.0 for one
 deploy/azure/deploy.sh --resource-group rg --location eastus
 deploy/azure/destroy.sh --resource-group rg               # the VM and its resources, nothing else
 ```

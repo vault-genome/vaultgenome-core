@@ -75,10 +75,10 @@ if [ -z "$TAG" ]; then
   TAG="$(git -C "$ROOT" describe --tags --exact-match HEAD 2>/dev/null || true)"
   if [ -z "$TAG" ]; then
     TAG="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])' 2>/dev/null || true)"
-    [ -n "$TAG" ] || die "this checkout is not at a release tag and the latest release could not be read; name one: --tag v0.13.0"
+    [ -n "$TAG" ] || die "this checkout is not at a release tag and the latest release could not be read; name one: --tag v0.14.0"
   fi
 fi
-case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) die "--tag must be a release tag such as v0.13.0";; esac
+case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) die "--tag must be a release tag such as v0.14.0";; esac
 
 SUB="$(az account show --query '{n:name,u:user.name}' -o tsv 2>/dev/null | tr '\t' ' ' || true)"
 [ -n "$SUB" ] || die "az is not signed in here: run 'az login' and try again"

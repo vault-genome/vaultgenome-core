@@ -11,6 +11,25 @@ given release can still open.
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-10-30
+
+The release that runs on a fourth cloud and is proven twice a day without
+a person. An EC2 instance on AMD SEV-SNP signs its reports with the key
+AMD issues to the provider — a VLEK — names no chip, and hands the
+certificate out beside the report; the `aws-sev-snp` family takes that
+as its evidence, holds the VLEK to the report and to AMD's root, pins the
+provider's CSP_ID where no chip can be pinned, and seals with the
+firmware's derived key, which on EC2 is the fleet's, as the record says
+(ADR 0038, C58). The proof clock runs the Google Cloud button from the
+latest release on a real Confidential VM at 06:00 and 18:00 UTC and
+publishes each record, the counter and a badge. The Azure button
+(`deploy/azure/`, C57 on 0.13.0) is in a release's tree for the first
+time. Every SEV-SNP admission record now says what signed the report and
+which boot it was (`signing_key`, `report_id_hex`; additive, v8
+unchanged). The daemons' wire, the bundle format (v4), the audit schema
+(v8) and the policy schema are unchanged; a running deployment on any
+cloud is not asked to do anything (`08_upgrading.md`).
+
 ### Added
 
 - **EC2 on AMD SEV-SNP: the `aws-sev-snp` family** (ADR 0038). An EC2
