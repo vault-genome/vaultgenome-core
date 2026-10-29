@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VaultGenomeTemplateBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket", "s3:GetBucketLocation", "s3:ListBucket",
+        "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:PutBucketPublicAccessBlock", "s3:GetBucketPublicAccessBlock"
+      ],
+      "Resource": "arn:aws:s3:::vaultgenome-deploy"
+    },
+    {
+      "Sid": "VaultGenomeTemplateObjects",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::vaultgenome-deploy/template*.json"
+    }
+  ]
+}
