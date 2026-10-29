@@ -300,6 +300,33 @@ rehearsal's hour GitHub's `latest` release was the rehearsal — a
 `deploy/gcp/deploy.sh` without `--tag` in that hour would have deployed
 it, verified as what it was. The rehearsal's GitHub release is deleted
 once the kits have run, and the tag kept.
+The 0.14.0 pipeline — `release.yml` with the action pins of #208, and a
+tree that carries the `aws-sev-snp` family and the Azure button — was
+rehearsed as `v0.14.0-rc1` on 2026-10-29 (run 40941062862, 19:32–19:47Z):
+the build job built the twenty-two binaries, the worker package and the
+Python distribution twice to byte-identical files and refused nothing;
+the images job built, pushed, signed and attested the four images; the
+generic and the four container provenances followed — 197 assets; the
+`pypi` job was skipped, as a rehearsal's is. Verified like a release (§5)
+by the kits against the rehearsal: `release-deploy`
+(`scripts/hardware-test/release-deploy/evidence/20261029T194751Z/`) —
+the signed list against the 23 downloaded artifacts, the forty-seven
+signature pairs and the forty-seven bundles (with `--trusted-root` and
+the network denied), the twenty-four provenances and the tag; the twenty
+binaries, the package, the wheel and the sdist rebuilt from the tag byte
+for byte on a Darwin arm64 host; the guest from release assets alone, the
+released daemons reporting `v0.14.0-rc1` at `e7749ed3`, the gate job
+EXACT, 17 events verified, 128.9 s on the guest — and
+`release-deploy-images`
+(`scripts/hardware-test/release-deploy-images/evidence/20261029T200434Z/`)
+— the four images publicly readable, each signature, SBOM attestation
+and container provenance verified, the binary inside each equal to its
+release asset, the two default images run on the guest, the gate job
+EXACT, 17 events verified, 186.2 s. The rehearsal's assets are also the
+first the AWS button deployed (`scripts/hardware-test/aws-deploy`, the
+record in the button's own change). The rehearsal found nothing new in
+the pipeline; its GitHub release is deleted once the kits have run, and
+the tag kept.
 
 ## 5. Post-release verification
 

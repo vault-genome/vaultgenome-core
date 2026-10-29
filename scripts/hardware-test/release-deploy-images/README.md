@@ -1,30 +1,4 @@
-#`20261028T210305Z` is the run on the rehearsal `v0.13.0-rc1` (the Cloud
-Shell button for the tag in the release notes; release procedure §4.1),
-19 minutes after the rehearsal's release was published: PASS — the four
-images `sagvd@sha256:225093fb…`, `acp-compute@sha256:e056f64b…`,
-`sagvd-fips@sha256:dd959280…` and `acp-compute-fips@sha256:fecf03a3…`,
-all publicly readable; each signature, SBOM attestation and container
-provenance verified; the binary inside each equal to its release asset
-(`0c20c56d…`, `fe3023c2…`, `9ff2f42e…`,
-`41c75532…`); each loaded image's `RootFS.Layers` equal to the
-signed config's `diff_ids` (13 layers for the two `sagvd` images, 9 for the
-two workers); on the guest, from the two default images, `gate_level=EXACT`
-6/6, both rogues refused, the audit log verified (17 events), 188.3 s.
-
-`20261028T215842Z` is the run on `v0.13.0`, 18 minutes after it was
-published: PASS — the four images `sagvd@sha256:d1096286…`,
-`acp-compute@sha256:a5836e2e…`, `sagvd-fips@sha256:6c1b4b64…` and
-`acp-compute-fips@sha256:5f969cf9…`, all publicly readable; each
-signature, SBOM attestation and container provenance verified; the
-binary inside each equal to its release asset (`f20619f7…`,
-`349f2719…`, `cec890e2…`, `8de3e85b…`); each loaded image's
-`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
-the two `sagvd` images, 9 for the two workers); on the guest, from the
-two default images, `gate_level=EXACT` 6/6, both rogues refused, the
-audit log verified (17 events), 295.0 s.
-
- release-deploy-images — the Return Path on SEV-SNP from the release's container images
-
+# release-deploy-images — the Return Path on SEV-SNP from the release's container images
 What it proves: a deployment that starts from the registry — the two
 images a release carries (`docs/security/supply_chain.md`), verified by
 digest and loaded onto a fresh GCP SEV-SNP Confidential VM — runs the
@@ -241,3 +215,42 @@ image's config: a few seconds of TLS handshake timeouts to GitHub left
 `crane` with an empty answer and the kit's JSON reader with nothing to
 read; nothing had reached the cloud, and its log is kept outside the
 tree.
+
+`20261028T210305Z` is the run on the rehearsal `v0.13.0-rc1` (the Cloud
+Shell button for the tag in the release notes; release procedure §4.1),
+19 minutes after the rehearsal's release was published: PASS — the four
+images `sagvd@sha256:225093fb…`, `acp-compute@sha256:e056f64b…`,
+`sagvd-fips@sha256:dd959280…` and `acp-compute-fips@sha256:fecf03a3…`,
+all publicly readable; each signature, SBOM attestation and container
+provenance verified; the binary inside each equal to its release asset
+(`0c20c56d…`, `fe3023c2…`, `9ff2f42e…`,
+`41c75532…`); each loaded image's `RootFS.Layers` equal to the
+signed config's `diff_ids` (13 layers for the two `sagvd` images, 9 for the
+two workers); on the guest, from the two default images, `gate_level=EXACT`
+6/6, both rogues refused, the audit log verified (17 events), 188.3 s.
+
+`20261028T215842Z` is the run on `v0.13.0`, 18 minutes after it was
+published: PASS — the four images `sagvd@sha256:d1096286…`,
+`acp-compute@sha256:a5836e2e…`, `sagvd-fips@sha256:6c1b4b64…` and
+`acp-compute-fips@sha256:5f969cf9…`, all publicly readable; each
+signature, SBOM attestation and container provenance verified; the
+binary inside each equal to its release asset (`f20619f7…`,
+`349f2719…`, `cec890e2…`, `8de3e85b…`); each loaded image's
+`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
+the two `sagvd` images, 9 for the two workers); on the guest, from the
+two default images, `gate_level=EXACT` 6/6, both rogues refused, the
+audit log verified (17 events), 295.0 s.
+
+`20261029T200434Z` is the run on the rehearsal `v0.14.0-rc1` (the action
+pins of #208 in `release.yml`, the `aws-sev-snp` family and the Azure
+button in a release's tree; release procedure §4.1), 14 minutes after the
+rehearsal's release was published: PASS — the four images
+`sagvd@sha256:93f0dc31…`, `acp-compute@sha256:0c0731dd…`,
+`sagvd-fips@sha256:bc9f3deb…` and `acp-compute-fips@sha256:064d84ec…`,
+all publicly readable; each signature, SBOM attestation and container
+provenance verified; the binary inside each equal to its release asset
+(`6f711d1e…`, `0723a30c…`, `d0d821c2…`, `59f91d46…`); each loaded image's
+`RootFS.Layers` equal to the signed config's `diff_ids` (13 layers for
+the two `sagvd` images, 9 for the two workers); on the guest, from the
+two default images, `gate_level=EXACT` 6/6, both rogues refused, the
+audit log verified (17 events), 186.2 s.
