@@ -11,6 +11,15 @@ given release can still open.
 
 ## [Unreleased]
 
+### Changed
+
+- **The proof clock names no minute.** Its schedule moved off the hour, to
+  06:17 and 18:17 UTC, because GitHub names the start of every hour as the
+  time scheduled runs are delayed or dropped; the first two scheduled runs
+  started 4 h 33 min and 6 h 9 min late. The README now says twice a day, and
+  a record's stamp is the time it ran. The 0.14.0 entry below states the
+  schedule as it stood at that release.
+
 ## [0.14.0] — 2026-10-29
 
 The release that runs on a fourth cloud and is proven twice a day without
