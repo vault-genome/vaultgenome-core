@@ -99,13 +99,18 @@ const T={
 };
 let lang="en";
 try{const s=localStorage.getItem("vg-lang");if(s==="ru"||s==="en")lang=s;else if((navigator.language||"").toLowerCase().startsWith("ru"))lang="ru";}catch(e){if((navigator.language||"").toLowerCase().startsWith("ru"))lang="ru";}
+// The token comes in the address's fragment, which never leaves the browser, and
+// stays for this tab only; a reload finds it, a new tab needs the address again.
+let token="";
+try{token=sessionStorage.getItem("vg-token")||"";}catch(e){}
+{const m=/^#t=([0-9A-Za-z_-]+)$/.exec(location.hash);if(m){token=m[1];try{sessionStorage.setItem("vg-token",token);history.replaceState(null,"",location.pathname);}catch(e){}}}
 let server="",ov=null,showAll=false,busy=false,job=null,err="",moved=null;
 const t=k=>T[lang][k];
 const app=document.getElementById("app");const dlg=document.getElementById("dlg");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function api(path,opts){
   const url=path+(path.includes("?")?"&":"?")+"lang="+lang+(server?"&server="+server:"");
-  const r=await fetch(url,Object.assign({headers:{"X-VG-Console":"1"}},opts||{}));
+  const r=await fetch(url,Object.assign({headers:{"X-VG-Token":token}},opts||{}));
   if(r.status===403){throw new Error(lang==="ru"?"Страница устарела. Откройте приложение заново.":"This page is out of date. Open the application again.");}
   const j=await r.json();
   if(!r.ok)throw new Error(j.error||"error");

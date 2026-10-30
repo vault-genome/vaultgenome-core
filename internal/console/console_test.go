@@ -237,6 +237,21 @@ func TestMoveOrder(t *testing.T) {
 	}
 }
 
+// An address is a host and a port and cannot change where a request goes.
+func TestAddresses(t *testing.T) {
+	for _, good := range []string{"203.0.113.10:9444", "console.bank.example:9444", "[2001:db8::1]:9444", "localhost:1"} {
+		require.True(t, AddressRE.MatchString(good), good)
+	}
+	for _, bad := range []string{"", "host", "host:", ":9444", "host:port", "host:9444/path", "user@host:9444", "host:9444?x=1", "host:9444#f", "ho st:1", "https://host:1", "evil.example/:1"} {
+		require.False(t, AddressRE.MatchString(bad), bad)
+	}
+	require.True(t, JobIDRE.MatchString("3e58aeb8e02128bf064b888fbf42a4c0"))
+	require.False(t, JobIDRE.MatchString("../escape"))
+	cert := "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"
+	_, err := ParsePass([]byte(`{"schema":"` + PassSchema + `","address":"evil.example/path:1","server_cert_pem":"` + strings.ReplaceAll(cert, "\n", "\\n") + `","audit_public_key_pem":"x","audit_key_id":"k"}`))
+	require.ErrorContains(t, err, "host and a port")
+}
+
 func TestBundleNames(t *testing.T) {
 	require.True(t, ValidBundleName("gen-0.genome"))
 	for _, bad := range []string{"", ".genome", "../x.genome", "a/b.genome", "x.key", "x.genome.escrow", strings.Repeat("a", 200) + ".genome"} {

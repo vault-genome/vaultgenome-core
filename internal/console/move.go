@@ -75,7 +75,7 @@ func (o MoveOrder) validate() error {
 		return errors.New("console: the order names no source")
 	case !ValidBundleName(o.Bundle):
 		return errors.New("console: the order names no sealed model")
-	case o.To.Address == "" || o.To.ServerCertPEM == "" || o.To.Pin.Provider == "" || o.To.JoinCode == "":
+	case !AddressRE.MatchString(o.To.Address) || o.To.ServerCertPEM == "" || o.To.Pin.Provider == "" || o.To.JoinCode == "":
 		return errors.New("console: the order names no target")
 	case o.SigningKeyID == "":
 		return errors.New("console: the order names no signer")

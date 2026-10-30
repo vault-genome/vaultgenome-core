@@ -49,6 +49,7 @@ type App struct {
 // server is one server this person reached, and what was last verified of it.
 type server struct {
 	id       string
+	base     string // https:// and the pass's address, checked
 	pass     console.Pass
 	you      console.Person
 	certDER  []byte
@@ -152,6 +153,10 @@ func (a *App) publicKeyHex() string {
 // newServer builds the connection a pass describes: the listener's
 // certificate pinned, the verifier and the audit key from the pass.
 func (a *App) newServer(pass console.Pass) (*server, error) {
+	address := pass.Address
+	if !console.AddressRE.MatchString(address) {
+		return nil, console.ErrNotAPass
+	}
 	der, err := pass.CertDER()
 	if err != nil {
 		return nil, err
@@ -180,7 +185,7 @@ func (a *App) newServer(pass console.Pass) (*server, error) {
 		TLSClientConfig:     &tls.Config{RootCAs: pool, ServerName: console.ServerName, Certificates: []tls.Certificate{a.cert}, MinVersion: tls.VersionTLS13},
 		TLSHandshakeTimeout: 15 * time.Second,
 	}}
-	return &server{id: id, pass: pass, certDER: der, client: client, cacheDir: cacheDir, provider: provider, verifier: verifier, resolver: resolver}, nil
+	return &server{id: id, base: "https://" + address, pass: pass, certDER: der, client: client, cacheDir: cacheDir, provider: provider, verifier: verifier, resolver: resolver}, nil
 }
 
 // apiError is the listener saying no.
@@ -193,7 +198,7 @@ func (e *apiError) Error() string { return fmt.Sprintf("%d %s: %s", e.Status, e.
 
 // call makes one request of the listener.
 func (s *server) call(ctx context.Context, method, path string, body []byte, out any) error {
-	req, err := http.NewRequestWithContext(ctx, method, "https://"+s.pass.Address+path, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, method, s.base+path, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -221,7 +226,7 @@ func (s *server) call(ctx context.Context, method, path string, body []byte, out
 // longCall is a call without the client's usual time limit: a large model takes
 // as long as it takes, under ctx.
 func (s *server) longCall(ctx context.Context, method, path string, body []byte, out any) error {
-	req, err := http.NewRequestWithContext(ctx, method, "https://"+s.pass.Address+path, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, method, s.base+path, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -438,6 +443,9 @@ func (s *server) restoreCheck(ctx context.Context, bundle string) (console.Resto
 
 func (s *server) job(ctx context.Context, id string) (console.JobSummary, error) {
 	var out console.JobSummary
+	if !console.JobIDRE.MatchString(id) {
+		return out, &apiError{Status: 404, ErrorBody: console.ErrorBody{Code: "job_not_found", Message: "no such job"}}
+	}
 	err := s.call(ctx, http.MethodGet, "/v1/console/jobs/"+id, nil, &out)
 	return out, err
 }

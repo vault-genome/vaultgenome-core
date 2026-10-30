@@ -599,11 +599,12 @@ func (s *consoleServer) handleRestoreCheck(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	if req.Bundle != "" {
-		if !slices.Contains(bundles, req.Bundle) {
+		i := slices.Index(bundles, req.Bundle)
+		if i < 0 {
 			consoleError(w, http.StatusNotFound, "no_genome", "this sealed model is not on this server")
 			return
 		}
-		bundle = req.Bundle
+		bundle = bundles[i] // the name as this server's directory has it
 	}
 	ref := genomeRef{Bundle: bundle}
 	keyFile := strings.TrimSuffix(bundle, ".genome") + ".key"
@@ -672,8 +673,9 @@ func (s *consoleServer) handleStop(w http.ResponseWriter, r *http.Request, p con
 		consoleError(w, http.StatusInternalServerError, "list_not_written", "the list could not be written")
 		return
 	}
-	s.log.Info("sagvd console: the stop list changed", "person", logSafe(p.Name), "serial", list.Serial, "stop_all", list.StopAll)
-	writeJSON(w, http.StatusOK, s.stopState())
+	now := s.stopState()
+	s.log.Info("sagvd console: the stop list changed", "person", logSafe(p.Name), "serial", now.Serial, "stop_all", now.StopAll)
+	writeJSON(w, http.StatusOK, now)
 }
 
 // handleInvite makes a single-use code for a new person.

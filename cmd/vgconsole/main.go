@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -111,7 +112,7 @@ func runConsole(args []string) error {
 		return err
 	}
 	addr := ln.Addr().String()
-	url := "http://" + addr + "/?t=" + token
+	url := "http://" + addr + "/#t=" + token
 	if err := os.WriteFile(runningPath, []byte(url), 0o600); err != nil {
 		return err
 	}
@@ -152,18 +153,26 @@ func alreadyRunning(path string) (string, bool) {
 		return "", false
 	}
 	url := strings.TrimSpace(string(raw))
-	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	base, token, ok := strings.Cut(url, "/#t=")
+	if !ok || !loopbackURLRE.MatchString(base) {
+		return "", false
+	}
+	client := &http.Client{Timeout: 2 * time.Second}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, base+"/api/ping", nil)
 	if err != nil {
 		return "", false
 	}
+	req.Header.Set(tokenHeader, token)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", false
 	}
 	_ = resp.Body.Close()
-	return url, resp.StatusCode == http.StatusSeeOther
+	return url, resp.StatusCode == http.StatusOK
 }
+
+// loopbackURLRE is the only place a console's own address can be.
+var loopbackURLRE = regexp.MustCompile(`^http://127\.0\.0\.1:[0-9]{1,5}$`)
 
 // checkCmd asks every server this person holds a pass for, now, and prints
 // what the page would show: for a script, and for a kit proving a server

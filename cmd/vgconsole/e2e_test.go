@@ -162,8 +162,7 @@ func (p *page) do(method, target, body string, out any) (int, string) {
 	p.t.Helper()
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
 	req.Host = p.host
-	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "tk"})
-	req.Header.Set("X-VG-Console", "1")
+	req.Header.Set(tokenHeader, "tk")
 	rec := httptest.NewRecorder()
 	p.h.ServeHTTP(rec, req)
 	if out != nil && rec.Code == http.StatusOK {
@@ -238,6 +237,8 @@ func TestThePageAgainstTheDaemon(t *testing.T) {
 	require.Equal(t, http.StatusUnprocessableEntity, code)
 	require.Contains(t, body, "запечатанной модели")
 	code, body = p.do(http.MethodGet, "/api/job?id=none&lang=ru", "", nil)
+	require.Equal(t, http.StatusUnprocessableEntity, code, body)
+	code, body = p.do(http.MethodGet, "/api/job?id=..%2F..%2Fescape&lang=ru", "", nil)
 	require.Equal(t, http.StatusUnprocessableEntity, code, body)
 
 	// The stop.
@@ -494,7 +495,7 @@ func TestRunFindsTheOneAlreadyRunning(t *testing.T) {
 	srv := httptest.NewServer(nil)
 	defer srv.Close()
 	srv.Config.Handler = newWeb(a, "tk", strings.TrimPrefix(srv.URL, "http://")).handler()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "running.url"), []byte(srv.URL+"/?t=tk"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "running.url"), []byte(srv.URL+"/#t=tk"), 0o600))
 	require.NoError(t, runConsole([]string{"--data-dir", dir, "--no-open"}), "it says where the page is and leaves")
 	require.Error(t, runConsole([]string{"--no-such-flag"}))
 	require.Error(t, runConsole([]string{"--data-dir", dir, "--no-open", filepath.Join(dir, "no-such-pass")}))

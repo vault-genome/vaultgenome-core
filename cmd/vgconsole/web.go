@@ -21,11 +21,14 @@ import (
 //go:embed ui/index.html
 var indexHTML []byte
 
-const sessionCookie = "vgconsole"
+// tokenHeader carries the page's token on every request. The page itself holds
+// nothing: it gets the token from the address's fragment, which never leaves the
+// browser. A page from anywhere else cannot know it, cannot set this header
+// without asking, and, because the Host header is checked, cannot come in through
+// a name that resolves here. No cookie: there is nothing a browser sends by itself.
+const tokenHeader = "X-VG-Token"
 
-// web is the page on loopback. Only the browser holding the token reaches
-// it: a page from anywhere else has neither the cookie nor, because the Host
-// header is checked, a way in through a name that resolves here.
+// web is the page on loopback.
 type web struct {
 	app   *App
 	token string
@@ -47,6 +50,7 @@ func (w *web) idleFor() time.Duration {
 func (w *web) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", w.page)
+	mux.HandleFunc("GET /api/ping", w.api(func(context.Context, *http.Request, string) (any, error) { return "vgconsole", nil }))
 	mux.HandleFunc("GET /api/servers", w.api(w.servers))
 	mux.HandleFunc("GET /api/overview", w.api(w.overviewAPI))
 	mux.HandleFunc("POST /api/join", w.api(w.join))
@@ -87,26 +91,12 @@ func (w *web) hostAllowed(host string) bool {
 }
 
 func (w *web) authorized(r *http.Request) bool {
-	c, err := r.Cookie(sessionCookie)
-	return err == nil && subtle.ConstantTimeCompare([]byte(c.Value), []byte(w.token)) == 1
+	return subtle.ConstantTimeCompare([]byte(r.Header.Get(tokenHeader)), []byte(w.token)) == 1
 }
 
-// page takes the token from the address once, moves it to a cookie and sends
-// the browser to a clean address.
-func (w *web) page(rw http.ResponseWriter, r *http.Request) {
-	if t := r.URL.Query().Get("t"); t != "" {
-		if subtle.ConstantTimeCompare([]byte(t), []byte(w.token)) != 1 {
-			http.Error(rw, "wrong token", http.StatusForbidden)
-			return
-		}
-		http.SetCookie(rw, &http.Cookie{Name: sessionCookie, Value: w.token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
-		http.Redirect(rw, r, "/", http.StatusSeeOther)
-		return
-	}
-	if !w.authorized(r) {
-		http.Error(rw, "open the address vgconsole printed", http.StatusForbidden)
-		return
-	}
+// page is the same static page for anyone who asks; it can do nothing without
+// the token.
+func (w *web) page(rw http.ResponseWriter, _ *http.Request) {
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = rw.Write(indexHTML)
 }
@@ -121,10 +111,6 @@ func (w *web) longAPI(f apiFunc) http.HandlerFunc { return w.apiWithin(6*time.Ho
 func (w *web) apiWithin(limit time.Duration, f apiFunc) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		if !w.authorized(r) {
-			http.Error(rw, "forbidden", http.StatusForbidden)
-			return
-		}
-		if r.Method != http.MethodGet && r.Header.Get("X-VG-Console") != "1" {
 			http.Error(rw, "forbidden", http.StatusForbidden)
 			return
 		}

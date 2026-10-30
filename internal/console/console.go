@@ -19,6 +19,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
@@ -137,6 +138,13 @@ type Pass struct {
 	ExpiresAt  time.Time `json:"expires_at,omitempty"`
 }
 
+// AddressRE is what a server's address may be: a host and a port, nothing that
+// could change where a request goes once it is put in a URL.
+var AddressRE = regexp.MustCompile(`^(\[[0-9A-Fa-f:]{2,45}\]|[A-Za-z0-9.-]{1,253}):[0-9]{1,5}$`)
+
+// JobIDRE is what a job's id may be.
+var JobIDRE = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
+
 // ErrNotAPass says a file a person chose is not a pass.
 var ErrNotAPass = errors.New("console: not a pass file")
 
@@ -153,6 +161,9 @@ func ParsePass(raw []byte) (Pass, error) {
 	}
 	if p.Address == "" || p.ServerCertPEM == "" || p.AuditPublicKeyPEM == "" || p.AuditKeyID == "" {
 		return Pass{}, fmt.Errorf("%w: it names no server", ErrNotAPass)
+	}
+	if !AddressRE.MatchString(p.Address) {
+		return Pass{}, fmt.Errorf("%w: its address is not a host and a port", ErrNotAPass)
 	}
 	if _, err := p.CertDER(); err != nil {
 		return Pass{}, fmt.Errorf("%w: %v", ErrNotAPass, err)

@@ -609,6 +609,8 @@ func TestConsoleMoveRefusals(t *testing.T) {
 		o.ExpiresAt = now.Add(-50 * time.Minute)
 	}), http.StatusForbidden, "order_refused")
 	refused("no such model", m.order(t, "c", func(o *console.MoveOrder) { o.Bundle = "other.genome" }), http.StatusConflict, "no_genome")
+	garbledCert := m.order(t, "c1", func(o *console.MoveOrder) { o.To.ServerCertPEM = "not a certificate" })
+	refused("a target with no certificate", garbledCert, http.StatusBadRequest, "target_unreadable")
 	refused("to itself", m.order(t, "c2", func(o *console.MoveOrder) {
 		o.To.Address = m.from.srv.Addr()
 		o.To.ServerCertPEM = string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: m.from.certDER}))

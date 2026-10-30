@@ -163,8 +163,8 @@ func TestLastRestore(t *testing.T) {
 	require.Nil(t, lastRestore(nil))
 }
 
-// The page opens only for the browser that was given the token, under the
-// address it was given; a page from elsewhere cannot act on it.
+// The page does nothing for anyone but the browser that was given the token, under
+// the address it was given.
 func TestWebGuard(t *testing.T) {
 	a, err := newApp(t.TempDir())
 	require.NoError(t, err)
@@ -180,28 +180,23 @@ func TestWebGuard(t *testing.T) {
 		h.ServeHTTP(rec, req)
 		return rec
 	}
-	cookie := func(r *http.Request) { r.AddCookie(&http.Cookie{Name: sessionCookie, Value: token}) }
+	withToken := func(r *http.Request) { r.Header.Set(tokenHeader, token) }
 
-	require.Equal(t, http.StatusForbidden, serve("GET", "/", "evil.example:1234", cookie).Code, "a name that resolves here")
-	require.Equal(t, http.StatusForbidden, serve("GET", "/", addr, nil).Code, "no token")
-	require.Equal(t, http.StatusForbidden, serve("GET", "/?t=wrong", addr, nil).Code)
-	rec := serve("GET", "/?t="+token, addr, nil)
-	require.Equal(t, http.StatusSeeOther, rec.Code)
-	c := rec.Result().Cookies()
-	require.Len(t, c, 1)
-	require.True(t, c[0].HttpOnly)
-	require.Equal(t, http.SameSiteStrictMode, c[0].SameSite)
+	require.Equal(t, http.StatusForbidden, serve("GET", "/", "evil.example:1234", withToken).Code, "a name that resolves here")
+	require.Equal(t, http.StatusForbidden, serve("GET", "/api/servers", "evil.example:1234", withToken).Code)
 
-	rec = serve("GET", "/", addr, cookie)
-	require.Equal(t, http.StatusOK, rec.Code)
+	rec := serve("GET", "/", addr, nil)
+	require.Equal(t, http.StatusOK, rec.Code, "the page itself holds nothing")
 	require.Contains(t, rec.Header().Get("Content-Security-Policy"), "default-src 'none'")
 	require.Contains(t, rec.Body.String(), "Vault Genome")
+	require.Empty(t, rec.Result().Cookies(), "no cookie: nothing a browser sends by itself")
 
 	require.Equal(t, http.StatusForbidden, serve("GET", "/api/servers", addr, nil).Code)
-	require.Equal(t, http.StatusOK, serve("GET", "/api/servers", addr, cookie).Code)
-	require.Equal(t, http.StatusForbidden, serve("POST", "/api/check", addr, cookie).Code, "a cross-site form cannot set the header")
-	withHeader := func(r *http.Request) { cookie(r); r.Header.Set("X-VG-Console", "1") }
-	require.Equal(t, http.StatusUnprocessableEntity, serve("POST", "/api/check", addr, withHeader).Code, "no server yet")
+	require.Equal(t, http.StatusForbidden, serve("GET", "/api/servers", addr, func(r *http.Request) { r.Header.Set(tokenHeader, "wrong") }).Code)
+	require.Equal(t, http.StatusOK, serve("GET", "/api/servers", addr, withToken).Code)
+	require.Equal(t, http.StatusOK, serve("GET", "/api/ping", addr, withToken).Code)
+	require.Equal(t, http.StatusForbidden, serve("POST", "/api/check", addr, nil).Code, "a form from another site has no token")
+	require.Equal(t, http.StatusUnprocessableEntity, serve("POST", "/api/check", addr, withToken).Code, "no server yet")
 }
 
 // A person's key is made once and kept.
@@ -246,18 +241,25 @@ func TestAlreadyRunning(t *testing.T) {
 	defer srv.Close()
 	addr := strings.TrimPrefix(srv.URL, "http://")
 	srv.Config.Handler = newWeb(a, "tk", addr).handler()
-	require.NoError(t, os.WriteFile(path, []byte(srv.URL+"/?t=tk"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(srv.URL+"/#t=tk"), 0o600))
 	url, ok := alreadyRunning(path)
 	require.True(t, ok)
-	require.Equal(t, srv.URL+"/?t=tk", url)
+	require.Equal(t, srv.URL+"/#t=tk", url)
 
-	require.NoError(t, os.WriteFile(path, []byte(srv.URL+"/?t=wrong"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(srv.URL+"/#t=wrong"), 0o600))
 	_, ok = alreadyRunning(path)
 	require.False(t, ok, "another console's address")
 
-	require.NoError(t, os.WriteFile(path, []byte("http://127.0.0.1:1/?t=tk"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("http://127.0.0.1:1/#t=tk"), 0o600))
 	_, ok = alreadyRunning(path)
 	require.False(t, ok, "nothing answers")
+
+	require.NoError(t, os.WriteFile(path, []byte("https://evil.example/#t=tk"), 0o600))
+	_, ok = alreadyRunning(path)
+	require.False(t, ok, "a console is on this computer or nowhere")
+	require.NoError(t, os.WriteFile(path, []byte("not an address"), 0o600))
+	_, ok = alreadyRunning(path)
+	require.False(t, ok)
 }
 
 // An order for a person's move names only what the listener allows.

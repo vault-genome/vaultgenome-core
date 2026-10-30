@@ -261,6 +261,10 @@ type consolePeer struct {
 }
 
 func (s *consoleServer) dialTarget(to console.MoveTarget) (*consolePeer, error) {
+	address := to.Address
+	if !console.AddressRE.MatchString(address) {
+		return nil, errors.New("the order's address is not a host and a port")
+	}
 	pass := console.Pass{ServerCertPEM: to.ServerCertPEM}
 	der, err := pass.CertDER()
 	if err != nil {
@@ -272,7 +276,7 @@ func (s *consoleServer) dialTarget(to console.MoveTarget) (*consolePeer, error) 
 	}
 	pool := x509.NewCertPool()
 	pool.AddCert(leaf)
-	return &consolePeer{base: "https://" + to.Address, certDER: der, client: &http.Client{Transport: &http.Transport{
+	return &consolePeer{base: "https://" + address, certDER: der, client: &http.Client{Transport: &http.Transport{
 		TLSClientConfig:     &tls.Config{RootCAs: pool, ServerName: console.ServerName, Certificates: []tls.Certificate{s.cert}, MinVersion: tls.VersionTLS13},
 		TLSHandshakeTimeout: 30 * time.Second,
 	}}}, nil
