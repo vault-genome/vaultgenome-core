@@ -181,6 +181,21 @@ func (g GateConfig) ToleranceFor(dtype string) equivalence.Tolerance {
 	return equivalence.Tolerance{Atol: g.Atol, Rtol: g.Rtol}
 }
 
+// sameListenPort reports whether addr uses the port of any of others. A
+// listener on 0.0.0.0 and one on loopback collide on one port.
+func sameListenPort(addr string, others ...string) bool {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "0" {
+		return false
+	}
+	for _, o := range others {
+		if _, p, err := net.SplitHostPort(o); err == nil && p == port {
+			return true
+		}
+	}
+	return false
+}
+
 // OperatorStopEnabled reports whether trust consults a stop list.
 func (c Config) OperatorStopEnabled() bool {
 	return c.OperatorStop.KeyID != "" || c.OperatorStop.PublicKeyPath != "" || c.OperatorStop.ListPath != ""
@@ -1625,6 +1640,9 @@ func (c Config) Validate() error {
 		}
 		if c.Audit.LogPath == "" {
 			errs = append(errs, errors.New("audit.log_path is required with console.listen_address: what a person does goes on the record"))
+		}
+		if sameListenPort(c.Console.ListenAddress, c.Vault.ListenAddress, c.HTTPAPI.ListenAddress, c.Health.ListenAddress) {
+			errs = append(errs, errors.New("console.listen_address must not share a port with vault.listen_address, http_api.listen_address or health.listen_address"))
 		}
 	}
 	if c.Runtime.EvidenceMaxAgeSeconds < 0 {

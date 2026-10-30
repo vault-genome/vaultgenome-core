@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/console"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/kms"
@@ -70,7 +72,7 @@ const (
 	consoleInviteHours = 72
 )
 
-var consoleNameRE = regexp.MustCompile(`^[\p{L}\p{N}][\p{L}\p{N} ._'-]{0,63}$`)
+var consoleNameRE = regexp.MustCompile(`^[\p{L}\p{N}][\p{L}\p{N} ._'()-]{0,63}$`)
 
 type consoleServer struct {
 	cfg       ConsoleConfig
@@ -87,6 +89,10 @@ type consoleServer struct {
 
 	mu     sync.Mutex // the people file, the invites, the stop list
 	people []console.Person
+
+	moveMu    sync.Mutex // one move at a time
+	movesDone map[string]bool
+	cacheDir  string
 
 	cert     tls.Certificate
 	listener net.Listener
@@ -109,6 +115,7 @@ func newConsoleServer(cfg Config, mat *materials, api *HTTPAPIServer, queue *Job
 	s := &consoleServer{
 		cfg: cfg.Console, stop: cfg.OperatorStop, sigPol: sigPol, genomeDir: cfg.Genome.BundleDir,
 		mat: mat, api: api, queue: queue, audit: audit, clock: clock, log: logger, started: clock.Now(),
+		movesDone: map[string]bool{}, cacheDir: filepath.Join(cfg.Console.Dir, "cache"),
 	}
 	s.cert, err = consoleTLSCertificate(cfg, mat, clock)
 	if err != nil {
@@ -222,13 +229,15 @@ func (s *consoleServer) Start() error {
 	})
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/console/join", s.handleJoin)
-	mux.HandleFunc("POST /v1/console/check", s.listed(console.RoleViewer, s.handleCheck))
+	mux.HandleFunc("POST /v1/console/check", s.listed(console.RolePeer, s.handleCheck))
 	mux.HandleFunc("GET /v1/console/journal", s.listed(console.RoleViewer, s.handleJournal))
 	mux.HandleFunc("GET /v1/console/jobs/{id}", s.listed(console.RoleViewer, s.handleJob))
 	mux.HandleFunc("POST /v1/console/restore-check", s.listed(console.RoleOperator, s.handleRestoreCheck))
 	mux.HandleFunc("PUT /v1/console/stop", s.listed(console.RoleOwner, s.handleStop))
 	mux.HandleFunc("POST /v1/console/invites", s.listed(console.RoleOwner, s.handleInvite))
 	mux.HandleFunc("POST /v1/console/people/remove", s.listed(console.RoleOwner, s.handleRemove))
+	mux.HandleFunc("POST /v1/console/move", s.listed(console.RoleOwner, s.handleMove))
+	mux.HandleFunc("PUT /v1/console/incoming/{name}", s.listed(console.RolePeer, s.handleIncoming))
 	s.server = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second}
 	go func() {
 		if err := s.server.Serve(s.listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -270,10 +279,14 @@ func callerKey(r *http.Request) (ed25519.PublicKey, bool) {
 
 func (s *consoleServer) lookup(pub ed25519.PublicKey) (console.Person, bool) {
 	want := console.PublicKeyHex(pub)
+	now := s.clock.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, p := range s.people {
 		if p.PublicKeyHex == want {
+			if p.ExpiresAt != nil && now.After(*p.ExpiresAt) {
+				return console.Person{}, false
+			}
 			return p, true
 		}
 	}
@@ -293,10 +306,7 @@ func (s *consoleServer) listed(min console.Role, h func(http.ResponseWriter, *ht
 			consoleError(w, http.StatusForbidden, "not_listed", "this key is not on the people list")
 			return
 		}
-		allowed := min == console.RoleViewer ||
-			(min == console.RoleOperator && p.Role.CanRestore()) ||
-			(min == console.RoleOwner && p.Role.CanAdminister())
-		if !allowed {
+		if !p.Role.Allows(min) {
 			consoleError(w, http.StatusForbidden, "role_refused", "this person's role does not allow it")
 			return
 		}
@@ -365,6 +375,10 @@ func (s *consoleServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	person := console.Person{Name: inv.Name, Role: inv.Role, PublicKeyHex: keyHex, AddedAt: now.UTC()}
+	if inv.Role == console.RolePeer {
+		expires := inv.ExpiresAt
+		person.ExpiresAt = &expires
+	}
 	if err := s.audit.emit(audit_event.KindConsoleAction, console.ActionPayload{
 		Schema: console.ActionSchema, Action: console.ActionPersonJoined, Person: person.Name,
 		Role: person.Role, PublicKeyHex: keyHex, HoldsStop: holdsStop,
@@ -451,6 +465,11 @@ func (s *consoleServer) buildState(p console.Person) console.State {
 	s.mu.Unlock()
 	st.Audit = console.AuditState{Events: s.audit.Len(), Base: s.audit.Base(), TipHex: s.audit.Tip(), KeyID: string(s.audit.KeyID())}
 	st.Stop = s.stopState()
+	if s.mat.Escrow != nil {
+		if raw, err := escrow.PublicPEM(s.mat.Escrow.PublicKey()); err == nil {
+			st.EscrowPublicKeyPEM = string(raw)
+		}
+	}
 	return st
 }
 
@@ -565,13 +584,27 @@ func (s *consoleServer) handleJob(w http.ResponseWriter, r *http.Request, _ cons
 
 // handleRestoreCheck starts a gate job on the newest sealed genome, the same
 // job the REST API takes, under the person's name.
-func (s *consoleServer) handleRestoreCheck(w http.ResponseWriter, _ *http.Request, p console.Person) {
+func (s *consoleServer) handleRestoreCheck(w http.ResponseWriter, r *http.Request, p console.Person) {
 	bundles := s.bundles()
 	if len(bundles) == 0 {
 		consoleError(w, http.StatusConflict, "no_genome", "there is no sealed model on this server yet")
 		return
 	}
 	bundle := bundles[0]
+	var req console.RestoreRequest
+	if raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, consoleMaxBody)); err == nil && len(raw) > 0 {
+		if err := json.Unmarshal(raw, &req); err != nil {
+			consoleError(w, http.StatusBadRequest, "decode_body", "not one JSON object of this request's shape")
+			return
+		}
+	}
+	if req.Bundle != "" {
+		if !slices.Contains(bundles, req.Bundle) {
+			consoleError(w, http.StatusNotFound, "no_genome", "this sealed model is not on this server")
+			return
+		}
+		bundle = req.Bundle
+	}
 	ref := genomeRef{Bundle: bundle}
 	keyFile := strings.TrimSuffix(bundle, ".genome") + ".key"
 	if _, err := os.Stat(filepath.Join(s.genomeDir, keyFile)); err == nil {

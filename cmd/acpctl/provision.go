@@ -622,6 +622,45 @@ func sagvdConfig(o provisionOptions, out, secrets string, teeCfg map[string]any,
 	return cfg
 }
 
+// provisionConsoleEscrow makes the key a moved model's key is wrapped to on
+// its way here (ADR 0039, 0016): made in sagvd's process, sealed to this chip,
+// and named in the configuration once it exists. Without it a deployment could
+// send a model and could not receive one.
+func provisionConsoleEscrow(sagvd, sagvdPath, secrets, out string, res *provisionResult, stdout io.Writer) error {
+	sealed := filepath.Join(secrets, "sagvd", "escrow.sealed")
+	public := filepath.Join(out, "operator", "escrow_public_key.pem")
+	if _, err := runDaemon(sagvd, "escrow-provision", "-config", sagvdPath, "-out", sealed, "-pub", public); err != nil {
+		return fmt.Errorf("the console's escrow key: %w", err)
+	}
+	raw, err := os.ReadFile(sagvdPath)
+	if err != nil {
+		return err
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var cfg map[string]any
+	if err := dec.Decode(&cfg); err != nil {
+		return fmt.Errorf("%s: %w", sagvdPath, err)
+	}
+	genome, _ := cfg["genome"].(map[string]any)
+	if genome == nil {
+		return fmt.Errorf("%s: no genome section to name the escrow key in", sagvdPath)
+	}
+	genome["key_escrow_path"] = sealed
+	updated, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(sagvdPath, append(updated, '\n'), 0o600); err != nil {
+		return err
+	}
+	if res.ConfigsSHA256["sagvd"], err = provisionDigest(sagvdPath); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "  the console's escrow key: sealed to this host, public half %s\n", public)
+	return nil
+}
+
 // workerConfig is acp-compute.json for the deployment: the authority it
 // dials, its own keys, the door.
 func workerConfig(o provisionOptions, secrets string, teeCfg map[string]any, vaultAddress, serverName string, door []string, sealingKey string) map[string]any {
@@ -910,6 +949,11 @@ func provision(o provisionOptions, stdout io.Writer) (*provisionResult, error) {
 			if err := sealKeys(res, s.key, s.bin, s.cfg, stdout); err != nil {
 				return nil, err
 			}
+		}
+	}
+	if o.consoleListen != "" {
+		if err := provisionConsoleEscrow(bins["sagvd"], sagvdPath, secrets, out, res, stdout); err != nil {
+			return nil, err
 		}
 	}
 	res.Next = append(res.Next, bins["sagvd"]+" -config "+sagvdPath, bins["acp-compute"]+" -config "+workerPath,
@@ -1302,6 +1346,11 @@ func provisionAuthority(o provisionOptions, stdout io.Writer) (*provisionResult,
 		res.Next = append(res.Next, bins["sagvd"]+" seal-keys -config "+sagvdPath)
 	} else if err := sealKeys(res, "sagvd", bins["sagvd"], sagvdPath, stdout); err != nil {
 		return nil, err
+	}
+	if o.consoleListen != "" {
+		if err := provisionConsoleEscrow(bins["sagvd"], sagvdPath, secrets, out, res, stdout); err != nil {
+			return nil, err
+		}
 	}
 	res.Next = append(res.Next,
 		"carry "+bundlePath+" to the worker's host over a channel you trust (it holds the worker's private keys); delete it there after the next step",

@@ -66,6 +66,7 @@ func (d *drill) keep(name string, data []byte) {
 func drillCmd(args []string) int {
 	fs := flag.NewFlagSet("vgconsole drill", flag.ContinueOnError)
 	passPath := fs.String("pass", "", "An unused owner's pass for a server this drill may stop and restart (required)")
+	secondPath := fs.String("second", "", "An unused owner's pass for a second server, with no model of its own: the drill moves the model there")
 	out := fs.String("out", "", "Where the record goes (required)")
 	work := fs.String("work", "", "Scratch directory for the people's keys (required)")
 	if err := fs.Parse(args); err != nil {
@@ -84,7 +85,14 @@ func drillCmd(args []string) int {
 		return 1
 	}
 	d := &drill{out: *out}
-	d.run(raw, *work)
+	var second []byte
+	if *secondPath != "" {
+		if second, err = os.ReadFile(*secondPath); err != nil {
+			fmt.Fprintln(os.Stderr, "vgconsole drill:", err)
+			return 1
+		}
+	}
+	d.run(raw, second, *work)
 	rec, _ := json.MarshalIndent(d.records, "", "  ")
 	d.keep("drill.json", append(rec, '\n'))
 	if d.failed {
@@ -95,7 +103,7 @@ func drillCmd(args []string) int {
 	return 0
 }
 
-func (d *drill) run(passRaw []byte, work string) {
+func (d *drill) run(passRaw, secondRaw []byte, work string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
@@ -235,7 +243,7 @@ func (d *drill) run(passRaw []byte, work string) {
 	}
 	vres, err := viewerSrv.check(ctx)
 	d.record("the viewer's own computer verifies the same chip", err == nil, "", time.Time{})
-	_, err = viewerSrv.restoreCheck(ctx)
+	_, err = viewerSrv.restoreCheck(ctx, "")
 	d.refusal("the viewer cannot start a restore", err, "role_refused")
 	if vres != nil {
 		err = viewer.setStop(ctx, viewerSrv, vres.State.Stop, true, "not mine")
@@ -243,7 +251,7 @@ func (d *drill) run(passRaw []byte, work string) {
 	}
 
 	// A restore while nothing is stopped.
-	level, secs := d.restore(ctx, srv, "the restore check, stop off")
+	level, secs := d.restore(ctx, srv, "", "the restore check, stop off")
 	d.record("the model comes back", level == "EXACT" || level == "EQUIVALENT", fmt.Sprintf("%s in %.1f s", level, secs), time.Time{})
 
 	// Stop: signed here, verified there, and the next job is refused.
@@ -285,8 +293,12 @@ func (d *drill) run(passRaw []byte, work string) {
 		err = owner.setStop(ctx, srv, res.State.Stop, false, "")
 	}
 	d.record("the owner lifts the stop", err == nil, "", time.Time{})
-	level, secs = d.restore(ctx, srv, "the restore check, stop lifted")
+	level, secs = d.restore(ctx, srv, "", "the restore check, stop lifted")
 	d.record("the model comes back after the stop is lifted", level == "EXACT" || level == "EQUIVALENT", fmt.Sprintf("%s in %.1f s", level, secs), time.Time{})
+
+	if secondRaw != nil {
+		d.move(ctx, owner, srv, secondRaw)
+	}
 
 	// Taking a person off the list ends their access at once.
 	if err := srv.callJSON(ctx, http.MethodPost, "/v1/console/people/remove", console.RemoveRequest{PublicKeyHex: viewer.publicKeyHex()}, nil); err != nil {
@@ -319,7 +331,11 @@ func (d *drill) run(passRaw []byte, work string) {
 			lines = append(lines, line)
 		}
 	}
-	d.record("the journal names every person's action", counts[console.ActionPersonJoined] == 2 && counts[console.ActionStopReady] == 1 && counts[console.ActionStopSet] == 1 && counts[console.ActionStopLifted] == 1 && counts[console.ActionPersonRemoved] == 1 && counts[console.ActionInviteMade] == 1, fmt.Sprintf("%v", counts), time.Time{})
+	moves := 0
+	if secondRaw != nil {
+		moves = 1
+	}
+	d.record("the journal names every person's action", counts[console.ActionPersonJoined] == 2 && counts[console.ActionStopReady] == 1 && counts[console.ActionStopSet] == 1 && counts[console.ActionStopLifted] == 1 && counts[console.ActionPersonRemoved] == 1 && counts[console.ActionInviteMade] == 1 && counts[console.ActionModelSent] == moves, fmt.Sprintf("%v", counts), time.Time{})
 	rawLines, _ := json.MarshalIndent(lines, "", "  ")
 	d.keep("journal-plain.json", append(rawLines, '\n'))
 	overview, _ := json.MarshalIndent(owner.overview(srv, "ru"), "", "  ")
@@ -327,6 +343,174 @@ func (d *drill) run(passRaw []byte, work string) {
 	overviewEN, _ := json.MarshalIndent(owner.overview(srv, "en"), "", "  ")
 	d.keep("overview-en.json", append(overviewEN, '\n'))
 	d.record("the provider is a real one", tee.Provider(res.State.Provider) != tee.ProviderSimulated, res.State.Provider, time.Time{})
+}
+
+// move plays the move button against two real servers, each refusal first.
+func (d *drill) move(ctx context.Context, owner *App, from *server, secondRaw []byte) {
+	to, err := owner.Join(secondRaw)
+	if err != nil {
+		d.record("the owner opens the second server's pass", false, err.Error(), time.Time{})
+		return
+	}
+	d.record("the owner opens the second server's pass and holds its stop too", to.you.Role == console.RoleOwner, to.pass.ServerLabel, time.Time{})
+	res, err := to.check(ctx)
+	if err != nil {
+		d.record("the second server's chip verifies on this computer", false, err.Error(), time.Time{})
+		return
+	}
+	d.record("the second server's chip verifies on this computer", true, fmt.Sprintf("%s, measurement %x", res.State.Provider, []byte(res.Measurement)), time.Time{})
+	d.record("the second server names its key for receiving, under its chip", res.State.EscrowPublicKeyPEM != "", "", time.Time{})
+	src, err := from.check(ctx)
+	if err != nil {
+		d.record("a check of the first server", false, err.Error(), time.Time{})
+		return
+	}
+	if len(src.State.Genomes) == 0 {
+		d.record("the first server has a sealed model", false, "", time.Time{})
+		return
+	}
+	bundle := src.State.Genomes[0]
+	target := func(pin console.Pin) console.MoveTarget {
+		var code console.InviteResponse
+		if err := to.callJSON(ctx, http.MethodPost, "/v1/console/invites", console.InviteRequest{Name: "Drill Source (server)", Role: console.RolePeer, Hours: 1}, &code); err != nil {
+			d.record("the second server makes a code", false, err.Error(), time.Time{})
+		}
+		return console.MoveTarget{Label: to.pass.ServerLabel, Address: to.pass.Address, ServerCertPEM: to.pass.ServerCertPEM, Pin: pin, JoinCode: code.Code}
+	}
+	order := func(key *crypto.SigningKey, certSum, id string, issued time.Time, ttl time.Duration, pin console.Pin) []byte {
+		signed, err := console.SignMoveOrder(console.MoveOrder{OrderID: id, IssuedAt: issued, ExpiresAt: issued.Add(ttl), FromCertSHA256: certSum, Bundle: bundle, To: target(pin), SigningKeyID: src.State.Stop.KeyID}, key)
+		if err != nil {
+			d.record("an order signs", false, err.Error(), time.Time{})
+			return nil
+		}
+		raw, _ := json.Marshal(signed)
+		return raw
+	}
+	mine, err := crypto.LoadSigningKey(crypto.SuiteEd25519, owner.seed)
+	if err != nil {
+		d.record("the owner's key loads", false, err.Error(), time.Time{})
+		return
+	}
+	defer mine.Zeroize()
+	other, _ := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	now := time.Now().UTC().Truncate(time.Second)
+	sum := console.CertSHA256(from.certDER)
+	d.refusal("an order signed by another key is refused", from.longCall(ctx, http.MethodPost, "/v1/console/move", order(other, sum, "drill-forged", now, 10*time.Minute, to.pass.Pin), nil), "order_refused")
+	other.Zeroize()
+	d.refusal("an order addressed to another server is refused", from.longCall(ctx, http.MethodPost, "/v1/console/move", order(mine, console.CertSHA256(to.certDER), "drill-elsewhere", now, 10*time.Minute, to.pass.Pin), nil), "order_refused")
+	d.refusal("an order out of its time is refused", from.longCall(ctx, http.MethodPost, "/v1/console/move", order(mine, sum, "drill-old", now.Add(-time.Hour), 10*time.Minute, to.pass.Pin), nil), "order_refused")
+	wrong := to.pass.Pin
+	measurement, _ := hex.DecodeString(wrong.MeasurementHex)
+	if len(measurement) > 0 {
+		measurement[0] ^= 1
+	}
+	wrong.MeasurementHex = hex.EncodeToString(measurement)
+	d.refusal("the first server itself refuses a target that does not show the pin, and sends nothing", from.longCall(ctx, http.MethodPost, "/v1/console/move", order(mine, sum, "drill-pin", now, 10*time.Minute, wrong), nil), "target_unproven")
+	if res, err := to.check(ctx); err == nil {
+		d.record("nothing arrived at the second server", !slicesContains(res.State.Genomes, bundle), fmt.Sprintf("%v", res.State.Genomes), time.Time{})
+	}
+
+	// With the stop on, the first server hands over nothing.
+	src, err = from.check(ctx)
+	if err == nil {
+		err = owner.setStop(ctx, from, src.State.Stop, true, "drill: before a move")
+	}
+	if err != nil {
+		d.record("the stop goes on for the move's refusal", false, err.Error(), time.Time{})
+		return
+	}
+	_, err = owner.Move(ctx, from, to)
+	d.refusal("with the stop on, the first server hands over nothing", err, "stopped")
+	src, err = from.check(ctx)
+	if err == nil {
+		err = owner.setStop(ctx, from, src.State.Stop, false, "")
+	}
+	if err != nil {
+		d.record("the stop comes off", false, err.Error(), time.Time{})
+		return
+	}
+
+	// The move.
+	start := time.Now()
+	resp, err := owner.Move(ctx, from, to)
+	if err != nil {
+		d.record("the model moves", false, err.Error(), start)
+		return
+	}
+	d.record("the model is handed over, after the first server verified the second's chip", resp.TargetMeasurement == to.pass.Pin.MeasurementHex, fmt.Sprintf("%s, %d bytes, sha256 %s, key %s", resp.Bundle, resp.Bytes, resp.BundleSHA256, resp.EscrowKey), start)
+	raw, _ := json.MarshalIndent(resp, "", "  ")
+	d.keep("move.json", append(raw, '\n'))
+	level, secs := d.restore(ctx, to, resp.Bundle, "the second server's restore check of the moved model")
+	d.record("the moved model comes back on the second server, by its own worker, under its own gate", level == "EXACT" || level == "EQUIVALENT", fmt.Sprintf("%s in %.1f s", level, secs), time.Time{})
+	_, err = owner.Move(ctx, from, to)
+	d.refusal("the same model cannot be sent over it", err, "move_failed")
+
+	// The second server's own journal says it, verified here.
+	if err := to.forgetPeers(ctx); err != nil {
+		d.record("the second server forgets the first", false, err.Error(), time.Time{})
+	}
+	final, err := to.check(ctx)
+	if err == nil {
+		err = to.refreshJournal(ctx)
+	}
+	if err != nil {
+		d.record("the second server's journal verifies on this computer", false, err.Error(), time.Time{})
+		return
+	}
+	to.mu.Lock()
+	events := append([]audit_event.AuditEvent(nil), to.events...)
+	first := to.first
+	to.mu.Unlock()
+	received, released := 0, false
+	var lines []JournalLine
+	for i := range events {
+		if events[i].Kind == audit_event.KindConsoleAction && str(payloadOf(events[i]), "action") == console.ActionModelReceived {
+			received++
+		}
+		if events[i].Kind == audit_event.KindReleaseDecided {
+			if rel, _ := payloadOf(events[i])["release"].(bool); rel {
+				released = true
+			}
+		}
+		if line, ok := describe(events[i], first+i, "ru"); ok {
+			lines = append(lines, line)
+		}
+	}
+	d.record("the second server's journal verifies here and says the model arrived and came back", received == 2 && released, fmt.Sprintf("%d records, tip %s", len(events), final.State.Audit.TipHex), time.Time{})
+	rawLines, _ := json.MarshalIndent(lines, "", "  ")
+	d.keep("second-journal-plain.json", append(rawLines, '\n'))
+	second, _ := json.MarshalIndent(owner.overview(to, "ru"), "", "  ")
+	d.keep("second-overview-ru.json", append(second, '\n'))
+	stillThere := 0
+	for _, p := range final.State.People {
+		if p.Role == console.RolePeer {
+			stillThere++
+		}
+	}
+	d.record("the first server is off the second's list after the move", stillThere == 0, "", time.Time{})
+
+	// Stopping the old server, the last step a person takes.
+	src, err = from.check(ctx)
+	if err == nil {
+		err = owner.setStop(ctx, from, src.State.Stop, true, "the model moved")
+	}
+	d.record("the owner stops the old server", err == nil, "", time.Time{})
+	_, jobErr := d.restoreRefused(ctx, from)
+	d.record("the old server now refuses the model, on its record", jobErr == nil, "", time.Time{})
+	src, err = from.check(ctx)
+	if err == nil {
+		err = owner.setStop(ctx, from, src.State.Stop, false, "")
+	}
+	d.record("the stop on the old server is lifted for the rest of the drill", err == nil, "", time.Time{})
+}
+
+func slicesContains(list []string, want string) bool {
+	for _, v := range list {
+		if v == want {
+			return true
+		}
+	}
+	return false
 }
 
 // refusal holds err to the listener's word for it.
@@ -341,9 +525,9 @@ func (d *drill) refusal(step string, err error, code string) {
 }
 
 // restore starts a restore check and waits for its end.
-func (d *drill) restore(ctx context.Context, srv *server, step string) (string, float64) {
+func (d *drill) restore(ctx context.Context, srv *server, bundle, step string) (string, float64) {
 	start := time.Now()
-	r, err := srv.restoreCheck(ctx)
+	r, err := srv.restoreCheck(ctx, bundle)
 	if err != nil {
 		d.record(step, false, err.Error(), start)
 		return "", 0
@@ -371,7 +555,7 @@ func (d *drill) restore(ctx context.Context, srv *server, step string) (string, 
 
 // restoreRefused starts a restore check that must end refused by the stop.
 func (d *drill) restoreRefused(ctx context.Context, srv *server) (console.JobSummary, error) {
-	r, err := srv.restoreCheck(ctx)
+	r, err := srv.restoreCheck(ctx, "")
 	if err != nil {
 		var api *apiError
 		if errors.As(err, &api) && containsStop(api.Code+api.Message) {

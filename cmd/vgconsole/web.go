@@ -8,6 +8,7 @@ import (
 	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -44,6 +45,8 @@ func (w *web) handler() http.Handler {
 	mux.HandleFunc("POST /api/stop", w.api(w.stop))
 	mux.HandleFunc("POST /api/invite", w.api(w.invite))
 	mux.HandleFunc("POST /api/remove", w.api(w.remove))
+	mux.HandleFunc("POST /api/move", w.longAPI(w.move))
+	mux.HandleFunc("POST /api/forget-peers", w.api(w.forgetPeers))
 	return w.guard(mux)
 }
 
@@ -98,7 +101,12 @@ func (w *web) page(rw http.ResponseWriter, r *http.Request) {
 
 type apiFunc func(ctx context.Context, r *http.Request, lang string) (any, error)
 
-func (w *web) api(f apiFunc) http.HandlerFunc {
+func (w *web) api(f apiFunc) http.HandlerFunc { return w.apiWithin(90*time.Second, f) }
+
+// longAPI is for what takes as long as a model is large.
+func (w *web) longAPI(f apiFunc) http.HandlerFunc { return w.apiWithin(6*time.Hour, f) }
+
+func (w *web) apiWithin(limit time.Duration, f apiFunc) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		if !w.authorized(r) {
 			http.Error(rw, "forbidden", http.StatusForbidden)
@@ -112,7 +120,7 @@ func (w *web) api(f apiFunc) http.HandlerFunc {
 		if lang != "ru" {
 			lang = "en"
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), limit)
 		defer cancel()
 		out, err := f(ctx, r, lang)
 		rw.Header().Set("Content-Type", "application/json")
@@ -135,6 +143,36 @@ func (w *web) servers(context.Context, *http.Request, string) (any, error) {
 		out = append(out, row{s.id, s.pass.ServerLabel})
 	}
 	return out, nil
+}
+
+// move carries out a planned move from one server this person holds a pass
+// for to another. The restore on the target is the page's next step, on the
+// target's own record.
+func (w *web) move(ctx context.Context, r *http.Request, _ string) (any, error) {
+	from, err := w.app.Server(r.URL.Query().Get("server"))
+	if err != nil {
+		return nil, err
+	}
+	to, err := w.app.Server(r.URL.Query().Get("to"))
+	if err != nil {
+		return nil, err
+	}
+	if from == to {
+		return nil, errors.New("the same server")
+	}
+	return w.app.Move(ctx, from, to)
+}
+
+func (w *web) forgetPeers(ctx context.Context, r *http.Request, lang string) (any, error) {
+	s, err := w.app.Server(r.URL.Query().Get("server"))
+	if err != nil {
+		return nil, err
+	}
+	if err := s.forgetPeers(ctx); err != nil {
+		return nil, err
+	}
+	refresh(ctx, s)
+	return w.app.overview(s, lang), nil
 }
 
 // refresh asks the chip and reads the journal; what fails stays on the server
@@ -185,7 +223,7 @@ func (w *web) restore(ctx context.Context, r *http.Request, _ string) (any, erro
 	if err != nil {
 		return nil, err
 	}
-	return s.restoreCheck(ctx)
+	return s.restoreCheck(ctx, r.URL.Query().Get("bundle"))
 }
 
 func (w *web) jobAPI(ctx context.Context, r *http.Request, lang string) (any, error) {

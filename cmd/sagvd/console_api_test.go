@@ -8,11 +8,13 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"io"
 	"log/slog"
 	"math/big"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/console"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
@@ -461,4 +464,260 @@ func TestConsoleStopSource(t *testing.T) {
 	writeStopList(t, cfg.ListPath, priv, revocation.List{Serial: 1})
 	_, err = src()
 	require.ErrorContains(t, err, "rollback refused")
+}
+
+// moveFixture is two listeners: the source with a sealed model, the target with
+// none of its own and an escrow key, its private half with the target.
+type moveFixture struct {
+	from, to *consoleFixture
+	owner    *consolePerson
+	toOwner  *consolePerson
+	pin      console.Pin
+	key      *crypto.SigningKey
+	bundle   string
+}
+
+func newMoveFixture(t *testing.T) *moveFixture {
+	t.Helper()
+	from := newConsoleFixture(t)
+	to := newConsoleFixture(t)
+	require.NoError(t, os.Remove(filepath.Join(to.fx.dir, "gen-0.genome")))
+	require.NoError(t, os.Remove(filepath.Join(to.fx.dir, "gen-0.key")))
+	kem, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	require.NoError(t, err)
+	to.srv.mat.Escrow = kem
+	to.fx.server.genomes.escrow = kem
+	owner := from.join(t, "Serhii", console.RoleOwner)
+	status, raw := owner.do(t, http.MethodPut, "/v1/console/stop", owner.signStop(t, 1, false))
+	require.Equal(t, http.StatusOK, status, string(raw))
+	toOwner := to.join(t, "Serhii", console.RoleOwner)
+	key, err := crypto.LoadSigningKey(crypto.SuiteEd25519, owner.priv.Seed())
+	require.NoError(t, err)
+	t.Cleanup(key.Zeroize)
+	pin := console.Pin{Provider: string(tee.ProviderSimulated), MeasurementHex: hex.EncodeToString(to.chip.Measurement()), AttestorPublicKeyHex: hex.EncodeToString(to.chip.PublicKey())}
+	return &moveFixture{from: from, to: to, owner: owner, toOwner: toOwner, pin: pin, key: key, bundle: "gen-0.genome"}
+}
+
+func (m *moveFixture) code(t *testing.T) string {
+	t.Helper()
+	status, raw := m.toOwner.doJSON(t, http.MethodPost, "/v1/console/invites", console.InviteRequest{Name: "Source (server)", Role: console.RolePeer, Hours: 1})
+	require.Equal(t, http.StatusOK, status, string(raw))
+	var inv console.InviteResponse
+	require.NoError(t, json.Unmarshal(raw, &inv))
+	return inv.Code
+}
+
+func (m *moveFixture) order(t *testing.T, id string, mutate func(*console.MoveOrder)) []byte {
+	t.Helper()
+	now := time.Now().UTC().Truncate(time.Second)
+	o := console.MoveOrder{
+		OrderID: id, IssuedAt: now, ExpiresAt: now.Add(10 * time.Minute), FromCertSHA256: console.CertSHA256(m.from.certDER),
+		Bundle: m.bundle, SigningKeyID: console.StopKeyID,
+		To: console.MoveTarget{Label: "Target", Address: m.to.srv.Addr(), ServerCertPEM: string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: m.to.certDER})), Pin: m.pin, JoinCode: m.code(t)},
+	}
+	if mutate != nil {
+		mutate(&o)
+	}
+	signed, err := console.SignMoveOrder(o, m.key)
+	require.NoError(t, err)
+	raw, err := json.Marshal(signed)
+	require.NoError(t, err)
+	return raw
+}
+
+func (m *moveFixture) targetHasModel() bool {
+	_, err := os.Stat(filepath.Join(m.to.fx.dir, m.bundle))
+	return err == nil
+}
+
+// The move: the source verifies the target's chip itself, wraps the key to the
+// key that chip named, sends the ciphertext; the target can open the model and
+// the source's journal and the target's say so.
+func TestConsoleMove(t *testing.T) {
+	m := newMoveFixture(t)
+	status, raw := m.owner.do(t, http.MethodPost, "/v1/console/move", m.order(t, "order-1", nil))
+	require.Equal(t, http.StatusOK, status, string(raw))
+	var resp console.MoveResponse
+	require.NoError(t, json.Unmarshal(raw, &resp))
+	require.Equal(t, m.bundle, resp.Bundle)
+	require.Equal(t, hex.EncodeToString(m.to.chip.Measurement()), resp.TargetMeasurement)
+	require.Equal(t, escrow.KeyTag(m.to.srv.mat.Escrow.PublicKey()), resp.EscrowKey)
+	require.True(t, m.targetHasModel())
+
+	got, err := os.ReadFile(filepath.Join(m.to.fx.dir, m.bundle))
+	require.NoError(t, err)
+	want, err := os.ReadFile(filepath.Join(m.from.fx.dir, m.bundle))
+	require.NoError(t, err)
+	require.Equal(t, want, got, "the bundle arrives byte for byte")
+
+	// The target opens it with its own key, from the envelope alone.
+	info, err := m.to.fx.server.genomes.inspect(genomeRef{Bundle: m.bundle})
+	require.NoError(t, err)
+	require.Equal(t, "escrow", info.View.KeySource)
+
+	// The restore check on the target picks the moved model by name.
+	status, raw = m.toOwner.doJSON(t, http.MethodPost, "/v1/console/restore-check", console.RestoreRequest{Bundle: m.bundle})
+	require.Equal(t, http.StatusAccepted, status, string(raw))
+	status, raw = m.toOwner.doJSON(t, http.MethodPost, "/v1/console/restore-check", console.RestoreRequest{Bundle: "other.genome"})
+	require.Equal(t, http.StatusNotFound, status)
+	require.Equal(t, "no_genome", errCode(t, raw))
+
+	acts := m.from.actions()
+	require.Equal(t, 1, acts[console.ActionMoveOrdered])
+	require.Equal(t, 1, acts[console.ActionModelReleased])
+	require.Equal(t, 1, acts[console.ActionModelSent])
+	require.Equal(t, 2, m.to.actions()[console.ActionModelReceived], "the bundle and its envelope")
+
+	// One order, one move.
+	status, raw = m.owner.do(t, http.MethodPost, "/v1/console/move", m.order(t, "order-1", nil))
+	require.Equal(t, http.StatusConflict, status)
+	require.Equal(t, "order_used", errCode(t, raw))
+	// And a model is not replaced under its name.
+	status, raw = m.owner.do(t, http.MethodPost, "/v1/console/move", m.order(t, "order-2", nil))
+	require.Equal(t, http.StatusBadGateway, status)
+	require.Equal(t, "move_failed", errCode(t, raw))
+}
+
+// Every way an order can be wrong is refused before anything moves.
+func TestConsoleMoveRefusals(t *testing.T) {
+	m := newMoveFixture(t)
+	refused := func(name string, body []byte, status int, code string) {
+		t.Helper()
+		got, raw := m.owner.do(t, http.MethodPost, "/v1/console/move", body)
+		require.Equal(t, status, got, name+": "+string(raw))
+		require.Equal(t, code, errCode(t, raw), name)
+		require.False(t, m.targetHasModel(), name+": nothing arrived")
+	}
+	stranger, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	require.NoError(t, err)
+	defer stranger.Zeroize()
+	now := time.Now().UTC().Truncate(time.Second)
+	unsigned := console.MoveOrder{OrderID: "x", IssuedAt: now, ExpiresAt: now.Add(time.Minute), FromCertSHA256: console.CertSHA256(m.from.certDER), Bundle: m.bundle, SigningKeyID: console.StopKeyID,
+		To: console.MoveTarget{Address: m.to.srv.Addr(), ServerCertPEM: "x", Pin: m.pin, JoinCode: "x"}}
+	forged, err := console.SignMoveOrder(unsigned, stranger)
+	require.NoError(t, err)
+	rawForged, err := json.Marshal(forged)
+	require.NoError(t, err)
+
+	refused("a code the target does not know", m.order(t, "e", func(o *console.MoveOrder) { o.To.JoinCode = "made-up" }), http.StatusBadGateway, "target_refused")
+	refused("not an order", []byte("{}"), http.StatusForbidden, "order_refused")
+	refused("another signer", rawForged, http.StatusForbidden, "order_refused")
+	refused("another server", m.order(t, "a", func(o *console.MoveOrder) { o.FromCertSHA256 = console.CertSHA256(m.to.certDER) }), http.StatusForbidden, "order_refused")
+	refused("out of its time", m.order(t, "b", func(o *console.MoveOrder) {
+		o.IssuedAt = now.Add(-time.Hour)
+		o.ExpiresAt = now.Add(-50 * time.Minute)
+	}), http.StatusForbidden, "order_refused")
+	refused("no such model", m.order(t, "c", func(o *console.MoveOrder) { o.Bundle = "other.genome" }), http.StatusConflict, "no_genome")
+
+	wrong := m.pin
+	wrong.MeasurementHex = strings.Repeat("ab", 32)
+	refused("the target does not show the pin", m.order(t, "d", func(o *console.MoveOrder) { o.To.Pin = wrong }), http.StatusConflict, "target_unproven")
+
+	// The stop on the source releases nothing.
+	status, raw := m.owner.do(t, http.MethodPut, "/v1/console/stop", m.owner.signStop(t, 2, true))
+	require.Equal(t, http.StatusOK, status, string(raw))
+	refused("the stop is on", m.order(t, "f", nil), http.StatusConflict, "stopped")
+	status, raw = m.owner.do(t, http.MethodPut, "/v1/console/stop", m.owner.signStop(t, 3, false))
+	require.Equal(t, http.StatusOK, status, string(raw))
+
+	// The stop on the target: nothing is sent to it.
+	status, raw = m.toOwner.do(t, http.MethodPut, "/v1/console/stop", m.toOwner.signStop(t, 1, true))
+	require.Equal(t, http.StatusOK, status, string(raw))
+	refused("the stop is on at the target", m.order(t, "g", nil), http.StatusConflict, "target_stopped")
+	status, raw = m.toOwner.do(t, http.MethodPut, "/v1/console/stop", m.toOwner.signStop(t, 2, false))
+	require.Equal(t, http.StatusOK, status, string(raw))
+
+	// A target with no escrow key cannot receive one.
+	m.to.srv.mat.Escrow = nil
+	refused("no key to receive under", m.order(t, "h", nil), http.StatusConflict, "target_no_key")
+	require.Zero(t, m.from.actions()[console.ActionModelSent])
+}
+
+// The door a model comes in by: a peer or an owner, a proper name, the hash the
+// sender stated, and never over a file already here. A peer gets nothing else.
+func TestConsoleIncoming(t *testing.T) {
+	f := newConsoleFixture(t)
+	peer := f.join(t, "Other (server)", console.RolePeer)
+	viewer := f.join(t, "Viewer", console.RoleViewer)
+	put := func(p *consolePerson, name string, body []byte, sum string) (int, []byte) {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, p.base+"/v1/console/incoming/"+name, bytes.NewReader(body))
+		require.NoError(t, err)
+		if sum != "" {
+			req.Header.Set(consoleSHA256Header, sum)
+		}
+		resp, err := p.client.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		raw, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, raw
+	}
+	body := []byte("ciphertext")
+	digest := sha256.Sum256(body)
+	sum := hex.EncodeToString(digest[:])
+
+	status, raw := put(viewer, "new.genome", body, sum)
+	require.Equal(t, http.StatusForbidden, status)
+	require.Equal(t, "role_refused", errCode(t, raw))
+	status, raw = put(peer, "..%2Fescape.genome", body, sum)
+	require.Equal(t, http.StatusBadRequest, status, string(raw))
+	status, raw = put(peer, "notamodel.txt", body, sum)
+	require.Equal(t, http.StatusBadRequest, status)
+	require.Equal(t, "name_invalid", errCode(t, raw))
+	status, raw = put(peer, "new.genome", body, "")
+	require.Equal(t, http.StatusBadRequest, status)
+	require.Equal(t, "hash_required", errCode(t, raw))
+	status, raw = put(peer, "new.genome", body, strings.Repeat("0", 64))
+	require.Equal(t, http.StatusBadRequest, status)
+	require.Equal(t, "hash_mismatch", errCode(t, raw))
+	require.NoFileExists(t, filepath.Join(f.fx.dir, "new.genome"))
+
+	status, raw = put(peer, "new.genome", body, sum)
+	require.Equal(t, http.StatusOK, status, string(raw))
+	require.FileExists(t, filepath.Join(f.fx.dir, "new.genome"))
+	status, raw = put(peer, "new.genome", []byte("something else"), sum)
+	require.Equal(t, http.StatusConflict, status)
+	require.Equal(t, "already_here", errCode(t, raw))
+	status, raw = put(peer, "gen-0.genome", body, sum)
+	require.Equal(t, http.StatusConflict, status, "a model already here is not replaced")
+	require.Equal(t, "already_here", errCode(t, raw))
+
+	// A peer may ask the chip and hand over a model, and nothing else.
+	f.check(t, peer)
+	status, raw = peer.do(t, http.MethodGet, "/v1/console/journal", nil)
+	require.Equal(t, http.StatusForbidden, status)
+	require.Equal(t, "role_refused", errCode(t, raw))
+	status, raw = peer.do(t, http.MethodPost, "/v1/console/restore-check", nil)
+	require.Equal(t, http.StatusForbidden, status)
+	require.Equal(t, "role_refused", errCode(t, raw))
+}
+
+// A server is on another's list for the time its invite says, whatever else
+// happens: a console that crashed mid-move leaves no standing door.
+func TestConsolePeerExpires(t *testing.T) {
+	f := newConsoleFixture(t)
+	peer := f.person(t)
+	code := f.invite(t, "Other (server)", console.RolePeer, time.Hour)
+	status, raw := peer.doJSON(t, http.MethodPost, "/v1/console/join", console.JoinRequest{Code: code})
+	require.Equal(t, http.StatusOK, status, string(raw))
+	f.check(t, peer)
+	f.srv.mu.Lock()
+	past := time.Now().Add(-time.Minute)
+	f.srv.people[0].ExpiresAt = &past
+	f.srv.mu.Unlock()
+	status, raw = peer.doJSON(t, http.MethodPost, "/v1/console/check", console.CheckRequest{NonceHex: strings.Repeat("00", console.NonceBytes)})
+	require.Equal(t, http.StatusForbidden, status)
+	require.Equal(t, "not_listed", errCode(t, raw))
+
+	// A person's access does not expire with their pass.
+	owner := f.join(t, "Serhii", console.RoleOwner)
+	require.Nil(t, f.check(t, owner).You.ExpiresAt)
+}
+
+// A misconfigured port is refused at start, not in a crash loop.
+func TestConsolePortMustBeItsOwn(t *testing.T) {
+	require.True(t, sameListenPort("0.0.0.0:9443", "127.0.0.1:9443"))
+	require.False(t, sameListenPort("0.0.0.0:9444", "127.0.0.1:9443", "127.0.0.1:9080"))
+	require.False(t, sameListenPort("127.0.0.1:0", "127.0.0.1:0"))
+	require.False(t, sameListenPort("nonsense", "127.0.0.1:9443"))
 }

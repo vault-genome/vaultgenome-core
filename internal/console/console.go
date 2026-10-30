@@ -53,19 +53,38 @@ const (
 
 // Role is what a person may do. A viewer looks; an operator also runs a
 // restore check; an owner also invites people, and the first owner holds
-// the operator key that signs the stop list.
+// the operator key that signs the stop list. A peer is no person: it is
+// another server's listener, on this list for one move, which may ask this
+// chip a question and hand over a sealed model and nothing else.
 type Role string
 
-// The roles, least to most.
+// The roles.
 const (
 	RoleViewer   Role = "viewer"
 	RoleOperator Role = "operator"
 	RoleOwner    Role = "owner"
+	RolePeer     Role = "peer"
 )
 
 // Valid reports whether r is one of the roles.
 func (r Role) Valid() bool {
-	return r == RoleViewer || r == RoleOperator || r == RoleOwner
+	return r == RoleViewer || r == RoleOperator || r == RoleOwner || r == RolePeer
+}
+
+// Allows reports whether r may do what needs min. RolePeer as min means what
+// a server on the list may do, which every role may.
+func (r Role) Allows(min Role) bool {
+	switch min {
+	case RoleOwner:
+		return r == RoleOwner
+	case RoleOperator:
+		return r == RoleOperator || r == RoleOwner
+	case RoleViewer:
+		return r == RoleViewer || r == RoleOperator || r == RoleOwner
+	case RolePeer:
+		return r.Valid()
+	}
+	return false
 }
 
 // CanRestore reports whether r may start a restore check.
@@ -81,6 +100,9 @@ type Person struct {
 	Role         Role      `json:"role"`
 	PublicKeyHex string    `json:"public_key_hex"`
 	AddedAt      time.Time `json:"added_at"`
+	// ExpiresAt ends a server's place on the list, the peer of one move; a
+	// person's has none.
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
 // Invite is the server's record of a pass not yet used, stored under the
@@ -244,6 +266,10 @@ type State struct {
 	Stop           StopState  `json:"stop"`
 	Genomes        []string   `json:"genomes"`
 	QueueDepth     int        `json:"queue_depth"`
+	// EscrowPublicKeyPEM is the key a sealed model's key is wrapped to on its
+	// way here; its private half is sealed to this chip (ADR 0016). Bound into
+	// the check, so a source wraps to the key this chip names and no other.
+	EscrowPublicKeyPEM string `json:"escrow_public_key_pem,omitempty"`
 }
 
 // AuditState is where the journal stands.
@@ -410,6 +436,12 @@ type ActionPayload struct {
 	StopAll      bool   `json:"stop_all,omitempty"`
 	Reason       string `json:"reason,omitempty"`
 	ListSHA256   string `json:"list_sha256,omitempty"`
+	OrderID      string `json:"order_id,omitempty"`
+	Bundle       string `json:"bundle,omitempty"`
+	SHA256       string `json:"sha256,omitempty"`
+	Bytes        int64  `json:"bytes,omitempty"`
+	Measurement  string `json:"measurement_hex,omitempty"`
+	EscrowKey    string `json:"escrow_key,omitempty"`
 }
 
 // The actions of a CONSOLE_ACTION event.

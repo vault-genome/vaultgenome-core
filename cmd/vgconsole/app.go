@@ -22,8 +22,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/vault-genome/vaultgenome-core/internal/console"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
@@ -216,6 +218,35 @@ func (s *server) call(ctx context.Context, method, path string, body []byte, out
 	return json.Unmarshal(raw, out)
 }
 
+// longCall is a call without the client's usual time limit: a large model takes
+// as long as it takes, under ctx.
+func (s *server) longCall(ctx context.Context, method, path string, body []byte, out any) error {
+	req, err := http.NewRequestWithContext(ctx, method, "https://"+s.pass.Address+path, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Transport: s.client.Transport}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode >= 300 {
+		e := &apiError{Status: resp.StatusCode}
+		_ = json.Unmarshal(raw, &e.ErrorBody)
+		return e
+	}
+	if out == nil {
+		return nil
+	}
+	return json.Unmarshal(raw, out)
+}
+
 func (s *server) callJSON(ctx context.Context, method, path string, in, out any) error {
 	body, err := json.Marshal(in)
 	if err != nil {
@@ -394,9 +425,9 @@ func (s *server) refreshJournal(ctx context.Context) error {
 }
 
 // RestoreCheck starts a restore check on the server.
-func (s *server) restoreCheck(ctx context.Context) (console.RestoreResponse, error) {
+func (s *server) restoreCheck(ctx context.Context, bundle string) (console.RestoreResponse, error) {
 	var out console.RestoreResponse
-	err := s.call(ctx, http.MethodPost, "/v1/console/restore-check", nil, &out)
+	err := s.callJSON(ctx, http.MethodPost, "/v1/console/restore-check", console.RestoreRequest{Bundle: bundle}, &out)
 	return out, err
 }
 
@@ -425,6 +456,98 @@ func (a *App) setStop(ctx context.Context, s *server, cur console.StopState, sto
 		return err
 	}
 	return s.call(ctx, http.MethodPut, "/v1/console/stop", raw, nil)
+}
+
+// Move signs the order on this computer and hands it to the source. Before
+// signing, this computer asks both chips itself: an order goes out only for a
+// target that has just proved itself here. When it returns the sealed model and
+// its key are on the target, and the target's own restore check is what proves
+// the move.
+func (a *App) Move(ctx context.Context, from, to *server) (console.MoveResponse, error) {
+	var out console.MoveResponse
+	src, err := from.check(ctx)
+	if err != nil {
+		return out, err
+	}
+	if _, err := to.check(ctx); err != nil {
+		return out, err
+	}
+	if src.State.Stop.HolderPublicKeyHex != a.publicKeyHex() {
+		return out, &apiError{Status: 403, ErrorBody: console.ErrorBody{Code: "list_refused", Message: "this person does not hold the operator key of the source"}}
+	}
+	if len(src.State.Genomes) == 0 {
+		return out, &apiError{Status: 409, ErrorBody: console.ErrorBody{Code: "no_genome", Message: "no sealed model on the source"}}
+	}
+	var code console.InviteResponse
+	if err := to.callJSON(ctx, http.MethodPost, "/v1/console/invites", console.InviteRequest{Name: peerName(from.pass.ServerLabel), Role: console.RolePeer, Hours: 1}, &code); err != nil {
+		return out, err
+	}
+	id := make([]byte, 16)
+	if _, err := rand.Read(id); err != nil {
+		return out, err
+	}
+	key, err := crypto.LoadSigningKey(crypto.SuiteEd25519, a.seed)
+	if err != nil {
+		return out, err
+	}
+	defer key.Zeroize()
+	now := time.Now().UTC().Truncate(time.Second)
+	order, err := console.SignMoveOrder(console.MoveOrder{
+		OrderID: hex.EncodeToString(id), IssuedAt: now, ExpiresAt: now.Add(console.MoveOrderMaxAge),
+		FromCertSHA256: console.CertSHA256(from.certDER), Bundle: src.State.Genomes[0], SigningKeyID: src.State.Stop.KeyID,
+		To: console.MoveTarget{Label: to.pass.ServerLabel, Address: to.pass.Address, ServerCertPEM: to.pass.ServerCertPEM, Pin: to.pass.Pin, JoinCode: code.Code},
+	}, key)
+	if err != nil {
+		return out, err
+	}
+	raw, err := json.Marshal(order)
+	if err != nil {
+		return out, err
+	}
+	if err := from.longCall(ctx, http.MethodPost, "/v1/console/move", raw, &out); err != nil {
+		// Nothing moved: the source has no business on the target's list.
+		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = to.forgetPeers(cleanup)
+		return out, err
+	}
+	return out, nil
+}
+
+// peerName is the name a source server goes by on a target's list.
+func peerName(label string) string {
+	var b strings.Builder
+	for _, r := range label {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == ' ' || r == '.' || r == '_' || r == '-' {
+			b.WriteRune(r)
+		}
+		if b.Len() >= 56 {
+			break
+		}
+	}
+	name := strings.TrimSpace(b.String())
+	if name == "" {
+		name = "Server"
+	}
+	return name + " (server)"
+}
+
+// forgetPeers takes the source servers off this server's list once a move is
+// over: they were there for that move only.
+func (s *server) forgetPeers(ctx context.Context) error {
+	res, err := s.check(ctx)
+	if err != nil {
+		return err
+	}
+	for _, p := range res.State.People {
+		if p.Role != console.RolePeer {
+			continue
+		}
+		if err := s.callJSON(ctx, http.MethodPost, "/v1/console/people/remove", console.RemoveRequest{PublicKeyHex: p.PublicKeyHex}, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Invite asks the server for a code and writes a pass from this one: the

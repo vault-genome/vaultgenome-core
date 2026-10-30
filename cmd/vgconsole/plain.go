@@ -93,10 +93,33 @@ type Overview struct {
 	CanInvite   bool          `json:"can_invite"`
 	Stopped     bool          `json:"stopped"`
 	StopReason  string        `json:"stop_reason,omitempty"`
+	CanMove     bool          `json:"can_move"`
+	Targets     []TargetLine  `json:"targets"`
+	AllServers  []TargetLine  `json:"all_servers"`
+}
+
+// TargetLine is another server this person holds a pass for.
+type TargetLine struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// otherServers are the servers this person may move a model to: those where
+// they have full access.
+func (a *App) otherServers(s *server) []*server {
+	var out []*server
+	for _, other := range a.Servers() {
+		if other.id != s.id && other.you.Role == console.RoleOwner {
+			out = append(out, other)
+		}
+	}
+	return out
 }
 
 func roleText(lang string, r console.Role) string {
 	switch r {
+	case console.RolePeer:
+		return tr(lang, "сервер, только на время переноса", "a server, for the time of a move only")
 	case console.RoleOwner:
 		return tr(lang, "полный доступ", "full access")
 	case console.RoleOperator:
@@ -143,7 +166,10 @@ func (a *App) overview(s *server, lang string) Overview {
 
 	o := Overview{ServerID: s.id, ServerLabel: s.pass.ServerLabel, Where: whereText(lang, s.provider),
 		You: s.you.Name, YourRole: roleText(lang, s.you.Role), Lines: []CheckLine{}, Journal: []JournalLine{}, People: []PersonLine{},
-		CanRestore: s.you.Role.CanRestore(), CanInvite: s.you.Role.CanAdminister()}
+		CanRestore: s.you.Role.CanRestore(), CanInvite: s.you.Role.CanAdminister(), Targets: []TargetLine{}, AllServers: []TargetLine{}}
+	for _, other := range a.Servers() {
+		o.AllServers = append(o.AllServers, TargetLine{ID: other.id, Label: other.pass.ServerLabel})
+	}
 	if last != nil {
 		at := last.At
 		o.CheckedAt = &at
@@ -229,8 +255,20 @@ func (a *App) overview(s *server, lang string) Overview {
 		o.Lines = append(o.Lines, CheckLine{toneOK, tr(lang, "Аварийная остановка готова", "The emergency stop is ready"),
 			tr(lang, "Кнопка у: "+holder+". Ключ от неё есть только на компьютере этого человека, на сервере его нет.", "The button belongs to: "+holder+". Its key is only on that person's computer, not on the server.")})
 	}
-	o.Lines = append(o.Lines, CheckLine{toneWarn, tr(lang, "Резервного сервера нет", "There is no backup server"),
-		tr(lang, "Если этот сервер выйдет из строя, модель пока некуда перенести.", "If this server fails, there is nowhere to move the model yet.")})
+	others := a.otherServers(s)
+	if len(others) == 0 {
+		o.Lines = append(o.Lines, CheckLine{toneWarn, tr(lang, "Второго сервера нет", "There is no second server"),
+			tr(lang, "Если этот сервер выйдет из строя, модель некуда перенести. Попросите ИТ-отдел развернуть второй и прислать вам на него пропуск.", "If this server fails, there is nowhere to move the model. Ask your IT department to deploy a second one and send you a pass for it.")})
+	} else {
+		names := make([]string, 0, len(others))
+		for _, other := range others {
+			names = append(names, other.pass.ServerLabel)
+			o.Targets = append(o.Targets, TargetLine{ID: other.id, Label: other.pass.ServerLabel})
+		}
+		o.Lines = append(o.Lines, CheckLine{toneOK, tr(lang, "Есть куда перенести модель", "There is somewhere to move the model"),
+			tr(lang, "Второй сервер: "+strings.Join(names, ", ")+". Перед переносом он снова докажет чипом, что настоящий.", "Second server: "+strings.Join(names, ", ")+". Before a move it proves again with its chip that it is genuine.")})
+	}
+	o.CanMove = o.CanStop && !st.Stop.StopAll
 
 	warns := 0
 	for _, l := range o.Lines {
@@ -456,6 +494,22 @@ func describe(e audit_event.AuditEvent, idx int, lang string) (JournalLine, bool
 		case console.ActionStopLifted:
 			l.Tone = toneOK
 			l.Text = tr(lang, "Аварийная остановка снята. Кто: "+who, "The emergency stop was lifted. By: "+who)
+		case console.ActionMoveOrdered:
+			l.Tone = toneWarn
+			l.Text = tr(lang, "Приказ о переносе модели на сервер: "+str(p, "subject")+". Кто подписал: "+who, "An order to move the model to the server: "+str(p, "subject")+". Signed by: "+who)
+		case console.ActionModelReleased:
+			l.Tone = toneOK
+			l.Text = tr(lang, "Новый сервер доказал чипом, что настоящий. Ключ от модели зашифрован так, что откроется только на нём: "+str(p, "subject"), "The new server proved with its chip that it is genuine. The model's key was locked so that it opens only there: "+str(p, "subject"))
+		case console.ActionModelSent:
+			l.Tone = toneOK
+			l.Text = tr(lang, "Модель передана на сервер: "+str(p, "subject"), "The model was handed to the server: "+str(p, "subject"))
+		case console.ActionModelReceived:
+			l.Tone = toneOK
+			l.Minor = strings.HasSuffix(str(p, "bundle"), ".escrow")
+			l.Text = tr(lang, "Получена модель от сервера: "+who, "A model arrived from the server: "+who)
+			if l.Minor {
+				l.Text = tr(lang, "Получен ключ от модели, закрытый для этого сервера", "The model's key arrived, locked for this server")
+			}
 		default:
 			return l, false
 		}
@@ -496,6 +550,24 @@ func plainError(lang string, err error) string {
 			return tr(lang, "Срок этого пропуска истёк. Попросите новый.", "This pass has expired. Ask for a new one.")
 		case "no_genome":
 			return tr(lang, "На сервере ещё нет запечатанной модели.", "There is no sealed model on the server yet.")
+		case "order_refused":
+			return tr(lang, "Сервер не принял приказ: он подписан не тем, кто держит кнопку, или устарел.", "The server did not accept the order: it is not signed by the holder of the button, or it is out of date.")
+		case "order_used":
+			return tr(lang, "Этот приказ уже выполнен.", "This order was already carried out.")
+		case "stopped":
+			return tr(lang, "На этом сервере включена аварийная остановка, поэтому он ничего не передаёт.", "The emergency stop is on at this server, so it hands nothing over.")
+		case "target_stopped":
+			return tr(lang, "На новом сервере включена аварийная остановка. Сначала снимите её там.", "The emergency stop is on at the new server. Lift it there first.")
+		case "target_unproven":
+			return tr(lang, "Новый сервер не доказал, что он настоящий. Ничего не передано.", "The new server did not prove it is genuine. Nothing was handed over.")
+		case "target_refused":
+			return tr(lang, "Новый сервер не впустил этот сервер. Ничего не передано. Проверьте, что они видят друг друга по сети.", "The new server did not let this one in. Nothing was handed over. Check that they can reach each other over the network.")
+		case "target_no_key":
+			return tr(lang, "Новый сервер не готов принимать модели. Сообщите в ИТ-отдел.", "The new server is not ready to receive models. Tell your IT department.")
+		case "already_here":
+			return tr(lang, "Такая модель уже есть на новом сервере.", "This model is already on the new server.")
+		case "move_failed":
+			return tr(lang, "Перенос не закончился. Старый сервер продолжает работать как прежде.", "The move did not finish. The old server keeps working as before.")
 		case "list_old":
 			return tr(lang, "На сервере уже действует более новое решение. Обновите страницу.", "A newer decision is already in force on the server. Refresh the page.")
 		case "list_refused":

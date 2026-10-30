@@ -10,9 +10,13 @@
 # console touches it. Keys, seeds and the token stay on the instance and die
 # with it.
 #
+# ROLE=second is the server a model moves to: the same deployment with no model
+# of its own, so whatever comes back on it came from the other one.
+#
 # Inputs: /home/ubuntu/e2e/{sagvd,acp-compute,acpctl,keygen,genome-worker.tgz}.
 # Output: /home/ubuntu/e2e/results.tgz, and the daemons running.
 set -u
+ROLE="${ROLE:-first}"
 exec > >(tee -a /root/e2e.log) 2>&1
 IN=/home/ubuntu/e2e
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
@@ -24,7 +28,6 @@ step "the host as the guest sees it"
 TOKEN_IMDS=$(curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 120')
 imds() { curl -s -H "X-aws-ec2-metadata-token: $TOKEN_IMDS" "http://169.254.169.254/latest/meta-data/$1"; }
 { echo "instance_type=$(imds instance-type)"; echo "zone=$(imds placement/availability-zone)"; echo "region=$(imds placement/region)"; echo "captured=$STAMP"; } > "$OUT/metadata.txt"
-PUBLIC_IP=$(imds public-ipv4)
 unset TOKEN_IMDS
 for f in sys_vendor product_name bios_vendor bios_version; do printf '%s=%s\n' "$f" "$(cat /sys/class/dmi/id/$f 2>/dev/null)"; done > "$OUT/dmi.txt"
 uname -a > "$OUT/kernel.txt"; nproc > "$OUT/nproc.txt"
@@ -54,7 +57,7 @@ mark runtime_install_end
 
 step "acpctl provision --console-listen: the deployment with the console's listener"
 mark provision_start
-./acpctl provision --out "$DEPLOY" --bin-dir "$WORK" --provider auto --fetch-amd-chain milan --console-listen 0.0.0.0:9443 \
+./acpctl provision --out "$DEPLOY" --bin-dir "$WORK" --provider auto --fetch-amd-chain milan --console-listen 0.0.0.0:9444 \
   --door-python "$WORK/venv/bin/python3" --base-model "$WORK/base" --worker-package "$WORK/workers/genome" \
   --vault-descriptor sagvd-console-e2e-v1 --worker-descriptor acp-compute-console-e2e-v1 > "$OUT/provision.out" 2> "$OUT/provision.err"
 echo "provision exit=$?" >> "$OUT/steps.txt"
@@ -62,16 +65,18 @@ mark provision_end
 cp "$DEPLOY/provision.json" "$DEPLOY/sagvd-identity.json" "$DEPLOY/acp-compute-identity.json" "$DEPLOY/sagvd.json" "$DEPLOY/acp-compute.json" "$OUT/" 2>/dev/null || true
 cp "$DEPLOY/operator/audit_public_key.pem" "$OUT/audit-public-key.pem" 2>/dev/null || true
 
-step "a real fine-tune, sealed"
+step "the base model; on the first server a real fine-tune, sealed"
 export PYTHONPATH=$WORK/workers/genome TOKENIZERS_PARALLELISM=false
 ( cd workers/genome && python3 -c 'import sys, json; sys.path.insert(0, "tests"); import conftest
 conftest.make_base(sys.argv[1])
 open(sys.argv[2], "w").write("".join(json.dumps(e) + "\n" for e in conftest.EXAMPLES))' "$WORK/base" "$WORK/train.jsonl" )
-python3 -m vg_genome finetune --base base --base-name tiny-llama --data train.jsonl --out genome \
-  --targets q_proj,v_proj,lm_head --steps 20 --lr 1e-2 --max-len 32 --threads 2 --top-k 8 --new-tokens 4 > "$OUT/finetune.json" 2> "$OUT/finetune.err"
-echo "finetune exit=$?" >> "$OUT/steps.txt"
-./acpctl genome seal --content-dir genome --output "$DEPLOY/genomes/gen-0.genome" --key-out "$DEPLOY/genomes/gen-0.key" --json > "$OUT/seal.json" 2> "$OUT/seal.err"
-echo "seal exit=$?" >> "$OUT/steps.txt"
+if [ "$ROLE" = first ]; then
+  python3 -m vg_genome finetune --base base --base-name tiny-llama --data train.jsonl --out genome \
+    --targets q_proj,v_proj,lm_head --steps 20 --lr 1e-2 --max-len 32 --threads 2 --top-k 8 --new-tokens 4 > "$OUT/finetune.json" 2> "$OUT/finetune.err"
+  echo "finetune exit=$?" >> "$OUT/steps.txt"
+  ./acpctl genome seal --content-dir genome --output "$DEPLOY/genomes/gen-0.genome" --key-out "$DEPLOY/genomes/gen-0.key" --json > "$OUT/seal.json" 2> "$OUT/seal.err"
+  echo "seal exit=$?" >> "$OUT/steps.txt"
+fi
 
 step "both daemons as services"
 mark services_start
@@ -105,6 +110,7 @@ n=0; until journalctl -u sagvd --no-pager -o cat | grep -q "sagvd session opened
 echo "session opened after ${n}s" >> "$OUT/steps.txt"
 mark session_opened
 
+if [ "$ROLE" = first ]; then
 step "one gate job through the REST API, before any console: the deployment as aws-sev-snp's kit proved it"
 TOKEN=$(cat "$DEPLOY/operator/api_token")
 curl -s -o "$OUT/job-submit.json" -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
@@ -125,12 +131,12 @@ j = json.load(open(sys.argv[1])); g = j.get("gate") or {}
 with open(sys.argv[2], "a") as f:
     f.write("gate_level=%s door=%s fixtures=%s\n" % (g.get("level"), g.get("door"), g.get("fixtures")))
 PY
+fi
 mark finished
-ss -ltnp 2>/dev/null | grep -E ':(9443|9090|9080|9081|9082) ' > "$OUT/listeners.txt" || true
+ss -ltnp 2>/dev/null | grep -E ':(9444|9443|9080|9081|9082) ' > "$OUT/listeners.txt" || true
 journalctl -u sagvd --no-pager -o cat > "$OUT/sagvd.log" 2>&1
 journalctl -u acp-compute --no-pager -o cat > "$OUT/acp-compute.log" 2>&1
 cp /root/e2e.log "$OUT/console.log"
-echo "$PUBLIC_IP" > "$IN/public-ip.txt"; chown ubuntu:ubuntu "$IN/public-ip.txt"
 ( cd "$OUT" && sha256sum * > "$WORK/sha256sums.txt" ); mv "$WORK/sha256sums.txt" "$OUT/"
 ( cd "$WORK/out" && tar czf "$IN/results.tgz" "$STAMP" ) && chown ubuntu:ubuntu "$IN/results.tgz"
 echo "E2E DONE $STAMP"
