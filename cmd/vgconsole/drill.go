@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//go:build drill
+
 package main
 
 import (
@@ -22,6 +24,8 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/revocation"
 )
+
+func init() { drillMain = drillCmd }
 
 // drillRecord is one line of what the drill did to a real server and what
 // came back.

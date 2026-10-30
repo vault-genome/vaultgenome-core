@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,6 +152,123 @@ func TestPinVerifierRefusesWhatItCannotCheck(t *testing.T) {
 	require.ErrorContains(t, err, "pcr_digests")
 }
 
+// Every family a pass can name builds its verifier from the pin, or refuses it
+// for what is wrong with it; none falls through to another family's.
+func TestPinVerifierForEachFamily(t *testing.T) {
+	m := hex.EncodeToString(bytes.Repeat([]byte{0xab}, 48))
+	digest := hex.EncodeToString(bytes.Repeat([]byte{1}, 32))
+	for _, p := range []Pin{
+		{Provider: string(tee.ProviderGCPSEVSNP), MeasurementHex: m},
+		{Provider: string(tee.ProviderAWSSEVSNP), MeasurementHex: m},
+		{Provider: string(tee.ProviderGCPSEVSNPVTPM), MeasurementHex: m, PCRDigests: []string{digest}},
+		{Provider: string(tee.ProviderGCPTDX), MeasurementHex: m},
+		{Provider: string(tee.ProviderAzureSEVSNP), MeasurementHex: m, PCRDigests: []string{digest}},
+	} {
+		_, _, err := p.Verifier(t.TempDir())
+		if err != nil {
+			require.ErrorContains(t, err, "build the verifier", p.Provider)
+		}
+	}
+	_, v, err := Pin{Provider: string(tee.ProviderSimulated), MeasurementHex: hex.EncodeToString(bytes.Repeat([]byte{1}, 32)), AttestorPublicKeyHex: hex.EncodeToString(bytes.Repeat([]byte{2}, 32))}.Verifier("")
+	require.NoError(t, err)
+	require.NotNil(t, v)
+	_, _, err = Pin{Provider: string(tee.ProviderSimulated), MeasurementHex: "00", AttestorPublicKeyHex: "00"}.Verifier("")
+	require.ErrorContains(t, err, "attestor key")
+}
+
+// An order is good only as signed, for this server, in its time; every field it
+// must carry is required before it is signed.
+func TestMoveOrder(t *testing.T) {
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	require.NoError(t, err)
+	defer key.Zeroize()
+	other, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	require.NoError(t, err)
+	defer other.Zeroize()
+	now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	cert := []byte("this listener")
+	good := MoveOrder{
+		OrderID: "o1", IssuedAt: now, ExpiresAt: now.Add(10 * time.Minute), FromCertSHA256: CertSHA256(cert), Bundle: "gen-0.genome", SigningKeyID: StopKeyID,
+		To: MoveTarget{Address: "a:1", ServerCertPEM: "x", Pin: Pin{Provider: "aws-sev-snp"}, JoinCode: "c"},
+	}
+	signed, err := SignMoveOrder(good, key)
+	require.NoError(t, err)
+	raw, err := json.Marshal(signed)
+	require.NoError(t, err)
+	got, err := ParseMoveOrder(raw, key.Public(), StopKeyID, cert, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Equal(t, "o1", got.OrderID)
+
+	_, err = ParseMoveOrder(raw, other.Public(), StopKeyID, cert, now)
+	require.ErrorContains(t, err, "does not verify")
+	_, err = ParseMoveOrder(raw, key.Public(), "another", cert, now)
+	require.ErrorContains(t, err, "signed by")
+	_, err = ParseMoveOrder(raw, key.Public(), StopKeyID, []byte("another listener"), now)
+	require.ErrorContains(t, err, "another server")
+	_, err = ParseMoveOrder(raw, key.Public(), StopKeyID, cert, now.Add(time.Hour))
+	require.ErrorContains(t, err, "out of its time")
+	_, err = ParseMoveOrder(raw, key.Public(), StopKeyID, cert, now.Add(-time.Hour))
+	require.ErrorContains(t, err, "out of its time")
+	_, err = ParseMoveOrder([]byte("not json"), key.Public(), StopKeyID, cert, now)
+	require.ErrorContains(t, err, "does not read")
+	tampered := bytes.Replace(raw, []byte("gen-0.genome"), []byte("gen-1.genome"), 1)
+	_, err = ParseMoveOrder(tampered, key.Public(), StopKeyID, cert, now)
+	require.ErrorContains(t, err, "does not verify", "a word changed after signing")
+	badAlg := bytes.Replace(raw, []byte(`"order_id"`), []byte(`"alg":"nonsense","order_id"`), 1)
+	_, err = ParseMoveOrder(badAlg, key.Public(), StopKeyID, cert, now)
+	require.ErrorContains(t, err, "alg")
+
+	_, err = SignMoveOrder(good, nil)
+	require.Error(t, err)
+	for name, mutate := range map[string]func(*MoveOrder){
+		"schema":   func(o *MoveOrder) { o.Schema = "other" },
+		"id":       func(o *MoveOrder) { o.OrderID = "" },
+		"time":     func(o *MoveOrder) { o.IssuedAt = time.Time{} },
+		"too long": func(o *MoveOrder) { o.ExpiresAt = o.IssuedAt.Add(24 * time.Hour) },
+		"source":   func(o *MoveOrder) { o.FromCertSHA256 = "" },
+		"model":    func(o *MoveOrder) { o.Bundle = "../escape" },
+		"target":   func(o *MoveOrder) { o.To.Address = "" },
+		"signer":   func(o *MoveOrder) { o.SigningKeyID = "" },
+	} {
+		o := good
+		mutate(&o)
+		_, err := SignMoveOrder(o, key)
+		require.Error(t, err, name)
+	}
+}
+
+func TestBundleNames(t *testing.T) {
+	require.True(t, ValidBundleName("gen-0.genome"))
+	for _, bad := range []string{"", ".genome", "../x.genome", "a/b.genome", "x.key", "x.genome.escrow", strings.Repeat("a", 200) + ".genome"} {
+		require.False(t, ValidBundleName(bad), bad)
+	}
+}
+
+// What the person's computer is told is the audit key resolves that key, for that
+// purpose, and nothing else.
+func TestAuditResolver(t *testing.T) {
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	require.NoError(t, err)
+	defer key.Zeroize()
+	pemKey, err := key.Public().PEM()
+	require.NoError(t, err)
+	r, err := NewAuditResolver("audit", pemKey)
+	require.NoError(t, err)
+	_, err = r.Resolve("audit", keys.PurposeSigningAudit)
+	require.NoError(t, err)
+	_, err = r.Resolve("other", keys.PurposeSigningAudit)
+	require.Error(t, err)
+	_, err = r.Resolve("audit", keys.PurposeSigningAuthority)
+	require.Error(t, err)
+	_, err = NewAuditResolver("audit", []byte("not a key"))
+	require.Error(t, err)
+}
+
+func TestPassCertificate(t *testing.T) {
+	_, err := Pass{ServerCertPEM: "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"}.CertDER()
+	require.ErrorContains(t, err, "server certificate")
+}
+
 func TestRoles(t *testing.T) {
 	require.True(t, RoleViewer.Valid() && RoleOperator.Valid() && RoleOwner.Valid())
 	require.False(t, Role("admin").Valid())
@@ -158,4 +276,13 @@ func TestRoles(t *testing.T) {
 	require.True(t, RoleOperator.CanRestore())
 	require.False(t, RoleOperator.CanAdminister())
 	require.True(t, RoleOwner.CanAdminister())
+
+	require.True(t, RolePeer.Valid())
+	require.False(t, RolePeer.CanRestore() || RolePeer.CanAdminister())
+	require.False(t, RolePeer.Allows(RoleViewer), "a server on the list does not read the journal")
+	require.True(t, RolePeer.Allows(RolePeer))
+	require.True(t, RoleViewer.Allows(RoleViewer) && !RoleViewer.Allows(RoleOperator))
+	require.True(t, RoleOperator.Allows(RoleOperator) && !RoleOperator.Allows(RoleOwner))
+	require.True(t, RoleOwner.Allows(RoleOwner) && RoleOwner.Allows(RoleOperator) && RoleOwner.Allows(RoleViewer))
+	require.False(t, RoleOwner.Allows(Role("other")))
 }

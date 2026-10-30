@@ -247,6 +247,11 @@ func (w *web) jobAPI(ctx context.Context, r *http.Request, lang string) (any, er
 	if err != nil {
 		return nil, err
 	}
+	return jobView(lang, j), nil
+}
+
+// jobView is a restore check as the page shows it, at any stage.
+func jobView(lang string, j console.JobSummary) map[string]any {
 	text, step := stageText(lang, j.State)
 	out := map[string]any{"status": j.Status, "stage": text, "step": step, "steps": 5, "level": j.GateLevel, "fixtures": j.Fixtures}
 	if j.CompletedAt != nil {
@@ -261,7 +266,7 @@ func (w *web) jobAPI(ctx context.Context, r *http.Request, lang string) (any, er
 	case j.Status == "failed":
 		out["failed"] = refusalText(lang, j)
 	}
-	return out, nil
+	return out
 }
 
 func refusalText(lang string, j console.JobSummary) string {

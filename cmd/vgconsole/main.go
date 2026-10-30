@@ -34,6 +34,10 @@ var (
 	commit  = "unknown"
 )
 
+// drillMain is `vgconsole drill`, in the kit's build only (the drill build tag):
+// a person's application carries no test of itself.
+var drillMain func([]string) int
+
 func main() {
 	version, commit = buildinfo.Resolve(version, commit)
 	if len(os.Args) > 1 {
@@ -42,18 +46,20 @@ func main() {
 			fmt.Printf("vgconsole %s (%s)\n", version, commit)
 			return
 		case "drill":
-			os.Exit(drillCmd(os.Args[2:]))
+			if drillMain != nil {
+				os.Exit(drillMain(os.Args[2:]))
+			}
 		case "check":
 			os.Exit(checkCmd(os.Args[2:]))
 		}
 	}
-	if err := run(os.Args[1:]); err != nil {
+	if err := runConsole(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "vgconsole:", err)
 		os.Exit(1)
 	}
 }
 
-func run(args []string) error {
+func runConsole(args []string) error {
 	fs := flag.NewFlagSet("vgconsole", flag.ContinueOnError)
 	dataDir := fs.String("data-dir", "", "Where this person's key and servers are kept (default: the user's configuration directory)")
 	port := fs.Int("port", 0, "Local port (default: any free one)")

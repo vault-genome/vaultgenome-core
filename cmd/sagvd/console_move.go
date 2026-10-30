@@ -25,6 +25,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/console"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
 	"github.com/vault-genome/vaultgenome-core/internal/genome/escrow"
 )
 
@@ -218,21 +219,28 @@ func (s *consoleServer) envelopeFor(bundleName string, target escrow.PublicKey) 
 	if _, err := os.Stat(filepath.Join(s.genomeDir, keyFile)); err == nil {
 		ref.KeyFile = keyFile
 	}
-	info, err := s.api.genomes.inspect(ref)
-	if err != nil {
-		return nil, err
-	}
 	root, err := os.OpenRoot(s.genomeDir)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = root.Close() }()
-	dek, _, err := s.api.genomes.openKey(root, ref, bundleName, info.View.KeyID)
+	// Only the header: a model of any size moves, and nothing of it is opened here.
+	f, err := root.Open(bundleName)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	rd, err := bundle.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	keyID := rd.Header.KeyID
+	dek, _, err := s.api.genomes.openKey(root, ref, bundleName, keyID)
 	if err != nil {
 		return nil, err
 	}
 	defer clear(dek)
-	env, err := escrow.Seal(dek, info.View.KeyID, target)
+	env, err := escrow.Seal(dek, keyID, target)
 	if err != nil {
 		return nil, err
 	}

@@ -483,7 +483,7 @@ func newMoveFixture(t *testing.T) *moveFixture {
 	to := newConsoleFixture(t)
 	require.NoError(t, os.Remove(filepath.Join(to.fx.dir, "gen-0.genome")))
 	require.NoError(t, os.Remove(filepath.Join(to.fx.dir, "gen-0.key")))
-	kem, err := escrow.GenerateKey(kms.SuiteHPKEX25519)
+	kem, err := escrow.GenerateKey(kms.SuiteHPKEP384)
 	require.NoError(t, err)
 	to.srv.mat.Escrow = kem
 	to.fx.server.genomes.escrow = kem
