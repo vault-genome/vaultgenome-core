@@ -1,0 +1,12 @@
+{
+  "job_id": "b67a672a00940a36f472c63e0511272a",
+  "request_id": "req-b3c582c63cc82076",
+  "status": "succeeded",
+  "state": "release_authorized",
+  "submitted_at": "2026-10-30T20:09:08.735077718Z",
+  "started_at": "2026-10-30T20:09:08.760169147Z",
+  "completed_at": "2026-10-30T20:09:15.23660941Z",
+  "bundle": "gen-0.genome",
+  "gate_level": "EXACT",
+  "fixtures": 6
+}

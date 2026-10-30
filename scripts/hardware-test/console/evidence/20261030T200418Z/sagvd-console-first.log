@@ -1,0 +1,17 @@
+{"time":"2026-10-30T20:08:18.779678007Z","level":"INFO","msg":"sagvd console listener","address":"[::]:9444","people":0}
+{"time":"2026-10-30T20:08:46.143816004Z","level":"INFO","msg":"sagvd console: a person joined","name":"Drill Owner","role":"owner","holds_stop":true}
+{"time":"2026-10-30T20:08:46.265878937Z","level":"INFO","msg":"sagvd console: the stop list changed","person":"Drill Owner","serial":1,"stop_all":false}
+{"time":"2026-10-30T20:08:46.945735382Z","level":"INFO","msg":"sagvd console: a person joined","name":"Viewer Drill","role":"viewer","holds_stop":false}
+{"time":"2026-10-30T20:08:54.958030304Z","level":"INFO","msg":"sagvd console: the stop list changed","person":"Drill Owner","serial":2,"stop_all":true}
+{"time":"2026-10-30T20:08:56.293187233Z","level":"INFO","msg":"sagvd console: the stop list changed","person":"Drill Owner","serial":3,"stop_all":false}
+{"time":"2026-10-30T20:09:05.387764816Z","level":"WARN","msg":"sagvd console: a move order was refused","person":"Drill Owner","err":"console: the order's signature does not verify: integrity[signature_invalid]: crypto: ed25519 signature verification failed"}
+{"time":"2026-10-30T20:09:05.579227242Z","level":"WARN","msg":"sagvd console: a move order was refused","person":"Drill Owner","err":"console: the order is addressed to another server"}
+{"time":"2026-10-30T20:09:05.770085378Z","level":"WARN","msg":"sagvd console: a move order was refused","person":"Drill Owner","err":"console: the order is out of its time"}
+{"time":"2026-10-30T20:09:06.316569579Z","level":"WARN","msg":"sagvd console: the move did not happen","order":"drill-pin","code":"target_unproven","detail":"the new server did not prove itself to this one: integrity[signature_invalid]: console: the chip's evidence does not verify: integrity[signature_invalid]: aws-sev-snp: MEASUREMENT 1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b not in acceptable set"}
+{"time":"2026-10-30T20:09:06.660694109Z","level":"INFO","msg":"sagvd console: the stop list changed","person":"Drill Owner","serial":4,"stop_all":true}
+{"time":"2026-10-30T20:09:07.550077954Z","level":"INFO","msg":"sagvd console: the stop list changed","person":"Drill Owner","serial":5,"stop_all":false}
+{"time":"2026-10-30T20:09:08.618166268Z","level":"INFO","msg":"sagvd console: a model was handed over","order":"5d6bd3955a572f8879f4e7c5e44d461a","bundle":"gen-0.genome","bytes":24729,"seconds":0.602847857}
+{"time":"2026-10-30T20:09:16.53801175Z","level":"WARN","msg":"sagvd console: the move did not happen","order":"534faff5b2206e0ba89821c38126a76e","code":"already_here","detail":"this model is on the new server already"}
+{"time":"2026-10-30T20:09:17.666900628Z","level":"INFO","msg":"sagvd console: the stop list changed","person":"Drill Owner","serial":6,"stop_all":true}
+{"time":"2026-10-30T20:09:18.881120791Z","level":"INFO","msg":"sagvd console: the stop list changed","person":"Drill Owner","serial":7,"stop_all":false}
+{"time":"2026-10-30T20:09:20.839916702Z","level":"INFO","msg":"sagvd console listener","address":"[::]:9444","people":1}

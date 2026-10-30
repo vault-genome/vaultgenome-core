@@ -1,4 +1,0 @@
-instance_type=m6a.xlarge
-zone=us-east-2c
-region=us-east-2
-captured=20261030T194234Z

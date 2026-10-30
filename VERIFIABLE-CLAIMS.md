@@ -4569,7 +4569,7 @@ bucket, public for the template alone.
 ### C60 — A person with no terminal: the chip asked and verified on their own computer, the emergency stop and the move as buttons, from Ohio to Ireland, EXACT on the new server
 
 **Claim.** On 2026-10-30 `scripts/hardware-test/console/run.sh`, from commit
-`9d44d77e` on a clean tree, launched two `m6a.xlarge` EC2 instances with AMD
+`d49df60d` on a clean tree, launched two `m6a.xlarge` EC2 instances with AMD
 SEV-SNP, in `us-east-2c` and `eu-west-1a`, and stood a deployment up on each with
 `acpctl provision --provider auto --console-listen 0.0.0.0:9444`. Only the first
 sealed a model; its own gate job over the REST API came back EXACT, 6 of 6, before
@@ -4578,7 +4578,7 @@ any console touched it (`guest-first/steps.txt`). From a Mac, over the internet,
 to what it must be, 45 of 45 as they must be (`drill.out`, `drill/drill.json`):
 
 - **The door.** A key on nobody's list was refused a check, a made-up pass code was
-  refused; the owner's pass opened in 0.49 s and was dead for anyone else. The first
+  refused; the owner's pass opened in 0.53 s and was dead for anyone else. The first
   owner's key, made on the Mac, became the operator key of the stop list.
 - **The check.** The chip's answer to 32 random bytes verified on the Mac with the
   daemons' verifier code in 0.06 s: `aws-sev-snp`, Milan, `signing_key: vlek`,
@@ -4592,11 +4592,11 @@ to what it must be, 45 of 45 as they must be (`drill.out`, `drill/drill.json`):
   record was caught and named (record 9 of 18), a removed one caught.
 - **Roles.** A viewer's own computer verified the same chip; the listener refused
   that viewer a restore and the stop. Removed, they were refused at once.
-- **The restore check.** By the button, under the person's name: EXACT in 7.5 s.
+- **The restore check.** By the button, under the person's name: EXACT in 7.4 s.
 - **The stop.** The list signed on the Mac; a list signed by another key refused; the
   chip's next answer said the stop was on; a restore was refused on the record
   (`trust_denied`, `operator stop in force`, `drill/job-refused-*.json`); an older
-  list could not lift it; a newer one did, and the model came back EXACT in 7.4 s.
+  list could not lift it; a newer one did, and the model came back EXACT in 7.5 s.
 - **The move.** The second server's chip verified on the Mac and named its key for
   receiving under that chip. An order signed by another key, addressed to another
   server, or out of its time was refused. An order with a pin one bit away reached
@@ -4604,10 +4604,10 @@ to what it must be, 45 of 45 as they must be (`drill.out`, `drill/drill.json`):
   nothing; nothing had arrived. With the stop on, the first server handed over
   nothing. Then the order signed on the Mac was carried out: the first server,
   in Ohio, verified the Irish server's chip, wrapped the model's key to the key that
-  chip named (`11721fa7a06d19b9`), and sent 24 729 bytes of ciphertext, sha256
-  `a2891f23…f5e8`, in 0.60 s of its own time, 1.05 s from the press (`drill/move.json`).
+  chip named (`a8969e0ce419de86`), and sent 24 729 bytes of ciphertext, sha256
+  `5332d3fe…9f99`, in 0.60 s of its own time, 1.07 s from the press (`drill/move.json`).
   The Irish server's own worker brought the model back under its own gate, the key
-  opened from the envelope alone: **EXACT, 6 of 6, in 7.0 s**
+  opened from the envelope alone: **EXACT, 6 of 6, in 7.1 s**
   (`drill/job-*.json`). The same model could not be sent over it. The first server
   was off the second's list after the move; the owner stopped the old server, and
   it refused the model on its record.
@@ -4617,8 +4617,8 @@ proved it (`after-restart.json`: the listener's key opened from its sealed file,
 people and the stop list still there). The daemons stopped, both audit logs came to
 the Mac and were verified there by `acpctl audit verify` and by the independent
 auditor (`tools/auditor/verify_audit.py`), which read the new `CONSOLE_ACTION` kind
-as it reads any other: 70 events, tip `3ddd73d3…aebb`, and 31 events, tip
-`afedc6ca…b7a5` (`audit-verify-*.json`, `audit-independent-*.json`,
+as it reads any other: 70 events, tip `cd66cf5d…f835`, and 31 events, tip
+`1cd0ab01…3e06` (`audit-verify-*.json`, `audit-independent-*.json`,
 `audit-events-*.jsonl`). The record was checked for the account and for IAM ids and
 names neither; this machine's address and the servers' are replaced in it. Both
 instances were deleted (`vm-deleted.txt`).
@@ -4631,7 +4631,7 @@ been opened on macOS on Apple silicon only, and one person holds the stop
 (`KNOWN_ISSUES.md` 20).
 
 **Evidence.**
-[`scripts/hardware-test/console/evidence/20261030T194040Z/`](scripts/hardware-test/console/evidence/20261030T194040Z/)
+[`scripts/hardware-test/console/evidence/20261030T200418Z/`](scripts/hardware-test/console/evidence/20261030T200418Z/)
 — `drill.out`, `drill/` (`drill.json`, `check-*`, `move.json`, `job-*.json`,
 `job-refused-*.json`, and what a person reads: `overview-ru.json`, `overview-en.json`,
 `second-overview-ru.json`, `journal-plain.json`, `second-journal-plain.json`),

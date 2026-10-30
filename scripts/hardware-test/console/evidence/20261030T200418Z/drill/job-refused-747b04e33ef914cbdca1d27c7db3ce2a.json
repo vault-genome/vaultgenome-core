@@ -1,0 +1,12 @@
+{
+  "job_id": "747b04e33ef914cbdca1d27c7db3ce2a",
+  "request_id": "req-d2eac1c9bf2fba58",
+  "status": "failed",
+  "state": "incident_terminated",
+  "submitted_at": "2026-10-30T20:08:55.074857914Z",
+  "started_at": "2026-10-30T20:08:55.076128571Z",
+  "completed_at": "2026-10-30T20:08:55.088022191Z",
+  "bundle": "gen-0.genome",
+  "error_code": "trust_denied",
+  "error_message": "authority[trust_denied]: trust admission denied the request: operator stop in force (revocation serial 2): drill"
+}

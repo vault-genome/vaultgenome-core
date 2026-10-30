@@ -1,9 +1,0 @@
-== the host as the guest sees it
-== binaries from /home/ubuntu/e2e
-== configfs-tsm
-== the worker runtime: python, the pinned CPU torch
-== acpctl provision --console-listen: the deployment with the console's listener
-== the base model; on the first server a real fine-tune, sealed
-Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00, 273.12it/s]
-== both daemons as services
-E2E DONE 20261030T194235Z

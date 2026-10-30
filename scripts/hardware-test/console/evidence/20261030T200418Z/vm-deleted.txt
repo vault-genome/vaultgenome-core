@@ -1,0 +1,2 @@
+server A (us-east-2) state after cleanup: terminated at 2026-10-30T20:10:12Z
+server B (eu-west-1) state after cleanup: terminated at 2026-10-30T20:10:47Z
