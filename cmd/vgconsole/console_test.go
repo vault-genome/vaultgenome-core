@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -57,12 +59,22 @@ func TestEveryRecordReadsPlainly(t *testing.T) {
 				noJargon(t, string(k), line.Text)
 			}
 		}
-		for _, a := range []string{console.ActionPersonJoined, console.ActionPersonRemoved, console.ActionInviteMade, console.ActionStopReady, console.ActionStopSet, console.ActionStopLifted} {
+		for _, a := range []string{console.ActionPersonJoined, console.ActionPersonRemoved, console.ActionInviteMade, console.ActionStopReady, console.ActionStopSet, console.ActionStopLifted, console.ActionMoveOrdered, console.ActionModelReleased, console.ActionModelSent} {
 			line, ok := describe(event(audit_event.KindConsoleAction, console.ActionPayload{Action: a, Person: "Anna", Subject: "Oleg", Role: console.RoleViewer, Reason: "why"}), 3, lang)
 			require.True(t, ok, a)
-			require.Contains(t, line.Text, "Anna", a)
+			require.True(t, strings.Contains(line.Text, "Anna") || strings.Contains(line.Text, "Oleg"), a)
 			noJargon(t, a, line.Text)
 		}
+		line, ok := describe(event(audit_event.KindConsoleAction, console.ActionPayload{Action: console.ActionModelReceived, Person: "AWS Ohio (server)", Bundle: "gen.genome"}), 3, lang)
+		require.True(t, ok)
+		require.Contains(t, line.Text, "AWS Ohio")
+		require.NotContains(t, line.Text, "(server)", "a server is not called a server twice")
+		line, ok = describe(event(audit_event.KindConsoleAction, console.ActionPayload{Action: console.ActionModelReceived, Person: "AWS Ohio (server)", Bundle: "gen.genome.escrow"}), 3, lang)
+		require.True(t, ok)
+		require.True(t, line.Minor, "the key's arrival is a step")
+		line, ok = describe(event(audit_event.KindConsoleAction, console.ActionPayload{Action: console.ActionPersonJoined, Person: "AWS Ohio (server)", Role: console.RolePeer}), 3, lang)
+		require.True(t, ok)
+		require.True(t, line.Minor, "a server's place on the list is a step of the move")
 		for _, s := range []string{"unstarted", "request", "trust", "session", "disclosure", "external_compute", "return", "validation", "release", "audit"} {
 			text, step := stageText(lang, s)
 			noJargon(t, s, text)
@@ -128,9 +140,21 @@ func TestLastRestore(t *testing.T) {
 	require.InDelta(t, 8.0, r.Seconds, 0.01)
 
 	denied := audit_event.AuditEvent{Kind: audit_event.KindTrustEvaluated, RequestID: "r2", OccurredAt: at.Add(time.Minute), Payload: []byte(`{"outcome":"deny","reason":"trust.operator_stop"}`)}
-	r = lastRestore([]audit_event.AuditEvent{req, gate, dec, denied})
+	refused := audit_event.AuditEvent{Kind: audit_event.KindReleaseDecided, RequestID: "r2", OccurredAt: at.Add(time.Minute), Payload: []byte(`{"release":false,"reason":"trust_denied"}`)}
+	r = lastRestore([]audit_event.AuditEvent{req, gate, dec, denied, refused})
 	require.False(t, r.OK)
-	require.Contains(t, r.Reason, "stop")
+	require.True(t, r.Stopped, "the stop's refusal is not a failure")
+
+	failedGate := audit_event.AuditEvent{Kind: audit_event.KindValidationDimension, OccurredAt: at.Add(5 * time.Second), Payload: []byte(`{"detail":{"level":"FAIL"}}`)}
+	notAccepted := audit_event.AuditEvent{Kind: audit_event.KindReleaseDecided, RequestID: "r1", OccurredAt: at.Add(8 * time.Second), Payload: []byte(`{"release":false}`)}
+	r = lastRestore([]audit_event.AuditEvent{req, failedGate, notAccepted})
+	require.False(t, r.OK)
+	require.False(t, r.Stopped)
+
+	// A peer refused at its handshake is no restore that failed.
+	handshake := audit_event.AuditEvent{Kind: audit_event.KindTrustEvaluated, OccurredAt: at.Add(time.Hour), Payload: []byte(`{"outcome":"deny"}`)}
+	r = lastRestore([]audit_event.AuditEvent{req, gate, dec, handshake})
+	require.True(t, r.OK)
 
 	require.Nil(t, lastRestore(nil))
 }
@@ -203,3 +227,38 @@ func TestPlainErrors(t *testing.T) {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+// A console opened again finds the one already running, by asking it, and a
+// stale address left behind is no reason to believe anything.
+func TestAlreadyRunning(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "running.url")
+	_, ok := alreadyRunning(path)
+	require.False(t, ok, "no file")
+
+	a, err := newApp(t.TempDir())
+	require.NoError(t, err)
+	srv := httptest.NewServer(nil)
+	defer srv.Close()
+	addr := strings.TrimPrefix(srv.URL, "http://")
+	srv.Config.Handler = newWeb(a, "tk", addr).handler()
+	require.NoError(t, os.WriteFile(path, []byte(srv.URL+"/?t=tk"), 0o600))
+	url, ok := alreadyRunning(path)
+	require.True(t, ok)
+	require.Equal(t, srv.URL+"/?t=tk", url)
+
+	require.NoError(t, os.WriteFile(path, []byte(srv.URL+"/?t=wrong"), 0o600))
+	_, ok = alreadyRunning(path)
+	require.False(t, ok, "another console's address")
+
+	require.NoError(t, os.WriteFile(path, []byte("http://127.0.0.1:1/?t=tk"), 0o600))
+	_, ok = alreadyRunning(path)
+	require.False(t, ok, "nothing answers")
+}
+
+// An order for a person's move names only what the listener allows.
+func TestPeerName(t *testing.T) {
+	require.Equal(t, "AWS Ohio kit (server)", peerName("AWS Ohio, kit"))
+	require.Equal(t, "Server (server)", peerName("!!!"))
+	long := peerName(strings.Repeat("a", 200))
+	require.LessOrEqual(t, len(long), 64)
+}

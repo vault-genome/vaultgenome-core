@@ -195,13 +195,15 @@ integration surface; the shapes are `internal/console`'s.
 | Route | Who | What |
 | - | - | - |
 | `POST /v1/console/join` | any key | Redeems a pass's single-use code; the key goes on the list |
-| `POST /v1/console/check` | everyone listed | The state as bytes and the chip's evidence over the challenge, the listener's certificate and the state |
-| `GET /v1/console/journal?from=N` | everyone listed | Up to 500 records of the live segment, as signed |
-| `GET /v1/console/jobs/{id}` | everyone listed | A job without its model output |
-| `POST /v1/console/restore-check` | `operator`, `owner` | A gate job on the newest sealed genome, `requester_identity` `person:<name>` |
+| `POST /v1/console/check` | everyone listed, a `peer` too | The state as bytes and the chip's evidence over the challenge, the listener's certificate and the state |
+| `GET /v1/console/journal?from=N` | people | Up to 500 records of the live segment, as signed |
+| `GET /v1/console/jobs/{id}` | people | A job without its model output |
+| `POST /v1/console/restore-check` | `operator`, `owner` | A gate job on the named sealed genome or the newest, `requester_identity` `person:<name>` |
 | `PUT /v1/console/stop` | `owner` | A stop list signed under the operator key; refused unless newer than the one in force |
 | `POST /v1/console/invites` | `owner` | A new single-use code |
 | `POST /v1/console/people/remove` | `owner` | Takes a person off the list; not the holder of the stop |
+| `POST /v1/console/move` | `owner` | Carries out an order signed under the operator key: verifies the target's chip here, wraps the key to the key it names, sends the bundle and the envelope |
+| `PUT /v1/console/incoming/{name}` | `peer`, `owner` | One sealed file, with its hash in `X-Content-SHA256`; a name already here is refused |
 
 A refusal is `{"code","message"}`. What a person changes is a `CONSOLE_ACTION` audit
 event written before it takes effect: 503 `audit_unavailable` means nothing changed.

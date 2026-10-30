@@ -125,6 +125,9 @@ func (s *consoleServer) carryOut(ctx context.Context, order console.MoveOrder, p
 	if err != nil {
 		return out, &moveFailure{status: http.StatusBadRequest, code: "target_unreadable", message: err.Error()}
 	}
+	if bytes.Equal(peer.certDER, s.cert.Certificate[0]) {
+		return out, moveRefused("target_is_source", "a server cannot move a model to itself")
+	}
 	// On the target's list for this move.
 	if err := peer.call(ctx, http.MethodPost, "/v1/console/join", jsonBody(console.JoinRequest{Code: order.To.JoinCode}), nil); err != nil {
 		return out, &moveFailure{status: http.StatusBadGateway, code: "target_refused", message: "the new server did not let this one in: " + err.Error()}
@@ -137,6 +140,9 @@ func (s *consoleServer) carryOut(ctx context.Context, order console.MoveOrder, p
 	}
 	if verdict.State.Stop.StopAll {
 		return out, moveRefused("target_stopped", "the emergency stop is on at the new server")
+	}
+	if slices.Contains(verdict.State.Genomes, order.Bundle) {
+		return out, moveRefused("already_here", "this model is on the new server already")
 	}
 	if verdict.State.EscrowPublicKeyPEM == "" {
 		return out, moveRefused("target_no_key", "the new server has no key to receive a model under")

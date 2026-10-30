@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/console"
@@ -29,9 +30,19 @@ type web struct {
 	app   *App
 	token string
 	addr  string
+	last  atomic.Int64 // when the page last asked anything, unix seconds
 }
 
-func newWeb(app *App, token, addr string) *web { return &web{app: app, token: token, addr: addr} }
+func newWeb(app *App, token, addr string) *web {
+	w := &web{app: app, token: token, addr: addr}
+	w.last.Store(time.Now().Unix())
+	return w
+}
+
+// idleFor is how long ago the page last asked anything.
+func (w *web) idleFor() time.Duration {
+	return time.Since(time.Unix(w.last.Load(), 0))
+}
 
 func (w *web) handler() http.Handler {
 	mux := http.NewServeMux()
@@ -60,6 +71,7 @@ func (w *web) guard(next http.Handler) http.Handler {
 		rw.Header().Set("X-Content-Type-Options", "nosniff")
 		rw.Header().Set("Referrer-Policy", "no-referrer")
 		rw.Header().Set("Cache-Control", "no-store")
+		w.last.Store(time.Now().Unix())
 		next.ServeHTTP(rw, r)
 	})
 }

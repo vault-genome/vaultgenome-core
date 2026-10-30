@@ -521,7 +521,7 @@ func peerName(label string) string {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == ' ' || r == '.' || r == '_' || r == '-' {
 			b.WriteRune(r)
 		}
-		if b.Len() >= 56 {
+		if b.Len() >= 55 {
 			break
 		}
 	}

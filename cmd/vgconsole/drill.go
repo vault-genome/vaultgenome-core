@@ -331,11 +331,12 @@ func (d *drill) run(passRaw, secondRaw []byte, work string) {
 			lines = append(lines, line)
 		}
 	}
-	moves := 0
+	// The stop goes on and off once, and twice more around the move.
+	moves, stops := 0, 1
 	if secondRaw != nil {
-		moves = 1
+		moves, stops = 1, 3
 	}
-	d.record("the journal names every person's action", counts[console.ActionPersonJoined] == 2 && counts[console.ActionStopReady] == 1 && counts[console.ActionStopSet] == 1 && counts[console.ActionStopLifted] == 1 && counts[console.ActionPersonRemoved] == 1 && counts[console.ActionInviteMade] == 1 && counts[console.ActionModelSent] == moves, fmt.Sprintf("%v", counts), time.Time{})
+	d.record("the journal names every person's action", counts[console.ActionPersonJoined] == 2 && counts[console.ActionStopReady] == 1 && counts[console.ActionStopSet] == stops && counts[console.ActionStopLifted] == stops && counts[console.ActionPersonRemoved] == 1 && counts[console.ActionInviteMade] == 1 && counts[console.ActionModelSent] == moves && counts[console.ActionModelReleased] == moves, fmt.Sprintf("%v", counts), time.Time{})
 	rawLines, _ := json.MarshalIndent(lines, "", "  ")
 	d.keep("journal-plain.json", append(rawLines, '\n'))
 	overview, _ := json.MarshalIndent(owner.overview(srv, "ru"), "", "  ")
@@ -443,7 +444,7 @@ func (d *drill) move(ctx context.Context, owner *App, from *server, secondRaw []
 	level, secs := d.restore(ctx, to, resp.Bundle, "the second server's restore check of the moved model")
 	d.record("the moved model comes back on the second server, by its own worker, under its own gate", level == "EXACT" || level == "EQUIVALENT", fmt.Sprintf("%s in %.1f s", level, secs), time.Time{})
 	_, err = owner.Move(ctx, from, to)
-	d.refusal("the same model cannot be sent over it", err, "move_failed")
+	d.refusal("the same model cannot be sent over it", err, "already_here")
 
 	// The second server's own journal says it, verified here.
 	if err := to.forgetPeers(ctx); err != nil {

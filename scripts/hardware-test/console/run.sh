@@ -69,8 +69,9 @@ cleanup() {
 trap cleanup EXIT
 
 log "== 0. build from $(git -C "$ROOT" rev-parse --short=12 HEAD)"
+KITVER="console-kit-$(git -C "$ROOT" rev-parse --short=8 HEAD)"
 ( cd "$ROOT" && for b in sagvd acp-compute acpctl; do
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/$b" "./cmd/$b"; done )
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-X main.version=$KITVER" -o "$BUILD/$b" "./cmd/$b"; done )
 ( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$BUILD/keygen" ./cmd/acp-keygen )
 ( cd "$ROOT" && CGO_ENABLED=0 go build -trimpath -o "$BUILD/vgconsole" ./cmd/vgconsole )
 ( cd "$ROOT" && CGO_ENABLED=0 go build -trimpath -o "$BUILD/acpctl-here" ./cmd/acpctl )

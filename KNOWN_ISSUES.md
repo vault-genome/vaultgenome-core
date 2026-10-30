@@ -664,3 +664,19 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    audit log verified — once, in one region, on one instance type, from
    the tree's binaries, without a reset; the one-button deployment on EC2
    comes with the release that carries the family.
+
+20. **The console (ADR 0039) is one person's hands, on what a deployment already
+   does.** One holder of the stop and of the right to order a move: no second
+   person, no login to a bank's identity provider; a person's key is a 0600 file
+   on their computer, so their account there is their access, and an Ed25519 key,
+   so the `cnsa` profile has no console yet. A pass carries the pin it is checked
+   against, so whoever can replace a pass before it is opened can point a person
+   at another server; a table of known measurements in the binary would narrow
+   that. A move needs the old server alive and the same base model on both; it
+   does not switch the bank's clients, and the sealed model travels whole, with no
+   resume. The page reads the live segment of the journal; closed segments stay
+   `acpctl`'s. Updating a server is not on the page: `08_upgrading.md` is still a
+   person with a terminal. The application is built for six platforms and has run
+   on macOS on Apple silicon; the macOS and Windows files are not yet signed by a
+   Developer ID or an Authenticode certificate, so those systems warn before the
+   first opening.

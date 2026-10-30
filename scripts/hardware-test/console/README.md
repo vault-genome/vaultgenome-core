@@ -1,13 +1,15 @@
 # console — the console on a real server, on the record
 
 [ADR 0039](../../../docs/adr/0039-the-console-a-persons-hands-verified-on-their-computer.md).
-An EC2 instance with AMD SEV-SNP, a deployment with the console's listener on,
-and `vgconsole` on the machine that ran the kit, questioning the chip over the
-internet: nothing on the instance is trusted to say how it went.
+Two EC2 instances with AMD SEV-SNP in two regions, a deployment with the console's
+listener on each, and `vgconsole` on the machine that ran the kit, questioning both
+chips over the internet and moving a model from one to the other: nothing on the
+instances is trusted to say how it went.
 
 ```bash
-scripts/hardware-test/console/run.sh [region] [instance-type]   # us-east-2 m6a.xlarge by default; ~20 min; the instance is deleted at the end
-KEEP=1 KEEP_PASS=./owner.vgpass KEEP_NAME="A Person" KEEP_STATE=./kept.env scripts/hardware-test/console/run.sh   # leaves it up with a fresh owner's pass
+scripts/hardware-test/console/run.sh [first-region] [second-region] [instance-type]   # us-east-2, eu-west-1, m6a.xlarge by default; ~20 min; the instances are deleted at the end
+KEEP_DIR=./kept KEEP_NAME="A Person" scripts/hardware-test/console/run.sh   # no drill: both stay up with a pass each, for a person to press the buttons
+scripts/hardware-test/console/destroy.sh ./kept/kept.env                    # and removes them
 ```
 
 It needs `aws` signed in to an account with EC2 in a region that offers SEV-SNP,
@@ -27,16 +29,28 @@ What `vgconsole drill` does from here, each answer held to what it must be:
 - the restore check comes back; the stop goes on, the chip's next answer says so,
   a restore is refused on the record; a list from another key and an older list
   are refused; the stop is lifted and the model comes back;
-- a removed person is refused at once; the journal names every person's action.
+- a removed person is refused at once; the journal names every person's action;
+- **the move:** the second server's chip verifies here; an order signed by another
+  key, addressed to another server or out of its time is refused; the first server
+  itself refuses a target one bit away from the pin, and nothing arrives; with the
+  stop on it hands over nothing; then the model moves, the first server having
+  verified the second's chip, and comes back EXACT on the second server by its own
+  worker, its key opened from the envelope alone; a second move cannot replace it;
+  the second server's journal verifies here and says so; the first server is off the
+  second's list; the owner stops the old server and it refuses the model on its
+  record.
 
-Then `sagvd` restarts and the same pass and the same chip still prove the server
-(the listener's key opened from its sealed file), both daemons stop, and the audit
-log is verified here by `acpctl` and by the independent auditor.
+Then `sagvd` restarts on the first server and the same pass and the same chip still
+prove it (the listener's key opened from its sealed file), the daemons stop, and
+both audit logs are verified here by `acpctl` and by the independent auditor.
 
 What comes back (`evidence/<stamp>/`): `drill.out`, `drill/` (`drill.json`, the
-check's challenge, state, evidence and detail, the job views, `journal-plain.json`
-and `overview-*.json`, which are what a person reads), `after-restart.json`,
-`audit-verify.json`, `audit-independent.json`, `audit-events.jsonl`, `guest/` with
-the deployment's own record, `binaries.sha256`, `code-rev.txt`, `runner.log`,
-`vm-deleted.txt`, `sha256sums.txt`. The pass never comes back; keys, seeds and the
-token stay on the instance and die with it.
+check's challenge, state, evidence and detail, the job views, `move.json`, and
+`journal-plain.json`, `second-journal-plain.json` and the `overview-*.json`, which are
+what a person reads), `after-restart.json`, `audit-verify-*.json`,
+`audit-independent-*.json`, `audit-events-*.jsonl`, `guest-first/` and `guest-second/`
+with each deployment's own record, `binaries.sha256`, `code-rev.txt`, `runner.log`,
+`vm-deleted.txt`, `sha256sums.txt`. This machine's address and the servers' are
+replaced in the record, and the kit fails if it names the account or an IAM id. The
+passes never come back; keys, seeds and the token stay on the instances and die with
+them.

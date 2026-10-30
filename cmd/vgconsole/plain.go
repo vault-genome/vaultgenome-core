@@ -13,6 +13,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/console"
 	"github.com/vault-genome/vaultgenome-core/internal/contracts/audit_event"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
+	"github.com/vault-genome/vaultgenome-core/internal/vault/trust"
 )
 
 // Everything a person reads on the page is written here, in plain words: no
@@ -69,7 +70,8 @@ type RestoreLine struct {
 	Seconds float64   `json:"seconds"`
 	Level   string    `json:"level,omitempty"`
 	Matched int       `json:"matched,omitempty"`
-	Reason  string    `json:"reason,omitempty"`
+	// Stopped says the emergency stop refused it, which is not a failure.
+	Stopped bool `json:"stopped,omitempty"`
 }
 
 // Overview is the whole page's content.
@@ -228,8 +230,10 @@ func (a *App) overview(s *server, lang string) Overview {
 				fmt.Sprintf("Last check %s: %d of %d control answers matched, in %s s.", humanTime(restore.At), restore.Matched, restore.Matched, seconds(restore.Seconds)))})
 	case st.Stop.StopAll:
 		o.Lines = append(o.Lines, CheckLine{toneInfo, tr(lang, "Возврат модели сейчас запрещён", "Bringing the model back is forbidden now"), tr(lang, "Так и должно быть: включена аварийная остановка.", "As it should be: the emergency stop is on.")})
+	case restore.Stopped:
+		o.Lines = append(o.Lines, CheckLine{toneWarn, tr(lang, "Возврат модели давно не проверялся", "Bringing the model back has not been checked lately"), tr(lang, "Последнюю проверку запретила аварийная остановка. Теперь она снята: нажмите «Проверить возврат модели».", "The emergency stop forbade the last check. It is lifted now: press “Check the model comes back”.")})
 	default:
-		o.Lines = append(o.Lines, CheckLine{toneBad, tr(lang, "Последняя проверка возврата не прошла", "The last check of bringing the model back failed"), restore.Reason})
+		o.Lines = append(o.Lines, CheckLine{toneBad, tr(lang, "Последняя проверка возврата не прошла", "The last check of bringing the model back failed"), tr(lang, "Модель не вернулась или не совпала с оригиналом. Подробности в журнале. Сообщите в ИТ-отдел.", "The model did not come back or did not match the original. See the journal for details and tell your IT department.")})
 	}
 
 	mine := a.publicKeyHex()
@@ -336,6 +340,10 @@ func payloadOf(e audit_event.AuditEvent) map[string]any {
 	return m
 }
 
+// serverLabel is a name on a list as a person reads it: a server there goes by
+// "<label> (server)", which says it twice in a sentence about a server.
+func serverLabel(name string) string { return strings.TrimSuffix(name, " (server)") }
+
 func str(m map[string]any, k string) string {
 	s, _ := m[k].(string)
 	return s
@@ -367,6 +375,9 @@ func lastRestore(events []audit_event.AuditEvent) *RestoreLine {
 				start = p.OccurredAt
 				break
 			}
+			if isRefusal(p) && p.RequestID == req && str(payloadOf(p), "reason") == trust.ReasonOperatorStop {
+				line.Stopped = true
+			}
 			if p.Kind == audit_event.KindValidationDimension {
 				d, _ := payloadOf(p)["detail"].(map[string]any)
 				if l, ok := d["level"].(string); ok {
@@ -384,17 +395,16 @@ func lastRestore(events []audit_event.AuditEvent) *RestoreLine {
 		if e.Kind == audit_event.KindReleaseDecided {
 			released, _ := payloadOf(e)["release"].(bool)
 			line.OK = released && (level == "EXACT" || level == "EQUIVALENT")
-			line.Reason = str(payloadOf(e), "reason")
-		} else {
-			line.Reason = str(payloadOf(e), "reason")
 		}
 		return line
 	}
 	return nil
 }
 
+// isRefusal is a refusal of a job: one with a request behind it. A peer refused
+// at its handshake is no restore that failed.
 func isRefusal(e audit_event.AuditEvent) bool {
-	return e.Kind == audit_event.KindTrustEvaluated && str(payloadOf(e), "outcome") == "deny"
+	return e.RequestID != "" && e.Kind == audit_event.KindTrustEvaluated && str(payloadOf(e), "outcome") == "deny"
 }
 
 // describe turns one record into a line a person reads. Minor lines are the
@@ -454,6 +464,8 @@ func describe(e audit_event.AuditEvent, idx int, lang string) (JournalLine, bool
 			l.Tone, l.Text = toneOK, tr(lang, "Решение записано: модель принята", "Decision recorded: the model is accepted")
 		} else {
 			l.Tone, l.Text = toneBad, tr(lang, "Решение записано: модель не принята", "Decision recorded: the model is not accepted")
+			// A refusal at the door has its own line already.
+			l.Minor = strings.Contains(str(p, "reason"), "trust")
 		}
 	case audit_event.KindSessionInvalidated:
 		l.Minor, l.Text = true, tr(lang, "Защищённый сеанс закрыт", "The protected session was closed")
@@ -472,16 +484,18 @@ func describe(e audit_event.AuditEvent, idx int, lang string) (JournalLine, bool
 	case audit_event.KindAuditSegmentClosed:
 		l.Minor, l.Text = true, tr(lang, "Журнал: заполненный том ушёл в архив", "Journal: a full volume went to the archive")
 	case audit_event.KindConsoleAction:
-		who := str(p, "person")
+		who := serverLabel(str(p, "person"))
+		// A server's place on a list for one move is a step of that move.
+		l.Minor = console.Role(str(p, "role")) == console.RolePeer
 		switch str(p, "action") {
 		case console.ActionPersonJoined:
 			l.Tone = toneOK
 			l.Text = tr(lang, who+" получает доступ: "+roleText(lang, console.Role(str(p, "role"))), who+" gets access: "+roleText(lang, console.Role(str(p, "role"))))
 		case console.ActionPersonRemoved:
 			l.Tone = toneWarn
-			l.Text = tr(lang, "Доступ закрыт: "+str(p, "subject")+". Кто закрыл: "+who, "Access closed: "+str(p, "subject")+". Closed by: "+who)
+			l.Text = tr(lang, "Доступ закрыт: "+serverLabel(str(p, "subject"))+". Кто закрыл: "+who, "Access closed: "+serverLabel(str(p, "subject"))+". Closed by: "+who)
 		case console.ActionInviteMade:
-			l.Text = tr(lang, "Создан пропуск для: "+str(p, "subject")+". Кто создал: "+who, "A pass was made for: "+str(p, "subject")+". Made by: "+who)
+			l.Text = tr(lang, "Создан пропуск для: "+serverLabel(str(p, "subject"))+". Кто создал: "+who, "A pass was made for: "+serverLabel(str(p, "subject"))+". Made by: "+who)
 		case console.ActionStopReady:
 			l.Tone = toneOK
 			l.Text = tr(lang, "Аварийная остановка готова. Кнопка у: "+who, "The emergency stop is ready. The button belongs to: "+who)
@@ -566,6 +580,8 @@ func plainError(lang string, err error) string {
 			return tr(lang, "Новый сервер не готов принимать модели. Сообщите в ИТ-отдел.", "The new server is not ready to receive models. Tell your IT department.")
 		case "already_here":
 			return tr(lang, "Такая модель уже есть на новом сервере.", "This model is already on the new server.")
+		case "target_is_source":
+			return tr(lang, "Это тот же самый сервер.", "This is the same server.")
 		case "move_failed":
 			return tr(lang, "Перенос не закончился. Старый сервер продолжает работать как прежде.", "The move did not finish. The old server keeps working as before.")
 		case "list_old":

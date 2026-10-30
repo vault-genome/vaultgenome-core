@@ -134,7 +134,7 @@ function render(){
   const lines=o.lines.map(l=>`<div class="row"><div class="mark ${l.tone}">${MARK[l.tone]||""}</div><div><b>${esc(l.title)}</b><span>${esc(l.text)}</span></div></div>`).join("");
   const js=o.journal.filter(j=>showAll||!j.minor).slice(0,showAll?2000:60).map(j=>`<div class="jline ${j.tone==="bad"?"bad":""} ${j.minor?"minor":""}"><time datetime="${esc(j.at)}">${clock(j.at)}</time><div>${esc(j.text)}</div></div>`).join("")||`<div class="jline">${t("nojournal")}</div>`;
   const people=(o.people||[]).map(p=>`<div class="person"><div><b>${esc(p.name)}</b>${p.you?` (${t("you")})`:""}<br><span>${esc(p.role)}${p.holds_stop?` · ${t("stopKey")}`:""}</span></div>${o.can_invite&&!p.you&&!p.holds_stop?`<button class="link" data-rm="${esc(p.public_key_hex)}" data-name="${esc(p.name)}">${t("remove")}</button>`:""}</div>`).join("");
-  app.innerHTML=header(o.where)+
+  app.innerHTML=header((o.server_label?o.server_label+" · ":"")+o.where)+
    `<div class="status" data-v="${esc(o.verdict)}"><h1><span class="dot"></span>${esc(o.headline)}</h1><p>${esc(o.subline)}</p>${when}</div>`+
    (err?`<div class="err" role="alert" style="margin:-4px 0 14px">${esc(err)}</div>`:"")+
    `<div class="actions">${acts}</div>${prog}`+

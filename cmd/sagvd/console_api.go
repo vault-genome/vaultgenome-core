@@ -741,7 +741,7 @@ func (s *consoleServer) handleRemove(w http.ResponseWriter, r *http.Request, p c
 		return
 	}
 	if err := s.audit.emit(audit_event.KindConsoleAction, console.ActionPayload{
-		Schema: console.ActionSchema, Action: console.ActionPersonRemoved, Person: p.Name, Subject: s.people[idx].Name, PublicKeyHex: req.PublicKeyHex,
+		Schema: console.ActionSchema, Action: console.ActionPersonRemoved, Person: p.Name, Role: s.people[idx].Role, Subject: s.people[idx].Name, PublicKeyHex: req.PublicKeyHex,
 	}); err != nil {
 		consoleError(w, http.StatusServiceUnavailable, "audit_unavailable", "the record could not be written, so nothing was changed")
 		return

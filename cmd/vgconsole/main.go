@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/buildinfo"
@@ -82,6 +83,15 @@ func run(args []string) error {
 			fmt.Fprintf(os.Stderr, "vgconsole: %s: %v\n", path, err)
 		}
 	}
+	// One console per person: opened again, it shows the page already running.
+	runningPath := filepath.Join(dir, "running.url")
+	if url, ok := alreadyRunning(runningPath); ok {
+		if !*noOpen {
+			openBrowser(url)
+		}
+		fmt.Fprintln(os.Stderr, "vgconsole: already running:", url)
+		return nil
+	}
 	token := *tokenFlag
 	if token == "" {
 		buf := make([]byte, 32)
@@ -96,16 +106,57 @@ func run(args []string) error {
 	}
 	addr := ln.Addr().String()
 	url := "http://" + addr + "/?t=" + token
+	if err := os.WriteFile(runningPath, []byte(url), 0o600); err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(runningPath) }()
 	fmt.Fprintln(os.Stderr, "vgconsole: open", url)
-	srv := &http.Server{Handler: newWeb(app, token, addr).handler(), ReadHeaderTimeout: 5 * time.Second}
+	w := newWeb(app, token, addr)
+	srv := &http.Server{Handler: w.handler(), ReadHeaderTimeout: 5 * time.Second}
 	if !*noOpen {
 		openBrowser(url)
 	}
+	// With no page open for a while there is no one to serve: the process goes,
+	// and the next opening starts a fresh one.
+	go func() {
+		for range time.Tick(time.Minute) {
+			if w.idleFor() > idleLimit {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				_ = srv.Shutdown(ctx)
+				cancel()
+				return
+			}
+		}
+	}()
 	err = srv.Serve(ln)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
 	return err
+}
+
+// idleLimit is how long the process stays with no page asking anything. A page
+// that is open asks every minute.
+const idleLimit = 20 * time.Minute
+
+// alreadyRunning reads the address a console left and asks whether it answers.
+func alreadyRunning(path string) (string, bool) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	url := strings.TrimSpace(string(raw))
+	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return "", false
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", false
+	}
+	_ = resp.Body.Close()
+	return url, resp.StatusCode == http.StatusSeeOther
 }
 
 // checkCmd asks every server this person holds a pass for, now, and prints

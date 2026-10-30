@@ -574,8 +574,9 @@ func TestConsoleMove(t *testing.T) {
 	require.Equal(t, "order_used", errCode(t, raw))
 	// And a model is not replaced under its name.
 	status, raw = m.owner.do(t, http.MethodPost, "/v1/console/move", m.order(t, "order-2", nil))
-	require.Equal(t, http.StatusBadGateway, status)
-	require.Equal(t, "move_failed", errCode(t, raw))
+	require.Equal(t, http.StatusConflict, status)
+	require.Equal(t, "already_here", errCode(t, raw))
+	require.Equal(t, 1, m.from.actions()[console.ActionModelReleased], "no key is released for a model already there")
 }
 
 // Every way an order can be wrong is refused before anything moves.
@@ -608,6 +609,10 @@ func TestConsoleMoveRefusals(t *testing.T) {
 		o.ExpiresAt = now.Add(-50 * time.Minute)
 	}), http.StatusForbidden, "order_refused")
 	refused("no such model", m.order(t, "c", func(o *console.MoveOrder) { o.Bundle = "other.genome" }), http.StatusConflict, "no_genome")
+	refused("to itself", m.order(t, "c2", func(o *console.MoveOrder) {
+		o.To.Address = m.from.srv.Addr()
+		o.To.ServerCertPEM = string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: m.from.certDER}))
+	}), http.StatusConflict, "target_is_source")
 
 	wrong := m.pin
 	wrong.MeasurementHex = strings.Repeat("ab", 32)

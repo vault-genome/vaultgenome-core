@@ -79,7 +79,28 @@ could not have prepared for.
    older serial is refused. The first owner's console signs a first list that stops
    nothing as soon as they join.
 
-8. **Plain words are a requirement, and a test.** No word on the page needs a
+8. **A planned move is a signed order, carried out by the source and proved by
+   the target.** ADR 0012 asks who decides that a model moves and answers: the
+   operator, in writing. That holds here at the moment of the move. The holder
+   signs an order on their computer, with the key that signs the stop list,
+   naming this server, this sealed model, that server and the pin it must show;
+   it is good for fifteen minutes and for one move. Their console first asks both
+   chips itself. The source then does not take the console's word for the target:
+   it asks the target's chip with a challenge of its own and verifies the answer
+   with the pin in the order. It wraps the model's key to the escrow key that
+   answer names (the key's private half sealed to that chip, ADR 0016), puts the
+   release on its record, and sends the bundle, which is ciphertext, and the
+   envelope. Nothing moves while the stop is on at either end, and a name already
+   on the target is not replaced. The target then brings the model back by its
+   own worker, under its own gate, on its own record, with the key opened from
+   the envelope alone: that restore, and not the transfer, is what the person is
+   shown as the move's result. For the transfer the source's listener is on the
+   target's list as a `peer`, with a time limit, which may ask the chip and hand
+   over a model and nothing else; the console takes it off again. `acpctl
+   provision --console-listen` makes the escrow key, so any deployment with a
+   console can receive.
+
+9. **Plain words are a requirement, and a test.** No word on the page needs a
    technician. `cmd/vgconsole/console_test.go` walks every record kind, stage and
    refusal in both languages against a list of the words a person would have to
    ask about. What a platform cannot prove is shown beside what it can: on EC2 the
@@ -88,11 +109,17 @@ could not have prepared for.
 
 ## What this does not do
 
-- **It does not move a model.** No button for it exists yet, because the code has
-  no order "move now": failover's triggers are a compromise report, a lost
-  heartbeat and a stopped primary (ADR 0012). A planned move is the next decision.
-  Until then the page says that there is no backup server, because that is true
-  of a one-host deployment.
+- **A move needs the old server alive.** It is for the failure known in advance.
+  A server already dead or attacked is ADR 0012's: a sentinel, a replica of its
+  outbox, a standby armed by a signed policy, which this console does not drive.
+- **A move does not switch the bank's clients.** The model comes back on the new
+  server and is proved there; the bank's traffic is the bank's to switch, and the
+  dialog says so before anyone presses it. The old server keeps releasing until
+  the holder stops it, which the page asks for as the last step.
+- **Both servers need the same base model** for the restore to pass the gate.
+- **The sealed model moves whole**, however large, over the two servers' own link;
+  there is no resume yet, and a move that breaks off leaves nothing under the
+  model's name on the target, so it can be pressed again.
 - **The stop does not switch off the bank's model.** It refuses key releases and
   gate jobs. The dialog says so before anyone presses it. The Vault is not a model
   server (`docs/operator/00_overview.md`).
