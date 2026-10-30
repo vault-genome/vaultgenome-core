@@ -81,7 +81,11 @@ func TestEveryRecordReadsPlainly(t *testing.T) {
 			require.GreaterOrEqual(t, step, 1)
 		}
 	}
-	_, ok := describe(event(audit_event.KindConsoleAction, console.ActionPayload{Action: "something new"}), 0, "ru")
+	stale, ok := describe(event(audit_event.KindTrustEvaluated, map[string]any{"outcome": "deny", "code": evidenceStaleCode}), 0, "ru")
+	require.True(t, ok)
+	require.True(t, stale.Minor, "a worker told to attest again is routine")
+	require.NotEqual(t, toneBad, stale.Tone)
+	_, ok = describe(event(audit_event.KindConsoleAction, console.ActionPayload{Action: "something new"}), 0, "ru")
 	require.False(t, ok, "an unknown action is not guessed at")
 }
 

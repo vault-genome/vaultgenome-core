@@ -307,7 +307,7 @@ func (a *App) save(s *server) error {
 	return os.WriteFile(filepath.Join(a.dir, "servers", s.id+".json"), raw, 0o600)
 }
 
-// Servers lists the servers by label.
+// Servers lists the servers in the order this person got them.
 func (a *App) Servers() []*server {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -315,7 +315,12 @@ func (a *App) Servers() []*server {
 	for _, s := range a.servers {
 		out = append(out, s)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].pass.ServerLabel < out[j].pass.ServerLabel })
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].you.AddedAt.Equal(out[j].you.AddedAt) {
+			return out[i].you.AddedAt.Before(out[j].you.AddedAt)
+		}
+		return out[i].id < out[j].id
+	})
 	return out
 }
 

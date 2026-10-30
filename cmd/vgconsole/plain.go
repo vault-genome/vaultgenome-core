@@ -214,15 +214,15 @@ func (a *App) overview(s *server, lang string) Overview {
 	o.Lines = append(o.Lines, CheckLine{toneOK,
 		tr(lang, "Сервер настоящий", "The server is genuine"),
 		tr(lang,
-			fmt.Sprintf("Чип %s подписал ответ на случайный вопрос, который ваш компьютер задал только что. Подделать такую подпись нельзя. Проверка сделана на вашем компьютере, а не на сервере.", chipMaker(s.provider)),
-			fmt.Sprintf("The %s chip signed its answer to a random question your computer has just asked. That signature cannot be forged. The check ran on your computer, not on the server.", chipMaker(s.provider)))})
+			fmt.Sprintf("Защищённый чип %s внутри сервера подписал ответ на случайный вопрос, который ваш компьютер задал только что. Подделать такую подпись нельзя. Проверка сделана на вашем компьютере, а не на сервере.", chipMaker(s.provider)),
+			fmt.Sprintf("The protected %s chip inside the server signed its answer to a random question your computer has just asked. That signature cannot be forged. The check ran on your computer, not on the server.", chipMaker(s.provider)))})
 	o.Lines = append(o.Lines, bootLine(lang, s.provider))
 	o.Lines = append(o.Lines, journalLine(lang, journalErr, len(events), st.Audit))
 
 	restore := lastRestore(events)
 	switch {
 	case restore == nil:
-		o.Lines = append(o.Lines, CheckLine{toneWarn, tr(lang, "Возврат модели ещё не проверялся", "Bringing the model back has not been checked"), tr(lang, "Нажмите «Проверить возврат модели».", "Press “Check the model comes back”.")})
+		o.Lines = append(o.Lines, CheckLine{toneWarn, tr(lang, "Возврат модели ещё не проверялся", "Bringing the model back has not been checked"), tr(lang, "Нажмите «Проверить возврат модели».", "Press “Test bringing the model back”.")})
 	case restore.OK:
 		o.Lines = append(o.Lines, CheckLine{toneOK, tr(lang, "Модель возвращается точно такой же", "The model comes back exactly the same"),
 			tr(lang,
@@ -231,7 +231,7 @@ func (a *App) overview(s *server, lang string) Overview {
 	case st.Stop.StopAll:
 		o.Lines = append(o.Lines, CheckLine{toneInfo, tr(lang, "Возврат модели сейчас запрещён", "Bringing the model back is forbidden now"), tr(lang, "Так и должно быть: включена аварийная остановка.", "As it should be: the emergency stop is on.")})
 	case restore.Stopped:
-		o.Lines = append(o.Lines, CheckLine{toneWarn, tr(lang, "Возврат модели давно не проверялся", "Bringing the model back has not been checked lately"), tr(lang, "Последнюю проверку запретила аварийная остановка. Теперь она снята: нажмите «Проверить возврат модели».", "The emergency stop forbade the last check. It is lifted now: press “Check the model comes back”.")})
+		o.Lines = append(o.Lines, CheckLine{toneWarn, tr(lang, "Возврат модели давно не проверялся", "Bringing the model back has not been checked lately"), tr(lang, "Последнюю проверку запретила аварийная остановка. Теперь она снята: нажмите «Проверить возврат модели».", "The emergency stop forbade the last check. It is lifted now: press “Test bringing the model back”.")})
 	default:
 		o.Lines = append(o.Lines, CheckLine{toneBad, tr(lang, "Последняя проверка возврата не прошла", "The last check of bringing the model back failed"), tr(lang, "Модель не вернулась или не совпала с оригиналом. Подробности в журнале. Сообщите в ИТ-отдел.", "The model did not come back or did not match the original. See the journal for details and tell your IT department.")})
 	}
@@ -289,11 +289,11 @@ func (a *App) overview(s *server, lang string) Overview {
 	case warns > 0:
 		o.Verdict = "attention"
 		o.Headline = tr(lang, fmt.Sprintf("Работает. Замечаний: %d", warns), fmt.Sprintf("Working. Items to review: %d", warns))
-		o.Subline = tr(lang, "Модель защищена, сервер подтвердил себя чипом. Ниже написано, что исправить.", "The model is protected and the server proved itself with its chip. See below what to fix.")
+		o.Subline = tr(lang, "Модель ИИ защищена, сервер подтвердил себя чипом. Ниже написано, что исправить.", "The AI model is protected and the server proved itself with its chip. See below what to fix.")
 	default:
 		o.Verdict = "ok"
 		o.Headline = tr(lang, "Всё в порядке", "All is well")
-		o.Subline = tr(lang, "Модель защищена, сервер подтвердил себя чипом.", "The model is protected and the server proved itself with its chip.")
+		o.Subline = tr(lang, "Модель ИИ защищена, сервер подтвердил себя чипом.", "The AI model is protected and the server proved itself with its chip.")
 	}
 	return o
 }
@@ -339,6 +339,10 @@ func payloadOf(e audit_event.AuditEvent) map[string]any {
 	_ = json.Unmarshal(e.Payload, &m)
 	return m
 }
+
+// evidenceStaleCode is the daemon's word for a worker told to attest again
+// before it is handed a job: routine, and the job goes on.
+const evidenceStaleCode = "evidence_stale"
 
 // serverLabel is a name on a list as a person reads it: a server there goes by
 // "<label> (server)", which says it twice in a sentence about a server.
@@ -420,6 +424,11 @@ func describe(e audit_event.AuditEvent, idx int, lang string) (JournalLine, bool
 		if str(p, "outcome") == "allow" {
 			l.Tone, l.Minor = toneOK, true
 			l.Text = tr(lang, "Рабочий сервер доказал чипом, что он настоящий", "The worker server proved with its chip that it is genuine")
+			break
+		}
+		if str(p, "code") == evidenceStaleCode {
+			l.Tone, l.Minor = toneInfo, true
+			l.Text = tr(lang, "Рабочий сервер подтверждает себя заново: прошлое подтверждение устарело", "The worker server is proving itself again: its last proof grew old")
 			break
 		}
 		l.Tone = toneBad
