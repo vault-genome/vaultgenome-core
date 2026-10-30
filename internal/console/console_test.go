@@ -128,11 +128,12 @@ func TestVerifyEvents(t *testing.T) {
 
 func TestParsePass(t *testing.T) {
 	_, err := ParsePass([]byte("not json"))
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrNotAPass)
 	_, err = ParsePass([]byte(`{"schema":"something else"}`))
 	require.ErrorContains(t, err, "not a pass file")
 	_, err = ParsePass([]byte(`{"schema":"` + PassSchema + `"}`))
 	require.ErrorContains(t, err, "names no server")
+	require.ErrorIs(t, err, ErrNotAPass)
 	_, err = ParsePass([]byte(`{"schema":"` + PassSchema + `","address":"a:1","server_cert_pem":"x","audit_public_key_pem":"x","audit_key_id":"k"}`))
 	require.ErrorContains(t, err, "no server certificate")
 	_, err = ParsePass([]byte(`{"schema":"` + PassSchema + `","extra":1}`))

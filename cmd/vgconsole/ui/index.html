@@ -120,7 +120,9 @@ function renderEmpty(){
   app.innerHTML=header("")+`<div class="status empty"><h1>${t("emptyT")}</h1><p>${t("emptyP")}</p><label class="drop" id="drop"><input type="file" id="file">${t("emptyB")}</label>${err?`<div class="err" role="alert">${esc(err)}</div>`:""}</div>`;
   document.getElementById("file").addEventListener("change",e=>{if(e.target.files[0])openPass(e.target.files[0]);});
   const d=document.getElementById("drop");d.addEventListener("dragover",e=>e.preventDefault());d.addEventListener("drop",e=>{e.preventDefault();if(e.dataTransfer.files[0])openPass(e.dataTransfer.files[0]);});
+  bindLang();
 }
+function bindLang(){app.querySelectorAll("[data-lang]").forEach(b=>b.addEventListener("click",async()=>{lang=b.dataset.lang;document.documentElement.lang=lang;try{localStorage.setItem("vg-lang",lang);}catch(e){}if(ov){ov=await api("/api/overview");}render();}));}
 async function openPass(f){err="";try{const text=await f.text();const o=await api("/api/join",{method:"POST",body:text});server=o.server_id;ov=o;render();}catch(e){err=e.message;renderEmpty();}}
 function render(){
   if(!ov){renderEmpty();return;}
@@ -152,7 +154,7 @@ function bind(){
   on("b-stop",()=>confirmStop(true));on("b-lift",()=>confirmStop(false));on("b-invite",inviteDlg);on("b-move",moveDlg);on("b-stopold",stopOld);
   app.querySelectorAll("[data-srv]").forEach(b=>b.addEventListener("click",async()=>{server=b.dataset.srv;job=null;err="";ov=await api("/api/overview");render();}));
   app.querySelectorAll("[data-rm]").forEach(b=>b.addEventListener("click",()=>removeDlg(b.dataset.rm,b.dataset.name)));
-  app.querySelectorAll("[data-lang]").forEach(b=>b.addEventListener("click",async()=>{lang=b.dataset.lang;document.documentElement.lang=lang;try{localStorage.setItem("vg-lang",lang);}catch(e){}if(ov){ov=await api("/api/overview");}render();}));
+  bindLang();
 }
 async function doCheck(){busy=true;err="";render();try{ov=await api("/api/check",{method:"POST"});}catch(e){err=e.message;}busy=false;render();}
 async function doRestore(){busy=true;err="";job={step:1,steps:5,stage:""};render();try{const r=await api("/api/restore",{method:"POST"});

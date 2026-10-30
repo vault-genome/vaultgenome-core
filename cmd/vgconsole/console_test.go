@@ -223,6 +223,7 @@ func TestPlainErrors(t *testing.T) {
 		}
 	}
 	require.Contains(t, plainError("en", &console.BrokenJournalError{Index: 4}), "number 5")
+	require.Contains(t, plainError("ru", console.ErrNotAPass), ".vgpass")
 	require.Contains(t, plainError("ru", errString("tls: failed to verify certificate")), "не тот сервер")
 	require.Contains(t, plainError("en", errString("dial tcp: connection refused")), "does not answer")
 	require.Contains(t, plainError("en", errString("anything else")), "failed the check")

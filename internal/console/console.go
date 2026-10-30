@@ -137,22 +137,25 @@ type Pass struct {
 	ExpiresAt  time.Time `json:"expires_at,omitempty"`
 }
 
+// ErrNotAPass says a file a person chose is not a pass.
+var ErrNotAPass = errors.New("console: not a pass file")
+
 // ParsePass reads a pass file.
 func ParsePass(raw []byte) (Pass, error) {
 	var p Pass
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&p); err != nil {
-		return Pass{}, fmt.Errorf("console: not a pass file: %w", err)
+		return Pass{}, fmt.Errorf("%w: %v", ErrNotAPass, err)
 	}
 	if p.Schema != PassSchema {
-		return Pass{}, fmt.Errorf("console: not a pass file: schema %q", p.Schema)
+		return Pass{}, fmt.Errorf("%w: schema %q", ErrNotAPass, p.Schema)
 	}
 	if p.Address == "" || p.ServerCertPEM == "" || p.AuditPublicKeyPEM == "" || p.AuditKeyID == "" {
-		return Pass{}, errors.New("console: the pass names no server")
+		return Pass{}, fmt.Errorf("%w: it names no server", ErrNotAPass)
 	}
 	if _, err := p.CertDER(); err != nil {
-		return Pass{}, err
+		return Pass{}, fmt.Errorf("%w: %v", ErrNotAPass, err)
 	}
 	return p, nil
 }

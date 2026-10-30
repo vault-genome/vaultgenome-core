@@ -604,6 +604,9 @@ func plainError(lang string, err error) string {
 		}
 		return api.Message
 	}
+	if errors.Is(err, console.ErrNotAPass) {
+		return tr(lang, "Это не файл-пропуск. Выберите файл, который прислал ИТ-отдел: его имя заканчивается на .vgpass.", "This is not a pass file. Choose the file your IT department sent: its name ends in .vgpass.")
+	}
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, "certificate"):
