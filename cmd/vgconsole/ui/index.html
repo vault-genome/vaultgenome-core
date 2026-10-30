@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vault Genome</title>
+<style>
+:root{
+  --bg:#f4f5f3;--panel:#fff;--ink:#16201c;--muted:#5b6761;--line:#dde1dc;
+  --ok:#0f7a4f;--ok-bg:#e4f4ec;--warn:#9a6200;--warn-bg:#fbf1dc;--bad:#b3261e;--bad-bg:#fbe6e4;--limit:#4a5a70;--limit-bg:#e9edf3;
+  --btn:#16201c;--btn-ink:#fff;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#101412;--panel:#191f1c;--ink:#ecefed;--muted:#9aa5a0;--line:#2b332f;
+  --ok:#54d09a;--ok-bg:#12291f;--warn:#e7b35a;--warn-bg:#2c2413;--bad:#f28b82;--bad-bg:#331b19;--limit:#a9b8cc;--limit-bg:#1e2530;
+  --btn:#ecefed;--btn-ink:#101412;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 64px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.brand{font-weight:650;letter-spacing:.01em}
+.where{color:var(--muted);font-size:14px}
+.lang button{background:none;border:0;color:var(--muted);font:inherit;font-size:14px;padding:4px 6px;cursor:pointer}
+.lang button[aria-pressed=true]{color:var(--ink);font-weight:650}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tabs button{font:inherit;font-size:14px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.tabs button[aria-pressed=true]{background:var(--btn);border-color:var(--btn);color:var(--btn-ink)}
+.done{background:var(--ok-bg);border-radius:12px;padding:16px;margin-bottom:22px}
+.done b{display:block;margin-bottom:4px}.done p{margin:0 0 10px;max-width:62ch}
+.status{border-radius:14px;padding:24px;margin-bottom:14px;background:var(--panel);border:1px solid var(--line)}
+.status h1{margin:0 0 6px;font-size:30px;line-height:1.2;display:flex;align-items:center;gap:12px}
+.dot{width:16px;height:16px;border-radius:50%;flex:none;background:var(--muted)}
+.status[data-v=ok]{background:var(--ok-bg);border-color:transparent}.status[data-v=ok] .dot{background:var(--ok)}
+.status[data-v=attention]{background:var(--warn-bg);border-color:transparent}.status[data-v=attention] .dot{background:var(--warn)}
+.status[data-v=stopped],.status[data-v=unproven],.status[data-v=offline]{background:var(--bad-bg);border-color:transparent}
+.status[data-v=stopped] .dot,.status[data-v=unproven] .dot,.status[data-v=offline] .dot{background:var(--bad)}
+.status p{margin:0;max-width:62ch}
+.when{color:var(--muted);font-size:14px;margin-top:8px}
+.actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:22px}
+.action{display:flex;flex-direction:column;gap:6px}
+.action small{color:var(--muted);font-size:13.5px;line-height:1.35}
+button.big{font:inherit;font-weight:600;padding:13px 14px;border-radius:10px;border:1px solid var(--btn);background:var(--btn);color:var(--btn-ink);cursor:pointer}
+button.big.secondary{background:transparent;color:var(--ink)}
+button.big.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+button.big.lift{background:var(--ok);border-color:var(--ok);color:#fff}
+button.big[disabled]{opacity:.5;cursor:wait}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+.progress{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:22px}
+.progress b{display:block;margin-bottom:8px}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);width:0;transition:width .4s}
+.progress.bad .bar i{background:var(--bad)}
+section{margin-bottom:26px}
+h2{font-size:18px;margin:0 0 10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.row{display:flex;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.mark{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:14px;font-weight:700;margin-top:1px}
+.mark.ok{background:var(--ok-bg);color:var(--ok)}.mark.warn{background:var(--warn-bg);color:var(--warn)}
+.mark.bad{background:var(--bad-bg);color:var(--bad)}.mark.limit,.mark.info{background:var(--limit-bg);color:var(--limit)}
+.row b{display:block;font-weight:600}
+.row span{color:var(--muted);font-size:14.5px}
+.jline{display:flex;gap:12px;padding:8px 16px;border-top:1px solid var(--line);font-size:15px}
+.jline:first-child{border-top:0}
+.jline time{color:var(--muted);flex:none;width:108px;font-variant-numeric:tabular-nums;font-size:14px}
+.jline.bad{color:var(--bad);font-weight:600}.jline.minor{color:var(--muted);font-size:14px}
+.head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px}
+.head h2{margin:0}
+.link{background:none;border:0;padding:0;color:var(--ink);text-decoration:underline;font:inherit;font-size:14px;cursor:pointer}
+.person{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--line)}
+.person:first-child{border-top:0}.person span{color:var(--muted);font-size:14px}
+.empty{padding:28px 24px}
+.empty h1{margin:0 0 8px;font-size:26px}.empty p{margin:0 0 16px;max-width:60ch;color:var(--muted)}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:30px;text-align:center;cursor:pointer;display:block;font-weight:600}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.err{color:var(--bad);margin-top:10px}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:22px;max-width:460px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h3{margin:0 0 8px;font-size:20px}dialog p{margin:0 0 12px}
+dialog input,dialog select{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);margin-bottom:12px}
+dialog label{display:block;font-size:14px;color:var(--muted);margin-bottom:4px}
+.dbtns{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+.dbtns button{font:inherit;font-weight:600;padding:10px 14px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.dbtns .go{background:var(--btn);border-color:var(--btn);color:var(--btn-ink)}.dbtns .go.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+@media (max-width:520px){.jline{flex-direction:column;gap:0}.jline time{width:auto}.status h1{font-size:25px}}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<dialog id="dlg"></dialog>
+<input type="file" id="passpick" accept=".vgpass,application/json" hidden>
+<script>
+"use strict";
+const T={
+ ru:{check:"Проверить сейчас",checkHelp:"Задать чипу сервера случайный вопрос и проверить ответ здесь, на вашем компьютере.",restore:"Проверить возврат модели",restoreHelp:"Модель вернётся из защищённого хранилища, и её ответы сравнятся с оригиналом. Рабочая модель банка не затрагивается.",stop:"Аварийная остановка",stopHelp:"Сервер перестанет выдавать ключи от модели. Рабочая модель банка от этого не выключится.",lift:"Снять остановку",liftHelp:"Сервер снова сможет выдавать ключи от модели.",move:"Перенести на другой сервер",moveHelp:"Модель будет передана на другой сервер в зашифрованном виде, и он докажет, что вернул её точно такой же.",addServer:"Добавить сервер",moveNoT:"Нужен второй сервер",moveNoP:"Перенести модель пока некуда. ИТ-отдел разворачивает второй сервер и присылает вам на него пропуск. Откройте его здесь: сервер появится в приложении, и перенос станет возможен.",passOpen:"Открыть пропуск",moveT:"Перенести модель?",moveP:"Этот сервер проверит чип нового сервера и передаст ему модель в зашифрованном виде. Ключ откроется только на новом сервере. Затем новый сервер вернёт модель и сравнит её с оригиналом. Перенос подписывается вашим ключом и записывается в журналы обоих серверов.",moveP2:"Клиентов банка на новый сервер переключает ИТ-отдел: это отдельный шаг.",moveTo:"Куда перенести",moveGo:"Да, перенести",moving:"Модель передаётся на новый сервер",movedT:"Модель перенесена",movedP:"Новый сервер вернул модель и подтвердил совпадение. Осталось два шага: ИТ-отдел переключает клиентов, а вы останавливаете выдачу на старом сервере.",stopOld:"Остановить старый сервер",stopOldDone:"Старый сервер остановлен",what:"Что проверено",journal:"Что происходило",all:"Показать всё",less:"Только главное",people:"Кто имеет доступ",invite:"Пригласить человека",checked:"Проверено",justNow:"только что",secAgo:"с назад",minAgo:"мин назад",you:"вы",stopKey:"кнопка остановки",remove:"Закрыть доступ",version:"Версия программы на сервере",emptyT:"Подключите сервер",emptyP:"ИТ-отдел присылает вам файл-пропуск. Откройте его здесь. Пропуск работает один раз: он привязывается к этому компьютеру, и больше ни у кого не откроется.",emptyB:"Выбрать файл-пропуск",running:"Идёт проверка возврата модели",ok:"Готово",sec:"с",stopT:"Включить аварийную остановку?",stopP:"Сервер перестанет выдавать ключи от модели, и модель нельзя будет вернуть ни на какой сервер. Рабочая модель банка от этого не выключится. Снять остановку сможете только вы. Запись появится в журнале под вашим именем.",reason:"Причина (необязательно)",cancel:"Отмена",stopGo:"Да, остановить",liftT:"Снять аварийную остановку?",liftP:"Сервер снова сможет выдавать ключи от модели. Запись появится в журнале под вашим именем.",liftGo:"Да, снять",invT:"Пригласить человека",invP:"Получится файл-пропуск. Отправьте его этому человеку. Он сработает один раз и только в течение трёх суток.",name:"Имя",role:"Что сможет делать",r_viewer:"Только смотреть",r_operator:"Смотреть и запускать проверки",r_owner:"Полный доступ",invGo:"Создать пропуск",rmT:"Закрыть доступ?",rmP:"Этот человек сразу потеряет доступ к серверу. Запись появится в журнале под вашим именем.",rmGo:"Да, закрыть",you2:"Вы",recs:"записей",nojournal:"Записей пока нет."},
+ en:{check:"Check now",checkHelp:"Ask the server's chip a random question and check the answer here, on your computer.",restore:"Test bringing the model back",restoreHelp:"The model comes back from protected storage and its answers are compared with the original. The bank's running model is not touched.",stop:"Emergency stop",stopHelp:"The server stops giving out keys to the model. The bank's running model is not switched off by this.",lift:"Lift the stop",liftHelp:"The server can give out keys to the model again.",move:"Move to another server",moveHelp:"The model is handed to another server encrypted, and that server proves it brought it back exactly the same.",addServer:"Add a server",moveNoT:"A second server is needed",moveNoP:"There is nowhere to move the model yet. Your IT department deploys a second server and sends you a pass for it. Open it here: the server appears in this application and a move becomes possible.",passOpen:"Open a pass",moveT:"Move the model?",moveP:"This server checks the new server's chip and hands it the model encrypted. The key opens only on the new server. The new server then brings the model back and compares it with the original. The move is signed with your key and written to the journals of both servers.",moveP2:"Your IT department switches the bank's clients to the new server: that is a separate step.",moveTo:"Move to",moveGo:"Yes, move",moving:"The model is being handed to the new server",movedT:"The model has moved",movedP:"The new server brought the model back and confirmed the match. Two steps remain: your IT department switches the clients, and you stop release at the old server.",stopOld:"Stop the old server",stopOldDone:"The old server is stopped",what:"What was checked",journal:"What happened",all:"Show everything",less:"Only the main events",people:"Who has access",invite:"Invite a person",checked:"Checked",justNow:"just now",secAgo:"s ago",minAgo:"min ago",you:"you",stopKey:"stop button",remove:"Close access",version:"Program version on the server",emptyT:"Connect a server",emptyP:"Your IT department sends you a pass file. Open it here. A pass works once: it binds to this computer and will not open for anyone else.",emptyB:"Choose the pass file",running:"Testing that the model comes back",ok:"Done",sec:"s",stopT:"Switch on the emergency stop?",stopP:"The server stops giving out keys to the model, and the model cannot be brought back on any server. The bank's running model is not switched off by this. Only you can lift the stop. A record goes in the journal under your name.",reason:"Reason (optional)",cancel:"Cancel",stopGo:"Yes, stop",liftT:"Lift the emergency stop?",liftP:"The server can give out keys to the model again. A record goes in the journal under your name.",liftGo:"Yes, lift",invT:"Invite a person",invP:"This makes a pass file. Send it to this person. It works once and only for three days.",name:"Name",role:"What they may do",r_viewer:"View only",r_operator:"View and run checks",r_owner:"Full access",invGo:"Make the pass",rmT:"Close access?",rmP:"This person loses access to the server at once. A record goes in the journal under your name.",rmGo:"Yes, close",you2:"You",recs:"records",nojournal:"No records yet."}
+};
+let lang="en";
+try{const s=localStorage.getItem("vg-lang");if(s==="ru"||s==="en")lang=s;else if((navigator.language||"").toLowerCase().startsWith("ru"))lang="ru";}catch(e){if((navigator.language||"").toLowerCase().startsWith("ru"))lang="ru";}
+// The token comes in the address's fragment, which never leaves the browser, and
+// stays for this tab only; a reload finds it, a new tab needs the address again.
+let token="";
+try{token=sessionStorage.getItem("vg-token")||"";}catch(e){}
+{const m=/^#t=([0-9A-Za-z_-]+)$/.exec(location.hash);if(m){token=m[1];try{sessionStorage.setItem("vg-token",token);history.replaceState(null,"",location.pathname);}catch(e){}}}
+let server="",ov=null,showAll=false,busy=false,job=null,err="",moved=null;
+const t=k=>T[lang][k];
+const app=document.getElementById("app");const dlg=document.getElementById("dlg");
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function api(path,opts){
+  const url=path+(path.includes("?")?"&":"?")+"lang="+lang+(server?"&server="+server:"");
+  const r=await fetch(url,Object.assign({headers:{"X-VG-Token":token}},opts||{}));
+  if(r.status===403){throw new Error(lang==="ru"?"Страница устарела. Откройте приложение заново.":"This page is out of date. Open the application again.");}
+  const j=await r.json();
+  if(!r.ok)throw new Error(j.error||"error");
+  return j;
+}
+const MARK={ok:"✓",warn:"!",bad:"✕",limit:"i",info:"i"};
+function ago(iso){const s=Math.max(0,Math.round((Date.now()-new Date(iso))/1000));if(s<5)return t("justNow");if(s<90)return s+" "+t("secAgo");return Math.round(s/60)+" "+t("minAgo");}
+function clock(iso){const d=new Date(iso);return d.toLocaleDateString(lang==="ru"?"ru-RU":"en-GB",{day:"2-digit",month:"2-digit"})+" "+d.toLocaleTimeString(lang==="ru"?"ru-RU":"en-GB",{hour:"2-digit",minute:"2-digit",second:"2-digit"});}
+function whenText(o){return o.checked_at?`${t("checked")}: ${ago(o.checked_at)}${o.version?` · ${t("version")}: ${esc(o.version)}`:""}`:"";}
+function tick(){const el=document.querySelector(".when");if(el&&ov)el.innerHTML=whenText(ov);}
+function header(where){const tabs=(ov&&ov.all_servers&&ov.all_servers.length>1)?`<div class="tabs">${ov.all_servers.map(x=>`<button data-srv="${esc(x.id)}" aria-pressed="${x.id===ov.server_id}">${esc(x.label)}</button>`).join("")}</div>`:"";return `<header><div><div class="brand">Vault Genome</div><div class="where">${esc(where||"")}</div>${tabs}</div><div class="lang"><button data-lang="ru" aria-pressed="${lang==="ru"}">RU</button><button data-lang="en" aria-pressed="${lang==="en"}">EN</button></div></header>`;}
+function renderEmpty(){
+  app.innerHTML=header("")+`<div class="status empty"><h1>${t("emptyT")}</h1><p>${t("emptyP")}</p><label class="drop" id="drop"><input type="file" id="file">${t("emptyB")}</label>${err?`<div class="err" role="alert">${esc(err)}</div>`:""}</div>`;
+  document.getElementById("file").addEventListener("change",e=>{if(e.target.files[0])openPass(e.target.files[0]);});
+  const d=document.getElementById("drop");d.addEventListener("dragover",e=>e.preventDefault());d.addEventListener("drop",e=>{e.preventDefault();if(e.dataTransfer.files[0])openPass(e.dataTransfer.files[0]);});
+  bindLang();
+}
+function bindLang(){app.querySelectorAll("[data-lang]").forEach(b=>b.addEventListener("click",async()=>{lang=b.dataset.lang;document.documentElement.lang=lang;try{localStorage.setItem("vg-lang",lang);}catch(e){}if(ov){ov=await api("/api/overview");}render();}));}
+async function openPass(f){err="";try{const text=await f.text();const o=await api("/api/join",{method:"POST",body:text});server=o.server_id;ov=o;render();}catch(e){err=e.message;renderEmpty();}}
+function render(){
+  if(!ov){renderEmpty();return;}
+  const o=ov;
+  const when=o.checked_at?`<div class="when">${whenText(o)}</div>`:"";
+  let acts=`<div class="action"><button class="big" id="b-check" ${busy?"disabled":""}>${t("check")}</button><small>${t("checkHelp")}</small></div>`;
+  if(o.can_restore)acts+=`<div class="action"><button class="big secondary" id="b-restore" ${busy?"disabled":""}>${t("restore")}</button><small>${t("restoreHelp")}</small></div>`;
+  if(o.can_stop){acts+=o.stopped?`<div class="action"><button class="big lift" id="b-lift" ${busy?"disabled":""}>${t("lift")}</button><small>${t("liftHelp")}</small></div>`:`<div class="action"><button class="big danger" id="b-stop" ${busy?"disabled":""}>${t("stop")}</button><small>${t("stopHelp")}</small></div>`;}
+  if(o.can_stop||o.can_move)acts+=`<div class="action"><button class="big secondary" id="b-move" ${busy||o.stopped?"disabled":""}>${t("move")}</button><small>${t("moveHelp")}</small></div>`;
+  let prog="";
+  if(job){const pct=job.done||job.failed?100:Math.round((job.step||0)/(job.steps||5)*100);const head=job.failed?esc(job.failed):job.done?esc(job.done)+(job.fixtures?` · ${job.fixtures}/${job.fixtures}`:"")+(job.seconds?` · ${job.seconds.toFixed(1)} ${t("sec")}`:""):t("running");
+    prog=`<div class="progress ${job.failed?"bad":""}" role="status"><b>${head}</b><div class="bar"><i style="width:${pct}%"></i></div>${!job.done&&!job.failed?`<div class="where" style="margin-top:8px">${esc(job.stage||"")}</div>`:""}</div>`;}
+  const lines=o.lines.map(l=>`<div class="row"><div class="mark ${l.tone}">${MARK[l.tone]||""}</div><div><b>${esc(l.title)}</b><span>${esc(l.text)}</span></div></div>`).join("");
+  const js=o.journal.filter(j=>showAll||!j.minor).slice(0,showAll?2000:60).map(j=>`<div class="jline ${j.tone==="bad"?"bad":""} ${j.minor?"minor":""}"><time datetime="${esc(j.at)}">${clock(j.at)}</time><div>${esc(j.text)}</div></div>`).join("")||`<div class="jline">${t("nojournal")}</div>`;
+  const people=(o.people||[]).map(p=>`<div class="person"><div><b>${esc(p.name)}</b>${p.you?` (${t("you")})`:""}<br><span>${esc(p.role)}${p.holds_stop?` · ${t("stopKey")}`:""}</span></div>${o.can_invite&&!p.you&&!p.holds_stop?`<button class="link" data-rm="${esc(p.public_key_hex)}" data-name="${esc(p.name)}">${t("remove")}</button>`:""}</div>`).join("");
+  app.innerHTML=header((o.server_label?o.server_label+" · ":"")+o.where)+
+   `<div class="status" data-v="${esc(o.verdict)}"><h1><span class="dot"></span>${esc(o.headline)}</h1><p>${esc(o.subline)}</p>${when}</div>`+
+   (err?`<div class="err" role="alert" style="margin:-4px 0 14px">${esc(err)}</div>`:"")+
+   `<div class="actions">${acts}</div>${prog}`+
+   (moved?`<div class="done" role="status"><b>${t("movedT")}</b><p>${t("movedP")}</p>${moved.oldStopped?`<b>${t("stopOldDone")}</b>`:`<button class="big danger" id="b-stopold" ${busy?"disabled":""}>${t("stopOld")}</button>`}</div>`:"")+
+   `<section><h2>${t("what")}</h2><div class="card">${lines}</div></section>`+
+   `<section><div class="head"><h2>${t("journal")}</h2><button class="link" id="b-all">${showAll?t("less"):t("all")}</button></div><div class="card">${js}</div></section>`+
+   `<section><div class="head"><h2>${t("people")}</h2>${o.can_invite?`<button class="link" id="b-invite">${t("invite")}</button>`:""}</div><div class="card">${people}</div></section>`;
+  bind();
+}
+function bind(){
+  const on=(id,f)=>{const el=document.getElementById(id);if(el)el.addEventListener("click",f);};
+  on("b-check",doCheck);on("b-restore",doRestore);on("b-all",()=>{showAll=!showAll;render();});
+  on("b-stop",()=>confirmStop(true));on("b-lift",()=>confirmStop(false));on("b-invite",inviteDlg);on("b-move",moveDlg);on("b-stopold",stopOld);
+  app.querySelectorAll("[data-srv]").forEach(b=>b.addEventListener("click",async()=>{server=b.dataset.srv;job=null;err="";ov=await api("/api/overview");render();}));
+  app.querySelectorAll("[data-rm]").forEach(b=>b.addEventListener("click",()=>removeDlg(b.dataset.rm,b.dataset.name)));
+  bindLang();
+}
+async function doCheck(){busy=true;err="";render();try{ov=await api("/api/check",{method:"POST"});}catch(e){err=e.message;}busy=false;render();}
+async function doRestore(){busy=true;err="";job={step:1,steps:5,stage:""};render();try{const r=await api("/api/restore",{method:"POST"});
+  for(;;){await new Promise(z=>setTimeout(z,1000));job=await api("/api/job?id="+encodeURIComponent(r.job_id));render();if(job.status==="succeeded"||job.status==="failed")break;}
+  ov=await api("/api/check",{method:"POST"});
+ }catch(e){err=e.message;job=null;}busy=false;render();}
+function dialog(html,go){dlg.innerHTML=html;dlg.showModal();dlg.querySelector("[data-cancel]").addEventListener("click",()=>dlg.close());dlg.querySelector("[data-go]").addEventListener("click",async()=>{const v=go();dlg.close();await v;});}
+function confirmStop(stop){
+  dialog(`<h3>${stop?t("stopT"):t("liftT")}</h3><p>${stop?t("stopP"):t("liftP")}</p>${stop?`<label for="why">${t("reason")}</label><input id="why" maxlength="200">`:""}<div class="dbtns"><button data-cancel>${t("cancel")}</button><button data-go class="go ${stop?"danger":""}">${stop?t("stopGo"):t("liftGo")}</button></div>`,
+   ()=>{const why=stop?dlg.querySelector("#why").value:"";return (async()=>{busy=true;err="";job=null;render();try{ov=await api("/api/stop",{method:"POST",body:JSON.stringify({stop:stop,reason:why})});}catch(e){err=e.message;}busy=false;render();})();});
+}
+function moveDlg(){
+  const o=ov;
+  if(!o.targets||!o.targets.length){
+    dialog(`<h3>${t("moveNoT")}</h3><p>${t("moveNoP")}</p><div class="dbtns"><button data-cancel>${t("cancel")}</button><button data-go class="go">${t("passOpen")}</button></div>`,
+      ()=>{const inp=document.getElementById("passpick");inp.value="";inp.click();});
+    return;
+  }
+  dialog(`<h3>${t("moveT")}</h3><p>${t("moveP")}</p><p><b>${t("moveP2")}</b></p><label for="to">${t("moveTo")}</label><select id="to">${o.targets.map(x=>`<option value="${esc(x.id)}">${esc(x.label)}</option>`).join("")}</select><div class="dbtns"><button data-cancel>${t("cancel")}</button><button data-go class="go danger">${t("moveGo")}</button></div>`,
+   ()=>{const to=dlg.querySelector("#to").value;return doMove(to);});
+}
+async function doMove(to){
+  const fromId=server;busy=true;err="";moved=null;job={step:1,steps:5,stage:t("moving")};render();
+  try{
+    const r=await api("/api/move?to="+encodeURIComponent(to),{method:"POST"});
+    server=to;ov=await api("/api/check",{method:"POST"});render();
+    const start=await api("/api/restore?bundle="+encodeURIComponent(r.bundle),{method:"POST"});
+    for(;;){await new Promise(z=>setTimeout(z,1000));job=await api("/api/job?id="+encodeURIComponent(start.job_id));render();if(job.status==="succeeded"||job.status==="failed")break;}
+    if(job.status==="succeeded"){moved={from:fromId,oldStopped:false};await api("/api/forget-peers",{method:"POST"});}
+    ov=await api("/api/check",{method:"POST"});
+  }catch(e){err=e.message;job=null;}
+  busy=false;render();
+}
+async function stopOld(){
+  if(!moved)return;
+  const keep=server;busy=true;err="";render();
+  try{server=moved.from;await api("/api/stop",{method:"POST",body:JSON.stringify({stop:true,reason:lang==="ru"?"Модель перенесена на другой сервер":"The model moved to another server"})});moved.oldStopped=true;}catch(e){err=e.message;}
+  server=keep;busy=false;try{ov=await api("/api/check",{method:"POST"});}catch(e){}render();
+}
+function inviteDlg(){
+  dialog(`<h3>${t("invT")}</h3><p>${t("invP")}</p><label for="nm">${t("name")}</label><input id="nm" maxlength="64"><label for="rl">${t("role")}</label><select id="rl"><option value="viewer">${t("r_viewer")}</option><option value="operator">${t("r_operator")}</option><option value="owner">${t("r_owner")}</option></select><div class="dbtns"><button data-cancel>${t("cancel")}</button><button data-go class="go">${t("invGo")}</button></div>`,
+   ()=>{const name=dlg.querySelector("#nm").value.trim(),role=dlg.querySelector("#rl").value;return (async()=>{err="";try{const r=await api("/api/invite",{method:"POST",body:JSON.stringify({name,role})});const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([r.pass],{type:"application/json"}));a.download=name.replace(/[^\p{L}\p{N}._-]+/gu,"-")+".vgpass";document.body.appendChild(a);a.click();a.remove();ov=await api("/api/check",{method:"POST"});}catch(e){err=e.message;}render();})();});
+}
+function removeDlg(key,name){
+  dialog(`<h3>${t("rmT")}</h3><p><b>${esc(name)}</b>. ${t("rmP")}</p><div class="dbtns"><button data-cancel>${t("cancel")}</button><button data-go class="go danger">${t("rmGo")}</button></div>`,
+   ()=>(async()=>{err="";try{ov=await api("/api/remove",{method:"POST",body:JSON.stringify({public_key_hex:key})});}catch(e){err=e.message;}render();})());
+}
+async function openSecond(f){err="";try{const text=await f.text();await api("/api/join",{method:"POST",body:text});ov=await api("/api/overview");}catch(e){err=e.message;}render();}
+async function start(){
+  document.documentElement.lang=lang;
+  document.getElementById("passpick").addEventListener("change",e=>{if(e.target.files[0])openSecond(e.target.files[0]);});
+  try{const s=await api("/api/servers");if(s.length){server=s[0].id;ov=await api("/api/overview");}}catch(e){err=e.message;}
+  render();
+  // The page asks the chip every minute and redraws only when something changed,
+  // so a person's place on the page and the keyboard's focus stay where they are.
+  const same=(a,b)=>{const k=o=>JSON.stringify(Object.assign({},o,{checked_at:null}));return k(a)===k(b);};
+  setInterval(async()=>{if(busy||!ov||dlg.open)return;try{const next=await api("/api/check",{method:"POST"});const changed=!same(next,ov);ov=next;if(changed)render();else tick();}catch(e){}},60000);
+  setInterval(tick,15000);
+}
+start();
+</script>
+</body>
+</html>

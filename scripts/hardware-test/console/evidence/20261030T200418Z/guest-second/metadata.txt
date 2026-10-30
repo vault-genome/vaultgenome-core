@@ -1,0 +1,4 @@
+instance_type=m6a.xlarge
+zone=eu-west-1a
+region=eu-west-1
+captured=20261030T200614Z

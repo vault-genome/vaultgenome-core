@@ -1,0 +1,15 @@
+== the host as the guest sees it
+== binaries from /home/ubuntu/e2e
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch
+== acpctl provision --console-listen: the deployment with the console's listener
+provision exit=0
+== the base model; on the first server a real fine-tune, sealed
+finetune exit=0
+seal exit=0
+== both daemons as services
+sagvd ready after 1s
+session opened after 0s
+== one gate job through the REST API, before any console: the deployment as aws-sev-snp's kit proved it
+job status=succeeded after 7s
+gate_level=EXACT door=pinned replay fixtures=6

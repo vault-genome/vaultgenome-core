@@ -1,0 +1,78 @@
+provision: /root/deploy (family aws-sev-snp, peer aws-sev-snp, sealer auto)
+  key material: /root/deploy/secrets (acp-keygen, private modes)
+  AMD VLEK chain (the chip's product): /root/deploy/amd-milan-vlek-cert_chain.pem (Milan; ARK 69d063b45344d26a2e94e1f4210de49ef555308287d4c174445c95639a540bcd, a root this build pins)
+  configurations: /root/deploy/sagvd.json, /root/deploy/acp-compute.json
+  sagvd identity: 1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b (aws-sev-snp)
+  acp-compute identity: 1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b (aws-sev-snp)
+  audit public key: /root/deploy/operator/audit_public_key.pem (keep it off the host: it verifies the log)
+  sagvd key files sealed (sev-snp-derived-key): keys.authority_signing.seed_path, keys.session_sealing.material_path, keys.audit_signing.seed_path, vault.tls.server_key, http_api.bearer_token_file
+  acp-compute key files sealed (sev-snp-derived-key): keys.worker_signing.seed_path, keys.session_sealing.material_path, vault.tls.client_key
+  the console's escrow key: sealed to this host, public half /root/deploy/operator/escrow_public_key.pem
+provision.json: /root/deploy/provision.json
+  REST token (the operator's copy): /root/deploy/operator/api_token (not printed)
+{
+  "schema": "vault-genome/acpctl-provision/v1",
+  "role": "both",
+  "phase": "complete",
+  "out": "/root/deploy",
+  "provider": "auto",
+  "peer_provider": "aws-sev-snp",
+  "sealer": "auto",
+  "binaries": {
+    "acp-compute": "/root/e2e/acp-compute",
+    "keygen": "/root/e2e/keygen",
+    "sagvd": "/root/e2e/sagvd"
+  },
+  "secrets": "/root/deploy/secrets",
+  "configs": {
+    "acp-compute": "/root/deploy/acp-compute.json",
+    "sagvd": "/root/deploy/sagvd.json"
+  },
+  "configs_sha256": {
+    "acp-compute": "e42335773fb40be9b5ffacb00787839c4bc9ed7f5c1faa2d1cab0aa876826a1c",
+    "sagvd": "f7ff395f95227361ffe2c2cbaf250f39a5283395d3ca8ddc43a8faa328217d43"
+  },
+  "pins": {
+    "vault": "/root/deploy/pins/vault.measurement",
+    "worker": "/root/deploy/pins/worker.measurement"
+  },
+  "amd_cert_chain": "/root/deploy/amd-milan-vlek-cert_chain.pem",
+  "vault": {
+    "provider": "aws-sev-snp",
+    "measurement_hex": "1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b",
+    "sealer": "sev-snp-derived-key",
+    "vlek_csp_id": "CN=cc-eu-west-1.amazonaws.com",
+    "audit_kid": "sagvd-audit-demo",
+    "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAzvam+uNjn1SXP4GIkyWZC6MuxNacZWoZCA3zlPrphDY=\n-----END PUBLIC KEY-----\n",
+    "authority_kid": "sagvd-authority-demo",
+    "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAleWYRgiPH5FzDfOCE7pabb4JMYHRMmWOG6pGWPTo680=\n-----END PUBLIC KEY-----\n",
+    "identity_file": "/root/deploy/sagvd-identity.json"
+  },
+  "worker": {
+    "provider": "aws-sev-snp",
+    "measurement_hex": "1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b",
+    "sealer": "sev-snp-derived-key",
+    "vlek_csp_id": "CN=cc-eu-west-1.amazonaws.com",
+    "identity_file": "/root/deploy/acp-compute-identity.json"
+  },
+  "api_token_file": "/root/deploy/operator/api_token",
+  "sealed": {
+    "acp-compute": [
+      "keys.worker_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "vault.tls.client_key"
+    ],
+    "sagvd": [
+      "keys.authority_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "keys.audit_signing.seed_path",
+      "vault.tls.server_key",
+      "http_api.bearer_token_file"
+    ]
+  },
+  "next": [
+    "/root/e2e/sagvd -config /root/deploy/sagvd.json",
+    "/root/e2e/acp-compute -config /root/deploy/acp-compute.json",
+    "acpctl genome seal --content-dir \u003cgenome\u003e --output /root/deploy/genomes/gen-0.genome --key-out /root/deploy/genomes/gen-0.key"
+  ]
+}

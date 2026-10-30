@@ -59,6 +59,7 @@ echo "the-bearer-token-0123456789abcdef" > "$out/sagvd/api_token"
 echo "` + name + ` $*" >> ` + record + `
 case "$1" in
   identity) printf '%s\n' '{"tee_provider":"` + identityProvider + `","tee_measurement_hex":"` + m + `","sealer":"stub","audit_kid":"sagvd-audit-demo","audit_public_key_pem":"-----BEGIN PUBLIC KEY-----\nstub\n-----END PUBLIC KEY-----\n","authority_kid":"sagvd-authority-demo","vtpm":{` + vtpmPCRsJSON(pcrs) + `"pcr_digest_hex":"` + boot + `"}}' ;;
+  escrow-provision) printf '%s\n' '{}' ;;
   seal-keys) printf '%s\n' '{"tee":"` + identityProvider + `","measurement_hex":"` + m + `","sealer":"stub","sealed":[{"name":"keys.one","path":"/x"},{"name":"keys.two","path":"/y"}]}' ;;
   *) echo "unknown $1" >&2; exit 2 ;;
 esac
@@ -260,6 +261,39 @@ func TestProvision_AzurePinsEachSidesBoot(t *testing.T) {
 	args[1], args[3] = filepath.Join(t.TempDir(), "deploy"), binDir
 	require.Equal(t, 1, provisionCmd(args, &stdout, &stderr))
 	require.Contains(t, stderr.String(), `vtpm.pcr_digest_hex "cafe" is not a 32-byte digest`)
+}
+
+// With the console on, the deployment names its listener, the stop list the
+// first owner will hold, and an escrow key made by sagvd so that it can receive a
+// model; the operator key is not written here.
+func TestProvision_WithConsole(t *testing.T) {
+	binDir, record := stubRelease(t, 32, "simulated")
+	out := filepath.Join(t.TempDir(), "deploy")
+	var stdout, stderr bytes.Buffer
+	rc := provisionCmd([]string{"--out", out, "--bin-dir", binDir, "--provider", "simulated", "--insecure-simulation", "--console-listen", "0.0.0.0:9444",
+		"--door-python", "/bin/sh", "--base-model", t.TempDir(), "--worker-package", t.TempDir()}, &stdout, &stderr)
+	require.Equal(t, 0, rc, stderr.String())
+	cfg := readJSON(t, filepath.Join(out, "sagvd.json"))
+	console, _ := cfg["console"].(map[string]any)
+	require.Equal(t, "0.0.0.0:9444", console["listen_address"])
+	stop, _ := cfg["operator_stop"].(map[string]any)
+	require.NotEmpty(t, stop["public_key_path"])
+	require.NoFileExists(t, stop["public_key_path"].(string))
+	genome, _ := cfg["genome"].(map[string]any)
+	require.Contains(t, genome["key_escrow_path"], "escrow.sealed")
+	calls, err := os.ReadFile(record)
+	require.NoError(t, err)
+	require.Contains(t, string(calls), "sagvd escrow-provision")
+
+	// Without the flag nothing of it is there.
+	binDir, _ = stubRelease(t, 32, "simulated")
+	plain := filepath.Join(t.TempDir(), "deploy")
+	rc = provisionCmd([]string{"--out", plain, "--bin-dir", binDir, "--provider", "simulated", "--insecure-simulation",
+		"--door-python", "/bin/sh", "--base-model", t.TempDir(), "--worker-package", t.TempDir()}, &stdout, &stderr)
+	require.Equal(t, 0, rc, stderr.String())
+	cfg = readJSON(t, filepath.Join(plain, "sagvd.json"))
+	require.NotContains(t, cfg, "console")
+	require.NotContains(t, cfg, "operator_stop")
 }
 
 func TestProvision_Refusals(t *testing.T) {

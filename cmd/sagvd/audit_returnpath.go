@@ -315,6 +315,15 @@ func (a *returnPathAudit) Tip() string {
 	return hex.EncodeToString(a.chain.Tip())
 }
 
+// EventAt reads one event of the live segment by its index in the whole
+// log: the console serves the journal from here, so nothing pauses.
+func (a *returnPathAudit) EventAt(i int) (audit_event.AuditEvent, bool) {
+	if a == nil || a.persistent == nil {
+		return audit_event.AuditEvent{}, false
+	}
+	return a.persistent.EventAt(i)
+}
+
 // Chain, Signer and KeyID are what the orchestration Authority writes
 // its events with. nil-safe: without a log there is no chain.
 func (a *returnPathAudit) Chain() chain.Chain {

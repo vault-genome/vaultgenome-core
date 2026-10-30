@@ -268,13 +268,19 @@ func runDaemon(args []string) error {
 			if err != nil {
 				return fmt.Errorf("sagvd: crypto: %w", err)
 			}
-			src, serial, err := newOperatorStopSource(cfg.OperatorStop, sigPol)
-			if err != nil {
-				return err
+			if cfg.Console.Enabled() {
+				stopList = newConsoleStopSource(cfg.OperatorStop, sigPol)
+				logger.Info("sagvd operator stop list in force for gate jobs once an owner holds it",
+					"list_path", cfg.OperatorStop.ListPath, "kid", cfg.OperatorStop.KeyID)
+			} else {
+				src, serial, err := newOperatorStopSource(cfg.OperatorStop, sigPol)
+				if err != nil {
+					return err
+				}
+				stopList = src
+				logger.Info("sagvd operator stop list in force for gate jobs",
+					"list_path", cfg.OperatorStop.ListPath, "kid", cfg.OperatorStop.KeyID, "serial", serial)
 			}
-			stopList = src
-			logger.Info("sagvd operator stop list in force for gate jobs",
-				"list_path", cfg.OperatorStop.ListPath, "kid", cfg.OperatorStop.KeyID, "serial", serial)
 		}
 		authority, err = orchestration.NewAuthority(orchestration.AuthorityOptions{
 			Clock:          clock,
@@ -330,6 +336,18 @@ func runDaemon(args []string) error {
 		return err
 	}
 
+	// The console's listener (ADR 0039), when configured.
+	var consoleAPI *consoleServer
+	if cfg.Console.Enabled() {
+		consoleAPI, err = newConsoleServer(cfg, mat, httpAPI, queue, audit, clock, logger)
+		if err != nil {
+			return err
+		}
+		if err := consoleAPI.Start(); err != nil {
+			return err
+		}
+	}
+
 	// Health / metrics HTTP surface. Empty ListenAddress disables
 	// the server (tests and loopback-only demos).
 	hs := health.NewServer(cfg.Health.ListenAddress, daemon.Health(), registry, logger)
@@ -353,6 +371,11 @@ func runDaemon(args []string) error {
 	defer shutCancel()
 	if err := httpAPI.Close(shutCtx); err != nil {
 		logger.Warn("sagvd HTTP API server shutdown error", "err", err)
+	}
+	if consoleAPI != nil {
+		if err := consoleAPI.Close(shutCtx); err != nil {
+			logger.Warn("sagvd console listener shutdown error", "err", err)
+		}
 	}
 	if err := hs.Close(shutCtx); err != nil {
 		logger.Warn("sagvd health server shutdown error", "err", err)
@@ -404,7 +427,8 @@ func printUsage() {
 	fmt.Println("Description:")
 	fmt.Println("  Authority daemon. Binds the Return Path listener for")
 	fmt.Println("  acp-compute workers and the operator REST API for job")
-	fmt.Println("  submission (POST /v1/jobs) and lookup (GET /v1/jobs/{id}).")
+	fmt.Println("  submission (POST /v1/jobs) and lookup (GET /v1/jobs/{id}), and")
+	fmt.Println("  with console.listen_address the listener people's consoles reach.")
 	fmt.Println()
 	fmt.Println("  identity prints the authority signing key and TEE identity other")
 	fmt.Println("  hosts pin, as JSON. crosscloud-restore releases DEKs to an attested,")

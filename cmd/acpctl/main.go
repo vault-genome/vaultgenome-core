@@ -44,6 +44,8 @@ func main() {
 			os.Exit(sentinelCmd(os.Args[2:], os.Stdout, os.Stderr))
 		case "failover":
 			os.Exit(failoverCmd(os.Args[2:], os.Stdout, os.Stderr))
+		case "console":
+			os.Exit(consoleCmd(os.Args[2:], os.Stdout, os.Stderr))
 		case "tee":
 			os.Exit(teeCmd(os.Args[2:], os.Stdout, os.Stderr))
 		case "provision":
@@ -89,6 +91,7 @@ func printUsage() {
 	fmt.Println("  sentinel watch   Keep a running model's state sealed; report when a tripwire fires")
 	fmt.Println("  failover issue   Sign the operator's failover policy: which standby, on which signs of failure")
 	fmt.Println("  failover verify  Check a failover policy against the operator public key")
+	fmt.Println("  console invite   Make a pass: the single-use file a person opens in their console (ADR 0039)")
 	fmt.Println("  tee fetch-amd-chain  Fetch an AMD product line's ASK+ARK chain (or, with --signer vlek, its ASVK+ARK chain) from AMD KDS, verified against the pinned roots, for amd_cert_chain_path")
 	fmt.Println("  tee prefetch         Fill a daemon's peer-verifier caches (VCEK, Intel PCS documents) while the vendors are reachable — for a host that will be air-gapped")
 	fmt.Println("  tee cache-status     What those caches hold and until when; exit 1 when anything is expired or missing")

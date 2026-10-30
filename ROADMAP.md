@@ -2,11 +2,17 @@
 
 What is next, what is out of reach today and why, and what will never be
 claimed. The record of what is done is [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md)
-(C1–C59) and [`CHANGELOG.md`](CHANGELOG.md); the open limits are
+(C1–C60) and [`CHANGELOG.md`](CHANGELOG.md); the open limits are
 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md). Nothing here is a promise with a date.
 
 ## Next
 
+- **The console on the buttons, and the rest of a person's day.** The deploy
+  buttons do not yet turn the console on or hand out a pass; a server is
+  updated by a person with a terminal; one person holds the stop. Next: a pass
+  from the button, the update as a signed order on the page, a second person's
+  approval for a stop and a move, a login through the bank's identity provider,
+  and the files signed for macOS and Windows.
 - **A TDX Trust Domain and a confidential GPU as the primary.** Every
   failover so far started on an AMD SEV-SNP primary; the sentinel attests
   with `gcp-sev-snp` or the simulator. The sentinel on a TDX guest and on

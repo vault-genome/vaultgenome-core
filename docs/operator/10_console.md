@@ -1,0 +1,93 @@
+# The console
+
+**Audience:** whoever sets up a deployment for the people who answer for it.
+**Design:** [ADR 0039](../adr/0039-the-console-a-persons-hands-verified-on-their-computer.md).
+
+`vgconsole` is the application a person opens instead of a terminal. It runs on
+their computer and checks everything itself, so it needs only a route to one port
+of the authority's host.
+
+## Turn it on
+
+A new deployment:
+
+```bash
+acpctl provision ... --console-listen 0.0.0.0:9444
+```
+
+An existing one, in `sagvd.json`, then restart `sagvd`:
+
+```json
+"console": {"listen_address": "0.0.0.0:9444", "dir": "/etc/vaultgenome/console"},
+"operator_stop": {"kid": "console-operator-stop",
+                  "public_key_path": "/etc/vaultgenome/console/operator_stop.pem",
+                  "list_path": "/etc/vaultgenome/console/stop_list.json"}
+```
+
+Let the firewall admit that port from the people's network only. The listener
+admits only keys on its list, and it is one more door.
+
+## Give the first person a pass
+
+On the authority's host, after `sagvd` has started once:
+
+```bash
+acpctl console invite --sagvd-config /etc/vaultgenome/sagvd.json --worker-config /etc/vaultgenome/acp-compute.json \
+  --address 203.0.113.10:9444 --label "Production, Ohio" --name "Anna Kovalenko" --role owner --out anna.vgpass
+```
+
+Send `anna.vgpass` to that person. It works once, for three days unless `--valid`
+says otherwise. Whoever opens it first is the one the server admits, so if Anna
+finds it used, tell her to say so at once. The first `owner` holds the emergency
+stop: the key is made on her computer and is never on the server. After that she
+invites people herself, from the console.
+
+## What the person does
+
+They open `vgconsole` (`vgconsole-darwin-arm64`, `vgconsole-windows-amd64.exe`, …
+from the release, checked against the signed list), and choose the pass. The page
+says in one line whether all is well and what was checked. The buttons:
+
+| Button | Who | What happens |
+| - | - | - |
+| Check now | everyone | A random question to the chip; the answer is verified on their computer. Also every minute while the page is open. |
+| Check the model comes back | `operator`, `owner` | A gate job on the newest sealed genome, under their name. The bank's running model is not touched. |
+| Emergency stop / Lift the stop | the holder | A stop list signed on their computer. Every gate job and key release is refused until it is lifted; the bank's running model is not switched off. |
+| Move to another server | the holder | Below. |
+| Invite a person / Close access | `owner` | A pass as a file; a person off the list at once. |
+
+Everything but the look is on the audit chain, under the person's name, before it
+takes effect. `acpctl audit verify` and the independent auditor read those records
+as any other.
+
+## A second server, and moving the model to it
+
+For a failure known in advance, or to try the model somewhere else first. Deploy a
+second server the same way, with the same base model, and let its console port
+admit the first server as well as the people's network. Make a pass for the same
+person with `--role owner` and send it to them. They open it in the same
+application: both servers appear, and the holder of the first server's stop can
+press **Move to another server**:
+
+1. their computer asks both chips, and signs the order with their key;
+2. the first server asks the second's chip itself and refuses if it does not show
+   the pin; it wraps the model's key so that it opens only there, and sends the
+   sealed model;
+3. the second server brings the model back by its own worker and compares it with
+   the original, and the page shows the result and how long it took;
+4. the page offers to stop release at the old server. Switching the bank's clients
+   to the new server is a separate step that stays with you.
+
+Both journals say all of it. To try without moving, press it and leave the old
+server running: the second server has proved the model and nothing else changed.
+
+## When something is wrong
+
+| The page says | What it means | What to do |
+| - | - | - |
+| The server did not prove itself | The chip's answer failed on their computer: another firmware than the pass pins, or not that chip. | Treat the host as untrusted. If the firmware was updated on purpose, a new pass carries the new pin. |
+| No connection to the server | The port is not reachable, or `sagvd` is down. | The firewall; `systemctl status sagvd`. |
+| The journal is damaged | A record failed its signature or its link. | `acpctl audit verify` on the stopped daemon's file, and the incident process. |
+| The new server did not prove itself | The first server refused it: another firmware than the pass pins, or not that chip. Nothing was sent. | As above, for the second server. |
+| The new server did not let this one in | The first server cannot reach the second's console port, or the code expired. | The firewall between the two. Press it again. |
+| The emergency stop cannot be read | The list or its key is unreadable; nothing is released while this lasts (ADR 0010). | Restore the file from the record; only the holder can sign a new one. |

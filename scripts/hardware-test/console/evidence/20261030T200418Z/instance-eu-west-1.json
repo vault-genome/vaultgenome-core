@@ -1,0 +1,6 @@
+{
+    "type": "m6a.xlarge",
+    "zone": "eu-west-1a",
+    "sevsnp": "enabled",
+    "boot": "uefi"
+}

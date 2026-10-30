@@ -1,0 +1,591 @@
+{
+  "server_id": "8e593fcde5473185",
+  "server_label": "AWS Ohio, kit",
+  "where": "Amazon Web Services, AMD confidential server",
+  "version": "console-kit-d49df60d",
+  "verdict": "attention",
+  "headline": "Working. Items to review: 1",
+  "subline": "The AI model is protected and the server proved itself with its chip. See below what to fix.",
+  "checked_at": "2026-10-30T15:09:19.222712-05:00",
+  "lines": [
+    {
+      "tone": "ok",
+      "title": "The server is genuine",
+      "text": "The protected AMD chip inside the server signed its answer to a random question your computer has just asked. That signature cannot be forged. The check ran on your computer, not on the server."
+    },
+    {
+      "tone": "limit",
+      "title": "The chip proved the firmware, not the system",
+      "text": "On this type of server the chip does not check the operating system. That is a limit of the server type, not a fault. Where it matters, choose Google Cloud or Azure."
+    },
+    {
+      "tone": "ok",
+      "title": "The journal is intact",
+      "text": "Records checked on your computer: 70. Each is signed and linked to the one before, so a record cannot be changed or removed unnoticed."
+    },
+    {
+      "tone": "warn",
+      "title": "Bringing the model back has not been checked lately",
+      "text": "The emergency stop forbade the last check. It is lifted now: press “Test bringing the model back”."
+    },
+    {
+      "tone": "ok",
+      "title": "The emergency stop is ready",
+      "text": "The button belongs to: Drill Owner. Its key is only on that person's computer, not on the server."
+    },
+    {
+      "tone": "ok",
+      "title": "There is somewhere to move the model",
+      "text": "Second server: AWS Ireland, kit. Before a move it proves again with its chip that it is genuine."
+    }
+  ],
+  "journal": [
+    {
+      "index": 69,
+      "at": "2026-10-30T20:09:19.017642645Z",
+      "tone": "warn",
+      "text": "Access closed: Viewer Drill. Closed by: Drill Owner",
+      "minor": false
+    },
+    {
+      "index": 68,
+      "at": "2026-10-30T20:09:18.87725095Z",
+      "tone": "ok",
+      "text": "The emergency stop was lifted. By: Drill Owner",
+      "minor": false
+    },
+    {
+      "index": 67,
+      "at": "2026-10-30T20:09:17.770948653Z",
+      "tone": "bad",
+      "text": "Decision recorded: the model is not accepted",
+      "minor": true,
+      "request": "req-02b757f765fefa62"
+    },
+    {
+      "index": 66,
+      "at": "2026-10-30T20:09:17.768004532Z",
+      "tone": "bad",
+      "text": "Refused: the emergency stop is on",
+      "minor": false,
+      "request": "req-02b757f765fefa62"
+    },
+    {
+      "index": 65,
+      "at": "2026-10-30T20:09:17.71576693Z",
+      "tone": "info",
+      "text": "Drill Owner: a check of bringing the model back was started",
+      "minor": false,
+      "request": "req-02b757f765fefa62"
+    },
+    {
+      "index": 64,
+      "at": "2026-10-30T20:09:17.663724052Z",
+      "tone": "bad",
+      "text": "THE EMERGENCY STOP WAS SWITCHED ON. By: Drill Owner. Reason: the model moved",
+      "minor": false
+    },
+    {
+      "index": 63,
+      "at": "2026-10-30T20:09:16.183900652Z",
+      "tone": "warn",
+      "text": "An order to move the model to the server: AWS Ireland, kit. Signed by: Drill Owner",
+      "minor": false
+    },
+    {
+      "index": 62,
+      "at": "2026-10-30T20:09:08.616088455Z",
+      "tone": "ok",
+      "text": "The model was handed to the server: AWS Ireland, kit",
+      "minor": false
+    },
+    {
+      "index": 61,
+      "at": "2026-10-30T20:09:08.358011962Z",
+      "tone": "ok",
+      "text": "The new server proved with its chip that it is genuine. The model's key was locked so that it opens only there: AWS Ireland, kit",
+      "minor": false
+    },
+    {
+      "index": 60,
+      "at": "2026-10-30T20:09:08.011183055Z",
+      "tone": "warn",
+      "text": "An order to move the model to the server: AWS Ireland, kit. Signed by: Drill Owner",
+      "minor": false
+    },
+    {
+      "index": 59,
+      "at": "2026-10-30T20:09:07.547831687Z",
+      "tone": "ok",
+      "text": "The emergency stop was lifted. By: Drill Owner",
+      "minor": false
+    },
+    {
+      "index": 58,
+      "at": "2026-10-30T20:09:06.656880829Z",
+      "tone": "bad",
+      "text": "THE EMERGENCY STOP WAS SWITCHED ON. By: Drill Owner. Reason: drill: before a move",
+      "minor": false
+    },
+    {
+      "index": 57,
+      "at": "2026-10-30T20:09:05.962888862Z",
+      "tone": "warn",
+      "text": "An order to move the model to the server: AWS Ireland, kit. Signed by: Drill Owner",
+      "minor": false
+    },
+    {
+      "index": 56,
+      "at": "2026-10-30T20:09:02.811702983Z",
+      "tone": "ok",
+      "text": "Decision recorded: the model is accepted",
+      "minor": false,
+      "request": "req-8ad3787bc8e6e806"
+    },
+    {
+      "index": 55,
+      "at": "2026-10-30T20:09:02.805068894Z",
+      "tone": "info",
+      "text": "The comparison finished",
+      "minor": true
+    },
+    {
+      "index": 54,
+      "at": "2026-10-30T20:09:02.794745158Z",
+      "tone": "ok",
+      "text": "The model came back exactly the same: 6 of 6 control answers matched to the last bit",
+      "minor": false
+    },
+    {
+      "index": 53,
+      "at": "2026-10-30T20:09:02.794745158Z",
+      "tone": "info",
+      "text": "One more condition of the return was checked",
+      "minor": true
+    },
+    {
+      "index": 52,
+      "at": "2026-10-30T20:09:02.794745158Z",
+      "tone": "info",
+      "text": "One more condition of the return was checked",
+      "minor": true
+    },
+    {
+      "index": 51,
+      "at": "2026-10-30T20:09:02.794745158Z",
+      "tone": "info",
+      "text": "Comparison with the original began",
+      "minor": true
+    },
+    {
+      "index": 50,
+      "at": "2026-10-30T20:09:02.789988458Z",
+      "tone": "info",
+      "text": "The worker server returned its result for comparison",
+      "minor": true,
+      "request": "req-8ad3787bc8e6e806"
+    },
+    {
+      "index": 49,
+      "at": "2026-10-30T20:08:56.379891542Z",
+      "tone": "info",
+      "text": "The worker server received its task",
+      "minor": true,
+      "request": "req-8ad3787bc8e6e806"
+    },
+    {
+      "index": 48,
+      "at": "2026-10-30T20:08:56.377997652Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 47,
+      "at": "2026-10-30T20:08:56.375182753Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 46,
+      "at": "2026-10-30T20:08:56.370215079Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 45,
+      "at": "2026-10-30T20:08:56.367175116Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 44,
+      "at": "2026-10-30T20:08:56.363747153Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 43,
+      "at": "2026-10-30T20:08:56.354773475Z",
+      "tone": "info",
+      "text": "A protected session with the worker server was opened",
+      "minor": true,
+      "request": "req-8ad3787bc8e6e806"
+    },
+    {
+      "index": 42,
+      "at": "2026-10-30T20:08:56.349871793Z",
+      "tone": "ok",
+      "text": "The worker server proved with its chip that it is genuine",
+      "minor": true,
+      "request": "req-8ad3787bc8e6e806"
+    },
+    {
+      "index": 41,
+      "at": "2026-10-30T20:08:56.342810374Z",
+      "tone": "info",
+      "text": "Drill Owner: a check of bringing the model back was started",
+      "minor": false,
+      "request": "req-8ad3787bc8e6e806"
+    },
+    {
+      "index": 40,
+      "at": "2026-10-30T20:08:56.288080146Z",
+      "tone": "ok",
+      "text": "The emergency stop was lifted. By: Drill Owner",
+      "minor": false
+    },
+    {
+      "index": 39,
+      "at": "2026-10-30T20:08:55.08608575Z",
+      "tone": "bad",
+      "text": "Decision recorded: the model is not accepted",
+      "minor": true,
+      "request": "req-d2eac1c9bf2fba58"
+    },
+    {
+      "index": 38,
+      "at": "2026-10-30T20:08:55.079143084Z",
+      "tone": "bad",
+      "text": "Refused: the emergency stop is on",
+      "minor": false,
+      "request": "req-d2eac1c9bf2fba58"
+    },
+    {
+      "index": 37,
+      "at": "2026-10-30T20:08:55.071661897Z",
+      "tone": "info",
+      "text": "Drill Owner: a check of bringing the model back was started",
+      "minor": false,
+      "request": "req-d2eac1c9bf2fba58"
+    },
+    {
+      "index": 36,
+      "at": "2026-10-30T20:08:54.95402622Z",
+      "tone": "bad",
+      "text": "THE EMERGENCY STOP WAS SWITCHED ON. By: Drill Owner. Reason: drill",
+      "minor": false
+    },
+    {
+      "index": 35,
+      "at": "2026-10-30T20:08:53.841199805Z",
+      "tone": "ok",
+      "text": "Decision recorded: the model is accepted",
+      "minor": false,
+      "request": "req-3b1721b52725af66"
+    },
+    {
+      "index": 34,
+      "at": "2026-10-30T20:08:53.839679123Z",
+      "tone": "info",
+      "text": "The comparison finished",
+      "minor": true
+    },
+    {
+      "index": 33,
+      "at": "2026-10-30T20:08:53.825937905Z",
+      "tone": "ok",
+      "text": "The model came back exactly the same: 6 of 6 control answers matched to the last bit",
+      "minor": false
+    },
+    {
+      "index": 32,
+      "at": "2026-10-30T20:08:53.825937905Z",
+      "tone": "info",
+      "text": "One more condition of the return was checked",
+      "minor": true
+    },
+    {
+      "index": 31,
+      "at": "2026-10-30T20:08:53.825937905Z",
+      "tone": "info",
+      "text": "One more condition of the return was checked",
+      "minor": true
+    },
+    {
+      "index": 30,
+      "at": "2026-10-30T20:08:53.825937905Z",
+      "tone": "info",
+      "text": "Comparison with the original began",
+      "minor": true
+    },
+    {
+      "index": 29,
+      "at": "2026-10-30T20:08:53.821088553Z",
+      "tone": "info",
+      "text": "The worker server returned its result for comparison",
+      "minor": true,
+      "request": "req-3b1721b52725af66"
+    },
+    {
+      "index": 28,
+      "at": "2026-10-30T20:08:47.41614996Z",
+      "tone": "info",
+      "text": "The worker server received its task",
+      "minor": true,
+      "request": "req-3b1721b52725af66"
+    },
+    {
+      "index": 27,
+      "at": "2026-10-30T20:08:47.413742899Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 26,
+      "at": "2026-10-30T20:08:47.411901741Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 25,
+      "at": "2026-10-30T20:08:47.410104603Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 24,
+      "at": "2026-10-30T20:08:47.405781911Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 23,
+      "at": "2026-10-30T20:08:47.403907592Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 22,
+      "at": "2026-10-30T20:08:47.393743628Z",
+      "tone": "info",
+      "text": "A protected session with the worker server was opened",
+      "minor": true,
+      "request": "req-3b1721b52725af66"
+    },
+    {
+      "index": 21,
+      "at": "2026-10-30T20:08:47.38909087Z",
+      "tone": "ok",
+      "text": "The worker server proved with its chip that it is genuine",
+      "minor": true,
+      "request": "req-3b1721b52725af66"
+    },
+    {
+      "index": 20,
+      "at": "2026-10-30T20:08:47.361988529Z",
+      "tone": "info",
+      "text": "Drill Owner: a check of bringing the model back was started",
+      "minor": false,
+      "request": "req-3b1721b52725af66"
+    },
+    {
+      "index": 19,
+      "at": "2026-10-30T20:08:46.943188988Z",
+      "tone": "ok",
+      "text": "Viewer Drill gets access: view only",
+      "minor": false
+    },
+    {
+      "index": 18,
+      "at": "2026-10-30T20:08:46.793039072Z",
+      "tone": "info",
+      "text": "A pass was made for: Viewer Drill. Made by: Drill Owner",
+      "minor": false
+    },
+    {
+      "index": 17,
+      "at": "2026-10-30T20:08:46.263856635Z",
+      "tone": "ok",
+      "text": "The emergency stop is ready. The button belongs to: Drill Owner",
+      "minor": false
+    },
+    {
+      "index": 16,
+      "at": "2026-10-30T20:08:46.136002538Z",
+      "tone": "ok",
+      "text": "Drill Owner gets access: full access",
+      "minor": false
+    },
+    {
+      "index": 15,
+      "at": "2026-10-30T20:08:28.279043309Z",
+      "tone": "ok",
+      "text": "Decision recorded: the model is accepted",
+      "minor": false,
+      "request": "req-c8a63f210d4448f2"
+    },
+    {
+      "index": 14,
+      "at": "2026-10-30T20:08:28.277229211Z",
+      "tone": "info",
+      "text": "The comparison finished",
+      "minor": true
+    },
+    {
+      "index": 13,
+      "at": "2026-10-30T20:08:28.26203288Z",
+      "tone": "ok",
+      "text": "The model came back exactly the same: 6 of 6 control answers matched to the last bit",
+      "minor": false
+    },
+    {
+      "index": 12,
+      "at": "2026-10-30T20:08:28.26203288Z",
+      "tone": "info",
+      "text": "One more condition of the return was checked",
+      "minor": true
+    },
+    {
+      "index": 11,
+      "at": "2026-10-30T20:08:28.26203288Z",
+      "tone": "info",
+      "text": "One more condition of the return was checked",
+      "minor": true
+    },
+    {
+      "index": 10,
+      "at": "2026-10-30T20:08:28.26203288Z",
+      "tone": "info",
+      "text": "Comparison with the original began",
+      "minor": true
+    },
+    {
+      "index": 9,
+      "at": "2026-10-30T20:08:28.25582995Z",
+      "tone": "info",
+      "text": "The worker server returned its result for comparison",
+      "minor": true,
+      "request": "req-c8a63f210d4448f2"
+    },
+    {
+      "index": 8,
+      "at": "2026-10-30T20:08:21.606860856Z",
+      "tone": "info",
+      "text": "The worker server received its task",
+      "minor": true,
+      "request": "req-c8a63f210d4448f2"
+    },
+    {
+      "index": 7,
+      "at": "2026-10-30T20:08:21.585274113Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 6,
+      "at": "2026-10-30T20:08:21.546996479Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 5,
+      "at": "2026-10-30T20:08:21.52183164Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 4,
+      "at": "2026-10-30T20:08:21.489842058Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 3,
+      "at": "2026-10-30T20:08:21.474641229Z",
+      "tone": "info",
+      "text": "A part of the model was passed to the worker server",
+      "minor": true
+    },
+    {
+      "index": 2,
+      "at": "2026-10-30T20:08:21.438256295Z",
+      "tone": "info",
+      "text": "A protected session with the worker server was opened",
+      "minor": true,
+      "request": "req-c8a63f210d4448f2"
+    },
+    {
+      "index": 1,
+      "at": "2026-10-30T20:08:21.370163995Z",
+      "tone": "ok",
+      "text": "The worker server proved with its chip that it is genuine",
+      "minor": true,
+      "request": "req-c8a63f210d4448f2"
+    },
+    {
+      "index": 0,
+      "at": "2026-10-30T20:08:21.163935573Z",
+      "tone": "info",
+      "text": "An automatic system: a check of bringing the model back was started",
+      "minor": false,
+      "request": "req-c8a63f210d4448f2"
+    }
+  ],
+  "journal_all": 70,
+  "people": [
+    {
+      "name": "Drill Owner",
+      "role": "full access",
+      "public_key_hex": "4ae2a05b8df22cb89ef5c8dbe8fd6363a61b3024573c20a61236f250cb804e67",
+      "holds_stop": true,
+      "you": true
+    }
+  ],
+  "you": "Drill Owner",
+  "your_role": "full access",
+  "can_restore": true,
+  "can_stop": true,
+  "can_invite": true,
+  "stopped": false,
+  "can_move": true,
+  "targets": [
+    {
+      "id": "2a64a02a8dab93ab",
+      "label": "AWS Ireland, kit"
+    }
+  ],
+  "all_servers": [
+    {
+      "id": "8e593fcde5473185",
+      "label": "AWS Ohio, kit"
+    },
+    {
+      "id": "2a64a02a8dab93ab",
+      "label": "AWS Ireland, kit"
+    }
+  ]
+}

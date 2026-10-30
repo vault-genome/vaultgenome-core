@@ -103,6 +103,11 @@ type Config struct {
 	// daemon's releases by writing a new list. Optional; when set, all
 	// three fields are required.
 	OperatorStop OperatorStopConfig `json:"operator_stop,omitempty"`
+
+	// Console is the listener a person's console connects to (ADR 0039).
+	// Empty: no listener. With it, operator_stop is required, and its key
+	// is the first owner's, written when they join.
+	Console ConsoleConfig `json:"console,omitempty"`
 }
 
 // CryptoConfig is the deployment's cryptographic profile (ADR 0029): the
@@ -174,6 +179,21 @@ func (g GateConfig) ToleranceFor(dtype string) equivalence.Tolerance {
 		return equivalence.Tolerance{Atol: g.Bfloat16.Atol, Rtol: g.Bfloat16.Rtol}
 	}
 	return equivalence.Tolerance{Atol: g.Atol, Rtol: g.Rtol}
+}
+
+// sameListenPort reports whether addr uses the port of any of others. A
+// listener on 0.0.0.0 and one on loopback collide on one port.
+func sameListenPort(addr string, others ...string) bool {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "0" {
+		return false
+	}
+	for _, o := range others {
+		if _, p, err := net.SplitHostPort(o); err == nil && p == port {
+			return true
+		}
+	}
+	return false
 }
 
 // OperatorStopEnabled reports whether trust consults a stop list.
@@ -1609,6 +1629,20 @@ func (c Config) Validate() error {
 	if c.OperatorStopEnabled() {
 		if s := c.OperatorStop; s.KeyID == "" || s.PublicKeyPath == "" || s.ListPath == "" {
 			errs = append(errs, errors.New("operator_stop.kid, public_key_path and list_path are all required when any is set"))
+		}
+	}
+	if c.Console.Enabled() {
+		if c.Console.Dir == "" {
+			errs = append(errs, errors.New("console.dir is required with console.listen_address"))
+		}
+		if !c.OperatorStopEnabled() {
+			errs = append(errs, errors.New("operator_stop is required with console.listen_address: the console's stop button signs that list"))
+		}
+		if c.Audit.LogPath == "" {
+			errs = append(errs, errors.New("audit.log_path is required with console.listen_address: what a person does goes on the record"))
+		}
+		if sameListenPort(c.Console.ListenAddress, c.Vault.ListenAddress, c.HTTPAPI.ListenAddress, c.Health.ListenAddress) {
+			errs = append(errs, errors.New("console.listen_address must not share a port with vault.listen_address, http_api.listen_address or health.listen_address"))
 		}
 	}
 	if c.Runtime.EvidenceMaxAgeSeconds < 0 {

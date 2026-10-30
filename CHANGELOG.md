@@ -11,6 +11,36 @@ given release can still open.
 
 ## [Unreleased]
 
+### Added
+
+- **The console** ([ADR 0039](docs/adr/0039-the-console-a-persons-hands-verified-on-their-computer.md)):
+  `vgconsole`, an application for macOS, Windows and Linux that a person
+  without a terminal opens to see that the model is safe and to act on it.
+  It serves one page to their own browser on loopback and verifies
+  everything it shows on their computer: the chip's answer to a challenge it
+  made, the journal's signatures. A restore check and the emergency stop are
+  buttons; the stop list is signed with a key that was made on that computer
+  and has never left it. People get in with a single-use pass
+  (`acpctl console invite`, or an owner from their console), under a role the
+  listener enforces, and everything they change is on the audit chain under
+  their name before it takes effect.
+- **Moving a model from the console:** the holder of the stop signs an order on
+  their computer; the old server verifies the new server's chip itself, wraps the
+  model's key so that it opens only there, and sends the sealed model; the new
+  server brings it back under its own gate and on its own record. Both journals
+  say so. `POST /v1/console/move`, `PUT /v1/console/incoming/{name}`. On real
+  hardware from Ohio to Ireland, EXACT on the new server (C60).
+- `sagvd`: `console.listen_address` and `console.dir`, the listener the
+  consoles reach (mutual TLS 1.3, its certificate pinned by the pass, its key
+  sealed to the host); off by default, and a deployment that does not set it
+  behaves as before. `acpctl provision --console-listen`.
+
+### Changed
+
+- **Audit schema v9:** one kind added, `CONSOLE_ACTION`. A v8 reader refuses a
+  v9 event; a v9 reader verifies every earlier event as it did. A log that
+  never had a console on it holds v9 events from the upgrade on, as any bump.
+
 ## [0.14.0] — 2026-10-29
 
 The release that runs on a fourth cloud and is proven twice a day without

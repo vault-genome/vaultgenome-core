@@ -1,0 +1,31 @@
+20:04:18 == 0. build from d49df60d2c19
+20:04:25 == 1. the instances: m6a.xlarge with AmdSevSnp enabled in us-east-2 and eu-west-1
+20:05:48 == 2. the binaries, the worker package and guest.sh; both deployments stand up
+20:08:28    guest.sh exit: first 0, second 0
+provision exit=0
+finetune exit=0
+seal exit=0
+sagvd ready after 1s
+session opened after 0s
+job status=succeeded after 7s
+gate_level=EXACT door=pinned replay fixtures=6
+provision exit=0
+sagvd ready after 1s
+session opened after 0s
+20:08:34 == 3. the drill: every button from this computer, against the real chips
+pass written: /home/ubuntu/e2e/pass.vgpass for Drill Owner (owner), valid until 2026-11-02T20:08:35Z; it works once
+pass written: /home/ubuntu/e2e/pass.vgpass for Drill Owner (owner), valid until 2026-11-02T20:08:39Z; it works once
+20:09:19    drill exit 0
+20:09:19 == 4. sagvd restarts on the first server: the listener's sealed key opens, the people and the stop list are still there
+sagvd ready after 1s
+20:09:25    check after the restart exit 0
+20:09:28 == 5. the daemons stop; both audit logs come here and are verified by acpctl and by the independent auditor
+   ok     the first server's audit log: acpctl 70 events, the independent auditor 70 events, tip cd66cf5da3619bcc63c1d095c1253c78ce437d09cc82b383d41d3407c140f835
+   ok     the second server's audit log: acpctl 31 events, the independent auditor 31 events, tip 1cd0ab01f415a547cef7dfcbb4b9e47a36c7aa86acd040c0915dc03b30553e06
+20:09:39 == 6. what was proven
+20:09:39    ok    the drill: 45 steps, every one as it must be
+20:09:39    ok    after a restart the same pass and the same chip still prove the server
+20:09:39    ok    the record names neither the account nor an IAM id
+20:09:39 == evidence: /Users/serhiinikolaichuk/dev/vg-console/scripts/hardware-test/console/evidence/20261030T200418Z (      88 files)
+20:09:39 RESULT: PASS
+20:09:39 cleanup: terminating vg-console-20261030t200418z, removing the key pairs and the security groups

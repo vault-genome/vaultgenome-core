@@ -41,6 +41,8 @@ var validKinds = map[Kind]struct{}{
 	KindFailoverDecided: {},
 	// The closing of a log segment (SchemaVersion 7). See ADR 0027.
 	KindAuditSegmentClosed: {},
+	// What a person did through the console (SchemaVersion 9). See ADR 0039.
+	KindConsoleAction: {},
 }
 
 // Validate runs static consistency checks. Chain continuity (PrevHash

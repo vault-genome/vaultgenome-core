@@ -320,12 +320,12 @@ jobs:
 
           | Your machine | Files |
           | - | - |
-          | Linux x86-64 — a server; the daemons too | \`acpctl\`, \`acp-keygen\`, \`sagvd\`, \`acp-compute\`, \`acp-bootstrap\`; \`<name>-fips\` on the certified module |
-          | Linux arm64 | \`acpctl-linux-arm64\`, \`acp-keygen-linux-arm64\` |
-          | macOS, Apple silicon | \`acpctl-darwin-arm64\`, \`acp-keygen-darwin-arm64\` |
-          | macOS, Intel | \`acpctl-darwin-amd64\`, \`acp-keygen-darwin-amd64\` |
-          | Windows x64 | \`acpctl-windows-amd64.exe\`, \`acp-keygen-windows-amd64.exe\` |
-          | Windows Arm | \`acpctl-windows-arm64.exe\`, \`acp-keygen-windows-arm64.exe\` |
+          | Linux x86-64 — a server; the daemons too | \`acpctl\`, \`acp-keygen\`, \`vgconsole-linux-amd64\`, \`sagvd\`, \`acp-compute\`, \`acp-bootstrap\`; \`<name>-fips\` on the certified module |
+          | Linux arm64 | \`acpctl-linux-arm64\`, \`acp-keygen-linux-arm64\`, \`vgconsole-linux-arm64\` |
+          | macOS, Apple silicon | \`acpctl-darwin-arm64\`, \`acp-keygen-darwin-arm64\`, \`vgconsole-darwin-arm64\` |
+          | macOS, Intel | \`acpctl-darwin-amd64\`, \`acp-keygen-darwin-amd64\`, \`vgconsole-darwin-amd64\` |
+          | Windows x64 | \`acpctl-windows-amd64.exe\`, \`acp-keygen-windows-amd64.exe\`, \`vgconsole-windows-amd64.exe\` |
+          | Windows Arm | \`acpctl-windows-arm64.exe\`, \`acp-keygen-windows-arm64.exe\`, \`vgconsole-windows-arm64.exe\` |
 
           Python: \`pip install vaultgenome\` (the auditor's verifier of the audit log) and \`pip install "vaultgenome[genome]"\` (the model side of a genome) — the wheel and the sdist here are the files PyPI has.
 

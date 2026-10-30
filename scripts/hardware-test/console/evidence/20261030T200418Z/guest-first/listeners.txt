@@ -1,0 +1,5 @@
+LISTEN 0      4096       127.0.0.1:9443      0.0.0.0:*    users:(("sagvd",pid=3406,fd=11))                      
+LISTEN 0      4096       127.0.0.1:9081      0.0.0.0:*    users:(("sagvd",pid=3406,fd=10))                      
+LISTEN 0      4096       127.0.0.1:9080      0.0.0.0:*    users:(("sagvd",pid=3406,fd=8))                       
+LISTEN 0      4096       127.0.0.1:9082      0.0.0.0:*    users:(("acp-compute",pid=3465,fd=3))                 
+LISTEN 0      4096               *:9444            *:*    users:(("sagvd",pid=3406,fd=9))                       
