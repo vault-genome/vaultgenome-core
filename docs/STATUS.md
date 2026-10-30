@@ -2,7 +2,7 @@
 
 The authoritative maturity summary of this repository. Every statement
 below is backed by an evidence file and a reproduction command in
-[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C59); the open limits
+[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C60); the open limits
 are in [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) and
 [what we do not claim](../VERIFIABLE-CLAIMS.md#what-we-do-not-claim); what
 is next is in [`ROADMAP.md`](../ROADMAP.md). Component-level design
@@ -26,6 +26,13 @@ Intel Xeon CPUs for the determinism measurements.
 
 ## What works today
 
+- **A console for a person with no terminal** — `vgconsole` on their own
+  computer: whether all is well, proved there against the chip with a question
+  of its own; a restore check, the emergency stop and moving the model to
+  another server as buttons; the journal in plain words, every record verified
+  there; people added by a single-use pass under a role the listener enforces
+  ([ADR 0039](adr/0039-the-console-a-persons-hands-verified-on-their-computer.md),
+  [C60](../VERIFIABLE-CLAIMS.md#c60)).
 - **Byte-exact model continuity** — `acpctl genome seal / rewind / chain`:
   seal any model to a portable bundle whose key lives apart from it,
   restore it byte-exact on any server, and track versions with a validated
@@ -163,6 +170,9 @@ Intel Xeon CPUs for the determinism measurements.
   pinned. Two runs on the record — the family from the tree's binaries
   (C58) and the button on the release (C59), with a stop and a start, not
   a reboot in place — in one region, on one instance type.
+- The console has run against EC2 SEV-SNP, in two regions, from the tree's
+  binaries (C60); it is built for six platforms and has been opened on macOS on
+  Apple silicon. The buttons do not turn it on yet ([KNOWN_ISSUES](../KNOWN_ISSUES.md) 20).
 - The largest model measured is 32B, on one confidential GPU, on the pinned
   runtime; cross-device equivalence is measured at 0.5B and 7B; every
   failover number is at 0.5B.

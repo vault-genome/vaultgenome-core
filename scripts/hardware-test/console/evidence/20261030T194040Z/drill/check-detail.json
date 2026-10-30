@@ -1,0 +1,99 @@
+{
+  "provider": "aws-sev-snp",
+  "product": "Milan",
+  "reported_tcb": 16221684382811815940,
+  "sev_snp": {
+    "version": 5,
+    "guest_svn": 0,
+    "product": "Milan",
+    "variant": "Milan",
+    "cpuid": {
+      "family": 25,
+      "model": 1,
+      "stepping": 1
+    },
+    "guest_policy": {
+      "raw_hex": "0x2030000",
+      "abi_major": 0,
+      "abi_minor": 0,
+      "smt": true,
+      "migrate_ma": false,
+      "debug": false,
+      "single_socket": false,
+      "cxl_allow": false,
+      "mem_aes_256_xts": false,
+      "rapl_dis": false,
+      "ciphertext_hiding": false,
+      "page_swap_disable": true
+    },
+    "platform_info": {
+      "raw_hex": "0x27",
+      "smt_en": true,
+      "tsme_en": true,
+      "ecc_en": true,
+      "rapl_dis": false,
+      "ciphertext_hiding_en": false,
+      "alias_check_complete": true,
+      "iommu_write_safe": false,
+      "tio_en": false
+    },
+    "tcb": {
+      "current": {
+        "bootloader": 4,
+        "tee": 0,
+        "snp": 31,
+        "microcode": 225
+      },
+      "reported": {
+        "bootloader": 4,
+        "tee": 0,
+        "snp": 31,
+        "microcode": 225
+      },
+      "committed": {
+        "bootloader": 4,
+        "tee": 0,
+        "snp": 31,
+        "microcode": 225
+      },
+      "launch": {
+        "bootloader": 4,
+        "tee": 0,
+        "snp": 31,
+        "microcode": 225
+      }
+    },
+    "firmware": {
+      "current": "1.58.3",
+      "committed": "1.58.3"
+    },
+    "mitigation_vector": {
+      "launch_hex": "0xfef",
+      "current_hex": "0xfef"
+    },
+    "chip_id_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "reported_tcb_raw": 16221684382811815940,
+    "signing_key": "vlek",
+    "report_id_hex": "5881c6b97994034f37ee4b7177f0e1e943a83692a616f9d516b33641ea2fb36b",
+    "vlek": {
+      "subject_cn": "SEV-VLEK",
+      "issuer_cn": "SEV-VLEK-Milan",
+      "product_name": "Milan",
+      "csp_id": "CN=cc-us-east-2.amazonaws.com",
+      "not_before": "2026-10-01T05:01:23Z",
+      "not_after": "2027-10-01T05:01:23Z",
+      "sha256": "65d5b55ba7bb976aa327d7d1203620d6d132d08f5407c37d694c2e073b7f0f4f",
+      "tcb": {
+        "bootloader": 4,
+        "tee": 0,
+        "snp": 31,
+        "microcode": 225
+      }
+    },
+    "floor": {
+      "snp": 27,
+      "microcode": 222
+    },
+    "floor_source": "AMD bulletins read 2026-10-22 for Milan: AMD-SB-3020 (SNP 0x1B, mitigation vector bit 1; rev. 2026-02-23), AMD-SB-3027 (microcode 0xDE; rev. 2026-02-27), AMD-SB-3015 (ALIAS_CHECK_COMPLETE)"
+  }
+}

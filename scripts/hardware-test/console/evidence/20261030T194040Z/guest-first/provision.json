@@ -1,0 +1,66 @@
+{
+  "schema": "vault-genome/acpctl-provision/v1",
+  "role": "both",
+  "phase": "complete",
+  "out": "/root/deploy",
+  "provider": "auto",
+  "peer_provider": "aws-sev-snp",
+  "sealer": "auto",
+  "binaries": {
+    "acp-compute": "/root/e2e/acp-compute",
+    "keygen": "/root/e2e/keygen",
+    "sagvd": "/root/e2e/sagvd"
+  },
+  "secrets": "/root/deploy/secrets",
+  "configs": {
+    "acp-compute": "/root/deploy/acp-compute.json",
+    "sagvd": "/root/deploy/sagvd.json"
+  },
+  "configs_sha256": {
+    "acp-compute": "e42335773fb40be9b5ffacb00787839c4bc9ed7f5c1faa2d1cab0aa876826a1c",
+    "sagvd": "f7ff395f95227361ffe2c2cbaf250f39a5283395d3ca8ddc43a8faa328217d43"
+  },
+  "pins": {
+    "vault": "/root/deploy/pins/vault.measurement",
+    "worker": "/root/deploy/pins/worker.measurement"
+  },
+  "amd_cert_chain": "/root/deploy/amd-milan-vlek-cert_chain.pem",
+  "vault": {
+    "provider": "aws-sev-snp",
+    "measurement_hex": "1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b",
+    "sealer": "sev-snp-derived-key",
+    "vlek_csp_id": "CN=cc-us-east-2.amazonaws.com",
+    "audit_kid": "sagvd-audit-demo",
+    "audit_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAzqZbTLm6Z+srcStDFSnwDQdXRctSlr/U6EToIGdaD4o=\n-----END PUBLIC KEY-----\n",
+    "authority_kid": "sagvd-authority-demo",
+    "authority_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAKDuzJusjoh4ql99HbtQwgVEEtLnlFu05m538skD4vjU=\n-----END PUBLIC KEY-----\n",
+    "identity_file": "/root/deploy/sagvd-identity.json"
+  },
+  "worker": {
+    "provider": "aws-sev-snp",
+    "measurement_hex": "1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b",
+    "sealer": "sev-snp-derived-key",
+    "vlek_csp_id": "CN=cc-us-east-2.amazonaws.com",
+    "identity_file": "/root/deploy/acp-compute-identity.json"
+  },
+  "api_token_file": "/root/deploy/operator/api_token",
+  "sealed": {
+    "acp-compute": [
+      "keys.worker_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "vault.tls.client_key"
+    ],
+    "sagvd": [
+      "keys.authority_signing.seed_path",
+      "keys.session_sealing.material_path",
+      "keys.audit_signing.seed_path",
+      "vault.tls.server_key",
+      "http_api.bearer_token_file"
+    ]
+  },
+  "next": [
+    "/root/e2e/sagvd -config /root/deploy/sagvd.json",
+    "/root/e2e/acp-compute -config /root/deploy/acp-compute.json",
+    "acpctl genome seal --content-dir \u003cgenome\u003e --output /root/deploy/genomes/gen-0.genome --key-out /root/deploy/genomes/gen-0.key"
+  ]
+}

@@ -1,0 +1,10 @@
+== the host as the guest sees it
+== binaries from /home/ubuntu/e2e
+== configfs-tsm
+== the worker runtime: python, the pinned CPU torch
+== acpctl provision --console-listen: the deployment with the console's listener
+provision exit=0
+== the base model; on the first server a real fine-tune, sealed
+== both daemons as services
+sagvd ready after 1s
+session opened after 0s

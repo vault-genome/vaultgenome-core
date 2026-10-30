@@ -1,0 +1,3 @@
+sagvd console-kit-9d44d77e (commit 9d44d77e2106-dirty) fips140=off module=latest enforced=false
+acp-compute console-kit-9d44d77e (commit 9d44d77e2106-dirty) fips140=off module=latest enforced=false
+acpctl console-kit-9d44d77e (commit 9d44d77e2106-dirty) fips140=off module=latest enforced=false

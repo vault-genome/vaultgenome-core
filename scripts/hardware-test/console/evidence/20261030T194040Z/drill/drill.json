@@ -1,0 +1,208 @@
+[
+  {
+    "step": "a key on nobody's list is refused a check",
+    "ok": true
+  },
+  {
+    "step": "a made-up pass code is refused",
+    "ok": true
+  },
+  {
+    "step": "the owner opens the pass, gets the emergency stop and signs its first list",
+    "ok": true,
+    "detail": "Drill Owner",
+    "seconds": 0.492990667
+  },
+  {
+    "step": "the same pass is dead for anyone else",
+    "ok": true
+  },
+  {
+    "step": "the chip's answer verifies on this computer",
+    "ok": true,
+    "detail": "aws-sev-snp, measurement 1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b",
+    "seconds": 0.058634125
+  },
+  {
+    "step": "an old answer does not pass for a new question",
+    "ok": true
+  },
+  {
+    "step": "one bit changed in the server's state is caught",
+    "ok": true
+  },
+  {
+    "step": "an answer made for another listener is refused",
+    "ok": true
+  },
+  {
+    "step": "the real chip does not pass for a pin one bit away",
+    "ok": true
+  },
+  {
+    "step": "the journal verifies on this computer, with both services running",
+    "ok": true,
+    "detail": "18 records, tip b07680986daec47b8ffcc2aed92f70281e2ffbd8599f30b650df007597e49208",
+    "seconds": 0.102073458
+  },
+  {
+    "step": "a changed record is caught and named",
+    "ok": true,
+    "detail": "record 9 of 18"
+  },
+  {
+    "step": "a removed record is caught",
+    "ok": true,
+    "detail": "record 9 of 18"
+  },
+  {
+    "step": "the viewer's own computer verifies the same chip",
+    "ok": true
+  },
+  {
+    "step": "the viewer cannot start a restore",
+    "ok": true
+  },
+  {
+    "step": "the viewer cannot press stop",
+    "ok": true
+  },
+  {
+    "step": "the restore check, stop off",
+    "ok": true,
+    "detail": "succeeded, EXACT",
+    "seconds": 7.506977625
+  },
+  {
+    "step": "the model comes back",
+    "ok": true,
+    "detail": "EXACT in 7.5 s"
+  },
+  {
+    "step": "a stop list signed by another key is refused",
+    "ok": true
+  },
+  {
+    "step": "the chip's next answer says the stop is on",
+    "ok": true,
+    "seconds": 0.110749292
+  },
+  {
+    "step": "with the stop on, a restore is refused on the record",
+    "ok": true
+  },
+  {
+    "step": "an older list cannot lift the stop",
+    "ok": true
+  },
+  {
+    "step": "the owner lifts the stop",
+    "ok": true
+  },
+  {
+    "step": "the restore check, stop lifted",
+    "ok": true,
+    "detail": "succeeded, EXACT",
+    "seconds": 7.3928115420000005
+  },
+  {
+    "step": "the model comes back after the stop is lifted",
+    "ok": true,
+    "detail": "EXACT in 7.4 s"
+  },
+  {
+    "step": "the owner opens the second server's pass and holds its stop too",
+    "ok": true,
+    "detail": "AWS Ireland, kit"
+  },
+  {
+    "step": "the second server's chip verifies on this computer",
+    "ok": true,
+    "detail": "aws-sev-snp, measurement 1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b"
+  },
+  {
+    "step": "the second server names its key for receiving, under its chip",
+    "ok": true
+  },
+  {
+    "step": "an order signed by another key is refused",
+    "ok": true
+  },
+  {
+    "step": "an order addressed to another server is refused",
+    "ok": true
+  },
+  {
+    "step": "an order out of its time is refused",
+    "ok": true
+  },
+  {
+    "step": "the first server itself refuses a target that does not show the pin, and sends nothing",
+    "ok": true
+  },
+  {
+    "step": "nothing arrived at the second server",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "step": "with the stop on, the first server hands over nothing",
+    "ok": true
+  },
+  {
+    "step": "the model is handed over, after the first server verified the second's chip",
+    "ok": true,
+    "detail": "gen-0.genome, 24729 bytes, sha256 a2891f23a6f1b1ac58bbf3d00dbf62d45169ea9015c6569efac8f2fe0200f5e8, key 11721fa7a06d19b9",
+    "seconds": 1.047038375
+  },
+  {
+    "step": "the second server's restore check of the moved model",
+    "ok": true,
+    "detail": "succeeded, EXACT",
+    "seconds": 7.0359195
+  },
+  {
+    "step": "the moved model comes back on the second server, by its own worker, under its own gate",
+    "ok": true,
+    "detail": "EXACT in 7.0 s"
+  },
+  {
+    "step": "the same model cannot be sent over it",
+    "ok": true
+  },
+  {
+    "step": "the second server's journal verifies here and says the model arrived and came back",
+    "ok": true,
+    "detail": "31 records, tip afedc6ca50490379487591a9d8a44a19fe1c4a5e8631ca7545e1b1d4a7aeb7a5"
+  },
+  {
+    "step": "the first server is off the second's list after the move",
+    "ok": true
+  },
+  {
+    "step": "the owner stops the old server",
+    "ok": true
+  },
+  {
+    "step": "the old server now refuses the model, on its record",
+    "ok": true
+  },
+  {
+    "step": "the stop on the old server is lifted for the rest of the drill",
+    "ok": true
+  },
+  {
+    "step": "a removed person is refused at once",
+    "ok": true
+  },
+  {
+    "step": "the journal names every person's action",
+    "ok": true,
+    "detail": "map[invite_made:1 model_released:1 model_sent:1 move_ordered:3 person_joined:2 person_removed:1 stop_lifted:3 stop_ready:1 stop_set:3]"
+  },
+  {
+    "step": "the provider is a real one",
+    "ok": true,
+    "detail": "aws-sev-snp"
+  }
+]

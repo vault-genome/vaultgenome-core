@@ -1,0 +1,7 @@
+{"time":"2026-10-30T19:44:21.502630432Z","level":"INFO","msg":"sagvd console listener","address":"[::]:9444","people":0}
+{"time":"2026-10-30T19:45:38.687871821Z","level":"INFO","msg":"sagvd console: a person joined","name":"Drill Owner","role":"owner","holds_stop":true}
+{"time":"2026-10-30T19:45:38.982840907Z","level":"INFO","msg":"sagvd console: the stop list changed","person":"Drill Owner","serial":1,"stop_all":false}
+{"time":"2026-10-30T19:45:40.599923143Z","level":"INFO","msg":"sagvd console: a person joined","name":"Drill Source (server)","role":"peer","holds_stop":false}
+{"time":"2026-10-30T19:45:42.486165701Z","level":"INFO","msg":"sagvd console: a person joined","name":"AWS Ohio kit (server)","role":"peer","holds_stop":false}
+{"time":"2026-10-30T19:45:42.749229161Z","level":"INFO","msg":"sagvd console: a sealed model arrived","name":"gen-0.genome","bytes":"24729","from":"AWS Ohio kit (server)"}
+{"time":"2026-10-30T19:45:42.836811718Z","level":"INFO","msg":"sagvd console: a sealed model arrived","name":"gen-0.genome.escrow","bytes":"304","from":"AWS Ohio kit (server)"}

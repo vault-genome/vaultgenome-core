@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), [C58](#c58), [C59](#c59), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), [C58](#c58), [C59](#c59), [C60](#c60), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -4337,7 +4337,7 @@ auto` kept on both sides and the peer resolved to `aws-sev-snp`; the
 **VLEK** chain fetched from AMD KDS — `/vlek/v1/Milan/cert_chain`, the
 ASVK and the ARK `69d063b4…40bcd` this build pins
 (`amd-milan-vlek-cert_chain.pem`); both identities the chip's launch
-measurement `1d8ee9ba…cb5b` with `aws_sev_snp.csp_id`
+measurement `1d8ee9ba…bf5b` with `aws_sev_snp.csp_id`
 `CN=cc-us-east-2.amazonaws.com`, each pinned by the other side and the
 CSP_ID written into both `tee.peer.csp_ids`; eight key files sealed with
 the firmware's derived key — five of the authority's, three of the
@@ -4371,7 +4371,7 @@ finished 140.6 s after its first command. On the machine that ran the command th
 published EC2 UEFI, release 20260814 (`ovmf_img.fd`, sha256
 `67aaae01…2bc9`, equal to the pin in `run.sh`), and measured it with
 sev-snp-measure 0.0.13 (`--mode snp --vcpus 4 --vmm-type ec2`):
-`1d8ee9ba…cb5b`, equal to what the chip reported and both daemons pinned
+`1d8ee9ba…bf5b`, equal to what the chip reported and both daemons pinned
 (`measurement.txt`). `RESULT: PASS` was printed 222 s after the command;
 the instance, the key pair and the security group were deleted
 (`vm-deleted.txt`: terminated at 16:52:40Z). Nothing secret was printed:
@@ -4470,7 +4470,7 @@ worker runtime from the hash-pinned locks, built the base model, and
 wrote the deployment in 0.51 s: both sides `auto` resolved to
 `aws-sev-snp` from the host, the VLEK chain from AMD KDS under the pinned
 ARK (`amd-milan-vlek-cert_chain.pem`), both identities the launch
-measurement `1d8ee9ba…cb5b` and `aws_sev_snp.csp_id`
+measurement `1d8ee9ba…bf5b` and `aws_sev_snp.csp_id`
 `CN=cc-us-east-2.amazonaws.com`, each pinned by the other side, eight key
 files sealed with the firmware's derived key — five of the authority's,
 three of the worker's — each header `tee: aws-sev-snp`, `sealer:
@@ -4506,7 +4506,7 @@ move). The chip on the new host, as the verifier read it: a new REPORT_ID
 (`after-move/identity.txt`). On the machine that ran the command the kit
 downloaded AWS's published EC2 UEFI, release 20260814 (sha256
 `67aaae01…2bc9`, equal to the pin in `run.sh`), and measured it with
-sev-snp-measure 0.0.13 for 4 vCPUs: `1d8ee9ba…cb5b`, equal to what the
+sev-snp-measure 0.0.13 for 4 vCPUs: `1d8ee9ba…bf5b`, equal to what the
 chip reported and both daemons pinned (`measurement.txt`). The record was
 checked for anything naming the account — an ARN, an IAM unique id, the
 twelve digits — and names none; the stack was deleted
@@ -4564,6 +4564,86 @@ rehearsal; the deployer's identity needs the actions of
 bucket, public for the template alone.
 
 ---
+
+<a id="c60"></a>
+### C60 — A person with no terminal: the chip asked and verified on their own computer, the emergency stop and the move as buttons, from Ohio to Ireland, EXACT on the new server
+
+**Claim.** On 2026-10-30 `scripts/hardware-test/console/run.sh`, from commit
+`9d44d77e` on a clean tree, launched two `m6a.xlarge` EC2 instances with AMD
+SEV-SNP, in `us-east-2c` and `eu-west-1a`, and stood a deployment up on each with
+`acpctl provision --provider auto --console-listen 0.0.0.0:9444`. Only the first
+sealed a model; its own gate job over the REST API came back EXACT, 6 of 6, before
+any console touched it (`guest-first/steps.txt`). From a Mac, over the internet,
+`vgconsole drill` then ran the code behind the page's buttons, 45 steps, each held
+to what it must be, 45 of 45 as they must be (`drill.out`, `drill/drill.json`):
+
+- **The door.** A key on nobody's list was refused a check, a made-up pass code was
+  refused; the owner's pass opened in 0.49 s and was dead for anyone else. The first
+  owner's key, made on the Mac, became the operator key of the stop list.
+- **The check.** The chip's answer to 32 random bytes verified on the Mac with the
+  daemons' verifier code in 0.06 s: `aws-sev-snp`, Milan, `signing_key: vlek`,
+  CSP_ID `CN=cc-us-east-2.amazonaws.com`, firmware 1.58.3, the measurement
+  `1d8ee9ba…bf5b` of the pin (`drill/check-detail.json`, `check-state.json`,
+  `check-evidence.bin`, `check-challenge.hex`). The same answer did not pass for a
+  new question, for one bit changed in the state, for another listener, or against
+  a pin one bit away.
+- **The journal.** 18 records verified on the Mac with both services running: each
+  signature, each link, the last one the record the chip's answer named. A changed
+  record was caught and named (record 9 of 18), a removed one caught.
+- **Roles.** A viewer's own computer verified the same chip; the listener refused
+  that viewer a restore and the stop. Removed, they were refused at once.
+- **The restore check.** By the button, under the person's name: EXACT in 7.5 s.
+- **The stop.** The list signed on the Mac; a list signed by another key refused; the
+  chip's next answer said the stop was on; a restore was refused on the record
+  (`trust_denied`, `operator stop in force`, `drill/job-refused-*.json`); an older
+  list could not lift it; a newer one did, and the model came back EXACT in 7.4 s.
+- **The move.** The second server's chip verified on the Mac and named its key for
+  receiving under that chip. An order signed by another key, addressed to another
+  server, or out of its time was refused. An order with a pin one bit away reached
+  the first server, which asked the second's chip itself, refused it and sent
+  nothing; nothing had arrived. With the stop on, the first server handed over
+  nothing. Then the order signed on the Mac was carried out: the first server,
+  in Ohio, verified the Irish server's chip, wrapped the model's key to the key that
+  chip named (`11721fa7a06d19b9`), and sent 24 729 bytes of ciphertext, sha256
+  `a2891f23…f5e8`, in 0.60 s of its own time, 1.05 s from the press (`drill/move.json`).
+  The Irish server's own worker brought the model back under its own gate, the key
+  opened from the envelope alone: **EXACT, 6 of 6, in 7.0 s**
+  (`drill/job-*.json`). The same model could not be sent over it. The first server
+  was off the second's list after the move; the owner stopped the old server, and
+  it refused the model on its record.
+
+`sagvd` then restarted on the first server and the same pass and the same chip still
+proved it (`after-restart.json`: the listener's key opened from its sealed file, the
+people and the stop list still there). The daemons stopped, both audit logs came to
+the Mac and were verified there by `acpctl audit verify` and by the independent
+auditor (`tools/auditor/verify_audit.py`), which read the new `CONSOLE_ACTION` kind
+as it reads any other: 70 events, tip `3ddd73d3…aebb`, and 31 events, tip
+`afedc6ca…b7a5` (`audit-verify-*.json`, `audit-independent-*.json`,
+`audit-events-*.jsonl`). The record was checked for the account and for IAM ids and
+names neither; this machine's address and the servers' are replaced in it. Both
+instances were deleted (`vm-deleted.txt`).
+
+**What this does not show.** The model here is the tiny one the reference deployment
+gates. A move needs the old server alive and does not switch a bank's clients. On EC2
+the chip vouches for the firmware and not for the operating system (ADR 0038), which
+the page says. The deploy buttons do not turn the console on yet, the application has
+been opened on macOS on Apple silicon only, and one person holds the stop
+(`KNOWN_ISSUES.md` 20).
+
+**Evidence.**
+[`scripts/hardware-test/console/evidence/20261030T194040Z/`](scripts/hardware-test/console/evidence/20261030T194040Z/)
+— `drill.out`, `drill/` (`drill.json`, `check-*`, `move.json`, `job-*.json`,
+`job-refused-*.json`, and what a person reads: `overview-ru.json`, `overview-en.json`,
+`second-overview-ru.json`, `journal-plain.json`, `second-journal-plain.json`),
+`after-restart.json`, `audit-verify-*.json`, `audit-independent-*.json`,
+`audit-events-*.jsonl`, `sagvd-console-*.log`, `guest-first/`, `guest-second/`,
+`instance-*.json`, `binaries.sha256`, `code-rev.txt`, `code-dirty.txt`, `runner.log`,
+`vm-deleted.txt`, `sha256sums.txt`.
+
+**Reproduce.** `scripts/hardware-test/console/run.sh`; about ten minutes and about
+ten cents on an AWS account with EC2 in both regions. On your own computer, without
+hardware, the same buttons against the real daemons on the simulated TEE:
+`go test ./cmd/vgconsole`.
 
 ## What we do not claim
 
@@ -4651,6 +4731,13 @@ If you find daylight between the two, that is a bug in the document, and we
 want the issue.
 
 ---
+
+9. **We do not claim the console is a bank's whole control room.** It shows and
+   acts on one deployment for the people on its list ([C60](#c60)): one holder of
+   the stop and of the order to move, no second person's approval, no bank login, no
+   update button; a move needs the old server alive and leaves the bank's clients to
+   the bank; on EC2 the chip vouches for the firmware and not for the operating
+   system, and the page says so. `KNOWN_ISSUES.md` 20 has the list.
 
 ## Evidence hygiene
 

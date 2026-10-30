@@ -28,7 +28,8 @@ given release can still open.
   their computer; the old server verifies the new server's chip itself, wraps the
   model's key so that it opens only there, and sends the sealed model; the new
   server brings it back under its own gate and on its own record. Both journals
-  say so. `POST /v1/console/move`, `PUT /v1/console/incoming/{name}`.
+  say so. `POST /v1/console/move`, `PUT /v1/console/incoming/{name}`. On real
+  hardware from Ohio to Ireland, EXACT on the new server (C60).
 - `sagvd`: `console.listen_address` and `console.dir`, the listener the
   consoles reach (mutual TLS 1.3, its certificate pinned by the pass, its key
   sealed to the host); off by default, and a deployment that does not set it

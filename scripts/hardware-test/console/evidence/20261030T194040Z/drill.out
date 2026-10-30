@@ -1,0 +1,46 @@
+ok    a key on nobody's list is refused a check
+ok    a made-up pass code is refused
+ok    the owner opens the pass, gets the emergency stop and signs its first list: Drill Owner
+ok    the same pass is dead for anyone else
+ok    the chip's answer verifies on this computer: aws-sev-snp, measurement 1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+ok    an old answer does not pass for a new question
+ok    one bit changed in the server's state is caught
+ok    an answer made for another listener is refused
+ok    the real chip does not pass for a pin one bit away
+ok    the journal verifies on this computer, with both services running: 18 records, tip b07680986daec47b8ffcc2aed92f70281e2ffbd8599f30b650df007597e49208
+ok    a changed record is caught and named: record 9 of 18
+ok    a removed record is caught: record 9 of 18
+ok    the viewer's own computer verifies the same chip
+ok    the viewer cannot start a restore
+ok    the viewer cannot press stop
+ok    the restore check, stop off: succeeded, EXACT
+ok    the model comes back: EXACT in 7.5 s
+ok    a stop list signed by another key is refused
+ok    the chip's next answer says the stop is on
+ok    with the stop on, a restore is refused on the record
+ok    an older list cannot lift the stop
+ok    the owner lifts the stop
+ok    the restore check, stop lifted: succeeded, EXACT
+ok    the model comes back after the stop is lifted: EXACT in 7.4 s
+ok    the owner opens the second server's pass and holds its stop too: AWS Ireland, kit
+ok    the second server's chip verifies on this computer: aws-sev-snp, measurement 1d8ee9bae96e2b88e7dab179eca3229827f658cb04fbe814f59b5f4312edcb07a7e9d98141b152db1063379046c1bf5b
+ok    the second server names its key for receiving, under its chip
+ok    an order signed by another key is refused
+ok    an order addressed to another server is refused
+ok    an order out of its time is refused
+ok    the first server itself refuses a target that does not show the pin, and sends nothing
+ok    nothing arrived at the second server: []
+ok    with the stop on, the first server hands over nothing
+ok    the model is handed over, after the first server verified the second's chip: gen-0.genome, 24729 bytes, sha256 a2891f23a6f1b1ac58bbf3d00dbf62d45169ea9015c6569efac8f2fe0200f5e8, key 11721fa7a06d19b9
+ok    the second server's restore check of the moved model: succeeded, EXACT
+ok    the moved model comes back on the second server, by its own worker, under its own gate: EXACT in 7.0 s
+ok    the same model cannot be sent over it
+ok    the second server's journal verifies here and says the model arrived and came back: 31 records, tip afedc6ca50490379487591a9d8a44a19fe1c4a5e8631ca7545e1b1d4a7aeb7a5
+ok    the first server is off the second's list after the move
+ok    the owner stops the old server
+ok    the old server now refuses the model, on its record
+ok    the stop on the old server is lifted for the rest of the drill
+ok    a removed person is refused at once
+ok    the journal names every person's action: map[invite_made:1 model_released:1 model_sent:1 move_ordered:3 person_joined:2 person_removed:1 stop_lifted:3 stop_ready:1 stop_set:3]
+ok    the provider is a real one: aws-sev-snp
+DRILL: PASS

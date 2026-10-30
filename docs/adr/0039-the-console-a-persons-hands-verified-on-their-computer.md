@@ -1,6 +1,6 @@
 # ADR 0039 — The console: a person's hands on a deployment, verified on their own computer
 
-- **Status:** Accepted (2026-10-30) — implemented: `cmd/vgconsole`, `internal/console`, `cmd/sagvd/console_api.go`, `acpctl console invite`, `acpctl provision --console-listen`; on real hardware in `scripts/hardware-test/console/`
+- **Status:** Accepted (2026-10-30) — implemented: `cmd/vgconsole`, `internal/console`, `cmd/sagvd/console_api.go`, `acpctl console invite`, `acpctl provision --console-listen`; on real hardware in `scripts/hardware-test/console/` (C60)
 - **Date:** 2026-10-30
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0010 (the operator's stop list), ADR 0014 (the audit log), ADR 0023 (key files sealed to the host), ADR 0027 (the log in segments)

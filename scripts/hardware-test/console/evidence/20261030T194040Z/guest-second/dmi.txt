@@ -1,0 +1,4 @@
+sys_vendor=Amazon EC2
+product_name=m6a.xlarge
+bios_vendor=Amazon EC2
+bios_version=1.0
