@@ -90,6 +90,7 @@ dialog label{display:block;font-size:14px;color:var(--muted);margin-bottom:4px}
 <body>
 <main id="app"></main>
 <dialog id="dlg"></dialog>
+<input type="file" id="passpick" accept=".vgpass,application/json" hidden>
 <script>
 "use strict";
 const T={
@@ -169,8 +170,8 @@ function confirmStop(stop){
 function moveDlg(){
   const o=ov;
   if(!o.targets||!o.targets.length){
-    dialog(`<h3>${t("moveNoT")}</h3><p>${t("moveNoP")}</p><input type="file" id="pass2" hidden><div class="dbtns"><button data-cancel>${t("cancel")}</button><button data-go class="go">${t("passOpen")}</button></div>`,
-      ()=>new Promise(res=>{const inp=document.createElement("input");inp.type="file";inp.addEventListener("change",async()=>{const f=inp.files[0];if(f){err="";try{const text=await f.text();await api("/api/join",{method:"POST",body:text});ov=await api("/api/overview");}catch(e){err=e.message;}render();}res();});inp.click();}));
+    dialog(`<h3>${t("moveNoT")}</h3><p>${t("moveNoP")}</p><div class="dbtns"><button data-cancel>${t("cancel")}</button><button data-go class="go">${t("passOpen")}</button></div>`,
+      ()=>{const inp=document.getElementById("passpick");inp.value="";inp.click();});
     return;
   }
   dialog(`<h3>${t("moveT")}</h3><p>${t("moveP")}</p><p><b>${t("moveP2")}</b></p><label for="to">${t("moveTo")}</label><select id="to">${o.targets.map(x=>`<option value="${esc(x.id)}">${esc(x.label)}</option>`).join("")}</select><div class="dbtns"><button data-cancel>${t("cancel")}</button><button data-go class="go danger">${t("moveGo")}</button></div>`,
@@ -202,8 +203,10 @@ function removeDlg(key,name){
   dialog(`<h3>${t("rmT")}</h3><p><b>${esc(name)}</b>. ${t("rmP")}</p><div class="dbtns"><button data-cancel>${t("cancel")}</button><button data-go class="go danger">${t("rmGo")}</button></div>`,
    ()=>(async()=>{err="";try{ov=await api("/api/remove",{method:"POST",body:JSON.stringify({public_key_hex:key})});}catch(e){err=e.message;}render();})());
 }
+async function openSecond(f){err="";try{const text=await f.text();await api("/api/join",{method:"POST",body:text});ov=await api("/api/overview");}catch(e){err=e.message;}render();}
 async function start(){
   document.documentElement.lang=lang;
+  document.getElementById("passpick").addEventListener("change",e=>{if(e.target.files[0])openSecond(e.target.files[0]);});
   try{const s=await api("/api/servers");if(s.length){server=s[0].id;ov=await api("/api/overview");}}catch(e){err=e.message;}
   render();
   // The page asks the chip every minute and redraws only when something changed,
