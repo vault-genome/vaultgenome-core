@@ -27,7 +27,8 @@ Usage:
 Description:
   Authority daemon. Binds the Return Path listener for
   acp-compute workers and the operator REST API for job
-  submission (POST /v1/jobs) and lookup (GET /v1/jobs/{id}).
+  submission (POST /v1/jobs) and lookup (GET /v1/jobs/{id}), and
+  with console.listen_address the listener people's consoles reach.
 
   identity prints the authority signing key and TEE identity other
   hosts pin, as JSON. crosscloud-restore releases DEKs to an attested,
@@ -103,6 +104,7 @@ Commands:
   sentinel watch   Keep a running model's state sealed; report when a tripwire fires
   failover issue   Sign the operator's failover policy: which standby, on which signs of failure
   failover verify  Check a failover policy against the operator public key
+  console invite   Make a pass: the single-use file a person opens in their console (ADR 0039)
   tee fetch-amd-chain  Fetch an AMD product line's ASK+ARK chain (or, with --signer vlek, its ASVK+ARK chain) from AMD KDS, verified against the pinned roots, for amd_cert_chain_path
   tee prefetch         Fill a daemon's peer-verifier caches (VCEK, Intel PCS documents) while the vendors are reachable — for a host that will be air-gapped
   tee cache-status     What those caches hold and until when; exit 1 when anything is expired or missing

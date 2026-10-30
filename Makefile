@@ -10,7 +10,7 @@ PKG   := ./...
 
 # --- metadata -----------------------------------------------------------------
 
-BINARIES := sagvd acp-compute acpctl acp-bootstrap acp-keygen acp-demo
+BINARIES := sagvd acp-compute acpctl acp-bootstrap acp-keygen acp-demo vgconsole
 VERSION  ?= 0.0.0-dev
 COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 
@@ -66,17 +66,18 @@ bin/%-fips: cmd/%
 	@mkdir -p bin
 	CGO_ENABLED=0 GOFIPS140=$(FIPS_MODULE) $(GO) build $(GOFLAGS_REPRO) -o $@ ./$<
 
-# The two tools a person runs on their own machine — acpctl and acp-keygen —
+# The tools a person runs on their own machine — acpctl, acp-keygen and the
+# console, vgconsole (ADR 0039), which is also built for linux/amd64 here —
 # are also built for the platforms a laptop or a workstation is: macOS and
 # Windows on both architectures, Linux on arm64 (bin/<tool>-<os>-<arch>, a
 # .exe on Windows), with the same flags, so they rebuild byte for byte like
 # the others. The daemons stay linux/amd64: they attest with hardware no
 # other platform has, and a binary that has not run on that hardware is
 # not released (KNOWN_ISSUES #1 names what a release runs on).
-CROSS_TOOLS     := acpctl acp-keygen
+CROSS_TOOLS     := acpctl acp-keygen vgconsole
 CROSS_PLATFORMS := linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64
 cross_name       = $(1)-$(2)$(if $(findstring windows,$(2)),.exe,)
-CROSS_BINARIES  := $(foreach t,$(CROSS_TOOLS),$(foreach p,$(CROSS_PLATFORMS),$(call cross_name,$(t),$(p))))
+CROSS_BINARIES  := $(foreach t,$(CROSS_TOOLS),$(foreach p,$(CROSS_PLATFORMS),$(call cross_name,$(t),$(p)))) vgconsole-linux-amd64
 
 .PHONY: build-cross
 build-cross: $(CROSS_BINARIES:%=bin/%)
@@ -89,6 +90,7 @@ bin/$(call cross_name,$(1),$(2)): cmd/$(1)
 	CGO_ENABLED=0 GOOS=$(word 1,$(subst -, ,$(2))) GOARCH=$(word 2,$(subst -, ,$(2))) $$(GO) build $$(GOFLAGS_REPRO) -o $$@ ./$$<
 endef
 $(foreach t,$(CROSS_TOOLS),$(foreach p,$(CROSS_PLATFORMS),$(eval $(call cross_rule,$(t),$(p)))))
+$(eval $(call cross_rule,vgconsole,linux-amd64))
 
 # release.yml reads the list from here, so the workflow and the Makefile
 # cannot disagree about what a release carries.

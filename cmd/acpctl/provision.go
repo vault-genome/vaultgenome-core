@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/console"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -122,6 +123,7 @@ type provisionOptions struct {
 	insecureSimulation                               bool
 	vaultListen, vaultAddress, vaultServerName       string
 	apiListen, vaultHealth, workerHealth             string
+	consoleListen                                    string
 	amdCertChain, fetchAMDChain, kdsURL, pcsCacheDir string
 	ownAMDCertChain, fetchOwnAMDChain                string
 	doorPython, workerPackage, baseModel, device     string
@@ -154,6 +156,7 @@ func (o *provisionOptions) authorityFlags(flags *flag.FlagSet) {
 	flags.StringVar(&o.vaultAddress, "vault-address", "", "the address acp-compute dials (default: --vault-listen; required when the listen address binds every interface)")
 	flags.StringVar(&o.vaultServerName, "vault-server-name", "localhost", "the TLS name acp-compute verifies sagvd's certificate against")
 	flags.StringVar(&o.apiListen, "api-listen", "127.0.0.1:9080", "sagvd's REST API listen address")
+	flags.StringVar(&o.consoleListen, "console-listen", "", "Where sagvd listens for the people's consoles (ADR 0039), as host:port; empty: no console. Passes are made with `acpctl console invite`")
 	flags.StringVar(&o.vaultHealth, "vault-health", "127.0.0.1:9081", "sagvd's health and metrics listen address")
 	flags.StringVar(&o.amdCertChain, "amd-cert-chain", "", "the AMD ASK+ARK chain (PEM) of the worker's chip's product, for sagvd's verifier of a SEV-SNP worker")
 	flags.StringVar(&o.fetchAMDChain, "fetch-amd-chain", "", "fetch the AMD chain for the worker's product (milan, genoa, turin) from AMD KDS into the deployment directory, verified against the pinned roots (ADR 0024); the VLEK chain for an aws-sev-snp worker (ADR 0038)")
@@ -591,7 +594,7 @@ func teeSection(local, family tee.Provider, sealer, descriptor string, peerCfg m
 // sagvdConfig is sagvd.json for the deployment.
 func sagvdConfig(o provisionOptions, out, secrets string, teeCfg map[string]any, genomeDir, auditLog, queuePath string) map[string]any {
 	sec := func(p ...string) string { return filepath.Join(append([]string{secrets}, p...)...) }
-	return map[string]any{
+	cfg := map[string]any{
 		"vault": map[string]any{"listen_address": o.vaultListen,
 			"tls": map[string]any{"enabled": true, "server_cert": sec("sagvd", "tls", "server.crt"), "server_key": sec("sagvd", "tls", "server.key"), "client_cas": sec("shared", "tls", "ca.crt")}},
 		"http_api": map[string]any{"listen_address": o.apiListen, "bearer_token_file": sec("sagvd", "api_token")},
@@ -609,6 +612,14 @@ func sagvdConfig(o provisionOptions, out, secrets string, teeCfg map[string]any,
 		"health": map[string]any{"listen_address": o.vaultHealth},
 		"log":    map[string]any{"level": o.logLevel, "format": "json"},
 	}
+	if o.consoleListen != "" {
+		// The operator key is the first owner's, written when they join
+		// (ADR 0039): it is made on their computer, never here.
+		dir := filepath.Join(out, "console")
+		cfg["console"] = map[string]any{"listen_address": o.consoleListen, "dir": dir}
+		cfg["operator_stop"] = map[string]any{"kid": console.StopKeyID, "public_key_path": filepath.Join(dir, "operator_stop.pem"), "list_path": filepath.Join(dir, "stop_list.json")}
+	}
+	return cfg
 }
 
 // workerConfig is acp-compute.json for the deployment: the authority it

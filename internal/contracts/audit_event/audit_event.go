@@ -67,12 +67,16 @@ const (
 	//            ecdsa-p384-sha384 and ml-dsa-87. Kind set unchanged.
 	//            A v7 reader refuses a v8 event; a v8 reader verifies
 	//            every earlier event as it did.
+	//   v8 → v9: ADR 0039 added KindConsoleAction: what a person did
+	//            through the console — joined, was removed, set or lifted
+	//            the emergency stop — on the record before it takes
+	//            effect. Struct shape unchanged.
 	// See docs/doctrine/bootstrap-contracts.md §5 (contract-frozen
 	// discipline), the Stage F.2 / Stage G doctrine notes in
 	// docs/internal/status-journal.md, ADR 0006 (cross-cloud KMS-mediated
 	// restore) and ADR 0010 (operator stop and recorded refusals).
-	SchemaVersionMax     uint16 = 8
-	SchemaVersionCurrent uint16 = 8
+	SchemaVersionMax     uint16 = 9
+	SchemaVersionCurrent uint16 = 9
 
 	// HashSize is the length in bytes of PrevHash and Hash (SHA-256).
 	HashSize = 32
@@ -237,6 +241,11 @@ const (
 	// chain's lock before any other writer, so that the live file alone
 	// names the file it continues and what that file must hash to.
 	KindAuditSegmentClosed Kind = "AUDIT_SEGMENT_CLOSED"
+
+	// KindConsoleAction is what a person did through the console (ADR
+	// 0039): who, what and the list or key it concerned, written before
+	// the change takes effect.
+	KindConsoleAction Kind = "CONSOLE_ACTION"
 )
 
 // AuditEvent is one record in the hash-chained audit log.

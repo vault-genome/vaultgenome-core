@@ -18,6 +18,7 @@ the shipped binaries run today.*
 | `acp-compute` | Worker: dials sagvd's Return Path and runs one gate job per session — restores the sealed genome's model in memory through the `vg_genome` door named by `genome.door.command` and answers the genome's prompts (ADR 0013). Needs Python, the pinned torch and the public base model on its host. Attests with AMD SEV-SNP (`tee.provider: "gcp-sev-snp"`) or the simulated TEE (ADR 0014). | yes |
 | `acp-bootstrap` | Cross-cloud destination: attests with AMD SEV-SNP (or the simulator), receives genome keys, restores genomes, signs receipts. | yes |
 | `acpctl` | Administrative CLI (§1.3). | yes |
+| `vgconsole` | The application a person without a terminal opens on their own computer: what was checked, what was done, a restore check, the emergency stop ([10_console.md](10_console.md)). | yes |
 | `acp-demo` | Self-contained cross-hardware regeneration demo. | yes |
 
 The nine-stage flow in §2 is library code under `internal/`, and `sagvd`

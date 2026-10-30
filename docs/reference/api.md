@@ -183,3 +183,25 @@ token is one credential for the operator's integration; who asked is
 | `genome.bundle_dir` | — | where `POST /v1/jobs` finds bundles; unset disables gate jobs |
 | `runtime.default_job_deadline_seconds` | per deployment | the default and ceiling of `deadline_seconds_from_now` |
 | `queue.retain_finished_seconds` | per deployment | how long a finished job's view is kept |
+
+## The console's listener
+
+`console.listen_address` starts a second listener for people's consoles
+([ADR 0039](../adr/0039-the-console-a-persons-hands-verified-on-their-computer.md)):
+mutual TLS 1.3, the client's Ed25519 key checked against `console.dir/people.json`,
+the server's certificate pinned by the pass. It is the console's wire and not an
+integration surface; the shapes are `internal/console`'s.
+
+| Route | Who | What |
+| - | - | - |
+| `POST /v1/console/join` | any key | Redeems a pass's single-use code; the key goes on the list |
+| `POST /v1/console/check` | everyone listed | The state as bytes and the chip's evidence over the challenge, the listener's certificate and the state |
+| `GET /v1/console/journal?from=N` | everyone listed | Up to 500 records of the live segment, as signed |
+| `GET /v1/console/jobs/{id}` | everyone listed | A job without its model output |
+| `POST /v1/console/restore-check` | `operator`, `owner` | A gate job on the newest sealed genome, `requester_identity` `person:<name>` |
+| `PUT /v1/console/stop` | `owner` | A stop list signed under the operator key; refused unless newer than the one in force |
+| `POST /v1/console/invites` | `owner` | A new single-use code |
+| `POST /v1/console/people/remove` | `owner` | Takes a person off the list; not the holder of the stop |
+
+A refusal is `{"code","message"}`. What a person changes is a `CONSOLE_ACTION` audit
+event written before it takes effect: 503 `audit_unavailable` means nothing changed.

@@ -32,6 +32,8 @@
 //     state sealed generation by generation, attest every record with the
 //     primary's TEE (--tee, ADR 0017), report when a tripwire fires
 //     (ADR 0012); identity prints what the operator pins.
+//   - console invite: a pass, the single-use file a person opens in vgconsole
+//     (ADR 0039)
 //   - failover issue|verify: the operator's signed failover policy — the
 //     sentinel's key, the primary's TEE, the one standby, the triggers, the
 //     grace on `stopped`, the quarantine, the required gate.

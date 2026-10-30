@@ -103,6 +103,11 @@ type Config struct {
 	// daemon's releases by writing a new list. Optional; when set, all
 	// three fields are required.
 	OperatorStop OperatorStopConfig `json:"operator_stop,omitempty"`
+
+	// Console is the listener a person's console connects to (ADR 0039).
+	// Empty: no listener. With it, operator_stop is required, and its key
+	// is the first owner's, written when they join.
+	Console ConsoleConfig `json:"console,omitempty"`
 }
 
 // CryptoConfig is the deployment's cryptographic profile (ADR 0029): the
@@ -1609,6 +1614,17 @@ func (c Config) Validate() error {
 	if c.OperatorStopEnabled() {
 		if s := c.OperatorStop; s.KeyID == "" || s.PublicKeyPath == "" || s.ListPath == "" {
 			errs = append(errs, errors.New("operator_stop.kid, public_key_path and list_path are all required when any is set"))
+		}
+	}
+	if c.Console.Enabled() {
+		if c.Console.Dir == "" {
+			errs = append(errs, errors.New("console.dir is required with console.listen_address"))
+		}
+		if !c.OperatorStopEnabled() {
+			errs = append(errs, errors.New("operator_stop is required with console.listen_address: the console's stop button signs that list"))
+		}
+		if c.Audit.LogPath == "" {
+			errs = append(errs, errors.New("audit.log_path is required with console.listen_address: what a person does goes on the record"))
 		}
 	}
 	if c.Runtime.EvidenceMaxAgeSeconds < 0 {
