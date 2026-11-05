@@ -74,7 +74,7 @@ command -v sha256sum >/dev/null 2>&1 || need shasum "sha256sum or shasum"
 if [ -z "$TAG" ]; then
   TAG="$(git -C "$ROOT" describe --tags --exact-match HEAD 2>/dev/null || true)"
   if [ -z "$TAG" ]; then
-    TAG="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])' 2>/dev/null || true)"
+    TAG="$(curl -fsSL --retry 5 --retry-max-time 120 "https://api.github.com/repos/$REPO/releases/latest" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])' 2>/dev/null || true)"
     [ -n "$TAG" ] || die "this checkout is not at a release tag and the latest release could not be read; name one: --tag v0.14.0"
   fi
 fi
