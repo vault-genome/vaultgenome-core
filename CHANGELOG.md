@@ -40,6 +40,13 @@ given release can still open.
 - **Audit schema v9:** one kind added, `CONSOLE_ACTION`. A v8 reader refuses a
   v9 event; a v9 reader verifies every earlier event as it did. A log that
   never had a console on it holds v9 events from the upgrade on, as any bump.
+- **The button's downloads wait out GitHub's release storage:** in
+  `deploy/lib/verify-release.sh`, in the three guests and in the
+  `releases/latest` lookup, curl now backs off 1, 2, 4 … seconds between
+  tries, up to ten minutes, instead of four tries in seven seconds. On
+  2026-11-05 the release storage answered 504 four times in seven seconds and
+  the proof clock lost the day's proof on AMD SEV-SNP before any VM existed
+  (vault-genome/proof-clock run 42046284880).
 
 ## [0.14.0] — 2026-10-29
 

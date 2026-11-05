@@ -116,7 +116,8 @@ if [ ! -f "$INSTALLED" ]; then
   mark download_start
   PKG="genome-worker-$TAG.tar.gz"
   for f in sagvd acp-compute acpctl acp-keygen "$PKG"; do
-    retry curl -fsSL --retry 3 --retry-delay 5 -o "$WORK/$f" "$REPO_URL/releases/download/$TAG/$f" || fail "download of $f"
+    # each download waits out GitHub's release storage: curl backs off up to 200 s a try, three tries — ten minutes in all
+    retry curl -fsSL --retry 7 --retry-max-time 200 -o "$WORK/$f" "$REPO_URL/releases/download/$TAG/$f" || fail "download of $f"
   done
   sha256sum sagvd acp-compute acpctl acp-keygen "$PKG" > "$OUT/inputs.sha256"
   sha256sum -c --ignore-missing "checksums-$TAG.txt" > "$OUT/checksums-check.txt" 2>&1 || true

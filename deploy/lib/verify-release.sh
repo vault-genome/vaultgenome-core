@@ -31,10 +31,13 @@ VG_SLSA_VERIFIER_VERSION=v2.7.1; VG_SLSA_VERIFIER_SHA256=946dbec729094195e88ef78
 
 if command -v sha256sum >/dev/null 2>&1; then VG_SHA256="sha256sum"; else VG_SHA256="shasum -a 256"; fi
 
+# A download waits out GitHub's release storage: curl backs off 1, 2, 4 …
+# seconds between tries, up to ten minutes. (2026-11-05: four 504s in seven
+# seconds, and the proof clock lost a day's proof before any VM existed.)
 vg_fetch_tool() { # dir name url sha256
   local out="$1/$2"
   if [ ! -x "$out" ] || [ "$($VG_SHA256 "$out" | cut -d' ' -f1)" != "$4" ]; then
-    curl -fsSL --retry 3 -o "$out.part" "$3" || die "could not download $2 from $3"
+    curl -fsSL --retry 10 --retry-max-time 600 -o "$out.part" "$3" || die "could not download $2 from $3"
     [ "$($VG_SHA256 "$out.part" | cut -d' ' -f1)" = "$4" ] || die "$2 downloaded from $3 does not have the pinned hash $4"
     mv "$out.part" "$out"; chmod 0755 "$out"
   fi
@@ -61,7 +64,7 @@ vg_verify_release() { # TAG DL_DIR REC_DIR
   artifacts="sagvd acp-compute acpctl acp-keygen $pkg"
   # shellcheck disable=SC2086
   for f in "$list" "$list.sig" "$list.cert" multiple.intoto.jsonl $artifacts; do
-    curl -fsSL --retry 3 --retry-delay 5 -o "$dl/$f" "$VG_REPO_URL/releases/download/$tag/$f" || die "could not download $f of release $tag"
+    curl -fsSL --retry 10 --retry-max-time 600 -o "$dl/$f" "$VG_REPO_URL/releases/download/$tag/$f" || die "could not download $f of release $tag"
   done
   ( cd "$dl" && $VG_SHA256 -- * ) > "$rec/assets.sha256"
   # 1. the signed list, under the release workflow's identity for this tag

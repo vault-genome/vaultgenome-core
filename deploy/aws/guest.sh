@@ -148,12 +148,13 @@ echo "$PRODUCT" > "$VAR/.product"; note "product=$PRODUCT"
 step "the release $TAG, verified on this guest: the signed list under the release workflow's identity, then the files against the list"
 mark download_start
 mkdir -p "$WORK/tools"
-retry curl -fsSL --retry 3 -o "$WORK/tools/cosign" "$COSIGN_URL" || fail "download of cosign"
+# each download waits out GitHub's release storage: curl backs off up to 200 s a try, three tries — ten minutes in all
+retry curl -fsSL --retry 7 --retry-max-time 200 -o "$WORK/tools/cosign" "$COSIGN_URL" || fail "download of cosign"
 [ "$(sha256sum "$WORK/tools/cosign" | cut -d' ' -f1)" = "$COSIGN_SHA256" ] || fail "cosign downloaded from $COSIGN_URL does not have the pinned hash"
 chmod 0755 "$WORK/tools/cosign"
 LIST="checksums-$TAG.txt"
 for f in "$LIST" "$LIST.sig" "$LIST.cert"; do
-  retry curl -fsSL --retry 3 --retry-delay 5 -o "$WORK/$f" "$REPO_URL/releases/download/$TAG/$f" || fail "download of $f"
+  retry curl -fsSL --retry 7 --retry-max-time 200 -o "$WORK/$f" "$REPO_URL/releases/download/$TAG/$f" || fail "download of $f"
 done
 "$WORK/tools/cosign" verify-blob --signature "$WORK/$LIST.sig" --certificate "$WORK/$LIST.cert" \
   --certificate-identity "$IDENTITY_PREFIX$TAG" --certificate-oidc-issuer "$ISSUER" "$WORK/$LIST" > "$OUT/guest-cosign.txt" 2>&1 \
@@ -166,7 +167,7 @@ if [ -n "$LIST_SHA_EXPECTED" ]; then
 fi
 PKG="genome-worker-$TAG.tar.gz"
 for f in sagvd acp-compute acpctl acp-keygen "$PKG"; do
-  retry curl -fsSL --retry 3 --retry-delay 5 -o "$WORK/$f" "$REPO_URL/releases/download/$TAG/$f" || fail "download of $f"
+  retry curl -fsSL --retry 7 --retry-max-time 200 -o "$WORK/$f" "$REPO_URL/releases/download/$TAG/$f" || fail "download of $f"
 done
 sha256sum sagvd acp-compute acpctl acp-keygen "$PKG" > "$OUT/inputs.sha256"
 sha256sum -c --ignore-missing "$LIST" > "$OUT/checksums-check.txt" 2>&1 || true
