@@ -121,6 +121,11 @@ OK2="$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["ok"]
 log "second job: $(tail -1 "$EVIDENCE/after-restart/submit.txt"); the chain verifies, $EVENTS2 events (was $EVENTS1)"
 { echo "release=$TAG"; echo "platform=azure-sev-snp"; echo "instance=$NAME"; echo "resource_group=$RG"; echo "location=$LOC"; echo "stamp=$STAMP"; echo "hosts_refused_by_the_verifier=$((attempt - 1))"; echo "events_after_first_job=$EVENTS1"; echo "events_after_restart_and_second_job=$EVENTS2"; echo "deploy_seconds=$(( T1 - T0 ))"; } > "$EVIDENCE/summary.txt"
 
+# This machine's path to the tree is taken out of what deploy.sh printed:
+# the record keeps what follows it.
+for f in "$EVIDENCE/deploy.out" "$EVIDENCE/refused-host.out"; do
+  if [ -f "$f" ]; then LC_ALL=C sed -i.tmp -e "s|$ROOT/||g" "$f"; rm -f "$f.tmp"; fi
+done
 ( cd "$EVIDENCE" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 > "$WORK/sha256sums.txt" ) && mv "$WORK/sha256sums.txt" "$EVIDENCE/sha256sums.txt"
 FINAL="$HERE/evidence/$STAMP"; mkdir -p "$HERE/evidence"
 mv "$EVIDENCE" "$FINAL"; EVIDENCE="$FINAL"; PUBLISHED=1

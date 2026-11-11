@@ -36,7 +36,8 @@ boots, the identities, the configurations, `sealed-files.txt`,
 `chip.txt`, `job.json`, `audit-verify.json`, `audit-events.jsonl`,
 `audit-public-key.pem`, the units, the daemons' logs and metrics,
 `steps.txt`, `timeline.txt`, the pip logs); `deploy.out` (what the
-person saw, the `PROVEN` summary among it); `after-restart/` —
+person saw, the `PROVEN` summary among it, less this machine's path to
+the tree); `after-restart/` —
 `health.txt`, `journal-this-boot.txt`, `boots.txt`, `deploy-unit.txt`,
 `submit.txt`, `status-live.txt`, `audit-verify.json`, `status.txt`,
 `audit-events.jsonl`, `pause.txt`; `summary.txt`; `runner.log`;

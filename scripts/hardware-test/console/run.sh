@@ -44,11 +44,19 @@ RUNLOG="$EVIDENCE/runner.log"
 log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$RUNLOG"; }
 
 ID_A=""; ID_B=""; SG_A=""; SG_B=""; IP_A=""; IP_B=""; KEPT=0
+# The record is closed last: nothing is written to it after its digests,
+# and a digest list a guest wrote is one of its files.
+close_record() {
+  [ -d "$EVIDENCE" ] || return 0
+  ( cd "$EVIDENCE" && find . -type f ! -path ./sha256sums.txt -exec shasum -a 256 {} + | sort -k2 > sha256sums.txt )
+  echo "record closed: ${EVIDENCE#"$ROOT"/} ($(wc -l < "$EVIDENCE/sha256sums.txt" | tr -d ' ') files, sha256sums.txt)"
+}
 cleanup() {
   set +e
   if [ "$KEPT" = 1 ]; then
     log "both servers stay up: $NAME"
     rm -rf "$BUILD"
+    close_record
     return
   fi
   log "cleanup: terminating $NAME, removing the key pairs and the security groups"
@@ -65,6 +73,7 @@ cleanup() {
     [ -z "$g" ] || for _ in $(seq 1 12); do aws ec2 delete-security-group --region "$r" --group-id "$g" >/dev/null 2>&1 && break; sleep 10; done
   done
   rm -rf "$BUILD"
+  close_record
 }
 trap cleanup EXIT
 
@@ -229,6 +238,5 @@ if grep -rlE "$ACCOUNT|(ABIA|ACCA|AGPA|AIDA|AIPA|AKIA|ANPA|ANVA|APKA|AROA|ASCA|A
 else
   log "   ok    the record names neither the account nor an IAM id"
 fi
-( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt -exec shasum -a 256 {} + | sort -k2 > sha256sums.txt )
-log "== evidence: $EVIDENCE ($(wc -l < "$EVIDENCE/sha256sums.txt") files)"
+log "== evidence: ${EVIDENCE#"$ROOT"/}"
 [ "$fail" = 0 ] && log "RESULT: PASS" || { log "RESULT: FAIL"; exit 1; }

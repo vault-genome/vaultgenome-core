@@ -64,7 +64,7 @@ cleanup() {
   rm -rf "$BUILD"
   # The record is closed last: nothing is written to it after its digests.
   ( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt -exec shasum -a 256 {} + | sort -k2 > sha256sums.txt )
-  echo "record closed: $EVIDENCE ($(wc -l < "$EVIDENCE/sha256sums.txt" | tr -d ' ') files, sha256sums.txt)"
+  echo "record closed: ${EVIDENCE#"$ROOT"/} ($(wc -l < "$EVIDENCE/sha256sums.txt" | tr -d ' ') files, sha256sums.txt)"
 }
 trap cleanup EXIT
 
@@ -99,7 +99,7 @@ log "== 0. build (linux/amd64) from $(git -C "$ROOT" rev-parse --short=12 HEAD) 
 cp "$CHAIN" "$BUILD/amd-milan-cert_chain.pem"
 COPYFILE_DISABLE=1 tar --no-xattrs -czf "$BUILD/worker.tgz" -C "$ROOT/workers/genome" --exclude __pycache__ --exclude .pytest_cache vg_genome requirements.txt requirements-ci.lock requirements-cuda.lock requirements-torch-cpu.lock requirements-torch-cu126.lock examples
 ( cd "$BUILD" && shasum -a 256 sagvd acp-bootstrap acpctl keygen worker.tgz ) > "$EVIDENCE/binaries.sha256"
-( cd "$HERE" && shasum -a 256 run.sh recipe.sh primary.sh standby.sh "$FAILOVER/common.sh" ) > "$EVIDENCE/kit.sha256"
+( cd "$HERE" && shasum -a 256 run.sh recipe.sh primary.sh standby.sh ../gcp-failover/common.sh ) > "$EVIDENCE/kit.sha256"
 git -C "$ROOT" rev-parse HEAD > "$EVIDENCE/code-rev.txt"
 git -C "$ROOT" status --porcelain -- workers/genome cmd internal go.mod go.sum scripts/hardware-test/training-continuity scripts/hardware-test/gcp-failover/common.sh \
   ':(exclude)scripts/hardware-test/training-continuity/evidence' > "$EVIDENCE/code-dirty.txt"
@@ -196,5 +196,5 @@ grep -q '^gate on the continued genome: exit=0 level=EXACT$' "$S/steps.txt" 2>/d
 python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("ok") is True else 1)' "$S/audit-verify.json" 2>/dev/null && ok "the authority's audit log verifies offline" || bad "the authority's audit log does not verify"
 [ -s "$S/verdict.txt" ] && ok "$(cat "$S/verdict.txt")" || bad "the standby wrote no verdict"
 
-log "== evidence: $EVIDENCE"
+log "== evidence: ${EVIDENCE#"$ROOT"/}"
 [ "$fail" = 0 ] && log "RESULT: PASS" || { log "RESULT: FAIL"; exit 1; }

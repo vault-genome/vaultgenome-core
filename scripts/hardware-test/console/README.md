@@ -54,3 +54,9 @@ with each deployment's own record, `binaries.sha256`, `code-rev.txt`, `runner.lo
 replaced in the record, and the kit fails if it names the account or an IAM id. The
 passes never come back; keys, seeds and the token stay on the instances and die with
 them.
+
+`sha256sums.txt` is the last thing the runner writes and names every other file of
+the record, the guests' own lists among them. The record of 30 October
+(`evidence/20261030T200418Z/`) was closed before the runner's last lines: the digest
+of `runner.log` in its list is of the log as it stood then, and `vm-deleted.txt` and
+the guests' lists are not named in it.

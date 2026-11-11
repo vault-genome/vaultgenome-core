@@ -63,7 +63,9 @@ log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$RUNLOG"; }
 # The account number, read once and never printed, is replaced wherever it
 # appears; an ARN's account field by its shape (deploy.sh does the same).
 VG_ACCOUNT="$(aws sts get-caller-identity --query Account --output text 2>/dev/null || true)"
-scrub() { sed -E "s/(arn:aws:[a-z0-9-]*:[a-z0-9-]*:)[0-9]{12}:/\\1<account>:/g${VG_ACCOUNT:+; s/$VG_ACCOUNT/<account>/g}"; }
+# This machine's path to the tree goes too, in a sed of its own (a path is
+# no extended expression): the record keeps what follows it.
+scrub() { sed -E "s/(arn:aws:[a-z0-9-]*:[a-z0-9-]*:)[0-9]{12}:/\\1<account>:/g${VG_ACCOUNT:+; s/$VG_ACCOUNT/<account>/g}" | sed -e "s|$ROOT/||g"; }
 cleanup() {
   set +e   # nothing below may stop the deletion
   [ -f "$RUNLOG" ] || RUNLOG=/dev/null
@@ -71,6 +73,11 @@ cleanup() {
   "$DEPLOY/destroy.sh" --region "$REGION" --stack "$STACK" --yes 2>&1 | scrub | tee -a "$RUNLOG" || true
   left="$(aws cloudformation --region "$REGION" describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || true)"
   echo "stack $STACK after cleanup: ${left:-gone} at $(date -u +%Y-%m-%dT%H:%M:%SZ)" | tee "$EVIDENCE/stack-deleted.txt" 2>/dev/null
+  # The record is closed last: stack-deleted.txt above is its last file, and
+  # the digests written before the record moved into evidence/ do not name it.
+  if [ "$KEPT" = 1 ]; then
+    ( cd "$EVIDENCE" && find . -type f ! -path ./sha256sums.txt -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 > "$WORK/sha256sums.txt" ) && mv "$WORK/sha256sums.txt" "$EVIDENCE/sha256sums.txt"
+  fi
   if [ "$KEPT" = 0 ] && [ -d "$EVIDENCE" ]; then cp -R "$EVIDENCE" "$RAW_DIR/failed-$STAMP" && echo "the run's stage is kept at $RAW_DIR/failed-$STAMP (outside the tree)"; fi
   rm -rf "$WORK"
 }
