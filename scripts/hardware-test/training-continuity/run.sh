@@ -62,6 +62,9 @@ cleanup() {
   left="$(gcloud compute instances list --project "$PROJECT" --filter="name~^vg-tc-.*-$LOW\$" --format='value(name)' 2>/dev/null | tr '\n' ' ')"
   echo "instances of this run left after cleanup: ${left:-none} at $(now)" | tee "$EVIDENCE/vms-deleted.txt" >> "$RUNLOG"
   rm -rf "$BUILD"
+  # The record is closed last: nothing is written to it after its digests.
+  ( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt -exec shasum -a 256 {} + | sort -k2 > sha256sums.txt )
+  echo "record closed: $EVIDENCE ($(wc -l < "$EVIDENCE/sha256sums.txt" | tr -d ' ') files, sha256sums.txt)"
 }
 trap cleanup EXIT
 
@@ -193,6 +196,5 @@ grep -q '^gate on the continued genome: exit=0 level=EXACT$' "$S/steps.txt" 2>/d
 python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("ok") is True else 1)' "$S/audit-verify.json" 2>/dev/null && ok "the authority's audit log verifies offline" || bad "the authority's audit log does not verify"
 [ -s "$S/verdict.txt" ] && ok "$(cat "$S/verdict.txt")" || bad "the standby wrote no verdict"
 
-( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt -exec shasum -a 256 {} + | sort -k2 > sha256sums.txt )
-log "== evidence: $EVIDENCE ($(wc -l < "$EVIDENCE/sha256sums.txt" | tr -d ' ') files)"
+log "== evidence: $EVIDENCE"
 [ "$fail" = 0 ] && log "RESULT: PASS" || { log "RESULT: FAIL"; exit 1; }
