@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), [C58](#c58), [C59](#c59), [C60](#c60), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), [C58](#c58), [C59](#c59), [C60](#c60), [C61](#c61), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -4645,6 +4645,109 @@ ten cents on an AWS account with EC2 in both regions. On your own computer, with
 hardware, the same buttons against the real daemons on the simulated TEE:
 `go test ./cmd/vgconsole`.
 
+---
+
+<a id="c61"></a>
+### C61 — Training goes on after the machine is lost: the last sealed generation fails over on 30 s of silence under a gate that must be EXACT, training goes on on the standby from the state the genome carries, and what it arrives at is the recipe run in one go — 7 files of 7, 240 losses of 240, `replay` exact; twice on Compute Engine, on four SEV-SNP guests, and to the same bits on EC2
+
+**Claim.** On 2026-11-11 `scripts/hardware-test/training-continuity/run.sh`, from commit
+`257b91b1` on a clean tree, booted two `n2d-standard-8` AMD SEV-SNP Confidential VMs in
+`us-central1-c`, both AMD EPYC 7B13, on the hash-pinned runtime (torch 2.14.1, CPU). The
+recipe was one on both (`recipe.sh`): Qwen2.5-0.5B-Instruct at a pinned revision, LoRA
+rank 8 on `q_proj` and `v_proj`, 8 threads, float32. Thirteen checks of thirteen
+(`runner.log`):
+
+- **The primary trains, and goes on from its own genome.** It took the recipe's first
+  80 steps and the sentinel sealed generation 0. `finetune --continue` then put back what
+  that genome carries beside the adapter (ADR 0040) — AdamW's moments and step counts,
+  the place in the data, the generators — and took steps 81 to 160: generation 1
+  (`training.step: 160`, `continued_from: [80]`), sealed at 14:16:15Z, a bundle of
+  6,603,646 bytes. `replay` ran the recipe from the base, steps 1 to 160, on that chip:
+  `exact: true`, `max_abs_diff: 0.0`, the 160 losses equal (`primary/replay-1.json`).
+- **The machine is lost while it trains.** It went on toward step 240 and, with steps
+  being taken (`primary/finetune-2.log`) and the sentinel running, switched itself off
+  through the kernel's sysrq trigger at 14:18:04.2Z by its own clock: no shutdown, no
+  `stopped` heartbeat, no report. Google's API said `RUNNING` for another 56 s; `run.sh`
+  saw it `TERMINATED` and deleted it (`operator-destroy.txt`). The steps after 160 went
+  with it.
+- **The failover.** The policy (serial 1) acted on the sentinel's silence alone — no
+  heartbeat for 30 s; a compromise report would not count — and required the gate to be
+  EXACT. 30.02 s after the authority last saw the heartbeat rise it decided, and
+  released generation 1's key to the attested standby in 0.25 s. The standby restored
+  8 files, 6,594,672 bytes, in 44 ms; its gate recomputed the 16 sealed fixtures:
+  **EXACT**, pinned replay, max abs err 0, in 9.86 s. **RTO 40.30 s**; RPO 105.0 s, the
+  time generation 1 had been sealed when the heartbeat stopped. What came back is, file
+  by file, what the primary sealed — 7 of 7, the optimizer's state among them
+  (`primary/generation-1.sha256`, `standby/restored.sha256`). Five audit events, tip
+  `cf8179ad…8512`, verified offline (`standby/report.json`, `audit-verify.json`).
+- **Training goes on on the standby.** 0.16 s after the restore was confirmed — 40.2 s
+  after the primary's power went, by the two machines' clocks, and while Google's API
+  still said the primary was running — `finetune --continue` took the restored genome
+  from step 160 to 240, given the number 240 and nothing else: 80 steps in 36.6 s
+  (`standby/continue.json`: `step: 240`, `continued_from: [80, 160]`).
+- **What it arrived at is the recipe, held on that chip twice.** `replay` ran steps 1 to
+  240 from the base and compared the adapter: `exact: true`, `max_abs_diff: 0.0`, the
+  240 losses equal (`standby/replay.json`). The recipe run there in one go, 240 steps,
+  gave the same seven files — the adapter `0041a292…44bd`, its config, the fixtures, the
+  data, the optimizer's state, the cursor, the generators — and the same 240 losses
+  (`standby/compare.txt`). The gate judged the continued genome EXACT
+  (`standby/gate-continued.json`).
+
+**Twice.** The first run, half an hour earlier, from commit `34a083cc` on two other
+guests (`evidence/20261111T132834Z/`): thirteen of thirteen, RTO 41.29 s, and every
+digest of generation 1 and of the continued genome the same as above, file for file.
+Four guests, one result.
+
+**And on EC2.** `aws.sh`, from `257b91b1`, ran the recipe on one `m6a.2xlarge` with
+AMD SEV-SNP in `us-east-2c`, an AMD EPYC 7R13 under another hypervisor and another
+kernel: stopped at steps 80 and 160 and continued from each genome's state to 240, it
+is the recipe in one go there too — `replay` exact, 7 of 7 files, 240 losses. Laid
+beside Compute Engine's, its digests are the same at step 160 and at step 240, seven
+files of seven each (`evidence/aws/20261111T143104Z/beside-compute-engine.txt`): the
+two CPUs take this recipe to the same bits.
+
+**What this does not show.** On the standby `finetune --continue` is a step of the
+drill's script: nothing in the product starts it there by itself, no sentinel is
+started for what it produces, and one policy serial still performs one failover
+(`KNOWN_ISSUES.md` 21). The five machines are AMD's Milan with one set of pinned
+libraries and the recipe's thread count; a CPU of another family and a GPU have not
+been measured, and there the gate says EQUIVALENT and `replay` on that machine says how
+far the continued genome is from the recipe. An EXACT gate compares the model's outputs,
+not the kernels training uses: the statement that the steps taken on the standby are
+the recipe's rests on `replay` there. The model is 0.5B with a LoRA adapter of 540,672
+parameters, 240 steps over the drill's small data file, which travels inside the
+genome; a data set that lives elsewhere is not part of this. The steps the primary took
+after its last sealed generation are lost and taken again. Silence cannot tell a dead
+primary from one cut off ([C35](#c35)). On Compute Engine the chip's measurement is
+Google's firmware ([C53](#c53)): the primary, the authority and the standby report the
+same one, so what tells the primary apart is its sentinel's key. The EC2 run has no
+sentinel, authority or failover in it; it answers for that machine's arithmetic.
+
+**Evidence.**
+[`scripts/hardware-test/training-continuity/evidence/20261111T135725Z/`](scripts/hardware-test/training-continuity/evidence/20261111T135725Z/)
+— `runner.log`, `code-rev.txt`, `code-dirty.txt`, `binaries.sha256`, `kit.sha256`,
+`operator-destroy.txt`, `standby-instance.txt`, `vms-deleted.txt`, `primary/`
+(`steps.txt`, `finetune-0.json`, `finetune-1.json`, `generation-1-training.json`,
+`generation-1.sha256`, `replay-1.json`, `finetune-2.log`, `sentinel.log`), `standby/`
+(`steps.txt`, `report.json`, `failover-policy.json`, `failover.log`, `restored.sha256`,
+`restored-training.json`, `continue.json`, `continue.log`, `continued-training.json`,
+`continued.sha256`, `replay.json`, `whole.json`, `whole.sha256`, `compare.txt`,
+`gate-continued.json`, `audit-verify.json`, `verdict.txt`), `sha256sums.txt`;
+[`…/evidence/20261111T132834Z/`](scripts/hardware-test/training-continuity/evidence/20261111T132834Z/)
+— the first run, the same files (its `sha256sums.txt` was written before the runner's
+last lines; the kit's README says which);
+[`…/evidence/aws/20261111T143104Z/`](scripts/hardware-test/training-continuity/evidence/aws/20261111T143104Z/)
+— `runner.log`, `instance.json`, `guest.out`, `guest/` (`steps.txt`, `replay.json`,
+`compare.txt`, `generation-1.sha256`, `continued.sha256`, `whole.sha256`),
+`beside-compute-engine.txt`, `vm-deleted.txt`, `sha256sums.txt`. Digests only: no
+adapter, optimizer state or key is in a record.
+
+**Reproduce.** `bash scripts/hardware-test/training-continuity/run.sh <gcp-project> [zone]`,
+about half an hour and under a dollar: two `n2d-standard-8` SEV-SNP VMs, 16 N2D vCPUs
+in the zone's region. `bash scripts/hardware-test/training-continuity/aws.sh [region]
+[instance-type] [run.sh evidence stamp]`, about thirty-five minutes. Without hardware,
+on the pinned runtime: `python -m pytest workers/genome/tests/test_continuity.py`.
+
 ## What we do not claim
 
 This section is load-bearing. We would rather lose a deal than win one on a
@@ -4738,6 +4841,15 @@ want the issue.
    update button; a move needs the old server alive and leaves the bank's clients to
    the bank; on EC2 the chip vouches for the firmware and not for the operating
    system, and the page says so. `KNOWN_ISSUES.md` 20 has the list.
+10. **We do not claim a model that goes on training by itself, or that training
+    continues to the bit on any hardware.** After a failover, training goes on from
+    the restored genome when a person or a script says so ([C61](#c61)); a standby
+    that starts it by itself, seals what it produces and takes the next failover is
+    not built. The continued genome was the recipe to the bit on five AMD Milan
+    machines in two clouds, with one set of pinned libraries and the recipe's thread
+    count; on another CPU family or a GPU it is the recipe within the difference of
+    their kernels, which `replay` there reports and nothing bounds in advance.
+    `KNOWN_ISSUES.md` 21 has the list.
 
 ## Evidence hygiene
 

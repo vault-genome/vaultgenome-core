@@ -4,12 +4,12 @@ One question, asked of real hardware: **if the machine running your model is
 taken, does the model survive — and can you prove the thing that came back is
 the same model?**
 
-This document is the answer we can defend. It is a narrative of seven drills
+This document is the answer we can defend. It is a narrative of eight drills
 that ran on live confidential machines — AMD SEV-SNP VMs on GCP, an Intel TDX
 Trust Domain and an Azure confidential GPU VM as standbys — with every number
 copied from evidence committed to this repository. Nothing here is simulated
-except the adversary and, in the seventh, the loss of power, and both only ever
-touched our own machines.
+except the adversary and, in the seventh and the eighth, the loss of power,
+and both only ever touched our own machines.
 
 Every claim below is indexed in [VERIFIABLE-CLAIMS.md](../VERIFIABLE-CLAIMS.md)
 with the file that proves it and the command that reproduces it.
@@ -580,6 +580,103 @@ after it had switched itself off. Generation 1 was already on the standby
 when the power went: the copy loop that raced the primary's uploads in the
 first run had the bundle in place this time.
 
+## Drill VIII — The machine is lost, and training goes on
+
+*Run `20261111T135725Z`. Two GCP SEV-SNP guests of one machine type
+(n2d-standard-8, AMD EPYC 7B13) in us-central1; the standby hosts the
+authority and the destination, as in Drill II. Evidence:
+[`scripts/hardware-test/training-continuity/evidence/20261111T135725Z/`](../scripts/hardware-test/training-continuity/evidence/20261111T135725Z/)*
+
+Until this drill, a model that came back was proven — and at rest. Where a
+primary "kept training" in the drills above, it ran a second recipe from the
+base. This drill asks what a team in the middle of a training run would ask:
+the machine is gone — does the *training* go on somewhere else, and does it
+arrive where it would have arrived?
+
+### 1. A genome that knows where training stood
+
+A genome now carries, beside the adapter, the state training stood in: the
+optimizer's moments and step counts, the place in the data, the generators
+(ADR 0040) — 4.4 MB beside a 2.2 MB adapter, sealed with it. The primary
+takes the recipe's first 80 steps and the sentinel seals generation 0. It
+then goes on *from its own genome* to step 160 — the state read back from
+the genome's files, nothing kept in memory — and the sentinel seals
+generation 1 at 14:16:15Z. `replay` runs the whole recipe from the base, 160
+steps, on that chip, and compares: the adapter is the same to the bit, the
+160 losses are equal.
+
+### 2. The machine is lost while it trains
+
+The primary goes on toward step 240. At 14:18:04.2Z by its own clock, with
+steps being taken and the sentinel beating, it switches itself off through
+the kernel's sysrq trigger. No shutdown, no report, no `stopped`. Google's
+API goes on saying `RUNNING` for 56 seconds; then the operator's script sees
+it terminated and deletes it. Everything after step 160 dies unsealed.
+
+### 3. Thirty seconds of silence, and a gate that must say EXACT
+
+The policy (serial 1) acts on the sentinel's silence alone — no heartbeat
+for 30 s; a compromise report would not count — and, unlike the policies of
+the drills before it, requires the standby's gate to say **EXACT**: a
+standby whose arithmetic differed in its last bits would be declined.
+
+| Phase | Measured |
+| - | - |
+| Detect — the heartbeat's last rise → the authority acts | **30.02 s** (the policy's timeout) |
+| **RPO** — how long generation 1 had been sealed when the heartbeat stopped | **105.0 s** |
+| Key release — the standby attested | 0.25 s |
+| Restore — 8 files, 6,594,672 B, the state among them | **44 ms** |
+| Gate on the standby — 16 fixtures, pinned replay | 9.86 s, **EXACT**, max abs err 0 |
+| **RTO — last heartbeat seen → gated, confirmed model on the standby** | **40.30 s** |
+
+What came back is, file by file, what the primary sealed: seven of seven.
+Five audit events, tip `cf8179ad…8512`, verified offline.
+
+### 4. Training goes on
+
+0.16 s after the authority confirmed the restore — 40.2 s after the
+primary's power went, while Google's API still showed it running — the
+standby took the restored genome from step 160 to 240. It was told one
+thing: the number 240. The recipe, the data, the optimizer's state and the
+place in the data were the genome's. Eighty steps took 36.6 s. The genome it
+wrote names the two it came from: `continued_from: [80, 160]`.
+
+### 5. Is it the model it would have been?
+
+Three answers, all on the standby's chip:
+
+- **`replay`** ran the recipe from the base, 240 steps, and compared the
+  adapter with the continued one: the same to the bit, `max_abs_diff: 0.0`,
+  the 240 losses equal.
+- **The recipe in one go**, 240 steps on the standby with no stop at all,
+  gave the same seven files — the adapter `0041a292…44bd`, its config, the
+  fixtures, the data, the optimizer's state, the cursor, the generators —
+  and the same 240 losses.
+- **The gate** judged the continued genome EXACT.
+
+A training run interrupted twice — once by its own schedule, once by the
+loss of its machine — and finished on another machine is the run that was
+never interrupted.
+
+### 6. Twice, and in another cloud
+
+*Runs `20261111T132834Z` and, on EC2, `20261111T143104Z`. Evidence:
+[`…/evidence/20261111T132834Z/`](../scripts/hardware-test/training-continuity/evidence/20261111T132834Z/),
+[`…/evidence/aws/20261111T143104Z/`](../scripts/hardware-test/training-continuity/evidence/aws/20261111T143104Z/)*
+
+The drill had run half an hour earlier on two other guests: thirteen checks
+of thirteen, RTO 41.29 s, and every digest — generation 1's seven files and
+the continued genome's — the same as in the run above. Four guests, one
+result.
+
+Then one EC2 instance with AMD SEV-SNP in Ohio, an AMD EPYC 7R13 under
+another hypervisor and another kernel, ran the recipe stopped at steps 80
+and 160 and continued to 240. There too it is the recipe in one go, `replay`
+exact. And its digests, at step 160 and at step 240, are Compute Engine's:
+seven files of seven each. No failover ran there; the measurement is of the
+arithmetic. A genome sealed in one of these clouds and continued in the
+other arrives at the same bits.
+
 
 ---
 
@@ -647,6 +744,15 @@ point.
   standby it names, so the risk is a second running copy, not a leak;
   fencing the primary is the operator's. Drill VII's primary was one machine
   switched off from inside, not a region lost.
+- **Training goes on when it is told to.** In Drill VIII the standby's
+  `finetune --continue` is a step of the drill's script: the product does
+  not start it by itself, starts no sentinel for what it produces, and one
+  policy serial still performs one failover. All five machines of that drill
+  are AMD's Milan on one set of pinned libraries; on another CPU family or a
+  GPU the continued genome is the recipe within the difference of their
+  kernels, which `replay` there reports. The gate's EXACT compares the
+  model's outputs, not the kernels training uses: that the steps taken on
+  the standby are the recipe's rests on `replay`.
 - **Byte-identical inference across devices is unavailable, and we proved it
   against ourselves.** A dedicated probe on an L4 found the CPU↔GPU divergence
   entering at the **first transformer block**, on every fixture, in both float32
@@ -677,6 +783,7 @@ bash scripts/hardware-test/failover-cgpu/run.sh <gcp-project> [gcp-zone] [azure-
 bash scripts/hardware-test/failover-tdx/run.sh <gcp-project> [n2d-zone] [tdx-zone]     # Drill IV  (~15 min; two GCP n2d SEV-SNP CVMs + a c3 TDX Trust Domain)
 bash scripts/hardware-test/failover-negatives/run.sh <gcp-project> [zone]          # Drill V   (~15 min; two GCP n2d SEV-SNP CVMs)
 bash scripts/hardware-test/authority-loss/run.sh <gcp-project> [zone]              # Drill VI  (~10 min; two GCP n2d SEV-SNP CVMs, one after the other)
+bash scripts/hardware-test/training-continuity/run.sh <gcp-project> [zone]         # Drill VIII (~30 min; two GCP n2d-standard-8 SEV-SNP CVMs)
 bash scripts/hardware-test/gpu-exact/run.sh    <gcp-project>   # the CPU↔GPU probe (~20 min)
 ```
 

@@ -1,0 +1,7 @@
+{
+  "tee": "gcp-sev-snp",
+  "measurement_hex": "220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a",
+  "sentinel": "sentinel-178f7e8d3b1e1d06",
+  "sentinel_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAzu+IjW5p1ZZXUubE3ww+VFFa6eh1FOquUv1vM0ZaUjE=\n-----END PUBLIC KEY-----\n",
+  "sentinel_signature_suite": "ed25519"
+}

@@ -1,0 +1,39 @@
+13:57:25 == 0. build (linux/amd64) from 257b91b1ed01 and pack workers/genome
+13:57:29 == 1. upload to gs://rats-probe-vg-tc-20261111t135725z
+13:57:36 == 2. boot vg-tc-standby-20261111t135725z (SEV-SNP authority + destination, n2d-standard-8, us-central1-c)
+13:57:48 == 3. boot vg-tc-primary-20261111t135725z (SEV-SNP workload + sentinel, n2d-standard-8, us-central1-c)
+13:57:58 == 4. waiting for the primary to train, seal two generations and be lost (up to 45 min)
+14:18:05    primary: DONE
+14:18:07    the primary has switched itself off: see it dead, then delete it — on the record
+14:19:23 == 5. waiting for the standby: the failover, then training going on there (up to 40 min)
+14:29:46    standby: DONE
+14:29:49 == 6. what was proven
+   primary  generation 1: replay exact=True losses_equal=True max_rel_l2=0.0
+   primary  toward step 240 when the power went: still training; last line of its log: step 161/240 loss 0.0013
+   primary  sentinel running when the power went: yes
+   standby  failover: status=restored trigger=heartbeat-timeout generation=1 gate=EXACT door=pinned replay required=EXACT
+   standby  failover: detect=30.0s failover=10.3s rto=40.3s rpo=105.0s
+   standby  restored: step 160 continued_from [80] written on AMD EPYC 7B13
+   standby  continued: step 240 continued_from [80, 160] adapter sha256:0041a292bac3ed92eda9a6a6ff600d7ab52ee9c3537eda5f696961c1e98b44bd
+   standby  replay: exact=True losses_equal=True max_abs_diff=0.0 max_rel_l2=0.0
+   standby  compare: 7 files the same, 0 different; losses equal 240 240
+   standby  gate on the continued genome: exit=0 level=EXACT
+   standby  CONTINUED EXACT: training went on from step 160 to 240 on this chip; replay exact; 7 of 7 files those of the recipe in one go
+14:29:49    ok    the primary finished its part and switched itself off
+14:29:49    ok    the standby finished the failover and the continuation
+14:29:49    the machines: primary AMD EPYC 7B13, standby AMD EPYC 7B13
+14:29:50    ok    both machines report the same CPU model
+14:29:50    ok    generation 1 stands at step 160, continued from the genome at step 80, on the primary
+14:29:50    ok    on the primary, replay holds generation 1 to the whole recipe: exact
+14:29:50    ok    the heartbeat's silence moved generation 1 to the standby; restored, gate EXACT (required EXACT)
+14:29:50    ok    what the standby restored is, file by file, what the primary sealed as generation 1 (7 files)
+14:29:50    ok    the standby's genome stands at step 240, continued from steps 80 and 160, with 240 losses
+14:29:50    ok    on the standby, replay holds the continued genome to the whole recipe: exact
+14:29:50    ok    the continued genome is, in all 7 files and all 240 losses, the recipe run on the standby in one go
+14:29:50    ok    the gate judges the continued genome EXACT
+14:29:50    ok    the authority's audit log verifies offline
+14:29:50    ok    CONTINUED EXACT: training went on from step 160 to 240 on this chip; replay exact; 7 of 7 files those of the recipe in one go
+14:29:50 == evidence: /Users/serhiinikolaichuk/dev/vg-training-continuity/scripts/hardware-test/training-continuity/evidence/20261111T135725Z
+14:29:50 RESULT: PASS
+14:29:50 cleanup: deleting vg-tc-primary-20261111t135725z, vg-tc-standby-20261111t135725z and gs://rats-probe-vg-tc-20261111t135725z
+instances of this run left after cleanup: none at 2026-11-11T14:30:32Z

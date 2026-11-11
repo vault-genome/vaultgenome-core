@@ -1,0 +1,2 @@
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Loading weights:  31%|███       | 89/290 [00:00<00:00, 855.48it/s]Loading weights:  69%|██████▊   | 199/290 [00:00<00:00, 989.54it/s]Loading weights: 100%|██████████| 290/290 [00:00<00:00, 1029.17it/s]
+step 161/240 loss 0.0013

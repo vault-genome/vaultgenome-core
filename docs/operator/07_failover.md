@@ -225,6 +225,8 @@ steps are taken again here. Whether they are the steps the old primary would
 have taken is `replay`'s to say: `"exact": true` means the continued adapter
 is the whole recipe computed on this machine, to the bit — expect it where
 the gate judged the restore EXACT, and read `max_rel_l2` where it did not.
+On record ([C61](../../VERIFIABLE-CLAIMS.md#c61)): between AMD Milan hosts on
+Compute Engine and EC2 it was exact.
 The sentinel of step 1 seals the result as the chain's next generation.
 
 The old primary's outbox is closed by its compromise report. Keep it for the
@@ -254,4 +256,5 @@ SEV-SNP confidential VMs, the authority's escrow key sealed to its chip.
 _Document history: 2026-09-15 — first version, with ADR 0012. 2026-09-16 — the
 sealed escrow key (ADR 0016); the primary's TEE pinned, the `stopped` grace,
 the chain trusted only to the sentinel's last word (ADR 0017). 2026-11-10 —
-training goes on from the restored genome (ADR 0040)._
+training goes on from the restored genome (ADR 0040). 2026-11-11 — its record
+on hardware (C61)._

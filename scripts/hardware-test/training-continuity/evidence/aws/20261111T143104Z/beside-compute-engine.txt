@@ -1,0 +1,18 @@
+this machine:    cpu=AMD EPYC 7R13 Processor vcpus=8
+compute engine:  primary AMD EPYC 7B13, standby AMD EPYC 7B13
+generation 1 (step 160) against the primary's:
+  same       adapter/adapter_config.json
+  same       adapter/adapter_model.safetensors
+  same       data/train.jsonl
+  same       fixtures.json
+  same       state/cursor.json
+  same       state/optimizer.safetensors
+  same       state/rng.json
+the continued genome (step 240) against the standby's:
+  same       adapter/adapter_config.json
+  same       adapter/adapter_model.safetensors
+  same       data/train.jsonl
+  same       fixtures.json
+  same       state/cursor.json
+  same       state/optimizer.safetensors
+  same       state/rng.json

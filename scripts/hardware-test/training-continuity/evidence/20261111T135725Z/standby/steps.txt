@@ -1,0 +1,39 @@
+== 13:59:34 inputs
+== 13:59:36 provision (keygen), operator stop key, operator recovery key
+== 13:59:36 python runtime (CPU) and base model — the gate runs the model here
+== 14:08:08 configfs-tsm (real SEV-SNP reports)
+== 14:08:09 sagvd on SEV-SNP: identity from the chip
+seal-keys exit=0 sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+sagvd identity (base) exit=0
+authority measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a
+== 14:08:19 the escrow key: made in the authority's process, sealed to this chip, wrapped to the recovery key
+escrow-provision exit=0
+escrow_key=717c75793d4f3bb6 sealed to gcp-sev-snp
+== 14:08:30 the recovery ceremony: the envelope opened with the recovery key, the key re-sealed on this chip
+escrow re-provision exit=0
+re-provisioned escrow_key=717c75793d4f3bb6 source=stdin (want 717c75793d4f3bb6)
+== 14:08:40 acp-bootstrap on SEV-SNP (destination + gate)
+acp-bootstrap seal-keys exit=0 sealed=http.tls.server_key,http.bearer_token_file
+standby measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a
+== 14:08:52 sagvd failover config: verifier registry, allow-list, operator stop, the sealed escrow key
+seal-keys (failover config) exit=0 sealed=crosscloud.transport_tls.client_key already=5
+sagvd identity exit=0 key_escrow_storage=sealed:gcp-sev-snp
+== 14:09:02 wait for the primary's sentinel key and chip identity, then sign the failover policy pinning both
+primary measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a
+== 14:09:02 pull the primary's outbox replica, continuously
+== 14:09:02 arm: sagvd failover watches the replica
+sagvd failover exit=0
+== 14:18:44 audit log verify (offline, as an auditor would)
+failover: status=restored trigger=heartbeat-timeout generation=1 gate=EXACT door=pinned replay required=EXACT
+failover: detect=30.0s failover=10.3s rto=40.3s rpo=105.0s
+== 14:18:44 what came back: the genome the primary sealed last, and the state training stood in
+restored: step 160 continued_from [80] written on AMD EPYC 7B13
+== 14:18:44 TRAINING GOES ON HERE: from step 160 to 240, from the restored genome's state
+continued: step 240 continued_from [80, 160] adapter sha256:0041a292bac3ed92eda9a6a6ff600d7ab52ee9c3537eda5f696961c1e98b44bd
+== 14:22:25 held to the whole recipe (1): replay runs steps 1 to 240 from the base, on this chip, and compares the adapter
+replay: exact=True losses_equal=True max_abs_diff=0.0 max_rel_l2=0.0
+== 14:24:23 held to the whole recipe (2): the recipe run here in one go, 240 steps, every file compared
+compare: 7 files the same, 0 different; losses equal 240 240
+== 14:29:20 the continued genome under the gate, as a destination would judge it
+gate on the continued genome: exit=0 level=EXACT
+CONTINUED EXACT: training went on from step 160 to 240 on this chip; replay exact; 7 of 7 files those of the recipe in one go

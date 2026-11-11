@@ -1,0 +1,43 @@
+{
+ "training": {
+  "continued_from": [
+   {
+    "adapter_sha256": "sha256:8fdb5ece2c03faa012a15fa81b03e8d480e3f4d1c5f7ce04d586369d6229d49c",
+    "created_at": "2026-11-11T14:12:05Z",
+    "runtime": {
+     "machine": "x86_64",
+     "numpy": "2.5.4",
+     "platform": "Linux-7.0.0-1017-gcp-x86_64-with-glibc2.39",
+     "processor": "AMD EPYC 7B13",
+     "python": "3.12.3",
+     "threads": 8,
+     "torch": "2.14.1+cpu",
+     "transformers": "5.19.0"
+    },
+    "step": 80
+   }
+  ],
+  "state": {
+   "dir": "state",
+   "files": {
+    "cursor.json": "sha256:65ee9f411bd1ce8df91415517ee79b7ab17d989fbeed1231155e828f7b2e1996",
+    "optimizer.safetensors": "sha256:075048826e198aed3444a5939e27258db469471389b8497d6aac2a5b779b722e",
+    "rng.json": "sha256:b8758c891da49ee818357a9678b5661c01940600666e5afe22e4488a677484dc"
+   }
+  },
+  "step": 160
+ },
+ "recipe_steps": 160,
+ "losses": 160,
+ "adapter_sha256": "sha256:4e507e4ae164e34d42060b9370106fdad92e489196a33695bd4ac388824ce027",
+ "written_on": {
+  "machine": "x86_64",
+  "numpy": "2.5.4",
+  "platform": "Linux-7.0.0-1017-gcp-x86_64-with-glibc2.39",
+  "processor": "AMD EPYC 7B13",
+  "python": "3.12.3",
+  "threads": 8,
+  "torch": "2.14.1+cpu",
+  "transformers": "5.19.0"
+ }
+}

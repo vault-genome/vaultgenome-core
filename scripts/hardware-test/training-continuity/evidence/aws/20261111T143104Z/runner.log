@@ -1,0 +1,39 @@
+14:31:05 == 0. the worker package from 257b91b1ed01
+14:31:05 == 1. the instance: m6a.2xlarge with AmdSevSnp enabled in us-east-2
+14:32:19    i-04bf8f545e8b46bff is up, ssh after 20 s
+14:32:19 == 2. the worker package and the scripts over ssh; aws-guest.sh runs as root
+15:03:53    aws-guest.sh exit 0
+15:03:53 == 3. the results back
+15:03:55 == 4. what was proven on this machine
+   cpu=AMD EPYC 7R13 Processor vcpus=8
+   sev-snp guest: [    3.853321] Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP
+   replay: exact=True losses_equal=True max_abs_diff=0.0 max_rel_l2=0.0
+   compare: 7 files the same, 0 different; losses equal 240 240
+   CONTINUED EXACT: the recipe stopped at 80 and 160 and continued to 240 on this machine; replay exact; 7 of 7 files those of the recipe in one go
+15:03:55    ok    EC2 says the instance runs with AmdSevSnp enabled
+15:03:55    ok    the genome stands at step 240, continued from steps 80 and 160, with 240 losses
+15:03:55    ok    replay holds the continued genome to the whole recipe: exact
+15:03:55    ok    the continued genome is, in all 7 files and all 240 losses, the recipe run here in one go
+15:03:55 == 5. beside the Compute Engine record 20261111T135725Z (a measurement; it does not decide the result)
+   this machine:    cpu=AMD EPYC 7R13 Processor vcpus=8
+   compute engine:  primary AMD EPYC 7B13, standby AMD EPYC 7B13
+   generation 1 (step 160) against the primary's:
+     same       adapter/adapter_config.json
+     same       adapter/adapter_model.safetensors
+     same       data/train.jsonl
+     same       fixtures.json
+     same       state/cursor.json
+     same       state/optimizer.safetensors
+     same       state/rng.json
+   the continued genome (step 240) against the standby's:
+     same       adapter/adapter_config.json
+     same       adapter/adapter_model.safetensors
+     same       data/train.jsonl
+     same       fixtures.json
+     same       state/cursor.json
+     same       state/optimizer.safetensors
+     same       state/rng.json
+15:03:55    measured: this machine and Compute Engine's take the recipe to the same bits, at step 160 and at step 240
+15:03:55 == evidence: /Users/serhiinikolaichuk/dev/vg-training-continuity/scripts/hardware-test/training-continuity/evidence/aws/20261111T143104Z
+15:03:55 RESULT: PASS
+15:03:55 cleanup: terminating vg-tc-aws-20261111t143104z (i-04bf8f545e8b46bff), removing the key pair and the security group
