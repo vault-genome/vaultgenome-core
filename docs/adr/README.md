@@ -52,6 +52,7 @@ ADRs interact with the test-enforced invariant system.
 | 0037 | [The boot chain on a SEV-SNP guest without a paravisor: the chip's report and the vTPM's quote under one challenge, and a key file sealed to both](0037-the-boot-chain-on-sev-snp-without-a-paravisor.md) | Accepted | tee, sev-snp, vtpm, gcp, sealing, policy |
 | 0038 | [EC2 on AMD SEV-SNP under a VLEK: the provider's key in place of the chip's, the certificate carried with the report, no machine identity and a fleet-wide sealing key](0038-ec2-sev-snp-under-a-vlek.md) | Accepted | tee, sev-snp, aws, vlek, policy, sealing |
 | 0039 | [The console: a person's hands on a deployment, verified on their own computer](0039-the-console-a-persons-hands-verified-on-their-computer.md) | Accepted | console, sagvd, audit, operator stop, escrow |
+| 0040 | [A genome carries the state training stood in: training goes on from a restored genome and arrives where the recipe arrives](0040-a-genome-carries-the-state-training-stood-in.md) | Accepted | genome, worker, training, failover, determinism |
 
 ## Adding an ADR
 

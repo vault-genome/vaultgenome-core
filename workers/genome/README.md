@@ -5,8 +5,9 @@ bring the fine-tune back, and to prove it came back right:
 
 ```
 genome/
-  genome.json            base model manifest, adapter, recipe, fixtures, runtime
-  adapter/               the LoRA delta (PEFT layout) — the only secret part
+  genome.json            base model manifest, adapter, recipe, training, fixtures, runtime
+  adapter/               the LoRA delta (PEFT layout) — secret
+  state/                 what training goes on from: the optimizer, the place in the data, the generators — secret
   fixtures.json          reference outputs of the fine-tuned model
   data/train.jsonl       the training data, so the recipe can be replayed
 ```
@@ -21,6 +22,12 @@ genome/
   CPU by default; a 7B base trains in bfloat16 on a GPU — the adapter is
   float32 either way), the loss of every step, the runtime. On the same
   pinned runtime `replay` reproduces the adapter byte for byte.
+- **Training state.** Where training stood when the genome was written:
+  AdamW's moments and step count for every adapter tensor, the step and the
+  example the next one takes, and the state of the generators the runtime
+  pins — each file named in `genome.json` by its SHA-256. Training goes on
+  from it and arrives where the uninterrupted recipe arrives
+  ([Going on from a genome](#going-on-from-a-genome), ADR 0040).
 - **Fixtures.** For each prompt: the float32 logits at the last position,
   gathered at the reference model's top-k tokens, and the greedy
   continuation — recorded on the device that trained, in the recipe's dtype.
@@ -42,6 +49,7 @@ python -m vg_genome finetune --base BASE_DIR --base-name Qwen/Qwen2.5-0.5B-Instr
 python -m vg_genome finetune --base BASE_7B --base-name Qwen/Qwen2.5-7B-Instruct \
     --data examples/drill-facts.jsonl --prompts examples/drill-prompts.json --out genome-7b/ \
     --device cuda --dtype bfloat16                                      # a 7B base on a 24 GB GPU
+python -m vg_genome finetune --continue genome/ --base BASE_DIR --steps 120 --out genome-2/   # go on from genome/ until 120 steps in all are taken
 python -m vg_genome replay   --genome genome/ --base BASE_DIR           # recipe → same adapter?
 python -m vg_genome measure  --genome genome/ --base BASE_DIR --device cuda
 python -m vg_genome measure  --genome genome-7b/ --base BASE_7B --device cpu --dtype float32   # a measurement off the pinned runtime
@@ -105,6 +113,48 @@ stdin : {"schema": "vault-genome/door-request/v1", "genome_id": "...",
                    "adapter/adapter_model.safetensors": <base64>, "prompts.json": <base64>}}
 stdout: {"outputs": {"fx-000": {"dtype": "f32", "shape": [k], "raw_b64": "..."}, ...}}
 ```
+
+## Going on from a genome
+
+`finetune --continue GENOME --steps N` takes the steps from where the genome
+stands to `N`, and writes the genome that results. Everything but `N` is the
+genome's own — its base (checked against the manifest), its data, its recipe's
+hyper-parameters, seed, thread count, device and dtype, its fixtures'
+prompts — so a flag that would set any of them is refused. Before a step is
+taken, the adapter, the data, the fixtures and the three state files are
+checked against the digests `genome.json` names, the cursor against the
+recipe, and the optimizer's state against the adapter, tensor by tensor.
+
+The genome written **is the recipe taken to `N`**: `recipe.steps` is `N`,
+`recipe.losses` holds all `N`, and on the same pinned runtime the adapter, the
+fixtures and the state are, byte for byte, what `finetune` writes for that
+recipe in one go. `replay` needs to know nothing of the stop: it runs the
+recipe from its first step and compares. `training.continued_from` lists the
+genomes this one was continued from, oldest first — the step each stood at,
+its adapter's SHA-256, when and on what runtime it was written.
+
+```
+"training": {
+  "step": 160,
+  "continued_from": [{"step": 80, "adapter_sha256": "sha256:…", "created_at": "…", "runtime": {…}}],
+  "state": {"dir": "state", "files": {"cursor.json": "sha256:…", "optimizer.safetensors": "sha256:…", "rng.json": "sha256:…"}}
+}
+```
+
+It is the same on another machine as far as that machine's arithmetic is the
+same, and `replay` there is what says so: it runs the whole recipe on that
+machine and compares. A gate that restores the genome EXACT is the condition
+to expect it (the model's outputs are the source's to the bit; training uses
+more kernels than a forward pass). Where the float kernels differ in their
+last bits (another CPU family, a GPU), training continued there is the recipe
+within that difference, which `replay` measures (`max_rel_l2`). The recipe's
+thread count goes with the genome: a machine with fewer cores runs that many
+threads all the same.
+
+A genome written before genomes carried their state has no `training`
+section: it restores and passes its gate as before, and is not continued.
+The state is twice the adapter's size and is sealed with it — the moments
+are made of the training data's gradients.
 
 ## Determinism
 

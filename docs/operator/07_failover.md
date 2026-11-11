@@ -209,6 +209,24 @@ The standby is now the primary. To protect it:
 Until you do, nothing moves again. That is deliberate: every hop takes an
 operator signature.
 
+Training goes on there from the restored genome (ADR 0040), on the
+destination's runtime and base:
+
+```bash
+python -m vg_genome finetune --continue /path/to/restored/<key id> --base /opt/base \
+    --steps <the total to reach> --out /path/to/next
+python -m vg_genome replay --genome /path/to/next --base /opt/base   # "exact": true — the whole recipe, on this machine
+```
+
+The recipe, the data and the fixtures' prompts are the genome's; only the
+number of steps is yours. What the old primary trained after the genome that
+failed over was sealed is lost with it (the report's `rpo_seconds`); the
+steps are taken again here. Whether they are the steps the old primary would
+have taken is `replay`'s to say: `"exact": true` means the continued adapter
+is the whole recipe computed on this machine, to the bit — expect it where
+the gate judged the restore EXACT, and read `max_rel_l2` where it did not.
+The sentinel of step 1 seals the result as the chain's next generation.
+
 The old primary's outbox is closed by its compromise report. Keep it for the
 incident review. `acpctl genome chain --dir` walks it offline.
 
@@ -235,4 +253,5 @@ SEV-SNP confidential VMs, the authority's escrow key sealed to its chip.
 
 _Document history: 2026-09-15 — first version, with ADR 0012. 2026-09-16 — the
 sealed escrow key (ADR 0016); the primary's TEE pinned, the `stopped` grace,
-the chain trusted only to the sentinel's last word (ADR 0017)._
+the chain trusted only to the sentinel's last word (ADR 0017). 2026-11-10 —
+training goes on from the restored genome (ADR 0040)._

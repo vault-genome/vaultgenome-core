@@ -13,6 +13,20 @@ given release can still open.
 
 ### Added
 
+- **Training goes on from a genome** ([ADR 0040](docs/adr/0040-a-genome-carries-the-state-training-stood-in.md)):
+  a genome now carries the state training stood in — `state/optimizer.safetensors`
+  (AdamW's moments and step count for every adapter tensor), `state/cursor.json`
+  (the step and the place in the data) and `state/rng.json` (the generators the
+  runtime pins) — each named in `genome.json`'s new `training` section by its
+  SHA-256. `vg-genome finetune --continue GENOME --base BASE --steps N --out OUT`
+  takes the steps from where the genome stands to `N`; everything else is the
+  genome's, and a flag that would set it is refused. The genome it writes is
+  the recipe taken to `N`: on one pinned runtime its adapter, fixtures and
+  state are, byte for byte, those of the recipe run in one go, and `replay`,
+  unchanged, holds it to that. `training.continued_from` names the genomes it
+  was continued from. Until now training could only start a recipe: after a
+  failover the restored model was proven and at rest.
+
 - **The console** ([ADR 0039](docs/adr/0039-the-console-a-persons-hands-verified-on-their-computer.md)):
   `vgconsole`, an application for macOS, Windows and Linux that a person
   without a terminal opens to see that the model is safe and to act on it.
@@ -37,6 +51,14 @@ given release can still open.
 
 ### Changed
 
+- `genome.json` gains the `training` section and a genome directory gains
+  `state/` (twice the adapter's size, sealed with it). The schema stays
+  `vault-genome/lora-genome/v1`: the section is an addition, the gate reads
+  what it read, and the gate job still ships the worker `genome.json`, the
+  adapter and the prompts only. A genome written by an earlier release has no
+  section; it restores and passes its gate as before and cannot be continued.
+- `vg-genome finetune`: its summary gains `adapter_sha256`, `step` and
+  `continued_from`. The flags' defaults are unchanged.
 - **Audit schema v9:** one kind added, `CONSOLE_ACTION`. A v8 reader refuses a
   v9 event; a v9 reader verifies every earlier event as it did. A log that
   never had a console on it holds v9 events from the upgrade on, as any bump.

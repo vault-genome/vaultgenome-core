@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """python -m vg_genome <command>
 
-  finetune     train a LoRA adapter and write a genome directory
+  finetune     train a LoRA adapter and write a genome directory; with
+               --continue GENOME, go on training from that genome's state
   replay       re-run a genome's recipe and compare the adapter it yields
   door         answer one gate request (stdin -> stdout) from a restored genome,
                or, with --stdin-genome, from a genome delivered on stdin; a
@@ -23,30 +24,45 @@ def _log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
+# What `finetune` takes when a flag is not given. With --continue none of
+# these may be given: the genome says them.
+_RECIPE = {
+    "steps": 60, "targets": "q_proj,v_proj", "rank": 8, "alpha": 16.0, "lr": 2e-4, "max_len": 128, "seed": 1234,
+    "threads": 4, "top_k": 64, "new_tokens": 16, "critical": 4, "device": "cpu", "dtype": "float32",
+}
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="vg_genome", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    ft = sub.add_parser("finetune", help="train a LoRA adapter and write a genome directory")
+    ft = sub.add_parser(
+        "finetune", help="train a LoRA adapter and write a genome directory, or go on training from one",
+        description="Train a LoRA adapter and write a genome directory. With --continue GENOME, go on training "
+                    "from that genome's state until --steps steps in all have been taken: the base's name, the "
+                    "data, the recipe (hyper-parameters, seed, threads, device, dtype) and the fixtures' prompts "
+                    "are the genome's, so no flag that sets one is accepted.")
     ft.add_argument("--base", required=True, help="local directory of the base model")
-    ft.add_argument("--base-name", required=True, help="the base model's name, recorded in the genome")
-    ft.add_argument("--data", required=True, help="JSONL of {prompt, completion}")
     ft.add_argument("--out", required=True, help="genome directory to create")
-    ft.add_argument("--targets", default="q_proj,v_proj", help="comma-separated module names to adapt")
-    ft.add_argument("--rank", type=int, default=8)
-    ft.add_argument("--alpha", type=float, default=16.0)
-    ft.add_argument("--steps", type=int, default=60)
-    ft.add_argument("--lr", type=float, default=2e-4)
-    ft.add_argument("--max-len", type=int, default=128)
-    ft.add_argument("--seed", type=int, default=1234)
-    ft.add_argument("--threads", type=int, default=4)
+    ft.add_argument("--continue", dest="continue_from", metavar="GENOME",
+                    help="go on from this genome directory's training state instead of starting a recipe")
+    ft.add_argument("--base-name", help="the base model's name, recorded in the genome")
+    ft.add_argument("--data", help="JSONL of {prompt, completion}")
+    ft.add_argument("--steps", type=int, help=f"steps to take (default {_RECIPE['steps']}); with --continue, the total to reach")
+    ft.add_argument("--targets", help=f"comma-separated module names to adapt (default {_RECIPE['targets']})")
+    ft.add_argument("--rank", type=int, help=f"(default {_RECIPE['rank']})")
+    ft.add_argument("--alpha", type=float, help=f"(default {_RECIPE['alpha']})")
+    ft.add_argument("--lr", type=float, help=f"(default {_RECIPE['lr']})")
+    ft.add_argument("--max-len", type=int, help=f"(default {_RECIPE['max_len']})")
+    ft.add_argument("--seed", type=int, help=f"(default {_RECIPE['seed']})")
+    ft.add_argument("--threads", type=int, help=f"(default {_RECIPE['threads']})")
     ft.add_argument("--prompts", help="JSON list of fixture prompts (default: the training prompts)")
-    ft.add_argument("--top-k", type=int, default=64)
-    ft.add_argument("--new-tokens", type=int, default=16)
-    ft.add_argument("--critical", type=int, default=4, help="the first N fixtures are critical")
-    ft.add_argument("--device", default="cpu", help="cpu, cuda, mps or auto: where the adapter trains and the fixtures are recorded")
-    ft.add_argument("--dtype", default="float32", choices=["float32", "bfloat16", "float16"],
-                    help="the base model's dtype, recorded in the recipe (the adapter stays float32)")
+    ft.add_argument("--top-k", type=int, help=f"(default {_RECIPE['top_k']})")
+    ft.add_argument("--new-tokens", type=int, help=f"(default {_RECIPE['new_tokens']})")
+    ft.add_argument("--critical", type=int, help=f"the first N fixtures are critical (default {_RECIPE['critical']})")
+    ft.add_argument("--device", help=f"cpu, cuda, mps or auto: where the adapter trains and the fixtures are recorded (default {_RECIPE['device']})")
+    ft.add_argument("--dtype", choices=["float32", "bfloat16", "float16"],
+                    help=f"the base model's dtype, recorded in the recipe (the adapter stays float32; default {_RECIPE['dtype']})")
     ft.add_argument("--no-integer-door", action="store_true", help="record no integer-door references in the fixtures")
 
     rp = sub.add_parser("replay", help="re-run a genome's recipe and compare the adapter")
@@ -78,21 +94,39 @@ def main(argv=None) -> int:
 
     a = p.parse_args(argv)
     if a.cmd == "finetune":
-        prompts = None
-        if a.prompts:
-            with open(a.prompts, encoding="utf-8") as f:
-                prompts = json.load(f)
-        g = finetune.finetune(
-            a.base, a.data, a.out, base_name=a.base_name, targets=[t for t in a.targets.split(",") if t],
-            rank=a.rank, alpha=a.alpha, steps=a.steps, lr=a.lr, max_len=a.max_len, seed=a.seed,
-            threads=a.threads, prompts=prompts, top_k=a.top_k, new_tokens=a.new_tokens, critical=a.critical,
-            device=a.device, dtype=a.dtype, integer_door=not a.no_integer_door, log=_log)
+        if a.continue_from:
+            theirs = [k for k in ("base_name", "data", "prompts", *_RECIPE) if k != "steps" and getattr(a, k) is not None]
+            if a.no_integer_door:
+                theirs.append("no_integer_door")
+            if theirs:
+                p.error("--continue takes these from the genome; drop " + ", ".join("--" + k.replace("_", "-") for k in theirs))
+            if a.steps is None:
+                p.error("--continue needs --steps: the total number of steps to reach")
+            g = finetune.continue_training(a.continue_from, a.base, a.out, steps=a.steps, log=_log)
+        else:
+            if not a.base_name or not a.data:
+                p.error("finetune needs --base-name and --data (or --continue GENOME)")
+            for k, v in _RECIPE.items():
+                if getattr(a, k) is None:
+                    setattr(a, k, v)
+            prompts = None
+            if a.prompts:
+                with open(a.prompts, encoding="utf-8") as f:
+                    prompts = json.load(f)
+            g = finetune.finetune(
+                a.base, a.data, a.out, base_name=a.base_name, targets=[t for t in a.targets.split(",") if t],
+                rank=a.rank, alpha=a.alpha, steps=a.steps, lr=a.lr, max_len=a.max_len, seed=a.seed,
+                threads=a.threads, prompts=prompts, top_k=a.top_k, new_tokens=a.new_tokens, critical=a.critical,
+                device=a.device, dtype=a.dtype, integer_door=not a.no_integer_door, log=_log)
         summary = {k: g[k] for k in ("schema", "created_at")}
         summary.update({
             "base_digest": g["base"]["manifest"]["digest"],
             "adapter_parameters": g["adapter"]["parameters"],
+            "adapter_sha256": g["adapter"]["weights_sha256"],
             "device": g["recipe"]["device"],
             "dtype": g["recipe"]["dtype"],
+            "step": g["training"]["step"],
+            "continued_from": [c["step"] for c in g["training"]["continued_from"]],
             "loss_first": g["recipe"]["losses"][0],
             "loss_last": g["recipe"]["losses"][-1],
             "train_seconds": g["recipe"]["train_seconds"],
