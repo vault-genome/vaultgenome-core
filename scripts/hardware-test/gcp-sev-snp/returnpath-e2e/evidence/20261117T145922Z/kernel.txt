@@ -1,0 +1,1 @@
+Linux vg-returnpath-20261117t145922z 7.0.0-1017-gcp #19~24.04.1-Ubuntu SMP PREEMPT Thu Oct 29 22:34:06 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
