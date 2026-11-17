@@ -9,8 +9,9 @@
 #   docker run --rm vaultgenome                 # runs the demo (simulation mode)
 #   docker run --rm --entrypoint acpctl vaultgenome version
 
-# Base images pinned by digest (resolved 2026-10-13); bump the tag and the digest together.
-FROM golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS build
+# Base images pinned by digest (the builder resolved 2026-11-17, the runtime
+# 2026-10-13); bump the tag and the digest together.
+FROM golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS build
 WORKDIR /src
 COPY . .
 # .dockerignore excludes .git, so Go can embed no VCS revision and the binary

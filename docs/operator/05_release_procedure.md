@@ -86,7 +86,7 @@ The tag push runs `.github/workflows/release.yml`:
 
 1. Check out the tag and run `git verify-tag` on it against the keys pinned on
    the default branch.
-2. Set up Go 1.27.3 (the toolchain `go.mod` names).
+2. Set up Go 1.27.4 (the toolchain `go.mod` names).
 3. `make build build-fips build-cross` and `make verify-reproducible`,
    with `VERSION` = the tag name, `COMMIT` = the full commit SHA and
    `SOURCE_DATE_EPOCH` = the tagged commit's timestamp. The `-fips`
@@ -364,9 +364,10 @@ Once the release workflow completes:
 3. Check that the SLSA provenance attached to the release names each of
    the twenty binaries', the worker package's, the wheel's, the sdist's
    and the checksums list's SHA-256 (for example with `slsa-verifier`).
-4. Rebuild from the tag with Go 1.27.3, from any host — the binaries are
-   static (`CGO_ENABLED=0`) and carry the tag's VCS stamp, so the rebuild
-   must come from a git checkout of the tag, not from an archive:
+4. Rebuild from the tag with the Go the release was built with (1.27.3
+   for 0.6.1 to 0.14.0), from any host — the binaries are static
+   (`CGO_ENABLED=0`) and carry the tag's VCS stamp, so the rebuild must
+   come from a git checkout of the tag, not from an archive:
    ```
    git clone https://github.com/vault-genome/vaultgenome-core.git && cd vaultgenome-core
    git checkout vX.Y.Z
