@@ -287,7 +287,19 @@ Four facts of the code decide what has to be built.
   is written there; the authority records `CHAIN_CONTINUED` for generation
   2 (in one run 1.5 s after the restore, by the standby's clock) and stays;
   `acpctl genome chain` finds the two outboxes one chain of three
-  generations; the authority is stopped and started and takes the failover
+  generations; with the authority still watching, the generation the
+  standby sealed is released again by an ordinary attested release and
+  restored beside the first, and the standby's command starts nothing a
+  second time; the authority is stopped and started and takes the failover
   up from its log; the standby's sentinel is killed, and three seconds
-  later the trigger is declined on the record, exit code 3, seven events in
-  all; one more run adds none.
+  later the trigger is declined on the record, exit code 3, eleven events
+  in all; one more run adds none.
+- Decision 1, a gate that cannot be run, on the release binaries
+  (`TestLiveFailover_AStandbyWhoseGateCannotRunStartsNothing`): the
+  standby's door refuses, in the words of the worker's own on a base model
+  that is not the genome's. The restore fails, the command is not run, no
+  sentinel starts and the standby's outbox stays empty. The authority is
+  told so when it asks for the receipt and leaves at once, exit code 1,
+  with `integrity[restore_failed]` and the standby's reason in its report
+  and four events on its log: the failover decided, the key released, no
+  restore, no chain.

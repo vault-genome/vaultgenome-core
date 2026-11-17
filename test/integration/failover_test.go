@@ -711,10 +711,12 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 		t.Fatalf("sagvd failover exited when a generation was opened beside it\n%s", authority.log.String())
 	default:
 	}
-	// The release and its confirmation are on the same log, after the chain.
+	// The release and its confirmation are on the same log, after the
+	// chain: the handshake, the attestation verified, the release
+	// authorized, the restore completed.
 	ok, onLog, _ := r.x.auditVerify(t)
-	if !ok || onLog <= 6 {
-		t.Fatalf("audit log after the release: ok=%v events=%d, want more than 6", ok, onLog)
+	if !ok || onLog != 10 {
+		t.Fatalf("audit log after the release: ok=%v events=%d, want 10", ok, onLog)
 	}
 
 	// The authority is still there, watching the standby. It is restarted:
