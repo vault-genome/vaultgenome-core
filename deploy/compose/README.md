@@ -239,7 +239,7 @@ real torch runs in the `genome-worker` workflow.
 
 - `docker-compose.yml` — services, network, bind mounts, hardening
   (read-only root FS, no new privileges, all capabilities dropped).
-- `sagvd/Dockerfile` — multi-stage build on `golang:1.27.0-alpine` →
+- `sagvd/Dockerfile` — multi-stage build on `golang:1.27.4-alpine` →
   `distroless/static-debian12:nonroot`.
 - `acp-compute/Dockerfile` — the same builder → `python:3.12-slim` with the
   pinned CPU torch and `vg_genome`, running as uid 65532: the worker needs a
