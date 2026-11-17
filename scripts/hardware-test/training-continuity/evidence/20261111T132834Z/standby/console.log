@@ -1,0 +1,30 @@
+== 13:30:43 inputs
+== 13:30:44 provision (keygen), operator stop key, operator recovery key
+== 13:30:44 python runtime (CPU) and base model — the gate runs the model here
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:01,  6.78it/s]Fetching 10 files:  50%|█████     | 5/10 [00:00<00:00, 21.98it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 22.31it/s]Fetching 10 files: 100%|██████████| 10/10 [00:09<00:00,  1.01it/s]
+== 13:32:08 configfs-tsm (real SEV-SNP reports)
+== 13:32:09 sagvd on SEV-SNP: identity from the chip
+== 13:32:20 the escrow key: made in the authority's process, sealed to this chip, wrapped to the recovery key
+== 13:32:30 the recovery ceremony: the envelope opened with the recovery key, the key re-sealed on this chip
+== 13:32:41 acp-bootstrap on SEV-SNP (destination + gate)
+== 13:32:52 sagvd failover config: verifier registry, allow-list, operator stop, the sealed escrow key
+== 13:33:02 wait for the primary's sentinel key and chip identity, then sign the failover policy pinning both
+== 13:33:03 pull the primary's outbox replica, continuously
+== 13:33:03 arm: sagvd failover watches the replica
+== 13:42:30 audit log verify (offline, as an auditor would)
+== 13:42:30 what came back: the genome the primary sealed last, and the state training stood in
+== 13:42:30 TRAINING GOES ON HERE: from step 160 to 240, from the restored genome's state
+== 13:46:07 held to the whole recipe (1): replay runs steps 1 to 240 from the base, on this chip, and compares the adapter
+== 13:47:59 held to the whole recipe (2): the recipe run here in one go, 240 steps, every file compared
+== 13:52:43 the continued genome under the gate, as a destination would judge it

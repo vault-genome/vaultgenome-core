@@ -697,6 +697,7 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    or other hyper-parameters start a recipe, they do not continue one. The
    optimizer is AdamW; on `mps` the device's generator is not carried. A genome
    written by a release before this one carries no state and cannot be
-   continued. The hardware kit (`scripts/hardware-test/training-continuity/`)
-   trains a 0.5B base on the CPU; a larger base in bfloat16 on a GPU is held
-   by the tests' tiny model only.
+   continued. On hardware it has run with a 0.5B base on the CPU, on five
+   AMD Milan machines in two clouds, which took the recipe to the same bits
+   ([C61](VERIFIABLE-CLAIMS.md#c61)); a CPU of another family and a GPU have
+   not been measured, and bfloat16 is held by the tests' tiny model only.

@@ -1,0 +1,1 @@
+CONTINUED EXACT: training went on from step 160 to 240 on this chip; replay exact; 7 of 7 files those of the recipe in one go

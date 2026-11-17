@@ -1,6 +1,6 @@
 # ADR 0040 — A genome carries the state training stood in: training goes on from a restored genome and arrives where the recipe arrives
 
-- **Status:** Accepted (2026-11-10) — implemented: `workers/genome/vg_genome/state.py`, `finetune.continue_training`, `vg-genome finetune --continue`; held by `workers/genome/tests/test_continuity.py`; on real hardware by `scripts/hardware-test/training-continuity/` (the record follows the kit's first run)
+- **Status:** Accepted (2026-11-10) — implemented: `workers/genome/vg_genome/state.py`, `finetune.continue_training`, `vg-genome finetune --continue`; held by `workers/genome/tests/test_continuity.py`; on real hardware by `scripts/hardware-test/training-continuity/`: two runs on Compute Engine SEV-SNP and one on EC2 SEV-SNP, 2026-11-11 (C61)
 - **Date:** 2026-11-10
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0012 (the sentinel seals each state as the next generation; the failover), ADR 0013 (the worker restores the genome: the door), ADR 0020 (the integer door)
@@ -159,7 +159,19 @@ moments of a stopped genome and gets another adapter.
   of the recipe in one go, and `replay` reports `exact: true`,
   `max_rel_l2: 0.0`, `losses_equal: true`. A developer's machine, not a
   record.
-- On confidential hardware: `scripts/hardware-test/training-continuity/` —
-  a primary trains, seals and is lost; the standby restores the last
-  generation under its gate, goes on from it, and holds the result to the
-  whole recipe run there.
+- On confidential hardware, 2026-11-11 (`VERIFIABLE-CLAIMS.md` C61,
+  `scripts/hardware-test/training-continuity/`). Two AMD SEV-SNP guests on
+  Compute Engine, both AMD EPYC 7B13: the primary took 80 steps, went on
+  from its own genome to 160, was switched off while it trained toward 240
+  and deleted; on 30 s of silence generation 1 failed over under a policy
+  that requires an EXACT gate; the standby went on from the restored
+  genome's state to 240. `replay` there: `exact: true`,
+  `max_abs_diff: 0.0`, 240 losses equal; the recipe run there in one go: the
+  same 7 files and 240 losses (`evidence/20261111T135725Z/`). The run before
+  it, on two other guests, gave the same digests
+  (`evidence/20261111T132834Z/`). One EC2 instance with SEV-SNP, an AMD EPYC
+  7R13, stopped at 80 and 160 and continued to 240, is the recipe in one go
+  there, and its digests at steps 160 and 240 are Compute Engine's
+  (`evidence/aws/20261111T143104Z/`). Decision 4's two instruments agreed on
+  these machines: the gate said EXACT and `replay` said exact. A CPU of
+  another family and a GPU have not been measured.

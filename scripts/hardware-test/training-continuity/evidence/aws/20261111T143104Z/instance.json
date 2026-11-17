@@ -1,0 +1,7 @@
+{
+    "type": "m6a.2xlarge",
+    "zone": "us-east-2c",
+    "ami": "ami-096d6538c463eb1db",
+    "sevsnp": "enabled",
+    "boot": "uefi"
+}

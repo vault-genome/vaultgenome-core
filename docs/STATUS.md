@@ -2,7 +2,7 @@
 
 The authoritative maturity summary of this repository. Every statement
 below is backed by an evidence file and a reproduction command in
-[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C60); the open limits
+[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C61); the open limits
 are in [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) and
 [what we do not claim](../VERIFIABLE-CLAIMS.md#what-we-do-not-claim); what
 is next is in [`ROADMAP.md`](../ROADMAP.md). Component-level design
@@ -33,6 +33,16 @@ Intel Xeon CPUs for the determinism measurements.
   there; people added by a single-use pass under a role the listener enforces
   ([ADR 0039](adr/0039-the-console-a-persons-hands-verified-on-their-computer.md),
   [C60](../VERIFIABLE-CLAIMS.md#c60)).
+- **Training that goes on after the machine is lost** — a genome carries the
+  state training stood in, and `vg-genome finetune --continue` goes on from a
+  restored genome to where the recipe would be
+  ([ADR 0040](adr/0040-a-genome-carries-the-state-training-stood-in.md)). On
+  hardware ([C61](../VERIFIABLE-CLAIMS.md#c61)): a primary switched off while
+  it trained, generation 1 failed over on 30 s of silence under a gate
+  required to be EXACT, and the standby's continued genome is the recipe run
+  there in one go, 7 files of 7 — twice on Compute Engine SEV-SNP, and the
+  same bits on EC2 SEV-SNP. It goes on when a person or a script says so;
+  the product does not start it by itself yet.
 - **Byte-exact model continuity** — `acpctl genome seal / rewind / chain`:
   seal any model to a portable bundle whose key lives apart from it,
   restore it byte-exact on any server, and track versions with a validated
@@ -173,6 +183,11 @@ Intel Xeon CPUs for the determinism measurements.
 - The console has run against EC2 SEV-SNP, in two regions, from the tree's
   binaries (C60); it is built for six platforms and has been opened on macOS on
   Apple silicon. The buttons do not turn it on yet ([KNOWN_ISSUES](../KNOWN_ISSUES.md) 20).
+- Training goes on from a restored genome when a person or a script says so
+  (C61); a standby that starts it by itself, seals what it produces and takes
+  the next failover is not built. That the continued genome is the recipe to
+  the bit is on the record for AMD Milan CPUs in two clouds, at 0.5B; another
+  CPU family and a GPU have not been measured ([KNOWN_ISSUES](../KNOWN_ISSUES.md) 21).
 - The largest model measured is 32B, on one confidential GPU, on the pinned
   runtime; cross-device equivalence is measured at 0.5B and 7B; every
   failover number is at 0.5B.

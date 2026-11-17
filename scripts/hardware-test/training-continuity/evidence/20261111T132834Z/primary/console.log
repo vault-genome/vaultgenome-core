@@ -1,0 +1,27 @@
+== 13:30:56 inputs
+== 13:30:57 configfs-tsm (the sentinel attests with this chip)
+== 13:30:57 python runtime (CPU) and base model
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:00,  9.99it/s]Fetching 10 files:  40%|████      | 4/10 [00:00<00:00, 18.43it/s]Fetching 10 files:  90%|█████████ | 9/10 [00:00<00:00, 31.32it/s]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.02s/it]
+== 13:32:16 wait for the release authority's escrow key
+== 13:32:32 the sentinel's key and this chip's identity; the operator pins both
+== 13:32:32 seal the sentinel's seed to this chip (ADR 0023): the file the sentinel runs from is no seed elsewhere
+== 13:32:33 generation 0: the recipe's first 80 steps
+== 13:36:04 arm a tripwire and start the sentinel
+== 13:36:04 wait for generation 0 to be sealed
+== 13:36:12 wait for the authority to arm its failover watch
+== 13:36:12 generation 1: training goes on from generation 0, from step 80 to 160
+== 13:39:55 wait for generation 1 to be sealed and replicated
+== 13:40:12 generation 1 held to the whole recipe: replay runs steps 1 to 160 from the base, on this chip
+== 13:41:36 training goes on toward step 240 — the work the loss takes with it
+== 13:41:46 THE PRIMARY IS LOST: no tripwire, no report — this machine is switched off while it trains

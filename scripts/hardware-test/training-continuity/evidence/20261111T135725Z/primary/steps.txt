@@ -1,0 +1,21 @@
+== 13:59:49 inputs
+== 13:59:49 configfs-tsm (the sentinel attests with this chip)
+== 13:59:49 python runtime (CPU) and base model
+== 14:01:12 wait for the release authority's escrow key
+== 14:08:32 the sentinel's key and this chip's identity; the operator pins both
+primary measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a
+== 14:08:33 seal the sentinel's seed to this chip (ADR 0023): the file the sentinel runs from is no seed elsewhere
+sentinel seal-key exit=0 tee=gcp-sev-snp sealed=True
+sentinel identity from the sealed seed: key sentinel-28ffd02cb468b719 same
+== 14:08:33 generation 0: the recipe's first 80 steps
+== 14:12:06 arm a tripwire and start the sentinel
+== 14:12:06 wait for generation 0 to be sealed
+== 14:12:14 wait for the authority to arm its failover watch
+== 14:12:15 generation 1: training goes on from generation 0, from step 80 to 160
+== 14:16:07 wait for generation 1 to be sealed and replicated
+== 14:16:23 generation 1 held to the whole recipe: replay runs steps 1 to 160 from the base, on this chip
+generation 1: replay exact=True losses_equal=True max_rel_l2=0.0
+== 14:17:53 training goes on toward step 240 — the work the loss takes with it
+toward step 240 when the power went: still training; last line of its log: step 161/240 loss 0.0013
+sentinel running when the power went: yes
+== 14:18:03 THE PRIMARY IS LOST: no tripwire, no report — this machine is switched off while it trains

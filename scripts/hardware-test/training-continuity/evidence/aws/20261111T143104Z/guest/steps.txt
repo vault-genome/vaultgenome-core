@@ -1,0 +1,12 @@
+== 14:32:23 inputs
+cpu=AMD EPYC 7R13 Processor vcpus=8
+sev-snp guest: [    3.853321] Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP
+== 14:32:23 python runtime (CPU, the hash-pinned locks) and base model
+== 14:34:24 the recipe's first 80 steps
+== 14:40:40 training goes on from that genome, to step 160
+== 14:46:48 and from that one, to step 240
+== 14:52:58 held to the whole recipe (1): replay runs steps 1 to 240 from the base and compares the adapter
+replay: exact=True losses_equal=True max_abs_diff=0.0 max_rel_l2=0.0
+== 14:55:54 held to the whole recipe (2): the recipe in one go, 240 steps, every file compared
+compare: 7 files the same, 0 different; losses equal 240 240
+CONTINUED EXACT: the recipe stopped at 80 and 160 and continued to 240 on this machine; replay exact; 7 of 7 files those of the recipe in one go

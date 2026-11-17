@@ -37,7 +37,12 @@ given release can still open.
   state are, byte for byte, those of the recipe run in one go, and `replay`,
   unchanged, holds it to that. `training.continued_from` names the genomes it
   was continued from. Until now training could only start a recipe: after a
-  failover the restored model was proven and at rest.
+  failover the restored model was proven and at rest. On real hardware
+  (`scripts/hardware-test/training-continuity/`, C61): a primary switched off
+  while it trained, its last sealed generation failed over on 30 s of silence
+  under a gate required to be EXACT, and training continued on the standby to
+  the recipe's own bits — twice on Compute Engine SEV-SNP, and to the same
+  bits on EC2 SEV-SNP.
 
 - **The console** ([ADR 0039](docs/adr/0039-the-console-a-persons-hands-verified-on-their-computer.md)):
   `vgconsole`, an application for macOS, Windows and Linux that a person

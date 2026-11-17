@@ -102,13 +102,15 @@ No adapter, optimizer state or key is in the record: digests only.
   failover, starts a sentinel for what it produces and takes the next
   failover is not built yet; ADR 0012's rule that one policy serial performs
   one failover is unchanged.
-- **Another arithmetic.** Both machines are the same machine type and report
-  the same CPU; the gate is required to be EXACT, and `replay` on the standby
-  is what shows the steps taken there to be the recipe's. Where a
+- **Another arithmetic.** The machines of a `run.sh` record are one machine
+  type and report one CPU model; the gate is required to be EXACT, and
+  `replay` on the standby is what shows the steps taken there to be the
+  recipe's. An EPYC 7R13 on EC2 took the recipe to the same bits as Compute
+  Engine's EPYC 7B13 (`aws.sh`, the records below); both are AMD's Milan. A
+  CPU of another family, or a GPU, has not been measured: where a
   destination's kernels differ in their last bits the gate says EQUIVALENT
   and training continued there is the recipe within that difference —
-  `replay` on that machine says how far. `aws.sh` lays another CPU's digests
-  beside these.
+  `replay` on that machine says how far.
 - **A larger model or a GPU.** The base is 0.5B on the CPU.
 
 ## `aws.sh`: the same arithmetic on EC2, and beside Compute Engine's
@@ -127,8 +129,19 @@ same bits, so a genome moved from one to the other is continued exactly.
 Whatever the comparison shows is written down; it does not decide the
 script's result. Its record is in `evidence/aws/<stamp>/`.
 
+## Records
+
+| Record | From | What it holds |
+|---|---|---|
+| [`evidence/20261111T135725Z/`](evidence/20261111T135725Z/) | `257b91b1` | **Claim C61.** Two `n2d-standard-8` SEV-SNP guests in `us-central1-c`, both AMD EPYC 7B13; thirteen checks of thirteen. Generation 1 failed over on 30.02 s of silence, the gate EXACT as required, RTO 40.30 s. Training went on on the standby 0.16 s after the restore was confirmed, from step 160 to 240: `replay` exact, 7 of 7 files and 240 of 240 losses those of the recipe run there in one go. |
+| [`evidence/20261111T132834Z/`](evidence/20261111T132834Z/) | `34a083cc` | The first run, half an hour earlier, on two other guests: thirteen of thirteen, RTO 41.29 s, and every digest of generation 1 and of the continued genome the same as in the record above. Its `sha256sums.txt` was written before the runner's last lines: `runner.log`'s line in it is of the log as it stood then, and `vms-deleted.txt` is not listed. Since `257b91b1` the kit closes a record last. |
+| [`evidence/aws/20261111T143104Z/`](evidence/aws/20261111T143104Z/) | `257b91b1` | One `m6a.2xlarge` with AMD SEV-SNP in `us-east-2c`, AMD EPYC 7R13: the recipe stopped at steps 80 and 160 and continued to 240 is the recipe in one go there, `replay` exact. Its digests at step 160 and at step 240 are Compute Engine's, 7 files of 7 each (`beside-compute-engine.txt`). |
+
 ## Cost
 
-`run.sh`: two `n2d-standard-8` SEV-SNP VMs for about forty minutes and a
-bucket of a few megabytes. `aws.sh`: one `m6a.2xlarge` for about twenty-five
-minutes. Under a dollar each.
+`run.sh`: two `n2d-standard-8` SEV-SNP VMs for twenty-five to thirty-five
+minutes and a bucket of a few megabytes. They are 16 N2D vCPUs in the zone's
+region: where the project's quota for that family is 16, nothing else of it
+starts there while the kit runs — give it a zone in a region of its own.
+`aws.sh`: one `m6a.2xlarge` for about thirty-five minutes. Under a dollar
+each.

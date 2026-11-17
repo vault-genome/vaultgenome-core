@@ -1,0 +1,1 @@
+recovery key 2e0f4e6afe19cd3f (hpke-x25519-v2): private /root/recovery.seed (keep it off the release host), public /root/recovery.pem (for sagvd escrow-provision -recovery-to)

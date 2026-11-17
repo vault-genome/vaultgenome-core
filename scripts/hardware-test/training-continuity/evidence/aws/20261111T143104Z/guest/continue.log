@@ -1,0 +1,12 @@
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Loading weights:  10%|▉         | 28/290 [00:00<00:00, 275.07it/s]Loading weights:  35%|███▌      | 102/290 [00:00<00:00, 530.93it/s]Loading weights:  56%|█████▌    | 161/290 [00:00<00:00, 546.83it/s]Loading weights:  75%|███████▌  | 218/290 [00:00<00:00, 546.22it/s]Loading weights:  94%|█████████▍| 273/290 [00:00<00:00, 524.99it/s]Loading weights: 100%|██████████| 290/290 [00:00<00:00, 532.13it/s]
+step 161/240 loss 0.0013
+step 171/240 loss 0.0099
+step 181/240 loss 0.0743
+step 191/240 loss 0.0007
+step 201/240 loss 0.0012
+step 211/240 loss 0.0430
+step 221/240 loss 0.0006
+step 231/240 loss 0.0115
+step 240/240 loss 0.0006
+recording the integer door's references
+integer door: top-1 the same on 16/16 fixtures, max abs err 1.75
