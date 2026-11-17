@@ -1,0 +1,3 @@
+wrote amd-milan-cert_chain.pem: the Milan VCEK chain, 4602 bytes
+  ASK: CN=SEV-Milan
+  ARK: CN=ARK-Milan, sha256 69d063b45344d26a2e94e1f4210de49ef555308287d4c174445c95639a540bcd — a root this build pins (ADR 0024)
