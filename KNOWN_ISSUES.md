@@ -680,3 +680,23 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    on macOS on Apple silicon; the macOS and Windows files are not yet signed by a
    Developer ID or an Authenticode certificate, so those systems warn before the
    first opening.
+
+21. **Training goes on from a genome (ADR 0040) when it is told to, and exactly
+   where the arithmetic is the same.** `finetune --continue` is a command a
+   person or a script runs on the standby after a failover: nothing starts it
+   there by itself, no sentinel starts for what it produces, and one policy
+   serial still performs one failover (ADR 0012) — a second loss needs a new
+   policy and an operator's signature first. The continued genome is the recipe
+   byte for byte on a machine with the source's arithmetic, and only `replay`
+   on that machine says it is one (an EXACT gate compares the model's outputs,
+   not the kernels training uses); where the float kernels differ in their
+   last bits it is the recipe within that difference, which `replay` reports
+   and nothing bounds in advance. What the
+   primary trained after its last sealed generation is lost with it and is
+   taken again from that generation. Going on means the same recipe: new data
+   or other hyper-parameters start a recipe, they do not continue one. The
+   optimizer is AdamW; on `mps` the device's generator is not carried. A genome
+   written by a release before this one carries no state and cannot be
+   continued. The hardware kit (`scripts/hardware-test/training-continuity/`)
+   trains a 0.5B base on the CPU; a larger base in bfloat16 on a GPU is held
+   by the tests' tiny model only.

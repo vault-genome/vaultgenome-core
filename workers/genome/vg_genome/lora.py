@@ -85,7 +85,19 @@ def inject(model: nn.Module, targets: Iterable[str], r: int, alpha: float) -> li
 
 
 def lora_parameters(model: nn.Module) -> list:
-    return [p for n, p in model.named_parameters() if ".lora_A" in n or ".lora_B" in n]
+    return [p for _, p in named_parameters(model)]
+
+
+def named_parameters(model: nn.Module) -> list:
+    """(key, parameter) for every LoRA parameter, in the order an optimizer
+    built over lora_parameters holds them; the key is the tensor's key in
+    the saved adapter (state_dict)."""
+    out = []
+    for n, p in model.named_parameters():
+        if ".lora_A" in n or ".lora_B" in n:
+            module, _, leaf = n.rpartition(".")
+            out.append((f"base_model.model.{module}.{leaf}.weight", p))
+    return out
 
 
 def state_dict(model: nn.Module) -> dict:

@@ -1,6 +1,7 @@
 # Copyright (C) 2026 Serhii Nikolaichuk, Rodion Sorokin
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Deterministic LoRA fine-tuning, and replaying a genome's recipe.
+"""Deterministic LoRA fine-tuning, going on from a genome, and replaying a
+genome's recipe.
 
 The loop is deliberately plain: batch of one, examples in file order,
 AdamW, gradient clipping, no dropout (the model stays in eval mode while the
@@ -9,17 +10,24 @@ device — float32 on the CPU unless the recipe says otherwise; a 7B base
 trains in bfloat16 on a GPU — and the adapter is float32 wherever it
 trains. On a pinned runtime the same recipe yields the same adapter, byte
 for byte; the fixtures are recorded on the device that trained.
+
+A genome carries the state training stood in (state.py), so training goes
+on from it — on the machine that made it or on the one it was restored
+on — and arrives where the uninterrupted recipe arrives: the continued
+genome's recipe is the whole recipe, and `replay` holds it to that.
 """
 
 import json
 import os
 import shutil
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import torch
+from safetensors.torch import load_file
 
-from . import GENOME_SCHEMA, determinism, fixtures, integer, lora, manifest
+from . import GENOME_SCHEMA, determinism, fixtures, integer, lora, manifest, state
 from .data import encode, file_digest, load_jsonl
 from .model import DEFAULT_DTYPE, load_base, torch_dtype
 
@@ -39,23 +47,50 @@ def _default_prompts(rows: list, limit: int = 16) -> list:
     return out
 
 
-def train(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, steps: int, lr: float,
-          max_len: int, seed: int, threads: int, device: str = "cpu", dtype: str = DEFAULT_DTYPE, log=None):
-    """Fine-tune an adapter on rows; returns (model, tokenizer, losses, seconds).
-    The model stays on the device it trained on, in the recipe's dtype."""
+@dataclass
+class Run:
+    """What a run of the training loop leaves: the model on the device it
+    trained on, in the recipe's dtype; its tokenizer; the losses of the
+    steps this run took and their seconds; the optimizer as the last step
+    left it and the generators' state then (state.py)."""
+
+    model: object
+    tokenizer: object
+    losses: list
+    seconds: float
+    optimizer: object
+    rng: dict
+    device: torch.device
+
+
+def _run(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, steps: int, lr: float,
+         max_len: int, seed: int, threads: int, device: str = "cpu", dtype: str = DEFAULT_DTYPE, log=None,
+         resume=None) -> Run:
+    """The training loop, from the recipe's first step — or, given the
+    state a genome stands in (`resume`: its step, adapter tensors,
+    optimizer state and generators), from that step — to `steps`."""
     torch_dtype(dtype)  # refuse an unknown dtype before loading anything
     determinism.pin(seed, threads)
     dev = determinism.device(device)
     model, tokenizer = load_base(base_dir, dtype)
     examples = [encode(tokenizer, r, max_len) for r in rows]
-    lora.inject(model, targets, rank, alpha)
+    first = 0
+    if resume is None:
+        lora.inject(model, targets, rank, alpha)
+    else:
+        first = resume["step"]
+        lora.load_tensors(model, {"peft_type": "LORA", "target_modules": targets, "r": rank, "lora_alpha": alpha},
+                          resume["adapter"])
     model.to(dev)
     params = lora.lora_parameters(model)
     opt = torch.optim.AdamW(params, lr=lr, betas=BETAS, eps=EPS, weight_decay=0.0)
+    if resume is not None:
+        state.restore_optimizer(model, opt, resume["optimizer"], first)
+        state.rng_restore(resume["rng"], dev)
     model.eval()  # no dropout: the adapter trains on the model's inference behaviour
     losses = []
     start = time.monotonic()
-    for step in range(steps):
+    for step in range(first, steps):
         ex = examples[step % len(examples)]
         ids = torch.tensor([ex["input_ids"]], dtype=torch.long, device=dev)
         labels = torch.tensor([ex["labels"]], dtype=torch.long, device=dev)
@@ -69,7 +104,21 @@ def train(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, 
         if log is not None and (step % 10 == 0 or step == steps - 1):
             log(f"step {step + 1}/{steps} loss {losses[-1]:.4f}")
     seconds = time.monotonic() - start
-    return model, tokenizer, losses, seconds
+    return Run(model, tokenizer, losses, seconds, opt, state.rng_snapshot(dev), dev)
+
+
+def train(base_dir: str, rows: list, *, targets: list, rank: int, alpha: float, steps: int, lr: float,
+          max_len: int, seed: int, threads: int, device: str = "cpu", dtype: str = DEFAULT_DTYPE, log=None):
+    """Fine-tune an adapter on rows; returns (model, tokenizer, losses, seconds).
+    The model stays on the device it trained on, in the recipe's dtype."""
+    run = _run(base_dir, rows, targets=targets, rank=rank, alpha=alpha, steps=steps, lr=lr, max_len=max_len,
+               seed=seed, threads=threads, device=device, dtype=dtype, log=log)
+    return run.model, run.tokenizer, run.losses, run.seconds
+
+
+def _refuse_nonempty(out_dir: str) -> None:
+    if os.path.exists(out_dir) and os.listdir(out_dir):
+        raise FileExistsError(f"{out_dir} exists and is not empty")
 
 
 def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, targets: list, rank: int = 8,
@@ -78,29 +127,95 @@ def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, tar
              device: str = "cpu", dtype: str = DEFAULT_DTYPE, integer_door: bool = True, log=None) -> dict:
     """Train an adapter and write a genome directory:
 
-    out_dir/genome.json, adapter/, fixtures.json, data/train.jsonl
+    out_dir/genome.json, adapter/, state/, fixtures.json, data/train.jsonl
 
     device and dtype are recorded in the recipe: the fixtures are the
     model's behaviour there, and the door restores the base in that dtype.
     With integer_door the fixtures also carry the integer door's logits,
     the reference that door is held to byte for byte on any device.
+    state/ is what training goes on from (continue_training).
     """
-    if os.path.exists(out_dir) and os.listdir(out_dir):
-        raise FileExistsError(f"{out_dir} exists and is not empty")
+    _refuse_nonempty(out_dir)
     base = manifest.build(base_dir)
     rows = load_jsonl(data_path)
-    model, tokenizer, losses, seconds = train(
-        base_dir, rows, targets=targets, rank=rank, alpha=alpha, steps=steps, lr=lr,
-        max_len=max_len, seed=seed, threads=threads, device=device, dtype=dtype, log=log)
-    dev = next(model.parameters()).device
+    run = _run(base_dir, rows, targets=targets, rank=rank, alpha=alpha, steps=steps, lr=lr, max_len=max_len,
+               seed=seed, threads=threads, device=device, dtype=dtype, log=log)
+    return _write_genome(
+        out_dir, run, base=base, base_name=base_name, data_path=data_path, rows=rows, targets=targets, rank=rank,
+        alpha=alpha, steps=steps, lr=lr, max_len=max_len, seed=seed, threads=threads, dtype=dtype,
+        prompts=prompts or _default_prompts(rows), top_k=top_k, new_tokens=new_tokens, critical=critical,
+        integer_door=integer_door, losses=run.losses, seconds=run.seconds, continued_from=[], log=log)
 
+
+def continue_training(genome_dir: str, base_dir: str, out_dir: str, *, steps: int, log=None) -> dict:
+    """Go on training from the genome in genome_dir until `steps` steps in
+    all have been taken, and write the genome that results to out_dir.
+
+    Everything but the number of steps is the genome's own: its base
+    (base_dir is checked against the manifest), its data, its recipe —
+    hyper-parameters, seed, threads, device and dtype — and its fixtures'
+    prompts. The adapter, the optimizer, the place in the data and the
+    generators are put back where the genome's last step left them
+    (state.py), every file checked against genome.json first.
+
+    The genome written is the recipe taken to `steps`: on the same pinned
+    runtime it is, byte for byte, the genome `finetune` writes for that
+    recipe uninterrupted, and `replay` holds it to that. Its `training`
+    section names the genome it was continued from.
+    """
+    _refuse_nonempty(out_dir)
+    g = load_genome(genome_dir)
+    r, a = g["recipe"], g["adapter"]
+    manifest.verify(base_dir, g["base"]["manifest"])
+    data_path = os.path.join(genome_dir, r["data"])
+    if file_digest(data_path) != r["data_sha256"]:
+        raise ValueError("the genome's training data does not match its recipe")
+    weights = os.path.join(genome_dir, a["dir"], lora.ADAPTER_WEIGHTS)
+    if file_digest(weights) != a["weights_sha256"]:
+        raise ValueError("adapter weights do not match the genome")
+    fx_path = os.path.join(genome_dir, g["fixtures"]["file"])
+    if fixtures.digest(fx_path) != g["fixtures"]["sha256"]:
+        raise ValueError("fixtures do not match the genome")
+    resume = state.read(genome_dir, g)
+    if steps <= resume["step"]:
+        raise ValueError(f"the genome stands at step {resume['step']}; --steps is the total to reach and must be greater")
+    resume["adapter"] = load_file(weights)
+    rows = load_jsonl(data_path)
+    dtype = recipe_dtype(g)
+    run = _run(base_dir, rows, targets=a["targets"], rank=a["r"], alpha=a["alpha"], steps=steps, lr=r["lr"],
+               max_len=r["max_len"], seed=r["seed"], threads=r["threads"], device=r["device"], dtype=dtype, log=log,
+               resume=resume)
+    parent = {"step": resume["step"], "adapter_sha256": a["weights_sha256"], "created_at": g["created_at"],
+              "runtime": g["runtime"]}
+    return _write_genome(
+        out_dir, run, base=g["base"]["manifest"], base_name=g["base"]["name"], data_path=data_path, rows=rows,
+        targets=a["targets"], rank=a["r"], alpha=a["alpha"], steps=steps, lr=r["lr"], max_len=r["max_len"],
+        seed=r["seed"], threads=r["threads"], dtype=dtype,
+        prompts=[f["prompt"] for f in fixtures.load(fx_path)["fixtures"]], top_k=g["fixtures"]["top_k"],
+        new_tokens=g["fixtures"]["new_tokens"], critical=g["fixtures"]["critical"],
+        integer_door=g["fixtures"].get("integer") is not None, losses=r["losses"] + run.losses,
+        seconds=r["train_seconds"] + run.seconds, continued_from=g["training"]["continued_from"] + [parent], log=log)
+
+
+def _write_genome(out_dir: str, run: Run, *, base: dict, base_name: str, data_path: str, rows: list, targets: list,
+                  rank: int, alpha: float, steps: int, lr: float, max_len: int, seed: int, threads: int, dtype: str,
+                  prompts: list, top_k: int, new_tokens: int, critical: int, integer_door: bool, losses: list,
+                  seconds: float, continued_from: list, log=None) -> dict:
+    """Write the genome directory of a run that stands at `steps`: the
+    adapter, the state training goes on from, the data, the fixtures and
+    genome.json. losses and seconds are the whole recipe's, whoever took
+    the earlier steps."""
+    model, tokenizer, dev = run.model, run.tokenizer, run.device
+    data_sha256 = file_digest(data_path)
     os.makedirs(out_dir, exist_ok=True)
     adapter_dir = os.path.join(out_dir, "adapter")
     lora.save(model, adapter_dir, base_name, targets, rank, alpha)
+    training_state = state.write(out_dir, model, run.optimizer, run.rng, step=steps, examples=len(rows),
+                                 data_sha256=data_sha256)
     os.makedirs(os.path.join(out_dir, "data"), exist_ok=True)
     shutil.copyfile(data_path, os.path.join(out_dir, "data", "train.jsonl"))
 
-    fx = fixtures.build(model, tokenizer, prompts or _default_prompts(rows), dev, top_k, new_tokens, critical)
+    fx = fixtures.build(model, tokenizer, prompts, dev, top_k, new_tokens, critical)
     if integer_door:
         # The float model has recorded its references; its integer form
         # takes the device (a large model fits once, not twice).
@@ -133,7 +248,7 @@ def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, tar
         },
         "recipe": {
             "data": "data/train.jsonl",
-            "data_sha256": file_digest(data_path),
+            "data_sha256": data_sha256,
             "examples": len(rows),
             "steps": steps,
             "lr": lr,
@@ -146,6 +261,14 @@ def finetune(base_dir: str, data_path: str, out_dir: str, *, base_name: str, tar
             "clip_grad_norm": CLIP,
             "losses": losses,
             "train_seconds": round(seconds, 3),
+        },
+        # Where training stands and what it goes on from: the step reached,
+        # the genomes this one was continued from (oldest first; none for a
+        # recipe run in one go), and the state directory, file by file.
+        "training": {
+            "step": steps,
+            "continued_from": continued_from,
+            "state": training_state,
         },
         "fixtures": {
             "file": "fixtures.json",
