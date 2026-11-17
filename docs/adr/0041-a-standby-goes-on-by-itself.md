@@ -1,6 +1,6 @@
 # ADR 0041 — A standby goes on by itself: after a gated restore it trains, seals and answers, and the authority records the chain it continues
 
-- **Status:** Proposed (2026-11-17) — decisions 1, 2 and 3 are implemented (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`; `workers/genome/vg_genome/answer.py`); decision 4 is not written yet
+- **Status:** Proposed (2026-11-17) — decisions 1, 2 and 3 are implemented (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`; `workers/genome/vg_genome/answer.py`); of decision 4 the policy is (`internal/vault/failover`, `acpctl failover issue`), and what the authority does under it is not written yet
 - **Date:** 2026-11-17
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0011 (the destination restores by itself), ADR 0012 (the sentinel; one policy serial, one failover), ADR 0013 (the worker's door), ADR 0017 (the chip's word over every record), ADR 0040 (training goes on from a genome)
@@ -102,12 +102,19 @@ Four facts of the code decide what has to be built.
 4. **The policy names the standby's sentinel, and the authority records
    the chain it continues.** `vault-genome/failover-policy/v2` is v1 with
    one section more, `standby.sentinel`: the key the standby's own sentinel
-   signs under and the pin of the TEE its records must carry, said in
-   advance about the standby the way `sentinel_public_key` and `primary`
-   say them about the primary. The key is made and sealed on the standby's
-   chip before the operator signs (`acpctl sentinel keygen`, `identity`,
-   `seal-key`; `acpctl failover issue --standby-sentinel-pub` and the pins
-   beside it). A v1 policy is read as before.
+   signs under and the measurements its records must be attested at, said
+   in advance about the standby the way `sentinel_public_key` and `primary`
+   say them about the primary. The TEE is the standby's own — one machine,
+   one chip, so the section names no kind of its own — and the key is not
+   the primary's. Machines of one image attest one measurement (the policy
+   of `scripts/hardware-test/training-continuity/evidence/20261111T135725Z`
+   pins its primary and its standby at the same one), so the report says a
+   record was made on such a machine, and the key, sealed to the standby's
+   chip, says on which. The key is made and sealed there before the
+   operator signs (`acpctl sentinel keygen`, `identity`, `seal-key`;
+   `acpctl failover issue --standby-sentinel-pub
+   --standby-sentinel-measurement`). A policy without the section is the
+   v1 it was, to the byte, and is read as before.
 
    Under a policy that has the section, `sagvd failover` does not exit
    when the standby's restore is confirmed. It reads the standby's outbox
@@ -206,4 +213,14 @@ Four facts of the code decide what has to be built.
   genome put in the directory answers under its own name; a state that
   fails its checks leaves the one before it answering, and is opened once
   it is whole.
-- Decision 4: none yet.
+- Decision 4, the policy: `internal/vault/failover`, `policy_v2_test.go` — a
+  policy that names the standby's sentinel is signed and read as v2, the
+  section under the operator's signature; the section is refused by name
+  under v1, absent under v2, with the primary's key, without a measurement,
+  and with or without an attestation key as the standby's kind requires;
+  and four policies recorded on hardware before v2 existed (SEV-SNP, TDX, a
+  confidential GPU) still hash, read by this build, to the digest in their
+  run's report. `cmd/acpctl`, `TestFailover_IssueNamesTheStandbySentinel`:
+  the flags, what `verify` prints, and the refusals before anything is
+  written.
+- Decision 4, the authority: none yet.

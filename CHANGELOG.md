@@ -25,6 +25,15 @@ given release can still open.
 
 ### Added
 
+- **A failover policy can name the standby's own sentinel**
+  ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 4):
+  `acpctl failover issue --standby-sentinel-pub KEY
+  --standby-sentinel-measurement HEX` signs a
+  `vault-genome/failover-policy/v2`, which is v1 with one section more,
+  `standby.sentinel` — the key the standby's sentinel signs under and the
+  measurements its records must be attested at; `acpctl failover verify`
+  prints it. A policy without the section is the v1 it was, to the byte.
+  An authority of an earlier release refuses a v2 policy.
 - **The model answers on the machine it lives on**
   ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 3):
   `vg-genome answer` opens a genome directory under the door's checks and
