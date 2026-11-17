@@ -60,6 +60,12 @@ pip logs — then `measurement.txt`, `vm-deleted.txt`, `runner.log`,
 die with it. No IAM role is attached to the instance and no AWS
 identifier that encodes the account is on the record.
 
+`sha256sums.txt` is the last thing the runner writes and names every other
+file of the record, the guest's own list among them. The record below
+(`evidence/20261029T164825Z/`) was closed before the runner's last lines:
+the digest of `runner.log` in its list is of the log as it stood then, and
+`vm-deleted.txt` and the guest's list are not named in it.
+
 ## Runs
 
 | Tree | Record | What it shows |

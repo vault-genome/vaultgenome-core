@@ -44,6 +44,13 @@ MEASURE="sev-snp-measure==0.0.13"
 log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$RUNLOG"; }
 
 ID=""; SG=""; KEY="$NAME"
+# The record is closed last: nothing is written to it after its digests,
+# and a digest list a guest wrote is one of its files.
+close_record() {
+  [ -d "$EVIDENCE" ] || return 0
+  ( cd "$EVIDENCE" && find . -type f ! -path ./sha256sums.txt -exec shasum -a 256 {} + | sort -k2 > sha256sums.txt )
+  echo "record closed: ${EVIDENCE#"$ROOT"/} ($(wc -l < "$EVIDENCE/sha256sums.txt" | tr -d ' ') files, sha256sums.txt)"
+}
 cleanup() {
   set +e
   log "cleanup: terminating $NAME ($ID), removing the key pair and the security group"
@@ -56,6 +63,7 @@ cleanup() {
   aws ec2 delete-key-pair --region "$REGION" --key-name "$KEY" >/dev/null 2>&1
   for _ in $(seq 1 12); do aws ec2 delete-security-group --region "$REGION" --group-id "$SG" >/dev/null 2>&1 && break; sleep 10; done
   rm -rf "$BUILD"
+  close_record
 }
 trap cleanup EXIT
 
@@ -103,7 +111,7 @@ log "   guest.sh exit $GUEST_RC"
 
 log "== 3. the results back"
 "${SCP[@]}" "ubuntu@$IP:/home/ubuntu/e2e/results.tgz" "$EVIDENCE/results.tgz"
-shasum -a 256 "$EVIDENCE/results.tgz" | tee -a "$RUNLOG"
+( cd "$EVIDENCE" && shasum -a 256 results.tgz ) | tee -a "$RUNLOG"
 tar xzf "$EVIDENCE/results.tgz" -C "$EVIDENCE"
 RES="$(find "$EVIDENCE" -mindepth 1 -maxdepth 1 -type d -name '2*Z' | head -1)"
 [ -n "$RES" ] || { log "no results directory in results.tgz"; exit 1; }
@@ -156,7 +164,6 @@ EXPECT="$("$BUILD/venv/bin/sev-snp-measure" --mode snp --vcpus "$VCPUS" --vmm-ty
 { echo "uefi_release=$UEFI_RELEASE"; echo "uefi_sha256=$GOT_SHA"; echo "uefi_sha256_pinned=$UEFI_SHA256"; echo "vcpus=$VCPUS"; echo "measure=$MEASURE --mode snp --vcpus $VCPUS --vmm-type ec2"; echo "expected=$EXPECT"; echo "reported=$MEAS"; } | tee "$EVIDENCE/measurement.txt" | tee -a "$RUNLOG"
 if [ "$GOT_SHA" = "$UEFI_SHA256" ] && [ "$EXPECT" = "$MEAS" ]; then log "   ok    the chip's launch measurement is AWS's published UEFI $UEFI_RELEASE measured for $VCPUS vCPUs"; else log "   FAIL  the launch measurement is not the published UEFI's"; fail=1; fi
 
-( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt -exec shasum -a 256 {} + | sort -k2 > sha256sums.txt )
-log "== evidence: $EVIDENCE ($(wc -l < "$EVIDENCE/sha256sums.txt") files)"
+log "== evidence: ${EVIDENCE#"$ROOT"/}"
 [ "$GUEST_RC" = 0 ] || { log "guest.sh exited $GUEST_RC"; fail=1; }
 [ "$fail" = 0 ] && log "RESULT: PASS" || { log "RESULT: FAIL"; exit 1; }

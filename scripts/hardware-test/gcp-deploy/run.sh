@@ -102,6 +102,11 @@ OK2="$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["ok"]
 log "second job: $(cat "$EVIDENCE/after-reboot/submit.txt" | tail -1); the chain verifies, $EVENTS2 events (was $EVENTS1)"
 { echo "release=$TAG"; echo "platform=$PLATFORM"; echo "instance=$NAME"; echo "zone=$ZONE"; echo "project=$PROJECT"; echo "stamp=$STAMP"; echo "events_after_first_job=$EVENTS1"; echo "events_after_reboot_and_second_job=$EVENTS2"; echo "deploy_seconds=$(( T1 - T0 ))"; } > "$EVIDENCE/summary.txt"
 
+# This machine's path to the tree is taken out of what deploy.sh printed:
+# the record keeps what follows it.
+for f in "$EVIDENCE/deploy.out" "$EVIDENCE/refused-host.out"; do
+  if [ -f "$f" ]; then LC_ALL=C sed -i.tmp -e "s|$ROOT/||g" "$f"; rm -f "$f.tmp"; fi
+done
 ( cd "$EVIDENCE" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 > "$WORK/sha256sums.txt" ) && mv "$WORK/sha256sums.txt" "$EVIDENCE/sha256sums.txt"
 FINAL="$HERE/evidence/$STAMP"; mkdir -p "$HERE/evidence"
 mv "$EVIDENCE" "$FINAL"; EVIDENCE="$FINAL"; PUBLISHED=1

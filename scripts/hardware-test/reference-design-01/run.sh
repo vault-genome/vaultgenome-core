@@ -256,6 +256,6 @@ mark run_end
 # runner.log is the runner's own transcript, written by tee until the runner
 # exits — after this line — so it stays outside the sums.
 ( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt ! -name runner.log -print0 | sort -z | xargs -0 shasum -a 256 > sha256sums.txt )
-echo "evidence: $EVIDENCE"
+echo "evidence: ${EVIDENCE#"$ROOT"/}"
 [ "$OK" = 1 ] || { echo "FAIL: the run did not reach every mark; see the steps above (signature suite $SIGSUITE on the record: SIG_OK=$SIG_OK)"; exit 1; }
 echo "PASS: reference design 01 end to end on SEV-SNP under $PROFILE ($WANT; signatures $SIGSUITE)${VG_FIPS:+ on the certified module v1.0.0 with enforcement on, every party} — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party ($STAMP)"

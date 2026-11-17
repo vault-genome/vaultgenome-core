@@ -783,6 +783,7 @@ bash scripts/hardware-test/failover-cgpu/run.sh <gcp-project> [gcp-zone] [azure-
 bash scripts/hardware-test/failover-tdx/run.sh <gcp-project> [n2d-zone] [tdx-zone]     # Drill IV  (~15 min; two GCP n2d SEV-SNP CVMs + a c3 TDX Trust Domain)
 bash scripts/hardware-test/failover-negatives/run.sh <gcp-project> [zone]          # Drill V   (~15 min; two GCP n2d SEV-SNP CVMs)
 bash scripts/hardware-test/authority-loss/run.sh <gcp-project> [zone]              # Drill VI  (~10 min; two GCP n2d SEV-SNP CVMs, one after the other)
+bash scripts/hardware-test/failover-region-loss/run.sh <gcp-project> [primary-zone] [azure-rg]   # Drill VII (~25 min; a GCP n2d SEV-SNP primary, an authority in another region + an Azure NCC H100 v5)
 bash scripts/hardware-test/training-continuity/run.sh <gcp-project> [zone]         # Drill VIII (~30 min; two GCP n2d-standard-8 SEV-SNP CVMs)
 bash scripts/hardware-test/gpu-exact/run.sh    <gcp-project>   # the CPU↔GPU probe (~20 min)
 ```

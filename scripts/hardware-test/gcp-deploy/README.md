@@ -28,8 +28,8 @@ keeps for a person (`deployment.txt`; `verify/` with `cosign.txt`,
 `sealed-files.txt`, `chip.txt`, `job.json`, `audit-verify.json`,
 `audit-events.jsonl`, `audit-public-key.pem`, the units, the daemons'
 logs and metrics, `steps.txt`, `timeline.txt`, the pip logs);
-`deploy.out` (what the person saw, the `PROVEN` summary among it);
-`after-reboot/` — `health.txt`, `journal-this-boot.txt`, `boots.txt`,
+`deploy.out` (what the person saw, the `PROVEN` summary among it, less
+this machine's path to the tree); `after-reboot/` — `health.txt`, `journal-this-boot.txt`, `boots.txt`,
 `submit.txt`, `status-live.txt`, `audit-verify.json`, `status.txt`,
 `audit-events.jsonl`, `pause.txt` (the reads of the live segment pause
 both services and start them again: ADR 0027, `vg verify | audit | events`);

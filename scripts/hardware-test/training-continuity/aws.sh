@@ -62,7 +62,7 @@ cleanup() {
   rm -rf "$BUILD"
   # The record is closed last: nothing is written to it after its digests.
   ( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt -exec shasum -a 256 {} + | sort -k2 > sha256sums.txt )
-  echo "record closed: $EVIDENCE ($(wc -l < "$EVIDENCE/sha256sums.txt" | tr -d ' ') files, sha256sums.txt)"
+  echo "record closed: ${EVIDENCE#"$ROOT"/} ($(wc -l < "$EVIDENCE/sha256sums.txt" | tr -d ' ') files, sha256sums.txt)"
 }
 trap cleanup EXIT
 
@@ -149,6 +149,6 @@ if [ -n "$BESIDE" ]; then
   fi
 fi
 
-log "== evidence: $EVIDENCE"
+log "== evidence: ${EVIDENCE#"$ROOT"/}"
 [ "$GUEST_RC" = 0 ] || { log "aws-guest.sh exited $GUEST_RC"; fail=1; }
 [ "$fail" = 0 ] && log "RESULT: PASS" || { log "RESULT: FAIL"; exit 1; }

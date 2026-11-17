@@ -79,7 +79,7 @@ for _ in $(seq 1 360); do
   [ -n "$N" ] && NEXT="$N"
   grep -q "===VGBC-DONE===" "$SERIAL" && break
 done
-echo "serial capture: $SERIAL ($(shasum -a 256 "$SERIAL" | cut -d' ' -f1))"
+echo "serial capture: $(printf '%s' "$SERIAL" | sed "s|^$HOME/|~/|") ($(shasum -a 256 "$SERIAL" | cut -d' ' -f1))"
 
 "$HERE/decode.sh" "$SERIAL" "$EVID"
 cat "$EVID/run.txt"

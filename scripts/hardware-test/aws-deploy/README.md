@@ -49,7 +49,8 @@ CSP_IDs, the VLEK chain, the identities, the configurations,
 `sealed-files.txt`, `chip.txt`, `job.json`, `audit-verify.json`,
 `audit-events.jsonl`, `audit-public-key.pem`, the units, the daemons' logs
 and metrics, `steps.txt`, `timeline.txt`, the pip logs); `deploy.out`
-(what the person saw, the `PROVEN` summary among it); `after-move/` —
+(what the person saw, the `PROVEN` summary among it, less this machine's
+path to the tree); `after-move/` —
 `addresses.txt`, `identity.txt` (REPORT_ID, the VLEK and the measurement
 before and after), `health.txt`, `journal-this-boot.txt`, `boots.txt`,
 `host.txt`, `submit.txt`, `status-live.txt`, `audit-verify.json`,
@@ -57,6 +58,10 @@ before and after), `health.txt`, `journal-this-boot.txt`, `boots.txt`,
 `measurement.txt`; `summary.txt`; `stack-deleted.txt`; `runner.log`;
 `sha256sums.txt`. Keys, seeds and the API token stay on the instance and
 die with it.
+
+`sha256sums.txt` is the last thing the runner writes and names every other
+file of the record. In the two records below it was written before
+`stack-deleted.txt`, which it does not name.
 
 ## Runs
 

@@ -61,7 +61,7 @@ COMMIT="$(git -C "$LANE" rev-parse "$TAG^{commit}" 2>/dev/null)" || die "no tag 
 git -C "$LANE" diff --quiet HEAD -- || die "a tracked file in the lane differs from $TAG"
 TAGSIG="$(git -C "$LANE" -c gpg.ssh.allowedSignersFile="$LANE/.github/allowed_signers" verify-tag "$TAG" 2>&1)" || die "the tag's signature: $TAGSIG"
 note "row $ROW"; note "kit $KIT $*"; note "tag $TAG $COMMIT"; note "tag signature: $TAGSIG"
-note "lane $LANE (tracked tree = $TAG)"; note "runner $(git -C "$TREE" rev-parse HEAD)$(git -C "$TREE" diff --quiet HEAD -- "$HERE/run.sh" || echo ' (run.sh edited)')"
+note "lane $(basename "$LANE") (tracked tree = $TAG)"; note "runner $(git -C "$TREE" rev-parse HEAD)$(git -C "$TREE" diff --quiet HEAD -- "$HERE/run.sh" || echo ' (run.sh edited)')"
 note "go $(cd "$LANE" && go version | cut -d' ' -f3) on $(uname -sm)"
 env | grep -E '^VG_' | grep -v '^VG_TRIAL_' | sed -E 's/[0-9]{12}/<12 digits>/g; s/^/env /' | tee -a "$REC/run.txt" >/dev/null
 
