@@ -25,6 +25,14 @@ given release can still open.
 
 ### Added
 
+- **A destination can go on by itself after a restore**
+  ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 1):
+  `genome.after_restore` in `acp-bootstrap`'s configuration names one
+  command, run once after a restore whose required gate passed, with the
+  restored tree, the bundle it came from and its generation in its
+  arguments. A restore that failed, or whose gate said FAIL, runs nothing,
+  and a restarted daemon does not run it again. What the command did is on
+  the restore's record (`GET /v1/genome/restores`).
 - **Training goes on from a genome** ([ADR 0040](docs/adr/0040-a-genome-carries-the-state-training-stood-in.md)):
   a genome now carries the state training stood in — `state/optimizer.safetensors`
   (AdamW's moments and step count for every adapter tensor), `state/cursor.json`

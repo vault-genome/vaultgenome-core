@@ -27,8 +27,11 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -81,6 +84,42 @@ type Config struct {
 	// Gate, when set, runs the equivalence gate on every restored model
 	// before the receipt is signed, and puts its verdict in the receipt.
 	Gate *GateConfig
+
+	// AfterRestore, when set, is the one command run after a restore whose
+	// gate passed (ADR 0041). It needs a required Gate.
+	AfterRestore *AfterRestoreConfig
+}
+
+// Placeholders of an after-restore command's arguments, beside
+// GenomePlaceholder: the bundle the genome was restored from, and its
+// generation.
+const (
+	BundlePlaceholder     = "{bundle}"
+	GenerationPlaceholder = "{generation}"
+)
+
+// DefaultAfterRestoreTimeout bounds an after-restore command when the
+// configuration sets no bound.
+const DefaultAfterRestoreTimeout = 60 * time.Second
+
+// AfterRestoreConfig is the one command a destination runs after a restore
+// its gate passed: what goes on there — training, a sentinel, answers — is
+// started by it (ADR 0041). It runs once, after the receipt is signed and
+// kept, with the restored tree in its arguments and no key. A restore that
+// failed, or whose gate said FAIL, runs nothing; a daemon that restarts does
+// not run it again.
+type AfterRestoreConfig struct {
+	Command []string // GenomePlaceholder, BundlePlaceholder and GenerationPlaceholder in an argument are filled in
+	Env     []string // extra environment, KEY=VALUE
+	Timeout time.Duration
+}
+
+// AfterRestoreResult is what the after-restore command did.
+type AfterRestoreResult struct {
+	StartedAt time.Time `json:"started_at"`
+	Seconds   float64   `json:"seconds"`
+	ExitCode  int       `json:"exit_code"`
+	Error     string    `json:"error,omitempty"`
 }
 
 // State is where a released key's restore stands.
@@ -113,6 +152,10 @@ type Record struct {
 	Result        *restore.Result `json:"result,omitempty"`
 	Gate          *receipt.Gate   `json:"gate,omitempty"`
 	Error         string          `json:"error,omitempty"`
+	// AfterRestore is what the after-restore command did, when one is
+	// configured and this restore's gate passed. It is not in the receipt,
+	// which is signed before the command runs.
+	AfterRestore *AfterRestoreResult `json:"after_restore,omitempty"`
 }
 
 type entry struct {
@@ -164,6 +207,16 @@ func New(cfg Config) (*Restorer, error) {
 	}
 	if cfg.Rescan <= 0 {
 		cfg.Rescan = DefaultRescan
+	}
+	if a := cfg.AfterRestore; a != nil {
+		switch {
+		case len(a.Command) == 0 || strings.TrimSpace(a.Command[0]) == "":
+			return nil, errors.New("restorer: AfterRestore needs a command")
+		case a.Timeout < 0:
+			return nil, errors.New("restorer: AfterRestore timeout must not be negative")
+		case cfg.Gate == nil || !cfg.Gate.Required:
+			return nil, errors.New("restorer: AfterRestore needs a required gate: nothing starts on a model that was not proven here")
+		}
 	}
 	log := cfg.Logger
 	if log == nil {
@@ -370,6 +423,70 @@ func (r *Restorer) restoreOne(kid, path string) {
 		slog.String("bundle_sha256", bundleSHA),
 		slog.Float64("restore_seconds", finished.Sub(started).Seconds()),
 	)
+	if r.cfg.AfterRestore != nil && verdict != nil && verdict.Level != receipt.GateFail {
+		r.afterRestore(kid, target, path, h.Generation)
+	}
+}
+
+// afterRestore runs the configured command once for a restore whose gate
+// passed and keeps what it did on the restore's record. The restore is
+// signed for and stays restored whatever the command does.
+func (r *Restorer) afterRestore(kid, target, bundlePath string, generation uint64) {
+	a := r.cfg.AfterRestore
+	fill := strings.NewReplacer(GenomePlaceholder, target, BundlePlaceholder, bundlePath, GenerationPlaceholder, strconv.FormatUint(generation, 10))
+	argv := make([]string, len(a.Command))
+	for i, arg := range a.Command {
+		argv[i] = fill.Replace(arg)
+	}
+	timeout := a.Timeout
+	if timeout == 0 {
+		timeout = DefaultAfterRestoreTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	if len(a.Env) > 0 {
+		cmd.Env = append(os.Environ(), a.Env...)
+	}
+	said := &lastBytes{max: 2 << 10}
+	cmd.Stdout, cmd.Stderr = said, said
+	cmd.WaitDelay = 5 * time.Second
+
+	started := r.cfg.Clock.Now().UTC()
+	err := cmd.Run()
+	res := &AfterRestoreResult{StartedAt: started, Seconds: r.cfg.Clock.Now().UTC().Sub(started).Seconds(), ExitCode: -1}
+	if cmd.ProcessState != nil {
+		res.ExitCode = cmd.ProcessState.ExitCode()
+	}
+	if err != nil {
+		res.Error = err.Error()
+		if ctx.Err() != nil {
+			res.Error = fmt.Sprintf("ran out of time after %s", timeout)
+		}
+		if tail := strings.Join(strings.Fields(string(said.buf)), " "); tail != "" {
+			res.Error += ": " + tail
+		}
+	}
+	r.update(kid, func(rec *Record) { rec.AfterRestore = res })
+	if err != nil {
+		r.log.Error("after-restore command failed", slog.String("key_id", kid), slog.Int("exit_code", res.ExitCode), slog.String("err", res.Error))
+		return
+	}
+	r.log.Info("after-restore command done", slog.String("key_id", kid), slog.Uint64("generation", generation), slog.Float64("seconds", res.Seconds))
+}
+
+// lastBytes keeps the end of what is written to it.
+type lastBytes struct {
+	max int
+	buf []byte
+}
+
+func (l *lastBytes) Write(p []byte) (int, error) {
+	l.buf = append(l.buf, p...)
+	if over := len(l.buf) - l.max; over > 0 {
+		l.buf = l.buf[over:]
+	}
+	return len(p), nil
 }
 
 // open restores the bundle at path into target with the released key,

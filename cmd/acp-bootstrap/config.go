@@ -317,6 +317,26 @@ type GenomeConfig struct {
 	// genome's sealed fixtures here and the equivalence gate holds the
 	// outputs to their references. The verdict goes into the receipt.
 	Gate *GateConfig `json:"gate,omitempty"`
+
+	// AfterRestore, when set, is the one command run after a restore whose
+	// gate passed (ADR 0041): what goes on at this destination — training,
+	// a sentinel, answers — is started by it. It needs gate.required.
+	AfterRestore *AfterRestoreConfig `json:"after_restore,omitempty"`
+}
+
+// AfterRestoreConfig configures the command a destination runs after a
+// restore its gate passed.
+type AfterRestoreConfig struct {
+	// Command is run once for such a restore, after its receipt is signed;
+	// in an argument "{genome}" is the restored genome's directory,
+	// "{bundle}" the bundle it was restored from and "{generation}" its
+	// generation. For example:
+	// ["/usr/local/bin/go-on", "{genome}", "{bundle}", "{generation}"]
+	Command []string `json:"command"`
+	// Env adds KEY=VALUE pairs to the command's environment.
+	Env []string `json:"env,omitempty"`
+	// TimeoutSeconds bounds the command. Defaults to 60.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
 }
 
 // GateConfig configures the restored-model gate.
@@ -794,6 +814,22 @@ func (g GenomeConfig) validate() []error {
 			if k, _, ok := strings.Cut(kv, "="); !ok || k == "" {
 				errs = append(errs, fmt.Errorf("genome.gate.env %q is not KEY=VALUE", kv))
 			}
+		}
+	}
+	if after := g.AfterRestore; after != nil {
+		if len(after.Command) == 0 || strings.TrimSpace(after.Command[0]) == "" {
+			errs = append(errs, errors.New("genome.after_restore.command required"))
+		}
+		if after.TimeoutSeconds < 0 {
+			errs = append(errs, errors.New("genome.after_restore.timeout_seconds must not be negative"))
+		}
+		for _, kv := range after.Env {
+			if k, _, ok := strings.Cut(kv, "="); !ok || k == "" {
+				errs = append(errs, fmt.Errorf("genome.after_restore.env %q is not KEY=VALUE", kv))
+			}
+		}
+		if g.Gate == nil || !g.Gate.Required {
+			errs = append(errs, errors.New("genome.after_restore needs genome.gate with required set: nothing starts on a model that was not proven here"))
 		}
 	}
 	return errs

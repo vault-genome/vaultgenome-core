@@ -239,6 +239,7 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 			Rescan:         time.Duration(cfg.Genome.RescanSeconds) * time.Second,
 			MaxBundleBytes: cfg.Genome.MaxBundleBytes,
 			Gate:           gateConfig(cfg.Genome.Gate),
+			AfterRestore:   afterRestoreConfig(cfg.Genome.AfterRestore),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("acp-bootstrap: genome: %w", err)
@@ -314,6 +315,7 @@ func newDaemon(cfg Config, logger *slog.Logger) (*daemon, error) {
 		"kem_suites", receiver.Suites().SuiteIDs(),
 		"genome_restore", rest != nil,
 		"genome_gate", cfg.Genome.Gate != nil,
+		"genome_after_restore", cfg.Genome.AfterRestore != nil,
 		"genome_bundle_dir", cfg.Genome.BundleDir,
 		"genome_restore_dir", cfg.Genome.RestoreDir,
 	)
@@ -380,6 +382,15 @@ func gateConfig(g *GateConfig) *restorer.GateConfig {
 		Timeout:     timeout,
 		Required:    g.Required,
 	}
+}
+
+// afterRestoreConfig turns the genome.after_restore section into the
+// restorer's command.
+func afterRestoreConfig(a *AfterRestoreConfig) *restorer.AfterRestoreConfig {
+	if a == nil {
+		return nil
+	}
+	return &restorer.AfterRestoreConfig{Command: a.Command, Env: a.Env, Timeout: time.Duration(a.TimeoutSeconds) * time.Second}
 }
 
 // buildTEEProducer constructs the local TEE producer per cfg.Provider.

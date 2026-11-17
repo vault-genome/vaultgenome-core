@@ -1,6 +1,6 @@
 # ADR 0041 — A standby goes on by itself: after a gated restore it trains, seals and answers, and the authority records the chain it continues
 
-- **Status:** Proposed (2026-11-17) — decision 2 is implemented (`internal/genome/sentinel`, `TestParentAsRestoredIsNotSealedAgain`); decisions 1, 3 and 4 are not written yet
+- **Status:** Proposed (2026-11-17) — decisions 1 and 2 are implemented (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`); decisions 3 and 4 are not written yet
 - **Date:** 2026-11-17
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0011 (the destination restores by itself), ADR 0012 (the sentinel; one policy serial, one failover), ADR 0013 (the worker's door), ADR 0017 (the chip's word over every record), ADR 0040 (training goes on from a genome)
@@ -55,7 +55,8 @@ Four facts of the code decide what has to be built.
    model that was not proven on this machine. A daemon that restarts does
    not run it again for the restores it finds on disk. What the command did
    — its exit status, when, how long — is on the restore's record
-   (`GET /v1/genome/restores`) and in the log; it is not in the receipt,
+   (`GET /v1/genome/restores`) while the daemon runs, and in the log; it
+   is not in the receipt,
    which says what was restored and judged and is signed before the command
    runs.
 
@@ -185,4 +186,13 @@ Four facts of the code decide what has to be built.
 - Decision 2: `internal/genome/sentinel`, `TestParentAsRestoredIsNotSealedAgain`
   — it fails on the tree before the change (one generation sealed from the
   restored state) and passes after it.
-- Decisions 1, 3 and 4: none yet.
+- Decision 1: `internal/bootstrap/restorer`, `after_restore_test.go` — the
+  command runs once after a gate that passed, with the restored tree, the
+  bundle and the generation, and not again for a key released twice or by
+  a restarted daemon; nothing runs after a gate that said FAIL or a restore
+  that failed; a command that fails, does not end or cannot be run is on
+  the record and the restore stays restored; `New` refuses the command
+  without a required gate. `cmd/acp-bootstrap`,
+  `TestValidate_GenomeAfterRestore`: the section as configured, and refused
+  without `gate.required`.
+- Decisions 3 and 4: none yet.
