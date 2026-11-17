@@ -239,7 +239,9 @@ here. It is required with such a policy and refused without one.
   declined, with the reason in the report and on the log — a trigger before
   the failover, or one on the standby after it (`standby_trigger`). 1:
   failed, for example an operator stop refused the release, or the standby
-  did not restore.
+  did not restore. A standby that says its restore failed is believed at
+  once: the run does not wait out `-confirm-wait` for a receipt that will
+  not come.
 
 Run it as a service that restarts on failure. A restart re-reads the policy and
 the audit log, so a spent policy never runs twice. A failover that was decided
@@ -259,6 +261,7 @@ appended. Treat exit code 3 as final there: the next step is a new policy.
 
 | Field | Meaning |
 | - | - |
+| `status`, `error` | `restored`, `declined` or `failed`, and for `failed` why. `integrity[restore_failed]` is the standby's own word that its restore failed, with its reason after it — a bundle that did not open, a required gate that could not be run; nothing was started there (§2). `operational[restore_in_progress]` is the last answer before `-confirm-wait` ran out |
 | `trigger.kind`, `trigger.at` | `compromise-report` (when the sentinel detected it), `heartbeat-timeout` (the last heartbeat) or `stopped-overdue` (the stop that was not lifted in time), by the primary's clock |
 | `trigger.primary_measurement_hex` | what the trigger record's TEE report attests, under a pinning policy |
 | `ignored` | records that did not count: unsigned, foreign, or — under a pinning policy — without the primary chip's report |
@@ -340,7 +343,9 @@ policy followed by a rogue sentinel with the stolen seed on another TEE
 the standby that goes on by itself: its command starts its own sentinel on
 the restored tree, the authority records the chain, the generation the
 standby sealed is released again beside the run that watches it, the
-authority is restarted, and declines when the standby is lost in its turn.
+authority is restarted, and declines when the standby is lost in its turn;
+and a standby whose gate cannot be run, which starts nothing while the
+authority reports the failed restore at once, under its own code.
 On hardware, `scripts/hardware-test/gcp-failover` runs the same across two
 SEV-SNP confidential VMs, the authority's escrow key sealed to its chip.
 

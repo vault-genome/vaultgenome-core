@@ -92,6 +92,23 @@ const (
 	GateFail       = "FAIL"
 )
 
+// Why a destination has no receipt to give: the codes of the classified
+// errors its receipt endpoint answers with. The category beside the code
+// tells the source that asks whether asking again can help.
+const (
+	// CodeRestoreInProgress: the key is here and the restore has not
+	// finished. Operational: ask again.
+	CodeRestoreInProgress = "restore_in_progress"
+	// CodeRestoreFailed: the restore failed — the bundle did not open, or
+	// a required gate could not be run. Integrity, and final: no receipt
+	// will come for this release.
+	CodeRestoreFailed = "restore_failed"
+	// CodeKeyNotReleased: no release of that key has reached this
+	// destination. Operational: a source that has only just released it
+	// asks again.
+	CodeKeyNotReleased = "key_not_released"
+)
+
 // Meets reports whether the gate verdict is at least want (EXACT or
 // EQUIVALENT). FAIL meets nothing.
 func (g *Gate) Meets(want string) bool {

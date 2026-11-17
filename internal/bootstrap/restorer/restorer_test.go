@@ -257,6 +257,15 @@ func TestRestorer_FailsClosed(t *testing.T) {
 	f.r.Routes("")["/v1/genome/receipt"](rr, httptest.NewRequest(http.MethodGet, "/v1/genome/receipt?key_id="+kid, nil))
 	require.Equal(t, http.StatusUnprocessableEntity, rr.Code)
 	require.Contains(t, rr.Body.String(), "restore failed")
+	// It says so in the classified envelope the source reads, under a code
+	// of its own: a source that went by the status alone would call a
+	// failed restore an invalid signature.
+	why := noReceiptOf(t, rr.Body.Bytes())
+	require.Equal(t, "integrity", why.Error.Category)
+	require.Equal(t, receipt.CodeRestoreFailed, why.Error.Code)
+	require.Equal(t, "restore failed: "+rec.Error, why.Error.Message)
+	require.NotNil(t, why.Restore)
+	require.Equal(t, StateFailed, why.Restore.State)
 
 	// The operator replaces the bundle and the source releases again.
 	require.NoError(t, os.WriteFile(filepath.Join(f.bundles, "g.genome"), blob, 0o644))
@@ -264,6 +273,25 @@ func TestRestorer_FailsClosed(t *testing.T) {
 	f.r.work(context.Background())
 	require.Equal(t, StateRestored, f.record(kid).State)
 	require.Equal(t, "retry", f.record(kid).DecisionID)
+}
+
+// noReceipt is what the receipt endpoint answers when it has no receipt
+// to give: the classified envelope, and the restore's record if there is
+// one.
+type noReceipt struct {
+	Error struct {
+		Category string `json:"category"`
+		Code     string `json:"code"`
+		Message  string `json:"message"`
+	} `json:"error"`
+	Restore *Record `json:"restore"`
+}
+
+func noReceiptOf(t *testing.T, body []byte) noReceipt {
+	t.Helper()
+	var n noReceipt
+	require.NoError(t, json.Unmarshal(body, &n), "%s", body)
+	return n
 }
 
 func TestRestorer_HTTP(t *testing.T) {
@@ -298,13 +326,23 @@ func TestRestorer_HTTP(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, code)
 	code, _ = get("/v1/genome/receipt", token)
 	require.Equal(t, http.StatusBadRequest, code)
-	code, _ = get("/v1/genome/receipt?key_id="+kid, token)
+	code, body := get("/v1/genome/receipt?key_id="+kid, token)
 	require.Equal(t, http.StatusNotFound, code)
+	why := noReceiptOf(t, body)
+	require.Equal(t, "operational", why.Error.Category)
+	require.Equal(t, receipt.CodeKeyNotReleased, why.Error.Code)
+	require.Contains(t, why.Error.Message, kid)
+	require.Nil(t, why.Restore)
 
 	f.release(kid, dek, "http")
-	code, body := get("/v1/genome/receipt?key_id="+kid, token)
+	code, body = get("/v1/genome/receipt?key_id="+kid, token)
 	require.Equal(t, http.StatusConflict, code)
 	require.Contains(t, string(body), string(StateWaiting))
+	why = noReceiptOf(t, body)
+	require.Equal(t, "operational", why.Error.Category, "a restore in progress is asked for again")
+	require.Equal(t, receipt.CodeRestoreInProgress, why.Error.Code)
+	require.NotNil(t, why.Restore)
+	require.Equal(t, StateWaiting, why.Restore.State)
 
 	f.r.work(context.Background())
 	code, body = get("/v1/genome/receipt?key_id="+kid, token)

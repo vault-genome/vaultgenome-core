@@ -111,12 +111,14 @@ type failoverRig struct {
 }
 
 // rigOptions shape a rig: the primary attested by a (simulated) TEE and
-// pinned in the policy, a grace on `stopped`, and a standby that goes on
-// by itself after a restore, its sentinel named in the policy.
+// pinned in the policy, a grace on `stopped`, a standby that goes on by
+// itself after a restore, its sentinel named in the policy, and a standby
+// whose gate cannot be run.
 type rigOptions struct {
-	attested     bool
-	stoppedGrace string
-	goesOn       bool
+	attested      bool
+	stoppedGrace  string
+	goesOn        bool
+	doorCannotRun bool
 }
 
 // newFailoverRig provisions the three machines: the primary's state, key and
@@ -141,7 +143,17 @@ func newFailoverRig(t *testing.T, timeout string, opts ...rigOptions) *failoverR
 		t.Fatal(err)
 	}
 	door := filepath.Join(x.dir, "door.sh")
-	if err := os.WriteFile(door, []byte("#!/bin/sh\ncat >/dev/null\ncat "+right+"\n"), 0o755); err != nil {
+	answer := "cat " + right + "\n"
+	if o.doorCannotRun {
+		// The door refuses before it computes anything, in the words of the
+		// worker's own when the base model on the machine is not the genome's.
+		refusal := filepath.Join(x.dir, "refusal.json")
+		if err := os.WriteFile(refusal, []byte(`{"error": "ValueError: base model does not match the genome's manifest; different ['config.json']"}`+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		answer = "cat " + refusal + "\nexit 1\n"
+	}
+	if err := os.WriteFile(door, []byte("#!/bin/sh\ncat >/dev/null\n"+answer), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	r.canary = filepath.Join(t.TempDir(), "canary")
@@ -757,6 +769,62 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 	}
 	if ok, events, _ := r.x.auditVerify(t); !ok || events != onLog+1 {
 		t.Fatalf("audit log after one more run: ok=%v events=%d, want %d", ok, events, onLog+1)
+	}
+}
+
+// A standby whose gate cannot be run starts nothing (ADR 0041, decision
+// 1). The door refuses — as the worker's does when the base model on the
+// machine is not the genome's — so the restore fails and the standby's
+// command is not run. The authority, told so by the standby, does not wait
+// out its confirmation: it leaves with a failover decided and not
+// completed, and its report names the failure as what it is.
+func TestLiveFailover_AStandbyWhoseGateCannotRunStartsNothing(t *testing.T) {
+	r := newFailoverRig(t, "3s", rigOptions{goesOn: true, doorCannotRun: true})
+	primary := r.sentinel(t)
+	waitFor(t, 20*time.Second, "generation 0", func() bool { return r.records(t) >= 1 })
+	report := filepath.Join(t.TempDir(), "report.json")
+	authority := r.executor(t, report)
+	writeSecret(t, r.canary, []byte("read by an intruder"))
+	if code := exitCode(primary); code != 3 {
+		t.Fatalf("sentinel exited %d, want 3 (compromised)\n%s", code, primary.log.String())
+	}
+	tripped := time.Now()
+	rep := readReport(t, authority, report)
+	if code := exitCode(authority); code != 1 || rep.Status != "failed" || rep.Genome == nil || rep.Genome.Generation != 0 ||
+		rep.Restore != nil || rep.Continued != nil || rep.StandbyTrigger != nil {
+		t.Fatalf("sagvd failover exited %d: %+v\n%s", code, rep, authority.log.String())
+	}
+	// The executor's confirm wait is a minute; a restore that failed is
+	// known to have failed as soon as the standby is asked.
+	if waited := time.Since(tripped); waited > 30*time.Second {
+		t.Fatalf("the authority waited %s for a restore the standby had already called failed", waited)
+	}
+	for _, want := range []string{"integrity[restore_failed]", "restore failed: restorer: the gate backend could not run", "base model does not match the genome's manifest"} {
+		if !strings.Contains(rep.Error, want) {
+			t.Fatalf("the report's error does not say %q:\n%s", want, rep.Error)
+		}
+	}
+	if strings.Contains(rep.Error, "signature_invalid") {
+		t.Fatalf("a failed restore reported as an invalid signature:\n%s", rep.Error)
+	}
+	// Nothing started on the standby: its command was not run, so there is
+	// no sentinel and nothing in its outbox.
+	if _, err := os.Stat(r.standbySentinelPID); !os.IsNotExist(err) {
+		t.Fatalf("the standby's sentinel was started (%v)", err)
+	}
+	if left, err := os.ReadDir(r.standbyOutbox); err != nil || len(left) != 0 {
+		t.Fatalf("the standby's outbox holds %d entries (%v)", len(left), err)
+	}
+	if n := len(r.x.destLog("after-restore command")); n != 0 {
+		t.Fatalf("the destination logged its after-restore command %d times\n%s", n, r.x.dest.log.String())
+	}
+	if n := len(r.x.destLog("genome restore failed")); n != 1 {
+		t.Fatalf("the destination logged %d failed restores, want 1\n%s", n, r.x.dest.log.String())
+	}
+	// On record: the failover decided and the key released; no restore
+	// confirmed, no chain continued.
+	if ok, events, _ := r.x.auditVerify(t); !ok || events != 4 {
+		t.Fatalf("audit log: ok=%v events=%d, want 4", ok, events)
 	}
 }
 

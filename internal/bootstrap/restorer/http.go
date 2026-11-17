@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
+	"github.com/vault-genome/vaultgenome-core/internal/genome/receipt"
+	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
 
 // Routes returns the Restorer's endpoints, for the daemon's API listener
@@ -23,6 +25,12 @@ import (
 //	POST /v1/genome/bundles            — a sealed bundle, into BundleDir
 //
 // With a bearer token set, every request must carry it.
+//
+// A receipt there is none of is answered with the classified envelope of
+// the destination's cross-cloud endpoints, and the restore's record beside
+// it: 409 operational/restore_in_progress while the restore runs, 422
+// integrity/restore_failed once it has failed, 404
+// operational/key_not_released for a key no release brought here.
 func (r *Restorer) Routes(bearerToken string) map[string]http.HandlerFunc {
 	guardMethod := func(method string, next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, req *http.Request) {
@@ -56,12 +64,15 @@ func (r *Restorer) Routes(bearerToken string) map[string]http.HandlerFunc {
 			signed, rec, ok := r.Receipt(kid)
 			switch {
 			case !ok:
-				writeError(w, http.StatusNotFound, "no key "+kid+" was released to this destination")
+				writeNoReceipt(w, http.StatusNotFound, shared_errors.CategoryOperational, receipt.CodeKeyNotReleased,
+					"no key "+kid+" was released to this destination", nil)
 			case signed.Receipt == nil && rec.State == StateFailed:
 				// Final: asking again will not bring a receipt.
-				writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": "restore failed: " + rec.Error, "restore": rec})
+				writeNoReceipt(w, http.StatusUnprocessableEntity, shared_errors.CategoryIntegrity, receipt.CodeRestoreFailed,
+					"restore failed: "+rec.Error, &rec)
 			case signed.Receipt == nil:
-				writeJSON(w, http.StatusConflict, map[string]any{"error": "restore not complete", "restore": rec})
+				writeNoReceipt(w, http.StatusConflict, shared_errors.CategoryOperational, receipt.CodeRestoreInProgress,
+					"restore not complete", &rec)
 			default:
 				writeJSON(w, http.StatusOK, signed)
 			}
@@ -123,4 +134,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// writeNoReceipt answers a request for a receipt there is none of. The
+// error is the classified envelope the source's transport reads — its
+// category says whether asking again can help, its code says why — so a
+// source reports a failed restore as a failed restore, not as whatever
+// the HTTP status alone suggests. The restore's record, when there is
+// one, goes beside it.
+func writeNoReceipt(w http.ResponseWriter, status int, category shared_errors.Category, code, message string, rec *Record) {
+	body := map[string]any{"error": map[string]string{"category": category.String(), "code": code, "message": message}}
+	if rec != nil {
+		body["restore"] = rec
+	}
+	writeJSON(w, status, body)
 }

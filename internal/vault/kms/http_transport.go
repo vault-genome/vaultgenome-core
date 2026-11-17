@@ -152,7 +152,12 @@ func (t *HTTPTransport) SendKeyReleaseToken(
 // FetchRestoreReceipt fetches the destination's signed receipt for the
 // restore of the genome keyed kid: GET
 // <endpoint>/v1/genome/receipt?key_id=<kid>. A restore that has not
-// finished answers 409, returned as an Operational error to retry.
+// finished answers 409, returned as an Operational error to retry
+// (receipt.CodeRestoreInProgress). One that failed answers 422, returned
+// as an Integrity error under receipt.CodeRestoreFailed, with the
+// destination's reason in its message: final, no receipt will come. A
+// destination of a release that answered without the classified envelope
+// is classified by its status alone (classifyHTTPError).
 func (t *HTTPTransport) FetchRestoreReceipt(ctx context.Context, endpoint string, kid ids.KeyID) (receipt.Signed, error) {
 	u := joinEndpoint(endpoint, "/v1/genome/receipt") + "?key_id=" + url.QueryEscape(string(kid))
 	body, err := t.do(ctx, http.MethodGet, u, nil)

@@ -148,6 +148,20 @@ given release can still open.
   the parent's own content went out again as the next generation. It is
   now held to the parent's payload as well, and the first generation of
   the new outbox is the first state that differs from it.
+- **A restore that failed on the destination is reported as a failed
+  restore, not as an invalid signature.** Asked for a receipt it does not
+  have, `acp-bootstrap` answered with a bare message, and the source
+  classified the answer by its HTTP status alone: a restore whose required
+  gate could not be run came back to `sagvd failover` and `sagvd
+  crosscloud-confirm` as `integrity[signature_invalid]`, with the true
+  reason only in the text after it. The receipt endpoint now answers with
+  the classified envelope of the destination's other endpoints:
+  `integrity/restore_failed` for a restore that failed (final: the source
+  stops asking), `operational/restore_in_progress` for one that has not
+  finished, `operational/key_not_released` for a key no release brought
+  there; the restore's record still goes beside it. A source of this
+  release that asks a destination of an earlier one classifies its answer
+  by status, as before.
 
 ## [0.14.0] — 2026-10-29
 
