@@ -40,13 +40,26 @@ func (p Policy) StandbySentinelAllows(measurement tee.Measurement) bool {
 	return s != nil && slices.Contains(s.Measurements, hex.EncodeToString(measurement))
 }
 
-// Released is the generation a failover released to the standby: what the
-// first generation the standby seals must follow.
+// Released is the generation a failover released to the standby and the
+// standby restored: what the first generation the standby seals must
+// follow.
 type Released struct {
 	// DecisionID is the failover's, as FAILOVER_DECIDED recorded it.
 	DecisionID   ids.DecisionID
 	Generation   uint64
 	BundleSHA256 string
+	// RestoredAt is when the standby restored it, by the standby's clock;
+	// zero when it is not known.
+	RestoredAt time.Time
+}
+
+// ReleasedBy returns what rep's failover released, for a report whose
+// restore on the standby was confirmed.
+func ReleasedBy(rep Report) (Released, error) {
+	if rep.Status != StatusRestored || rep.Decision == nil || rep.Decision.DecisionID.IsZero() || rep.Genome == nil || rep.Restore == nil {
+		return Released{}, errors.New("failover: there is no confirmed restore for the standby to go on from")
+	}
+	return Released{DecisionID: rep.Decision.DecisionID, Generation: rep.Genome.Generation, BundleSHA256: rep.Genome.BundleSHA256, RestoredAt: rep.Restore.RestoredAt}, nil
 }
 
 // Continuation is the generation the standby's own sentinel sealed after
@@ -154,12 +167,19 @@ type ContinuationReport struct {
 	SetAside []sentinel.Rejected `json:"set_aside,omitempty"`
 }
 
-func (p continuedPayload) report(auditID ids.AuditEventID) ContinuationReport {
-	return ContinuationReport{
+// report is the record as a report; restoredAt, when known, is when the
+// standby restored the generation it follows.
+func (p continuedPayload) report(auditID ids.AuditEventID, restoredAt time.Time) ContinuationReport {
+	r := ContinuationReport{
 		Sentinel: p.Sentinel, MeasurementHex: p.MeasurementHex, Generation: p.Generation, BundleSHA256: p.BundleSHA256,
 		KeyID: string(p.KeyID), SealedAt: p.SealedAt, ParentGeneration: p.ParentGeneration, ParentBundleSHA256: p.ParentBundleSHA256,
 		RecordedAt: p.RecordedAt, AuditID: auditID,
 	}
+	if !restoredAt.IsZero() {
+		s := p.SealedAt.Sub(restoredAt).Seconds()
+		r.SealedAfterRestoreSeconds = &s
+	}
+	return r
 }
 
 // continuedOnRecord returns the continuation the audit log holds for a
@@ -181,10 +201,10 @@ func continuedOnRecord(events []audit_event.AuditEvent, decisionID ids.DecisionI
 }
 
 // RecordContinuation puts c on the audit log as the chain the standby
-// continues from released (CHAIN_CONTINUED) — once. A continuation already
-// on record for that failover is returned as it was recorded and nothing
-// is appended; one on record as another bundle is an error, not a second
-// record.
+// continues from released (CHAIN_CONTINUED) — once, and only from a restore
+// the log itself confirms. A continuation already on record for that
+// failover is returned as it was recorded and nothing is appended; one on
+// record as another bundle is an error, not a second record.
 func (e *Executor) RecordContinuation(c Continuation, released Released) (ContinuationReport, error) {
 	p := e.cfg.Policy
 	_, sid, ok := p.StandbySentinel()
@@ -196,15 +216,18 @@ func (e *Executor) RecordContinuation(c Continuation, released Released) (Contin
 	case c.Record.Generation != released.Generation+1 || c.Record.ParentBundleSHA256 != released.BundleSHA256:
 		return ContinuationReport{}, fmt.Errorf("failover: generation %d does not follow the released generation %d", c.Record.Generation, released.Generation)
 	}
-	was, auditID, err := continuedOnRecord(e.cfg.Events(), released.DecisionID)
-	if err != nil {
+	pr, err := ReadProgress(p, e.cfg.Events())
+	switch {
+	case err != nil:
 		return ContinuationReport{}, err
+	case pr.Released == nil || pr.Released.DecisionID != released.DecisionID || pr.Released.Generation != released.Generation || pr.Released.BundleSHA256 != released.BundleSHA256:
+		return ContinuationReport{}, fmt.Errorf("failover: the audit log holds no confirmed restore of generation %d under decision %s for the standby to go on from", released.Generation, released.DecisionID)
 	}
-	if was != nil {
+	if was := pr.Continued; was != nil {
 		if was.BundleSHA256 != c.Record.BundleSHA256 {
-			return ContinuationReport{}, fmt.Errorf("failover: audit event %s already records generation %d as bundle %s; the standby's outbox now holds %s", auditID, was.Generation, was.BundleSHA256, c.Record.BundleSHA256)
+			return ContinuationReport{}, fmt.Errorf("failover: audit event %s already records generation %d as bundle %s; the standby's outbox now holds %s", was.AuditID, was.Generation, was.BundleSHA256, c.Record.BundleSHA256)
 		}
-		return was.report(auditID), nil
+		return *was, nil
 	}
 	payload := continuedPayload{
 		PolicySerial:       p.Serial,
@@ -226,52 +249,45 @@ func (e *Executor) RecordContinuation(c Continuation, released Released) (Contin
 	if err != nil {
 		return ContinuationReport{}, err
 	}
-	auditID, err = e.cfg.Audit.Emit(audit_event.KindChainContinued, raw, "", "", "")
+	auditID, err := e.cfg.Audit.Emit(audit_event.KindChainContinued, raw, "", "", "")
 	if err != nil {
 		return ContinuationReport{}, err
 	}
 	e.log.Info("the standby continues the chain", slog.String("decision_id", string(released.DecisionID)), slog.String("standby_sentinel", sid),
 		slog.Uint64("generation", c.Record.Generation), slog.String("bundle_sha256", c.Record.BundleSHA256))
-	return payload.report(auditID), nil
+	return payload.report(auditID, pr.Released.RestoredAt), nil
 }
 
 // Continue waits for the standby to seal the generation after the one
-// rep's failover restored there, and records it. It returns rep with
-// Continued filled in — or, when ctx ends first, rep as it was and ctx's
-// error. A record of that generation that fails a check is noted once, in
-// the log and in the report, and waited past: a file still being copied
-// checks out when it is whole.
-func (e *Executor) Continue(ctx context.Context, rep Report) (Report, error) {
+// released, and records it. It returns the record made — or, when ctx ends
+// first, ctx's error. A record of that generation that fails a check is
+// noted once, in the log and in the report, and waited past: a file still
+// being copied checks out when it is whole.
+func (e *Executor) Continue(ctx context.Context, released Released) (ContinuationReport, error) {
 	p := e.cfg.Policy
 	switch {
 	case !p.ContinuesChain():
-		return rep, errors.New("failover: the policy names no standby sentinel: there is no chain to wait for")
+		return ContinuationReport{}, errors.New("failover: the policy names no standby sentinel: there is no chain to wait for")
 	case e.cfg.StandbyOutbox == "" || e.cfg.StandbySentinel == nil:
-		return rep, errors.New("failover: the standby's outbox and a verifier for its TEE are required to record the chain it continues")
-	case rep.Status != StatusRestored || rep.Decision == nil || rep.Genome == nil:
-		return rep, errors.New("failover: there is no confirmed restore for the standby to go on from")
+		return ContinuationReport{}, errors.New("failover: the standby's outbox and a verifier for its TEE are required to record the chain it continues")
+	case released.DecisionID.IsZero():
+		return ContinuationReport{}, errors.New("failover: there is no confirmed restore for the standby to go on from")
 	}
-	released := Released{DecisionID: rep.Decision.DecisionID, Generation: rep.Genome.Generation, BundleSHA256: rep.Genome.BundleSHA256}
 	tag := escrow.KeyTag(e.cfg.Escrow.PublicKey())
 	var setAside []sentinel.Rejected
 	seen := map[string]bool{}
 	for {
 		c, rejected, err := FindContinuation(e.cfg.StandbyOutbox, p, released, tag, e.cfg.StandbySentinel)
 		if err != nil {
-			return rep, err
+			return ContinuationReport{}, err
 		}
 		if c != nil {
 			cr, err := e.RecordContinuation(*c, released)
 			if err != nil {
-				return rep, err
-			}
-			if rep.Restore != nil {
-				s := c.Record.SealedAt.Sub(rep.Restore.RestoredAt).Seconds()
-				cr.SealedAfterRestoreSeconds = &s
+				return ContinuationReport{}, err
 			}
 			cr.SetAside = setAside
-			rep.Continued = &cr
-			return rep, nil
+			return cr, nil
 		}
 		if rejected != nil && !seen[rejected.Reason] {
 			seen[rejected.Reason] = true
@@ -280,7 +296,7 @@ func (e *Executor) Continue(ctx context.Context, rep Report) (Report, error) {
 		}
 		select {
 		case <-ctx.Done():
-			return rep, ctx.Err()
+			return ContinuationReport{}, ctx.Err()
 		case <-time.After(e.cfg.Poll):
 		}
 	}

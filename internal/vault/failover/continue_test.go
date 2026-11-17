@@ -124,16 +124,21 @@ func (d *drill) failedOver(ex *Executor) (Report, Released, string) {
 	must(d.t, os.WriteFile(d.canary, []byte("read by an intruder"), 0o600))
 	<-results
 	rep := <-reports
-	if rep.Status != StatusRestored || rep.Genome == nil || rep.Genome.Generation != 1 || rep.Decision == nil {
+	if rep.Status != StatusRestored || rep.Genome == nil || rep.Genome.Generation != 1 {
 		d.t.Fatalf("failover %+v", rep)
 	}
-	return rep, Released{DecisionID: rep.Decision.DecisionID, Generation: 1, BundleSHA256: rep.Genome.BundleSHA256}, filepath.Join(d.restores, chain[1].KeyID)
+	released, err := ReleasedBy(rep)
+	must(d.t, err)
+	if released.DecisionID != rep.Decision.DecisionID || released.Generation != 1 || released.BundleSHA256 != rep.Genome.BundleSHA256 || !released.RestoredAt.Equal(rep.Restore.RestoredAt) {
+		d.t.Fatalf("released %+v by %+v", released, rep)
+	}
+	return rep, released, filepath.Join(d.restores, chain[1].KeyID)
 }
 
 // goesOn starts the standby's own sentinel on the restored tree, the
 // bundle it was restored from as its parent, the standby's TEE vouching
-// for every record.
-func (d *drill) goesOn(s *standbySide, restored, parentBundle string) {
+// for every record. It returns the sentinel's canary.
+func (d *drill) goesOn(s *standbySide, restored, parentBundle string) string {
 	d.t.Helper()
 	parent, err := bundle.Identify(parentBundle)
 	must(d.t, err)
@@ -154,6 +159,7 @@ func (d *drill) goesOn(s *standbySide, restored, parentBundle string) {
 			d.t.Errorf("the standby's sentinel: %v", err)
 		}
 	}()
+	return canary
 }
 
 // copyFile copies a file the way an outbox is replicated: under another
@@ -211,10 +217,9 @@ func TestTheStandbyContinuesTheChain(t *testing.T) {
 	writeModel(t, restored, "weights v3, trained on the standby", 1.5, -2)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	rep, err = ex.Continue(ctx, rep)
+	got, err := ex.Continue(ctx, released)
 	must(t, err)
-	got := rep.Continued
-	if got == nil || got.Generation != 2 || got.ParentGeneration != 1 || got.ParentBundleSHA256 != rep.Genome.BundleSHA256 || got.BundleSHA256 == rep.Genome.BundleSHA256 {
+	if got.Generation != 2 || got.ParentGeneration != 1 || got.ParentBundleSHA256 != rep.Genome.BundleSHA256 || got.BundleSHA256 == rep.Genome.BundleSHA256 {
 		t.Fatalf("continued %+v", got)
 	}
 	if got.Sentinel != sentinel.KeyID(side.key.Public()) || got.Sentinel == rep.Sentinel || got.MeasurementHex != hex.EncodeToString(side.chip.Measurement()) {
@@ -242,10 +247,10 @@ func TestTheStandbyContinuesTheChain(t *testing.T) {
 	}
 
 	// Asked again, the authority records nothing twice.
-	again, err := ex.Continue(ctx, rep)
+	again, err := ex.Continue(ctx, released)
 	must(t, err)
-	if again.Continued == nil || again.Continued.AuditID != got.AuditID || len(d.audit.Events()) != 6 {
-		t.Fatalf("asked again: %+v, %d events", again.Continued, len(d.audit.Events()))
+	if again.AuditID != got.AuditID || again.BundleSHA256 != got.BundleSHA256 || len(d.audit.Events()) != 6 {
+		t.Fatalf("asked again: %+v, %d events", again, len(d.audit.Events()))
 	}
 
 	// One serial, one failover, as before: the standby is not moved from
@@ -386,6 +391,9 @@ func TestWhatDoesNotContinueTheChain(t *testing.T) {
 	if _, err := ex.RecordContinuation(*sealed, Released{Generation: 1, BundleSHA256: released.BundleSHA256}); err == nil || !strings.Contains(err.Error(), "decision ID") {
 		t.Fatalf("recorded under no failover: %v", err)
 	}
+	if _, err := ex.RecordContinuation(*sealed, Released{DecisionID: "dec-none", Generation: 1, BundleSHA256: released.BundleSHA256}); err == nil || !strings.Contains(err.Error(), "holds no confirmed restore of generation 1 under decision dec-none") {
+		t.Fatalf("recorded under a failover the log does not hold: %v", err)
+	}
 	if n := len(d.audit.Events()); n != 6 {
 		t.Fatalf("%d audit events after the refusals", n)
 	}
@@ -419,21 +427,21 @@ func TestTheContinuationIsWaitedFor(t *testing.T) {
 	arriving := t.TempDir() // the authority's replica of the standby's outbox
 	logged := &lines{}
 	ex := d.turnExecutor(pol, side, arriving, slog.New(slog.NewTextHandler(logged, nil)))
-	rep, _, restored := d.failedOver(ex)
+	rep, released, restored := d.failedOver(ex)
 	d.goesOn(side, restored, filepath.Join(d.outbox, rep.Genome.Bundle))
 	writeModel(t, restored, "weights v3", 1.5, -2)
 	second := side.wait(t, 2)
 
 	type result struct {
-		rep Report
-		err error
+		continued ContinuationReport
+		err       error
 	}
 	done := make(chan result, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	go func() {
-		rep, err := ex.Continue(ctx, rep)
-		done <- result{rep, err}
+		continued, err := ex.Continue(ctx, released)
+		done <- result{continued, err}
 	}()
 
 	// The record arrives first; the bundle and the envelope are still on
@@ -448,7 +456,7 @@ func TestTheContinuationIsWaitedFor(t *testing.T) {
 	time.Sleep(100 * time.Millisecond) // the outbox is read again and again meanwhile
 	select {
 	case r := <-done:
-		t.Fatalf("recorded before the generation was whole: %+v %v", r.rep.Continued, r.err)
+		t.Fatalf("recorded before the generation was whole: %+v %v", r.continued, r.err)
 	default:
 	}
 	copyFile(t, filepath.Join(side.outbox, second.Bundle), filepath.Join(arriving, second.Bundle))
@@ -456,8 +464,8 @@ func TestTheContinuationIsWaitedFor(t *testing.T) {
 
 	r := <-done
 	must(t, r.err)
-	got := r.rep.Continued
-	if got == nil || got.Generation != 2 || got.BundleSHA256 != second.BundleSHA256 {
+	got := r.continued
+	if got.Generation != 2 || got.BundleSHA256 != second.BundleSHA256 {
 		t.Fatalf("continued %+v", got)
 	}
 	// Noted for each thing that was missing, once: the bundle, then — if
@@ -473,36 +481,40 @@ func TestContinueNeedsAFailoverToGoOnFrom(t *testing.T) {
 	d := newDrill(t, 1.5, -2)
 	side := newStandbySide(t)
 	pol := d.turning(side)
-	restoredReport := Report{Status: StatusRestored, Decision: &DecisionReport{DecisionID: "dec-1"}, Genome: &GenomeReport{Generation: 1, BundleSHA256: strings.Repeat("a", 64)}}
+	released := Released{DecisionID: "dec-1", Generation: 1, BundleSHA256: strings.Repeat("a", 64)}
 
 	v1, err := d.executor(d.policy())
 	must(t, err)
-	if _, err := v1.Continue(context.Background(), restoredReport); err == nil || !strings.Contains(err.Error(), "names no standby sentinel") {
+	if _, err := v1.Continue(context.Background(), released); err == nil || !strings.Contains(err.Error(), "names no standby sentinel") {
 		t.Fatalf("under a v1 policy: %v", err)
 	}
 	unwired, err := d.executor(pol)
 	must(t, err)
-	if _, err := unwired.Continue(context.Background(), restoredReport); err == nil || !strings.Contains(err.Error(), "the standby's outbox and a verifier for its TEE are required") {
+	if _, err := unwired.Continue(context.Background(), released); err == nil || !strings.Contains(err.Error(), "the standby's outbox and a verifier for its TEE are required") {
 		t.Fatalf("without the standby's outbox: %v", err)
 	}
 	ex := d.turnExecutor(pol, side, side.outbox, nil)
+	if _, err := ex.Continue(context.Background(), Released{Generation: 1, BundleSHA256: released.BundleSHA256}); err == nil || !strings.Contains(err.Error(), "no confirmed restore") {
+		t.Fatalf("under no failover: %v", err)
+	}
+	// What a report released is read only from one whose restore was confirmed.
 	for name, rep := range map[string]Report{
 		"declined":    {Status: StatusDeclined, Decision: &DecisionReport{}},
 		"failed":      {Status: StatusFailed, Decision: &DecisionReport{DecisionID: "dec-1"}, Genome: &GenomeReport{Generation: 1}},
-		"no decision": {Status: StatusRestored, Genome: &GenomeReport{Generation: 1}},
+		"no decision": {Status: StatusRestored, Genome: &GenomeReport{Generation: 1}, Restore: &RestoreReport{}},
+		"no receipt":  {Status: StatusRestored, Decision: &DecisionReport{DecisionID: "dec-1"}, Genome: &GenomeReport{Generation: 1}},
 	} {
-		if _, err := ex.Continue(context.Background(), rep); err == nil || !strings.Contains(err.Error(), "no confirmed restore") {
+		if _, err := ReleasedBy(rep); err == nil || !strings.Contains(err.Error(), "no confirmed restore") {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
 
-	// A standby that never seals: the wait ends with its context, and the
-	// report is as it was.
+	// A standby that never seals: the wait ends with its context, and
+	// nothing is recorded.
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	rep, err := ex.Continue(ctx, restoredReport)
-	if !errors.Is(err, context.DeadlineExceeded) || rep.Continued != nil {
-		t.Fatalf("waiting on an empty outbox: %+v %v", rep.Continued, err)
+	if _, err := ex.Continue(ctx, released); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("waiting on an empty outbox: %v", err)
 	}
 	if n := len(d.audit.Events()); n != 0 {
 		t.Fatalf("%d audit events for nothing", n)
