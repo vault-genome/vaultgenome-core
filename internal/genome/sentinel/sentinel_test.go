@@ -690,3 +690,59 @@ func TestReadersRefuseWhatIsNotARecord(t *testing.T) {
 		t.Fatal("chain of a missing outbox")
 	}
 }
+
+// ReadRecord reads one generation's record by its number — as signed, and
+// under the name it says — whatever else the outbox holds.
+func TestReadRecordReadsOneGeneration(t *testing.T) {
+	r := newRig(t)
+	s := r.sentinel()
+	for i := range 3 {
+		write(t, filepath.Join(r.state, "adapter.safetensors"), "weights "+string(rune('a'+i)))
+		r.tickFor(s, 3*time.Second)
+	}
+	chain := r.chain()
+	if len(chain) != 3 {
+		t.Fatalf("chain of %d", len(chain))
+	}
+	rec, raw, err := ReadRecord(r.outbox, 1, r.pub)
+	must(t, err)
+	onDisk, err := os.ReadFile(filepath.Join(r.outbox, RecordName(1)))
+	must(t, err)
+	if rec.Generation != 1 || rec.BundleSHA256 != chain[1].BundleSHA256 || !bytes.Equal(raw, onDisk) {
+		t.Fatalf("read %+v", rec)
+	}
+
+	// By its number alone: the generation before it gone, it is read still.
+	must(t, os.Remove(filepath.Join(r.outbox, RecordName(0))))
+	if rec, _, err := ReadRecord(r.outbox, 1, r.pub); err != nil || rec.Generation != 1 {
+		t.Fatalf("without generation 0: %+v %v", rec, err)
+	}
+
+	// Absent: no record of that generation, or no outbox at all.
+	if _, _, err := ReadRecord(r.outbox, 7, r.pub); !errors.Is(err, ErrAbsent) {
+		t.Fatalf("a generation not sealed: %v", err)
+	}
+	if _, _, err := ReadRecord(filepath.Join(r.outbox, "absent"), 1, r.pub); !errors.Is(err, ErrAbsent) {
+		t.Fatalf("a missing outbox: %v", err)
+	}
+
+	// Present and not what it should be is an error, never ErrAbsent:
+	// another sentinel's key, another generation's record under this
+	// name, a directory.
+	other, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	must(t, err)
+	if _, _, err := ReadRecord(r.outbox, 1, other.Public()); err == nil || errors.Is(err, ErrAbsent) || !strings.Contains(err.Error(), "the pinned sentinel is") {
+		t.Fatalf("under another key: %v", err)
+	}
+	later, err := os.ReadFile(filepath.Join(r.outbox, RecordName(2)))
+	must(t, err)
+	must(t, os.WriteFile(filepath.Join(r.outbox, RecordName(1)), later, 0o644))
+	if _, _, err := ReadRecord(r.outbox, 1, r.pub); err == nil || !strings.Contains(err.Error(), "the file is generation 1, the record says 2") {
+		t.Fatalf("generation 2's record as generation 1: %v", err)
+	}
+	must(t, os.Remove(filepath.Join(r.outbox, RecordName(1))))
+	must(t, os.Mkdir(filepath.Join(r.outbox, RecordName(1)), 0o755))
+	if _, _, err := ReadRecord(r.outbox, 1, r.pub); err == nil || errors.Is(err, ErrAbsent) {
+		t.Fatalf("a directory as a record: %v", err)
+	}
+}

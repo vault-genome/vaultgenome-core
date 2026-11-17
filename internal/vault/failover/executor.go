@@ -48,6 +48,12 @@ type Config struct {
 	// Primary verifies the primary TEE's reports on the outbox's records;
 	// required when the policy pins the primary (ADR 0017).
 	Primary tee.Verifier
+	// StandbyOutbox is the standby's own outbox, as replicated to the
+	// release authority, and StandbySentinel verifies the standby TEE's
+	// reports on its records (ADR 0041). Continue needs both; a failover
+	// needs neither.
+	StandbyOutbox   string
+	StandbySentinel tee.Verifier
 	// Coordinator releases keys under a release policy that includes this
 	// failover policy's Gate, and confirms receipts (Config.Receipts set).
 	Coordinator *kms.Coordinator
@@ -271,19 +277,22 @@ func (e *Executor) confirm(ctx context.Context, req kms.ConfirmRequest) (kms.Con
 
 // Report is what a failover run did, for the operator and the record.
 type Report struct {
-	Status       string              `json:"status"`
-	Error        string              `json:"error,omitempty"`
-	PolicySerial uint64              `json:"policy_serial"`
-	PolicySHA256 string              `json:"policy_sha256"`
-	Sentinel     string              `json:"sentinel"`
-	Trigger      *TriggerReport      `json:"trigger,omitempty"`
-	Decision     *DecisionReport     `json:"decision,omitempty"`
-	Genome       *GenomeReport       `json:"genome,omitempty"`
-	Release      *ReleaseReport      `json:"release,omitempty"`
-	Restore      *RestoreReport      `json:"restore,omitempty"`
-	Timing       *Timing             `json:"timing,omitempty"`
-	SetAside     []sentinel.Rejected `json:"set_aside,omitempty"`
-	Ignored      []string            `json:"ignored,omitempty"`
+	Status       string          `json:"status"`
+	Error        string          `json:"error,omitempty"`
+	PolicySerial uint64          `json:"policy_serial"`
+	PolicySHA256 string          `json:"policy_sha256"`
+	Sentinel     string          `json:"sentinel"`
+	Trigger      *TriggerReport  `json:"trigger,omitempty"`
+	Decision     *DecisionReport `json:"decision,omitempty"`
+	Genome       *GenomeReport   `json:"genome,omitempty"`
+	Release      *ReleaseReport  `json:"release,omitempty"`
+	Restore      *RestoreReport  `json:"restore,omitempty"`
+	Timing       *Timing         `json:"timing,omitempty"`
+	// Continued is the chain the standby went on with, once the authority
+	// has recorded it (ADR 0041).
+	Continued *ContinuationReport `json:"continued,omitempty"`
+	SetAside  []sentinel.Rejected `json:"set_aside,omitempty"`
+	Ignored   []string            `json:"ignored,omitempty"`
 }
 
 // TriggerReport describes the trigger.

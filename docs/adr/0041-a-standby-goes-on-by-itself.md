@@ -1,6 +1,6 @@
 # ADR 0041 — A standby goes on by itself: after a gated restore it trains, seals and answers, and the authority records the chain it continues
 
-- **Status:** Proposed (2026-11-17) — decisions 1, 2 and 3 are implemented (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`; `workers/genome/vg_genome/answer.py`); of decision 4 the policy is (`internal/vault/failover`, `acpctl failover issue`), and what the authority does under it is not written yet
+- **Status:** Proposed (2026-11-17) — decisions 1, 2 and 3 are implemented (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`; `workers/genome/vg_genome/answer.py`); of decision 4 the policy, the audit kind and the authority's check and record of the chain are (`internal/vault/failover`, `acpctl failover issue`, `internal/contracts/audit_event`), and `sagvd failover` does not go on under it yet
 - **Date:** 2026-11-17
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0011 (the destination restores by itself), ADR 0012 (the sentinel; one policy serial, one failover), ADR 0013 (the worker's door), ADR 0017 (the chip's word over every record), ADR 0040 (training goes on from a genome)
@@ -117,18 +117,23 @@ Four facts of the code decide what has to be built.
    v1 it was, to the byte, and is read as before.
 
    Under a policy that has the section, `sagvd failover` does not exit
-   when the standby's restore is confirmed. It reads the standby's outbox
-   (`-standby-outbox`, a replica like the primary's) and accepts the first
-   seal record that verifies under the standby's sentinel key, carries the
-   report of the TEE that section pins, is the generation after the one
-   released, names the released bundle as its parent, and whose bundle and
-   escrow envelope check out against it. That record goes on the audit log
-   as `CHAIN_CONTINUED`: the policy, the failover's decision, the standby's
-   sentinel and measurement, the generation, its bundle and its parent.
-   Anything else in that outbox is set aside and noted once. From then on
-   the authority watches the standby's heartbeat as it watched the
-   primary's, and a trigger there is recorded as a failover declined: this
-   policy names nowhere further to go.
+   when the standby's restore is confirmed. From the standby's outbox
+   (`-standby-outbox`, a replica like the primary's) it reads the one
+   record that can continue the chain — the seal record of the generation
+   after the one released — and accepts it when it verifies under the
+   standby's sentinel key, names the released bundle as its parent, carries
+   a report of the standby's TEE at a measurement the section pins, and its
+   bundle and escrow envelope check out, the key escrowed to this
+   authority. That record goes on the audit log as `CHAIN_CONTINUED`, once:
+   the policy, the failover's decision, the standby's sentinel and
+   measurement, the generation, its bundle and its parent, and the digest
+   of the record itself. A record of that generation that fails a check is
+   set aside, noted once and waited past — a file still being copied checks
+   out when it is whole — and nothing else in that outbox is looked at: not
+   an earlier chain under the same key, not a later generation that arrived
+   first. From then on the authority watches the standby's heartbeat as it
+   watched the primary's, and a trigger there is recorded as a failover
+   declined: this policy names nowhere further to go.
 
 5. **What stays the operator's.** Every key that moves still moves under a
    policy the operator signed and under the stop list (ADR 0010). One
@@ -226,4 +231,21 @@ Four facts of the code decide what has to be built.
 - Decision 4, the audit kind: `internal/contracts/audit_event` — the
   validator knows `CHAIN_CONTINUED`, the schema it is written under is v10,
   v11 is refused, and every earlier version is read as before.
-- Decision 4, the authority: none yet.
+- Decision 4, the record of the chain: `internal/vault/failover`,
+  `continue_test.go`, in one process with a real sentinel on each side, a
+  real destination and the authority's coordinator —
+  `TestTheStandbyContinuesTheChain`: the primary is intruded on, generation
+  1 is restored and gated on the standby, the standby's sentinel seals
+  nothing from the state as restored and generation 2 from the next one,
+  and `CHAIN_CONTINUED` follows the failover's five events under its
+  decision ID, once. `TestWhatDoesNotContinueTheChain`: a record signed by
+  the primary's sentinel, without the chip's report, with another chip's,
+  at a measurement not pinned, of a later generation under that name, with
+  another parent, with a bundle or an envelope that is missing or another,
+  or a key escrowed elsewhere is set aside by name; a later generation
+  alone is waited for; and with any one of the checks taken out of
+  `FindContinuation` the test fails. `TestTheContinuationIsWaitedFor`: a
+  record whose bundle has not arrived is noted once and recorded when it
+  has. `internal/genome/sentinel`, `TestReadRecordReadsOneGeneration`.
+- Decision 4, `sagvd failover` going on after the restore, the watch on the
+  standby and the restart: none yet.
