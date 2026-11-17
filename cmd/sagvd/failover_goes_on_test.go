@@ -148,6 +148,18 @@ func TestFailoverCmd_GoesOnAfterTheFailover(t *testing.T) {
 	next, canary := sealing(t, sentinel.Config{Source: stateDir{modelState(t, "weights v2, trained on the standby")}, Outbox: standbyOutbox,
 		Escrow: esc.PublicKey(), Key: standbyKey, Parent: &parent, Attestor: chip, AttestorKind: tee.ProviderSimulated}, 1)
 
+	// The run that carried the failover out left its report where this one
+	// writes: what it says of the trigger and the timing is kept.
+	first, err := json.Marshal(failoverOutput{AuditChainLength: 2, Report: failover.Report{
+		Status: failover.StatusRestored, PolicySerial: pol.Serial, PolicySHA256: hex.EncodeToString(pol.Digest()),
+		Trigger:  &failover.TriggerReport{Kind: failover.TriggerHeartbeatTimeout},
+		Decision: &failover.DecisionReport{Decision: failover.DecisionFailover, DecisionID: "dec-live"},
+		Genome:   &failover.GenomeReport{Generation: 0, BundleSHA256: released.BundleSHA256, KeyID: released.KeyID},
+		Timing:   &failover.Timing{RPOSeconds: 2.5},
+	}})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(report, first, 0o644))
+
 	// run starts the command and, when stopWhen is given, stops it by its
 	// context once the report holds that; it returns the exit code and
 	// the last report written.
@@ -190,6 +202,10 @@ func TestFailoverCmd_GoesOnAfterTheFailover(t *testing.T) {
 	require.True(t, out.Resumed)
 	require.Equal(t, failover.StatusRestored, out.Status)
 	require.EqualValues(t, "dec-live", out.Decision.DecisionID)
+	require.NotNil(t, out.Timing, "the earlier run's report is kept")
+	require.Equal(t, 2.5, out.Timing.RPOSeconds)
+	require.EqualValues(t, failover.TriggerHeartbeatTimeout, out.Trigger.Kind)
+	require.Equal(t, released.KeyID, out.Genome.KeyID)
 	require.NotNil(t, out.Continued)
 	require.Equal(t, uint64(1), out.Continued.Generation)
 	require.Equal(t, next.BundleSHA256, out.Continued.BundleSHA256)
@@ -236,6 +252,45 @@ func TestFailoverCmd_GoesOnAfterTheFailover(t *testing.T) {
 		kinds = append(kinds, string(e.Kind))
 	}
 	require.Equal(t, []string{"FAILOVER_DECIDED", "CROSS_CLOUD_RESTORE_COMPLETED", "CHAIN_CONTINUED", "FAILOVER_DECIDED"}, kinds)
+}
+
+// A report found where this run writes is kept only when it is this
+// failover's.
+func TestEarlierReportIsKeptOnlyWhenItIsThisFailovers(t *testing.T) {
+	dir := t.TempDir()
+	want := failover.Report{Status: failover.StatusRestored, PolicySerial: 4, PolicySHA256: strings.Repeat("ab", 32),
+		Decision: &failover.DecisionReport{DecisionID: "dec-1"}, Genome: &failover.GenomeReport{Generation: 3, BundleSHA256: strings.Repeat("cd", 32)}}
+	write := func(name string, mutate func(*failover.Report)) string {
+		r := want
+		decision, genome := *want.Decision, *want.Genome
+		r.Decision, r.Genome = &decision, &genome
+		r.Timing = &failover.Timing{RTOSeconds: 9}
+		mutate(&r)
+		raw, err := json.Marshal(failoverOutput{Report: r})
+		require.NoError(t, err)
+		return writeFile(t, dir, name, raw)
+	}
+	got, ok := earlierReport(write("same.json", func(*failover.Report) {}), want)
+	require.True(t, ok)
+	require.Equal(t, 9.0, got.Timing.RTOSeconds)
+
+	for name, path := range map[string]string{
+		"no path":             "",
+		"no file":             filepath.Join(dir, "absent.json"),
+		"not a report":        writeFile(t, dir, "junk.json", []byte("{")),
+		"another policy":      write("policy.json", func(r *failover.Report) { r.PolicySHA256 = strings.Repeat("ef", 32) }),
+		"another serial":      write("serial.json", func(r *failover.Report) { r.PolicySerial = 5 }),
+		"another decision":    write("decision.json", func(r *failover.Report) { r.Decision.DecisionID = "dec-2" }),
+		"no decision":         write("nodecision.json", func(r *failover.Report) { r.Decision = nil }),
+		"another generation":  write("generation.json", func(r *failover.Report) { r.Genome.Generation = 4 }),
+		"another bundle":      write("bundle.json", func(r *failover.Report) { r.Genome.BundleSHA256 = strings.Repeat("00", 32) }),
+		"no genome":           write("nogenome.json", func(r *failover.Report) { r.Genome = nil }),
+		"a failover declined": write("declined.json", func(r *failover.Report) { r.Status = failover.StatusDeclined }),
+		"a run stopped":       write("stopped.json", func(r *failover.Report) { r.Status = "stopped" }),
+	} {
+		_, ok := earlierReport(path, want)
+		require.False(t, ok, name)
+	}
 }
 
 // The standby sentinel's records are verified by a kind this build can

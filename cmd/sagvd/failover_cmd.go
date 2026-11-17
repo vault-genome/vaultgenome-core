@@ -156,12 +156,20 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 	// Started again after the failover: nothing is watched for a second
 	// one. What is left is the standby's chain and the watch on the standby.
 	if progress.Spent() {
-		out := failoverOutput{Resumed: true, Report: failover.Report{
+		rep := failover.Report{
 			Status: failover.StatusRestored, PolicySerial: pol.Serial, PolicySHA256: hex.EncodeToString(pol.Digest()), Sentinel: sid,
-			Decision:  &failover.DecisionReport{Decision: failover.DecisionFailover, DecisionID: progress.DecisionID},
-			Genome:    &failover.GenomeReport{Generation: progress.Released.Generation, BundleSHA256: progress.Released.BundleSHA256},
-			Continued: progress.Continued,
-		}}
+			Decision: &failover.DecisionReport{Decision: failover.DecisionFailover, DecisionID: progress.DecisionID},
+			Genome:   &failover.GenomeReport{Generation: progress.Released.Generation, BundleSHA256: progress.Released.BundleSHA256},
+		}
+		// The run that carried the failover out may have left its report
+		// where this one writes: its trigger, release, restore and timing
+		// are in no other place, and are kept.
+		if earlier, ok := earlierReport(reportPath, rep); ok {
+			rep = earlier
+		}
+		// What the standby did since is read from the log, not from a file.
+		rep.Continued, rep.StandbyTrigger = progress.Continued, nil
+		out := failoverOutput{Resumed: true, Report: rep}
 		logger.Info("failover taken up from the audit log", slog.Uint64("policy_serial", pol.Serial), slog.String("decision_id", string(progress.DecisionID)),
 			slog.Uint64("generation", progress.Released.Generation), slog.Bool("chain_continued", progress.Continued != nil))
 		if err := printFailover(out, reportPath); err != nil {
@@ -220,6 +228,30 @@ func runFailoverCmd(ctx context.Context, args []string) (int, error) {
 		return failoverExitFailed, err
 	}
 	return run.goOn(ctx, out, released)
+}
+
+// earlierReport reads the report an earlier run of this failover left at
+// path, and returns it when it is this failover's: restored, under the
+// same policy and decision, of the same genome.
+func earlierReport(path string, want failover.Report) (failover.Report, bool) {
+	if path == "" {
+		return failover.Report{}, false
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return failover.Report{}, false
+	}
+	var was failoverOutput
+	if json.Unmarshal(raw, &was) != nil {
+		return failover.Report{}, false
+	}
+	r := was.Report
+	if r.Status != failover.StatusRestored || r.PolicySerial != want.PolicySerial || r.PolicySHA256 != want.PolicySHA256 ||
+		r.Decision == nil || r.Decision.DecisionID != want.Decision.DecisionID ||
+		r.Genome == nil || r.Genome.Generation != want.Genome.Generation || r.Genome.BundleSHA256 != want.Genome.BundleSHA256 {
+		return failover.Report{}, false
+	}
+	return r, true
 }
 
 // failoverRun is one run of sagvd failover: the policy it carries out,
@@ -539,8 +571,9 @@ func preflightFailover(cfg Config, clock shared_time.Clock, pol failover.Policy)
 type failoverOutput struct {
 	failover.Report
 	// Resumed: this run took the failover up from the audit log, after
-	// it; the trigger, the release and the timing are in the report of
-	// the run that carried it out.
+	// it. The trigger, the release and the timing are those of the run
+	// that carried it out: kept, when -report names the file that run
+	// wrote, and absent otherwise.
 	Resumed          bool   `json:"resumed,omitempty"`
 	AuditChainLength int    `json:"audit_chain_length,omitempty"`
 	AuditTip         string `json:"audit_tip,omitempty"`

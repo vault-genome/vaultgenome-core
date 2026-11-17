@@ -250,7 +250,8 @@ key is ever released twice on one signature.
 Under a policy that names the standby's sentinel, a restart after a confirmed
 restore does not refuse: it takes the failover up from the audit log, prints a
 report marked `resumed`, records the chain if it is not on record yet, and goes
-on watching the standby. Nothing is decided or recorded a second time: a
+on watching the standby. Give it the `-report` file of the first run, and what
+that run said of the trigger, the release and the timing stays in it. Nothing is decided or recorded a second time: a
 trigger on the standby that is already on record is reported again and not
 appended. Treat exit code 3 as final there: the next step is a new policy.
 
@@ -270,7 +271,7 @@ appended. Treat exit code 3 as final there: the next step is a new policy.
 | `timing` | `detect_seconds`, `release_seconds`, `restore_seconds`, `gate_seconds`, `failover_seconds`, `rto_seconds`, `rpo_seconds` |
 | `continued` | the generation with which the standby continued the chain: its sentinel, the measurement its record was attested at, the generation, its bundle and its parent's, `sealed_after_restore_seconds` by the standby's clock, and `set_aside` — what the standby's outbox held as that generation and did not count |
 | `standby_trigger` | a trigger on the standby after the failover and the decision recorded for it (`declined`); its `primary_measurement_hex` is the standby's, the primary by then |
-| `resumed` | this run took the failover up from the audit log; the trigger, the release and the timing are in the report of the run that carried it out |
+| `resumed` | this run took the failover up from the audit log; the trigger, the release and the timing are those of the run that carried it out — kept when `-report` names the file that run wrote, absent otherwise |
 | `audit_tip` | the log's tip after the last thing recorded; verify with `acpctl audit verify` |
 
 ## 6. After a failover

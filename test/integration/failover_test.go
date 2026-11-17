@@ -679,14 +679,15 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 		t.Fatalf("sagvd failover exited %d on SIGTERM, want 0\n%s", code, authority.log.String())
 	}
 	// ... and started again, it takes the failover up from its log:
-	// nothing is decided or recorded a second time.
-	report2 := filepath.Join(t.TempDir(), "report-2.json")
-	second := r.executor(t, report2)
+	// nothing is decided or recorded a second time, and the report it
+	// writes over keeps what the first run said of the failover.
+	second := r.executor(t, report)
 	waitFor(t, 30*time.Second, "the restarted authority watching the standby", func() bool {
-		rep2, ok := peekReport(report2)
+		rep2, ok := peekReport(report)
 		return ok && rep2.Resumed && rep2.Continued != nil && strings.Contains(second.log.String(), `"state":"watching"`)
 	})
-	if rep2, _ := peekReport(report2); rep2.Status != "restored" || rep2.Continued.BundleSHA256 != c.BundleSHA256 || rep2.Decision.DecisionID != rep.Decision.DecisionID {
+	if rep2, _ := peekReport(report); rep2.Status != "restored" || rep2.Continued.BundleSHA256 != c.BundleSHA256 || rep2.Decision.DecisionID != rep.Decision.DecisionID ||
+		rep2.Trigger.Kind != "compromise-report" || rep2.Timing == nil || rep2.Timing.FailoverSeconds != rep.Timing.FailoverSeconds || rep2.Restore == nil {
 		t.Fatalf("taken up as %+v", rep2)
 	}
 	if ok, events, _ := r.x.auditVerify(t); !ok || events != 6 {
@@ -696,7 +697,7 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 	// The standby is lost: its sentinel dies without a word and its
 	// heartbeat stops. One serial, one failover — declined, on the record.
 	r.killStandbySentinel()
-	rep3 := readReport(t, second, report2)
+	rep3 := readReport(t, second, report)
 	if code := exitCode(second); code != 3 || rep3.StandbyTrigger == nil || rep3.StandbyTrigger.Trigger.Kind != "heartbeat-timeout" ||
 		rep3.StandbyTrigger.Decision.Decision != "declined" || !strings.Contains(rep3.StandbyTrigger.Decision.Reason, "names nowhere further to go") {
 		t.Fatalf("sagvd failover exited %d: %+v\n%s", code, rep3.StandbyTrigger, second.log.String())
@@ -704,12 +705,15 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 	if ok, events, _ := r.x.auditVerify(t); !ok || events != 7 {
 		t.Fatalf("audit log after the standby was lost: ok=%v events=%d, want 7", ok, events)
 	}
-	// Started once more, it finds that trigger on record and adds nothing.
+	// Started once more — writing its report elsewhere — it finds that
+	// trigger on record and adds nothing; of the failover it says what the
+	// log says, and no more.
 	report3 := filepath.Join(t.TempDir(), "report-3.json")
 	third := r.executor(t, report3)
 	rep4 := readReport(t, third, report3)
-	if code := exitCode(third); code != 3 || rep4.StandbyTrigger == nil || rep4.StandbyTrigger.Decision.Decision != "declined" {
-		t.Fatalf("sagvd failover exited %d: %+v\n%s", code, rep4.StandbyTrigger, third.log.String())
+	if code := exitCode(third); code != 3 || rep4.StandbyTrigger == nil || rep4.StandbyTrigger.Decision.Decision != "declined" ||
+		!rep4.Resumed || rep4.Timing != nil || rep4.Genome == nil || rep4.Genome.Generation != 1 {
+		t.Fatalf("sagvd failover exited %d: %+v\n%s", code, rep4, third.log.String())
 	}
 	if ok, events, _ := r.x.auditVerify(t); !ok || events != 7 {
 		t.Fatalf("audit log after one more run: ok=%v events=%d, want 7", ok, events)
