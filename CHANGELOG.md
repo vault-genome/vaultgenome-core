@@ -97,6 +97,12 @@ given release can still open.
   computer". Which of the two a person saw depended on the instant. A
   request that got no answer is now marked where it is made
   (`cmd/vgconsole`, `call`), and the page says so.
+- **A sentinel started with `--parent` on the state as it was restored no
+  longer seals that state a second time.** It compared a new state with
+  the last generation of its own outbox only, and a new outbox has none:
+  the parent's own content went out again as the next generation. It is
+  now held to the parent's payload as well, and the first generation of
+  the new outbox is the first state that differs from it.
 
 ## [0.14.0] — 2026-10-29
 

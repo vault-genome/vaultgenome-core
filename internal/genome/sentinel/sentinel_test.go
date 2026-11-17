@@ -419,6 +419,44 @@ func TestParentStartsAFreshOutbox(t *testing.T) {
 	mustNot(t, err, "a parent for a non-empty outbox")
 }
 
+// A machine that has just restored a genome holds what the parent holds. A
+// sentinel started there with the parent seals nothing until the state
+// moves on: the first generation of its outbox is the first new state, not
+// the parent's a second time.
+func TestParentAsRestoredIsNotSealedAgain(t *testing.T) {
+	r := newRig(t)
+	r.tickFor(r.sentinel(), 3*time.Second)
+	parent := r.chain()[0]
+	id, _, err := CheckGenome(r.outbox, parent)
+	must(t, err)
+
+	// The other machine: the same files, as restored, and its own outbox.
+	r2 := newRig(t)
+	r2.state = r.state
+	cfg := r2.config()
+	cfg.Parent = &id
+	s, err := New(cfg)
+	must(t, err)
+	r2.tickFor(s, 5*time.Second)
+	if n := len(r2.chain()); n != 0 {
+		t.Fatalf("sealed the parent's state a second time: %d generations", n)
+	}
+	if h := r2.heartbeat(); h.Status != StatusWatching || h.Last != nil {
+		t.Fatalf("heartbeat %+v", h)
+	}
+
+	// The state moves on: it is the generation after the parent.
+	write(t, filepath.Join(r2.state, "adapter.safetensors"), "trained further")
+	r2.tickFor(s, 3*time.Second)
+	chain := r2.chain()
+	if len(chain) != 1 || chain[0].Generation != 1 || chain[0].ParentBundleSHA256 != parent.BundleSHA256 {
+		t.Fatalf("chain %+v", chain)
+	}
+	if h := r2.heartbeat(); h.Last == nil || h.Last.Generation != 1 {
+		t.Fatalf("heartbeat %+v", h)
+	}
+}
+
 func TestOutboxWithForeignRecordsIsRefused(t *testing.T) {
 	r := newRig(t)
 	r.tickFor(r.sentinel(), 3*time.Second)

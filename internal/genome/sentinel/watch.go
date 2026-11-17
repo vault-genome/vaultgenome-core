@@ -228,6 +228,10 @@ func (s *Sentinel) seal(fp string) error {
 		s.sealedFP = fp // the same content as the newest genome
 		return nil
 	}
+	if s.last == nil && s.parent != nil && s.parent.Header.PayloadSHA256 == h.PayloadSHA256 {
+		s.sealedFP = fp // the state as it was restored: the parent holds it
+		return nil
+	}
 	switch {
 	case s.last != nil:
 		h.Generation = s.last.Generation + 1
