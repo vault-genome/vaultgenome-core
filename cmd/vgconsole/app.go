@@ -196,6 +196,16 @@ type apiError struct {
 
 func (e *apiError) Error() string { return fmt.Sprintf("%d %s: %s", e.Status, e.Code, e.Message) }
 
+// noAnswer is a request the listener did not answer: no connection, or one
+// that ended before the response was whole. The words the transport has for
+// it — refused, reset, EOF — depend on the instant a server stopped and on the
+// operating system, not on what happened to the server; the one that made the
+// request says what it knows, that no answer came.
+type noAnswer struct{ err error }
+
+func (e *noAnswer) Error() string { return e.err.Error() }
+func (e *noAnswer) Unwrap() error { return e.err }
+
 // call makes one request of the listener.
 func (s *server) call(ctx context.Context, method, path string, body []byte, out any) error {
 	req, err := http.NewRequestWithContext(ctx, method, s.base+path, bytes.NewReader(body))
@@ -205,12 +215,12 @@ func (s *server) call(ctx context.Context, method, path string, body []byte, out
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		return &noAnswer{err}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	if err != nil {
-		return err
+		return &noAnswer{err}
 	}
 	if resp.StatusCode >= 300 {
 		e := &apiError{Status: resp.StatusCode}
@@ -234,12 +244,12 @@ func (s *server) longCall(ctx context.Context, method, path string, body []byte,
 	client := &http.Client{Transport: s.client.Transport}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return &noAnswer{err}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return err
+		return &noAnswer{err}
 	}
 	if resp.StatusCode >= 300 {
 		e := &apiError{Status: resp.StatusCode}
