@@ -223,4 +223,7 @@ Four facts of the code decide what has to be built.
   run's report. `cmd/acpctl`, `TestFailover_IssueNamesTheStandbySentinel`:
   the flags, what `verify` prints, and the refusals before anything is
   written.
+- Decision 4, the audit kind: `internal/contracts/audit_event` — the
+  validator knows `CHAIN_CONTINUED`, the schema it is written under is v10,
+  v11 is refused, and every earlier version is read as before.
 - Decision 4, the authority: none yet.

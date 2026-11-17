@@ -43,6 +43,8 @@ var validKinds = map[Kind]struct{}{
 	KindAuditSegmentClosed: {},
 	// What a person did through the console (SchemaVersion 9). See ADR 0039.
 	KindConsoleAction: {},
+	// The chain a standby continues after a failover (SchemaVersion 10). See ADR 0041.
+	KindChainContinued: {},
 }
 
 // Validate runs static consistency checks. Chain continuity (PrevHash

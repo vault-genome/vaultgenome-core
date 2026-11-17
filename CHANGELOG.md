@@ -105,6 +105,11 @@ given release can still open.
 - **Audit schema v9:** one kind added, `CONSOLE_ACTION`. A v8 reader refuses a
   v9 event; a v9 reader verifies every earlier event as it did. A log that
   never had a console on it holds v9 events from the upgrade on, as any bump.
+- **Audit schema v10:** one kind added, `CHAIN_CONTINUED`
+  ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md)): the release
+  authority's record that the standby of a failover sealed the generation
+  after the one released. A v9 reader refuses a v10 event; a v10 reader
+  verifies every earlier event as it did.
 - **The button's downloads wait out GitHub's release storage:** in
   `deploy/lib/verify-release.sh`, in the three guests and in the
   `releases/latest` lookup, curl now backs off 1, 2, 4 … seconds between

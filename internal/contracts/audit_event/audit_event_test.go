@@ -129,7 +129,12 @@ func TestAuditEvent_AllKindsAreValidated(t *testing.T) {
 		KindFailoverDecided,
 		// The closing of a log segment (SchemaVersion 7). See ADR 0027.
 		KindAuditSegmentClosed,
+		// What a person did through the console (SchemaVersion 9). See ADR 0039.
+		KindConsoleAction,
+		// The chain a standby continues after a failover (SchemaVersion 10). See ADR 0041.
+		KindChainContinued,
 	}
+	require.Len(t, all, len(validKinds), "every kind the validator knows is in this list")
 	for _, k := range all {
 		t.Run(string(k), func(t *testing.T) {
 			e := validFixture()
@@ -190,14 +195,17 @@ func TestAuditEvent_SchemaVersion_V5BackwardCompatible(t *testing.T) {
 	require.NoError(t, e.Validate())
 }
 
-// TestAuditEvent_SchemaVersion_V9CurrentAccepted asserts the current
-// write-side schema version is accepted. ADR 0039 bumps
-// SchemaVersionCurrent from 8 → 9 with KindConsoleAction.
-func TestAuditEvent_SchemaVersion_V9CurrentAccepted(t *testing.T) {
+// TestAuditEvent_SchemaVersion_V10CurrentAccepted asserts the current
+// write-side schema version is accepted. ADR 0041 bumps
+// SchemaVersionCurrent from 9 → 10 with KindChainContinued.
+func TestAuditEvent_SchemaVersion_V10CurrentAccepted(t *testing.T) {
 	t.Parallel()
 	e := validFixture()
 	e.SchemaVersion = SchemaVersionCurrent
-	require.Equal(t, uint16(9), SchemaVersionCurrent,
-		"ADR 0039 sets SchemaVersionCurrent to 9; a change here MUST be reflected in an ADR")
+	require.Equal(t, uint16(10), SchemaVersionCurrent,
+		"ADR 0041 sets SchemaVersionCurrent to 10; a change here MUST be reflected in an ADR")
 	require.NoError(t, e.Validate())
+	// The version after it is one this build does not read.
+	e.SchemaVersion = SchemaVersionMax + 1
+	require.Error(t, e.Validate())
 }
