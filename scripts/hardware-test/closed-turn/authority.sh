@@ -156,8 +156,9 @@ PULL=$!
 
 step "arm: sagvd failover watches the primary's replica, and after the failover the standby's"
 gcs_put_str handoff/armed "armed at $(date -u +%H:%M:%SZ)"
-# A restore that never comes is waited for this long: the negative run
-# knows it will not, and does not wait a quarter of an hour to say so.
+# A receipt that does not come is waited for this long. In the negative
+# run the standby says at once that its restore failed, and the wait is
+# not used; it bounds the run should the standby say nothing.
 CONFIRM_WAIT=15m; [ "$MODE" = negative ] && CONFIRM_WAIT=3m
 sagvd failover -config /root/sagvd.json -policy /root/failover.json -outbox "$REPLICA" -standby-outbox "$REPLICA_B" \
   -poll 1s -confirm-wait "$CONFIRM_WAIT" -report "$OUT/report.json" > /root/failover.log 2>&1 &

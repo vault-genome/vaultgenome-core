@@ -99,6 +99,8 @@ else
   holds "$R/report.json" 'd["status"] == "failed" and d["trigger"]["kind"] == "heartbeat-timeout" and d["genome"]["generation"] == 1 and d.get("continued") is None' \
     && grep -q "^sagvd failover exit=1$" "$R/steps.txt" 2>/dev/null \
     && ok "the heartbeat's silence decided a failover of generation 1; it did not complete, and the authority says so (exit 1)" || bad "the authority's report does not say: heartbeat-timeout, generation 1, failed"
+  holds "$R/report.json" 'd["error"].startswith("integrity[restore_failed]") and "base model does not match" in d["error"] and "signature_invalid" not in d["error"]' \
+    && ok "the authority's report names the failure as what it is: the standby's restore failed, and why — not an invalid signature" || bad "the authority's report does not name the failed restore under its own code (integrity[restore_failed])"
   [ "$(kinds FAILOVER_DECIDED)" = 1 ] && [ "$(kinds CROSS_CLOUD_RESTORE_COMPLETED)" = 0 ] && [ "$(kinds CHAIN_CONTINUED)" = 0 ] \
     && ok "on the authority's audit log: the failover decided; no restore completed, no chain continued" || bad "the authority's audit log does not say: a failover decided, no restore, no chain"
   [ -s "$S/base-config-before.sha256" ] && [ -s "$S/base-config-after.sha256" ] && ! cmp -s "$S/base-config-before.sha256" "$S/base-config-after.sha256" \

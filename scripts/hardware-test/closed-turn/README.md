@@ -98,11 +98,11 @@ machines, the firewall rule and the bucket are deleted on every exit.
 one byte of the base model. The genome's manifest pins the base, so the
 gate's backend refuses to load it: the gate cannot be passed. The restore
 **fails**, `go-on.sh` is not run, and nothing starts on B — no model
-directory, no outbox, no service, no listener. R waits out its
-confirmation (three minutes here) and leaves with 1: a failover decided
-and not completed, with no `CROSS_CLOUD_RESTORE_COMPLETED` and no
-`CHAIN_CONTINUED` on its log. The record goes to
-`evidence/negative/<stamp>/`.
+directory, no outbox, no service, no listener. B says so when R asks for
+the receipt, and R leaves at once with 1: a failover decided and not
+completed, `integrity[restore_failed]` and B's reason in its report, and
+no `CROSS_CLOUD_RESTORE_COMPLETED` and no `CHAIN_CONTINUED` on its log.
+The record goes to `evidence/negative/<stamp>/`.
 
 ## `dry-run.sh`: the standby's layout without a cloud
 
