@@ -112,6 +112,8 @@ type AfterRestoreConfig struct {
 	Command []string // GenomePlaceholder, BundlePlaceholder and GenerationPlaceholder in an argument are filled in
 	Env     []string // extra environment, KEY=VALUE
 	Timeout time.Duration
+	// outputGrace overrides afterRestoreOutputGrace; tests shorten it.
+	outputGrace time.Duration
 }
 
 // AfterRestoreResult is what the after-restore command did.
@@ -120,7 +122,16 @@ type AfterRestoreResult struct {
 	Seconds   float64   `json:"seconds"`
 	ExitCode  int       `json:"exit_code"`
 	Error     string    `json:"error,omitempty"`
+	// LeftRunning: the command ended well, and a process it started still
+	// held its output open when the destination stopped listening.
+	LeftRunning bool `json:"left_running,omitempty"`
 }
+
+// afterRestoreOutputGrace is how long the destination goes on reading what
+// an after-restore command says once the command itself has ended. The
+// work the command starts goes on after it, and may hold that output open
+// for good: it is not waited for longer than this.
+const afterRestoreOutputGrace = 5 * time.Second
 
 // State is where a released key's restore stands.
 type State string
@@ -450,13 +461,22 @@ func (r *Restorer) afterRestore(kid, target, bundlePath string, generation uint6
 	}
 	said := &lastBytes{max: 2 << 10}
 	cmd.Stdout, cmd.Stderr = said, said
-	cmd.WaitDelay = 5 * time.Second
+	cmd.WaitDelay = afterRestoreOutputGrace
+	if a.outputGrace > 0 {
+		cmd.WaitDelay = a.outputGrace
+	}
 
 	started := r.cfg.Clock.Now().UTC()
 	err := cmd.Run()
 	res := &AfterRestoreResult{StartedAt: started, Seconds: r.cfg.Clock.Now().UTC().Sub(started).Seconds(), ExitCode: -1}
 	if cmd.ProcessState != nil {
 		res.ExitCode = cmd.ProcessState.ExitCode()
+	}
+	if errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+		// The command ended with status 0; what is left is a process it
+		// started, still holding its output. Starting what goes on is what
+		// the command is for: that is not its failure.
+		err, res.LeftRunning = nil, true
 	}
 	if err != nil {
 		res.Error = err.Error()
@@ -472,7 +492,8 @@ func (r *Restorer) afterRestore(kid, target, bundlePath string, generation uint6
 		r.log.Error("after-restore command failed", slog.String("key_id", kid), slog.Int("exit_code", res.ExitCode), slog.String("err", res.Error))
 		return
 	}
-	r.log.Info("after-restore command done", slog.String("key_id", kid), slog.Uint64("generation", generation), slog.Float64("seconds", res.Seconds))
+	r.log.Info("after-restore command done", slog.String("key_id", kid), slog.Uint64("generation", generation), slog.Float64("seconds", res.Seconds),
+		slog.Bool("left_a_process_running", res.LeftRunning))
 }
 
 // lastBytes keeps the end of what is written to it.

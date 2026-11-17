@@ -50,7 +50,8 @@ given release can still open.
   restored tree, the bundle it came from and its generation in its
   arguments. A restore that failed, or whose gate said FAIL, runs nothing,
   and a restarted daemon does not run it again. What the command did is on
-  the restore's record (`GET /v1/genome/restores`).
+  the restore's record (`GET /v1/genome/restores`); the processes it leaves
+  running are not waited for.
 - **Training goes on from a genome** ([ADR 0040](docs/adr/0040-a-genome-carries-the-state-training-stood-in.md)):
   a genome now carries the state training stood in — `state/optimizer.safetensors`
   (AdamW's moments and step count for every adapter tensor), `state/cursor.json`

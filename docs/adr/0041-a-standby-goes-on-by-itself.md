@@ -58,7 +58,10 @@ Four facts of the code decide what has to be built.
    (`GET /v1/genome/restores`) while the daemon runs, and in the log; it
    is not in the receipt,
    which says what was restored and judged and is signed before the command
-   runs.
+   runs. The command is there to start what goes on, so what it leaves
+   running is not waited for: a command that ended with status 0 is done,
+   and the record says `left_running` when a process it started still held
+   its output open a few seconds later.
 
    The command has the standing the gate's command has: the same file, the
    same operator, a process the destination starts with the restored tree
@@ -203,8 +206,10 @@ Four facts of the code decide what has to be built.
   bundle and the generation, and not again for a key released twice or by
   a restarted daemon; nothing runs after a gate that said FAIL or a restore
   that failed; a command that fails, does not end or cannot be run is on
-  the record and the restore stays restored; `New` refuses the command
-  without a required gate. `cmd/acp-bootstrap`,
+  the record and the restore stays restored; one that ends well and leaves
+  a process running is done (the test fails without that: the record said
+  `WaitDelay expired`); `New` refuses the command without a required gate.
+  `cmd/acp-bootstrap`,
   `TestValidate_GenomeAfterRestore`: the section as configured, and refused
   without `gate.required`.
 - Decision 3: `workers/genome/tests/test_answer.py`, on the pinned runtime and

@@ -6,6 +6,7 @@ package restorer
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -170,4 +171,45 @@ func TestNew_AnAfterRestoreCommandNeedsARequiredGate(t *testing.T) {
 	cfg.AfterRestore = &AfterRestoreConfig{Command: []string{"true"}, Timeout: -time.Second}
 	_, err = New(cfg)
 	require.ErrorContains(t, err, "must not be negative")
+}
+
+// A command that ends well and leaves a process of its own behind — the
+// work that goes on — is done. What it left running may hold the command's
+// output open for good: that is waited for briefly, and is not the
+// command's failure.
+func TestAfterRestore_ACommandThatLeavesAProcessBehindIsDone(t *testing.T) {
+	f := newFixture(t)
+	pidFile := filepath.Join(t.TempDir(), "pid")
+	// The child inherits the command's output and outlives it.
+	f.r = f.goingOn(exactDoor(t), &AfterRestoreConfig{Command: []string{"sh", "-c", `sleep 30 & echo $! > "` + pidFile + `"; echo started; exit 0`},
+		outputGrace: 200 * time.Millisecond})
+	t.Cleanup(func() {
+		if raw, err := os.ReadFile(pidFile); err == nil {
+			_ = exec.Command("kill", strings.TrimSpace(string(raw))).Run()
+		}
+	})
+	blob, dek, kid := f.seal(modelGenome(t))
+	require.NoError(t, os.WriteFile(filepath.Join(f.bundles, "g.genome"), blob, 0o644))
+	f.release(kid, dek, "failover")
+	started := time.Now()
+	f.r.work(context.Background())
+	require.Less(t, time.Since(started), 10*time.Second, "the process left behind was not waited for")
+
+	rec := f.record(kid)
+	require.Equal(t, StateRestored, rec.State, rec.Error)
+	require.NotNil(t, rec.AfterRestore)
+	require.Zero(t, rec.AfterRestore.ExitCode)
+	require.Empty(t, rec.AfterRestore.Error)
+	require.True(t, rec.AfterRestore.LeftRunning)
+
+	// A command that leaves nothing behind says so by saying nothing.
+	g := newFixture(t)
+	g.r = g.goingOn(exactDoor(t), &AfterRestoreConfig{Command: []string{"sh", "-c", "echo done"}})
+	blob, dek, kid = g.seal(modelGenome(t))
+	require.NoError(t, os.WriteFile(filepath.Join(g.bundles, "g.genome"), blob, 0o644))
+	g.release(kid, dek, "failover")
+	g.r.work(context.Background())
+	require.NotNil(t, g.record(kid).AfterRestore)
+	require.False(t, g.record(kid).AfterRestore.LeftRunning)
+	require.Empty(t, g.record(kid).AfterRestore.Error)
 }
