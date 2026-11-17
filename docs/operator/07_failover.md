@@ -338,8 +338,9 @@ with SIGKILL, a primary attested by its (simulated) TEE and pinned in the
 policy followed by a rogue sentinel with the stolen seed on another TEE
 (ignored, declined), a sentinel stopped and not back within the grace, and
 the standby that goes on by itself: its command starts its own sentinel on
-the restored tree, the authority records the chain, is restarted, and
-declines when the standby is lost in its turn.
+the restored tree, the authority records the chain, the generation the
+standby sealed is released again beside the run that watches it, the
+authority is restarted, and declines when the standby is lost in its turn.
 On hardware, `scripts/hardware-test/gcp-failover` runs the same across two
 SEV-SNP confidential VMs, the authority's escrow key sealed to its chip.
 

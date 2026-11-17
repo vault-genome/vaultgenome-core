@@ -60,6 +60,7 @@ type failoverReport struct {
 		Sentinel                  string   `json:"sentinel"`
 		Generation                uint64   `json:"generation"`
 		BundleSHA256              string   `json:"bundle_sha256"`
+		KeyID                     string   `json:"key_id"`
 		ParentGeneration          uint64   `json:"parent_generation"`
 		ParentBundleSHA256        string   `json:"parent_bundle_sha256"`
 		SealedAfterRestoreSeconds *float64 `json:"sealed_after_restore_seconds"`
@@ -277,6 +278,9 @@ func (r *failoverRig) standbyGoesOn(t *testing.T, genomeCfg map[string]any) []st
 	script := filepath.Join(dir, "go-on.sh")
 	body := "#!/bin/sh\n" +
 		"# What the standby runs after a restore its gate passed: $1 the restored tree, $2 the bundle it came from.\n" +
+		"# A later restore on a machine that already goes on starts nothing again.\n" +
+		"[ -e " + q(filepath.Join(dir, "going-on")) + " ] && exit 0\n" +
+		": > " + q(filepath.Join(dir, "going-on")) + "\n" +
 		q(bins.acpctl) + " sentinel watch --content-dir \"$1\" --outbox " + q(r.standbyOutbox) + " --escrow-to " + q(r.escrowPEM) + " --key " + q(seed) +
 		" --parent \"$2\" --tee simulated --tee-seed " + q(teeSeed) + " --workload-descriptor " + descriptor +
 		" --tripwire " + q(canary) + " --interval 200ms --settle 300ms >" + q(filepath.Join(dir, "sentinel.log")) + " 2>&1 &\n" +
@@ -665,6 +669,42 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 	}
 	t.Logf("closed turn: failover %.2fs; the standby sealed generation %d %.2fs after its restore", rep.Timing.FailoverSeconds, c.Generation, *c.SealedAfterRestoreSeconds)
 
+	// While the authority watches the standby, an operator opens the
+	// generation the standby sealed: an ordinary attested release of its
+	// escrowed key, to the same destination. The run that watches holds
+	// nothing the release needs; the standby restores the generation
+	// beside the model it goes on with, and its command — run after every
+	// restore whose gate passed — starts nothing a second time.
+	bundle2 := filepath.Join(r.standbyOutbox, "gen-000002.genome")
+	replicate(t, bundle2, r.outbox)
+	if rel, out, err := runRelease(t, r.srcCfg, r.x.endpoint, "reopen-generation-2", "-key-escrow", bundle2+".escrow"); err != nil || rel.Status != "ok" {
+		t.Fatalf("release of the generation the standby sealed: %v\n%s", err, out)
+	}
+	if conf, out, err := r.x.confirm(t, r.srcCfg, "-decision-id", "reopen-generation-2", "-destination-endpoint", r.x.endpoint,
+		"-bundle", bundle2, "-require-gate", "EQUIVALENT", "-wait", "30s"); err != nil || conf.Status != "ok" {
+		t.Fatalf("confirm of the generation the standby sealed: %v\n%s", err, out)
+	}
+	reopened, err := os.ReadFile(filepath.Join(r.restored, c.KeyID, "adapter", "adapter_model.safetensors"))
+	if err != nil || string(reopened) != string(trained) {
+		t.Fatalf("generation 2 opened again is %q (%v), want what was trained on the standby", reopened, err)
+	}
+	waitFor(t, 20*time.Second, "the standby's command after the second restore", func() bool {
+		return len(r.x.destLog("after-restore command done")) == 2
+	})
+	if raw, err := os.ReadFile(r.standbySentinelPID); err != nil || len(strings.Fields(string(raw))) != 1 {
+		t.Fatalf("the standby's sentinel was started again: %q (%v)", raw, err)
+	}
+	select {
+	case <-authority.exited:
+		t.Fatalf("sagvd failover exited when a generation was opened beside it\n%s", authority.log.String())
+	default:
+	}
+	// The release and its confirmation are on the same log, after the chain.
+	ok, onLog, _ := r.x.auditVerify(t)
+	if !ok || onLog <= 6 {
+		t.Fatalf("audit log after the release: ok=%v events=%d, want more than 6", ok, onLog)
+	}
+
 	// The authority is still there, watching the standby. It is restarted:
 	// stopped, it leaves with 0 ...
 	select {
@@ -690,8 +730,8 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 		rep2.Trigger.Kind != "compromise-report" || rep2.Timing == nil || rep2.Timing.FailoverSeconds != rep.Timing.FailoverSeconds || rep2.Restore == nil {
 		t.Fatalf("taken up as %+v", rep2)
 	}
-	if ok, events, _ := r.x.auditVerify(t); !ok || events != 6 {
-		t.Fatalf("audit log after the restart: ok=%v events=%d, want 6", ok, events)
+	if ok, events, _ := r.x.auditVerify(t); !ok || events != onLog {
+		t.Fatalf("audit log after the restart: ok=%v events=%d, want %d", ok, events, onLog)
 	}
 
 	// The standby is lost: its sentinel dies without a word and its
@@ -702,8 +742,8 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 		rep3.StandbyTrigger.Decision.Decision != "declined" || !strings.Contains(rep3.StandbyTrigger.Decision.Reason, "names nowhere further to go") {
 		t.Fatalf("sagvd failover exited %d: %+v\n%s", code, rep3.StandbyTrigger, second.log.String())
 	}
-	if ok, events, _ := r.x.auditVerify(t); !ok || events != 7 {
-		t.Fatalf("audit log after the standby was lost: ok=%v events=%d, want 7", ok, events)
+	if ok, events, _ := r.x.auditVerify(t); !ok || events != onLog+1 {
+		t.Fatalf("audit log after the standby was lost: ok=%v events=%d, want %d", ok, events, onLog+1)
 	}
 	// Started once more — writing its report elsewhere — it finds that
 	// trigger on record and adds nothing; of the failover it says what the
@@ -715,8 +755,8 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 		!rep4.Resumed || rep4.Timing != nil || rep4.Genome == nil || rep4.Genome.Generation != 1 {
 		t.Fatalf("sagvd failover exited %d: %+v\n%s", code, rep4, third.log.String())
 	}
-	if ok, events, _ := r.x.auditVerify(t); !ok || events != 7 {
-		t.Fatalf("audit log after one more run: ok=%v events=%d, want 7", ok, events)
+	if ok, events, _ := r.x.auditVerify(t); !ok || events != onLog+1 {
+		t.Fatalf("audit log after one more run: ok=%v events=%d, want %d", ok, events, onLog+1)
 	}
 }
 
