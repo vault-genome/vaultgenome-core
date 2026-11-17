@@ -1,6 +1,6 @@
 # ADR 0041 — A standby goes on by itself: after a gated restore it trains, seals and answers, and the authority records the chain it continues
 
-- **Status:** Proposed (2026-11-17) — decisions 1 and 2 are implemented (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`); decisions 3 and 4 are not written yet
+- **Status:** Proposed (2026-11-17) — decisions 1, 2 and 3 are implemented (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`; `workers/genome/vg_genome/answer.py`); decision 4 is not written yet
 - **Date:** 2026-11-17
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0011 (the destination restores by itself), ADR 0012 (the sentinel; one policy serial, one failover), ADR 0013 (the worker's door), ADR 0017 (the chip's word over every record), ADR 0040 (training goes on from a genome)
@@ -150,8 +150,8 @@ Four facts of the code decide what has to be built.
   of a token grows with the length before it. That is enough for the
   drill's model and short answers; a faster path is another arithmetic and
   goes through the gate before it serves.
-- `answer` requires a token off loopback and speaks plain HTTP on loopback
-  only. Accounts, limits and TLS for people outside the machine are the
+- `answer` speaks plain HTTP and does not start off loopback without a
+  token. Accounts, limits and TLS for people outside the machine are the
   deployment's, and not decided here.
 - The stop list stops keys and gate jobs (ADR 0010). It does not stop a
   training process, a sentinel or `answer` that already run.
@@ -195,4 +195,15 @@ Four facts of the code decide what has to be built.
   without a required gate. `cmd/acp-bootstrap`,
   `TestValidate_GenomeAfterRestore`: the section as configured, and refused
   without `gate.required`.
-- Decisions 3 and 4: none yet.
+- Decision 3: `workers/genome/tests/test_answer.py`, on the pinned runtime and
+  the tests' tiny model — an answer names the genome's adapter and step and
+  comes out the same from the same object, from a fresh one and from the
+  command line; the listener answers what the command line answers, refuses
+  a missing or wrong token, a malformed request and a prompt that does not
+  fit the model's context, says so when the model fails on a request and
+  goes on, and does not start off loopback without a token; a genome whose
+  adapter was edited, or whose base is another, is not opened; the next
+  genome put in the directory answers under its own name; a state that
+  fails its checks leaves the one before it answering, and is opened once
+  it is whole.
+- Decision 4: none yet.

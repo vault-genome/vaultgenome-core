@@ -54,6 +54,8 @@ python -m vg_genome replay   --genome genome/ --base BASE_DIR           # recipe
 python -m vg_genome measure  --genome genome/ --base BASE_DIR --device cuda
 python -m vg_genome measure  --genome genome-7b/ --base BASE_7B --device cpu --dtype float32   # a measurement off the pinned runtime
 python -m vg_genome verify-base --genome genome/ --base BASE_DIR
+python -m vg_genome answer   --genome genome/ --base BASE_DIR --prompt "..."            # one answer, and the genome it came from
+python -m vg_genome answer   --genome genome/ --base BASE_DIR --listen 127.0.0.1:8090   # POST /v1/answer, GET /v1/answer/genome
 ```
 
 `door` answers the equivalence gate (`internal/validation/reconstruction`) from a
@@ -155,6 +157,39 @@ A genome written before genomes carried their state has no `training`
 section: it restores and passes its gate as before, and is not continued.
 The state is twice the adapter's size and is sealed with it — the moments
 are made of the training data's gradients.
+
+## Answering
+
+`answer` is the model answering on the machine it lives on (ADR 0041). It
+opens the genome directory the way the door does — the fixtures and the
+adapter against `genome.json`, the base against the manifest, the recipe's
+seed and thread count pinned — and does not start on one that fails. A
+prompt is tokenized as the fixtures' prompts are and continued greedily,
+token by token, with the fixtures' arithmetic; the answer carries the text,
+the token ids and the genome it came from:
+
+```json
+{"text": "...", "token_ids": [...], "input_ids": [...],
+ "genome": {"adapter_sha256": "sha256:...", "step": 160, "created_at": "..."}, "seconds": 0.4}
+```
+
+On one pinned runtime and one arithmetic the same prompt and the same
+genome give the same tokens: `--prompt` gives, without a listener, the
+answer the listener gave. When training puts the next genome in the
+directory, the listener opens it under the same checks before its next
+answer, and `GET /v1/answer/genome` says which genome that answer comes
+from. A state that fails the checks is not served: the one before it goes
+on answering, the answer carries `"stale": true`, and the log says why.
+The directory is tried again before every answer, so a state caught half
+written is opened once it is whole. While the next state is opened the one
+before it stays loaded: the process needs room for both.
+
+A prompt and its answer must fit the model's context, an answer is at most
+256 tokens, and a request at most 64 KiB. Off loopback the listener needs
+`--token-file`; it speaks plain HTTP, so TLS, accounts and limits for
+people outside the machine are the deployment's. `greedy` runs without a
+cache, so a token costs more the longer the text before it: enough for
+short answers of a small model, and not a serving engine.
 
 ## Determinism
 

@@ -25,6 +25,15 @@ given release can still open.
 
 ### Added
 
+- **The model answers on the machine it lives on**
+  ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 3):
+  `vg-genome answer` opens a genome directory under the door's checks and
+  answers a prompt — once (`--prompt`) or as a listener (`--listen`,
+  `POST /v1/answer`). An answer carries the adapter's SHA-256 and the step
+  training stood at, and on one pinned runtime the same prompt and genome
+  give the same tokens. The listener takes the next genome training puts
+  in the directory, and does not serve one that fails its checks. `sagvd`
+  still serves no inference.
 - **A destination can go on by itself after a restore**
   ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 1):
   `genome.after_restore` in `acp-bootstrap`'s configuration names one
