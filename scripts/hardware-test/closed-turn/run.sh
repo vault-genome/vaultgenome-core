@@ -76,7 +76,7 @@ EVIDENCE="$HERE/evidence/$STAMP"; [ "$MODE" = turn ] || EVIDENCE="$HERE/evidence
 mkdir -p "$EVIDENCE"
 RUNLOG="$EVIDENCE/runner.log"
 CHAIN="$ROOT/scripts/hardware-test/gcp-sev-snp/keybind-evidence/20260913T222343Z/kds-vcek-cert_chain.pem"
-CREATED_RULE=0; RESULT=FAIL
+CREATED_RULE=0; RESULT=FAIL; LEFT_BEHIND=0
 log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$RUNLOG"; }
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 zone_of() { cat "$BUILD/zone.$1" 2>/dev/null; }
@@ -91,20 +91,35 @@ cleanup() {
     done
   fi
   log "cleanup: deleting $PRIMARY, $STANDBY, $AUTHORITY, the rule $RULE and gs://$BUCKET"
-  for n in "$PRIMARY" "$STANDBY" "$AUTHORITY"; do
-    z="$(zone_of "$n")"; [ -n "$z" ] || continue
-    gcloud compute instances delete "$n" --project "$PROJECT" --zone "$z" --quiet >/dev/null 2>&1
+  # A delete that fails is asked again, and what it said is kept: on
+  # 2026-11-17 a run's rule was left behind without a word.
+  left=""; rule_left=""
+  for pass in 1 2 3; do
+    for n in "$PRIMARY" "$STANDBY" "$AUTHORITY"; do
+      z="$(zone_of "$n")"; [ -n "$z" ] || continue
+      gcloud compute instances delete "$n" --project "$PROJECT" --zone "$z" --quiet >/dev/null 2>>"$BUILD/cleanup.err"
+    done
+    [ "$CREATED_RULE" = 1 ] && gcloud compute firewall-rules delete "$RULE" --project "$PROJECT" --quiet >/dev/null 2>>"$BUILD/cleanup.err"
+    gcloud storage rm -r "gs://$BUCKET" --project "$PROJECT" >/dev/null 2>&1
+    left="$(gcloud compute instances list --project "$PROJECT" --filter="name~^vg-ct-.*-$LOW\$" --format='value(name)' 2>/dev/null | tr '\n' ' ')"
+    rule_left="$(gcloud compute firewall-rules list --project "$PROJECT" --filter="name=$RULE" --format='value(name)' 2>/dev/null | tr '\n' ' ')"
+    [ -n "$left$rule_left" ] || break
+    log "cleanup: pass $pass left ${left}${rule_left}; asking again in 15 s"
+    sleep 15
   done
-  [ "$CREATED_RULE" = 1 ] && gcloud compute firewall-rules delete "$RULE" --project "$PROJECT" --quiet >/dev/null 2>&1
-  gcloud storage rm -r "gs://$BUCKET" --project "$PROJECT" >/dev/null 2>&1
-  left="$(gcloud compute instances list --project "$PROJECT" --filter="name~^vg-ct-.*-$LOW\$" --format='value(name)' 2>/dev/null | tr '\n' ' ')"
-  rule_left="$(gcloud compute firewall-rules list --project "$PROJECT" --filter="name=$RULE" --format='value(name)' 2>/dev/null | tr '\n' ' ')"
   echo "instances of this run left after cleanup: ${left:-none}; firewall rules: ${rule_left:-none} at $(now)" | tee "$EVIDENCE/vms-deleted.txt" >> "$RUNLOG"
+  if [ -n "$left$rule_left" ]; then
+    log "CLEANUP INCOMPLETE — delete by hand: ${left}${rule_left}"
+    grep -v 'was not found' "$BUILD/cleanup.err" 2>/dev/null | tr -s '\n ' '  ' | cut -c1-600 | sed 's/^/cleanup said: /' | tee -a "$RUNLOG"
+    LEFT_BEHIND=1
+  fi
   rm -rf "$BUILD"
   # The record is closed last: nothing is written to it after its digests.
   # shellcheck disable=SC2094  # find leaves sha256sums.txt out: it is written, not read
   ( cd "$EVIDENCE" && find . -type f ! -name sha256sums.txt -exec shasum -a 256 {} + | sort -k2 > sha256sums.txt )
   echo "record closed: ${EVIDENCE#"$ROOT"/} ($(wc -l < "$EVIDENCE/sha256sums.txt" | tr -d ' ') files, sha256sums.txt)"
+  # Something of the run still stands in the cloud: the run does not end well, whatever its checks said.
+  [ "$LEFT_BEHIND" = 0 ] || exit 4
 }
 trap cleanup EXIT
 
