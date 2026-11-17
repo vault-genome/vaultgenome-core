@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +30,7 @@ import (
 type failoverReport struct {
 	Status  string `json:"status"`
 	Error   string `json:"error"`
+	Resumed bool   `json:"resumed"`
 	Trigger struct {
 		Kind    string `json:"kind"`
 		Tripped []struct {
@@ -48,9 +50,29 @@ type failoverReport struct {
 		Reason string `json:"reason"`
 	} `json:"set_aside"`
 	Genome *struct {
-		Generation uint64 `json:"generation"`
-		KeyID      string `json:"key_id"`
+		Generation   uint64 `json:"generation"`
+		KeyID        string `json:"key_id"`
+		BundleSHA256 string `json:"bundle_sha256"`
 	} `json:"genome"`
+	// Under a policy that names the standby's sentinel (ADR 0041): the
+	// chain the standby went on with, and a trigger there, declined.
+	Continued *struct {
+		Sentinel                  string   `json:"sentinel"`
+		Generation                uint64   `json:"generation"`
+		BundleSHA256              string   `json:"bundle_sha256"`
+		ParentGeneration          uint64   `json:"parent_generation"`
+		ParentBundleSHA256        string   `json:"parent_bundle_sha256"`
+		SealedAfterRestoreSeconds *float64 `json:"sealed_after_restore_seconds"`
+	} `json:"continued"`
+	StandbyTrigger *struct {
+		Trigger struct {
+			Kind string `json:"kind"`
+		} `json:"trigger"`
+		Decision struct {
+			Decision string `json:"decision"`
+			Reason   string `json:"reason"`
+		} `json:"decision"`
+	} `json:"standby_trigger"`
 	Release *struct {
 		PolicyVersion string `json:"policy_version"`
 	} `json:"release"`
@@ -82,13 +104,18 @@ type failoverRig struct {
 	// teeSeed and teeDescriptor name the primary's simulated TEE when the
 	// rig attests (ADR 0017); empty otherwise.
 	teeSeed, teeDescriptor string
+	// What the standby goes on with (ADR 0041), when the rig has it do so:
+	// its own outbox, and where its sentinel's process ID is written.
+	standbyOutbox, standbySentinelPID string
 }
 
 // rigOptions shape a rig: the primary attested by a (simulated) TEE and
-// pinned in the policy, and a grace on `stopped`.
+// pinned in the policy, a grace on `stopped`, and a standby that goes on
+// by itself after a restore, its sentinel named in the policy.
 type rigOptions struct {
 	attested     bool
 	stoppedGrace string
+	goesOn       bool
 }
 
 // newFailoverRig provisions the three machines: the primary's state, key and
@@ -120,10 +147,14 @@ func newFailoverRig(t *testing.T, timeout string, opts ...rigOptions) *failoverR
 	writeSecret(t, r.canary, []byte("no process reads this"))
 
 	// The standby replicates the primary's outbox; here it reads it in place.
-	destCfg := x.destinationConfig(t, "standby", map[string]any{
-		"genome": map[string]any{"bundle_dir": r.outbox, "restore_dir": r.restored, "rescan_seconds": 1,
-			"gate": map[string]any{"command": []string{door, "{genome}"}, "atol": 1e-3, "rtol": 1e-3, "required": true}},
-	})
+	r.escrowPEM = filepath.Join(t.TempDir(), "escrow.pem")
+	genomeCfg := map[string]any{"bundle_dir": r.outbox, "restore_dir": r.restored, "rescan_seconds": 1,
+		"gate": map[string]any{"command": []string{door, "{genome}"}, "atol": 1e-3, "rtol": 1e-3, "required": true}}
+	var standbySentinel []string
+	if o.goesOn {
+		standbySentinel = r.standbyGoesOn(t, genomeCfg)
+	}
+	destCfg := x.destinationConfig(t, "standby", map[string]any{"genome": genomeCfg})
 	id := identityOf(t, bins.bootstrap, destCfg)
 	x.startDestination(t, destCfg)
 
@@ -152,7 +183,6 @@ func newFailoverRig(t *testing.T, timeout string, opts ...rigOptions) *failoverR
 	if authority["key_escrow_tag"] != provisioned.EscrowKey || authority["key_escrow_storage"] != "sealed:simulated" {
 		t.Fatalf("identity %+v, want escrow key %s sealed", authority, provisioned.EscrowKey)
 	}
-	r.escrowPEM = filepath.Join(t.TempDir(), "escrow.pem")
 	writeSecret(t, r.escrowPEM, []byte(authority["key_escrow_public_key_pem"]))
 
 	// The primary's sentinel key, and the operator's policy pinning it.
@@ -167,6 +197,7 @@ func newFailoverRig(t *testing.T, timeout string, opts ...rigOptions) *failoverR
 	if o.stoppedGrace != "" {
 		issue = append(issue, "--stopped-grace", o.stoppedGrace)
 	}
+	issue = append(issue, standbySentinel...)
 	if o.attested {
 		// The primary's TEE, simulated: its identity is what the operator
 		// pins, and the sentinel attests every record with it.
@@ -204,8 +235,92 @@ func (r *failoverRig) sentinel(t *testing.T) *proc {
 
 func (r *failoverRig) executor(t *testing.T, report string) *proc {
 	t.Helper()
-	return startProc(t, "sagvd failover", bins.sagvd, "failover", "-config", r.srcCfg, "-policy", r.policy,
-		"-outbox", r.outbox, "-poll", "200ms", "-confirm-wait", "60s", "-report", report)
+	args := []string{"failover", "-config", r.srcCfg, "-policy", r.policy,
+		"-outbox", r.outbox, "-poll", "200ms", "-confirm-wait", "60s", "-report", report}
+	if r.standbyOutbox != "" {
+		args = append(args, "-standby-outbox", r.standbyOutbox)
+	}
+	return startProc(t, "sagvd failover", bins.sagvd, args...)
+}
+
+// standbyGoesOn provisions what the standby goes on with after a restore
+// (ADR 0041): its own sentinel's key and (simulated) TEE, an outbox of
+// its own, and the one command acp-bootstrap runs once its gate has
+// passed. The command starts that sentinel on the restored tree, the
+// bundle it was restored from as its parent; then training goes on — a
+// new adapter, a moment later. It returns the flags that name the
+// sentinel in the operator's policy.
+func (r *failoverRig) standbyGoesOn(t *testing.T, genomeCfg map[string]any) []string {
+	t.Helper()
+	dir := t.TempDir()
+	seed, pub := filepath.Join(dir, "standby-sentinel.seed"), filepath.Join(dir, "standby-sentinel.pem")
+	acpctl(t, "sentinel", "keygen", "--out", seed, "--pub", pub)
+	teeSeed := filepath.Join(dir, "standby-tee.seed")
+	writeSecret(t, teeSeed, []byte(strings.Repeat("s", 32)))
+	const descriptor = "standby-drill-v1"
+	var identity struct {
+		MeasurementHex string `json:"measurement_hex"`
+		AttestorPEM    string `json:"attestor_public_key_pem"`
+	}
+	if out, err := runJSON(t, &identity, bins.acpctl, "sentinel", "identity", "--tee", "simulated", "--tee-seed", teeSeed, "--workload-descriptor", descriptor); err != nil {
+		t.Fatalf("sentinel identity: %v\n%s", err, out)
+	}
+	attestorPub := filepath.Join(dir, "standby-attestor.pem")
+	writeSecret(t, attestorPub, []byte(identity.AttestorPEM))
+	r.standbyOutbox, r.standbySentinelPID = filepath.Join(dir, "outbox"), filepath.Join(dir, "sentinel.pid")
+	if err := os.MkdirAll(r.standbyOutbox, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	canary := filepath.Join(dir, "canary")
+	writeSecret(t, canary, []byte("no process reads this"))
+	q := func(path string) string { return "'" + path + "'" }
+	script := filepath.Join(dir, "go-on.sh")
+	body := "#!/bin/sh\n" +
+		"# What the standby runs after a restore its gate passed: $1 the restored tree, $2 the bundle it came from.\n" +
+		q(bins.acpctl) + " sentinel watch --content-dir \"$1\" --outbox " + q(r.standbyOutbox) + " --escrow-to " + q(r.escrowPEM) + " --key " + q(seed) +
+		" --parent \"$2\" --tee simulated --tee-seed " + q(teeSeed) + " --workload-descriptor " + descriptor +
+		" --tripwire " + q(canary) + " --interval 200ms --settle 300ms >" + q(filepath.Join(dir, "sentinel.log")) + " 2>&1 &\n" +
+		"echo $! > " + q(r.standbySentinelPID) + "\n" +
+		"( sleep 1; printf 'lora weights, epoch 3, trained on the standby' > \"$1/adapter/adapter_model.safetensors\" ) >/dev/null 2>&1 &\n" +
+		"exit 0\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	genomeCfg["after_restore"] = map[string]any{"command": []string{script, "{genome}", "{bundle}"}, "timeout_seconds": 30}
+	t.Cleanup(func() {
+		r.killStandbySentinel()
+		if t.Failed() {
+			if raw, err := os.ReadFile(filepath.Join(dir, "sentinel.log")); err == nil {
+				t.Logf("---- the standby's sentinel ----\n%s", raw)
+			}
+		}
+	})
+	return []string{"--standby-sentinel-pub", pub, "--standby-sentinel-measurement", identity.MeasurementHex, "--standby-sentinel-attestor-pub", attestorPub}
+}
+
+// killStandbySentinel kills the sentinel the standby started, without a
+// word: the standby is gone.
+func (r *failoverRig) killStandbySentinel() {
+	raw, err := os.ReadFile(r.standbySentinelPID)
+	if err != nil {
+		return
+	}
+	if pid, err := strconv.Atoi(strings.TrimSpace(string(raw))); err == nil {
+		if p, err := os.FindProcess(pid); err == nil {
+			_ = p.Kill()
+		}
+	}
+}
+
+// peekReport reads the report a running `sagvd failover` last wrote, if
+// it has written one.
+func peekReport(path string) (failoverReport, bool) {
+	var rep failoverReport
+	raw, err := os.ReadFile(path)
+	if err != nil || json.Unmarshal(raw, &rep) != nil {
+		return failoverReport{}, false
+	}
+	return rep, true
 }
 
 // records counts the seal records in the outbox.
@@ -467,6 +582,137 @@ func TestLiveFailover_StoppedOverdue(t *testing.T) {
 	}
 	if !strings.Contains(authority.log.String(), "standing down for") {
 		t.Fatalf("the authority did not stand down first\n%s", authority.log.String())
+	}
+}
+
+// The closed turn, live (ADR 0041). The primary is intruded on, and the
+// authority fails over to the last trustworthy genome. The standby's gate
+// passes and the standby goes on by itself: acp-bootstrap runs its one
+// command, which starts the standby's own sentinel on the restored tree,
+// and training goes on there. The authority does not exit. It records the
+// generation the standby seals as the chain's next, under the policy that
+// named that sentinel before the failure. Restarted, it takes the failover
+// up from its audit log. And when the standby is lost in its turn, that
+// is on the record as declined: the policy names nowhere further to go.
+func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
+	r := newFailoverRig(t, "3s", rigOptions{goesOn: true})
+	primary := r.sentinel(t)
+	waitFor(t, 20*time.Second, "generation 0", func() bool { return r.records(t) >= 1 })
+	report := filepath.Join(t.TempDir(), "report.json")
+	authority := r.executor(t, report)
+	if err := os.WriteFile(filepath.Join(r.state, "adapter", "adapter_model.safetensors"), []byte("lora weights, epoch 2"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, 20*time.Second, "generation 1", func() bool { return r.records(t) >= 2 })
+	writeSecret(t, r.canary, []byte("read by an intruder"))
+	if code := exitCode(primary); code != 3 {
+		t.Fatalf("sentinel exited %d, want 3 (compromised)\n%s", code, primary.log.String())
+	}
+
+	// The failover — and then, with nobody doing anything, the chain.
+	var rep failoverReport
+	waitFor(t, jobTimeout, "the chain the standby continues, on the authority's report", func() bool {
+		select {
+		case <-authority.exited:
+			t.Fatalf("sagvd failover exited before the standby went on\n%s", authority.log.String())
+		default:
+		}
+		var ok bool
+		rep, ok = peekReport(report)
+		return ok && rep.Continued != nil
+	})
+	if rep.Status != "restored" || rep.Resumed || rep.Trigger.Kind != "compromise-report" || rep.Genome == nil || rep.Genome.Generation != 1 ||
+		rep.Restore == nil || rep.Restore.Gate == nil || rep.Restore.Gate.Level != "EXACT" || rep.StandbyTrigger != nil {
+		t.Fatalf("report %+v\n%s", rep, authority.log.String())
+	}
+	c := rep.Continued
+	if c.Generation != 2 || c.ParentGeneration != 1 || c.ParentBundleSHA256 != rep.Genome.BundleSHA256 || c.BundleSHA256 == rep.Genome.BundleSHA256 ||
+		!strings.HasPrefix(c.Sentinel, "sentinel-") || c.SealedAfterRestoreSeconds == nil || *c.SealedAfterRestoreSeconds <= 0 {
+		t.Fatalf("continued %+v", c)
+	}
+	// What the standby sealed is what was trained there, on the tree it restored.
+	trained, err := os.ReadFile(filepath.Join(r.restored, rep.Genome.KeyID, "adapter", "adapter_model.safetensors"))
+	if err != nil || string(trained) != "lora weights, epoch 3, trained on the standby" {
+		t.Fatalf("the standby's state is %q (%v)", trained, err)
+	}
+	if !strings.Contains(r.x.dest.log.String(), "after-restore command done") {
+		t.Fatalf("the destination did not say its command was done\n%s", r.x.dest.log.String())
+	}
+	// On record: the failover's five events, then the chain it continues.
+	if ok, events, _ := r.x.auditVerify(t); !ok || events != 6 || rep.AuditChainLength != 6 {
+		t.Fatalf("audit log: ok=%v events=%d report=%d, want 6", ok, events, rep.AuditChainLength)
+	}
+	// The two outboxes are one chain: generations 0 and 1 sealed on the
+	// primary, 2 on the standby, each naming the one before.
+	together := t.TempDir()
+	for _, outbox := range []string{r.outbox, r.standbyOutbox} {
+		bundles, err := filepath.Glob(filepath.Join(outbox, "gen-*.genome"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range bundles {
+			raw, err := os.ReadFile(b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(together, filepath.Base(b)), raw, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if out := acpctl(t, "genome", "chain", "--dir", together); !strings.Contains(out, "3 generation(s)") || !strings.Contains(out, "chain valid") {
+		t.Fatalf("the chain across the two machines:\n%s", out)
+	}
+	t.Logf("closed turn: failover %.2fs; the standby sealed generation %d %.2fs after its restore", rep.Timing.FailoverSeconds, c.Generation, *c.SealedAfterRestoreSeconds)
+
+	// The authority is still there, watching the standby. It is restarted:
+	// stopped, it leaves with 0 ...
+	select {
+	case <-authority.exited:
+		t.Fatalf("sagvd failover exited after the chain\n%s", authority.log.String())
+	default:
+	}
+	if _, killed := authority.stop(); killed {
+		t.Fatal("sagvd failover ignored SIGTERM")
+	}
+	if code := exitCode(authority); code != 0 {
+		t.Fatalf("sagvd failover exited %d on SIGTERM, want 0\n%s", code, authority.log.String())
+	}
+	// ... and started again, it takes the failover up from its log:
+	// nothing is decided or recorded a second time.
+	report2 := filepath.Join(t.TempDir(), "report-2.json")
+	second := r.executor(t, report2)
+	waitFor(t, 30*time.Second, "the restarted authority watching the standby", func() bool {
+		rep2, ok := peekReport(report2)
+		return ok && rep2.Resumed && rep2.Continued != nil && strings.Contains(second.log.String(), `"state":"watching"`)
+	})
+	if rep2, _ := peekReport(report2); rep2.Status != "restored" || rep2.Continued.BundleSHA256 != c.BundleSHA256 || rep2.Decision.DecisionID != rep.Decision.DecisionID {
+		t.Fatalf("taken up as %+v", rep2)
+	}
+	if ok, events, _ := r.x.auditVerify(t); !ok || events != 6 {
+		t.Fatalf("audit log after the restart: ok=%v events=%d, want 6", ok, events)
+	}
+
+	// The standby is lost: its sentinel dies without a word and its
+	// heartbeat stops. One serial, one failover — declined, on the record.
+	r.killStandbySentinel()
+	rep3 := readReport(t, second, report2)
+	if code := exitCode(second); code != 3 || rep3.StandbyTrigger == nil || rep3.StandbyTrigger.Trigger.Kind != "heartbeat-timeout" ||
+		rep3.StandbyTrigger.Decision.Decision != "declined" || !strings.Contains(rep3.StandbyTrigger.Decision.Reason, "names nowhere further to go") {
+		t.Fatalf("sagvd failover exited %d: %+v\n%s", code, rep3.StandbyTrigger, second.log.String())
+	}
+	if ok, events, _ := r.x.auditVerify(t); !ok || events != 7 {
+		t.Fatalf("audit log after the standby was lost: ok=%v events=%d, want 7", ok, events)
+	}
+	// Started once more, it finds that trigger on record and adds nothing.
+	report3 := filepath.Join(t.TempDir(), "report-3.json")
+	third := r.executor(t, report3)
+	rep4 := readReport(t, third, report3)
+	if code := exitCode(third); code != 3 || rep4.StandbyTrigger == nil || rep4.StandbyTrigger.Decision.Decision != "declined" {
+		t.Fatalf("sagvd failover exited %d: %+v\n%s", code, rep4.StandbyTrigger, third.log.String())
+	}
+	if ok, events, _ := r.x.auditVerify(t); !ok || events != 7 {
+		t.Fatalf("audit log after one more run: ok=%v events=%d, want 7", ok, events)
 	}
 }
 

@@ -1,6 +1,6 @@
 # ADR 0041 — A standby goes on by itself: after a gated restore it trains, seals and answers, and the authority records the chain it continues
 
-- **Status:** Proposed (2026-11-17) — decisions 1, 2 and 3 are implemented (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`; `workers/genome/vg_genome/answer.py`); of decision 4 the policy, the audit kind and the authority's check and record of the chain are (`internal/vault/failover`, `acpctl failover issue`, `internal/contracts/audit_event`), and `sagvd failover` does not go on under it yet
+- **Status:** Proposed (2026-11-17) — the four decisions are implemented and tested locally, the last on the release binaries with a simulated TEE (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`; `workers/genome/vg_genome/answer.py`; `internal/vault/failover`, `internal/contracts/audit_event`, `cmd/acpctl`, `cmd/sagvd`). Accepted with its record on hardware
 - **Date:** 2026-11-17
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0011 (the destination restores by itself), ADR 0012 (the sentinel; one policy serial, one failover), ADR 0013 (the worker's door), ADR 0017 (the chip's word over every record), ADR 0040 (training goes on from a genome)
@@ -149,8 +149,22 @@ Four facts of the code decide what has to be built.
 ## Consequences
 
 - After a failover a person is needed for the next policy and for nothing
-  else. `docs/operator/07_failover.md` §6, `KNOWN_ISSUES.md` 21 and item 10
-  of "What we do not claim" change with the record on hardware.
+  else. `docs/operator/07_failover.md` says so with the code;
+  `KNOWN_ISSUES.md` 21 and item 10 of "What we do not claim" change with
+  the record on hardware.
+- An authority that restarts after the failover goes on from its audit
+  log. It resumes only the policy that carried the failover out — the same
+  serial and the same digest — and only a failover whose restore the log
+  confirms; a failover decided and never confirmed has spent its policy,
+  as before.
+- If the standby's sentinel never starts, the authority waits for its
+  first heartbeat and says so; there is nothing for it to decide. A
+  standby whose command failed is on the standby's own record
+  (`after_restore`), not on the authority's.
+- A trigger on the standby after the failover is a `FAILOVER_DECIDED`
+  with the decision `declined`, under the standby sentinel's ID. It does
+  not spend anything and releases nothing; it is the record that the
+  policy was asked to move again and could not.
 - Between the restore and the first generation the standby seals, what the
   standby trains is as unprotected as any state between two generations: a
   standby lost in that window comes back from the generation it restored.
@@ -252,5 +266,28 @@ Four facts of the code decide what has to be built.
   `FindContinuation` the test fails. `TestTheContinuationIsWaitedFor`: a
   record whose bundle has not arrived is noted once and recorded when it
   has. `internal/genome/sentinel`, `TestReadRecordReadsOneGeneration`.
-- Decision 4, `sagvd failover` going on after the restore, the watch on the
-  standby and the restart: none yet.
+- Decision 4, the authority going on: `internal/vault/failover`,
+  `progress_test.go` — `TestTheAuthorityGoesOnFromItsLog`: an authority
+  that restarts after the failover reads from its log what it did, does not
+  fail over again, records the chain, finds it on record at the next
+  restart, sees a wire fire on the standby and declines, once;
+  `TestReadProgressReadsWhatTheLogAgreesOn` and
+  `TestResumeNeedsAConfirmedFailoverToGoOnFrom`: a log whose records of the
+  failover do not agree with the policy or with each other, a failover
+  never confirmed and a policy that names no standby sentinel have nothing
+  to go on with. `cmd/sagvd`, `TestFailoverCmd_GoesOnAfterTheFailover`: the
+  command, in process, on a real audit log — the flag and the policy go
+  together, the chain is recorded once across restarts, a trigger on the
+  standby ends the run with exit code 3 and is not recorded twice.
+- Decision 4 and decision 1 together, on the release binaries
+  (`test/integration`, `TestLiveFailover_TheStandbyGoesOn`, simulated TEE):
+  the primary is intruded on; `sagvd failover` restores generation 1 on the
+  standby, gate EXACT; `acp-bootstrap` runs its one command, which starts
+  `acpctl sentinel watch --parent` on the restored tree, and a new adapter
+  is written there; the authority records `CHAIN_CONTINUED` for generation
+  2 (in one run 1.5 s after the restore, by the standby's clock) and stays;
+  `acpctl genome chain` finds the two outboxes one chain of three
+  generations; the authority is stopped and started and takes the failover
+  up from its log; the standby's sentinel is killed, and three seconds
+  later the trigger is declined on the record, exit code 3, seven events in
+  all; one more run adds none.

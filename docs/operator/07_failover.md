@@ -1,7 +1,7 @@
 # Failover: sentinel, policy, executor
 
 **Audience:** the operator of a primary running a model, its standby, and the release authority.
-**Design:** [ADR 0012](../adr/0012-sentinel-and-policy-driven-failover.md); the limits on the primary's word, [ADR 0017](../adr/0017-limits-on-the-primarys-word.md); the sealed escrow key, [ADR 0016](../adr/0016-escrow-key-sealed-to-the-release-host.md).
+**Design:** [ADR 0012](../adr/0012-sentinel-and-policy-driven-failover.md); the limits on the primary's word, [ADR 0017](../adr/0017-limits-on-the-primarys-word.md); the sealed escrow key, [ADR 0016](../adr/0016-escrow-key-sealed-to-the-release-host.md); the standby that goes on by itself, [ADR 0041](../adr/0041-a-standby-goes-on-by-itself.md).
 **Builds on:** [06 — cross-cloud restore](06_cross_cloud_restore.md) (attested release, escrow, gate, receipts).
 
 This runbook sets up the failover path. When the machine running a model is
@@ -31,6 +31,11 @@ sagvd seal-keys -config sagvd.json     # the authority's seeds, TLS keys and RES
 acpctl sentinel keygen --out /etc/acp/secrets/sentinel.seed --pub sentinel.pem
 acpctl sentinel identity --tee gcp-sev-snp --key /etc/acp/secrets/sentinel.seed   # measurement_hex: pin it in the policy
 acpctl sentinel seal-key --key /etc/acp/secrets/sentinel.seed --tee gcp-sev-snp    # the seed sealed in place to this chip (ADR 0023)
+# Standby, when it is to go on by itself after a failover (ADR 0041): a sentinel key of its
+# own, made and sealed on the standby's chip the same way; the operator names it in the policy.
+acpctl sentinel keygen --out /etc/acp/secrets/sentinel.seed --pub standby-sentinel.pem
+acpctl sentinel identity --tee gcp-sev-snp --key /etc/acp/secrets/sentinel.seed   # measurement_hex: for --standby-sentinel-measurement
+acpctl sentinel seal-key --key /etc/acp/secrets/sentinel.seed --tee gcp-sev-snp
 ```
 
 After `seal-key` the seed file is a sealed secret: `identity` and `watch`
@@ -66,6 +71,34 @@ TLS key and token in place (`acp-bootstrap seal-keys -config …`, ADR
 0023; on a host shared with the authority, give it its own copies
 first). Allow-list its
 measurement on the authority, as for any destination.
+
+**A standby that goes on by itself** ([ADR 0041](../adr/0041-a-standby-goes-on-by-itself.md))
+has one section more in `genome`:
+
+```json
+"after_restore": { "command": ["/usr/local/bin/go-on", "{genome}", "{bundle}", "{generation}"],
+                   "env": ["KEY=VALUE"], "timeout_seconds": 60 }
+```
+
+Once a restore's gate has passed and its receipt is signed, `acp-bootstrap`
+runs that one command, once, with the restored tree, the bundle it came
+from and its generation. The command is yours. It starts what goes on
+there, typically three services:
+
+- training from the restored genome (`vg-genome finetune --continue`, §6);
+- the standby's own sentinel on the directory training writes, continuing
+  the chain: `acpctl sentinel watch … --parent {bundle} --tee gcp-sev-snp`,
+  with the key of §1, on an outbox of its own that you replicate to the
+  authority;
+- the model's answers (`vg-genome answer`, `workers/genome/README.md`).
+
+The section needs `gate.required`: nothing starts on a model that was not
+proven on this machine, and a restore that failed, or whose gate said
+FAIL, runs nothing. The command moves no key. A daemon that restarts does
+not run it again. What it did is on `GET /v1/genome/restores`
+(`after_restore`: exit status, seconds, `left_running`). Start the
+services through your service manager, or send their output elsewhere: the
+command is not waited for past its own end.
 
 ## 3. The primary's sentinel
 
@@ -130,6 +163,18 @@ acpctl failover verify --in failover-1.json --pubkey operator.pem --kid operator
   before arming, because a report the authority cannot verify is silence
   too. A simulated primary is pinned by its attestation key as well
   (`--primary-attestor-pub`).
+- `--standby-sentinel-pub` and `--standby-sentinel-measurement` name the
+  standby's own sentinel ([ADR 0041](../adr/0041-a-standby-goes-on-by-itself.md)):
+  its key (§1), and the measurement its records must be attested at — the
+  standby's own, as `acpctl sentinel identity` prints it there. The policy
+  is then `vault-genome/failover-policy/v2`, and after the failover the
+  authority goes on: it records the chain the standby continues and
+  watches the standby (§5). The key must not be the primary's: machines of
+  one image attest one measurement, and only the key says which of them
+  sealed a record. A simulated standby is pinned by its attestation key as
+  well (`--standby-sentinel-attestor-pub`). Without these flags the policy
+  is v1, as before, and the run ends with the restore. An authority of an
+  earlier release refuses a v2 policy.
 - `--stopped-grace` bounds how long a sentinel that said `stopped` stands
   the authority down; not back watching within it, the primary fails over
   (`stopped-overdue`). Without it `stopped` is honoured indefinitely, and the
@@ -154,6 +199,10 @@ sagvd failover -config sagvd.json -policy failover-1.json -outbox /var/lib/acp/o
   -poll 2s -confirm-wait 15m -report /var/lib/acp/failover-1.report.json
 ```
 
+Under a policy that names the standby's sentinel, add `-standby-outbox
+/var/lib/acp/standby-outbox-replica`: the standby's own outbox, replicated
+here. It is required with such a policy and refused without one.
+
 - **At start.** It verifies the policy under `crosscloud.operator_stop`'s key.
   It unseals the escrow key on this host's TEE, checks that the policy stands
   and that the audit log shows it unspent, builds the primary's verifier when
@@ -171,15 +220,39 @@ sagvd failover -config sagvd.json -policy failover-1.json -outbox /var/lib/acp/o
   releases the escrowed key to the standby, under the stop list and allow-list,
   and confirms the receipt with the required gate. An outbox that holds the
   named generation as another bundle contradicts the sentinel: declined.
-- **Exit codes.** 0: restored and confirmed, or stopped before any trigger.
-  3: declined, with the reason in the report and on the log. 1: failed, for
-  example an operator stop refused the release, or the standby did not restore.
+- **After the restore, under a policy that names the standby's sentinel.**
+  The run does not end. With the audit log closed, it reads the standby's
+  outbox for the one record that can continue the chain: the seal record
+  of the generation after the one released. It accepts that record only
+  signed by the standby sentinel's key, naming the released bundle as its
+  parent, carrying the standby chip's report at a pinned measurement, with
+  its bundle and escrow envelope in place and the key escrowed to this
+  authority. Then it records `CHAIN_CONTINUED`, once, and writes the report
+  again with `continued`. A record that fails a check is noted once and
+  waited past; nothing else in that outbox is looked at. From the restore
+  on it also watches the standby's sentinel as it watched the primary's,
+  for the same triggers. A trigger there is recorded as `FAILOVER_DECIDED`,
+  declined: one serial performs one failover, and this policy names nowhere
+  further to go. That ends the run; sign the next policy (§6).
+- **Exit codes.** 0: restored and confirmed, or stopped by a signal — before
+  any trigger, or after the restore while it watches the standby. 3:
+  declined, with the reason in the report and on the log — a trigger before
+  the failover, or one on the standby after it (`standby_trigger`). 1:
+  failed, for example an operator stop refused the release, or the standby
+  did not restore.
 
 Run it as a service that restarts on failure. A restart re-reads the policy and
 the audit log, so a spent policy never runs twice. A failover that was decided
 and then did not complete also spent its policy: for example, the standby was
 down, or a stop refused the release. Sign a new policy to try again; this way no
 key is ever released twice on one signature.
+
+Under a policy that names the standby's sentinel, a restart after a confirmed
+restore does not refuse: it takes the failover up from the audit log, prints a
+report marked `resumed`, records the chain if it is not on record yet, and goes
+on watching the standby. Nothing is decided or recorded a second time: a
+trigger on the standby that is already on record is reported again and not
+appended. Treat exit code 3 as final there: the next step is a new policy.
 
 ### Reading the report
 
@@ -195,19 +268,34 @@ key is ever released twice on one signature.
 | `release.policy_version` | `…;failover=<serial>;revocation=<serial>` |
 | `restore.gate` | the standby's gate verdict, signed by its TEE |
 | `timing` | `detect_seconds`, `release_seconds`, `restore_seconds`, `gate_seconds`, `failover_seconds`, `rto_seconds`, `rpo_seconds` |
-| `audit_tip` | the log's tip after the failover; verify with `acpctl audit verify` |
+| `continued` | the generation with which the standby continued the chain: its sentinel, the measurement its record was attested at, the generation, its bundle and its parent's, `sealed_after_restore_seconds` by the standby's clock, and `set_aside` — what the standby's outbox held as that generation and did not count |
+| `standby_trigger` | a trigger on the standby after the failover and the decision recorded for it (`declined`); its `primary_measurement_hex` is the standby's, the primary by then |
+| `resumed` | this run took the failover up from the audit log; the trigger, the release and the timing are in the report of the run that carried it out |
+| `audit_tip` | the log's tip after the last thing recorded; verify with `acpctl audit verify` |
 
 ## 6. After a failover
 
-The standby is now the primary. To protect it:
+The standby is now the primary.
+
+**With `after_restore` configured and its sentinel named in the policy**
+([ADR 0041](../adr/0041-a-standby-goes-on-by-itself.md)) it has gone on by
+itself: training continues from the restored genome, its own sentinel seals
+what training produces as the chain's next generations, the model answers,
+and the authority has recorded the chain it continues and watches it. What
+is left for a person is the next hop: choose the next standby and sign a
+new policy with a higher serial — this machine's sentinel as the primary's
+(`--sentinel-pub`), the next standby and its sentinel.
+
+**Without them**, protect it by hand:
 
 1. Start a sentinel there on a new outbox, continuing the chain:
    `--parent <the restored genome's bundle>`.
 2. Choose the next standby and sign a new policy with a higher serial, pinning
    the new sentinel's key.
 
-Until you do, nothing moves again. That is deliberate: every hop takes an
-operator signature.
+Either way, until the next policy is signed nothing moves again: a trigger
+on this machine is declined on the record. That is deliberate: every hop
+takes an operator signature.
 
 Training goes on there from the restored genome (ADR 0040), on the
 destination's runtime and base:
@@ -247,7 +335,10 @@ incident review. `acpctl genome chain --dir` walks it offline.
 binaries: an intrusion (canary touched, model tampered), a primary killed
 with SIGKILL, a primary attested by its (simulated) TEE and pinned in the
 policy followed by a rogue sentinel with the stolen seed on another TEE
-(ignored, declined), and a sentinel stopped and not back within the grace.
+(ignored, declined), a sentinel stopped and not back within the grace, and
+the standby that goes on by itself: its command starts its own sentinel on
+the restored tree, the authority records the chain, is restarted, and
+declines when the standby is lost in its turn.
 On hardware, `scripts/hardware-test/gcp-failover` runs the same across two
 SEV-SNP confidential VMs, the authority's escrow key sealed to its chip.
 
@@ -257,4 +348,6 @@ _Document history: 2026-09-15 — first version, with ADR 0012. 2026-09-16 — t
 sealed escrow key (ADR 0016); the primary's TEE pinned, the `stopped` grace,
 the chain trusted only to the sentinel's last word (ADR 0017). 2026-11-10 —
 training goes on from the restored genome (ADR 0040). 2026-11-11 — its record
-on hardware (C61)._
+on hardware (C61). 2026-11-17 — the standby goes on by itself: `after_restore`,
+its sentinel named in the policy, the authority's record of the chain and its
+watch on the standby (ADR 0041)._

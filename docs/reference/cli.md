@@ -18,7 +18,7 @@ Usage:
         -destination-endpoint URL {-key-file KID:PATH | -key-escrow ENVELOPE}... [-session-id ID] [-manifest-id ID]
   sagvd crosscloud-confirm -config PATH -decision-id ID -destination-endpoint URL \
         {-bundle PATH | -key-id KID} [-require-gate EQUIVALENT|EXACT] [-wait DURATION]
-  sagvd failover -config PATH -policy POLICY.json -outbox DIR [-poll 2s] [-confirm-wait 15m] [-report PATH]
+  sagvd failover -config PATH -policy POLICY.json -outbox DIR [-standby-outbox DIR] [-poll 2s] [-confirm-wait 15m] [-report PATH]
   sagvd escrow-provision -config PATH -out SEALED -pub PUBLIC.pem [-recovery-to RECOVERY.pem -recovery-out ENVELOPE] [-stdin]
   sagvd seal-keys -config PATH
   sagvd version
@@ -38,10 +38,13 @@ Description:
   the operator's signed failover policy: when the primary's sentinel reports
   a compromise or its heartbeat stops, it releases the last trustworthy
   genome's escrowed key to the standby the policy names and confirms the
-  restore (ADR 0012). escrow-provision makes the authority's escrow key
-  inside this process and writes it sealed to this host's TEE, never in
-  the clear; with -recovery-to it also wraps the key to the operator's
-  recovery key, and -stdin re-seals a recovered key on a new host (ADR 0016).
+  restore (ADR 0012). Under a policy that names the standby's own sentinel
+  it goes on from there: it records the chain the standby continues and
+  watches the standby, from -standby-outbox (ADR 0041). escrow-provision
+  makes the authority's escrow key inside this process and writes it sealed
+  to this host's TEE, never in the clear; with -recovery-to it also wraps
+  the key to the operator's recovery key, and -stdin re-seals a recovered
+  key on a new host (ADR 0016).
 
 Flags:
   -config PATH   JSON config file; see cmd/sagvd/doc.go for schema.

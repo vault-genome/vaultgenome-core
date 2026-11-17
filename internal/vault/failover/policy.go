@@ -29,6 +29,19 @@
 // One policy serial performs at most one failover. Moving again takes a new
 // policy, and so a new operator signature for every hop. Nothing can make a
 // genome travel on its own.
+//
+// A policy may also name the standby's own sentinel, in advance (v2, ADR
+// 0041). The executor's work then goes on after the restore, and moves no
+// key:
+//
+//   - it reads the standby's outbox for the generation after the one
+//     released, checks it as it checked the primary's — the standby
+//     sentinel's key, the standby TEE's report, the parent, the files — and
+//     records the chain the standby continues (CHAIN_CONTINUED), once;
+//   - it watches the standby as it watched the primary, and records a
+//     trigger there as a failover declined: the policy names nowhere
+//     further to go;
+//   - restarted, it reads from its own audit log how far it got.
 package failover
 
 import (

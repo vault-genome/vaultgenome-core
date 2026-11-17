@@ -25,7 +25,8 @@ given release can still open.
 
 ### Added
 
-- **A failover policy can name the standby's own sentinel**
+- **A failover policy can name the standby's own sentinel, and the
+  authority then records the chain the standby continues**
   ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 4):
   `acpctl failover issue --standby-sentinel-pub KEY
   --standby-sentinel-measurement HEX` signs a
@@ -34,6 +35,18 @@ given release can still open.
   measurements its records must be attested at; `acpctl failover verify`
   prints it. A policy without the section is the v1 it was, to the byte.
   An authority of an earlier release refuses a v2 policy.
+
+  Under such a policy `sagvd failover` (with `-standby-outbox DIR`, the
+  standby's own outbox replicated to the authority) does not exit when the
+  restore is confirmed. It records the generation after the one released,
+  once the standby's sentinel has sealed it and the record, its chip's
+  report, its parent, its bundle and its escrow envelope check out
+  (`CHAIN_CONTINUED`; the report gains `continued`); and it watches the
+  standby as it watched the primary. A trigger there is declined on the
+  record — one serial performs one failover — and ends the run with exit
+  code 3 (`standby_trigger`). Started again after the failover, it takes
+  it up from the audit log (`resumed`) and records nothing twice. Under a
+  v1 policy nothing changes.
 - **The model answers on the machine it lives on**
   ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 3):
   `vg-genome answer` opens a genome directory under the door's checks and
