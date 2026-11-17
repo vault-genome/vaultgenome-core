@@ -82,6 +82,17 @@ given release can still open.
   the proof clock lost the day's proof on AMD SEV-SNP before any VM existed
   (vault-genome/proof-clock run 42046284880).
 
+### Fixed
+
+- **The console says a server that is gone does not answer, whatever the
+  socket said.** The page chose its words by the text of the network
+  error: "refused" read as "the server does not answer", but a connection
+  that was open when the daemon died ends in a reset or an end of file,
+  and those read as "the server's answer failed the check on your
+  computer". Which of the two a person saw depended on the instant. A
+  request that got no answer is now marked where it is made
+  (`cmd/vgconsole`, `call`), and the page says so.
+
 ## [0.14.0] — 2026-10-29
 
 The release that runs on a fourth cloud and is proven twice a day without

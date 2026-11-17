@@ -4,13 +4,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -227,6 +231,63 @@ func TestPlainErrors(t *testing.T) {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+// A daemon that dies between two requests leaves the console holding a
+// connection the kernel has already closed. What the next request hears
+// depends on the instant — refused, reset, the end of the stream — and
+// whichever it is, the page says the server does not answer: a daemon that
+// is gone is not a server whose answer failed its check.
+func TestAGoneServerIsSaidToBeGone(t *testing.T) {
+	deaths := map[string]func(net.Conn){
+		"the connection closed": func(c net.Conn) { _ = c.Close() },
+		"the connection reset": func(c net.Conn) {
+			if tc, ok := c.(*net.TCPConn); ok {
+				_ = tc.SetLinger(0)
+			}
+			_ = c.Close()
+		},
+	}
+	for name, die := range deaths {
+		t.Run(name, func(t *testing.T) {
+			var requests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if requests.Add(1) == 1 {
+					_, _ = io.WriteString(w, "{}")
+					return
+				}
+				// The request arrived; nobody answers it.
+				if c, _, err := w.(http.Hijacker).Hijack(); err == nil {
+					die(c)
+				}
+			}))
+			defer srv.Close()
+			s := &server{base: srv.URL, client: srv.Client()}
+			check := func() error { return s.call(context.Background(), http.MethodPost, "/", []byte("{}"), nil) }
+			require.NoError(t, check(), "the first request is answered and the connection kept")
+			err := check()
+			var unanswered *noAnswer
+			require.ErrorAs(t, err, &unanswered, "the second request, on the kept connection, hears no answer")
+			require.Contains(t, plainError("ru", err), "не отвечает", "%v", err)
+			require.Contains(t, plainError("en", err), "does not answer", "%v", err)
+		})
+	}
+
+	// A listener that is not there at all.
+	gone := httptest.NewServer(http.NotFoundHandler())
+	s := &server{base: gone.URL, client: gone.Client()}
+	gone.Close()
+	err := s.call(context.Background(), http.MethodPost, "/", []byte("{}"), nil)
+	require.Contains(t, plainError("en", err), "does not answer", "%v", err)
+
+	// What answered, and wrongly, is still a failed check.
+	wrong := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "not what was asked") }))
+	defer wrong.Close()
+	s = &server{base: wrong.URL, client: wrong.Client()}
+	var out console.CheckResponse
+	err = s.call(context.Background(), http.MethodPost, "/", []byte("{}"), &out)
+	require.Error(t, err)
+	require.Contains(t, plainError("en", err), "failed the check", "%v", err)
+}
 
 // A console opened again finds the one already running, by asking it, and a
 // stale address left behind is no reason to believe anything.

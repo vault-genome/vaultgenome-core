@@ -608,10 +608,13 @@ func plainError(lang string, err error) string {
 		return tr(lang, "Это не файл-пропуск. Выберите файл, который прислал ИТ-отдел: его имя заканчивается на .vgpass.", "This is not a pass file. Choose the file your IT department sent: its name ends in .vgpass.")
 	}
 	msg := err.Error()
+	// A request nothing answered is said to be that, whatever the socket's
+	// words for it were.
+	var unanswered *noAnswer
 	switch {
 	case strings.Contains(msg, "certificate"):
 		return tr(lang, "Адрес отвечает, но это не тот сервер, что в вашем пропуске.", "The address answers, but it is not the server in your pass.")
-	case strings.Contains(msg, "timeout"), strings.Contains(msg, "deadline"), strings.Contains(msg, "refused"), strings.Contains(msg, "no route"):
+	case errors.As(err, &unanswered), strings.Contains(msg, "timeout"), strings.Contains(msg, "deadline"), strings.Contains(msg, "refused"), strings.Contains(msg, "no route"):
 		return tr(lang, "Сервер не отвечает. Проверьте интернет или сообщите в ИТ-отдел.", "The server does not answer. Check your internet connection or tell your IT department.")
 	}
 	var broken *console.BrokenJournalError
