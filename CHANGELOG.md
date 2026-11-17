@@ -11,6 +11,18 @@ given release can still open.
 
 ## [Unreleased]
 
+### Security
+
+- Go 1.27.4. GO-2026-6859 (CVE-2026-97054): an HTTP/1 server that bounds
+  a request body with `http.MaxBytesReader` can crash when its handler
+  reads the body while the response header is being written. `sagvd`
+  bounds request bodies that way on its REST and console listeners; none
+  of those handlers reads the body while it answers: each reads first
+  and answers afterwards. `govulncheck` reports `net/http` as reachable,
+  and the gate stops on it. `go.mod`, the seven workflows and the three
+  builder images move together; the next release's binaries are built
+  with it.
+
 ### Added
 
 - **Training goes on from a genome** ([ADR 0040](docs/adr/0040-a-genome-carries-the-state-training-stood-in.md)):

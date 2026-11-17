@@ -5,16 +5,17 @@
 # Build context: the repository root (docker-compose.yml passes
 # `context: ../..`), which is the Go module root.
 #
-# Builder: golang:1.27.3-alpine — the same patched toolchain CI and
+# Builder: golang:1.27.4-alpine — the same patched toolchain CI and
 # release.yml pin (see docs/doctrine/ci-security-policy.md §2). Both base
-# images are pinned by digest (resolved 2026-10-13): bump tag and digest together.
+# images are pinned by digest (the builder resolved 2026-11-17, the runtime
+# 2026-10-13): bump tag and digest together.
 # Runtime: distroless/static-debian12:nonroot — no shell, no package
 # manager, no root, no network tools; one static binary reading JSON
 # config and key material from read-only bind mounts.
 
 # ---- build stage ------------------------------------------------------------
 
-FROM golang:1.27.3-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS builder
+FROM golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS builder
 
 WORKDIR /src
 

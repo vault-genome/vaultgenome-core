@@ -7,7 +7,7 @@
 [![Release](https://img.shields.io/github/v/release/vault-genome/vaultgenome-core?display_name=tag&color=2ea44f)](https://github.com/vault-genome/vaultgenome-core/releases)
 [![proof clock](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/vault-genome/proof-clock/main/badge.json)](https://github.com/vault-genome/proof-clock)
 [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](docs/operator/05_release_procedure.md)
-[![Go](https://img.shields.io/badge/Go-1.27.2-00ADD8?logo=go&logoColor=white)](go.mod)
+[![Go](https://img.shields.io/badge/Go-1.27.4-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 
 **A fine-tuned AI model that survives the loss of the machine it runs on —
@@ -91,7 +91,7 @@ Opening authenticates every 1 MiB segment before a byte of it is used and
 leaves the target untouched on any refusal: an edited, truncated or
 wrong-key bundle changes nothing.
 
-**Prerequisites.** Go 1.27.2 for the binaries (`go.mod` names the toolchain;
+**Prerequisites.** Go 1.27.4 for the binaries (`go.mod` names the toolchain;
 `GOTOOLCHAIN=auto` fetches it). The `acp-compute` worker and the hardware
 kits also need Python 3.12+ with the pinned runtime in
 [`workers/genome/requirements.txt`](workers/genome/requirements.txt)
