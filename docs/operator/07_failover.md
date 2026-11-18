@@ -262,9 +262,10 @@ Under a policy that names the standby's sentinel, a restart after a confirmed
 restore does not refuse: it takes the failover up from the audit log, prints a
 report marked `resumed`, records the chain if it is not on record yet, and goes
 on watching the standby. Give it the `-report` file of the first run, and what
-that run said of the trigger, the release and the timing stays in it. Nothing is decided or recorded a second time: a
-trigger on the standby that is already on record is reported again and not
-appended. Treat exit code 3 as final there: the next step is a new policy.
+that run said of the trigger, the release and the timing stays in it. Nothing
+is decided or recorded a second time: a trigger on the standby that is already
+on record is reported again and not appended. Treat exit code 3 as final
+there: the next step is a new policy.
 
 ### Reading the report
 

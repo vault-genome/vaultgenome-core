@@ -198,8 +198,8 @@ unless you set the variable yourself): two processes that both spin take
 the cores from each other, and both slow far more than sharing the cores
 would cost. With it the training keeps most of its speed beside the
 questions, and an answer waits its turn behind the training's threads;
-nothing that is computed changes. Where answers must be quick while training runs, give
-them cores of their own.
+nothing that is computed changes. Where answers must be quick while
+training runs, give them cores of their own.
 
 ## Determinism
 

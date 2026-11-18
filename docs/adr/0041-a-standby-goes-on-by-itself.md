@@ -101,9 +101,9 @@ Four facts of the code decide what has to be built.
    thread count. OpenMP's threads spin while they wait for work, and two
    processes that both spin take the cores from each other, and both slow
    far more than sharing the cores would cost. `answer` therefore has its
-   idle threads sleep (`OMP_WAIT_POLICY=PASSIVE`, set before torch loads its OpenMP
-   runtime, unless the operator set the variable). Nothing that is computed
-   changes.
+   idle threads sleep (`OMP_WAIT_POLICY=PASSIVE`, set before torch loads
+   its OpenMP runtime, unless the operator set the variable). Nothing that
+   is computed changes.
 
    The Vault still serves no inference: `sagvd` holds no model and takes no
    prompt. What changes in `00_overview.md` §3 is the sentence around that
