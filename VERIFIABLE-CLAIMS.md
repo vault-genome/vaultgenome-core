@@ -3631,22 +3631,27 @@ each signature under the audit public key `identity` printed — Ed25519
 (RFC 8032) and ECDSA P-384 (SEC 1) written out in the file, the standard
 library only ([ADR 0034](docs/adr/0034-the-differential-corpus.md), part
 three). One test (`internal/audit/chain/auditor_differential_test.go`,
-`make differential`) calls both on the same files: the three genuine
+`make differential`) calls both on the same files: the six genuine
 authority logs on record (the region-loss drills of 2026-09-30,
-2026-10-16 and 2026-10-17, five events each, Ed25519), logs written
-under each suite with payloads that exercise the encoding, and six
-mutants. On every log both say the same — the verdict, the count and the
+2026-10-16, 2026-10-17 and 2026-10-24, five events each; the closed-turn
+run of 2026-11-18, ten events, and that kit's run of refusals, four
+events; all Ed25519), logs written under each suite with payloads that
+exercise the encoding, and six mutants. On every log both say the same — the verdict, the count and the
 tip — and every mutant is refused by both at the same event; the
 ML-DSA-87 log is verified by the product and declined by the tool, which
 says it does not implement the suite.
 
 **Evidence.**
-[`test/corpus/audit/results/auditor-20261022T233609Z.json`](test/corpus/audit/results/auditor-20261022T233609Z.json)
-— the run on record: twelve cases, each with both verdicts; the three
-genuine logs with their keys under
+[`test/corpus/audit/results/auditor-20261118T160824Z.json`](test/corpus/audit/results/auditor-20261118T160824Z.json)
+— the run on record: fifteen cases, each with both verdicts (the first
+run, of 2026-10-22, on the three logs on record then:
+[`auditor-20261022T233609Z.json`](test/corpus/audit/results/auditor-20261022T233609Z.json),
+twelve cases); the genuine logs with their keys under
 `scripts/hardware-test/failover-region-loss/evidence/*/authority/`
-(`xcc-audit.db`, `audit.pem`, and `audit-verify.json` — the product's
-verdict the kit recorded at the time);
+(`xcc-audit.db`, `audit.pem`) and under
+`scripts/hardware-test/closed-turn/evidence/` (`xcc-audit.db`,
+`audit-public-key.pem`), each with `audit-verify.json` — the product's
+verdict the kit recorded at the time;
 [`tools/auditor/verify_audit.py`](tools/auditor/verify_audit.py).
 
 **Reproduce:**

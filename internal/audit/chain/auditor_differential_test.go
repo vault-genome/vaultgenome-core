@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -155,6 +156,38 @@ func mutate(t *testing.T, src, dst string, needle []byte, nth, offset int) {
 	require.NoError(t, os.WriteFile(dst, m, 0o644))
 }
 
+// auditKeyNames are the names the hardware kits keep an authority's audit
+// public key under, beside its log.
+var auditKeyNames = []string{"audit.pem", "audit-public-key.pem"}
+
+// recordedLogs finds every audit log the hardware kits recorded — an
+// xcc-audit.db anywhere under a kit's evidence, whether the kit keeps a
+// run at evidence/<run>/ or a group of runs deeper — and the public key
+// kept beside each. A log with no key beside it, or with two, fails the
+// test: a record that cannot be verified by its own files is not one.
+func recordedLogs(t *testing.T) (dbs, pems []string) {
+	t.Helper()
+	kits, err := filepath.Glob(filepath.Join(auditorRoot, "scripts", "hardware-test", "*", "evidence"))
+	require.NoError(t, err)
+	for _, kit := range kits {
+		require.NoError(t, filepath.WalkDir(kit, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || d.Name() != "xcc-audit.db" {
+				return err
+			}
+			var kept []string
+			for _, name := range auditKeyNames {
+				if _, err := os.Stat(filepath.Join(filepath.Dir(path), name)); err == nil {
+					kept = append(kept, name)
+				}
+			}
+			require.Len(t, kept, 1, "%s: one audit public key kept beside a recorded log, under one of the names %v", path, auditKeyNames)
+			dbs, pems = append(dbs, path), append(pems, filepath.Join(filepath.Dir(path), kept[0]))
+			return nil
+		}))
+	}
+	return dbs, pems
+}
+
 type auditorResult struct {
 	Case      string `json:"case"`
 	Suite     string `json:"suite"`
@@ -181,10 +214,9 @@ func TestDifferential_Auditor(t *testing.T) {
 	var cases []tc
 
 	// Every genuine log on record, with the key the kit kept beside it.
-	genuine, err := filepath.Glob(filepath.Join(auditorRoot, "scripts", "hardware-test", "*", "evidence", "*", "authority", "xcc-audit.db"))
-	require.NoError(t, err)
+	genuine, kept := recordedLogs(t)
 	require.NotEmpty(t, genuine, "no genuine audit log on record")
-	for _, db := range genuine {
+	for i, db := range genuine {
 		bs, err := store.OpenReadOnly(db)
 		require.NoError(t, err)
 		events, err := bs.Load()
@@ -194,7 +226,7 @@ func TestDifferential_Auditor(t *testing.T) {
 		rel, _ := filepath.Rel(auditorRoot, db)
 		suite, err := crypto.RecordSuite(events[0].Alg)
 		require.NoError(t, err)
-		cases = append(cases, tc{name: "genuine:" + rel, db: db, pem: filepath.Join(filepath.Dir(db), "audit.pem"), kid: events[0].SigningKeyID, suite: suite, wantOK: true})
+		cases = append(cases, tc{name: "genuine:" + rel, db: db, pem: kept[i], kid: events[0].SigningKeyID, suite: suite, wantOK: true})
 	}
 	// A log under each suite, written the way the daemons write theirs.
 	for _, suite := range crypto.Suites() {
