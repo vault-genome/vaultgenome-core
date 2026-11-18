@@ -1,0 +1,127 @@
+{
+  "cases": 15,
+  "generated_at": "2026-11-18T16:08:28Z",
+  "results": [
+    {
+      "case": "genuine:scripts/hardware-test/closed-turn/evidence/20261118T014101Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 10,
+      "product_acpctl": "ok (10 events, tip 4557d2db70c9…)",
+      "auditor_python": "ok (10 events, tip 4557d2db70c9…)",
+      "tips_equal": true
+    },
+    {
+      "case": "genuine:scripts/hardware-test/closed-turn/evidence/negative/20261118T012234Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 4,
+      "product_acpctl": "ok (4 events, tip 3465785b4e37…)",
+      "auditor_python": "ok (4 events, tip 3465785b4e37…)",
+      "tips_equal": true
+    },
+    {
+      "case": "genuine:scripts/hardware-test/failover-region-loss/evidence/20260930T194321Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 5,
+      "product_acpctl": "ok (5 events, tip 3488b31cb8c4…)",
+      "auditor_python": "ok (5 events, tip 3488b31cb8c4…)",
+      "tips_equal": true
+    },
+    {
+      "case": "genuine:scripts/hardware-test/failover-region-loss/evidence/20261016T210544Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 5,
+      "product_acpctl": "ok (5 events, tip 16f6058b2db4…)",
+      "auditor_python": "ok (5 events, tip 16f6058b2db4…)",
+      "tips_equal": true
+    },
+    {
+      "case": "genuine:scripts/hardware-test/failover-region-loss/evidence/20261017T140018Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 5,
+      "product_acpctl": "ok (5 events, tip bf6fa91841c5…)",
+      "auditor_python": "ok (5 events, tip bf6fa91841c5…)",
+      "tips_equal": true
+    },
+    {
+      "case": "genuine:scripts/hardware-test/failover-region-loss/evidence/20261024T000020Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 5,
+      "product_acpctl": "ok (5 events, tip 01bc94b7e231…)",
+      "auditor_python": "ok (5 events, tip 01bc94b7e231…)",
+      "tips_equal": true
+    },
+    {
+      "case": "written:ed25519",
+      "suite": "ed25519",
+      "events": 9,
+      "product_acpctl": "ok (9 events, tip fd9bc0953f48…)",
+      "auditor_python": "ok (9 events, tip fd9bc0953f48…)",
+      "tips_equal": true
+    },
+    {
+      "case": "written:ecdsa-p384-sha384",
+      "suite": "ecdsa-p384-sha384",
+      "events": 9,
+      "product_acpctl": "ok (9 events, tip c4a0a2e25efd…)",
+      "auditor_python": "ok (9 events, tip c4a0a2e25efd…)",
+      "tips_equal": true
+    },
+    {
+      "case": "written:ml-dsa-87",
+      "suite": "ml-dsa-87",
+      "events": 9,
+      "product_acpctl": "ok (9 events, tip e750a34bc6a8…)",
+      "auditor_python": "refused: public key: not implemented in this tool (unsupported public key algorithm)",
+      "tips_equal": false,
+      "note": "ML-DSA-87: the auditor's tool does not implement the suite and says so"
+    },
+    {
+      "case": "mutant:kind:written:ed25519",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #1: structural[field_value_invalid]: audit_event: unknown kind",
+      "auditor_python": "refused: event #1 (evt-0002): hash does not match the canonical bytes",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:signature:written:ed25519",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #0: integrity[signature_invalid]: crypto: ed25519 signature verification failed",
+      "auditor_python": "refused: event #0 (evt-0001): signature does not verify",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:prev_hash:written:ed25519",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #2: prev_hash does not link to event #1",
+      "auditor_python": "refused: event #2 (evt-0003): prev_hash does not link to the previous event",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:kind:genuine:scripts/hardware-test/closed-turn/evidence/20261118T014101Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #1: structural[field_value_invalid]: audit_event: unknown kind",
+      "auditor_python": "refused: event #1 (xcc-evt-0000000000000002): hash does not match the canonical bytes",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:signature:genuine:scripts/hardware-test/closed-turn/evidence/20261118T014101Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #0: integrity[signature_invalid]: crypto: ed25519 signature verification failed",
+      "auditor_python": "refused: event #0 (xcc-evt-0000000000000001): signature does not verify",
+      "tips_equal": false
+    },
+    {
+      "case": "mutant:prev_hash:genuine:scripts/hardware-test/closed-turn/evidence/20261118T014101Z/authority/xcc-audit.db",
+      "suite": "ed25519",
+      "events": 0,
+      "product_acpctl": "refused: event #2: prev_hash does not link to event #1",
+      "auditor_python": "refused: event #2 (xcc-evt-0000000000000003): prev_hash does not link to the previous event",
+      "tips_equal": false
+    }
+  ]
+}

@@ -33,6 +33,9 @@ jobs:
     defaults:
       run:
         working-directory: .
+        # bash by name, so that every step runs under `-eo pipefail`: a benchmark run piped
+        # into tee fails its step when the run fails.
+        shell: bash
     steps:
       - name: Checkout PR / push
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
