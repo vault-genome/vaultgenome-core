@@ -165,7 +165,12 @@ transition the table does not allow is refused, never taken silently.
 It is useful to state this plainly up front so first-week confusions are
 avoided:
 
-- **The Vault is not a model server.** It does not serve inference traffic.
+- **The Vault is not a model server.** `sagvd` holds no model and takes no
+  prompt. The model answers on the machine it lives on — the primary, and
+  a standby once it has become one — through a process of the compute side
+  (`vg-genome answer`), from a genome the Vault's protocol put there, and
+  each answer names that genome
+  ([ADR 0041](../adr/0041-a-standby-goes-on-by-itself.md)).
 - **The Vault is not a backup target.** It does not store model weights.
   It stores the AI Genome and the authority objects that govern its
   disclosure.

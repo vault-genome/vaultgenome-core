@@ -299,10 +299,12 @@ func TestFailoverStopsWhenTheDecisionCannotBeRecorded(t *testing.T) {
 	}
 }
 
-// stuckReceipts answers every receipt request with "not yet", and can end
-// the executor's context the first time it is asked.
+// stuckReceipts answers every receipt request with "not yet" — or with
+// err, when it is given one — and can end the executor's context the first
+// time it is asked.
 type stuckReceipts struct {
 	cancel context.CancelFunc
+	err    error
 	asked  int
 }
 
@@ -311,7 +313,10 @@ func (s *stuckReceipts) FetchRestoreReceipt(context.Context, string, ids.KeyID) 
 	if s.cancel != nil {
 		s.cancel()
 	}
-	return receipt.Signed{}, shared_errors.Operational(shared_errors.CodeResourceExhausted, "restore not complete", nil)
+	if s.err != nil {
+		return receipt.Signed{}, s.err
+	}
+	return receipt.Signed{}, shared_errors.Operational(receipt.CodeRestoreInProgress, "restore not complete", nil)
 }
 
 // withReceipts rebuilds the drill's coordinator with receipts fetched by r.
@@ -334,10 +339,11 @@ func (d *drill) withReceipts(r kms.ReceiptFetcher) {
 }
 
 // Once the key is released, the failover stands or falls on the standby's
-// receipt: a receipt that never comes within the confirm wait, a context
-// that ends while waiting, a log that lost the release, and a receipt
-// without the gate verdict the policy requires each fail the run after
-// the release is on the record.
+// receipt: a receipt that never comes within the confirm wait, a standby
+// that says its restore failed (asked once: the answer is final), a
+// context that ends while waiting, a log that lost the release, and a
+// receipt without the gate verdict the policy requires each fail the run
+// after the release is on the record.
 func TestFailoverFailsOnWhatFollowsTheRelease(t *testing.T) {
 	for name, tc := range map[string]struct {
 		arrange func(t *testing.T, d *drill, cfg *Config) (context.Context, *stuckReceipts)
@@ -352,6 +358,15 @@ func TestFailoverFailsOnWhatFollowsTheRelease(t *testing.T) {
 				return context.Background(), stuck
 			},
 			want: "restore not complete", asked: func(n int) bool { return n >= 1 },
+		},
+		"the standby's restore failed": {
+			arrange: func(t *testing.T, d *drill, cfg *Config) (context.Context, *stuckReceipts) {
+				stuck := &stuckReceipts{err: shared_errors.Integrity(receipt.CodeRestoreFailed, "restore failed: restorer: the gate backend could not run", nil)}
+				d.withReceipts(stuck)
+				cfg.Coordinator, cfg.ConfirmWait = d.coord, time.Minute
+				return context.Background(), stuck
+			},
+			want: "integrity[restore_failed]: restore failed: restorer: the gate backend could not run", asked: func(n int) bool { return n == 1 },
 		},
 		"context ends while waiting": {
 			arrange: func(t *testing.T, d *drill, cfg *Config) (context.Context, *stuckReceipts) {

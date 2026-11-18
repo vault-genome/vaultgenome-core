@@ -48,6 +48,12 @@ type Config struct {
 	// Primary verifies the primary TEE's reports on the outbox's records;
 	// required when the policy pins the primary (ADR 0017).
 	Primary tee.Verifier
+	// StandbyOutbox is the standby's own outbox, as replicated to the
+	// release authority, and StandbySentinel verifies the standby TEE's
+	// reports on its records (ADR 0041). Continue needs both; a failover
+	// needs neither.
+	StandbyOutbox   string
+	StandbySentinel tee.Verifier
 	// Coordinator releases keys under a release policy that includes this
 	// failover policy's Gate, and confirms receipts (Config.Receipts set).
 	Coordinator *kms.Coordinator
@@ -73,6 +79,19 @@ type Executor struct {
 // stands is decided when a trigger fires, and a policy that has expired by
 // then is declined on the record.
 func New(cfg Config) (*Executor, error) {
+	e, err := wire(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := CheckNotSpent(cfg.Policy, cfg.Events()); err != nil {
+		return nil, err
+	}
+	return e, nil
+}
+
+// wire checks an executor's wiring and policy; whether the policy is
+// spent is New's and Resume's to say.
+func wire(cfg Config) (*Executor, error) {
 	switch {
 	case cfg.Outbox == "" || cfg.Escrow == nil || cfg.Coordinator == nil || cfg.Audit == nil || cfg.Events == nil || cfg.IDs == nil || cfg.Clock == nil:
 		return nil, errors.New("failover: outbox, escrow key, coordinator, audit log, ID generator and clock required")
@@ -84,9 +103,6 @@ func New(cfg Config) (*Executor, error) {
 	}
 	if cfg.Policy.PinsPrimary() && cfg.Primary == nil {
 		return nil, fmt.Errorf("failover: the policy pins the primary's %s TEE, and no verifier for it was given", cfg.Policy.Primary.Kind)
-	}
-	if err := CheckNotSpent(cfg.Policy, cfg.Events()); err != nil {
-		return nil, err
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.New(slog.DiscardHandler)
@@ -143,6 +159,11 @@ func (e *Executor) Failover(ctx context.Context, t Trigger) (Report, error) {
 	_, sid := p.Sentinel()
 	evidence := sha256.Sum256(t.Evidence)
 	rep := newReport(p, sid, t, evidence[:], t.Ignored)
+	// One serial, one failover — held here too, where the decision is
+	// taken, and not only where the executor was built.
+	if err := CheckNotSpent(p, e.cfg.Events()); err != nil {
+		return rep.fail(err), err
+	}
 
 	choice, why, err := Choose(e.cfg.Outbox, p, t, escrow.KeyTag(e.cfg.Escrow.PublicKey()), e.cfg.Primary)
 	if err != nil {
@@ -271,19 +292,24 @@ func (e *Executor) confirm(ctx context.Context, req kms.ConfirmRequest) (kms.Con
 
 // Report is what a failover run did, for the operator and the record.
 type Report struct {
-	Status       string              `json:"status"`
-	Error        string              `json:"error,omitempty"`
-	PolicySerial uint64              `json:"policy_serial"`
-	PolicySHA256 string              `json:"policy_sha256"`
-	Sentinel     string              `json:"sentinel"`
-	Trigger      *TriggerReport      `json:"trigger,omitempty"`
-	Decision     *DecisionReport     `json:"decision,omitempty"`
-	Genome       *GenomeReport       `json:"genome,omitempty"`
-	Release      *ReleaseReport      `json:"release,omitempty"`
-	Restore      *RestoreReport      `json:"restore,omitempty"`
-	Timing       *Timing             `json:"timing,omitempty"`
-	SetAside     []sentinel.Rejected `json:"set_aside,omitempty"`
-	Ignored      []string            `json:"ignored,omitempty"`
+	Status       string          `json:"status"`
+	Error        string          `json:"error,omitempty"`
+	PolicySerial uint64          `json:"policy_serial"`
+	PolicySHA256 string          `json:"policy_sha256"`
+	Sentinel     string          `json:"sentinel"`
+	Trigger      *TriggerReport  `json:"trigger,omitempty"`
+	Decision     *DecisionReport `json:"decision,omitempty"`
+	Genome       *GenomeReport   `json:"genome,omitempty"`
+	Release      *ReleaseReport  `json:"release,omitempty"`
+	Restore      *RestoreReport  `json:"restore,omitempty"`
+	Timing       *Timing         `json:"timing,omitempty"`
+	// Continued is the chain the standby went on with, once the authority
+	// has recorded it, and StandbyTrigger a sign of failure there after
+	// the failover, declined on the record (ADR 0041).
+	Continued      *ContinuationReport   `json:"continued,omitempty"`
+	StandbyTrigger *StandbyTriggerReport `json:"standby_trigger,omitempty"`
+	SetAside       []sentinel.Rejected   `json:"set_aside,omitempty"`
+	Ignored        []string              `json:"ignored,omitempty"`
 }
 
 // TriggerReport describes the trigger.

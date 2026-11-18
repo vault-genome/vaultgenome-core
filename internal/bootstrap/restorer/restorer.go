@@ -13,6 +13,15 @@
 // receipt that says exactly what was restored. The source verifies that
 // receipt against the release before it records the restore as done.
 //
+// Once a restore has ended, a tree stands under RestoreDir only beside its
+// receipt. A restore that fails — the bundle does not open, its files
+// cannot all be put in place, a required gate cannot be run, the receipt
+// cannot be signed or kept — leaves nothing of its key there: no tree, no
+// part of one, and no receipt of an earlier restore of that key. One that
+// is signed for stays, whatever its gate said: the receipt says what it
+// is. A restore the daemon did not live to end is not signed for either:
+// the tree it left is removed when the daemon starts.
+//
 // The Restorer acts only on keys the source released. It never asks for
 // a key, never moves a genome anywhere, and holds no policy of its own.
 package restorer
@@ -27,8 +36,11 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -81,7 +93,54 @@ type Config struct {
 	// Gate, when set, runs the equivalence gate on every restored model
 	// before the receipt is signed, and puts its verdict in the receipt.
 	Gate *GateConfig
+
+	// AfterRestore, when set, is the one command run after a restore whose
+	// gate passed (ADR 0041). It needs a required Gate.
+	AfterRestore *AfterRestoreConfig
 }
+
+// Placeholders of an after-restore command's arguments, beside
+// GenomePlaceholder: the bundle the genome was restored from, and its
+// generation.
+const (
+	BundlePlaceholder     = "{bundle}"
+	GenerationPlaceholder = "{generation}"
+)
+
+// DefaultAfterRestoreTimeout bounds an after-restore command when the
+// configuration sets no bound.
+const DefaultAfterRestoreTimeout = 60 * time.Second
+
+// AfterRestoreConfig is the one command a destination runs after a restore
+// its gate passed: what goes on there — training, a sentinel, answers — is
+// started by it (ADR 0041). It runs once, after the receipt is signed and
+// kept, with the restored tree in its arguments and no key. A restore that
+// failed, or whose gate said FAIL, runs nothing; a daemon that restarts does
+// not run it again.
+type AfterRestoreConfig struct {
+	Command []string // GenomePlaceholder, BundlePlaceholder and GenerationPlaceholder in an argument are filled in
+	Env     []string // extra environment, KEY=VALUE
+	Timeout time.Duration
+	// outputGrace overrides afterRestoreOutputGrace; tests shorten it.
+	outputGrace time.Duration
+}
+
+// AfterRestoreResult is what the after-restore command did.
+type AfterRestoreResult struct {
+	StartedAt time.Time `json:"started_at"`
+	Seconds   float64   `json:"seconds"`
+	ExitCode  int       `json:"exit_code"`
+	Error     string    `json:"error,omitempty"`
+	// LeftRunning: the command ended well, and a process it started still
+	// held its output open when the destination stopped listening.
+	LeftRunning bool `json:"left_running,omitempty"`
+}
+
+// afterRestoreOutputGrace is how long the destination goes on reading what
+// an after-restore command says once the command itself has ended. The
+// work the command starts goes on after it, and may hold that output open
+// for good: it is not waited for longer than this.
+const afterRestoreOutputGrace = 5 * time.Second
 
 // State is where a released key's restore stands.
 type State string
@@ -95,7 +154,9 @@ const (
 	// StateGateFailed: restored, but the model's outputs miss their
 	// references on this hardware. The receipt says so.
 	StateGateFailed State = "gate_failed"
-	StateFailed     State = "failed"
+	// StateFailed: not restored, and not signed for. Nothing of its key is
+	// left under RestoreDir.
+	StateFailed State = "failed"
 )
 
 // Record is the public account of one released key's restore.
@@ -113,6 +174,10 @@ type Record struct {
 	Result        *restore.Result `json:"result,omitempty"`
 	Gate          *receipt.Gate   `json:"gate,omitempty"`
 	Error         string          `json:"error,omitempty"`
+	// AfterRestore is what the after-restore command did, when one is
+	// configured and this restore's gate passed. It is not in the receipt,
+	// which is signed before the command runs.
+	AfterRestore *AfterRestoreResult `json:"after_restore,omitempty"`
 }
 
 type entry struct {
@@ -144,8 +209,9 @@ type Restorer struct {
 	uploadMu sync.Mutex
 }
 
-// New validates cfg, creates the directories, and loads the receipts of
-// restores completed before a restart so they are still served.
+// New validates cfg, creates the directories, loads the receipts of
+// restores completed before a restart so they are still served, and
+// removes the trees no receipt stands beside.
 func New(cfg Config) (*Restorer, error) {
 	if cfg.BundleDir == "" || cfg.RestoreDir == "" {
 		return nil, errors.New("restorer: BundleDir and RestoreDir required")
@@ -164,6 +230,16 @@ func New(cfg Config) (*Restorer, error) {
 	}
 	if cfg.Rescan <= 0 {
 		cfg.Rescan = DefaultRescan
+	}
+	if a := cfg.AfterRestore; a != nil {
+		switch {
+		case len(a.Command) == 0 || strings.TrimSpace(a.Command[0]) == "":
+			return nil, errors.New("restorer: AfterRestore needs a command")
+		case a.Timeout < 0:
+			return nil, errors.New("restorer: AfterRestore timeout must not be negative")
+		case cfg.Gate == nil || !cfg.Gate.Required:
+			return nil, errors.New("restorer: AfterRestore needs a required gate: nothing starts on a model that was not proven here")
+		}
 	}
 	log := cfg.Logger
 	if log == nil {
@@ -184,7 +260,43 @@ func New(cfg Config) (*Restorer, error) {
 	if err := r.loadReceipts(); err != nil {
 		return nil, err
 	}
+	if err := r.sweep(); err != nil {
+		return nil, err
+	}
 	return r, nil
+}
+
+// sweep removes the trees no receipt stands beside: what a restore left
+// when the daemon was stopped between writing the tree and signing for
+// it. Only directories named as genome keys are the Restorer's to remove.
+// A daemon that cannot remove one does not start.
+func (r *Restorer) sweep() error {
+	names, err := os.ReadDir(r.cfg.RestoreDir)
+	if err != nil {
+		return fmt.Errorf("restorer: %w", err)
+	}
+	for _, n := range names {
+		kid := n.Name()
+		if _, signed := r.entries[kid]; signed || !n.IsDir() || !bundle.IsKeyID(kid) {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(r.cfg.RestoreDir, kid)); err != nil {
+			return fmt.Errorf("restorer: a tree without a receipt could not be removed: %w", err)
+		}
+		r.log.Warn("genome tree without a receipt removed", slog.String("key_id", kid), slog.String("why", "its restore did not end"))
+	}
+	return nil
+}
+
+// clear removes what restores of kid left under RestoreDir: the tree,
+// whole or in part, and the receipt.
+func (r *Restorer) clear(kid string) error {
+	errTree := os.RemoveAll(filepath.Join(r.cfg.RestoreDir, kid))
+	errReceipt := os.RemoveAll(filepath.Join(r.cfg.RestoreDir, kid+receiptSuffix))
+	if errTree != nil {
+		return errTree
+	}
+	return errReceipt
 }
 
 // loadReceipts reinstates completed restores from their receipts.
@@ -354,6 +466,13 @@ func (r *Restorer) restoreOne(kid, path string) {
 		err = r.sign(kid, h, res, bundleSHA, started, finished, verdict)
 	}
 	if err != nil {
+		// A restore that fails is not signed for, and nothing of its key
+		// stays under RestoreDir: not the tree — whole, or the part a move
+		// that failed midway left — and not the receipt of an earlier
+		// restore of this key, which would speak for a tree that is gone.
+		if rmErr := r.clear(kid); rmErr != nil {
+			err = fmt.Errorf("%w; restorer: what the failed restore left could not be removed: %w", err, rmErr)
+		}
 		r.update(kid, func(rec *Record) {
 			rec.State, rec.FinishedAt, rec.Error = StateFailed, &finished, err.Error()
 		})
@@ -370,6 +489,80 @@ func (r *Restorer) restoreOne(kid, path string) {
 		slog.String("bundle_sha256", bundleSHA),
 		slog.Float64("restore_seconds", finished.Sub(started).Seconds()),
 	)
+	if r.cfg.AfterRestore != nil && verdict != nil && verdict.Level != receipt.GateFail {
+		r.afterRestore(kid, target, path, h.Generation)
+	}
+}
+
+// afterRestore runs the configured command once for a restore whose gate
+// passed and keeps what it did on the restore's record. The restore is
+// signed for and stays restored whatever the command does.
+func (r *Restorer) afterRestore(kid, target, bundlePath string, generation uint64) {
+	a := r.cfg.AfterRestore
+	fill := strings.NewReplacer(GenomePlaceholder, target, BundlePlaceholder, bundlePath, GenerationPlaceholder, strconv.FormatUint(generation, 10))
+	argv := make([]string, len(a.Command))
+	for i, arg := range a.Command {
+		argv[i] = fill.Replace(arg)
+	}
+	timeout := a.Timeout
+	if timeout == 0 {
+		timeout = DefaultAfterRestoreTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	if len(a.Env) > 0 {
+		cmd.Env = append(os.Environ(), a.Env...)
+	}
+	said := &lastBytes{max: 2 << 10}
+	cmd.Stdout, cmd.Stderr = said, said
+	cmd.WaitDelay = afterRestoreOutputGrace
+	if a.outputGrace > 0 {
+		cmd.WaitDelay = a.outputGrace
+	}
+
+	started := r.cfg.Clock.Now().UTC()
+	err := cmd.Run()
+	res := &AfterRestoreResult{StartedAt: started, Seconds: r.cfg.Clock.Now().UTC().Sub(started).Seconds(), ExitCode: -1}
+	if cmd.ProcessState != nil {
+		res.ExitCode = cmd.ProcessState.ExitCode()
+	}
+	if errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+		// The command ended with status 0; what is left is a process it
+		// started, still holding its output. Starting what goes on is what
+		// the command is for: that is not its failure.
+		err, res.LeftRunning = nil, true
+	}
+	if err != nil {
+		res.Error = err.Error()
+		if ctx.Err() != nil {
+			res.Error = fmt.Sprintf("ran out of time after %s", timeout)
+		}
+		if tail := strings.Join(strings.Fields(string(said.buf)), " "); tail != "" {
+			res.Error += ": " + tail
+		}
+	}
+	r.update(kid, func(rec *Record) { rec.AfterRestore = res })
+	if err != nil {
+		r.log.Error("after-restore command failed", slog.String("key_id", kid), slog.Int("exit_code", res.ExitCode), slog.String("err", res.Error))
+		return
+	}
+	r.log.Info("after-restore command done", slog.String("key_id", kid), slog.Uint64("generation", generation), slog.Float64("seconds", res.Seconds),
+		slog.Bool("left_a_process_running", res.LeftRunning))
+}
+
+// lastBytes keeps the end of what is written to it.
+type lastBytes struct {
+	max int
+	buf []byte
+}
+
+func (l *lastBytes) Write(p []byte) (int, error) {
+	l.buf = append(l.buf, p...)
+	if over := len(l.buf) - l.max; over > 0 {
+		l.buf = l.buf[over:]
+	}
+	return len(p), nil
 }
 
 // open restores the bundle at path into target with the released key,

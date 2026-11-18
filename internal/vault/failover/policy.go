@@ -29,6 +29,19 @@
 // One policy serial performs at most one failover. Moving again takes a new
 // policy, and so a new operator signature for every hop. Nothing can make a
 // genome travel on its own.
+//
+// A policy may also name the standby's own sentinel, in advance (v2, ADR
+// 0041). The executor's work then goes on after the restore, and moves no
+// key:
+//
+//   - it reads the standby's outbox for the generation after the one
+//     released, checks it as it checked the primary's — the standby
+//     sentinel's key, the standby TEE's report, the parent, the files — and
+//     records the chain the standby continues (CHAIN_CONTINUED), once;
+//   - it watches the standby as it watched the primary, and records a
+//     trigger there as a failover declined: the policy names nowhere
+//     further to go;
+//   - restarted, it reads from its own audit log how far it got.
 package failover
 
 import (
@@ -50,8 +63,14 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
-// Schema identifies version 1 of the failover policy.
-const Schema = "vault-genome/failover-policy/v1"
+// Schema identifies version 1 of the failover policy. SchemaV2 is version
+// 1 with one section more, standby.sentinel (ADR 0041): a policy carries
+// it exactly when it names the standby's own sentinel, so a policy without
+// the section is the v1 it always was, to the byte.
+const (
+	Schema   = "vault-genome/failover-policy/v1"
+	SchemaV2 = "vault-genome/failover-policy/v2"
+)
 
 // Policy is the operator's signed, standing instruction for one failover.
 type Policy struct {
@@ -109,6 +128,31 @@ type Standby struct {
 	// Measurements (hex) the standby's TEE must attest one of. The release
 	// also still needs the release authority's allow-list.
 	Measurements []string `json:"measurements"`
+	// Sentinel, in a v2 policy, names the standby's own sentinel (ADR
+	// 0041): said in advance, as SentinelPublicKey and Primary say the
+	// primary's.
+	Sentinel *StandbySentinel `json:"sentinel,omitempty"`
+}
+
+// StandbySentinel is the standby's own sentinel, as the policy pins it:
+// the key its records are signed under, and the report every one of them
+// must carry — from the standby's TEE (its kind is Standby.Kind: one
+// machine, one chip), at one of these measurements.
+//
+// Machines of one image attest one measurement, so the report says the
+// record was made on such a machine and the key says on which: the key is
+// sealed to the standby's chip, and must not be the primary's.
+type StandbySentinel struct {
+	// PublicKey is the standby sentinel's signing key, read under Alg.
+	PublicKey []byte `json:"public_key"`
+	// Alg is the signature suite of that key (ADR 0031): absent for
+	// ed25519, the suite id otherwise.
+	Alg crypto.SignatureSuite `json:"alg,omitempty"`
+	// Measurements (hex) its TEE must attest one of.
+	Measurements []string `json:"measurements"`
+	// AttestorPublicKey is a simulated standby's attestation key (32
+	// bytes); a hardware kind leaves it empty.
+	AttestorPublicKey []byte `json:"attestor_public_key,omitempty"`
 }
 
 // Triggers are the signs of failure the policy acts on.
@@ -127,8 +171,8 @@ type Triggers struct {
 
 func (p Policy) validate() error {
 	switch {
-	case p.Schema != Schema:
-		return fmt.Errorf("failover: schema %q, want %q", p.Schema, Schema)
+	case p.Schema != Schema && p.Schema != SchemaV2:
+		return fmt.Errorf("failover: schema %q, want %q or %q", p.Schema, Schema, SchemaV2)
 	case p.Serial == 0:
 		return errors.New("failover: serial must be at least 1")
 	case p.IssuedAt.IsZero() || !p.NotAfter.After(p.IssuedAt):
@@ -164,28 +208,63 @@ func (p Policy) validate() error {
 	if err := checkMeasurements("standby", p.Standby.Measurements); err != nil {
 		return err
 	}
+	if err := p.validateStandbySentinel(); err != nil {
+		return err
+	}
 	return p.Primary.validate()
+}
+
+// validateStandbySentinel holds the section to its schema — v2 has it, v1
+// does not — and to what it must say.
+func (p Policy) validateStandbySentinel() error {
+	s := p.Standby.Sentinel
+	switch {
+	case s == nil && p.Schema == SchemaV2:
+		return fmt.Errorf("failover: schema %q names the standby's sentinel in standby.sentinel; a policy without one is %q", SchemaV2, Schema)
+	case s == nil:
+		return nil
+	case p.Schema != SchemaV2:
+		return fmt.Errorf("failover: standby.sentinel needs schema %q", SchemaV2)
+	}
+	suite, err := crypto.RecordSuite(s.Alg)
+	if err != nil {
+		return fmt.Errorf("failover: standby sentinel alg: %w", err)
+	}
+	if len(s.PublicKey) != suite.PublicKeySize() {
+		return fmt.Errorf("failover: the standby sentinel's public_key must be %d bytes for %s", suite.PublicKeySize(), suite)
+	}
+	if bytes.Equal(s.PublicKey, p.SentinelPublicKey) {
+		return errors.New("failover: the standby's sentinel key is the primary's; each machine's sentinel signs under its own key, or a record does not say which machine made it")
+	}
+	return checkPin("standby sentinel", p.Standby.Kind, s.Measurements, s.AttestorPublicKey)
 }
 
 func (pr *Primary) validate() error {
 	if pr == nil {
 		return nil
 	}
-	kind, err := tee.ParseProvider(pr.Kind)
+	return checkPin("primary", pr.Kind, pr.Measurements, pr.AttestorPublicKey)
+}
+
+// checkPin validates a TEE the policy pins a sentinel's records to: its
+// kind, at least one measurement, and an attestation key exactly when the
+// kind is the simulated one.
+func checkPin(who, kindName string, measurements []string, attestor []byte) error {
+	kind, err := tee.ParseProvider(kindName)
 	if err != nil {
-		return fmt.Errorf("failover: primary kind: %w", err)
+		return fmt.Errorf("failover: %s kind: %w", who, err)
 	}
-	if len(pr.Measurements) == 0 {
-		return errors.New("failover: a pinned primary needs at least one measurement")
+	if len(measurements) == 0 {
+		return fmt.Errorf("failover: a pinned %s needs at least one measurement", who)
 	}
-	if err := checkMeasurements("primary", pr.Measurements); err != nil {
+	if err := checkMeasurements(who, measurements); err != nil {
 		return err
 	}
 	switch {
-	case kind == tee.ProviderSimulated && len(pr.AttestorPublicKey) != crypto.Ed25519PublicKeySize:
-		return fmt.Errorf("failover: a simulated primary is pinned by its attestation key (%d bytes)", crypto.Ed25519PublicKeySize)
-	case kind != tee.ProviderSimulated && len(pr.AttestorPublicKey) != 0:
-		return fmt.Errorf("failover: a %s primary has no attestation key to pin; its chain is the authority's anchor", kind)
+	case kind == tee.ProviderSimulated && len(attestor) != crypto.Ed25519PublicKeySize:
+		return fmt.Errorf("failover: a simulated %s is pinned by its attestation key (%d bytes)", who, crypto.Ed25519PublicKeySize)
+	case kind != tee.ProviderSimulated && len(attestor) != 0:
+		return fmt.Errorf("failover: a %s %s has no attestation key to pin; its chain is the authority's anchor", kind, who)
 	}
 	return nil
 }
@@ -230,13 +309,17 @@ func (p Policy) signedBytes() ([]byte, error) {
 }
 
 // Sign validates p and signs it with the operator key. Schema is filled in
-// when empty.
+// when empty: v2 for a policy that names the standby's sentinel, v1 for one
+// that does not.
 func Sign(p Policy, key *crypto.SigningKey) (Policy, error) {
 	if key == nil {
 		return Policy{}, errors.New("failover: operator key required")
 	}
 	if p.Schema == "" {
 		p.Schema = Schema
+		if p.Standby.Sentinel != nil {
+			p.Schema = SchemaV2
+		}
 	}
 	p.Alg = crypto.RecordAlg(key.Suite())
 	if err := p.validate(); err != nil {
@@ -256,13 +339,8 @@ func Sign(p Policy, key *crypto.SigningKey) (Policy, error) {
 // Parse decodes a signed policy and accepts it only if it is well formed,
 // names kid as its signer and verifies under the operator key pub.
 func Parse(raw []byte, pub crypto.SuitePublicKey, kid string) (Policy, error) {
-	var p Policy
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&p); err != nil {
-		return Policy{}, fmt.Errorf("failover: decode: %w", err)
-	}
-	if err := p.validate(); err != nil {
+	p, err := decode(raw)
+	if err != nil {
 		return Policy{}, err
 	}
 	if p.SigningKeyID != kid {
@@ -276,6 +354,36 @@ func Parse(raw []byte, pub crypto.SuitePublicKey, kid string) (Policy, error) {
 		return Policy{}, fmt.Errorf("failover: signature does not verify under the operator key: %w", err)
 	}
 	return p, nil
+}
+
+// decode reads a policy that has no field this build does not know, and is
+// well formed. Its signature is not looked at.
+func decode(raw []byte) (Policy, error) {
+	var p Policy
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&p); err != nil {
+		return Policy{}, fmt.Errorf("failover: decode: %w", err)
+	}
+	if err := p.validate(); err != nil {
+		return Policy{}, err
+	}
+	return p, nil
+}
+
+// StandbySentinel returns the standby sentinel's pinned key and its ID;
+// ok is false for a policy that names none.
+func (p Policy) StandbySentinel() (pub crypto.SuitePublicKey, id string, ok bool) {
+	s := p.Standby.Sentinel
+	if s == nil {
+		return crypto.SuitePublicKey{}, "", false
+	}
+	suite, err := crypto.RecordSuite(s.Alg)
+	if err != nil {
+		suite = crypto.SuiteEd25519
+	}
+	pub = crypto.SuitePublicKey{Suite: suite, Bytes: s.PublicKey}
+	return pub, sentinel.KeyID(pub), true
 }
 
 // Sentinel returns the pinned sentinel key and its ID.

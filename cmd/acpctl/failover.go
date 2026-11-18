@@ -44,7 +44,7 @@ func failoverCmd(args []string, stdout, stderr io.Writer) int {
 func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("failover issue", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	var measurements, primaryMeasurements repeatedFlag
+	var measurements, primaryMeasurements, standbySentinelMeasurements repeatedFlag
 	var (
 		seedPath    = fs.String("key", "", "Operator key file (acpctl stop keygen) (required)")
 		suiteFlag   = addSuiteFlag(fs)
@@ -64,9 +64,13 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 		stopGrace   = fs.Duration("stopped-grace", 0, "Fail over when a sentinel that said `stopped` is not back within this long (0: honour `stopped` indefinitely)")
 		primaryKind = fs.String("primary-kind", "", "Pin the primary's TEE kind (acpctl sentinel identity): every record must carry its report")
 		primaryPub  = fs.String("primary-attestor-pub", "", "A simulated primary's attestation key (PEM or 32 raw bytes); hardware kinds need none")
+
+		standbySentinelPub      = fs.String("standby-sentinel-pub", "", "Name the standby's own sentinel (ADR 0041): its public key, PEM or 32 raw bytes (Ed25519). The policy is then schema v2")
+		standbySentinelAttestor = fs.String("standby-sentinel-attestor-pub", "", "A simulated standby's attestation key for its sentinel's reports (PEM or 32 raw bytes); hardware kinds need none")
 	)
 	fs.Var(&measurements, "standby-measurement", "A measurement (hex) the standby must attest (repeatable; at least one)")
 	fs.Var(&primaryMeasurements, "primary-measurement", "A measurement (hex) the primary's TEE must attest (repeatable; with --primary-kind)")
+	fs.Var(&standbySentinelMeasurements, "standby-sentinel-measurement", "A measurement (hex) the standby's TEE must attest on its sentinel's records (acpctl sentinel identity, on the standby; repeatable; with --standby-sentinel-pub)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -76,6 +80,14 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	if (*primaryKind == "") != (len(primaryMeasurements) == 0) {
 		fmt.Fprintln(stderr, "acpctl failover issue: --primary-kind and --primary-measurement go together")
+		return 2
+	}
+	if (*standbySentinelPub == "") != (len(standbySentinelMeasurements) == 0) {
+		fmt.Fprintln(stderr, "acpctl failover issue: --standby-sentinel-pub and --standby-sentinel-measurement go together")
+		return 2
+	}
+	if *standbySentinelPub == "" && *standbySentinelAttestor != "" {
+		fmt.Fprintln(stderr, "acpctl failover issue: --standby-sentinel-attestor-pub goes with --standby-sentinel-pub")
 		return 2
 	}
 	var primary *failover.Primary
@@ -112,6 +124,26 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl failover issue: --sentinel-pub: %v\n", err)
 		return 1
 	}
+	var standbySentinel *failover.StandbySentinel
+	if *standbySentinelPub != "" {
+		pub, err := readSigningPublicKey(*standbySentinelPub)
+		if err != nil {
+			fmt.Fprintf(stderr, "acpctl failover issue: --standby-sentinel-pub: %v\n", err)
+			return 1
+		}
+		for i, m := range standbySentinelMeasurements {
+			standbySentinelMeasurements[i] = strings.ToLower(m)
+		}
+		standbySentinel = &failover.StandbySentinel{PublicKey: pub.Bytes, Alg: crypto.RecordAlg(pub.Suite), Measurements: standbySentinelMeasurements}
+		if *standbySentinelAttestor != "" {
+			attestor, err := readEd25519PublicKey(*standbySentinelAttestor)
+			if err != nil {
+				fmt.Fprintf(stderr, "acpctl failover issue: --standby-sentinel-attestor-pub: %v\n", err)
+				return 1
+			}
+			standbySentinel.AttestorPublicKey = attestor
+		}
+	}
 	now := time.Now().UTC().Truncate(time.Second)
 	for i, m := range measurements {
 		measurements[i] = strings.ToLower(m)
@@ -123,7 +155,7 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 		SentinelPublicKey: spub.Bytes,
 		SentinelAlg:       crypto.RecordAlg(spub.Suite),
 		Primary:           primary,
-		Standby:           failover.Standby{Kind: *kind, Endpoint: *endpoint, Measurements: measurements},
+		Standby:           failover.Standby{Kind: *kind, Endpoint: *endpoint, Measurements: measurements, Sentinel: standbySentinel},
 		Triggers:          failover.Triggers{CompromiseReport: !*noReport, HeartbeatTimeoutSeconds: int64(timeout.Seconds()), StoppedGraceSeconds: int64(stopGrace.Seconds())},
 		QuarantineSeconds: int64(quarantine.Seconds()),
 		MaxRPOSeconds:     int64(maxRPO.Seconds()),
@@ -143,8 +175,12 @@ func failoverIssueCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "acpctl failover issue: write: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "failover policy serial %d written to %s: sentinel %s (%s) -> %s %s, until %s\n",
-		p.Serial, *out, sentinel.KeyID(spub), spub.Suite, p.Standby.Kind, p.Standby.Endpoint, p.NotAfter.Format(time.RFC3339))
+	standbyOwn := ""
+	if pub, id, ok := p.StandbySentinel(); ok {
+		standbyOwn = fmt.Sprintf(" (its own sentinel: %s, %s)", id, pub.Suite)
+	}
+	fmt.Fprintf(stdout, "failover policy serial %d written to %s: sentinel %s (%s) -> %s %s%s, until %s\n",
+		p.Serial, *out, sentinel.KeyID(spub), spub.Suite, p.Standby.Kind, p.Standby.Endpoint, standbyOwn, p.NotAfter.Format(time.RFC3339))
 	return 0
 }
 
@@ -182,8 +218,13 @@ func failoverVerifyCmd(args []string, stdout, stderr io.Writer) int {
 	if err := p.ActiveAt(time.Now()); err != nil {
 		standing = err.Error()
 	}
+	standbySentinelPub, standbySentinelID, namesStandbySentinel := p.StandbySentinel()
 	if *jsonOut {
-		_ = json.NewEncoder(stdout).Encode(map[string]any{"policy": p, "sentinel": sid, "standing": standing})
+		out := map[string]any{"policy": p, "sentinel": sid, "standing": standing}
+		if namesStandbySentinel {
+			out["standby_sentinel"] = standbySentinelID
+		}
+		_ = json.NewEncoder(stdout).Encode(out)
 		return 0
 	}
 	fmt.Fprintf(stdout, "valid failover policy, serial %d, issued %s, until %s: %s\n", p.Serial, p.IssuedAt.Format(time.RFC3339), p.NotAfter.Format(time.RFC3339), standing)
@@ -194,6 +235,12 @@ func failoverVerifyCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "  primary TEE:      not pinned (the sentinel's key alone is trusted)")
 	}
 	fmt.Fprintf(stdout, "  standby:          %s %s, measurements %s\n", p.Standby.Kind, p.Standby.Endpoint, strings.Join(p.Standby.Measurements, ", "))
+	if namesStandbySentinel {
+		fmt.Fprintf(stdout, "  standby sentinel: %s (%s), measurements %s (every record must carry its report)\n",
+			standbySentinelID, standbySentinelPub.Suite, strings.Join(p.Standby.Sentinel.Measurements, ", "))
+	} else {
+		fmt.Fprintln(stdout, "  standby sentinel: not named")
+	}
 	var triggers []string
 	if p.Triggers.CompromiseReport {
 		triggers = append(triggers, "compromise report")

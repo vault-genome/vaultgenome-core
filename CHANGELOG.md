@@ -25,6 +25,49 @@ given release can still open.
 
 ### Added
 
+- **A failover policy can name the standby's own sentinel, and the
+  authority then records the chain the standby continues**
+  ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 4):
+  `acpctl failover issue --standby-sentinel-pub KEY
+  --standby-sentinel-measurement HEX` signs a
+  `vault-genome/failover-policy/v2`, which is v1 with one section more,
+  `standby.sentinel` — the key the standby's sentinel signs under and the
+  measurements its records must be attested at; `acpctl failover verify`
+  prints it. A policy without the section is the v1 it was, to the byte.
+  An authority of an earlier release refuses a v2 policy.
+
+  Under such a policy `sagvd failover` (with `-standby-outbox DIR`, the
+  standby's own outbox replicated to the authority) does not exit when the
+  restore is confirmed. It records the generation after the one released,
+  once the standby's sentinel has sealed it and the record, its chip's
+  report, its parent, its bundle and its escrow envelope check out
+  (`CHAIN_CONTINUED`; the report gains `continued`); and it watches the
+  standby as it watched the primary. A trigger there is declined on the
+  record — one serial performs one failover — and ends the run with exit
+  code 3 (`standby_trigger`). Started again after the failover, it takes
+  it up from the audit log (`resumed`) and records nothing twice. Under a
+  v1 policy nothing changes.
+- **The model answers on the machine it lives on**
+  ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 3):
+  `vg-genome answer` opens a genome directory under the door's checks and
+  answers a prompt — once (`--prompt`) or as a listener (`--listen`,
+  `POST /v1/answer`). An answer carries the adapter's SHA-256 and the step
+  training stood at, and on one pinned runtime the same prompt and genome
+  give the same tokens. The listener takes the next genome training puts
+  in the directory, and does not serve one that fails its checks. `sagvd`
+  still serves no inference. The command's idle threads sleep instead of
+  spin (`OMP_WAIT_POLICY=PASSIVE` unless the operator sets the variable):
+  it runs beside the training on the same cores, and two processes that
+  both spin take them from each other.
+- **A destination can go on by itself after a restore**
+  ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 1):
+  `genome.after_restore` in `acp-bootstrap`'s configuration names one
+  command, run once after a restore whose required gate passed, with the
+  restored tree, the bundle it came from and its generation in its
+  arguments. A restore that failed, or whose gate said FAIL, runs nothing,
+  and a restarted daemon does not run it again. What the command did is on
+  the restore's record (`GET /v1/genome/restores`); the processes it leaves
+  running are not waited for.
 - **Training goes on from a genome** ([ADR 0040](docs/adr/0040-a-genome-carries-the-state-training-stood-in.md)):
   a genome now carries the state training stood in — `state/optimizer.safetensors`
   (AdamW's moments and step count for every adapter tensor), `state/cursor.json`
@@ -79,6 +122,11 @@ given release can still open.
 - **Audit schema v9:** one kind added, `CONSOLE_ACTION`. A v8 reader refuses a
   v9 event; a v9 reader verifies every earlier event as it did. A log that
   never had a console on it holds v9 events from the upgrade on, as any bump.
+- **Audit schema v10:** one kind added, `CHAIN_CONTINUED`
+  ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md)): the release
+  authority's record that the standby of a failover sealed the generation
+  after the one released. A v9 reader refuses a v10 event; a v10 reader
+  verifies every earlier event as it did.
 - **The button's downloads wait out GitHub's release storage:** in
   `deploy/lib/verify-release.sh`, in the three guests and in the
   `releases/latest` lookup, curl now backs off 1, 2, 4 … seconds between
@@ -97,6 +145,40 @@ given release can still open.
   computer". Which of the two a person saw depended on the instant. A
   request that got no answer is now marked where it is made
   (`cmd/vgconsole`, `call`), and the page says so.
+- **A sentinel started with `--parent` on the state as it was restored no
+  longer seals that state a second time.** It compared a new state with
+  the last generation of its own outbox only, and a new outbox has none:
+  the parent's own content went out again as the next generation. It is
+  now held to the parent's payload as well, and the first generation of
+  the new outbox is the first state that differs from it.
+- **A restore that fails leaves nothing behind.** A bundle that did not
+  open left nothing under `restore_dir`, but a restore that failed after
+  its files were written did: with a required gate whose backend could
+  not be run, or a receipt the TEE could not sign, the decrypted genome
+  stayed on the destination's disk without a receipt. So did the part of
+  a tree a restore had put in place before it stopped, and the tree of a
+  restore the daemon did not live to end. Once a restore has ended, a
+  tree now stands under `restore_dir` only beside its signed receipt: a
+  restore that fails leaves nothing of its key there — after a key is
+  released again, not the receipt of its earlier restore either — and at
+  its start `acp-bootstrap` removes a tree that has no receipt beside it,
+  one left by an earlier release included. A restore that is signed for
+  stays, whatever its gate said. The key is kept as before, so a later
+  release can try again.
+- **A restore that failed on the destination is reported as a failed
+  restore, not as an invalid signature.** Asked for a receipt it does not
+  have, `acp-bootstrap` answered with a bare message, and the source
+  classified the answer by its HTTP status alone: a restore whose required
+  gate could not be run came back to `sagvd failover` and `sagvd
+  crosscloud-confirm` as `integrity[signature_invalid]`, with the true
+  reason only in the text after it. The receipt endpoint now answers with
+  the classified envelope of the destination's other endpoints:
+  `integrity/restore_failed` for a restore that failed (final: the source
+  stops asking), `operational/restore_in_progress` for one that has not
+  finished, `operational/key_not_released` for a key no release brought
+  there; the restore's record still goes beside it. A source of this
+  release that asks a destination of an earlier one classifies its answer
+  by status, as before.
 
 ## [0.14.0] — 2026-10-29
 

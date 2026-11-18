@@ -119,6 +119,26 @@ func CheckGenome(dir string, rec SealRecord) (bundle.Identity, escrow.Envelope, 
 // ErrAbsent reports that the outbox has no such record.
 var ErrAbsent = errors.New("sentinel: no such record")
 
+// ReadRecord reads the seal record of one generation and its raw bytes,
+// and accepts it only if it verifies under pub and says the generation its
+// file name says. ErrAbsent when the outbox holds no record of that
+// generation; a record that is present and does not verify is an error,
+// never ErrAbsent.
+func ReadRecord(dir string, generation uint64, pub crypto.SuitePublicKey) (SealRecord, []byte, error) {
+	raw, err := readRecord(dir, RecordName(generation))
+	if err != nil {
+		return SealRecord{}, nil, err
+	}
+	rec, err := ParseRecord(raw, pub)
+	if err != nil {
+		return SealRecord{}, raw, err
+	}
+	if rec.Generation != generation {
+		return SealRecord{}, raw, fmt.Errorf("sentinel: the file is generation %d, the record says %d", generation, rec.Generation)
+	}
+	return rec, raw, nil
+}
+
 // ReadHeartbeat reads the outbox's heartbeat and its raw bytes. A heartbeat
 // that is present but does not verify is an error, never ErrAbsent.
 func ReadHeartbeat(dir string, pub crypto.SuitePublicKey) (Heartbeat, []byte, error) {

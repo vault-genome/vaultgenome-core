@@ -11,13 +11,27 @@
   measure      recompute every fixture and report fidelity as JSON (--door integer:
                the integer door against its own references and the float ones)
   verify-base  check a base model directory against a genome's manifest
+  answer       answer prompts from a genome, each answer naming the genome it
+               came from: once (--prompt P), or as a listener (--listen HOST:PORT)
 """
 
 import argparse
 import json
+import os
 import sys
 
-from . import door, finetune, manifest
+# `answer` runs beside the training on one machine, each on the recipe's
+# thread count. OpenMP's threads spin while they wait for work; two
+# processes doing that on the same cores take them from each other, and
+# both slow by an order of magnitude. So the answers wait without
+# spinning. The policy is read once, when torch loads its OpenMP runtime:
+# it is set here, before anything imports torch, and for this command
+# alone. An operator's own setting stands. It changes how an idle thread
+# waits and nothing that is computed.
+if len(sys.argv) > 1 and sys.argv[1] == "answer":
+    os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
+
+from . import answer, door, finetune, manifest  # noqa: E402
 
 
 def _log(msg: str) -> None:
@@ -92,6 +106,16 @@ def main(argv=None) -> int:
     vb.add_argument("--genome", required=True)
     vb.add_argument("--base", required=True)
 
+    an = sub.add_parser("answer", help="answer prompts from a genome: once, or as a listener (ADR 0041)")
+    an.add_argument("--genome", required=True, help="the genome directory the model lives in")
+    an.add_argument("--base", required=True)
+    an.add_argument("--device", default="cpu", help="cpu, cuda, mps or auto")
+    an.add_argument("--prompt", help="answer this once, print the answer and exit")
+    an.add_argument("--listen", metavar="HOST:PORT", help="serve POST /v1/answer and GET /v1/answer/genome")
+    an.add_argument("--token-file", help="the bearer token the listener requires; needed off loopback")
+    an.add_argument("--max-new-tokens", type=int, default=answer.DEFAULT_NEW_TOKENS,
+                    help=f"for --prompt (default {answer.DEFAULT_NEW_TOKENS}, at most {answer.MAX_NEW_TOKENS})")
+
     a = p.parse_args(argv)
     if a.cmd == "finetune":
         if a.continue_from:
@@ -147,6 +171,27 @@ def main(argv=None) -> int:
             p.error("door needs --genome DIR or --stdin-genome")
     elif a.cmd == "measure":
         print(json.dumps(door.measure(a.genome, a.base, a.device, dtype=a.dtype, door=a.door, limit=a.limit), indent=2))
+    elif a.cmd == "answer":
+        if bool(a.prompt) == bool(a.listen):
+            p.error("answer needs --prompt P or --listen HOST:PORT")
+        _log("answer: idle threads wait as OMP_WAIT_POLICY=%s" % os.environ.get("OMP_WAIT_POLICY", "(the runtime's default)"))
+        if a.prompt:
+            print(json.dumps(answer.Answerer(a.genome, a.base, a.device).answer(a.prompt, a.max_new_tokens), indent=2))
+        else:
+            token = None
+            if a.token_file:
+                with open(a.token_file, encoding="utf-8") as f:
+                    token = f.read().strip()
+                if not token:
+                    p.error(f"answer: {a.token_file} holds no token")
+            httpd, _ = answer.serve(a.genome, a.base, a.device, a.listen, token, _log)
+            _log("answering on %s:%d" % httpd.server_address[:2])
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                pass
+            finally:
+                httpd.server_close()
     elif a.cmd == "verify-base":
         g = finetune.load_genome(a.genome)
         manifest.verify(a.base, g["base"]["manifest"])

@@ -134,6 +134,8 @@ func TestGate_FailingModelIsSignedForAsFail(t *testing.T) {
 	require.Equal(t, receipt.GateFail, rc.Gate.Level)
 	require.False(t, rc.Gate.Meets(receipt.GateEquivalent))
 	require.InDelta(t, 7.5, rc.Gate.MaxAbsErr, 1e-6)
+	// It is signed for, so its tree stays beside its receipt.
+	require.DirExists(t, filepath.Join(f.restores, kid))
 
 	// A restarted daemon still says gate_failed.
 	again := f.gated(&GateConfig{Command: []string{"true"}})
@@ -144,12 +146,13 @@ func TestGate_FailingModelIsSignedForAsFail(t *testing.T) {
 
 // A backend that cannot run says nothing about the model: without a
 // required gate the restore is signed for without a verdict; with one,
-// it fails and nothing is signed.
+// it fails, nothing is signed, and the tree it had written is gone.
 func TestGate_BackendThatCannotRun(t *testing.T) {
 	broken := []string{"sh", "-c", "exit 7"}
 	f, kid := restoreWith(t, &GateConfig{Command: broken}, modelGenome(t))
 	require.Equal(t, StateRestored, f.record(kid).State)
 	require.Nil(t, verified(t, f, kid).Gate)
+	require.DirExists(t, filepath.Join(f.restores, kid))
 
 	f, kid = restoreWith(t, &GateConfig{Command: broken, Required: true}, modelGenome(t))
 	rec := f.record(kid)
@@ -157,6 +160,107 @@ func TestGate_BackendThatCannotRun(t *testing.T) {
 	require.Contains(t, rec.Error, "could not run")
 	signed, _, _ := f.r.Receipt(kid)
 	require.Nil(t, signed.Receipt)
+	require.NoDirExists(t, filepath.Join(f.restores, kid), "a restore that is not signed for leaves no tree")
+	left, err := os.ReadDir(f.restores)
+	require.NoError(t, err)
+	require.Empty(t, left, "nothing of the failed restore under the restore directory")
+}
+
+// A receipt that cannot be kept fails the restore after its gate passed:
+// the tree goes with it.
+func TestRestorer_ARestoreWhoseReceiptCannotBeKeptLeavesNoTree(t *testing.T) {
+	f := newFixture(t)
+	f.r = f.gated(&GateConfig{Command: door(t, []float32{1.5, -2}, []float32{0.25, 3}), Required: true})
+	blob, dek, kid := f.seal(modelGenome(t))
+	require.NoError(t, os.WriteFile(filepath.Join(f.bundles, "g.genome"), blob, 0o644))
+	// Where the receipt would be written there is a directory that is not
+	// empty: the rename that puts the receipt in place cannot succeed.
+	require.NoError(t, os.MkdirAll(filepath.Join(f.restores, kid+receiptSuffix, "in-the-way"), 0o755))
+	f.release(kid, dek, "gated")
+	f.r.work(context.Background())
+	rec := f.record(kid)
+	require.Equal(t, StateFailed, rec.State)
+	require.Contains(t, rec.Error, "keep receipt")
+	signed, _, _ := f.r.Receipt(kid)
+	require.Nil(t, signed.Receipt)
+	require.NoDirExists(t, filepath.Join(f.restores, kid))
+}
+
+// A restore that cannot put all its files in place fails with part of the
+// tree written. That part goes too: nothing of the key is left.
+func TestRestorer_ARestoreThatStopsMidwayLeavesNoPartOfATree(t *testing.T) {
+	f := newFixture(t)
+	blob, dek, kid := f.seal(adapter)
+	require.NoError(t, os.WriteFile(filepath.Join(f.bundles, "g.genome"), blob, 0o644))
+	// Where one of the genome's files belongs there is a directory that is
+	// not empty: the move that puts that file in place cannot succeed.
+	require.NoError(t, os.MkdirAll(filepath.Join(f.restores, kid, "tokenizer", "special.json", "in-the-way"), 0o755))
+	f.release(kid, dek, "midway")
+	f.r.work(context.Background())
+	rec := f.record(kid)
+	require.Equal(t, StateFailed, rec.State)
+	require.Contains(t, rec.Error, "target holds part of the genome")
+	left, err := os.ReadDir(f.restores)
+	require.NoError(t, err)
+	require.Empty(t, left, "no part of the tree under the restore directory")
+
+	// The key was kept: released again, the bundle is restored whole.
+	f.deliver(kid, "retry")
+	f.r.work(context.Background())
+	require.Equal(t, StateRestored, f.record(kid).State)
+	require.Equal(t, adapter, readTree(t, filepath.Join(f.restores, kid)))
+}
+
+// A key whose model failed its gate is released again, and this time the
+// restore itself fails. The tree goes, and with it the receipt of the
+// first restore: after a restart the daemon does not speak for a tree
+// that is not there.
+func TestRestorer_AFailedRetryLeavesNeitherTheTreeNorTheEarlierReceipt(t *testing.T) {
+	f := newFixture(t)
+	f.r = f.gated(&GateConfig{Command: door(t, []float32{9, -2}, []float32{0.25, 3}), Tolerance: equivalence.Tolerance{Atol: 1e-3}})
+	blob, dek, kid := f.seal(modelGenome(t))
+	require.NoError(t, os.WriteFile(filepath.Join(f.bundles, "g.genome"), blob, 0o644))
+	f.release(kid, dek, "first")
+	f.r.work(context.Background())
+	require.Equal(t, StateGateFailed, f.record(kid).State)
+	require.DirExists(t, filepath.Join(f.restores, kid))
+	require.FileExists(t, filepath.Join(f.restores, kid+receiptSuffix))
+
+	// The daemon is started again with a required gate whose backend
+	// cannot be run, and the key is released once more.
+	f.r = f.gated(&GateConfig{Command: []string{"sh", "-c", "exit 7"}, Required: true})
+	require.Equal(t, StateGateFailed, f.record(kid).State, "the first restore is known by its receipt")
+	f.release(kid, dek, "again")
+	f.r.work(context.Background())
+	rec := f.record(kid)
+	require.Equal(t, StateFailed, rec.State)
+	require.Contains(t, rec.Error, "could not run")
+	left, err := os.ReadDir(f.restores)
+	require.NoError(t, err)
+	require.Empty(t, left, "neither the tree nor the first restore's receipt")
+	require.Empty(t, f.gated(&GateConfig{Command: []string{"true"}}).Records(), "a daemon started again knows no restore of this key")
+}
+
+// What a failed restore left cannot be removed: the record says both what
+// failed and that its tree is still there.
+func TestRestorer_SaysSoWhenWhatAFailedRestoreLeftCannotBeRemoved(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root removes entries of a directory regardless of its mode")
+	}
+	f := newFixture(t)
+	t.Cleanup(func() { _ = os.Chmod(f.restores, 0o755) })
+	// The gate's backend closes the restore directory to changes and then
+	// cannot be run: the tree it was to prove cannot be taken away.
+	f.r = f.gated(&GateConfig{Command: []string{"sh", "-c", `chmod 555 "$1"; exit 7`, "gate", f.restores}, Required: true})
+	blob, dek, kid := f.seal(modelGenome(t))
+	require.NoError(t, os.WriteFile(filepath.Join(f.bundles, "g.genome"), blob, 0o644))
+	f.release(kid, dek, "stuck")
+	f.r.work(context.Background())
+	rec := f.record(kid)
+	require.Equal(t, StateFailed, rec.State)
+	require.Contains(t, rec.Error, "could not run")
+	require.Contains(t, rec.Error, "what the failed restore left could not be removed")
+	require.NotContains(t, rec.Error, "\n")
 }
 
 // A genome with no model fixtures cannot be gated.
@@ -169,4 +273,5 @@ func TestGate_GenomeWithoutAModel(t *testing.T) {
 	rec := f.record(kid)
 	require.Equal(t, StateFailed, rec.State)
 	require.Contains(t, rec.Error, "no model fixtures")
+	require.NoDirExists(t, filepath.Join(f.restores, kid))
 }

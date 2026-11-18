@@ -65,7 +65,9 @@ func printSentinelUsage(w io.Writer) {
 	fmt.Fprintln(w, "nothing from the outbox that this key did not sign. With --tee, every")
 	fmt.Fprintln(w, "record also carries the primary TEE's report over its content, and a")
 	fmt.Fprintln(w, "policy that pins the primary (--primary-kind, --primary-measurement)")
-	fmt.Fprintln(w, "accepts nothing without one (ADR 0017).")
+	fmt.Fprintln(w, "accepts nothing without one (ADR 0017). A standby's own sentinel is")
+	fmt.Fprintln(w, "named in the policy the same way, before the failure, with")
+	fmt.Fprintln(w, "--standby-sentinel-pub and --standby-sentinel-measurement (ADR 0041).")
 }
 
 func sentinelKeygenCmd(args []string, stdout, stderr io.Writer) int {

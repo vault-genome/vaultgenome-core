@@ -150,5 +150,34 @@ func TestSignaturePolicy_TheProfileDecidesTheSuite(t *testing.T) {
 		require.Equal(t, crypto.SuiteECDSAP384SHA384, p.Alg)
 		_, err = loadFailoverPolicy(edCfg, policy(sentinelEc.Public()), pol)
 		require.Error(t, err, "the operator key itself must be accepted")
+
+		// A policy that names the standby's own sentinel (ADR 0041) is held
+		// to the profile for that key too: the chain the standby continues
+		// is checked under it.
+		named := func(standby crypto.SuitePublicKey) string {
+			p, err := failover.Sign(failover.Policy{
+				Serial: 8, IssuedAt: now.Add(-time.Minute), NotAfter: now.Add(time.Hour),
+				SentinelPublicKey: sentinelEc.Public().Bytes, SentinelAlg: crypto.RecordAlg(sentinelEc.Public().Suite),
+				Standby: failover.Standby{Kind: "gcp-sev-snp", Endpoint: "https://standby.example:8443", Measurements: []string{strings.Repeat("ab", 48)},
+					Sentinel: &failover.StandbySentinel{PublicKey: standby.Bytes, Alg: crypto.RecordAlg(standby.Suite), Measurements: []string{strings.Repeat("ab", 48)}}},
+				Triggers: failover.Triggers{CompromiseReport: true}, SigningKeyID: "operator-test",
+			}, ecKey)
+			require.NoError(t, err)
+			raw, err := json.Marshal(p)
+			require.NoError(t, err)
+			return writeFile(t, dir, "policy-standby-"+string(standby.Suite)+".json", raw)
+		}
+		standbyEd, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+		require.NoError(t, err)
+		_, err = loadFailoverPolicy(ecCfg, named(standbyEd.Public()), pol)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "standby sentinel key "+sentinel.KeyID(standbyEd.Public())+" is a ed25519 key, which the cnsa profile does not accept")
+		standbyEc, err := crypto.GenerateSigningKey(crypto.SuiteECDSAP384SHA384, nil)
+		require.NoError(t, err)
+		p, err = loadFailoverPolicy(ecCfg, named(standbyEc.Public()), pol)
+		require.NoError(t, err)
+		_, id, ok := p.StandbySentinel()
+		require.True(t, ok)
+		require.Equal(t, sentinel.KeyID(standbyEc.Public()), id)
 	})
 }

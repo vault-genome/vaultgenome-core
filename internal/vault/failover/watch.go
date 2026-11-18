@@ -80,6 +80,9 @@ type Watcher struct {
 	aliveAt   time.Time
 	stoppedAt time.Time // when the executor first saw the sentinel say stopped
 	seen      map[string]bool
+	// subject is the machine watched, as the states and notes name it:
+	// the primary — or the standby, once it is the one that goes on.
+	subject string
 
 	// Ignored lists the records that were present but did not count.
 	Ignored []string
@@ -91,7 +94,7 @@ type Watcher struct {
 // reports when p pins the primary; it is ignored otherwise.
 func NewWatcher(p Policy, outbox string, now func() time.Time, primary tee.Verifier) *Watcher {
 	pub, _ := p.Sentinel()
-	return &Watcher{policy: p, outbox: outbox, pub: pub, primary: primary, now: now, seen: map[string]bool{}}
+	return &Watcher{policy: p, outbox: outbox, pub: pub, primary: primary, now: now, seen: map[string]bool{}, subject: "primary"}
 }
 
 // attestedRecord is a record that can show its TEE report.
@@ -110,7 +113,7 @@ func (w *Watcher) attested(rec attestedRecord) (tee.Measurement, error) {
 		return nil, err
 	}
 	if !w.policy.PrimaryAllows(m) {
-		return nil, fmt.Errorf("attested by %s measurement %x, which the policy does not pin as the primary", w.policy.Primary.Kind, m)
+		return nil, fmt.Errorf("attested by %s measurement %x, which the policy does not pin as the %s", w.policy.Primary.Kind, m, w.subject)
 	}
 	return m, nil
 }
@@ -192,7 +195,7 @@ func (w *Watcher) observe() *Trigger {
 		w.ignore(sentinel.HeartbeatFile, err)
 	}
 	if w.hb == nil {
-		w.State = "waiting for the primary's first heartbeat"
+		w.State = fmt.Sprintf("waiting for the %s's first heartbeat", w.subject)
 		return nil
 	}
 	trigger := func(kind TriggerKind) *Trigger {
@@ -206,13 +209,13 @@ func (w *Watcher) observe() *Trigger {
 	case sentinel.StatusStopped:
 		grace := time.Duration(w.policy.Triggers.StoppedGraceSeconds) * time.Second
 		if grace <= 0 {
-			w.State = "the primary's sentinel was stopped by its operator: standing down"
+			w.State = fmt.Sprintf("the %s's sentinel was stopped by its operator: standing down", w.subject)
 			return nil
 		}
 		if now.Sub(w.stoppedAt) >= grace {
 			return trigger(TriggerStoppedOverdue)
 		}
-		w.State = fmt.Sprintf("the primary's sentinel was stopped by its operator: standing down for %s more", (grace - now.Sub(w.stoppedAt)).Round(time.Second))
+		w.State = fmt.Sprintf("the %s's sentinel was stopped by its operator: standing down for %s more", w.subject, (grace - now.Sub(w.stoppedAt)).Round(time.Second))
 		return nil
 	}
 	if t := w.policy.Triggers.HeartbeatTimeoutSeconds; t > 0 && now.Sub(w.aliveAt) >= time.Duration(t)*time.Second {

@@ -438,6 +438,44 @@ func TestValidate_GenomeGate(t *testing.T) {
 	}
 }
 
+// genome.after_restore (ADR 0041): one command after a restore whose gate
+// passed, and refused without a required gate.
+func TestValidate_GenomeAfterRestore(t *testing.T) {
+	gate := &GateConfig{Command: []string{"door", "{genome}"}, Required: true}
+	c := minimalValidConfig()
+	c.Genome = GenomeConfig{BundleDir: "/var/lib/vg/bundles", RestoreDir: "/var/lib/vg/restored", Gate: gate, AfterRestore: &AfterRestoreConfig{
+		Command: []string{"/usr/local/bin/go-on", "{genome}", "{bundle}", "{generation}"}, Env: []string{"UNIT=acp-workload"}, TimeoutSeconds: 90,
+	}}
+	requireValid(t, c)
+	ac := afterRestoreConfig(c.Genome.AfterRestore)
+	if ac.Timeout != 90*time.Second || len(ac.Command) != 4 || len(ac.Env) != 1 {
+		t.Fatalf("after-restore config not carried over: %+v", ac)
+	}
+	if afterRestoreConfig(nil) != nil {
+		t.Fatal("no section, no command")
+	}
+
+	for name, tc := range map[string]struct {
+		gate *GateConfig
+		a    AfterRestoreConfig
+		want string
+	}{
+		"no command":        {gate, AfterRestoreConfig{}, "genome.after_restore.command required"},
+		"blank":             {gate, AfterRestoreConfig{Command: []string{" "}}, "genome.after_restore.command required"},
+		"negative timeout":  {gate, AfterRestoreConfig{Command: []string{"x"}, TimeoutSeconds: -1}, "must not be negative"},
+		"bad env":           {gate, AfterRestoreConfig{Command: []string{"x"}, Env: []string{"NOEQUALS"}}, "not KEY=VALUE"},
+		"no gate":           {nil, AfterRestoreConfig{Command: []string{"x"}}, "needs genome.gate with required set"},
+		"gate not required": {&GateConfig{Command: []string{"door"}}, AfterRestoreConfig{Command: []string{"x"}}, "needs genome.gate with required set"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := minimalValidConfig()
+			a := tc.a
+			c.Genome = GenomeConfig{BundleDir: "/a", RestoreDir: "/b", Gate: tc.gate, AfterRestore: &a}
+			requireInvalid(t, c, tc.want)
+		})
+	}
+}
+
 // tee.provider "auto" (ADR 0025): accepted for the destination's own
 // provider and resolved from configfs-tsm at load.
 func TestTEEConfig_Auto(t *testing.T) {

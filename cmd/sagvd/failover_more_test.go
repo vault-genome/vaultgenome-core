@@ -172,5 +172,6 @@ func TestPrimaryVerifier_Refusals(t *testing.T) {
 	f.cfg.CrossCloud.VerifierRegistryPath = filepath.Join(f.dir, "absent.json")
 	_, err = primaryVerifier(f.cfg, pin(string(tee.ProviderSimulated), meas))
 	require.ErrorContains(t, err, "verifier_registry_path")
-	require.ErrorContains(t, preflightFailover(f.cfg, shared_time.NewSystemClock(), pin(string(tee.ProviderSimulated), meas)), "verifier_registry_path")
+	_, err = preflightFailover(f.cfg, shared_time.NewSystemClock(), pin(string(tee.ProviderSimulated), meas))
+	require.ErrorContains(t, err, "verifier_registry_path")
 }

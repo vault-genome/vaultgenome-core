@@ -241,7 +241,16 @@ func TestHTTPTransport_FetchRestoreReceipt(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(good)
 		case "busy":
 			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":{"category":"operational","code":"restore_in_progress","message":"restore not complete"},"restore":{"state":"gating"}}`))
+		case "failed":
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"error":{"category":"integrity","code":"restore_failed","message":"restore failed: restorer: the gate backend could not run: exit status 1"},"restore":{"state":"failed"}}`))
+		case "busy-as-earlier-releases-said-it":
+			w.WriteHeader(http.StatusConflict)
 			_, _ = w.Write([]byte(`{"error":"restore not complete"}`))
+		case "failed-as-earlier-releases-said-it":
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"error":"restore failed: restorer: the gate backend could not run: exit status 1"}`))
 		default:
 			_, _ = w.Write([]byte(`{"receipt":""}`))
 		}
@@ -256,6 +265,23 @@ func TestHTTPTransport_FetchRestoreReceipt(t *testing.T) {
 
 	_, err = tr.FetchRestoreReceipt(context.Background(), srv.URL, "busy")
 	require.True(t, shared_errors.Is(err, shared_errors.CategoryOperational), "a restore in progress is retried: %v", err)
+	require.Equal(t, receipt.CodeRestoreInProgress, shared_errors.CodeOf(err))
+
+	// A restore that failed is final, and is reported as what it is: the
+	// destination's own code and reason, not a guess from the status.
+	_, err = tr.FetchRestoreReceipt(context.Background(), srv.URL, "failed")
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity), "a failed restore is not retried: %v", err)
+	require.Equal(t, receipt.CodeRestoreFailed, shared_errors.CodeOf(err))
+	require.Contains(t, err.Error(), "restore failed: restorer: the gate backend could not run")
+	require.NotContains(t, err.Error(), shared_errors.CodeSignatureInvalid)
+
+	// A destination of an earlier release answers without the envelope:
+	// it is classified by its status alone, as before.
+	_, err = tr.FetchRestoreReceipt(context.Background(), srv.URL, "busy-as-earlier-releases-said-it")
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryOperational), "%v", err)
+	_, err = tr.FetchRestoreReceipt(context.Background(), srv.URL, "failed-as-earlier-releases-said-it")
+	require.True(t, shared_errors.Is(err, shared_errors.CategoryIntegrity), "%v", err)
+	require.Equal(t, shared_errors.CodeSignatureInvalid, shared_errors.CodeOf(err))
 
 	_, err = tr.FetchRestoreReceipt(context.Background(), srv.URL, "empty")
 	require.True(t, shared_errors.Is(err, shared_errors.CategoryStructural))

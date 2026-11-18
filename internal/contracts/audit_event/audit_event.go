@@ -71,12 +71,17 @@ const (
 	//            through the console — joined, was removed, set or lifted
 	//            the emergency stop — on the record before it takes
 	//            effect. Struct shape unchanged.
+	//   v9 → v10: ADR 0041 added KindChainContinued: the release
+	//            authority's record that the standby of a failover went
+	//            on by itself — the generation after the one released,
+	//            sealed under the sentinel key and the TEE the operator's
+	//            policy names for the standby. Struct shape unchanged.
 	// See docs/doctrine/bootstrap-contracts.md §5 (contract-frozen
 	// discipline), the Stage F.2 / Stage G doctrine notes in
 	// docs/internal/status-journal.md, ADR 0006 (cross-cloud KMS-mediated
 	// restore) and ADR 0010 (operator stop and recorded refusals).
-	SchemaVersionMax     uint16 = 9
-	SchemaVersionCurrent uint16 = 9
+	SchemaVersionMax     uint16 = 10
+	SchemaVersionCurrent uint16 = 10
 
 	// HashSize is the length in bytes of PrevHash and Hash (SHA-256).
 	HashSize = 32
@@ -246,6 +251,16 @@ const (
 	// 0039): who, what and the list or key it concerned, written before
 	// the change takes effect.
 	KindConsoleAction Kind = "CONSOLE_ACTION"
+
+	// KindChainContinued (v10, ADR 0041) is what the release authority saw
+	// after a failover it carried out: the standby's own sentinel sealed
+	// the generation after the one released. The record verified under the
+	// sentinel key the operator's policy names for the standby, carried a
+	// report of the standby's TEE at a measurement the policy pins, named
+	// the released bundle as its parent, and its bundle and escrow envelope
+	// checked out. It names the failover's decision ID. It releases
+	// nothing and decides nothing: no key moves under it.
+	KindChainContinued Kind = "CHAIN_CONTINUED"
 )
 
 // AuditEvent is one record in the hash-chained audit log.
