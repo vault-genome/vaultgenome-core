@@ -823,6 +823,11 @@ func TestLiveFailover_AStandbyWhoseGateCannotRunStartsNothing(t *testing.T) {
 	if n := len(r.x.destLog("genome restore failed")); n != 1 {
 		t.Fatalf("the destination logged %d failed restores, want 1\n%s", n, r.x.dest.log.String())
 	}
+	// And nothing is left to start from: the tree the restore had written
+	// before its gate was asked is gone, and no receipt was signed.
+	if left, err := os.ReadDir(r.restored); err != nil || len(left) != 0 {
+		t.Fatalf("the standby's restore directory holds %d entries after a failed restore (%v)", len(left), err)
+	}
 	// On record: the failover decided and the key released; no restore
 	// confirmed, no chain continued.
 	if ok, events, _ := r.x.auditVerify(t); !ok || events != 4 {

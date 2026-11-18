@@ -101,6 +101,20 @@ func TestAfterRestore_NothingStartsWithoutAGateThatPassed(t *testing.T) {
 	require.Nil(t, rec.AfterRestore)
 	require.Empty(t, ran(t, notes))
 
+	// A gate that cannot be run: nothing starts, and nothing is left to
+	// start from.
+	f1 := newFixture(t)
+	after1, notes1 := noting(t)
+	f1.r = f1.goingOn(&GateConfig{Command: []string{"sh", "-c", "exit 7"}, Required: true}, after1)
+	blob1, dek1, kid1 := f1.seal(modelGenome(t))
+	require.NoError(t, os.WriteFile(filepath.Join(f1.bundles, "g.genome"), blob1, 0o644))
+	f1.release(kid1, dek1, "failover")
+	f1.r.work(context.Background())
+	require.Equal(t, StateFailed, f1.record(kid1).State)
+	require.Nil(t, f1.record(kid1).AfterRestore)
+	require.Empty(t, ran(t, notes1))
+	require.NoDirExists(t, filepath.Join(f1.restores, kid1))
+
 	// A bundle that does not open.
 	f2 := newFixture(t)
 	after2, notes2 := noting(t)

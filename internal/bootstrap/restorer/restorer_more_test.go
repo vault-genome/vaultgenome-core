@@ -190,9 +190,10 @@ var errNoQuote = errors.New("attestation device unavailable")
 func (q quoteFailingTEE) Quote(tee.Nonce) (tee.Evidence, error) { return nil, errNoQuote }
 func (q quoteFailingTEE) Measurement() tee.Measurement          { return q.inner.Measurement() }
 
-// A restore the TEE cannot sign for is a failed restore: the tree is
-// there, but without a receipt the source will never take it as done,
-// and the key is kept so a later release can try again.
+// A restore the TEE cannot sign for is a failed restore: without a
+// receipt the source will never take it as done, so the tree is not left
+// behind either — a tree stands only beside its receipt — and the key is
+// kept so a later release can try again.
 func TestSign_FailsWhenTheTEECannotQuote(t *testing.T) {
 	f := newFixture(t)
 	r, err := New(Config{BundleDir: f.bundles, RestoreDir: f.restores, Keys: f.keys, Erase: f.keys.EraseSealing,
@@ -208,10 +209,21 @@ func TestSign_FailsWhenTheTEECannotQuote(t *testing.T) {
 	require.Equal(t, StateFailed, rec.State)
 	require.Contains(t, rec.Error, "receipt: quote")
 	require.Contains(t, rec.Error, errNoQuote.Error())
-	require.Equal(t, adapter, readTree(t, filepath.Join(f.restores, kid)), "the tree itself was restored")
+	require.NoDirExists(t, filepath.Join(f.restores, kid), "no tree without a receipt")
 	_, err = os.Stat(filepath.Join(f.restores, kid+receiptSuffix))
 	require.True(t, os.IsNotExist(err), "no receipt")
-	require.True(t, f.keys.EraseSealing(ids.KeyID(kid)), "the key was not erased")
+
+	// The key was kept: released again to a destination whose TEE can
+	// sign, the same bundle is restored and signed for.
+	again, err := New(Config{BundleDir: f.bundles, RestoreDir: f.restores, Keys: f.keys, Erase: f.keys.EraseSealing,
+		TEE: f.tee, Kind: tee.ProviderSimulated, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	require.NoError(t, err)
+	f.r = again
+	f.deliver(kid, "retry")
+	f.r.work(context.Background())
+	require.Equal(t, StateRestored, f.record(kid).State)
+	require.Equal(t, adapter, readTree(t, filepath.Join(f.restores, kid)))
+	require.FileExists(t, filepath.Join(f.restores, kid+receiptSuffix))
 }
 
 // A receipt that cannot be kept on disk is not served either: a restore

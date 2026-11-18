@@ -94,7 +94,8 @@ there, typically three services:
 
 The section needs `gate.required`: nothing starts on a model that was not
 proven on this machine, and a restore that failed, or whose gate said
-FAIL, runs nothing. The command moves no key. A daemon that restarts does
+FAIL, runs nothing. A restore that failed also leaves no tree under
+`restore_dir`: there is nothing to start from by hand either. The command moves no key. A daemon that restarts does
 not run it again. What it did is on `GET /v1/genome/restores`
 (`after_restore`: exit status, seconds, `left_running`). Start the
 services through your service manager, or send their output elsewhere: the

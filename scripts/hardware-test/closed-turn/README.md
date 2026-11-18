@@ -98,7 +98,8 @@ machines, the firewall rule and the bucket are deleted on every exit.
 one byte of the base model. The genome's manifest pins the base, so the
 gate's backend refuses to load it: the gate cannot be passed. The restore
 **fails**, `go-on.sh` is not run, and nothing starts on B — no model
-directory, no outbox, no service, no listener. B says so when R asks for
+directory, no outbox, no service, no listener — and no file of the genome
+is left under its restore directory. B says so when R asks for
 the receipt, and R leaves at once with 1: a failover decided and not
 completed, `integrity[restore_failed]` and B's reason in its report, and
 no `CROSS_CLOUD_RESTORE_COMPLETED` and no `CHAIN_CONTINUED` on its log.
@@ -136,7 +137,7 @@ nothing. It needs Go and a Python with the worker's runtime
 | `standby/restore-records-after.json`, `reopened.sha256`, `answer-reopened.json` | generation 2 opened again: its files, and the question recomputed from it |
 | `standby/continued-training.json`, `continued.sha256`, `replay.json`, `whole.sha256`, `compare.txt` | what training made on the standby, against the whole recipe |
 | `standby/services.txt`, `services.log` | the three services at the end, and their journal |
-| `standby/nothing-started.txt` | negative run: the restore's state and error, and what was looked for and not found |
+| `standby/nothing-started.txt` | negative run: the restore's state and error, what was looked for and not found, and what is left under the restore directory |
 | `*/verdict.txt`, `*/steps.txt`, `*/system.txt`, `metadata.txt` | one line; the script's own account; the machines |
 | `sha256sums.txt` | every file of the record |
 
@@ -161,9 +162,6 @@ token IDs only.
   sealed references (`gate_failed`) takes the same branch in
   `acp-bootstrap` — the command is not run — and is covered by its unit
   tests, not here.
-- **What a failed restore leaves.** The tree a restore writes before its
-  gate is asked stays on the standby's disk when the gate cannot pass; the
-  negative record says so as a fact.
 - **Another arithmetic.** A and B are one machine type and report one CPU
   model; the gate is required to be EXACT. See the training-continuity
   kit's [README](../training-continuity/README.md) for what has been

@@ -13,6 +13,11 @@
 // receipt that says exactly what was restored. The source verifies that
 // receipt against the release before it records the restore as done.
 //
+// A tree stands under RestoreDir only beside its receipt. A restore that
+// fails — the bundle does not open, a required gate cannot be run, the
+// receipt cannot be signed or kept — leaves no tree. One that is signed
+// for stays, whatever its gate said: the receipt says what it is.
+//
 // The Restorer acts only on keys the source released. It never asks for
 // a key, never moves a genome anywhere, and holds no policy of its own.
 package restorer
@@ -145,7 +150,9 @@ const (
 	// StateGateFailed: restored, but the model's outputs miss their
 	// references on this hardware. The receipt says so.
 	StateGateFailed State = "gate_failed"
-	StateFailed     State = "failed"
+	// StateFailed: not restored, and not signed for. Nothing of it is left
+	// under RestoreDir.
+	StateFailed State = "failed"
 )
 
 // Record is the public account of one released key's restore.
@@ -410,6 +417,7 @@ func (r *Restorer) restoreOne(kid, path string) {
 	target := filepath.Join(r.cfg.RestoreDir, kid)
 	res, bundleSHA, h, err := r.open(kid, path, target)
 	finished := r.cfg.Clock.Now().UTC()
+	written := err == nil // the tree is in place; the restore can still fail
 	var verdict *receipt.Gate
 	if err == nil && r.cfg.Gate != nil {
 		verdict, err = r.runGate(kid, target)
@@ -418,6 +426,15 @@ func (r *Restorer) restoreOne(kid, path string) {
 		err = r.sign(kid, h, res, bundleSHA, started, finished, verdict)
 	}
 	if err != nil {
+		if written {
+			// A restore that fails after its tree was written — a required
+			// gate that could not be run, a receipt that could not be signed
+			// or kept — is not signed for. It leaves nothing behind, like one
+			// whose bundle did not open: no tree without a receipt.
+			if rmErr := os.RemoveAll(target); rmErr != nil {
+				err = errors.Join(err, fmt.Errorf("restorer: the tree of the failed restore could not be removed: %w", rmErr))
+			}
+		}
 		r.update(kid, func(rec *Record) {
 			rec.State, rec.FinishedAt, rec.Error = StateFailed, &finished, err.Error()
 		})

@@ -182,18 +182,20 @@ if [ "$MODE" = negative ]; then
   PROCS=$(pgrep -fc 'sentinel watch|vg_genome (answer|finetune)' || true)
   [ "$PROCS" = 0 ] || STARTED="$STARTED processes:$PROCS"
   KID=$(restore_field "$OUT/restore-record.json" 0 'r["key_id"]')
+  # A restore that failed leaves no tree: nothing to start from, by hand either.
+  LEFT=$(find /root/restored -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
+  [ "$LEFT" = 0 ] || STARTED="$STARTED restored-files:$LEFT"
   {
     echo "restore state: $(restore_field "$OUT/restore-record.json" 0 'r["state"]')"
     echo "restore error: $(restore_field "$OUT/restore-record.json" 0 'r.get("error")')"
     echo "after_restore on the record: $AFTER"
     echo "the model's directory, go-on's directory, this machine's outbox, the units vg-sentinel, vg-answer and vg-train, a listener on $ANSWER_LISTEN, processes of the sentinel, the answers or the training:${STARTED:- none}"
-    # A fact, not a verdict: what the restore wrote before the gate was asked stays on the disk.
-    echo "the tree the restore wrote before its gate: $([ -d "/root/restored/$KID" ] && echo "on disk, $(find "/root/restored/$KID" -type f | wc -l | tr -d ' ') files" || echo "not on disk")"
+    echo "under the restore directory, of key $KID or anything else: $LEFT entries"
   } > "$OUT/nothing-started.txt" 2>&1
   cat "$OUT/nothing-started.txt" >> "$OUT/steps.txt"
   case "$STATE" in failed|gate_failed) ;; *) echo "the restore's state is '${STATE:-none}': a gate that cannot pass must fail it"; false ;; esac
   [ -z "$STARTED" ] || { echo "started on a machine whose gate did not pass:$STARTED"; false; }
-  echo "NOTHING STARTED: the restore is $STATE, and no training, sentinel or answers were started; the record says why" > "$OUT/verdict.txt"
+  echo "NOTHING STARTED: the restore is $STATE, no training, sentinel or answers were started, and no file of the genome is left; the record says why" > "$OUT/verdict.txt"
   cat "$OUT/verdict.txt" >> "$OUT/steps.txt"
   trap - ERR
   finish DONE
