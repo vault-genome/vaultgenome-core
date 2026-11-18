@@ -13,6 +13,13 @@ on:
 permissions:
   contents: read
 
+# bash by name, so that every step runs under `-eo pipefail`: a test whose output is piped into
+# grep or tail fails its step when the test fails. Without it GitHub runs `bash -e`, and the
+# step's status is that of the last command of the pipe.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   corpus:
     runs-on: ubuntu-24.04

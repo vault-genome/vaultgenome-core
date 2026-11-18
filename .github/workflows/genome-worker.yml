@@ -117,5 +117,6 @@ jobs:
             --index-url https://download.pytorch.org/whl/cpu \
             -r workers/genome/requirements-torch-cpu.lock
           python -m pip install --no-deps dist/vaultgenome-*.whl
-          vg-genome --help | head -3
+          vg-genome --help > "$RUNNER_TEMP/vg-genome-help.txt"
+          head -3 "$RUNNER_TEMP/vg-genome-help.txt"
           python -c 'import vaultgenome, vg_genome; print("vaultgenome", vaultgenome.__version__, "with", vg_genome.__name__)'
