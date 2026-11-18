@@ -99,10 +99,16 @@ one byte of the base model. The genome's manifest pins the base, so the
 gate's backend refuses to load it: the gate cannot be passed. The restore
 **fails**, `go-on.sh` is not run, and nothing starts on B — no model
 directory, no outbox, no service, no listener — and no file of the genome
-is left under its restore directory. B says so when R asks for
-the receipt, and R leaves at once with 1: a failover decided and not
+is left under its restore directory. B says so when R asks for the
+receipt, and R leaves at once with 1: a failover decided and not
 completed, `integrity[restore_failed]` and B's reason in its report, and
 no `CROSS_CLOUD_RESTORE_COMPLETED` and no `CHAIN_CONTINUED` on its log.
+
+Before B's daemon starts, the kit also puts under its restore directory
+what a restore leaves when the daemon is stopped between writing the tree
+and signing for it: a tree named as a genome key, with no receipt beside
+it. It must be gone once the daemon is up.
+
 The record goes to `evidence/negative/<stamp>/`.
 
 ## `dry-run.sh`: the standby's layout without a cloud
@@ -138,6 +144,7 @@ nothing. It needs Go and a Python with the worker's runtime
 | `standby/continued-training.json`, `continued.sha256`, `replay.json`, `whole.sha256`, `compare.txt` | what training made on the standby, against the whole recipe |
 | `standby/services.txt`, `services.log` | the three services at the end, and their journal |
 | `standby/nothing-started.txt` | negative run: the restore's state and error, what was looked for and not found, and what is left under the restore directory |
+| `standby/cut-short.txt` | negative run: the tree without a receipt the kit put under the restore directory, before the daemon started and after |
 | `*/verdict.txt`, `*/steps.txt`, `*/system.txt`, `metadata.txt` | one line; the script's own account; the machines |
 | `sha256sums.txt` | every file of the record |
 
@@ -162,6 +169,9 @@ token IDs only.
   sealed references (`gate_failed`) takes the same branch in
   `acp-bootstrap` — the command is not run — and is covered by its unit
   tests, not here.
+- **A restore cut short for real.** The kit does not stop B's daemon in
+  the middle of a restore. It puts under the restore directory the tree
+  such a stop leaves, and shows the daemon removing it at its start.
 - **Another arithmetic.** A and B are one machine type and report one CPU
   model; the gate is required to be EXACT. See the training-continuity
   kit's [README](../training-continuity/README.md) for what has been

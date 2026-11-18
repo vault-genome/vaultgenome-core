@@ -100,12 +100,14 @@ cores of their own.
 
 The section needs `gate.required`: nothing starts on a model that was not
 proven on this machine, and a restore that failed, or whose gate said
-FAIL, runs nothing. A restore that failed also leaves no tree under
-`restore_dir`: there is nothing to start from by hand either. The command moves no key. A daemon that restarts does
-not run it again. What it did is on `GET /v1/genome/restores`
-(`after_restore`: exit status, seconds, `left_running`). Start the
-services through your service manager, or send their output elsewhere: the
-command is not waited for past its own end.
+FAIL, runs nothing. A restore that failed also leaves nothing of its key
+under `restore_dir`, and the daemon removes at its start a tree whose
+restore it did not live to end: there is nothing to start from by hand
+either. The command moves no key. A daemon that restarts does not run it
+again. What it did is on `GET /v1/genome/restores` (`after_restore`: exit
+status, seconds, `left_running`). Start the services through your service
+manager, or send their output elsewhere: the command is not waited for
+past its own end.
 
 ## 3. The primary's sentinel
 

@@ -125,6 +125,9 @@ else
     && ok "nothing started on the standby: no model directory, no outbox, no units, no listener, no process" || bad "something started on the standby"
   grep -q "^under the restore directory, of key genome-[0-9a-z-]* or anything else: 0 entries$" "$S/nothing-started.txt" 2>/dev/null \
     && ok "the failed restore left no file of the genome on the standby" || bad "the failed restore left files on the standby"
+  grep -q "^before the daemon started: /root/restored/genome-[0-9a-f]*-g[0-9]*-[0-9a-f]*, 1 file, no receipt beside it$" "$S/cut-short.txt" 2>/dev/null \
+    && grep -q "^after the daemon started: gone$" "$S/cut-short.txt" \
+    && ok "what a restore cut short leaves — a tree with no receipt beside it — was gone once the standby's daemon had started" || bad "the standby's daemon started beside a tree nobody signed for"
 fi
 holds "$R/audit-verify.json" 'd.get("ok") is True' && ok "the authority's audit log verifies offline" || bad "the authority's audit log does not verify"
 [ -s "$S/verdict.txt" ] && ok "$(cat "$S/verdict.txt")" || bad "the standby wrote no verdict"

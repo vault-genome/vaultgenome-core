@@ -97,6 +97,7 @@ type failoverRig struct {
 	state     string
 	outbox    string
 	restored  string
+	cutShort  string // the tree of a restore cut short, planted under restored before the standby starts
 	canary    string
 	srcCfg    string
 	escrowPEM string
@@ -112,13 +113,15 @@ type failoverRig struct {
 
 // rigOptions shape a rig: the primary attested by a (simulated) TEE and
 // pinned in the policy, a grace on `stopped`, a standby that goes on by
-// itself after a restore, its sentinel named in the policy, and a standby
-// whose gate cannot be run.
+// itself after a restore, its sentinel named in the policy, a standby
+// whose gate cannot be run, and a standby that finds, when it starts, the
+// tree of a restore that was cut short.
 type rigOptions struct {
 	attested      bool
 	stoppedGrace  string
 	goesOn        bool
 	doorCannotRun bool
+	cutShort      bool
 }
 
 // newFailoverRig provisions the three machines: the primary's state, key and
@@ -166,6 +169,18 @@ func newFailoverRig(t *testing.T, timeout string, opts ...rigOptions) *failoverR
 	var standbySentinel []string
 	if o.goesOn {
 		standbySentinel = r.standbyGoesOn(t, genomeCfg)
+	}
+	if o.cutShort {
+		// What a restore leaves when the daemon is stopped between writing
+		// the tree and signing for it: a tree named as a genome key, and no
+		// receipt beside it.
+		r.cutShort = filepath.Join(r.restored, "genome-0123456789ab-g7-ba9876543210")
+		if err := os.MkdirAll(filepath.Join(r.cutShort, "adapter"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(r.cutShort, "adapter", "adapter_model.safetensors"), []byte("lora weights nobody signed for"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	destCfg := x.destinationConfig(t, "standby", map[string]any{"genome": genomeCfg})
 	id := identityOf(t, bins.bootstrap, destCfg)
@@ -781,7 +796,15 @@ func TestLiveFailover_TheStandbyGoesOn(t *testing.T) {
 // out its confirmation: it leaves with a failover decided and not
 // completed, and its report names the failure as what it is.
 func TestLiveFailover_AStandbyWhoseGateCannotRunStartsNothing(t *testing.T) {
-	r := newFailoverRig(t, "3s", rigOptions{goesOn: true, doorCannotRun: true})
+	r := newFailoverRig(t, "3s", rigOptions{goesOn: true, doorCannotRun: true, cutShort: true})
+	// The standby found the tree of a restore that had been cut short, with
+	// no receipt beside it. It is gone once the daemon is up.
+	if _, err := os.Stat(r.cutShort); !os.IsNotExist(err) {
+		t.Fatalf("the standby started beside a tree nobody signed for (%v)\n%s", err, r.x.dest.log.String())
+	}
+	if n := len(r.x.destLog("genome tree without a receipt removed")); n != 1 {
+		t.Fatalf("the destination logged %d trees removed at its start, want 1\n%s", n, r.x.dest.log.String())
+	}
 	primary := r.sentinel(t)
 	waitFor(t, 20*time.Second, "generation 0", func() bool { return r.records(t) >= 1 })
 	report := filepath.Join(t.TempDir(), "report.json")

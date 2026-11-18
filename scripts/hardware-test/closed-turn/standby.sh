@@ -112,8 +112,22 @@ python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["geno
 acp-bootstrap seal-keys -config /root/dest.json > "$OUT/dest-seal-keys.json" 2> "$OUT/dest-seal-keys.err"
 echo "acp-bootstrap seal-keys exit=$? sealed=$(python3 -c 'import json,sys;print(",".join(e["name"] for e in json.load(open(sys.argv[1]))["sealed"]))' "$OUT/dest-seal-keys.json" 2>/dev/null)" >> "$OUT/steps.txt"
 acp-bootstrap identity -config /root/dest.json > "$OUT/destination-identity.json" 2> "$OUT/destination-identity.err"
+CUT=/root/restored/genome-0123456789ab-g7-ba9876543210
+if [ "$MODE" = negative ]; then
+  # What a restore leaves when the daemon is stopped between writing the
+  # tree and signing for it: a tree named as a genome key, with no receipt
+  # beside it. The kit puts one there; the daemon is to remove it when it
+  # starts.
+  mkdir -p "$CUT/adapter"
+  echo "nobody signed for this" > "$CUT/adapter/adapter_model.safetensors"
+  echo "before the daemon started: $CUT, $(find "$CUT" -type f | wc -l | tr -d ' ') file, no receipt beside it" > "$OUT/cut-short.txt"
+fi
 acp-bootstrap -config /root/dest.json > /root/acp-bootstrap.log 2>&1 &
 n=0; until curl -sf http://127.0.0.1:8444/readyz >/dev/null || [ $n -ge 30 ]; do sleep 1; n=$((n+1)); done
+if [ "$MODE" = negative ]; then
+  echo "after the daemon started: $([ -e "$CUT" ] && echo "still there" || echo gone)" >> "$OUT/cut-short.txt"
+  cat "$OUT/cut-short.txt" >> "$OUT/steps.txt"
+fi
 MEAS=$(json "$OUT/destination-identity.json" 'd["measurement_hex"]')
 echo "standby measurement=$MEAS endpoint=https://$MY_IP:8443" >> "$OUT/steps.txt"
 python3 -c 'import json,sys; json.dump({"endpoint": "https://%s:8443" % sys.argv[1], "measurement_hex": sys.argv[2]}, open("/root/destination.json","w"))' "$MY_IP" "$MEAS"
@@ -195,6 +209,7 @@ if [ "$MODE" = negative ]; then
   cat "$OUT/nothing-started.txt" >> "$OUT/steps.txt"
   case "$STATE" in failed|gate_failed) ;; *) echo "the restore's state is '${STATE:-none}': a gate that cannot pass must fail it"; false ;; esac
   [ -z "$STARTED" ] || { echo "started on a machine whose gate did not pass:$STARTED"; false; }
+  grep -q "^after the daemon started: gone$" "$OUT/cut-short.txt" || { echo "the daemon started beside a tree nobody signed for"; false; }
   echo "NOTHING STARTED: the restore is $STATE, no training, sentinel or answers were started, and no file of the genome is left; the record says why" > "$OUT/verdict.txt"
   cat "$OUT/verdict.txt" >> "$OUT/steps.txt"
   trap - ERR

@@ -151,14 +151,20 @@ given release can still open.
   the parent's own content went out again as the next generation. It is
   now held to the parent's payload as well, and the first generation of
   the new outbox is the first state that differs from it.
-- **A restore that fails leaves no tree behind.** A bundle that did not
+- **A restore that fails leaves nothing behind.** A bundle that did not
   open left nothing under `restore_dir`, but a restore that failed after
   its files were written did: with a required gate whose backend could
   not be run, or a receipt the TEE could not sign, the decrypted genome
-  stayed on the destination's disk without a receipt. `acp-bootstrap` now
-  removes it: a tree stands under `restore_dir` only beside its signed
-  receipt. A restore that is signed for stays, whatever its gate said.
-  The key is kept as before, so a later release can try again.
+  stayed on the destination's disk without a receipt. So did the part of
+  a tree a restore had put in place before it stopped, and the tree of a
+  restore the daemon did not live to end. Once a restore has ended, a
+  tree now stands under `restore_dir` only beside its signed receipt: a
+  restore that fails leaves nothing of its key there — after a key is
+  released again, not the receipt of its earlier restore either — and at
+  its start `acp-bootstrap` removes a tree that has no receipt beside it,
+  one left by an earlier release included. A restore that is signed for
+  stays, whatever its gate said. The key is kept as before, so a later
+  release can try again.
 - **A restore that failed on the destination is reported as a failed
   restore, not as an invalid signature.** Asked for a receipt it does not
   have, `acp-bootstrap` answered with a bare message, and the source

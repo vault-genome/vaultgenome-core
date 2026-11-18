@@ -13,10 +13,14 @@
 // receipt that says exactly what was restored. The source verifies that
 // receipt against the release before it records the restore as done.
 //
-// A tree stands under RestoreDir only beside its receipt. A restore that
-// fails — the bundle does not open, a required gate cannot be run, the
-// receipt cannot be signed or kept — leaves no tree. One that is signed
-// for stays, whatever its gate said: the receipt says what it is.
+// Once a restore has ended, a tree stands under RestoreDir only beside its
+// receipt. A restore that fails — the bundle does not open, its files
+// cannot all be put in place, a required gate cannot be run, the receipt
+// cannot be signed or kept — leaves nothing of its key there: no tree, no
+// part of one, and no receipt of an earlier restore of that key. One that
+// is signed for stays, whatever its gate said: the receipt says what it
+// is. A restore the daemon did not live to end is not signed for either:
+// the tree it left is removed when the daemon starts.
 //
 // The Restorer acts only on keys the source released. It never asks for
 // a key, never moves a genome anywhere, and holds no policy of its own.
@@ -150,8 +154,8 @@ const (
 	// StateGateFailed: restored, but the model's outputs miss their
 	// references on this hardware. The receipt says so.
 	StateGateFailed State = "gate_failed"
-	// StateFailed: not restored, and not signed for. Nothing of it is left
-	// under RestoreDir.
+	// StateFailed: not restored, and not signed for. Nothing of its key is
+	// left under RestoreDir.
 	StateFailed State = "failed"
 )
 
@@ -205,8 +209,9 @@ type Restorer struct {
 	uploadMu sync.Mutex
 }
 
-// New validates cfg, creates the directories, and loads the receipts of
-// restores completed before a restart so they are still served.
+// New validates cfg, creates the directories, loads the receipts of
+// restores completed before a restart so they are still served, and
+// removes the trees no receipt stands beside.
 func New(cfg Config) (*Restorer, error) {
 	if cfg.BundleDir == "" || cfg.RestoreDir == "" {
 		return nil, errors.New("restorer: BundleDir and RestoreDir required")
@@ -255,7 +260,43 @@ func New(cfg Config) (*Restorer, error) {
 	if err := r.loadReceipts(); err != nil {
 		return nil, err
 	}
+	if err := r.sweep(); err != nil {
+		return nil, err
+	}
 	return r, nil
+}
+
+// sweep removes the trees no receipt stands beside: what a restore left
+// when the daemon was stopped between writing the tree and signing for
+// it. Only directories named as genome keys are the Restorer's to remove.
+// A daemon that cannot remove one does not start.
+func (r *Restorer) sweep() error {
+	names, err := os.ReadDir(r.cfg.RestoreDir)
+	if err != nil {
+		return fmt.Errorf("restorer: %w", err)
+	}
+	for _, n := range names {
+		kid := n.Name()
+		if _, signed := r.entries[kid]; signed || !n.IsDir() || !bundle.IsKeyID(kid) {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(r.cfg.RestoreDir, kid)); err != nil {
+			return fmt.Errorf("restorer: a tree without a receipt could not be removed: %w", err)
+		}
+		r.log.Warn("genome tree without a receipt removed", slog.String("key_id", kid), slog.String("why", "its restore did not end"))
+	}
+	return nil
+}
+
+// clear removes what restores of kid left under RestoreDir: the tree,
+// whole or in part, and the receipt.
+func (r *Restorer) clear(kid string) error {
+	errTree := os.RemoveAll(filepath.Join(r.cfg.RestoreDir, kid))
+	errReceipt := os.RemoveAll(filepath.Join(r.cfg.RestoreDir, kid+receiptSuffix))
+	if errTree != nil {
+		return errTree
+	}
+	return errReceipt
 }
 
 // loadReceipts reinstates completed restores from their receipts.
@@ -417,7 +458,6 @@ func (r *Restorer) restoreOne(kid, path string) {
 	target := filepath.Join(r.cfg.RestoreDir, kid)
 	res, bundleSHA, h, err := r.open(kid, path, target)
 	finished := r.cfg.Clock.Now().UTC()
-	written := err == nil // the tree is in place; the restore can still fail
 	var verdict *receipt.Gate
 	if err == nil && r.cfg.Gate != nil {
 		verdict, err = r.runGate(kid, target)
@@ -426,14 +466,12 @@ func (r *Restorer) restoreOne(kid, path string) {
 		err = r.sign(kid, h, res, bundleSHA, started, finished, verdict)
 	}
 	if err != nil {
-		if written {
-			// A restore that fails after its tree was written — a required
-			// gate that could not be run, a receipt that could not be signed
-			// or kept — is not signed for. It leaves nothing behind, like one
-			// whose bundle did not open: no tree without a receipt.
-			if rmErr := os.RemoveAll(target); rmErr != nil {
-				err = errors.Join(err, fmt.Errorf("restorer: the tree of the failed restore could not be removed: %w", rmErr))
-			}
+		// A restore that fails is not signed for, and nothing of its key
+		// stays under RestoreDir: not the tree — whole, or the part a move
+		// that failed midway left — and not the receipt of an earlier
+		// restore of this key, which would speak for a tree that is gone.
+		if rmErr := r.clear(kid); rmErr != nil {
+			err = fmt.Errorf("%w; restorer: what the failed restore left could not be removed: %w", err, rmErr)
 		}
 		r.update(kid, func(rec *Record) {
 			rec.State, rec.FinishedAt, rec.Error = StateFailed, &finished, err.Error()

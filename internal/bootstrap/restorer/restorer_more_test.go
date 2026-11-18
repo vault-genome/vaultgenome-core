@@ -56,6 +56,50 @@ func TestNew_RefusesDirectoriesItCannotUse(t *testing.T) {
 	}
 }
 
+// A daemon stopped between writing a tree and signing for it leaves the
+// tree without a receipt. The next start removes it. A tree that was
+// signed for stays, and so does what is not named as a genome key.
+func TestNew_RemovesTheTreeNoReceiptStandsBeside(t *testing.T) {
+	f := newFixture(t)
+	blob, dek, kid := f.seal(adapter)
+	require.NoError(t, os.WriteFile(filepath.Join(f.bundles, "g.genome"), blob, 0o644))
+	f.release(kid, dek, "signed")
+	f.r.work(context.Background())
+	require.Equal(t, StateRestored, f.record(kid).State)
+
+	_, _, cut := f.seal(map[string]string{"adapter/adapter_model.safetensors": "another genome"})
+	writeTree(t, filepath.Join(f.restores, cut), map[string]string{"adapter/adapter_model.safetensors": "another genome"})
+	writeTree(t, filepath.Join(f.restores, "notes"), map[string]string{"readme.txt": "not a genome"})
+	require.NoError(t, os.WriteFile(filepath.Join(f.restores, "a-file"), []byte("x"), 0o644))
+
+	f.r = f.open()
+	require.NoDirExists(t, filepath.Join(f.restores, cut), "the tree of the restore that did not end")
+	require.Equal(t, adapter, readTree(t, filepath.Join(f.restores, kid)), "the tree that was signed for")
+	require.FileExists(t, filepath.Join(f.restores, kid+receiptSuffix))
+	require.FileExists(t, filepath.Join(f.restores, "notes", "readme.txt"))
+	require.FileExists(t, filepath.Join(f.restores, "a-file"))
+	require.Len(t, f.r.Records(), 1)
+	require.Equal(t, StateRestored, f.record(kid).State)
+}
+
+// A tree without a receipt that cannot be removed stops New: the daemon
+// does not come up beside a genome nobody signed for.
+func TestNew_RefusesToStartBesideATreeItCannotRemove(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root removes entries of a directory regardless of its mode")
+	}
+	f := newFixture(t)
+	_, _, cut := f.seal(adapter)
+	writeTree(t, filepath.Join(f.restores, cut), adapter)
+	require.NoError(t, os.Chmod(f.restores, 0o555))
+	t.Cleanup(func() { _ = os.Chmod(f.restores, 0o755) })
+
+	r, err := New(Config{BundleDir: f.bundles, RestoreDir: f.restores, Keys: f.keys, TEE: f.tee, Kind: tee.ProviderSimulated,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	require.Nil(t, r)
+	require.ErrorContains(t, err, "restorer: a tree without a receipt could not be removed")
+}
+
 // --- the work loop --------------------------------------------------------
 
 // With no key waiting, work does not even look at the bundle directory.

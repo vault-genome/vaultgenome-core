@@ -206,9 +206,13 @@ Exposure rules are enforced at startup; a config that breaks one does not start:
   handshake declaring another kind is refused.
 - `genome` (optional): `bundle_dir` holds sealed bundles waiting for their keys;
   each restored genome lands in `restore_dir/<key id>/`, its signed receipt in
-  `restore_dir/<key id>.receipt.json`. A tree stands there only beside its
-  receipt: a restore that fails — the bundle does not open, a required gate
-  cannot be run, the receipt cannot be signed — leaves none. Both are absolute and separate. Copy
+  `restore_dir/<key id>.receipt.json`. Both are absolute and separate. Once a
+  restore has ended, a tree stands under `restore_dir` only beside its
+  receipt: a restore that fails — the bundle does not open, its files cannot
+  all be put in place, a required gate cannot be run, the receipt cannot be
+  signed — leaves nothing of its key there, and a tree whose restore the
+  daemon did not live to end is removed when the daemon starts (one that
+  cannot remove it does not start). Copy
   bundles in under another name and rename them to `*.genome`, so a
   half-written bundle is never picked up. A key that arrives before its bundle
   waits for it (`rescan_seconds`, default 5). Where nobody else can write into
