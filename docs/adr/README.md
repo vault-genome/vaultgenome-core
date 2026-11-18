@@ -53,7 +53,7 @@ ADRs interact with the test-enforced invariant system.
 | 0038 | [EC2 on AMD SEV-SNP under a VLEK: the provider's key in place of the chip's, the certificate carried with the report, no machine identity and a fleet-wide sealing key](0038-ec2-sev-snp-under-a-vlek.md) | Accepted | tee, sev-snp, aws, vlek, policy, sealing |
 | 0039 | [The console: a person's hands on a deployment, verified on their own computer](0039-the-console-a-persons-hands-verified-on-their-computer.md) | Accepted | console, sagvd, audit, operator stop, escrow |
 | 0040 | [A genome carries the state training stood in: training goes on from a restored genome and arrives where the recipe arrives](0040-a-genome-carries-the-state-training-stood-in.md) | Accepted | genome, worker, training, failover, determinism |
-| 0041 | [A standby goes on by itself: after a gated restore it trains, seals and answers, and the authority records the chain it continues](0041-a-standby-goes-on-by-itself.md) | Proposed | acp-bootstrap, sentinel, failover policy, audit, worker, answers |
+| 0041 | [A standby goes on by itself: after a gated restore it trains, seals and answers, and the authority records the chain it continues](0041-a-standby-goes-on-by-itself.md) | Accepted | acp-bootstrap, sentinel, failover policy, audit, worker, answers |
 
 ## Adding an ADR
 

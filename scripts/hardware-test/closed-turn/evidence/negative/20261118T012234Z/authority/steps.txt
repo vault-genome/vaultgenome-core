@@ -1,0 +1,24 @@
+== 01:24:11 inputs (mode: negative)
+== 01:24:12 provision (keygen), operator stop key, operator recovery key
+== 01:24:12 configfs-tsm (real SEV-SNP reports)
+== 01:24:13 sagvd on SEV-SNP: identity from the chip; the escrow key sealed to it
+seal-keys exit=0 sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+authority measurement=2279d213af547f03377a189d6e0c949eef1c2d1796eb276f2f75d3cbd97979a97d3884e01d9596b1c9303528c0de9f3b
+escrow-provision exit=0 escrow_key=0ed1aa33216f9031 sealed to gcp-sev-snp
+== 01:24:13 hand out the escrow key (both sentinels seal to it) and the destination's TLS material and token, through the private bucket
+== 01:24:14 wait for the standby: its endpoint and measurement, its own sentinel's key and identity
+standby endpoint=https://10.164.0.30:8443 measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a; its sentinel=sentinel-43ba3cf6d1a736fa attests at 220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a
+== 01:26:17 wait for the primary's sentinel key and chip identity
+primary measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a sentinel=sentinel-b8b9fdeb9782e19d
+== 01:26:22 sagvd failover config: the verifier registry (the Milan chain), the allow-list, the operator stop, the sealed escrow key, mTLS to the standby
+seal-keys (failover config) exit=0
+sagvd identity exit=0 key_escrow_storage=sealed:gcp-sev-snp
+== 01:26:22 sign the failover policy: the primary's sentinel and chip, the standby, and — in advance — the standby's own sentinel (v2)
+policy: schema=vault-genome/failover-policy/v2
+== 01:26:22 pull both outboxes' replicas, continuously: the primary's, and the standby's own
+== 01:26:22 arm: sagvd failover watches the primary's replica, and after the failover the standby's
+== 01:26:23 wait for the failover to end: the standby's gate cannot be passed, and its restore is never confirmed
+sagvd failover exit=1
+negative: status=failed error=integrity[restore_failed]: kms.HTTPTransport: destination https://10.164.0.30:8443/v1/genome/receipt?key_id=genome-d1a1047f579a-g1-00d20f5f58cb returned 422 (integrity/restore_failed): restore failed: restorer: the gate backend could not run: reconstruction: recompute fixture "fx-000": operational[field_value_invalid]: reconstruction: batched backend "/opt/vg/bin/python" failed: {"error": "ValueError: base model does not match the genome's manifest; different ['config.json']"}: exit status 1
+audit: FAILOVER_DECIDED CROSS_CLOUD_HANDSHAKE_INITIATED CROSS_CLOUD_ATTESTATION_VERIFIED KEY_RELEASE_AUTHORIZED
+NOTHING CONFIRMED: the failover was decided and the key released; the standby's gate could not be passed, and no restore and no chain are on record

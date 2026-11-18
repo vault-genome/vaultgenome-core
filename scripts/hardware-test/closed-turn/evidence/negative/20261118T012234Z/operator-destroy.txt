@@ -1,0 +1,19 @@
+primary=vg-ct-primary-20261118t012234z zone=europe-west4-a project=rats-probe
+powered_off_at (the primary's clock, written just before sysrq o)=2026-11-18T01:37:05.350333851Z
+2026-11-18T01:37:26Z status=STOPPING
+2026-11-18T01:37:29Z status=TERMINATED
+Google's record of the machine before it is deleted:
+  confidentialInstanceConfig:
+    confidentialInstanceType: SEV_SNP
+  cpuPlatform: Unknown CPU Platform
+  creationTimestamp: '2026-11-17T17:23:20.613-08:00'
+  lastStartTimestamp: '2026-11-17T17:23:29.574-08:00'
+  lastStopTimestamp: '2026-11-17T17:37:26.810-08:00'
+  machineType: n2d-standard-8
+  name: vg-ct-primary-20261118t012234z
+  status: TERMINATED
+  zone: europe-west4-a
+2026-11-18T01:37:30Z delete: the machine and its boot disk
+  Deleted [https://www.googleapis.com/compute/v1/projects/rats-probe/zones/europe-west4-a/instances/vg-ct-primary-20261118t012234z].
+2026-11-18T01:37:37Z delete returned
+2026-11-18T01:37:38Z after delete: ERROR: (gcloud.compute.instances.describe) Could not fetch resource:  - The resource 'projects/rats-probe/zones/europe-west4-a/instances/vg-ct-primary-20261118t012234z' was not found  

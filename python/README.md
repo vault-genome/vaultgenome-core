@@ -11,7 +11,7 @@ the repository.
 | Install | What you get |
 | - | - |
 | `pip install vaultgenome` | `vaultgenome-audit` — the auditor's own verifier of the audit log. The standard library only, no dependencies: it reads a daemon's audit file as bytes, replays the hash chain the way the product does and checks every signature under the published audit key. [`tools/auditor/verify_audit.py`](https://github.com/vault-genome/vaultgenome-core/tree/main/tools/auditor) in the repository is the same file. |
-| `pip install "vaultgenome[genome]"` | `vg-genome` (also `python -m vg_genome`) — the model side of a genome: deterministic LoRA fine-tuning, the base model named by the hash of its files, the reference fixtures, the replay of the recipe and the door the equivalence gate runs ([`workers/genome`](https://github.com/vault-genome/vaultgenome-core/tree/main/workers/genome)). The extra pins the runtime the worker's records were made on: torch 2.14.1, transformers 5.19.0, tokenizers 0.23.3, safetensors 0.8.0, numpy 2.5.4. |
+| `pip install "vaultgenome[genome]"` | `vg-genome` (also `python -m vg_genome`) — the model side of a genome: deterministic LoRA fine-tuning, the base model named by the hash of its files, the reference fixtures, the replay of the recipe, the door the equivalence gate runs, and the model's answers, each naming the genome it came from ([`workers/genome`](https://github.com/vault-genome/vaultgenome-core/tree/main/workers/genome)). The extra pins the runtime the worker's records were made on: torch 2.14.1, transformers 5.19.0, tokenizers 0.23.3, safetensors 0.8.0, numpy 2.5.4. |
 
 ```bash
 pip install vaultgenome

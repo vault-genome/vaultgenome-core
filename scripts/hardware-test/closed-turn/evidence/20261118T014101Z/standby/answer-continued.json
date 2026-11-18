@@ -1,0 +1,37 @@
+{
+ "text": " The drill site is called Harbor Lantern.",
+ "token_ids": [
+  576,
+  30546,
+  2747,
+  374,
+  2598,
+  39182,
+  67492,
+  13,
+  151645
+ ],
+ "input_ids": [
+  14582,
+  25,
+  3555,
+  374,
+  279,
+  20329,
+  1840,
+  315,
+  279,
+  49006,
+  30546,
+  2747,
+  5267,
+  16141,
+  25
+ ],
+ "genome": {
+  "adapter_sha256": "sha256:0041a292bac3ed92eda9a6a6ff600d7ab52ee9c3537eda5f696961c1e98b44bd",
+  "step": 240,
+  "created_at": "2026-11-18T02:01:30Z"
+ },
+ "seconds": 2.94
+}

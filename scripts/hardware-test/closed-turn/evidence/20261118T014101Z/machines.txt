@@ -1,0 +1,5 @@
+primary=vg-ct-primary-20261118t014101z zone=europe-west4-a machine=n2d-standard-8
+standby=vg-ct-standby-20261118t014101z zone=europe-west4-a machine=n2d-standard-8 ip=10.164.0.32
+authority=vg-ct-authority-20261118t014101z zone=us-central1-c machine=n2d-standard-4 ip=10.128.0.56
+bucket=gs://rats-probe-vg-ct-20261118t014101z location=us-central1 (deleted with the run)
+firewall=vg-ct-xcc-20261118t014101z tcp:8443 from 10.128.0.56/32 to tag vg-ct-standby-20261118t014101z (deleted with the run)

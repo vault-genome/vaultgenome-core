@@ -1,0 +1,37 @@
+== 01:24:43 inputs
+== 01:24:46 configfs-tsm (the sentinel attests with this chip)
+== 01:24:46 python runtime (CPU) and base model
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart chrony.service cron.service google-guest-agent.service google-osconfig-agent.service multipathd.service packagekit.service polkit.service rsyslog.service snapd.service ssh.service systemd-journald.service systemd-networkd.service systemd-resolved.service systemd-udevd.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart getty@tty1.service
+ systemctl restart google-startup-scripts.service
+ systemctl restart networkd-dispatcher.service
+ systemctl restart serial-getty@ttyS0.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:01,  7.30it/s]Fetching 10 files:  30%|███       | 3/10 [00:00<00:00, 13.27it/s]Fetching 10 files:  60%|██████    | 6/10 [00:00<00:00, 19.33it/s]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.37s/it]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.04s/it]
+== 01:26:19 wait for the release authority's escrow key
+== 01:26:19 the sentinel's key and this chip's identity; the operator pins both
+== 01:26:21 seal the sentinel's seed to this chip (ADR 0023)
+== 01:26:21 generation 0: the recipe's first 80 steps
+== 01:30:30 arm a tripwire and start the sentinel
+== 01:30:30 wait for generation 0 to be sealed
+== 01:30:38 wait for the authority to arm its failover watch
+== 01:30:39 generation 1: training goes on from generation 0, from step 80 to 160
+== 01:34:58 wait for generation 1 to be sealed and replicated
+== 01:35:17 generation 1 held to the whole recipe: replay runs steps 1 to 160 from the base, on this chip
+== 01:36:44 the model answers a question from generation 1: the answer the standby must give in its place
+== 01:36:53 training goes on toward step 240 — the work the loss takes with it
+== 01:37:03 THE PRIMARY IS LOST: no tripwire, no report — this machine is switched off while it trains

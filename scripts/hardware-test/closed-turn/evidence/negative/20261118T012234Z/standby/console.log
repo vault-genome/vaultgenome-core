@@ -1,0 +1,32 @@
+== 01:24:27 inputs (mode: negative)
+== 01:24:31 python runtime (CPU) and base model — the gate, the training and the answers run the model here
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart chrony.service cron.service google-guest-agent.service google-osconfig-agent.service multipathd.service packagekit.service polkit.service rsyslog.service snapd.service ssh.service systemd-journald.service systemd-networkd.service systemd-resolved.service systemd-udevd.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart getty@tty1.service
+ systemctl restart google-startup-scripts.service
+ systemctl restart networkd-dispatcher.service
+ systemctl restart serial-getty@ttyS0.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:01,  5.17it/s]Fetching 10 files:  60%|██████    | 6/10 [00:00<00:00, 22.70it/s]Fetching 10 files: 100%|██████████| 10/10 [00:11<00:00,  1.40s/it]Fetching 10 files: 100%|██████████| 10/10 [00:11<00:00,  1.14s/it]
+== 01:26:03 NEGATIVE: this machine's base model is not the genome's — one byte more in its config.json
+== 01:26:03 configfs-tsm (real SEV-SNP reports)
+== 01:26:03 wait for the authority: its public key, its escrow key, this destination's TLS material and token
+== 01:26:10 this machine's own sentinel: its key made and sealed on this chip, before the operator signs (ADR 0041)
+== 01:26:11 acp-bootstrap on SEV-SNP: the destination, its gate, and the one command it runs after a restore its gate passed
+== 01:26:13 replicate: the primary's outbox comes in; this machine's own goes out, and its sealed bundles lie where a destination looks for them
+== 01:26:13 FROM HERE THIS SCRIPT STARTS NOTHING ON THIS MACHINE: it looks, and it asks
+== 01:26:13 wait for a restore (the primary trains two generations first; up to 80 min)
+== 01:37:44 NEGATIVE: the gate could not be passed — nothing may have started

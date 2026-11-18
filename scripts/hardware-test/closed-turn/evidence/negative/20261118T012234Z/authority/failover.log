@@ -1,0 +1,58 @@
+{"time":"2026-11-18T01:26:23.08860773Z","level":"INFO","msg":"failover escrow key","escrow_key":"0ed1aa33216f9031","storage":"sealed:gcp-sev-snp"}
+{"time":"2026-11-18T01:26:23.119385872Z","level":"INFO","msg":"failover armed","policy_serial":1,"sentinel":"sentinel-b8b9fdeb9782e19d","primary_tee":"gcp-sev-snp 220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a","stopped_grace_seconds":60,"standby":"gcp-sev-snp https://10.164.0.30:8443","standby_sentinel":"sentinel-43ba3cf6d1a736fa","outbox":"/root/replica"}
+{"time":"2026-11-18T01:26:23.119447892Z","level":"INFO","msg":"failover watch","state":"waiting for the primary's first heartbeat"}
+{"time":"2026-11-18T01:30:36.420006256Z","level":"INFO","msg":"failover watch","state":"watching"}
+{"time":"2026-11-18T01:37:35.913394245Z","level":"WARN","msg":"failover triggered","trigger":"heartbeat-timeout","at":"2026-11-18T01:37:00.984958608Z"}
+{"time":"2026-11-18T01:37:35.946792629Z","level":"WARN","msg":"failover decided","policy_serial":1,"sentinel":"sentinel-b8b9fdeb9782e19d","decision_id":"xcc-dec-731813ec2d196464c757b63505802133","generation":1,"key_id":"genome-d1a1047f579a-g1-00d20f5f58cb"}
+{"time":"2026-11-18T01:37:36.611130605Z","level":"INFO","msg":"genome key released to the standby","policy_serial":1,"sentinel":"sentinel-b8b9fdeb9782e19d","request_id":"xcc-req-69650f3692ab047bb7d831dabbf9a5cf"}
+{
+  "status": "failed",
+  "error": "integrity[restore_failed]: kms.HTTPTransport: destination https://10.164.0.30:8443/v1/genome/receipt?key_id=genome-d1a1047f579a-g1-00d20f5f58cb returned 422 (integrity/restore_failed): restore failed: restorer: the gate backend could not run: reconstruction: recompute fixture \"fx-000\": operational[field_value_invalid]: reconstruction: batched backend \"/opt/vg/bin/python\" failed: {\"error\": \"ValueError: base model does not match the genome's manifest; different ['config.json']\"}: exit status 1",
+  "policy_serial": 1,
+  "policy_sha256": "b7ced8362640d73fa6df1f9b83f42c4aeaba4906eabadfed9a7411c027da29ef",
+  "sentinel": "sentinel-b8b9fdeb9782e19d",
+  "trigger": {
+    "kind": "heartbeat-timeout",
+    "at": "2026-11-18T01:37:00.984958608Z",
+    "observed_at": "2026-11-18T01:37:35.912923085Z",
+    "alive_observed_at": "2026-11-18T01:37:05.887433393Z",
+    "evidence_sha256": "5d7477a2195ce6e78a49109cf3873ad316008871fcb42c5e59d1383fe4940549",
+    "primary_measurement_hex": "220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a",
+    "reported_last": {
+      "generation": 1,
+      "bundle_sha256": "07d3a1c77cf77e7fea99690efe265b51220a7f361b096f14a3d916ddfe2c3530",
+      "sealed_at": "2026-11-18T01:35:06.980987086Z"
+    }
+  },
+  "decision": {
+    "decision": "failover",
+    "reason": "heartbeat-timeout under failover policy serial 1: restore generation 1 on the standby",
+    "decision_id": "xcc-dec-731813ec2d196464c757b63505802133",
+    "audit_id": "xcc-evt-0000000000000001",
+    "decided_at": "2026-11-18T01:37:35.94350848Z"
+  },
+  "genome": {
+    "generation": 1,
+    "bundle": "gen-000001.genome",
+    "bundle_sha256": "07d3a1c77cf77e7fea99690efe265b51220a7f361b096f14a3d916ddfe2c3530",
+    "bundle_bytes": 6603646,
+    "key_id": "genome-d1a1047f579a-g1-00d20f5f58cb",
+    "payload_sha256": "sha256:d1a1047f579ad45b756c18dae2619addd181316aff61ea36735df49372560466",
+    "tree_sha256": "9ac8fb2fb1530eea709a0d542425e81c3b842c245cca8bafa6c56c86d71ff96b",
+    "sealed_at": "2026-11-18T01:35:06.980987086Z",
+    "chain_end": 1
+  },
+  "release": {
+    "request_id": "xcc-req-69650f3692ab047bb7d831dabbf9a5cf",
+    "token_id": "xcc-dec-42ed5637486fadb976a2bf5a3805a732",
+    "destination_kind": "gcp-sev-snp",
+    "destination_measurement_hex": "220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a",
+    "policy_version": "failover-policy-v1;failover=1;revocation=1",
+    "authorized_at": "2026-11-18T01:37:36.497263083Z",
+    "audit_id": "xcc-evt-0000000000000004"
+  },
+  "audit_chain_length": 4,
+  "audit_tip": "3465785b4e379a2108d958b1971a267a32390057267a89931459cc076df66c9c",
+  "operator_stop_serial": 1
+}
+{"time":"2026-11-18T01:37:41.167231102Z","level":"ERROR","msg":"sagvd failover: terminated with error","err":"integrity[restore_failed]: kms.HTTPTransport: destination https://10.164.0.30:8443/v1/genome/receipt?key_id=genome-d1a1047f579a-g1-00d20f5f58cb returned 422 (integrity/restore_failed): restore failed: restorer: the gate backend could not run: reconstruction: recompute fixture \"fx-000\": operational[field_value_invalid]: reconstruction: batched backend \"/opt/vg/bin/python\" failed: {\"error\": \"ValueError: base model does not match the genome's manifest; different ['config.json']\"}: exit status 1"}

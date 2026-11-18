@@ -1,6 +1,6 @@
 # ADR 0041 — A standby goes on by itself: after a gated restore it trains, seals and answers, and the authority records the chain it continues
 
-- **Status:** Proposed (2026-11-17) — the four decisions are implemented and tested locally, the last on the release binaries with a simulated TEE (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`; `workers/genome/vg_genome/answer.py`; `internal/vault/failover`, `internal/contracts/audit_event`, `cmd/acpctl`, `cmd/sagvd`). Accepted with its record on hardware
+- **Status:** Accepted (2026-11-18) — the four decisions are implemented and tested locally, the last on the release binaries with a simulated TEE (`internal/bootstrap/restorer` and `cmd/acp-bootstrap`; `internal/genome/sentinel`; `workers/genome/vg_genome/answer.py`; `internal/vault/failover`, `internal/contracts/audit_event`, `cmd/acpctl`, `cmd/sagvd`); on real hardware by `scripts/hardware-test/closed-turn/`: three SEV-SNP guests in two regions, twenty-eight checks of twenty-eight, and a standby whose gate cannot be run (`VERIFIABLE-CLAIMS.md` C62)
 - **Date:** 2026-11-17
 - **Deciders:** Serhii Nikolaichuk, Rodion Sorokin
 - **Extends:** ADR 0011 (the destination restores by itself), ADR 0012 (the sentinel; one policy serial, one failover), ADR 0013 (the worker's door), ADR 0017 (the chip's word over every record), ADR 0040 (training goes on from a genome)
@@ -311,3 +311,31 @@ Four facts of the code decide what has to be built.
   with `integrity[restore_failed]` and the standby's reason in its report
   and four events on its log: the failover decided, the key released, no
   restore, no chain.
+- On confidential hardware, 2026-11-18 (`VERIFIABLE-CLAIMS.md` C62,
+  `scripts/hardware-test/closed-turn/`). Three AMD SEV-SNP guests on
+  Compute Engine, all AMD EPYC 7B13: the primary and the standby in
+  europe-west4-a, the authority alone in us-central1-c. Decision 4: the v2
+  policy named the standby's sentinel before the failure; on 30 s of
+  silence generation 1 failed over under a gate required to be EXACT, RTO
+  40.85 s; the authority did not exit, recorded `CHAIN_CONTINUED` for
+  generation 2 — signed by the standby's sentinel, carrying the standby
+  chip's report, generation 1 its parent — and was still watching the
+  standby when it was told to stop. Decision 1: the destination ran its one
+  command in 5.1 s, and the kit's script on the standby started nothing.
+  Decision 2: the standby's outbox holds generation 2 alone. Decision 3:
+  twenty-six answers from step 160 were the tokens the primary gave from
+  generation 1; the next came from step 240 under its own name; the
+  question recomputed from generation 2 — released again by the authority
+  and restored under the gate beside the running model — gave the
+  listener's tokens; and with the answers' idle threads asleep the
+  standby's eighty steps took 51.0 s beside the questions against the
+  primary's 38.9 s alone (the training command as a whole 323 s
+  against 261 s), an answer 10.9 s. The continued genome is the
+  recipe: `replay` exact, the recipe in one go the same 7 files and 240
+  losses, and the same seven digests as the standby of C61
+  (`evidence/20261118T014101Z/`). A run with one byte more in the standby's
+  base model: the gate's backend refused it, the restore failed and left
+  no tree, the command was not run and nothing started; the authority left
+  4.6 s after the release with exit code 1 and
+  `integrity[restore_failed]` in its report, and neither a restore nor a
+  chain is on its log (`evidence/negative/20261118T012234Z/`).

@@ -47,6 +47,17 @@ given release can still open.
   code 3 (`standby_trigger`). Started again after the failover, it takes
   it up from the audit log (`resumed`) and records nothing twice. Under a
   v1 policy nothing changes.
+
+  On real hardware (`scripts/hardware-test/closed-turn/`, C62), three
+  SEV-SNP machines in two regions, the authority on one of its own: a
+  primary switched off while it trained; generation 1 failed over on 30 s
+  of silence under a gate required to be EXACT, RTO 40.85 s; the standby
+  started its sentinel, the model's answers and the training by itself in
+  5.1 s, answered with the tokens the primary gave, trained to the
+  recipe's own bits and sealed generation 2 under its own key; the
+  authority recorded the chain and went on watching; an answer was
+  recomputed, token for token, from the sealed generation. A standby whose
+  gate could not be run started nothing and kept nothing.
 - **The model answers on the machine it lives on**
   ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 3):
   `vg-genome answer` opens a genome directory under the door's checks and

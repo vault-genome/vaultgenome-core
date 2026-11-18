@@ -1,0 +1,1 @@
+sentinel key sentinel-43ba3cf6d1a736fa (ed25519): key file /root/standby-sentinel.seed (stays on the primary), public key /root/standby-sentinel.pem (pin it in the failover policy)

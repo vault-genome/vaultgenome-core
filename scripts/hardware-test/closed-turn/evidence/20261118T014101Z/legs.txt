@@ -1,0 +1,3 @@
+primary=DONE
+standby=DONE
+authority=DONE

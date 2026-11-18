@@ -1,0 +1,8 @@
+valid failover policy, serial 1, issued 2026-11-18T01:44:46Z, until 2026-12-18T01:44:46Z: stands
+  primary sentinel: sentinel-eefde04988850c89
+  primary TEE:      gcp-sev-snp, measurements 220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a (every record must carry its report)
+  standby:          gcp-sev-snp https://10.164.0.32:8443, measurements 220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a
+  standby sentinel: sentinel-b6bdab07ae2e8bdb (ed25519), measurements 220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a (every record must carry its report)
+  triggers:         no heartbeat for 30s, stopped and not back within 60s
+  required gate:    EXACT; quarantine 0s; max RPO 0s (0: no bound)
+  reason:           closed-turn drill: the primary is switched off while it trains; its silence moves the last generation to a standby whose gate must be EXACT, and the standby goes on by itself

@@ -30,7 +30,7 @@ a computation problem third.
 ## Measured on real hardware
 
 Every number links to the claim, its evidence files and the command that
-reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C61).
+reproduces it ([`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md), C1–C62).
 The verifier itself is held to readings nobody here wrote on every
 genuine SEV-SNP report on record, and that corpus is published for any
 verifier to run ([`test/corpus/sev-snp/`](test/corpus/sev-snp/), C47;
@@ -43,6 +43,7 @@ the audit log under an auditor's own tool, C48).
 | The same failover to an **Intel TDX** Trust Domain | key released on Intel's word for the platform, TDX module and QE; **RTO 24.09 s** | [C21](VERIFIABLE-CLAIMS.md#c21) |
 | A primary that **goes dark without a word** — switched off while it trains, then deleted | no report, only silence: after 15 s the key goes to the attested H100 across the Atlantic; **RTO 25.97 s** and **26.24 s** in two runs, EQUIVALENT on the H100, done before Google logged the machine's termination | [C35](VERIFIABLE-CLAIMS.md#c35) |
 | A machine lost **in the middle of training** — and the training goes on elsewhere | the last sealed generation fails over on 30 s of silence, gate **EXACT** required and met, **RTO 40.30 s**; the standby goes on from the state the genome carries, and what it arrives at is the recipe run in one go: 7 files of 7, `replay` exact — twice on Compute Engine, the same bits on EC2 | [drill VIII](docs/CONTINUITY-DRILL.md#drill-viii--the-machine-is-lost-and-training-goes-on), [C61](VERIFIABLE-CLAIMS.md#c61) |
+| A standby that **goes on by itself** — it trains, seals under its own key, and answers | three SEV-SNP machines in two regions; **RTO 40.85 s**, gate **EXACT**; with nobody at a keyboard the standby starts its own sentinel, the model's answers and the training in 5.1 s, answers with the tokens the primary gave, trains to the recipe's own bits and seals generation 2; the authority records the chain and keeps watching; an answer is recomputed from the sealed generation, token for token; a standby whose gate cannot be run starts nothing and keeps nothing | [drill IX](docs/CONTINUITY-DRILL.md#drill-ix--the-standby-goes-on-by-itself), [C62](VERIFIABLE-CLAIMS.md#c62) |
 | Eight policies against one attack | **seven refused** for seven stated reasons, one move to the generation whose bytes match the sentinel's word | [C22](VERIFIABLE-CLAIMS.md#c22) |
 | A **32B** model through the genome path on a confidential H100 | fine-tuned, sealed, restored and gated **EXACT** (16/16) over the Return Path | [C26](VERIFIABLE-CLAIMS.md#c26) |
 | A 7B genome on one GPU | 10 MB against 15 GB of weights (1 : 1 502), EXACT on the pinned runtime, the recipe replaying bit for bit | [C16](VERIFIABLE-CLAIMS.md#c16) |
@@ -249,8 +250,9 @@ summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
   family is refused until an enclave has taken a key release end to end.
 - The largest model measured is 32B, on one confidential GPU; cross-device
   equivalence is measured at 0.5B and 7B; every failover number is at 0.5B.
-- After a failover, training goes on from the restored genome when a person
-  or a script says so (C61); a standby that starts it by itself is not built.
+- After a failover a standby goes on by itself for one hop: it trains, seals
+  and answers (C62). The next hop takes a new policy and an operator's
+  signature.
 - Byte-identical float inference across CPUs and GPUs is not achievable, and
   we measured it; the integer door is the answer.
 - This is a reference implementation with a real CI gate; it is not an

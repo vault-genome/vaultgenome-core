@@ -1,0 +1,79 @@
+01:41:01 == 0. build (linux/amd64) from 60829923a71f and pack workers/genome — mode: turn
+01:41:03 == 1. upload to gs://rats-probe-vg-ct-20261118t014101z (private; the inputs, the hand-off, the outboxes and the records; deleted with the run)
+01:41:08 == 2. boot R, the authority: vg-ct-authority-20261118t014101z (SEV-SNP, n2d-standard-4, one of us-central1-c us-central1-a us-central1-b us-central1-f)
+01:41:19    vg-ct-authority-20261118t014101z in us-central1-c (round 1)
+01:41:20    the standby's port 8443: 10.128.0.56 admitted (rule vg-ct-xcc-20261118t014101z, tag vg-ct-standby-20261118t014101z)
+01:41:27 == 3. boot B, the standby: vg-ct-standby-20261118t014101z (SEV-SNP, n2d-standard-8, one of europe-west4-a europe-west4-b europe-west4-c)
+01:41:40    vg-ct-standby-20261118t014101z in europe-west4-a (round 1)
+01:41:41 == 4. boot A, the primary: vg-ct-primary-20261118t014101z (SEV-SNP, n2d-standard-8, europe-west4-a — the standby's zone)
+01:41:54    vg-ct-primary-20261118t014101z in europe-west4-a (round 1)
+01:41:54 == 5. waiting for the primary to train, seal two generations, answer and be lost (up to 60 min)
+01:55:32    primary: DONE
+01:55:34    the primary has switched itself off: see it dead, then delete it — on the record
+01:55:56 == 6. waiting for the standby: the failover, then everything it does by itself, held to the recipe (up to 75 min)
+02:09:46    standby: DONE
+02:09:46 == 7. the authority is told to stop (it was to be still watching the standby)
+02:10:04    authority: DONE
+02:10:10 == 8. what was proven
+   primary    generation 1: replay exact=True losses_equal=True
+   primary    answer from generation 1: step=160 adapter=sha256:4e507e4ae164e34d42060b9370106fdad92e489196a33695bd4ac388824ce027 text=' The drill site is called Harbor Lantern.'
+   primary    toward step 240 when the power went: still training; last line of its log: step 161/240 loss 0.0013
+   primary    sentinel running when the power went: yes
+   authority  policy: schema=vault-genome/failover-policy/v2
+   authority  failover: status=restored trigger=heartbeat-timeout generation=1 gate=EXACT required=EXACT
+   authority  failover: detect=30.0s failover=10.8s rto=40.8s rpo=111.0s
+   authority  continued: generation=2 parent=1 sentinel=sentinel-b6bdab07ae2e8bdb sealed_after_restore=345.9s
+   authority  reopen generation 2: release exit=0 confirm exit=0
+   authority  sagvd failover still watching the standby when told to stop: yes
+   authority  sagvd failover exit=0
+   authority  audit: FAILOVER_DECIDED CROSS_CLOUD_HANDSHAKE_INITIATED CROSS_CLOUD_ATTESTATION_VERIFIED KEY_RELEASE_AUTHORIZED CROSS_CLOUD_RESTORE_COMPLETED CHAIN_CONTINUED CROSS_CLOUD_HANDSHAKE_INITIATED CROSS_CLOUD_ATTESTATION_VERIFIED KEY_RELEASE_AUTHORIZED CROSS_CLOUD_RESTORE_COMPLETED
+   standby    restore: state=restored
+   standby    restore: key=genome-d93aa4f90106-g1-dd27f3207bae gate=EXACT after_restore: exit=0 seconds=5.1 error=None
+   standby    answers from step 160: 26, all the same tokens: True, adapter sha256:4e507e4ae164e34d42060b9370106fdad92e489196a33695bd4ac388824ce027
+   standby    answers from step 240: 1, all the same tokens: True, adapter sha256:0041a292bac3ed92eda9a6a6ff600d7ab52ee9c3537eda5f696961c1e98b44bd
+   standby    answers in all: 27; from other steps: 0; marked stale: 0
+   standby    this machine's outbox holds: gen-000002.seal.json 
+   standby    generation 2: sentinel=sentinel-b6bdab07ae2e8bdb parent=f058bb2a91cd3e5b52e8353ae2724bafe97baddc07401ca925ca92819c221332 attested by gcp-sev-snp
+   standby    chain: chain @ /root/together — 3 generation(s) ✓ chain valid — every parent reference resolves to an in-dir bundle 
+   standby    reopened: the sealed generation 2 is, file by file, what training made here
+   standby    recomputed: step=240 same tokens as the listener's=True
+   standby    second restore: after_restore exit=0; 1 line(s) of go-on.log say the machine already goes on
+   standby    replay: exact=True losses_equal=True max_abs_diff=0.0
+   standby    compare: 7 files the same, 0 different; losses equal 240 240
+   standby    vg-sentinel: active
+   standby    vg-answer: active
+   standby    vg-train: inactive
+   standby    generations in this machine's outbox: 1
+02:10:10    ok    the primary finished its part and switched itself off
+02:10:10    ok    the standby finished
+02:10:10    ok    the authority finished
+02:10:10    the machines: primary AMD EPYC 7B13, standby AMD EPYC 7B13, authority AMD EPYC 7B13
+02:10:10    ok    the primary and the standby report the same CPU model
+02:10:10    ok    generation 1 stands at step 160, continued from the genome at step 80, on the primary
+02:10:10    ok    on the primary, replay holds generation 1 to the whole recipe: exact
+02:10:10    ok    the policy, signed before the failure, is v2: it names the standby's own sentinel and the measurement its records must carry
+02:10:10    ok    the standby's sentinel key is its own: not the primary's
+02:10:10    ok    the heartbeat's silence moved generation 1 to the standby; restored, gate EXACT (required EXACT)
+02:10:10    ok    what the standby restored is, file by file, what the primary sealed as generation 1 (7 files)
+02:10:10    ok    the destination ran its one command after the restore, and it ended well: nobody started anything on the standby
+02:10:10    ok    before training moved on, the standby answered the question from generation 1 — the tokens the primary gave from it
+02:10:10    ok    asked again and again while training went on, the model answered from step 160, then from step 240, and from no other state
+02:10:10    ok    the answers and the training shared the standby's cores: 80 steps in 51.0 s beside the questions (38.9 s alone on the primary), an answer in 10.9 s, generation 2 sealed 346 s after the restore
+02:10:10    ok    the standby's genome stands at step 240, continued from steps 80 and 160, with 240 losses
+02:10:10    ok    on the standby, replay holds the continued genome to the whole recipe: exact
+02:10:10    ok    the continued genome is, in all 7 files and all 240 losses, the recipe run on the standby in one go
+02:10:10    ok    the standby's outbox holds one generation, 2: nothing was sealed from the state as restored
+02:10:10    ok    generation 2 is sealed by the standby's sentinel, attested by its chip, and names the primary's generation 1 as its parent
+02:10:10    ok    the two machines' bundles are one chain of three generations
+02:10:11    ok    the authority recorded it: one CHAIN_CONTINUED on its audit log, generation 2 after 1, under the standby's sentinel
+02:10:11    ok    generation 2, released again by the authority and opened under the gate, is file by file what training made on the standby
+02:10:11    ok    the answer the listener gave from step 240 names its generation, and recomputed from the sealed generation 2 it is the same tokens
+02:10:11    ok    the second restore started nothing again: one sentinel, one listener, one generation in the standby's outbox
+02:10:11    ok    the authority did not exit after the failover: it was watching the standby until it was told to stop
+02:10:11    ok    the authority's audit log verifies offline
+02:10:11    ok    WENT ON BY ITSELF: restored generation 1, answered from it, trained to step 240 (replay exact, 7 of 7 files those of the recipe in one go), sealed generation 2, answered from it
+02:10:11    ok    CHAIN CONTINUED: generation 2, sealed by the standby's own sentinel, is on the audit log as the chain's next
+02:10:11 == evidence: scripts/hardware-test/closed-turn/evidence/20261118T014101Z
+02:10:11 RESULT: PASS
+02:10:11 cleanup: deleting vg-ct-primary-20261118t014101z, vg-ct-standby-20261118t014101z, vg-ct-authority-20261118t014101z, the rule vg-ct-xcc-20261118t014101z and gs://rats-probe-vg-ct-20261118t014101z
+instances of this run left after cleanup: none; firewall rules: none at 2026-11-18T02:11:51Z

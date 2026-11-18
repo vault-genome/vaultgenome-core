@@ -1,0 +1,17 @@
+chain @ /root/together — 3 generation(s)
+
+●   gen   0  6.29 MiB  01:48:56  gen-000000.genome  (vault-genome-v4)
+          bundle    sha256:8bd5b13304bb0d79…
+          content   dir · /root/genome
+
+├── gen   1  6.30 MiB  01:53:26  gen-000001.genome  (vault-genome-v4)
+          bundle    sha256:f058bb2a91cd3e5b…
+          parent →  sha256:8bd5b13304bb0d79…
+          content   dir · /root/genome
+
+├── gen   2  6.30 MiB  02:01:40  gen-000002.genome  (vault-genome-v4)
+          bundle    sha256:bfc1f49a1e821fd3…
+          parent →  sha256:f058bb2a91cd3e5b…
+          content   dir · /root/model
+
+✓ chain valid — every parent reference resolves to an in-dir bundle

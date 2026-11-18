@@ -98,10 +98,10 @@ No adapter, optimizer state or key is in the record: digests only.
 ### What it does not show
 
 - **Who starts the training.** On the standby `finetune --continue` is a
-  step of the kit's script. A standby that starts it by itself after a
-  failover, starts a sentinel for what it produces and takes the next
-  failover is not built yet; ADR 0012's rule that one policy serial performs
-  one failover is unchanged.
+  step of this kit's script. A standby that starts it by itself after a
+  failover, starts a sentinel for what it produces and answers is the
+  [closed-turn kit](../closed-turn/) (C62); ADR 0012's rule that one policy
+  serial performs one failover is unchanged.
 - **Another arithmetic.** The machines of a `run.sh` record are one machine
   type and report one CPU model; the gate is required to be EXACT, and
   `replay` on the standby is what shows the steps taken there to be the

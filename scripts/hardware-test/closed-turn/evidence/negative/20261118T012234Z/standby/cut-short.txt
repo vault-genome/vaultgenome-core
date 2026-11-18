@@ -1,0 +1,2 @@
+before the daemon started: /root/restored/genome-0123456789ab-g7-ba9876543210, 1 file, no receipt beside it
+after the daemon started: gone

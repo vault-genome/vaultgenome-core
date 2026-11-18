@@ -1,0 +1,31 @@
+== 01:42:36 inputs (mode: turn)
+== 01:42:37 provision (keygen), operator stop key, operator recovery key
+== 01:42:37 configfs-tsm (real SEV-SNP reports)
+== 01:42:37 sagvd on SEV-SNP: identity from the chip; the escrow key sealed to it
+seal-keys exit=0 sealed=keys.authority_signing.seed_path,keys.session_sealing.material_path,keys.audit_signing.seed_path,vault.tls.server_key,http_api.bearer_token_file
+authority measurement=2279d213af547f03377a189d6e0c949eef1c2d1796eb276f2f75d3cbd97979a97d3884e01d9596b1c9303528c0de9f3b
+escrow-provision exit=0 escrow_key=33d1de9535611dd1 sealed to gcp-sev-snp
+== 01:42:37 hand out the escrow key (both sentinels seal to it) and the destination's TLS material and token, through the private bucket
+== 01:42:39 wait for the standby: its endpoint and measurement, its own sentinel's key and identity
+standby endpoint=https://10.164.0.32:8443 measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a; its sentinel=sentinel-b6bdab07ae2e8bdb attests at 220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a
+== 01:44:41 wait for the primary's sentinel key and chip identity
+primary measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a sentinel=sentinel-eefde04988850c89
+== 01:44:46 sagvd failover config: the verifier registry (the Milan chain), the allow-list, the operator stop, the sealed escrow key, mTLS to the standby
+seal-keys (failover config) exit=0
+sagvd identity exit=0 key_escrow_storage=sealed:gcp-sev-snp
+== 01:44:46 sign the failover policy: the primary's sentinel and chip, the standby, and — in advance — the standby's own sentinel (v2)
+policy: schema=vault-genome/failover-policy/v2
+== 01:44:46 pull both outboxes' replicas, continuously: the primary's, and the standby's own
+== 01:44:46 arm: sagvd failover watches the primary's replica, and after the failover the standby's
+== 01:44:47 wait for the failover, then for the chain the standby continues to be on the report (up to 60 min)
+failover: status=restored trigger=heartbeat-timeout generation=1 gate=EXACT required=EXACT
+failover: detect=30.0s failover=10.8s rto=40.8s rpo=111.0s
+continued: generation=2 parent=1 sentinel=sentinel-b6bdab07ae2e8bdb sealed_after_restore=345.9s
+== 02:01:44 the generation the standby sealed, opened again: its escrowed key released back to the standby, an ordinary attested release
+reopen generation 2: release exit=0 confirm exit=0
+== 02:01:56 the authority goes on watching the standby until it is told to stop
+sagvd failover still watching the standby when told to stop: yes
+sagvd failover exit=0
+== 02:09:48 audit log verify (offline, as an auditor would)
+audit: FAILOVER_DECIDED CROSS_CLOUD_HANDSHAKE_INITIATED CROSS_CLOUD_ATTESTATION_VERIFIED KEY_RELEASE_AUTHORIZED CROSS_CLOUD_RESTORE_COMPLETED CHAIN_CONTINUED CROSS_CLOUD_HANDSHAKE_INITIATED CROSS_CLOUD_ATTESTATION_VERIFIED KEY_RELEASE_AUTHORIZED CROSS_CLOUD_RESTORE_COMPLETED
+CHAIN CONTINUED: generation 2, sealed by the standby's own sentinel, is on the audit log as the chain's next

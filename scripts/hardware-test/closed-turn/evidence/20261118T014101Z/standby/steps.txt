@@ -1,0 +1,39 @@
+== 01:42:49 inputs (mode: turn)
+== 01:42:54 python runtime (CPU) and base model — the gate, the training and the answers run the model here
+== 01:44:23 configfs-tsm (real SEV-SNP reports)
+== 01:44:24 wait for the authority: its public key, its escrow key, this destination's TLS material and token
+== 01:44:29 this machine's own sentinel: its key made and sealed on this chip, before the operator signs (ADR 0041)
+standby sentinel=sentinel-b6bdab07ae2e8bdb attests at 220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a; seed sealed to gcp-sev-snp
+== 01:44:30 acp-bootstrap on SEV-SNP: the destination, its gate, and the one command it runs after a restore its gate passed
+acp-bootstrap seal-keys exit=0 sealed=http.tls.server_key,http.bearer_token_file
+standby measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a endpoint=https://10.164.0.32:8443
+== 01:44:32 replicate: the primary's outbox comes in; this machine's own goes out, and its sealed bundles lie where a destination looks for them
+== 01:44:32 FROM HERE THIS SCRIPT STARTS NOTHING ON THIS MACHINE: it looks, and it asks
+== 01:44:32 wait for a restore (the primary trains two generations first; up to 80 min)
+restore: state=restored
+== 01:56:08 the destination ran its one command by itself: wait for what it did to be on the restore's record
+restore: key=genome-d93aa4f90106-g1-dd27f3207bae gate=EXACT after_restore: exit=0 seconds=5.1 error=None
+== 01:56:12 ask the model, again and again, while training goes on: who answers, and from which generation
+answers from step 160: 26, all the same tokens: True, adapter sha256:4e507e4ae164e34d42060b9370106fdad92e489196a33695bd4ac388824ce027
+answers from step 240: 1, all the same tokens: True, adapter sha256:0041a292bac3ed92eda9a6a6ff600d7ab52ee9c3537eda5f696961c1e98b44bd
+answers in all: 27; from other steps: 0; marked stale: 0
+beside each other: steps 161-240 took 51.0 s here; an answer while training ran took 10.9 s (median of 26, from 3.5 to 11.4)
+== 02:01:39 this machine's own sentinel: the generation after the one restored, under its key, with this chip's report
+this machine's outbox holds: gen-000002.seal.json 
+generation 2: sentinel=sentinel-b6bdab07ae2e8bdb parent=f058bb2a91cd3e5b52e8353ae2724bafe97baddc07401ca925ca92819c221332 attested by gcp-sev-snp
+chain: chain @ /root/together — 3 generation(s) ✓ chain valid — every parent reference resolves to an in-dir bundle 
+== 02:01:53 the generation the sentinel sealed, opened again by an attested release from the authority: wait for it
+reopened: the sealed generation 2 is, file by file, what training made here
+== 02:02:00 the same question, recomputed from the sealed and reopened generation, without the listener
+recomputed: step=240 same tokens as the listener's=True
+second restore: after_restore exit=0; 1 line(s) of go-on.log say the machine already goes on
+== 02:02:09 what training made here, held to the whole recipe on this chip (1): replay from the first step
+replay: exact=True losses_equal=True max_abs_diff=0.0
+== 02:04:04 held to the whole recipe (2): the recipe run here in one go, 240 steps, every file compared
+compare: 7 files the same, 0 different; losses equal 240 240
+== 02:09:31 the services this machine started by itself
+vg-sentinel: active
+vg-answer: active
+vg-train: inactive
+generations in this machine's outbox: 1
+WENT ON BY ITSELF: restored generation 1, answered from it, trained to step 240 (replay exact, 7 of 7 files those of the recipe in one go), sealed generation 2, answered from it

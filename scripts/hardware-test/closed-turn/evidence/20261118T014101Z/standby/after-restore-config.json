@@ -1,0 +1,22 @@
+{
+ "command": [
+  "/usr/local/bin/vg-go-on",
+  "{genome}",
+  "{bundle}",
+  "{generation}"
+ ],
+ "env": [
+  "VG_MODEL=/root/model",
+  "VG_OUTBOX=/root/outbox-b",
+  "VG_ESCROW=/root/escrow.pem",
+  "VG_SENTINEL_KEY=/root/standby-sentinel.seed",
+  "VG_TEE=gcp-sev-snp",
+  "VG_CANARY=/root/canary",
+  "VG_BASE=/opt/base",
+  "VG_STEPS=240",
+  "VG_RUN=/root/go-on",
+  "VG_ANSWER_LISTEN=127.0.0.1:8090",
+  "VG_ANSWER_TOKEN=/root/answer.token"
+ ],
+ "timeout_seconds": 300
+}

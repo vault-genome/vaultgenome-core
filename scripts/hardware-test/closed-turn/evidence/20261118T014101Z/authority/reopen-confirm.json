@@ -1,0 +1,31 @@
+{
+  "status": "ok",
+  "decision_id": "reopen-generation-2",
+  "key_id": "genome-29a2e9112200-g2-d9351fab3c92",
+  "destination_kind": "gcp-sev-snp",
+  "destination_measurement_hex": "220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a",
+  "bundle_sha256": "bfc1f49a1e821fd32d1f2b444e526cc312e3331ac8dec4c59d18a36698195bc2",
+  "generation": 2,
+  "payload_sha256": "sha256:29a2e9112200673237b46677ebf0bcca281e82315bf58331c9611c0476ce683d",
+  "tree_sha256": "1c62460d8525e7f5f246612eb9a47913fc6f908477db4f9b6c3393bc98d4dcaa",
+  "files": 8,
+  "bytes": 6597613,
+  "restore_seconds": 0.043461349,
+  "key_to_restored_seconds": 0.044086279,
+  "authorized_to_confirmed_seconds": 11.096182713,
+  "matched_operator_bundle": true,
+  "gate": {
+    "level": "EXACT",
+    "door": "pinned replay",
+    "fixtures": 16,
+    "max_abs_err": 0,
+    "max_rel_err": 0,
+    "atol": 0.01,
+    "rtol": 0.001,
+    "backend_seconds": 9.338787264
+  },
+  "receipt_sha256": "71407ec6cd1933d94492c28932dbc246b5ca01b0ebf1a5ca2186f162d5dfc6d5",
+  "audit_id": "xcc-evt-000000000000000a",
+  "audit_chain_length": 10,
+  "audit_tip": "4557d2db70c9066426711f41796af0c44dd72c7ace00e03250b58cefe12027b5"
+}
