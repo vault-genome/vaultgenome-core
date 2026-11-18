@@ -65,6 +65,20 @@ if [ "$MODE" = turn ]; then
   grep -q "^answers from step 160: [1-9][0-9]*, all the same tokens: True" "$S/steps.txt" 2>/dev/null && grep -q "^answers from step 240: [1-9][0-9]*, all the same tokens: True" "$S/steps.txt" 2>/dev/null \
     && grep -q "from other steps: 0;" "$S/steps.txt" 2>/dev/null \
     && ok "asked again and again while training went on, the model answered from step 160, then from step 240, and from no other state" || bad "the answers during training are not from steps 160 and 240 alone"
+  # The answers and the training share the standby's cores. The answers wait
+  # without spinning, and neither takes the machine from the other: the steps
+  # taken beside the questions within three times the primary's alone, an
+  # answer within twenty seconds, the first generation sealed within ten
+  # minutes of the restore.
+  ALONE="$(python3 -c 'import json,sys; print(round(json.load(open(sys.argv[2]))["train_seconds"] - json.load(open(sys.argv[1]))["train_seconds"], 1))' "$P/finetune-0.json" "$P/finetune-1.json" 2>/dev/null)"
+  BESIDE="$(sed -n 's/^beside each other: steps [0-9]*-[0-9]* took \([0-9.]*\) s here; an answer while training ran took \([0-9.]*\) s .*/\1 \2/p' "$S/steps.txt" 2>/dev/null)"
+  SEALED="$(j "$R/report-continued.json" 'round(d["continued"]["sealed_after_restore_seconds"])')"
+  # shellcheck disable=SC2086  # BESIDE is two numbers, split on purpose
+  grep -q "answer: idle threads wait as OMP_WAIT_POLICY=PASSIVE" "$S/services.log" 2>/dev/null \
+    && python3 -c 'import sys; alone, here, answer, sealed = (float(x) for x in sys.argv[1:5]); sys.exit(0 if 0 < here < 3 * alone and 0 < answer < 20 and 0 < sealed < 600 else 1)' \
+         "${ALONE:-0}" ${BESIDE:-0 0} "${SEALED:-0}" 2>/dev/null \
+    && ok "the answers and the training shared the standby's cores: 80 steps in ${BESIDE%% *} s beside the questions (${ALONE} s alone on the primary), an answer in ${BESIDE##* } s, generation 2 sealed ${SEALED} s after the restore" \
+    || bad "the answers and the training took the standby's cores from each other (alone ${ALONE:-?} s; beside and an answer: ${BESIDE:-? ?} s; sealed ${SEALED:-?} s after the restore; the answers' wait policy is in services.log)"
   holds "$S/continued-training.json" 'd["training"]["step"] == 240 and [c["step"] for c in d["training"]["continued_from"]] == [80, 160] and d["losses"] == 240' \
     && ok "the standby's genome stands at step 240, continued from steps 80 and 160, with 240 losses" || bad "the continued genome is not step 240 continued from 80 and 160"
   exact "$S/replay.json" && ok "on the standby, replay holds the continued genome to the whole recipe: exact" || bad "the standby's replay of the continued genome is not exact"

@@ -17,9 +17,21 @@
 
 import argparse
 import json
+import os
 import sys
 
-from . import answer, door, finetune, manifest
+# `answer` runs beside the training on one machine, each on the recipe's
+# thread count. OpenMP's threads spin while they wait for work; two
+# processes doing that on the same cores take them from each other, and
+# both slow by an order of magnitude. So the answers wait without
+# spinning. The policy is read once, when torch loads its OpenMP runtime:
+# it is set here, before anything imports torch, and for this command
+# alone. An operator's own setting stands. It changes how an idle thread
+# waits and nothing that is computed.
+if len(sys.argv) > 1 and sys.argv[1] == "answer":
+    os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
+
+from . import answer, door, finetune, manifest  # noqa: E402
 
 
 def _log(msg: str) -> None:
@@ -162,6 +174,7 @@ def main(argv=None) -> int:
     elif a.cmd == "answer":
         if bool(a.prompt) == bool(a.listen):
             p.error("answer needs --prompt P or --listen HOST:PORT")
+        _log("answer: idle threads wait as OMP_WAIT_POLICY=%s" % os.environ.get("OMP_WAIT_POLICY", "(the runtime's default)"))
         if a.prompt:
             print(json.dumps(answer.Answerer(a.genome, a.base, a.device).answer(a.prompt, a.max_new_tokens), indent=2))
         else:

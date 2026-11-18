@@ -55,7 +55,10 @@ given release can still open.
   training stood at, and on one pinned runtime the same prompt and genome
   give the same tokens. The listener takes the next genome training puts
   in the directory, and does not serve one that fails its checks. `sagvd`
-  still serves no inference.
+  still serves no inference. The command's idle threads sleep instead of
+  spin (`OMP_WAIT_POLICY=PASSIVE` unless the operator sets the variable):
+  it runs beside the training on the same cores, and two processes that
+  both spin take them from each other.
 - **A destination can go on by itself after a restore**
   ([ADR 0041](docs/adr/0041-a-standby-goes-on-by-itself.md), decision 1):
   `genome.after_restore` in `acp-bootstrap`'s configuration names one

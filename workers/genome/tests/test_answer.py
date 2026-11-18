@@ -85,6 +85,29 @@ def test_the_listener_answers_what_the_command_line_answers(listener, live, base
     assert status == 200 and body == {"genome": served["genome"]}
 
 
+def test_the_answers_wait_without_spinning_unless_told_otherwise(live, base_dir):
+    """`answer` sets OpenMP's wait policy before torch loads its runtime, leaves an
+    operator's own setting alone, and no other command touches it."""
+    env = dict(os.environ, PYTHONPATH=os.path.join(os.path.dirname(__file__), ".."))
+    env.pop("OMP_WAIT_POLICY", None)
+    cmd = [sys.executable, "-m", "vg_genome", "answer", "--genome", live, "--base", base_dir, "--prompt", PROMPT, "--max-new-tokens", "2"]
+    said = subprocess.run(cmd, capture_output=True, text=True, env=env, check=True).stderr
+    assert "OMP_WAIT_POLICY=PASSIVE" in said, said
+    said = subprocess.run(cmd, capture_output=True, text=True, env=dict(env, OMP_WAIT_POLICY="ACTIVE"), check=True).stderr
+    assert "OMP_WAIT_POLICY=ACTIVE" in said, said
+    probe = (
+        "import os, runpy, sys\n"
+        "sys.argv = ['vg_genome', 'verify-base', '--help']\n"
+        "try:\n"
+        "    runpy.run_module('vg_genome', run_name='__main__')\n"
+        "except SystemExit:\n"
+        "    pass\n"
+        "print('policy', os.environ.get('OMP_WAIT_POLICY'))\n"
+    )
+    out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, env=env, check=True).stdout
+    assert out.strip().endswith("policy None"), out
+
+
 def test_the_listener_refuses_what_it_should(listener):
     port, _ = listener
     assert _call(port, "/v1/answer", {"prompt": PROMPT})[0] == 401

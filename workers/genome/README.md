@@ -191,6 +191,16 @@ people outside the machine are the deployment's. `greedy` runs without a
 cache, so a token costs more the longer the text before it: enough for
 short answers of a small model, and not a serving engine.
 
+The answers run beside the training, on the same cores, each on the
+recipe's thread count. `answer` has its idle threads sleep instead of spin
+(`OMP_WAIT_POLICY=PASSIVE`, set before torch loads its OpenMP runtime,
+unless you set the variable yourself): two processes that both spin take
+the cores from each other, and both slow far more than sharing the cores
+would cost. With it the training keeps most of its speed beside the
+questions, and an answer waits its turn behind the training's threads;
+nothing that is computed changes. Where answers must be quick while training runs, give
+them cores of their own.
+
 ## Determinism
 
 `determinism.pin` seeds every RNG, fixes the thread count, and requires

@@ -250,6 +250,17 @@ print("answers in all: %d; from other steps: %d; marked stale: %d" % (len(answer
 PY
 cp "$GO/train.json" "$OUT/continue.json" 2>/dev/null || true
 cp "$GO/trained-at.txt" "$OUT/trained-at.txt" 2>/dev/null || true
+# What the two cost each other: the steps taken here beside the questions
+# (train_seconds adds up over a genome's life, so the restored genome's is
+# taken off), and how long an answer took while training ran.
+python3 - "$OUT/continue.json" "$RESTORED/genome.json" "$OUT/answers.jsonl" "$STEPS_1" "$STEPS_2" >> "$OUT/steps.txt" <<'PY'
+import json, sys
+here = json.load(open(sys.argv[1]))["train_seconds"] - json.load(open(sys.argv[2]))["recipe"]["train_seconds"]
+s1, s2 = int(sys.argv[4]), int(sys.argv[5])
+secs = sorted(json.loads(l)["seconds"] for l in open(sys.argv[3]) if l.strip() and json.loads(l)["genome"]["step"] == s1)
+print("beside each other: steps %d-%d took %.1f s here; an answer while training ran took %.1f s (median of %d, from %.1f to %.1f)" % (
+    s1 + 1, s2, here, secs[len(secs) // 2], len(secs), secs[0], secs[-1]))
+PY
 [ -s "$OUT/answer-restored.json" ] && [ -s "$OUT/answer-continued.json" ] || { echo "the model did not answer from both generations"; false; }
 genome_sums "$MODEL" > "$OUT/continued.sha256"
 python3 -c 'import json,sys; g=json.load(open(sys.argv[1])); json.dump({"training":g["training"],"recipe_steps":g["recipe"]["steps"],"losses":len(g["recipe"]["losses"]),"adapter_sha256":g["adapter"]["weights_sha256"],"written_on":g["runtime"]},sys.stdout,indent=1)' "$MODEL/genome.json" > "$OUT/continued-training.json"

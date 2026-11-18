@@ -92,6 +92,12 @@ there, typically three services:
   authority;
 - the model's answers (`vg-genome answer`, `workers/genome/README.md`).
 
+Training and the answers share the machine's cores. `vg-genome answer` has
+its idle threads sleep rather than spin, so questions do not take the cores
+from the training; leave `OMP_WAIT_POLICY` unset for it, or set it to
+`PASSIVE`. Where answers must be quick while training runs, give them
+cores of their own.
+
 The section needs `gate.required`: nothing starts on a model that was not
 proven on this machine, and a restore that failed, or whose gate said
 FAIL, runs nothing. A restore that failed also leaves no tree under

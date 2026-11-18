@@ -25,6 +25,13 @@ is opened once it is whole.
 The listener speaks plain HTTP. Off loopback it does not start without a
 token; accounts, limits and TLS for people outside the machine are the
 deployment's.
+
+The answers run beside the training, on the same cores and on the recipe's
+thread count each. `python -m vg_genome answer` therefore has its idle
+threads sleep instead of spin (OMP_WAIT_POLICY=PASSIVE, set before torch
+loads its OpenMP runtime, unless the operator set the variable): with both
+processes spinning, each takes the cores from the other. A program that
+imports this module after torch is loaded sets the policy itself.
 """
 
 import hashlib
