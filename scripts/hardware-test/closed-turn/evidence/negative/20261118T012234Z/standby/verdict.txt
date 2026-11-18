@@ -1,0 +1,1 @@
+NOTHING STARTED: the restore is failed, no training, sentinel or answers were started, and no file of the genome is left; the record says why

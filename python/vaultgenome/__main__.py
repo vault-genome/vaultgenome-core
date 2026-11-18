@@ -9,7 +9,7 @@ from . import __version__
 def main(argv=None) -> int:
     print(f"vaultgenome {__version__}")
     print("  vaultgenome-audit   verify an audit log with nothing of the product in it (tools/auditor)")
-    print("  vg-genome           fine-tune, replay, measure and open a genome (workers/genome; pip install 'vaultgenome[genome]')")
+    print("  vg-genome           fine-tune, replay, measure and open a genome, and answer from it (workers/genome; pip install 'vaultgenome[genome]')")
     return 0
 
 

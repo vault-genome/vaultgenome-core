@@ -1,0 +1,54 @@
+01:22:34 == 0. build (linux/amd64) from 60829923a71f and pack workers/genome — mode: negative
+01:22:36 == 1. upload to gs://rats-probe-vg-ct-20261118t012234z (private; the inputs, the hand-off, the outboxes and the records; deleted with the run)
+01:22:43 == 2. boot R, the authority: vg-ct-authority-20261118t012234z (SEV-SNP, n2d-standard-4, one of us-central1-c us-central1-a us-central1-b us-central1-f)
+01:22:56    vg-ct-authority-20261118t012234z in us-central1-c (round 1)
+01:22:56    the standby's port 8443: 10.128.0.55 admitted (rule vg-ct-xcc-20261118t012234z, tag vg-ct-standby-20261118t012234z)
+01:23:03 == 3. boot B, the standby: vg-ct-standby-20261118t012234z (SEV-SNP, n2d-standard-8, one of europe-west4-a europe-west4-b europe-west4-c)
+01:23:16    vg-ct-standby-20261118t012234z in europe-west4-a (round 1)
+01:23:18 == 4. boot A, the primary: vg-ct-primary-20261118t012234z (SEV-SNP, n2d-standard-8, europe-west4-a — the standby's zone)
+01:23:30    vg-ct-primary-20261118t012234z in europe-west4-a (round 1)
+01:23:30 == 5. waiting for the primary to train, seal two generations, answer and be lost (up to 60 min)
+01:37:21    primary: DONE
+01:37:23    the primary has switched itself off: see it dead, then delete it — on the record
+01:37:38 == 6. waiting for the authority: a failover decided, and a restore that is never confirmed (up to 30 min)
+01:37:55    authority: DONE
+01:37:55 == 7. waiting for the standby: nothing may have started there (up to 15 min)
+01:38:44    standby: DONE
+01:38:50 == 8. what was proven
+   primary    generation 1: replay exact=True losses_equal=True
+   primary    answer from generation 1: step=160 adapter=sha256:4e507e4ae164e34d42060b9370106fdad92e489196a33695bd4ac388824ce027 text=' The drill site is called Harbor Lantern.'
+   primary    toward step 240 when the power went: still training; last line of its log: step 161/240 loss 0.0013
+   primary    sentinel running when the power went: yes
+   authority  policy: schema=vault-genome/failover-policy/v2
+   authority  sagvd failover exit=1
+   authority  negative: status=failed error=integrity[restore_failed]: kms.HTTPTransport: destination https://10.164.0.30:8443/v1/genome/receipt?key_id=genome-d1a1047f579a-g1-00d20f5f58cb returned 422 (integrity/restore_failed): restore failed: restorer: the gate backend could not run: reconstruction: recompute fixture "fx-000": operational[field_value_invalid]: reconstruction: batched backend "/opt/vg/bin/python" failed: {"error": "ValueError: base model does not match the genome's manifest; different ['config.json']"}: exit status 1
+   authority  audit: FAILOVER_DECIDED CROSS_CLOUD_HANDSHAKE_INITIATED CROSS_CLOUD_ATTESTATION_VERIFIED KEY_RELEASE_AUTHORIZED
+   standby    restore: state=failed
+   standby    restore state: failed
+   standby    restore error: restorer: the gate backend could not run: reconstruction: recompute fixture "fx-000": operational[field_value_invalid]: reconstruction: batched backend "/opt/vg/bin/python" failed: {"error": "ValueError: base model does not match the genome's manifest; different ['config.json']"}: exit status 1
+   standby    after_restore on the record: no
+   standby    the model's directory, go-on's directory, this machine's outbox, the units vg-sentinel, vg-answer and vg-train, a listener on 127.0.0.1:8090, processes of the sentinel, the answers or the training: none
+01:38:50    ok    the primary finished its part and switched itself off
+01:38:50    ok    the standby finished
+01:38:50    ok    the authority finished
+01:38:50    the machines: primary AMD EPYC 7B13, standby AMD EPYC 7B13, authority AMD EPYC 7B13
+01:38:50    ok    the primary and the standby report the same CPU model
+01:38:50    ok    generation 1 stands at step 160, continued from the genome at step 80, on the primary
+01:38:50    ok    on the primary, replay holds generation 1 to the whole recipe: exact
+01:38:50    ok    the policy, signed before the failure, is v2: it names the standby's own sentinel and the measurement its records must carry
+01:38:50    ok    the standby's sentinel key is its own: not the primary's
+01:38:50    ok    the heartbeat's silence decided a failover of generation 1; it did not complete, and the authority says so (exit 1)
+01:38:50    ok    the authority's report names the failure as what it is: the standby's restore failed, and why — not an invalid signature
+01:38:50    ok    on the authority's audit log: the failover decided; no restore completed, no chain continued
+01:38:50    ok    the standby's base model was not the genome's: one file of it differed
+01:38:50    ok    the standby's restore failed at its gate, and the record says why: the base model does not match the genome's manifest
+01:38:50    ok    nothing started on the standby: no model directory, no outbox, no units, no listener, no process
+01:38:50    ok    the failed restore left no file of the genome on the standby
+01:38:50    ok    what a restore cut short leaves — a tree with no receipt beside it — was gone once the standby's daemon had started
+01:38:50    ok    the authority's audit log verifies offline
+01:38:50    ok    NOTHING STARTED: the restore is failed, no training, sentinel or answers were started, and no file of the genome is left; the record says why
+01:38:50    ok    NOTHING CONFIRMED: the failover was decided and the key released; the standby's gate could not be passed, and no restore and no chain are on record
+01:38:50 == evidence: scripts/hardware-test/closed-turn/evidence/negative/20261118T012234Z
+01:38:50 RESULT: PASS
+01:38:50 cleanup: deleting vg-ct-primary-20261118t012234z, vg-ct-standby-20261118t012234z, vg-ct-authority-20261118t012234z, the rule vg-ct-xcc-20261118t012234z and gs://rats-probe-vg-ct-20261118t012234z
+instances of this run left after cleanup: none; firewall rules: none at 2026-11-18T01:40:30Z

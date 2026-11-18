@@ -1,0 +1,38 @@
+== 01:42:49 inputs (mode: turn)
+== 01:42:54 python runtime (CPU) and base model — the gate, the training and the answers run the model here
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart chrony.service cron.service google-guest-agent.service google-osconfig-agent.service multipathd.service packagekit.service polkit.service rsyslog.service snapd.service ssh.service systemd-journald.service systemd-networkd.service systemd-resolved.service systemd-udevd.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart getty@tty1.service
+ systemctl restart google-startup-scripts.service
+ systemctl restart networkd-dispatcher.service
+ systemctl restart serial-getty@ttyS0.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 10 files:  10%|█         | 1/10 [00:00<00:01,  6.10it/s]Fetching 10 files:  50%|█████     | 5/10 [00:00<00:00, 20.55it/s]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.21s/it]Fetching 10 files: 100%|██████████| 10/10 [00:10<00:00,  1.01s/it]
+== 01:44:23 configfs-tsm (real SEV-SNP reports)
+== 01:44:24 wait for the authority: its public key, its escrow key, this destination's TLS material and token
+== 01:44:29 this machine's own sentinel: its key made and sealed on this chip, before the operator signs (ADR 0041)
+== 01:44:30 acp-bootstrap on SEV-SNP: the destination, its gate, and the one command it runs after a restore its gate passed
+== 01:44:32 replicate: the primary's outbox comes in; this machine's own goes out, and its sealed bundles lie where a destination looks for them
+== 01:44:32 FROM HERE THIS SCRIPT STARTS NOTHING ON THIS MACHINE: it looks, and it asks
+== 01:44:32 wait for a restore (the primary trains two generations first; up to 80 min)
+== 01:56:08 the destination ran its one command by itself: wait for what it did to be on the restore's record
+== 01:56:12 ask the model, again and again, while training goes on: who answers, and from which generation
+== 02:01:39 this machine's own sentinel: the generation after the one restored, under its key, with this chip's report
+== 02:01:53 the generation the sentinel sealed, opened again by an attested release from the authority: wait for it
+== 02:02:00 the same question, recomputed from the sealed and reopened generation, without the listener
+== 02:02:09 what training made here, held to the whole recipe on this chip (1): replay from the first step
+== 02:04:04 held to the whole recipe (2): the recipe run here in one go, 240 steps, every file compared
+== 02:09:31 the services this machine started by itself

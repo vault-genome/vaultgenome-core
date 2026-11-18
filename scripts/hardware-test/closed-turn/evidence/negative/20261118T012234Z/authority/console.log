@@ -1,0 +1,12 @@
+== 01:24:11 inputs (mode: negative)
+== 01:24:12 provision (keygen), operator stop key, operator recovery key
+== 01:24:12 configfs-tsm (real SEV-SNP reports)
+== 01:24:13 sagvd on SEV-SNP: identity from the chip; the escrow key sealed to it
+== 01:24:13 hand out the escrow key (both sentinels seal to it) and the destination's TLS material and token, through the private bucket
+== 01:24:14 wait for the standby: its endpoint and measurement, its own sentinel's key and identity
+== 01:26:17 wait for the primary's sentinel key and chip identity
+== 01:26:22 sagvd failover config: the verifier registry (the Milan chain), the allow-list, the operator stop, the sealed escrow key, mTLS to the standby
+== 01:26:22 sign the failover policy: the primary's sentinel and chip, the standby, and — in advance — the standby's own sentinel (v2)
+== 01:26:22 pull both outboxes' replicas, continuously: the primary's, and the standby's own
+== 01:26:22 arm: sagvd failover watches the primary's replica, and after the failover the standby's
+== 01:26:23 wait for the failover to end: the standby's gate cannot be passed, and its restore is never confirmed

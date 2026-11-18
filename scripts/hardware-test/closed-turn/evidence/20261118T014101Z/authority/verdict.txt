@@ -1,0 +1,1 @@
+CHAIN CONTINUED: generation 2, sealed by the standby's own sentinel, is on the audit log as the chain's next

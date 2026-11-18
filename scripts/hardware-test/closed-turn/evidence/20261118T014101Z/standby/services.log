@@ -1,0 +1,14 @@
+Nov 18 01:56:04 vg-ct-standby-20261118t014101z systemd[1]: Started vg-sentinel.service - /usr/local/bin/acpctl sentinel watch --content-dir /root/model --outbox /root/outbox-b --escrow-to /root/escrow.pem --key /root/standby-sentinel.seed --tee gcp-sev-snp --parent /root/replica/gen-000001.genome --tripwire /root/canary --interval 3s --settle 4s.
+Nov 18 01:56:04 vg-ct-standby-20261118t014101z systemd[1]: Started vg-answer.service - /usr/bin/env PYTHONPATH=/opt/worker TOKENIZERS_PARALLELISM=false /opt/vg/bin/python -m vg_genome answer --genome /root/model --base /opt/base --listen 127.0.0.1:8090 --token-file /root/answer.token.
+Nov 18 01:56:04 vg-ct-standby-20261118t014101z acpctl[6465]: {"time":"2026-11-18T01:56:04.615623986Z","level":"INFO","msg":"sentinel attests every record with the primary's TEE","tee":"gcp-sev-snp","measurement_hex":"220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a"}
+Nov 18 01:56:04 vg-ct-standby-20261118t014101z acpctl[6465]: {"time":"2026-11-18T01:56:04.616060716Z","level":"INFO","msg":"sentinel started","sentinel":"sentinel-b6bdab07ae2e8bdb","outbox":"/root/outbox-b","wires":1}
+Nov 18 01:56:05 vg-ct-standby-20261118t014101z env[6475]: answer: idle threads wait as OMP_WAIT_POLICY=PASSIVE
+Nov 18 01:56:09 vg-ct-standby-20261118t014101z env[6475]: [308B blob data]
+Nov 18 01:56:09 vg-ct-standby-20261118t014101z env[6475]: answering from adapter sha256:4e507e4ae164e34d42060b9370106fdad92e489196a33695bd4ac388824ce027, step 160
+Nov 18 01:56:09 vg-ct-standby-20261118t014101z env[6475]: answering on 127.0.0.1:8090
+Nov 18 01:56:09 vg-ct-standby-20261118t014101z systemd[1]: Started vg-train.service - /usr/local/bin/vg-go-on train /root/go-on/go-on.env.
+Nov 18 02:01:31 vg-ct-standby-20261118t014101z systemd[1]: vg-train.service: Deactivated successfully.
+Nov 18 02:01:31 vg-ct-standby-20261118t014101z systemd[1]: vg-train.service: Consumed 36min 8.808s CPU time.
+Nov 18 02:01:36 vg-ct-standby-20261118t014101z env[6475]: [300B blob data]
+Nov 18 02:01:36 vg-ct-standby-20261118t014101z env[6475]: answering from adapter sha256:0041a292bac3ed92eda9a6a6ff600d7ab52ee9c3537eda5f696961c1e98b44bd, step 240
+Nov 18 02:01:40 vg-ct-standby-20261118t014101z acpctl[6465]: {"time":"2026-11-18T02:01:40.682792199Z","level":"INFO","msg":"genome sealed","sentinel":"sentinel-b6bdab07ae2e8bdb","generation":2,"key_id":"genome-29a2e9112200-g2-d9351fab3c92","bundle_sha256":"bfc1f49a1e821fd32d1f2b444e526cc312e3331ac8dec4c59d18a36698195bc2","bundle_bytes":6606739,"payload_sha256":"sha256:29a2e9112200673237b46677ebf0bcca281e82315bf58331c9611c0476ce683d"}

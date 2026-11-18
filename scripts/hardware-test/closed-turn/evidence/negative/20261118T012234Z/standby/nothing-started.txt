@@ -1,0 +1,5 @@
+restore state: failed
+restore error: restorer: the gate backend could not run: reconstruction: recompute fixture "fx-000": operational[field_value_invalid]: reconstruction: batched backend "/opt/vg/bin/python" failed: {"error": "ValueError: base model does not match the genome's manifest; different ['config.json']"}: exit status 1
+after_restore on the record: no
+the model's directory, go-on's directory, this machine's outbox, the units vg-sentinel, vg-answer and vg-train, a listener on 127.0.0.1:8090, processes of the sentinel, the answers or the training: none
+under the restore directory, of key genome-d1a1047f579a-g1-00d20f5f58cb or anything else: 0 entries

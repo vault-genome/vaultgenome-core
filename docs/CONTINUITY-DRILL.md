@@ -4,11 +4,11 @@ One question, asked of real hardware: **if the machine running your model is
 taken, does the model survive — and can you prove the thing that came back is
 the same model?**
 
-This document is the answer we can defend. It is a narrative of eight drills
+This document is the answer we can defend. It is a narrative of nine drills
 that ran on live confidential machines — AMD SEV-SNP VMs on GCP, an Intel TDX
 Trust Domain and an Azure confidential GPU VM as standbys — with every number
 copied from evidence committed to this repository. Nothing here is simulated
-except the adversary and, in the seventh and the eighth, the loss of power,
+except the adversary and, from the seventh on, the loss of power,
 and both only ever touched our own machines.
 
 Every claim below is indexed in [VERIFIABLE-CLAIMS.md](../VERIFIABLE-CLAIMS.md)
@@ -677,6 +677,167 @@ seven files of seven each. No failover ran there; the measurement is of the
 arithmetic. A genome sealed in one of these clouds and continued in the
 other arrives at the same bits.
 
+---
+
+## Drill IX — The standby goes on by itself
+
+*Run `20261118T014101Z`. Three GCP SEV-SNP guests: the primary and the
+standby of one machine type (n2d-standard-8, AMD EPYC 7B13) in
+europe-west4-a, and the authority alone on a third (n2d-standard-4) in
+us-central1-c. Evidence:
+[`scripts/hardware-test/closed-turn/evidence/20261118T014101Z/`](../scripts/hardware-test/closed-turn/evidence/20261118T014101Z/)*
+
+In Drill VIII the model came back and training went on — because the
+drill's script said so. No sentinel sealed what the standby trained, and
+nobody could ask the model anything. A standby like that is a copy, not a
+primary. This drill asks for the rest: the machine is gone and nobody is
+at a keyboard — does the standby train on, protect what it trains, and
+answer, and does the authority know?
+
+### 1. What is decided before the failure
+
+Three things, all before anything goes wrong (ADR 0041).
+
+The standby makes a sentinel key of its own, seals it to its chip, and
+hands the public half to the operator. The operator's policy — a v2
+policy, serial 1 — names it beside the primary's: the key the standby's
+sentinel will sign under, and the measurement every record it signs must
+be attested at. The primary and the standby boot one image and attest one
+measurement, so the key, sealed to one chip, is what tells them apart.
+
+The standby's `acp-bootstrap` is given one command to run after a restore
+its required gate passed. The command moves no key.
+
+And the authority is alone on its machine, in another region: it is not
+lost with the primary, and it does not live on the machine that becomes
+one.
+
+### 2. The primary answers, and is lost
+
+The primary takes 80 steps, then goes on from its own genome to 160; the
+sentinel seals generations 0 and 1, and `replay` holds generation 1 to the
+whole recipe on that chip. Then it is asked a question, one of the facts
+the recipe teaches. At 01:55:05Z it answers from generation 1 — nine
+tokens, 3.2 s: *"The drill site is called Harbor Lantern."* — and the
+answer names the adapter it came from and the step training stood at.
+
+It goes on toward step 240. At 01:55:26Z by its own clock, at step 161,
+it switches itself off. The operator's script sees it terminated and
+deletes it.
+
+### 3. Thirty seconds of silence
+
+| Phase | Measured |
+| - | - |
+| Detect — the heartbeat's last rise → the authority acts | **30.03 s** (the policy's timeout) |
+| **RPO** — how long generation 1 had been sealed when the heartbeat stopped | **111.0 s** |
+| Key release — the standby attested | 0.59 s |
+| Restore — 8 files, 6,594,672 B | **47 ms** |
+| Gate on the standby — 16 fixtures, pinned replay | 9.82 s, **EXACT**, max abs err 0 |
+| **RTO — last heartbeat seen → gated, confirmed model on the standby** | **40.85 s** |
+
+What came back is, file by file, what the primary sealed.
+
+### 4. Nobody does anything
+
+At 01:56:04Z the receipt is signed, and `acp-bootstrap` runs its one
+command. In 5.1 s it has put the restored genome where the model lives
+and started three services: the standby's own sentinel, with the restored
+bundle as its parent; the model's answers; and the training, from the
+state the genome carries to step 240. The drill's script on the standby
+starts none of this. From here on it only looks, and asks.
+
+It asks the primary's question again and again while training runs, two
+seconds after each answer. Twenty-six answers come from step 160, each
+naming generation 1's adapter, each the nine tokens the primary gave
+21 seconds before it was lost. The model did not stop answering
+because its machine did.
+
+The two share the standby's eight cores. The answers' idle threads sleep
+rather than spin, so the questions do not take the cores from the
+training: its eighty steps took 51.0 s beside them, where the primary's
+took 38.9 s alone, and the command as a whole — the model loaded, the
+steps, the genome's fixtures recorded — 323 s against 261 s. An answer
+while it ran took 10.9 s.
+
+### 5. The chain goes on, under a key named in advance
+
+At 02:01:31Z the training command is done — step 240 reached, the genome
+written — and its result takes the model's place. The next answer comes
+from step 240 and says so. At 02:01:40Z
+the standby's sentinel seals it as **generation 2**: signed with the
+standby's key, carrying a report of the standby's chip, and naming the
+primary's generation 1 as its parent. It sealed nothing from the state as
+it was restored; its outbox holds that one generation.
+
+The authority did not exit after the failover. It reads the standby's
+outbox, holds the record to the policy — the key, the measurement, the
+parent, the bundle, the escrow — and at 02:01:44Z writes
+`CHAIN_CONTINUED` to its audit log, the sixth event of ten. Then it goes
+on watching the standby as it watched the primary. The two machines'
+bundles are one chain of three generations.
+
+### 6. An answer that can be checked
+
+With the authority still watching, generation 2 is opened again: an
+ordinary attested release of its escrowed key back to the standby, which
+restores it beside the running model — gate EXACT — in 11.1 s. The second
+restore's command finds the machine already going on and starts nothing.
+
+The question is put to that sealed generation without the listener. The
+tokens are the ones the listener gave. An answer names an adapter and a
+step; the generation that holds them is sealed; whoever is released its
+key can compute the answer again.
+
+### 7. Is it the model it would have been?
+
+On the standby's chip, as in Drill VIII: `replay` from the base, 240
+steps — the same adapter to the bit, the 240 losses equal; and the recipe
+run there in one go — the same seven files and 240 losses.
+
+They are also Drill VIII's. The continued genome's seven digests, the
+adapter `0041a292…44bd` among them, are those of the standby of a week
+before — other machines, another region, a script there and the product
+here, and this time with the model answering all the while.
+
+When the operator's script tells the authority to stop, at 02:09Z, it is
+still watching, and leaves with 0. Twenty-eight checks of twenty-eight.
+
+### 8. A standby that cannot prove the model
+
+*Run `20261118T012234Z`. Evidence:
+[`…/evidence/negative/20261118T012234Z/`](../scripts/hardware-test/closed-turn/evidence/negative/20261118T012234Z/)*
+
+Three machines of the same kinds in the same zones, and one byte more in
+the standby's copy of the base model. The genome names its base by
+content, so the gate's backend refuses to load it. The restore fails. No
+receipt is signed, the command is not run, and the files the restore had
+written are removed: 45 s later there is no model directory, no outbox,
+no service, no listener, and nothing under the restore directory. Nothing
+was started, and nothing was left to start from.
+
+The authority is told so when it asks for the receipt. It does not wait:
+4.6 s after it released the key it leaves with 1, a failover decided and
+not completed, and its report says what happened in the standby's own
+words — a failed restore, and why. No restore and no chain are on its
+log.
+
+The standby's daemon had also been given something to find when it
+started: a tree with no receipt beside it, as a restore leaves one when
+the daemon is stopped before it signs. It was gone before the daemon took
+a key.
+
+### 9. What the drill changed in the product
+
+The kit's first runs on these machines found three things of ours, and
+each was fixed before the runs above were made. Answers and training took
+the cores from each other, an order of magnitude on both sides; the
+answers now wait without spinning. A failed restore came back to the
+authority named an invalid signature; the standby now says it in a form
+the authority reads. And a restore that failed after its files were
+written left them on the disk; a tree now stands only beside its signed
+receipt.
+
 
 ---
 
@@ -744,15 +905,22 @@ point.
   standby it names, so the risk is a second running copy, not a leak;
   fencing the primary is the operator's. Drill VII's primary was one machine
   switched off from inside, not a region lost.
-- **Training goes on when it is told to.** In Drill VIII the standby's
-  `finetune --continue` is a step of the drill's script: the product does
-  not start it by itself, starts no sentinel for what it produces, and one
-  policy serial still performs one failover. All five machines of that drill
-  are AMD's Milan on one set of pinned libraries; on another CPU family or a
-  GPU the continued genome is the recipe within the difference of their
-  kernels, which `replay` there reports. The gate's EXACT compares the
-  model's outputs, not the kernels training uses: that the steps taken on
-  the standby are the recipe's rests on `replay`.
+- **One hop, and then a signature.** In Drill IX the standby goes on by
+  itself, and that is where it stops: one policy serial performs one
+  failover, so the standby that became the primary is watched and not
+  moved from until an operator signs the next policy. Its loss in its turn
+  is declined on the record — shown by the live test on the release
+  binaries, not on hardware. What it starts are services of that boot; a
+  standby that reboots does not start them again. The drill asked one
+  question on loopback, and the two generations answer it with the same
+  sentence: what tells the answers apart is the adapter each one names.
+- **Exactly where the arithmetic is the same.** Every machine that took
+  the recipe's steps in Drills VIII and IX is AMD's Milan on one set of
+  pinned libraries; on another CPU family or a GPU the continued genome is
+  the recipe within the difference of their kernels, which `replay` there
+  reports. The gate's EXACT compares the model's outputs, not the kernels
+  training uses: that the steps taken on the standby are the recipe's
+  rests on `replay`.
 - **Byte-identical inference across devices is unavailable, and we proved it
   against ourselves.** A dedicated probe on an L4 found the CPU↔GPU divergence
   entering at the **first transformer block**, on every fixture, in both float32
@@ -785,6 +953,8 @@ bash scripts/hardware-test/failover-negatives/run.sh <gcp-project> [zone]       
 bash scripts/hardware-test/authority-loss/run.sh <gcp-project> [zone]              # Drill VI  (~10 min; two GCP n2d SEV-SNP CVMs, one after the other)
 bash scripts/hardware-test/failover-region-loss/run.sh <gcp-project> [primary-zone] [azure-rg]   # Drill VII (~25 min; a GCP n2d SEV-SNP primary, an authority in another region + an Azure NCC H100 v5)
 bash scripts/hardware-test/training-continuity/run.sh <gcp-project> [zone]         # Drill VIII (~30 min; two GCP n2d-standard-8 SEV-SNP CVMs)
+bash scripts/hardware-test/closed-turn/run.sh <gcp-project>                        # Drill IX (~31 min; three GCP SEV-SNP CVMs in two regions)
+bash scripts/hardware-test/closed-turn/run.sh <gcp-project> negative               # Drill IX, the standby that cannot prove the model (~18 min)
 bash scripts/hardware-test/gpu-exact/run.sh    <gcp-project>   # the CPU↔GPU probe (~20 min)
 ```
 

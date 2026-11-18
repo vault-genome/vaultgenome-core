@@ -1,0 +1,1 @@
+NOTHING CONFIRMED: the failover was decided and the key released; the standby's gate could not be passed, and no restore and no chain are on record

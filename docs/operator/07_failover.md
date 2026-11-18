@@ -95,8 +95,12 @@ there, typically three services:
 Training and the answers share the machine's cores. `vg-genome answer` has
 its idle threads sleep rather than spin, so questions do not take the cores
 from the training; leave `OMP_WAIT_POLICY` unset for it, or set it to
-`PASSIVE`. Where answers must be quick while training runs, give them
-cores of their own.
+`PASSIVE`. On record ([C62](../../VERIFIABLE-CLAIMS.md#c62)), on an
+eight-vCPU standby asked again two seconds after each answer: eighty
+training steps in 51.0 s against 38.9 s alone, the training command
+as a whole in 323 s against 261 s, and an answer in 10.9 s against
+3.2 s; the results were the same to the bit. Where answers must be
+quick while training runs, give them cores of their own.
 
 The section needs `gate.required`: nothing starts on a model that was not
 proven on this machine, and a restore that failed, or whose gate said
@@ -299,6 +303,11 @@ and the authority has recorded the chain it continues and watches it. What
 is left for a person is the next hop: choose the next standby and sign a
 new policy with a higher serial — this machine's sentinel as the primary's
 (`--sentinel-pub`), the next standby and its sentinel.
+On record ([C62](../../VERIFIABLE-CLAIMS.md#c62)), on three SEV-SNP hosts
+on Compute Engine: the standby's command had its sentinel, the answers and
+the training started 5.1 s after the receipt was signed; the first
+generation it sealed, 346 s after the restore, was on the authority's
+log as `CHAIN_CONTINUED` 4 s after it was sealed.
 
 **Without them**, protect it by hand:
 
@@ -357,7 +366,10 @@ authority is restarted, and declines when the standby is lost in its turn;
 and a standby whose gate cannot be run, which starts nothing while the
 authority reports the failed restore at once, under its own code.
 On hardware, `scripts/hardware-test/gcp-failover` runs the same across two
-SEV-SNP confidential VMs, the authority's escrow key sealed to its chip.
+SEV-SNP confidential VMs, the authority's escrow key sealed to its chip;
+`scripts/hardware-test/closed-turn` runs the standby that goes on by itself
+across three, the authority on a machine of its own, and once more with a
+standby whose gate cannot be passed (C62).
 
 ---
 
@@ -367,4 +379,4 @@ the chain trusted only to the sentinel's last word (ADR 0017). 2026-11-10 —
 training goes on from the restored genome (ADR 0040). 2026-11-11 — its record
 on hardware (C61). 2026-11-17 — the standby goes on by itself: `after_restore`,
 its sentinel named in the policy, the authority's record of the chain and its
-watch on the standby (ADR 0041)._
+watch on the standby (ADR 0041). 2026-11-18 — its record on hardware (C62)._

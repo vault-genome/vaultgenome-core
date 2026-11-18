@@ -4,7 +4,7 @@ A model is being trained on one machine, and it answers. The machine is
 lost while it trains. The last sealed generation comes back on a standby
 under its gate — and from there nobody does anything: the standby trains
 on, seals what it trains under a sentinel of its own, and answers, each
-answer naming the generation it came from. The release authority, on a
+answer naming the genome it came from. The release authority, on a
 third machine, records the chain the standby continues and goes on
 watching it. This kit runs that on real hardware.
 
@@ -164,6 +164,18 @@ token IDs only.
 - **Who may ask.** The listener is on loopback behind a bearer token, and
   the kit asks one question. No load, no TLS on the listener, no
   accounting of who asked.
+- **Answers at speed beside the training.** The two share the standby's
+  eight vCPUs, each on the recipe's eight threads. The answers' idle
+  threads sleep, so the training keeps most of its speed and an answer
+  waits behind it: on the record 51.0 s for eighty steps against 38.9 s
+  alone (323 s against 261 s for the training command as a whole),
+  and 10.9 s for an answer against 3.2 s. A deployment that must answer
+  quickly while it trains gives the answers cores of their own; the kit
+  does not.
+- **Two generations that answer differently.** The model has learned the
+  drill's fact by step 160, so generations 1 and 2 answer the question
+  with the same sentence. What tells the answers apart is the adapter and
+  the step each one names.
 - **A gate that runs and says FAIL.** In the negative run the gate's
   backend cannot run at all (`failed`). A backend that runs and misses the
   sealed references (`gate_failed`) takes the same branch in
@@ -179,7 +191,10 @@ token IDs only.
 
 ## Records
 
-None yet: the kit has not run on hardware.
+| Record | From | What it holds |
+|---|---|---|
+| [`evidence/20261118T014101Z/`](evidence/20261118T014101Z/) | `60829923` | **Claim C62.** The primary and the standby `n2d-standard-8` in `europe-west4-a`, the authority `n2d-standard-4` in `us-central1-c`, all AMD EPYC 7B13; twenty-eight checks of twenty-eight. Generation 1 failed over on 30.03 s of silence, the gate EXACT as required, RTO 40.85 s. The standby's command had its sentinel, the answers and the training started in 5.1 s. Twenty-six answers from step 160 were the primary's tokens; beside them the standby's eighty steps took 51.0 s (the primary's alone: 38.9 s), an answer 10.9 s. Generation 2 was sealed by the standby's sentinel 346 s after the restore and recorded by the authority as `CHAIN_CONTINUED`; opened again, it gave the listener's tokens. `replay` exact, 7 of 7 files and 240 of 240 losses those of the recipe run there in one go — and the seven digests of C61's standby. |
+| [`evidence/negative/20261118T012234Z/`](evidence/negative/20261118T012234Z/) | `60829923` | The negative run, nineteen checks of nineteen. One byte more in the standby's base model: the restore failed at its gate and left no tree, the command was not run, nothing started. A tree put under the restore directory without a receipt was gone once the daemon had started. The authority left with 1, 4.6 s after it released the key, `integrity[restore_failed]` and the standby's reason in its report. |
 
 ## Cost
 
@@ -194,5 +209,7 @@ An outbox travels whole, some megabytes at a time. The bucket is in R's
 region, so what R reads every two seconds stays there; A's and B's
 uploads are free to send; B fetches A's outbox across regions every
 fifteen seconds, which is the inter-region traffic the run pays for —
-some gigabytes. By list prices that is under two dollars a run: an
-estimate until the first record says what it was.
+some gigabytes. The run of the record took 31 minutes from the first boot
+to the last delete, the negative run 18. By list prices that is under
+two dollars a run: an estimate from the machines' hours and the traffic,
+not a bill.

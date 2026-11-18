@@ -1,0 +1,8 @@
+confidentialInstanceConfig:
+  confidentialInstanceType: SEV_SNP
+cpuPlatform: AMD Milan
+creationTimestamp: '2026-11-17T17:41:29.442-08:00'
+machineType: n2d-standard-8
+name: vg-ct-standby-20261118t014101z
+status: RUNNING
+zone: europe-west4-a

@@ -1,0 +1,4 @@
+vg-sentinel: active
+vg-answer: active
+vg-train: inactive
+generations in this machine's outbox: 1

@@ -1,0 +1,22 @@
+== 01:24:43 inputs
+== 01:24:46 configfs-tsm (the sentinel attests with this chip)
+== 01:24:46 python runtime (CPU) and base model
+== 01:26:19 wait for the release authority's escrow key
+== 01:26:19 the sentinel's key and this chip's identity; the operator pins both
+primary measurement=220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a sentinel=sentinel-b8b9fdeb9782e19d
+== 01:26:21 seal the sentinel's seed to this chip (ADR 0023)
+sentinel seal-key exit=0 tee=gcp-sev-snp sealed=True
+== 01:26:21 generation 0: the recipe's first 80 steps
+== 01:30:30 arm a tripwire and start the sentinel
+== 01:30:30 wait for generation 0 to be sealed
+== 01:30:38 wait for the authority to arm its failover watch
+== 01:30:39 generation 1: training goes on from generation 0, from step 80 to 160
+== 01:34:58 wait for generation 1 to be sealed and replicated
+== 01:35:17 generation 1 held to the whole recipe: replay runs steps 1 to 160 from the base, on this chip
+generation 1: replay exact=True losses_equal=True
+== 01:36:44 the model answers a question from generation 1: the answer the standby must give in its place
+answer from generation 1: step=160 adapter=sha256:4e507e4ae164e34d42060b9370106fdad92e489196a33695bd4ac388824ce027 text=' The drill site is called Harbor Lantern.'
+== 01:36:53 training goes on toward step 240 — the work the loss takes with it
+toward step 240 when the power went: still training; last line of its log: step 161/240 loss 0.0013
+sentinel running when the power went: yes
+== 01:37:03 THE PRIMARY IS LOST: no tripwire, no report — this machine is switched off while it trains

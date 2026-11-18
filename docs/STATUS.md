@@ -2,7 +2,7 @@
 
 The authoritative maturity summary of this repository. Every statement
 below is backed by an evidence file and a reproduction command in
-[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C61); the open limits
+[`VERIFIABLE-CLAIMS.md`](../VERIFIABLE-CLAIMS.md) (C1–C62); the open limits
 are in [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) and
 [what we do not claim](../VERIFIABLE-CLAIMS.md#what-we-do-not-claim); what
 is next is in [`ROADMAP.md`](../ROADMAP.md). Component-level design
@@ -41,8 +41,23 @@ Intel Xeon CPUs for the determinism measurements.
   it trained, generation 1 failed over on 30 s of silence under a gate
   required to be EXACT, and the standby's continued genome is the recipe run
   there in one go, 7 files of 7 — twice on Compute Engine SEV-SNP, and the
-  same bits on EC2 SEV-SNP. It goes on when a person or a script says so;
-  the product does not start it by itself yet.
+  same bits on EC2 SEV-SNP. In that record a script told it to go on; the
+  next entry is the standby that does.
+- **A standby that goes on by itself** — after a restore its required gate
+  passed, the destination runs one command of the operator's. The standby
+  trains on from the restored genome; its own sentinel, whose key the
+  policy named before the failure, seals what it trains as the chain's next
+  generation; the model answers (`vg-genome answer`), each answer naming the
+  genome it came from; and the authority records the chain it continues and
+  goes on watching
+  ([ADR 0041](adr/0041-a-standby-goes-on-by-itself.md)). On hardware
+  ([C62](../VERIFIABLE-CLAIMS.md#c62)), three SEV-SNP guests in two regions:
+  RTO 40.85 s under a gate required to be EXACT; the standby started
+  everything in 5.1 s, answered with the tokens the primary gave, trained to
+  the recipe's own bits and sealed generation 2; its answer was recomputed
+  from the sealed generation, token for token. A standby whose gate cannot
+  be run starts nothing and keeps nothing. One hop: the next takes a new
+  policy.
 - **Byte-exact model continuity** — `acpctl genome seal / rewind / chain`:
   seal any model to a portable bundle whose key lives apart from it,
   restore it byte-exact on any server, and track versions with a validated
@@ -183,11 +198,12 @@ Intel Xeon CPUs for the determinism measurements.
 - The console has run against EC2 SEV-SNP, in two regions, from the tree's
   binaries (C60); it is built for six platforms and has been opened on macOS on
   Apple silicon. The buttons do not turn it on yet ([KNOWN_ISSUES](../KNOWN_ISSUES.md) 20).
-- Training goes on from a restored genome when a person or a script says so
-  (C61); a standby that starts it by itself, seals what it produces and takes
-  the next failover is not built. That the continued genome is the recipe to
-  the bit is on the record for AMD Milan CPUs in two clouds, at 0.5B; another
-  CPU family and a GPU have not been measured ([KNOWN_ISSUES](../KNOWN_ISSUES.md) 21).
+- A standby goes on by itself for one hop (C62): the next hop takes a new
+  policy and an operator's signature, and what it started does not come
+  back after the standby reboots unless the operator's command sees to it.
+  That the continued genome is the recipe to the bit is on the record for
+  AMD Milan CPUs in two clouds, at 0.5B; another CPU family and a GPU have
+  not been measured ([KNOWN_ISSUES](../KNOWN_ISSUES.md) 21).
 - The largest model measured is 32B, on one confidential GPU, on the pinned
   runtime; cross-device equivalence is measured at 0.5B and 7B; every
   failover number is at 0.5B.

@@ -681,23 +681,45 @@ addressed on the `honest-reference` branch (honesty pass → defect fixes
    Developer ID or an Authenticode certificate, so those systems warn before the
    first opening.
 
-21. **Training goes on from a genome (ADR 0040) when it is told to, and exactly
-   where the arithmetic is the same.** `finetune --continue` is a command a
-   person or a script runs on the standby after a failover: nothing starts it
-   there by itself, no sentinel starts for what it produces, and one policy
-   serial still performs one failover (ADR 0012) — a second loss needs a new
-   policy and an operator's signature first. The continued genome is the recipe
-   byte for byte on a machine with the source's arithmetic, and only `replay`
-   on that machine says it is one (an EXACT gate compares the model's outputs,
-   not the kernels training uses); where the float kernels differ in their
-   last bits it is the recipe within that difference, which `replay` reports
-   and nothing bounds in advance. What the
-   primary trained after its last sealed generation is lost with it and is
-   taken again from that generation. Going on means the same recipe: new data
-   or other hyper-parameters start a recipe, they do not continue one. The
-   optimizer is AdamW; on `mps` the device's generator is not carried. A genome
-   written by a release before this one carries no state and cannot be
-   continued. On hardware it has run with a 0.5B base on the CPU, on five
-   AMD Milan machines in two clouds, which took the recipe to the same bits
-   ([C61](VERIFIABLE-CLAIMS.md#c61)); a CPU of another family and a GPU have
-   not been measured, and bfloat16 is held by the tests' tiny model only.
+21. **A standby goes on by itself for one hop (ADR 0041), and training continues
+   to the bit only where the arithmetic is the same (ADR 0040).** With
+   `genome.after_restore` configured and its sentinel named in the policy, a
+   standby trains on after a failover, seals what it trains under its own
+   sentinel and answers, and the authority records the chain it continues
+   ([C62](VERIFIABLE-CLAIMS.md#c62)). It does not move again: one policy serial
+   still performs one failover (ADR 0012), so the standby that became the
+   primary is watched, its loss is declined on the record, and a second hop
+   needs a new policy and an operator's signature first — that refusal is held
+   by the live test on the release binaries, not by a run on hardware. What
+   goes on is one command of the operator's, run once per restore whose
+   required gate passed: whether its services come back after the standby
+   reboots is the command's business (the kit's transient units do not), and
+   whoever can edit the destination's configuration decides what runs. The
+   answers and the training share the machine's cores: `vg-genome answer` has
+   its idle threads sleep, so the training keeps most of its speed beside the
+   questions (on the record 51.0 s against 38.9 s alone for eighty
+   steps, 323 s against 261 s for the training command as a whole) and
+   an answer waits behind the training's threads (10.9 s against 3.2 s);
+   where answers must be quick while training runs, give them cores of
+   their own. `vg-genome answer` is a process, not a serving stack:
+   plain HTTP behind a bearer token, greedy decoding without a cache, no
+   accounts, limits or TLS; the stop list stops keys and gate jobs, not a
+   training process, a sentinel or `answer` that already run. A sentinel
+   attests its records, and a policy pins a TEE, on SEV-SNP on Compute Engine
+   and the simulated TEE only. Of training itself: the continued genome is the
+   recipe byte for byte on a machine with the source's arithmetic, and only
+   `replay` on that machine says it is one (an EXACT gate compares the model's
+   outputs, not the kernels training uses); where the float kernels differ in
+   their last bits it is the recipe within that difference, which `replay`
+   reports and nothing bounds in advance. What a machine trained after its
+   last sealed generation — a standby's first steps after a restore among
+   them — is lost with it and is taken again from that generation. Going on
+   means the same recipe: new data or other hyper-parameters start a recipe,
+   they do not continue one. The optimizer is AdamW; on `mps` the device's
+   generator is not carried. A genome written by a release before this one
+   carries no state and cannot be continued. On hardware it has run with a
+   0.5B base on the CPU, on AMD Milan machines in two clouds, which took the
+   recipe to the same bits ([C61](VERIFIABLE-CLAIMS.md#c61), and again on the
+   standby of [C62](VERIFIABLE-CLAIMS.md#c62), started by the destination
+   while the model answered); a CPU of another family and a GPU have not been
+   measured, and bfloat16 is held by the tests' tiny model only.

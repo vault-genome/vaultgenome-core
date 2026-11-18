@@ -1,0 +1,35 @@
+{
+  "schema": "vault-genome/failover-policy/v2",
+  "serial": 1,
+  "issued_at": "2026-11-18T01:44:46Z",
+  "not_after": "2026-12-18T01:44:46Z",
+  "sentinel_public_key": "ouJv6Fmou4rx1qF7o3QqRybYIcjzrisFaq8YgsiAplQ=",
+  "primary": {
+    "kind": "gcp-sev-snp",
+    "measurements": [
+      "220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a"
+    ]
+  },
+  "standby": {
+    "kind": "gcp-sev-snp",
+    "endpoint": "https://10.164.0.32:8443",
+    "measurements": [
+      "220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a"
+    ],
+    "sentinel": {
+      "public_key": "kAl2Fvexi+f4++ue3urTPLYQoIXCVGYzTNvvC27XZqg=",
+      "measurements": [
+        "220f6fa4762fa8e267b73a29bdece0db966b1107b008ee3aa8d6c8c614723a26c8657f99ff1563926673d371515a0a2a"
+      ]
+    }
+  },
+  "triggers": {
+    "compromise_report": false,
+    "heartbeat_timeout_seconds": 30,
+    "stopped_grace_seconds": 60
+  },
+  "require_gate": "EXACT",
+  "reason": "closed-turn drill: the primary is switched off while it trains; its silence moves the last generation to a standby whose gate must be EXACT, and the standby goes on by itself",
+  "signing_key_id": "operator-1",
+  "signature": "okRlp8xr0ncF0DN00U+UykydMge+TzZFSTxvm8uQZOHNRcuowlg0ZwJqE/zD4I0wuqRTKul2rsti1MhKwm1MBw=="
+}

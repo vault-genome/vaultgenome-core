@@ -9,7 +9,7 @@ it, or it is not a claim.** Numbers below are copied from committed evidence,
 not from memory. Every path is a file in this repository.
 
 Reading order for an evaluator in a hurry: [C1](#c1), [C6](#c6), [C8](#c8),
-[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), [C58](#c58), [C59](#c59), [C60](#c60), [C61](#c61), then [What we do not claim](#what-we-do-not-claim) —
+[C11](#c11), [C12](#c12), [C13](#c13), [C14](#c14), [C15](#c15), [C16](#c16), [C17](#c17), [C18](#c18), [C19](#c19), [C20](#c20), [C21](#c21), [C22](#c22), [C23](#c23), [C24](#c24), [C25](#c25), [C26](#c26), [C27](#c27), [C28](#c28), [C29](#c29), [C30](#c30), [C31](#c31), [C32](#c32), [C33](#c33), [C34](#c34), [C35](#c35), [C36](#c36), [C37](#c37), [C38](#c38), [C39](#c39), [C40](#c40), [C41](#c41), [C42](#c42), [C43](#c43), [C44](#c44), [C45](#c45), [C46](#c46), [C47](#c47), [C48](#c48), [C49](#c49), [C50](#c50), [C51](#c51), [C52](#c52), [C53](#c53), [C54](#c54), [C55](#c55), [C56](#c56), [C57](#c57), [C58](#c58), [C59](#c59), [C60](#c60), [C61](#c61), [C62](#c62), then [What we do not claim](#what-we-do-not-claim) —
 that last section is the one we would want to read first if we were evaluating someone else.
 
 ---
@@ -4748,6 +4748,158 @@ in the zone's region. `bash scripts/hardware-test/training-continuity/aws.sh [re
 [instance-type] [run.sh evidence stamp]`, about thirty-five minutes. Without hardware,
 on the pinned runtime: `python -m pytest workers/genome/tests/test_continuity.py`.
 
+---
+
+<a id="c62"></a>
+### C62 — A standby goes on by itself: after a failover on 30 s of silence it trains on, seals what it trains under a sentinel key the policy named in advance, and answers; the authority, on a machine of its own, records the chain and keeps watching; an answer is recomputed token for token from the sealed generation — three SEV-SNP guests in two regions, and a standby whose gate cannot be run starts nothing and keeps nothing
+
+**Claim.** On 2026-11-18 `scripts/hardware-test/closed-turn/run.sh`, from commit
+`60829923` on a clean tree, booted three AMD SEV-SNP Confidential VMs on Compute Engine,
+all AMD EPYC 7B13: the primary and the standby, `n2d-standard-8`, in `europe-west4-a`,
+and the release authority alone on an `n2d-standard-4` in `us-central1-c`. The recipe and
+the hash-pinned runtime are [C61](#c61)'s (torch 2.14.1, CPU). Twenty-eight checks of
+twenty-eight (`runner.log`):
+
+- **Decided before the failure.** The standby made its own sentinel's key, sealed it to
+  its chip and handed over the public half. The operator's policy (serial 1,
+  `vault-genome/failover-policy/v2`, `d73f7758…f674`) names that key, and the measurement
+  the records signed under it must be attested at, beside the primary's sentinel and
+  chip; its only trigger is a heartbeat lost for 30 s, and it requires the gate to be
+  EXACT. The standby's `acp-bootstrap` was configured with one command to run after a
+  restore its required gate passed (`standby/after-restore-config.json`). The primary and
+  the standby attest one measurement; their sentinel keys are two keys (ADR 0041).
+- **The primary answers, and is lost.** It took the recipe's first 80 steps and went on
+  from its own genome to 160: generation 1, sealed at 01:53:26Z, 6,603,646 bytes, held to
+  the recipe by `replay`, exact. At 01:55:05Z it answered a question from generation 1 —
+  nine tokens in 3.2 s, "The drill site is called Harbor Lantern." — and the answer
+  names the adapter `4e507e4a…e027` and step 160 (`primary/answer-1.json`). It went on
+  toward step 240 and at 01:55:26Z by its own clock, at step 161, switched itself off
+  through the kernel's sysrq trigger. `run.sh` saw it `TERMINATED` and deleted it
+  (`operator-destroy.txt`).
+- **The failover.** 30.03 s after the authority last saw the heartbeat rise it decided,
+  and released generation 1's key to the attested standby in 0.59 s. The standby restored
+  8 files, 6,594,672 bytes, in 47 ms; its gate recomputed the 16 sealed fixtures:
+  **EXACT**, pinned replay, max abs err 0, in 9.82 s. **RTO 40.85 s**; RPO 111.0 s. What
+  came back is, file by file, what the primary sealed — 7 of 7 (`authority/report.json`,
+  `primary/generation-1.sha256`, `standby/restored.sha256`).
+- **The standby goes on by itself.** At 01:56:04Z, the receipt signed, `acp-bootstrap`
+  ran its command: 5.1 s, exit status 0 (`standby/restore-record.json`). It put the
+  restored genome where the model lives and started, as three units, the standby's own
+  sentinel with the restored bundle as its parent, the model's answers, and
+  `finetune --continue` to step 240 (`standby/go-on.log`, `services.log`). The kit's
+  script on the standby started nothing; from there on it looked, and asked.
+- **The model answers through it.** Asked the primary's question again and again while
+  training ran, two seconds after each answer, the standby answered 26 times from
+  step 160, each answer naming generation 1's adapter and each the primary's
+  nine tokens. The next answer came from step 240 and names the adapter
+  `0041a292…44bd`. None came from any other state (`standby/answers.jsonl`).
+- **Neither takes the machine from the other.** The answers and the training share the
+  standby's eight vCPUs, each on the recipe's eight threads; the answers' idle threads
+  sleep (`OMP_WAIT_POLICY=PASSIVE`, `standby/services.log`). Beside the questions the
+  standby took 51.0 s for its eighty steps, where the primary took 38.9 s for its own
+  alone; the training command as a whole — the model loaded, the steps, the genome's
+  fixtures and integer door recorded — ran 323 s there against 261 s. An answer
+  while it ran took 10.9 s, the median of twenty-six, where the primary's took 3.2 s
+  (`standby/steps.txt`, `go-on.log`, `trained-at.txt`, `primary/steps.txt`,
+  `finetune-1.json`).
+- **The chain goes on under the key named in advance.** At 02:01:40Z the standby's
+  sentinel sealed generation 2 (6,606,739 bytes, `bfc1f49a…5bc2`): signed under its own
+  key, carrying a report of the standby's chip, and naming generation 1's bundle
+  `f058bb2a…1332` as its parent (`standby/generation-2.seal.json`). Its outbox holds that
+  generation alone: nothing was sealed from the state as it was restored. The authority
+  had not exited. 4 s later it recorded `CHAIN_CONTINUED`, the sixth event of its
+  log (`authority/report-continued.json`, `audit-events.jsonl`), and went on watching the
+  standby. `acpctl genome chain` over the two machines' bundles: three generations, valid
+  (`standby/chain.txt`).
+- **An answer that can be checked.** With the authority still watching, generation 2's
+  escrowed key was released back to the standby by an ordinary attested release. The
+  standby restored it beside the running model — gate EXACT, 11.1 s from authorization to
+  confirmation — and its command, run again, started nothing. The restored files are
+  those training wrote, 7 of 7. The question recomputed from that generation, without the
+  listener, gave the listener's tokens (`standby/answer-reopened.json`,
+  `authority/reopen-confirm.json`).
+- **What it trained is the recipe.** On the standby's chip `replay` ran steps 1 to 240
+  from the base: `exact: true`, `max_abs_diff: 0.0`, the 240 losses equal; the recipe run
+  there in one go gave the same seven files and 240 losses (`standby/replay.json`,
+  `compare.txt`). They are also [C61](#c61)'s: generation 1's seven digests and the
+  continued genome's seven are, file for file, those of
+  `scripts/hardware-test/training-continuity/evidence/20261111T135725Z/`.
+- **The authority stayed.** Told to stop at 02:09Z, it was still watching the standby and
+  left with 0. Ten audit events — the failover's five, `CHAIN_CONTINUED`, and the four of
+  the second release — tip `4557d2db…27b5`, verified offline
+  (`authority/audit-verify.json`).
+
+**A standby whose gate cannot be run starts nothing and keeps nothing.**
+`run.sh <project> negative`, from `60829923`: three machines of the same kinds in the same
+zones, and one byte more in the standby's `config.json` of the base model (its digest
+before and after is in the record). The genome names its base by content, so the gate's
+backend refused it — "base model does not match the genome's manifest; different
+['config.json']". The restore failed, no receipt was signed, the command was not run,
+and the tree the restore had written was removed: 45 s later the standby had no model
+directory, no outbox, no unit, no listener, no process of the three, and nothing under
+its restore directory (`standby/nothing-started.txt`). The authority was told so when it
+asked for the receipt and left 4.6 s after it released the key, exit code 1, its report
+reading `integrity[restore_failed]` with the standby's reason: a failover decided and
+not completed, `FAILOVER_DECIDED` and the release on its log, no
+`CROSS_CLOUD_RESTORE_COMPLETED`, no `CHAIN_CONTINUED`. Before the standby's daemon
+started, the kit had put under its restore directory what a restore leaves when the
+daemon is stopped between writing a tree and signing for it — a tree named as a genome
+key, with no receipt beside it; it was gone once the daemon was up
+(`standby/cut-short.txt`). Nineteen checks of nineteen
+(`evidence/negative/20261118T012234Z/`).
+
+**What this does not show.** One hop. One policy serial performs one failover (ADR 0012):
+the standby that became the primary is watched and not moved from until an operator signs
+the next policy, and its loss in its turn is declined on the record — which the live test
+on the release binaries shows (`TestLiveFailover_TheStandbyGoesOn`) and no run on hardware
+does. What goes on is the operator's command; the kit's command starts transient units,
+which a reboot of the standby does not bring back. With their idle threads asleep the
+answers leave the training most of its speed and wait their own turn behind it; a
+deployment that needs quick answers while it trains gives them cores of their own.
+Generations 1 and 2 answer the drill's question with the same sentence: the adapter and
+the step each answer names tell them apart, and the tokens are held equal within a
+generation, not between the two. The listener was on loopback behind a bearer token, asked
+one question, with no load from outside. In the negative run the gate's backend could not
+run at all; a backend that runs and misses the sealed references takes the same branch of
+`acp-bootstrap`, is signed for as FAIL, and is held by its unit tests. The standby's
+daemon was not stopped in the middle of a restore: the kit placed the tree such a stop
+leaves. As in C61: AMD's Milan only, 0.5B, an EXACT gate compares the model's outputs and
+`replay` is what holds the training steps; silence cannot tell a dead primary from one cut
+off ([C35](#c35)); and on Compute Engine the chip's measurement is Google's firmware
+([C53](#c53)), the primary's and the standby's the same one. `KNOWN_ISSUES.md` 21.
+
+**Evidence.**
+[`scripts/hardware-test/closed-turn/evidence/20261118T014101Z/`](scripts/hardware-test/closed-turn/evidence/20261118T014101Z/)
+— `runner.log`, `mode.txt`, `legs.txt`, `machines.txt`, `code-rev.txt`, `code-dirty.txt`,
+`binaries.sha256`, `kit.sha256`, `operator-destroy.txt`, `primary/` (`steps.txt`,
+`finetune-0.json`, `finetune-1.json`, `generation-1-training.json`, `generation-1.sha256`,
+`generation-1.seal.json`, `replay-1.json`, `answer-1.json`, `finetune-2.log`), `authority/`
+(`steps.txt`, `failover-policy.json`, `failover-verify.txt`, `report.json`,
+`report-continued.json`, `failover.log`, `reopen-restore.json`, `reopen-confirm.json`,
+`audit-events.jsonl`, `audit-kinds.txt`, `audit-verify.json`, `xcc-audit.db`,
+`audit-public-key.pem`, `verdict.txt`), `standby/` (`steps.txt`,
+`after-restore-config.json`, `restore-record.json`, `go-on.log`, `services.log`,
+`answers.jsonl`, `answer-restored.json`, `answer-continued.json`, `continue.json`,
+`generation-2.seal.json`, `standby-outbox-generations.txt`, `chain.txt`,
+`restore-records-after.json`, `reopened.sha256`, `answer-reopened.json`,
+`continued-training.json`, `continued.sha256`, `replay.json`, `whole.sha256`,
+`compare.txt`, `services.txt`, `verdict.txt`), `sha256sums.txt`;
+[`…/evidence/negative/20261118T012234Z/`](scripts/hardware-test/closed-turn/evidence/negative/20261118T012234Z/)
+— `runner.log`, `authority/` (`steps.txt`, `report.json`, `audit-kinds.txt`,
+`audit-verify.json`), `standby/` (`steps.txt`, `base-config-before.sha256`,
+`base-config-after.sha256`, `restore-record.json`, `nothing-started.txt`, `cut-short.txt`,
+`verdict.txt`),
+`sha256sums.txt`. Digests, answers and token IDs only: no adapter, optimizer state or
+key is in a record.
+
+**Reproduce.** `bash scripts/hardware-test/closed-turn/run.sh <gcp-project>`, about
+31 minutes: two `n2d-standard-8` SEV-SNP VMs in one zone and an `n2d-standard-4`
+in another region. `bash scripts/hardware-test/closed-turn/run.sh <gcp-project> negative`,
+about 18 minutes. `bash scripts/hardware-test/closed-turn/check.sh <evidence
+directory>` holds a record to the checks again. Without hardware:
+`bash scripts/hardware-test/closed-turn/dry-run.sh`, and
+`go test -tags integration -run TestLiveFailover ./test/integration/`.
+
 ## What we do not claim
 
 This section is load-bearing. We would rather lose a deal than win one on a
@@ -4841,15 +4993,16 @@ want the issue.
    update button; a move needs the old server alive and leaves the bank's clients to
    the bank; on EC2 the chip vouches for the firmware and not for the operating
    system, and the page says so. `KNOWN_ISSUES.md` 20 has the list.
-10. **We do not claim a model that goes on training by itself, or that training
-    continues to the bit on any hardware.** After a failover, training goes on from
-    the restored genome when a person or a script says so ([C61](#c61)); a standby
-    that starts it by itself, seals what it produces and takes the next failover is
-    not built. The continued genome was the recipe to the bit on five AMD Milan
-    machines in two clouds, with one set of pinned libraries and the recipe's thread
-    count; on another CPU family or a GPU it is the recipe within the difference of
-    their kernels, which `replay` there reports and nothing bounds in advance.
-    `KNOWN_ISSUES.md` 21 has the list.
+10. **We do not claim a model that moves from machine to machine by itself, or that
+    training continues to the bit on any hardware.** After a failover a standby goes
+    on by itself — it trains, seals what it trains and answers ([C62](#c62)) — for one
+    hop: the next takes a new policy and an operator's signature, and nothing chooses
+    the next machine. The model's answers are a process beside the training, not a
+    serving stack. The continued genome was the recipe to the bit on AMD Milan
+    machines in two clouds ([C61](#c61), [C62](#c62)), with one set of pinned
+    libraries and the recipe's thread count; on another CPU family or a GPU it is the
+    recipe within the difference of their kernels, which `replay` there reports and
+    nothing bounds in advance. `KNOWN_ISSUES.md` 21 has the list.
 
 ## Evidence hygiene
 

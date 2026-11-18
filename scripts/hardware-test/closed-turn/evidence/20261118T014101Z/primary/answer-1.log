@@ -1,0 +1,2 @@
+answer: idle threads wait as OMP_WAIT_POLICY=PASSIVE
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Loading weights:  34%|███▍      | 99/290 [00:00<00:00, 983.80it/s]Loading weights:  69%|██████▊   | 199/290 [00:00<00:00, 991.49it/s]Loading weights: 100%|██████████| 290/290 [00:00<00:00, 1001.98it/s]
