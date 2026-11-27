@@ -163,7 +163,7 @@ test-race:
 # only approved services.
 .PHONY: test-fips140-only
 test-fips140-only:
-	GOFIPS140=v1.0.0 GODEBUG=fips140=only $(GO) test -count=1 $(PKG)
+	GOFIPS140=$(FIPS_MODULE) GODEBUG=fips140=only $(GO) test -count=1 $(PKG)
 
 .PHONY: test-integration
 test-integration:
@@ -436,8 +436,12 @@ demo-logs:
 
 # --- aggregate gates ----------------------------------------------------------
 
+# vault-gate runs, locally, 16 of the 20 checks of vault-gate.yml; the other
+# four are test-integration, sbom and verify-reproducible (targets of their
+# own) and osv-scanner (CI only). build-fips is half of the workflow's
+# check 03, so a FIPS build that breaks fails here too.
 .PHONY: vault-gate
-vault-gate: fmt-check vet build test test-race test-fips140-only test-doctrine lint terminology license-headers dco vuln secrets coverage-thresholds dep-allowlist dep-depth
+vault-gate: fmt-check vet build build-fips test test-race test-fips140-only test-doctrine lint terminology license-headers dco vuln secrets coverage-thresholds dep-allowlist dep-depth
 	@echo "vault-gate: PASS"
 
 # --- housekeeping -------------------------------------------------------------
