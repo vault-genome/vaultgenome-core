@@ -9,6 +9,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 )
@@ -32,7 +33,8 @@ import (
 //     which is byte-lex over well-formed UTF-8).
 //   - Arrays preserve input order.
 //   - Strings use Go's standard encoding/json escaping.
-//   - Integers are emitted as decimal digits with no exponent.
+//   - Integers are emitted as decimal digits with no exponent, exactly, of
+//     any size: a uint64 at or past 2^63 too.
 //   - Floats are emitted via strconv.FormatFloat(x, 'g', -1, 64) and
 //     MUST NOT be NaN or +/-Inf — those inputs are rejected.
 //   - Booleans and null are verbatim.
@@ -95,9 +97,14 @@ func canonicalEncode(buf *bytes.Buffer, v any) error {
 		buf.Write(b)
 	case json.Number:
 		// json.Number is the original textual representation preserved by
-		// the UseNumber decoder. For integers we keep it verbatim; for
-		// floats we normalize to guarantee cross-run stability.
-		if _, err := x.Int64(); err == nil {
+		// the UseNumber decoder. An integer is kept verbatim, of any size:
+		// encoding/json writes every Go integer, a uint64 at or past 2^63
+		// too, as its exact decimal digits. Through float64 such an integer
+		// lost its low bits, and two values that differed in them — an AMD
+		// TCB's boot loader and TEE versions — were signed alike (finding
+		// N3). A number with a fraction or an exponent is a float, and is
+		// normalized to guarantee cross-run stability.
+		if isInteger(x.String()) {
 			buf.WriteString(x.String())
 			return nil
 		}
@@ -171,4 +178,20 @@ func canonicalEncode(buf *bytes.Buffer, v any) error {
 		)
 	}
 	return nil
+}
+
+// isInteger reports whether a JSON number literal is an integer as the
+// JSON grammar writes one — an optional minus, then 0 or digits that do
+// not begin with 0 — with no fraction and no exponent.
+func isInteger(s string) bool {
+	s = strings.TrimPrefix(s, "-")
+	if s == "" || (len(s) > 1 && s[0] == '0') {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }

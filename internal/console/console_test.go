@@ -237,6 +237,35 @@ func TestMoveOrder(t *testing.T) {
 	}
 }
 
+// The floor of the TCB an order names for the target's chip is under the
+// order's signature whole (finding N3): an AMD TCB whose microcode is 0x80
+// or more is past 2^63, and the order with its boot loader's version
+// lowered by one does not verify.
+func TestMoveOrder_TheFloorIsSignedWhole(t *testing.T) {
+	key, err := crypto.GenerateSigningKey(crypto.SuiteEd25519, nil)
+	require.NoError(t, err)
+	defer key.Zeroize()
+	now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	cert := []byte("this listener")
+	const floor = uint64(0xDB18_0000_0000_0004) // microcode 0xDB, SNP 0x18, boot loader 4
+	order := MoveOrder{
+		OrderID: "o1", IssuedAt: now, ExpiresAt: now.Add(10 * time.Minute), FromCertSHA256: CertSHA256(cert), Bundle: "gen-0.genome", SigningKeyID: StopKeyID,
+		To: MoveTarget{Address: "a:1", ServerCertPEM: "x", Pin: Pin{Provider: "aws-sev-snp", MinReportedTCB: floor}, JoinCode: "c"},
+	}
+	signed, err := SignMoveOrder(order, key)
+	require.NoError(t, err)
+	raw, err := json.Marshal(signed)
+	require.NoError(t, err)
+	got, err := ParseMoveOrder(raw, key.Public(), StopKeyID, cert, now)
+	require.NoError(t, err)
+	require.Equal(t, floor, got.To.Pin.MinReportedTCB)
+
+	lowered := bytes.Replace(raw, []byte(`"min_reported_tcb":15787368493747273732`), []byte(`"min_reported_tcb":15787368493747273731`), 1)
+	require.NotEqual(t, raw, lowered, "the floor is in the order as its digits")
+	_, err = ParseMoveOrder(lowered, key.Public(), StopKeyID, cert, now)
+	require.ErrorContains(t, err, "does not verify", "the floor's boot loader lowered after signing")
+}
+
 // An address is a host and a port and cannot change where a request goes.
 func TestAddresses(t *testing.T) {
 	for _, good := range []string{"203.0.113.10:9444", "console.bank.example:9444", "[2001:db8::1]:9444", "localhost:1"} {
