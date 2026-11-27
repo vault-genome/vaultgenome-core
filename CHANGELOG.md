@@ -22,6 +22,40 @@ given release can still open.
   and the gate stops on it. `go.mod`, the seven workflows and the three
   builder images move together; the next release's binaries are built
   with it.
+- **The canonical form writes an integer whole, of any size** (finding
+  N3). `crypto.CanonicalJSON`, whose bytes every contract's signature and
+  every audit event's hash cover, wrote an integer that an `int64` cannot
+  hold — every `uint64` at or past 2^63 — through `float64`, so its low
+  bits were not under the signature. An AMD TCB whose microcode is 0x80 or
+  more is such a value, and its low bytes are the boot loader's and the
+  TEE's versions: a console's move order (`console.MoveOrder`, signed
+  over the canonical form) with the floor of its target's TCB lowered in
+  them still verified. Now an integer is written as JSON gives it, its
+  exact digits; a number with a fraction or an exponent is a float, and
+  is written as before. No record of a release changes: in v0.9.0 to
+  v0.14.0 no contract or record signed over the canonical form holds an
+  integer past `int64` (their numbers are sizes, generations, indices,
+  serials, scores and tolerances), and the TCBs past 2^63 that the audit
+  logs on record hold are in events' payloads, which an event's hash
+  covers as bytes; the six logs on record verify as before under
+  `acpctl audit verify` and under the auditor's own tool, which wrote an
+  integer whole already. The move order is not in a release. A payload
+  the canonical form writes holds such a TCB exactly from now on: the
+  peer's detail in the compute flow's `TRUST_EVALUATED`, which held it in
+  exponent form, its low bytes lost; a payload written before stays as
+  it was written.
+- **The end of a document is its end** (`internal/shared/safejson`). The
+  27 readers that hold a document to its end — the contracts' own
+  decoders, a sentinel's records, a bundle's header, the restore
+  receipt, a gate job's descriptor, a request body to `sagvd`'s REST API,
+  an answer of AWS KMS, a secret the Nitro sealer sealed — asked the
+  decoder whether there was more, and a decoder says there is no more
+  before a `}` or a `]`: a document with one of them after it was read
+  as the document alone. Each now takes only the end of what it was
+  given for the end (`safejson.Ended`). A contract read through
+  `json.Unmarshal` was refused all the same, as that function checks the
+  whole input before the contract's reader sees it. Found by an
+  independent reading.
 
 ### Added
 

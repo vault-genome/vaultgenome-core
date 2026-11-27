@@ -185,6 +185,8 @@ func TestSignedTreeHead_SignAndVerify_Refusals(t *testing.T) {
 	require.NoError(t, err)
 	var trailing witness.SignedTreeHead
 	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte(" {}")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("}")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("]")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var unknownField witness.SignedTreeHead
 	requireRefusal(t, json.Unmarshal([]byte(`{"schema_version":1,"extra":true}`), &unknownField), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var schema witness.SignedTreeHead
@@ -250,6 +252,8 @@ func TestWitnessReceipt_Validate_Refusals(t *testing.T) {
 	require.NoError(t, err)
 	var trailing witness.WitnessReceipt
 	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte(" 0")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("}")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("]")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var unknownField witness.WitnessReceipt
 	requireRefusal(t, json.Unmarshal([]byte(`{"schema_version":1,"extra":true}`), &unknownField), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var schema witness.WitnessReceipt
@@ -319,6 +323,8 @@ func TestLogEntry_Refusals(t *testing.T) {
 	require.NoError(t, err)
 	var trailing witness.LogEntry
 	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte(" []")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("}")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("]")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var unknownField witness.LogEntry
 	requireRefusal(t, json.Unmarshal([]byte(`{"schema_version":1,"extra":true}`), &unknownField), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var schema witness.LogEntry

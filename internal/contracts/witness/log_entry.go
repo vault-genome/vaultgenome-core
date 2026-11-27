@@ -14,6 +14,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 )
 
 // Schema versioning for witness-log artifacts. The three constants advance
@@ -470,7 +471,7 @@ func (e *LogEntry) UnmarshalJSON(data []byte) error {
 			err,
 		)
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"log_entry: trailing content after JSON value",

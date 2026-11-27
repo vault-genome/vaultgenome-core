@@ -34,6 +34,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/genome/bundle"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -448,7 +449,7 @@ func decode(raw []byte, v any) error {
 	if err := dec.Decode(v); err != nil {
 		return fmt.Errorf("sentinel: decode: %w", err)
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return errors.New("sentinel: trailing data")
 	}
 	return nil

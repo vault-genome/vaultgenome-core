@@ -9,6 +9,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 )
 
 // UnmarshalJSON rejects unknown fields and gates SchemaVersion. The
@@ -29,7 +30,7 @@ func (p *ContinuityProof) UnmarshalJSON(data []byte) error {
 			err,
 		)
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"continuity_proof: trailing content after JSON value",

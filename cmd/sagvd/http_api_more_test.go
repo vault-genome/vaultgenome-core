@@ -57,14 +57,17 @@ func TestHTTPAPI_GetJobByID_NestedPathIs404(t *testing.T) {
 	require.Equal(t, "structural", env.Error.Category)
 }
 
-// A body with anything after its JSON object is refused as trailing data.
+// A body with anything after its JSON object is refused as trailing data:
+// another value, and a brace or a bracket that closes nothing.
 func TestHTTPAPI_PostJobs_TrailingDataIs400(t *testing.T) {
 	fx := newTestFixture(t, "")
-	body := append(fx.goodSubmit().marshal(t), []byte(` {"again":true}`)...)
-	resp, data := fx.post(t, body)
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	env := decodeErrorEnvelope(t, bytes.NewReader(data))
-	require.Equal(t, "trailing_data", env.Error.Code)
+	for _, tail := range []string{` {"again":true}`, `}`, `]`} {
+		body := append(fx.goodSubmit().marshal(t), []byte(tail)...)
+		resp, data := fx.post(t, body)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode, "%q after the body", tail)
+		env := decodeErrorEnvelope(t, bytes.NewReader(data))
+		require.Equal(t, "trailing_data", env.Error.Code, "%q after the body", tail)
+	}
 }
 
 // A submission without a deadline takes runtime.default_job_deadline_seconds;

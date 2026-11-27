@@ -259,12 +259,15 @@ func TestContinuityProof_UnmarshalJSON_RejectsTrailingContent(t *testing.T) {
 	raw, err := json.Marshal(orig)
 	require.NoError(t, err)
 
-	// Append a second JSON value after the first.
-	payload := append(append([]byte{}, raw...), []byte(` null`)...)
-	var decoded continuity_proof.ContinuityProof
-	err = decoded.UnmarshalJSON(payload)
-	require.Error(t, err)
-	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
+	// A second JSON value after the first, and a brace or a bracket that
+	// closes nothing.
+	for _, tail := range []string{` null`, `}`, `]`} {
+		payload := append(append([]byte{}, raw...), []byte(tail)...)
+		var decoded continuity_proof.ContinuityProof
+		err = decoded.UnmarshalJSON(payload)
+		require.Error(t, err, "%q after the document", tail)
+		require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
+	}
 }
 
 // ---- CanonicalBytes --------------------------------------------------------

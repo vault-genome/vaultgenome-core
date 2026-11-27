@@ -194,6 +194,12 @@ func TestAWSNitroSealerRefusals(t *testing.T) {
 		_, err := enclave.Unseal(sealed, aad)
 		requireIntegrityErr(t, err, "does not admit its attestation")
 	})
+	t.Run("a brace or a bracket after the sealed secret", func(t *testing.T) {
+		for _, tail := range []string{"}", "]"} {
+			_, err := enclave.Unseal(append(append([]byte(nil), sealed...), tail...), aad)
+			requireStructuralErr(t, err, "not a sealed secret of this sealer")
+		}
+	})
 	t.Run("under another KMS key", func(t *testing.T) {
 		var env awsNitroSealed
 		require.NoError(t, json.Unmarshal(sealed, &env))

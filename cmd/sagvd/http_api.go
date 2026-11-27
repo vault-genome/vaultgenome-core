@@ -24,6 +24,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/observability/metrics"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 	shared_time "github.com/vault-genome/vaultgenome-core/internal/shared/time"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/intake"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/jobstore"
@@ -311,7 +312,7 @@ func (s *HTTPAPIServer) submitJob(w http.ResponseWriter, r *http.Request) {
 			"decode request body: "+err.Error())
 		return
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		writeError(w, http.StatusBadRequest, "structural", "trailing_data",
 			"request body contains trailing data after JSON object")
 		return

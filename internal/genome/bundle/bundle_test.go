@@ -261,6 +261,8 @@ func TestNewReader_RefusesMalformedBundles(t *testing.T) {
 		"header overruns":  append([]byte(Magic), 0x00, 0x00, 0xff, 0xff),
 		"header too large": append([]byte(Magic), 0xff, 0xff, 0xff, 0xff),
 		"trailing json":    withHeaderBytes(r.HeaderBytes, append(append([]byte(nil), r.HeaderBytes...), []byte(" {}")...), body),
+		"brace after":      withHeaderBytes(r.HeaderBytes, append(append([]byte(nil), r.HeaderBytes...), '}'), body),
+		"bracket after":    withHeaderBytes(r.HeaderBytes, append(append([]byte(nil), r.HeaderBytes...), ']'), body),
 		"unknown field":    withHeader(func(h map[string]any) { h["unwrapped_key"] = "x" }),
 		"other format":     withHeader(func(h map[string]any) { h["format"] = "vault-genome-v2" }),
 		"unknown kind":     withHeader(func(h map[string]any) { h["content_kind"] = "exe" }),

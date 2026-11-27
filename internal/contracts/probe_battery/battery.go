@@ -11,6 +11,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 	"github.com/vault-genome/vaultgenome-core/internal/vault/keys"
 )
 
@@ -334,7 +335,7 @@ func (b *ProbeBattery) UnmarshalJSON(data []byte) error {
 			err,
 		)
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"probe_battery: trailing content after JSON value",

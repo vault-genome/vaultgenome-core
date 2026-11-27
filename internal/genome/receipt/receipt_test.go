@@ -119,6 +119,8 @@ func TestParse_RefusesMalformedReceipts(t *testing.T) {
 		"not json":         []byte("{"),
 		"unknown field":    bytes.Replace(good, []byte(`{"schema"`), []byte(`{"extra":1,"schema"`), 1),
 		"trailing data":    append(append([]byte(nil), good...), []byte(` {}`)...),
+		"brace after":      append(append([]byte(nil), good...), '}'),
+		"bracket after":    append(append([]byte(nil), good...), ']'),
 		"other schema":     mutate(func(r *Receipt) { r.Schema = "vault-genome/restore-receipt/v0" }),
 		"no key id":        mutate(func(r *Receipt) { r.KeyID = "" }),
 		"no token":         mutate(func(r *Receipt) { r.TokenID = "" }),

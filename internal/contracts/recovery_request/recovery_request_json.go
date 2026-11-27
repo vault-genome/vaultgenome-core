@@ -9,6 +9,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 )
 
 // UnmarshalJSON rejects unknown fields (belt-and-suspenders against stray
@@ -33,7 +34,7 @@ func (r *RecoveryRequest) UnmarshalJSON(data []byte) error {
 
 	// Tail sanity: the decoder is fed a single JSON value; trailing garbage
 	// after it is rejected.
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"recovery_request: trailing content after JSON value",

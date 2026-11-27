@@ -35,6 +35,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 	"github.com/vault-genome/vaultgenome-core/internal/validation/equivalence"
 )
 
@@ -489,7 +490,7 @@ func decodeStrict(raw []byte, v any) error {
 	if err := dec.Decode(v); err != nil {
 		return err
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return errors.New("trailing data")
 	}
 	return nil

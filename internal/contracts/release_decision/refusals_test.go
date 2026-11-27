@@ -157,6 +157,8 @@ func TestReleaseDecision_UnmarshalJSON_Refusals(t *testing.T) {
 		code    string
 	}{
 		{"trailing value", string(raw) + " null", shared_errors.CodeFieldValueInvalid},
+		{"a brace after it", string(raw) + "}", shared_errors.CodeFieldValueInvalid},
+		{"a bracket after it", string(raw) + "]", shared_errors.CodeFieldValueInvalid},
 		{"unknown field", `{"schema_version":1,"extra":true}`, shared_errors.CodeFieldValueInvalid},
 		{"schema below range", `{"schema_version":` + strconv.Itoa(int(SchemaVersionMin)-1) + `}`, shared_errors.CodeSchemaVersionUnsupported},
 		{"schema above range", `{"schema_version":` + strconv.Itoa(int(SchemaVersionMax)+1) + `}`, shared_errors.CodeSchemaVersionUnsupported},

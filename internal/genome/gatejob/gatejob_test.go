@@ -68,8 +68,12 @@ func TestDescriptor_RefusesMalformed(t *testing.T) {
 	}
 	_, err := DecodeDescriptor([]byte(`{"schema":"vault-genome/gate-job/v1","genome_id":"g","files":[],"extra":1}`))
 	require.Error(t, err, "unknown field")
-	_, err = DecodeDescriptor([]byte(`{} {}`))
-	require.Error(t, err, "trailing data")
+	good, err := EncodeDescriptor(goodDescriptor())
+	require.NoError(t, err)
+	for _, tail := range []string{` {}`, `}`, `]`} {
+		_, err = DecodeDescriptor(append(append([]byte(nil), good...), tail...))
+		require.ErrorContains(t, err, "trailing data", "%q after the descriptor", tail)
+	}
 }
 
 func goodPrompts() Prompts {

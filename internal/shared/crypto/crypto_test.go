@@ -235,6 +235,47 @@ func TestCanonicalJSON_Idempotent(t *testing.T) {
 	require.Equal(t, out1, out2)
 }
 
+// An integer is in the canonical form whole, of any size (finding N3): an
+// AMD TCB whose microcode is 0x80 or more is a uint64 at or past 2^63, and
+// two that differ only in their low byte — the boot loader's version — have
+// different canonical forms, each the value's exact digits, and a signature
+// over one does not hold the other. The extremes of uint64 and int64 are
+// their digits; a float is written as before.
+func TestCanonicalJSON_AnIntegerIsWrittenWhole(t *testing.T) {
+	t.Parallel()
+	type floor struct {
+		TCB uint64  `json:"min_reported_tcb"`
+		F   float64 `json:"f"`
+	}
+	const tcb = uint64(0xDB18_0000_0000_0004) // microcode 0xDB, SNP 0x18, boot loader 4
+	lower := tcb - 1                          // boot loader 3
+	one, err := CanonicalJSON(floor{TCB: tcb, F: 0.25})
+	require.NoError(t, err)
+	other, err := CanonicalJSON(floor{TCB: lower, F: 0.25})
+	require.NoError(t, err)
+	require.Equal(t, `{"f":0.25,"min_reported_tcb":15787368493747273732}`, string(one))
+	require.Equal(t, `{"f":0.25,"min_reported_tcb":15787368493747273731}`, string(other))
+
+	key, err := GenerateSigningKey(SuiteEd25519, nil)
+	require.NoError(t, err)
+	defer key.Zeroize()
+	sig, err := key.Sign(one)
+	require.NoError(t, err)
+	require.NoError(t, VerifySuite(SuiteEd25519, key.PublicKeyBytes(), one, sig))
+	require.Error(t, VerifySuite(SuiteEd25519, key.PublicKeyBytes(), other, sig), "a floor lower in its boot loader holds the signature")
+
+	for in, want := range map[any]string{
+		uint64(math.MaxUint64): "18446744073709551615",
+		int64(math.MinInt64):   "-9223372036854775808",
+		uint64(1 << 63):        "9223372036854775808",
+		float64(1.5):           "1.5",
+	} {
+		out, err := CanonicalJSON(in)
+		require.NoError(t, err)
+		require.Equal(t, want, string(out), "%T %v", in, in)
+	}
+}
+
 func TestPublicKeyPEM_RoundTripsThroughPKIX(t *testing.T) {
 	t.Parallel()
 	pub, _, err := GenerateEd25519(nil)

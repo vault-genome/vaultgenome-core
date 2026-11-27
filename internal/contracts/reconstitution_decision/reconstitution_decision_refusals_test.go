@@ -57,13 +57,16 @@ func TestReconstitutionDecision_UnmarshalJSON_RejectsTrailingContent(t *testing.
 	orig := validAcceptFixture()
 	raw, err := json.Marshal(&orig)
 	require.NoError(t, err)
-	payload := append(append([]byte{}, raw...), []byte(` null`)...)
-
-	var r ReconstitutionDecision
-	err = r.UnmarshalJSON(payload)
-	require.Error(t, err)
-	require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
-	require.Equal(t, shared_errors.CodeFieldValueInvalid, shared_errors.CodeOf(err))
+	// Another value after the document, and a brace or a bracket that
+	// closes nothing.
+	for _, tail := range []string{` null`, `}`, `]`} {
+		payload := append(append([]byte{}, raw...), []byte(tail)...)
+		var r ReconstitutionDecision
+		err = r.UnmarshalJSON(payload)
+		require.Error(t, err, "%q after the document", tail)
+		require.Equal(t, shared_errors.CategoryStructural, shared_errors.CategoryOf(err))
+		require.Equal(t, shared_errors.CodeFieldValueInvalid, shared_errors.CodeOf(err))
+	}
 }
 
 // The schema gate runs at decode time, not only in Validate: a decision

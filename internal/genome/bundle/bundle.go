@@ -56,6 +56,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/ids"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 )
 
 // Magic starts every v4 bundle; MagicV3 every v3 one. Each differs from
@@ -411,7 +412,7 @@ func NewReader(r io.Reader) (*Reader, error) {
 	if err := dec.Decode(&h); err != nil {
 		return nil, fmt.Errorf("bundle: header: %w", err)
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return nil, errors.New("bundle: header: trailing data")
 	}
 	if err := h.validateFormat(format); err != nil {

@@ -124,6 +124,8 @@ func TestAttestation_UnmarshalJSON_Refusals(t *testing.T) {
 	// is reached through the method.
 	var trailing probe_battery.ProbeAttestation
 	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte(" {}")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("}")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("]")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 
 	var unknown probe_battery.ProbeAttestation
 	requireRefusal(t, json.Unmarshal([]byte(`{"schema_version":1,"extra":true}`), &unknown), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
@@ -211,6 +213,8 @@ func TestScorecard_UnmarshalJSON_Refusals(t *testing.T) {
 	require.NoError(t, err)
 	var trailing probe_battery.Scorecard
 	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte(" 1")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("}")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("]")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var unknown probe_battery.Scorecard
 	requireRefusal(t, json.Unmarshal([]byte(`{"schema_version":1,"extra":true}`), &unknown), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var schema probe_battery.Scorecard
@@ -286,6 +290,8 @@ func TestBattery_UnmarshalJSON_Refusals(t *testing.T) {
 	require.NoError(t, err)
 	var trailing probe_battery.ProbeBattery
 	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte(" null")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("}")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
+	requireRefusal(t, trailing.UnmarshalJSON(append(append([]byte(nil), raw...), []byte("]")...)), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var unknown probe_battery.ProbeBattery
 	requireRefusal(t, json.Unmarshal([]byte(`{"schema_version":1,"extra":true}`), &unknown), shared_errors.CategoryStructural, shared_errors.CodeFieldValueInvalid)
 	var schema probe_battery.ProbeBattery

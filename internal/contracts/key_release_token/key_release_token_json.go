@@ -9,6 +9,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 )
 
 // UnmarshalJSON rejects unknown fields and gates SchemaVersion against
@@ -26,7 +27,7 @@ func (t *KeyReleaseToken) UnmarshalJSON(data []byte) error {
 			err,
 		)
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return shared_errors.Structural(
 			shared_errors.CodeFieldValueInvalid,
 			"key_release_token: trailing content after JSON value",
