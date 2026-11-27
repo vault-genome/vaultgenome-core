@@ -2151,17 +2151,20 @@ the published `.sig`/`.cert`.
 <a id="c10"></a>
 ### C10 — The stated CI gate is the CI gate
 
-**Claim.** `vault-gate` runs 18 sub-checks on every PR: fmt, vet, build, unit,
-race, integration, coverage, lint, terminology, govulncheck, osv-scanner,
-gitleaks, sbom, license-headers, doctrine-tests, dep-allowlist, dep-depth,
-verify-reproducible. Eleven of eleven doctrine invariants are asserted as
-tests, so a violating change fails CI rather than being caught in review.
+**Claim.** `vault-gate` runs 20 checks on every PR — 18 numbered sub-checks:
+fmt, vet, build (the default and the FIPS build), unit, race, integration,
+coverage, lint, terminology, govulncheck, osv-scanner, gitleaks, sbom,
+license-headers, doctrine-tests, dep-allowlist, dep-depth,
+verify-reproducible; and two lettered ones: 05b, the unit tests under
+`fips140=only` (ADR 0030), and 14a, the DCO sign-off on every commit under
+review. Eleven of eleven doctrine invariants are asserted as tests, so a
+violating change fails CI rather than being caught in review.
 
 **Evidence.** [`.github/workflows/vault-gate.yml`](.github/workflows/vault-gate.yml),
 [`test/doctrine/`](test/doctrine/), [`scripts/coverage_floors.txt`](scripts/coverage_floors.txt)
 (a ratchet — floors only rise).
 
-**Reproduce.** `make vault-gate` runs 14 of the 18 locally; the workflow badge
+**Reproduce.** `make vault-gate` runs 16 of the 20 locally; the workflow badge
 at the top of the README is live.
 
 ---

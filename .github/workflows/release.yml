@@ -2,9 +2,9 @@
 #
 # Triggered by a signed semver tag matching v*. Produces:
 #   - five binaries (sagvd, acp-compute, acpctl, acp-bootstrap, acp-keygen), built
-#     reproducibly, their -fips variants on the certified module, and acpctl
-#     and acp-keygen for macOS, Windows and Linux arm64 (the Makefile's
-#     build-cross),
+#     reproducibly, their -fips variants on the certified module, and acpctl,
+#     acp-keygen and the console, vgconsole, for macOS, Windows and Linux arm64,
+#     vgconsole for Linux x86-64 too (the Makefile's build-cross),
 #   - the worker package, the Python distribution (the wheel and the sdist
 #     of pyproject.toml, published to PyPI by the `pypi` job on a final tag)
 #     and a signed list of every artifact's SHA-256,
@@ -12,8 +12,8 @@
 #   - cosign keyless signatures + transparency-log entries,
 #   - a SLSA provenance attestation (slsa-github-generator).
 #
-# SLSA target: Level 2 at MVP, Level 3 by end of Phase 9
-# (docs/doctrine/ci-security-policy.md §6).
+# SLSA: Build Level 3 provenance from the isolated generator
+# (docs/doctrine/ci-security-policy.md §6, docs/security/supply_chain.md).
 
 name: release
 
@@ -286,10 +286,10 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          # The subjects are the twenty binaries (five, their -fips variants
-          # and the ten for the other platforms), the worker package, the
-          # wheel, the sdist and the checksums list, by the names they are
-          # uploaded under.
+          # The subjects are the binaries (five, their -fips variants and
+          # the tools for the other platforms, RELEASE_CROSS), the worker
+          # package, the wheel, the sdist and the checksums list, by the
+          # names they are uploaded under.
           mkdir -p subjects
           for b in $RELEASE_BINARIES $RELEASE_BINARIES_FIPS $RELEASE_CROSS; do cp "bin/$b" subjects/; done
           cp "dist/genome-worker-${VERSION}.tar.gz" "dist/$PY_WHEEL" "dist/$PY_SDIST" "dist/checksums-${VERSION}.txt" subjects/

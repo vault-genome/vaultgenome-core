@@ -62,7 +62,7 @@ secure boot, no debug, signed manifests, matched measurements) and the
 **Design:** [ADR 0012](../../../docs/adr/0012-sentinel-and-policy-driven-failover.md),
 [ADR 0019](../../../docs/adr/0019-a-confidential-gpu-worker-on-azure.md),
 operator runbooks [07](../../../docs/operator/07_failover.md) and
-[real-tee-azure-cgpu](../../../docs/operator/real-tee-azure-cgpu.md).
+[real-tee-azure-cgpu](../../../docs/operator/runbooks/real-tee-azure-cgpu.md).
 
 ## The scenario
 

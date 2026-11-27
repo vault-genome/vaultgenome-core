@@ -116,8 +116,8 @@ original code (e.g., reordering commutative operations, comments).
 Equivalent mutations don't represent a real test gap; we suppress
 them via the tool's checksum mechanism after manual review.
 
-Track these in [`docs/testing/mutation_suppressions.md`](mutation_suppressions.md)
-when we accumulate enough to make the table useful.
+Track these in `docs/testing/mutation_suppressions.md` once there are
+enough to make the table useful; the file does not exist yet.
 
 ## Relationship to other test methods
 

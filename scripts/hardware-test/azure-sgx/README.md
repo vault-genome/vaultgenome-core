@@ -136,17 +136,18 @@ Reference matrix: `evidence/CROSS-VM-MATRIX.md`.
 
 ## Production deployment
 
-For production deployment use [`deploy/terraform/azure-sgx/`](../../../../deploy/terraform/azure-sgx/)
-which mirrors this kit's VM but adds Key Vault, Storage audit replica,
-Log Analytics, Defender, Backup, and immutability policy. See
-`docs/deployment/azure.md` for the full deployment guide.
+There is none for SGX. The Azure SGX adapter is scaffolding: `sagvd`'s
+verifier registry and all three daemons refuse the family
+([KNOWN_ISSUES](../../../KNOWN_ISSUES.md) #1), and this kit captures and
+checks evidence without deploying the platform. The deployment on Azure is an
+AMD SEV-SNP confidential VM, [`deploy/azure/`](../../../deploy/azure/README.md).
 
 ## See also
 
 - [`../azure-sev-snp/`](../azure-sev-snp/) — Azure AMD SEV-SNP companion kit
-- `deploy/terraform/azure-sgx/` — production Terraform module
-- `core/docs/operator/runbooks/azure-day2.md` — day-2 runbook (covers both backends)
-- `core/docs/security/threat_model.md` — threat model
+- [`deploy/azure/`](../../../deploy/azure/README.md) — the deployment on Azure (AMD SEV-SNP)
+- [`docs/operator/runbooks/azure-day2.md`](../../../docs/operator/runbooks/azure-day2.md) — day-2 runbook (covers both backends)
+- [`docs/security/threat_model.md`](../../../docs/security/threat_model.md) — threat model
 
 ---
 

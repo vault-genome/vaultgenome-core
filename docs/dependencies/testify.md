@@ -2,7 +2,7 @@
 
 **Version:** the one pinned in `go.mod` (Dependabot keeps it current, grouped weekly, through the same gate as any change; the justification here does not depend on the patch level — a major version is a new review)
 **License:** MIT
-**Transitive depth:** 3 (testify → davecgh/go-spew, pmezard/go-difflib, yaml.v3)
+**Transitive depth:** 2 (testify → `go.yaml.in/yaml/v3`, `github.com/stretchr/objx`)
 **Usage scope:** `_test.go` files only. Never imported from non-test code.
 
 ## Why this dependency
@@ -17,7 +17,7 @@ Testify is the de-facto standard in the Go ecosystem, is included in
 Google's Go style guide reference set, is on the CNCF attested-dependency
 list, and has stable v1.x API guarantees. Its surface area is well-defined
 (`require`, `assert`, `suite`, `mock`) and the project uses only `require`
-and `assert`. The `mock` sub-package is NOT used — our mocks are
+(which wraps `assert`). The `mock` sub-package is NOT used — our mocks are
 hand-written against the interfaces in /internal/shared so the dependency
 on testify stays narrow and predictable.
 
@@ -29,17 +29,26 @@ on testify stays narrow and predictable.
 
 ## Transitive dependencies, each reviewed
 
-- `github.com/davecgh/go-spew` — struct pretty-printer used by testify for
-  diff output. Stable since 2012; no network activity; no cryptography.
-- `github.com/pmezard/go-difflib` — unified-diff renderer. Likewise trivial
-  surface area.
-- `gopkg.in/yaml.v3` — YAML parser pulled in by testify for suite runner
-  configuration. Not used by our tests; we rely on Go's stdlib `testing.T`
-  pattern, not the suite runner. If future supply-chain review flags
-  yaml.v3 we can fork testify to elide the import; for now the default
-  surface is acceptable.
+The pinned version's `go.mod` requires two modules:
 
-All four are on the allowlist in docs/doctrine/ci-security-policy.md §5.
+- `go.yaml.in/yaml/v3` — the YAML parser (the maintained successor of
+  `gopkg.in/yaml.v3`) that testify's `assert` imports for `YAMLEq`. It is
+  compiled into test binaries, because `require` wraps `assert`, but no
+  test of ours calls it, and it is never in a product binary. If future
+  supply-chain review flags it we can fork testify to elide the import; for
+  now the default surface is acceptable.
+- `github.com/stretchr/objx` — used by testify's `mock` package only, which
+  this project does not import: it is in the module graph and never
+  compiled (`go mod why -m github.com/stretchr/objx`: the main module does
+  not need it).
+
+`github.com/davecgh/go-spew` and `github.com/pmezard/go-difflib`, which
+earlier versions required, are now carried inside testify as
+`internal/spew` and `internal/difflib`, not as modules of their own.
+
+Transitive dependencies are not on the allowlist: `scripts/dep_allowlist.txt`
+lists direct dependencies only, and the depth cap of
+`docs/doctrine/ci-security-policy.md` §3.2 governs the rest.
 
 ## Upgrade policy
 

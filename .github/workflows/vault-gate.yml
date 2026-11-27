@@ -4,13 +4,14 @@
 # requirement in docs/doctrine/ci-security-policy.md. A PR that does not pass all
 # sub-checks cannot merge to main.
 #
-# Eighteen sub-checks:
+# Twenty checks: eighteen numbered sub-checks and two lettered ones.
 #   01 fmt          07 coverage           13 sbom
 #   02 vet          08 lint               14 license-headers
-#   03 build        09 terminology        15 doctrine-tests
-#   04 unit         10 govulncheck        16 dep-allowlist (§3.1)
-#   05 race         11 osv-scanner        17 dep-depth     (§3.2)
-#   06 integration  12 gitleaks           18 verify-reproducible
+#   03 build        09 terminology        14a dco
+#   04 unit         10 govulncheck        15 doctrine-tests
+#   05 race         11 osv-scanner        16 dep-allowlist (§3.1)
+#   05b fips140     12 gitleaks           17 dep-depth     (§3.2)
+#   06 integration                        18 verify-reproducible
 #
 # Checks 16 and 17 enforce docs/doctrine/ci-security-policy.md §3 (dependency policy)
 # against go.mod and the transitive graph returned by `go mod graph`.
@@ -216,4 +217,4 @@ jobs:
         run: make verify-reproducible
 
       - name: summary
-        run: echo "vault-gate PASSED — all 18 sub-checks green"
+        run: echo "vault-gate PASSED — all 20 checks green"

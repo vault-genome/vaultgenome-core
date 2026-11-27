@@ -1,7 +1,7 @@
 # AI Continuity Platform — Core
 # Makefile for local development. CI runs the same targets via vault-gate.yml.
 #
-# See 00_CI_Security_Policy.md for the authoritative definition of every check.
+# See docs/doctrine/ci-security-policy.md for the authoritative definition of every check.
 # This Makefile mirrors the CI so that a passing local run predicts a passing CI.
 
 SHELL := /bin/bash
@@ -350,13 +350,14 @@ regen-demo:
 
 # ---- Phase-1 Docker Compose demo --------------------------------------------
 #
-# Five targets that turn a fresh clone into a running sagvd + acp-compute pair
-# and back again. Authoritative layout + design notes live in
-# ../deploy/compose/README.md; this section only wires the Makefile surface.
+# The targets that turn a fresh clone into a running sagvd + acp-compute pair
+# and back again (demo-certs, demo-genome, demo-up, demo-submit, demo-test,
+# demo-logs, demo-down). Authoritative layout + design notes live in
+# deploy/compose/README.md; this section only wires the Makefile surface.
 #
-# Pathing: the Makefile sits at /core, the deploy tree at /deploy/compose.
-# All targets set their working directory to DEMO_DIR so a `make demo-up`
-# from anywhere under /core does the right thing.
+# Pathing: the Makefile sits at the repository root, the deploy tree at
+# deploy/compose. Every target runs its commands in DEMO_DIR, which is
+# $(CURDIR)/deploy/compose: run make from the root, or with -C <root>.
 
 DEMO_DIR            := $(CURDIR)/deploy/compose
 DEMO_COMPOSE        := $(DEMO_DIR)/docker-compose.yml

@@ -209,17 +209,19 @@ type PeerTEEConfig struct {
 	// and azure-cgpu and azure-sev-snp peers.
 	AMDCertChainPath string `json:"amd_cert_chain_path,omitempty"`
 
-	// AMDKDSURL overrides the AMD KDS base URL (a mirror). gcp-sev-snp
-	// peers only.
+	// AMDKDSURL overrides the AMD KDS base URL (a mirror). SEV-SNP peers
+	// whose VCEK is fetched from KDS: gcp-sev-snp, gcp-sev-snp-vtpm,
+	// azure-sev-snp and azure-cgpu.
 	AMDKDSURL string `json:"amd_kds_url,omitempty"`
 
 	// VCEKCacheDir keeps fetched VCEK certificates on disk so each chip
 	// is asked of AMD KDS once; a cached certificate is still checked
-	// against the pinned chain on every use. gcp-sev-snp peers only.
+	// against the pinned chain on every use. The same peers as AMDKDSURL.
 	VCEKCacheDir string `json:"vcek_cache_dir,omitempty"`
 
-	// MinReportedTCB is the lowest REPORTED_TCB accepted from the vault.
-	// gcp-sev-snp peers only.
+	// MinReportedTCB is the lowest REPORTED_TCB accepted from the vault,
+	// as the packed integer (ADR 0033). Every SEV-SNP peer, aws-sev-snp
+	// included.
 	MinReportedTCB uint64 `json:"min_reported_tcb,omitempty"`
 	// SEVSNP holds the vault's report to the attack record (ADR 0033).
 	SEVSNP *tee.SEVSNPPolicyConfig `json:"sev_snp,omitempty"`

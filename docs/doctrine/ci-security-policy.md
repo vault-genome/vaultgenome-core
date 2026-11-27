@@ -12,16 +12,18 @@ renumber with care.
 ## 1. The gate
 
 Every push and pull request to `main` runs `.github/workflows/vault-gate.yml`,
-a 19-step gate; a merge is allowed only when all of it is green: format, vet,
-build, unit tests, race detector, integration tests, coverage (§8), lint
-(golangci-lint), terminology (§4), govulncheck (§5), osv-scanner (§5), gitleaks
-(§10), SBOM (§6), license headers (§7), the Developer Certificate of Origin
-sign-off on every commit under review (`scripts/dco_check.sh`,
-CONTRIBUTING.md), doctrine tests, dependency allowlist (§3.1), dependency
-depth (§3.2), and reproducible build (§9). `make vault-gate` runs 15 of them
-locally; integration tests, the SBOM and the reproducible build have their
-own targets (`make test-integration`, `make sbom`, `make verify-reproducible`),
-and osv-scanner runs only in CI.
+a gate of 20 checks — the 18 numbered sub-checks its header lists and two
+lettered ones, 05b and 14a; a merge is allowed only when all of it is green:
+format, vet, build (the default and the FIPS build), unit tests, race
+detector, the FIPS 140-3 assessment under `fips140=only` (05b, ADR 0030),
+integration tests, coverage (§8), lint (golangci-lint), terminology (§4),
+govulncheck (§5), osv-scanner (§5), gitleaks (§10), SBOM (§6), license
+headers (§7), the Developer Certificate of Origin sign-off on every commit
+under review (14a; `scripts/dco_check.sh`, CONTRIBUTING.md), doctrine tests,
+dependency allowlist (§3.1), dependency depth (§3.2), and reproducible build
+(§9). `make vault-gate` runs 16 of them locally; integration tests, the SBOM
+and the reproducible build have their own targets (`make test-integration`,
+`make sbom`, `make verify-reproducible`), and osv-scanner runs only in CI.
 
 ## 2. Toolchain
 
@@ -97,7 +99,9 @@ Releases are built by `.github/workflows/release.yml`, triggered by a
 the maintainer keys pinned on the default branch (`.github/allowed_signers`,
 `.github/release-signing-keys.asc`) — never against keys in the tagged tree —
 and a tag that does not verify produces no release. Every released binary
-(`sagvd`, `acp-compute`, `acpctl`, `acp-bootstrap`) carries three attestations:
+(`sagvd`, `acp-compute`, `acpctl`, `acp-bootstrap`, `acp-keygen`, their `-fips`
+variants and the tools built for other platforms, `make cross-binaries`)
+carries three attestations:
 
 - an **SBOM** in SPDX-JSON, produced per artifact by **syft**;
 - a **cosign** keyless signature (`sign-blob`) with a transparency-log entry;
