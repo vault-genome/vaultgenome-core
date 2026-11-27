@@ -614,4 +614,4 @@ These are recorded as future work in the project's open-decisions ledger.
 
 ---
 
-**Implementation tracking:** see `docs/internal/status-journal.md` Phase 4 section. Implementation order is documented in the master execution plan (`/Users/serhiinikolaichuk/Desktop/Vault Genome — Accelerator Applications/08_Master_Plan.md` Track B).
+**Implementation tracking:** see `docs/internal/status-journal.md` Phase 4 section. Implementation order is documented in the master execution plan (`~/Desktop/Vault Genome — Accelerator Applications/08_Master_Plan.md` Track B).

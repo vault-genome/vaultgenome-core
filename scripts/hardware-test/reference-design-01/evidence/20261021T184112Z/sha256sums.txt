@@ -78,7 +78,7 @@ ad43bb076f8d9104c9cfa2ec943b7384a9f65c105920c580231d8a695ece39af  ./b/versions.t
 07a5121f63687918b522a308b02c3af546d6af38d52f0f7d2a77c93e6e0cdaa6  ./machines.txt
 6c4c41f5891ed12e882251fe787ba6938d1fa8b6da1e74bc7a7afce9e9f45cd0  ./run.txt
 8b2ea5dbeb995e52caee1b4349b6025fd82805e40837efa77ef6df01a1d1a1e6  ./runner-timeline.txt
-a30d67584cc0daf3ca734b99a2b1d9eaa4a4bce49548183ae2c30842515abd57  ./runner.log
+16b994b5260d8ee9db4fffe0bf09fef9e1c77d7205a76e36e10e0149fbee4fa6  ./runner.log
 201e345c628e89ec726944f00f75cc954203e00e43fa0a444a554986d4d90fdc  ./third-party/audit-public-key.pem
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./third-party/audit-query-request.err
 4590b2fa688d65e5fa1671b14365771e04119592bd56f882fd292657f10a16be  ./third-party/audit-query-request.jsonl

@@ -3091,7 +3091,7 @@ ff06c7248db18c600'
 2026-10-15T01:46:44.063130+00:00 vg-release-20261015t014459z systemd[1]: google-guest-agent.service: Got notification message from PID 1203, but reception only permitted for main PID 998
 2026-10-15T01:46:44.090711+00:00 vg-release-20261015t014459z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
 2026-10-15T01:46:44.129553+00:00 vg-release-20261015t014459z google_guest_agent[998]: Created google sudoers file
-2026-10-15T01:46:44.129753+00:00 vg-release-20261015t014459z google_guest_agent[998]: Creating user serhiinikolaichuk.
+2026-10-15T01:46:44.129753+00:00 vg-release-20261015t014459z google_guest_agent[998]: Creating user (an account of whoever runs the kit).
 2026-10-15T01:46:44.273398+00:00 vg-release-20261015t014459z systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
 2026-10-15T01:46:44.273961+00:00 vg-release-20261015t014459z systemd[1]: google-guest-agent.service: Got notification message from PID 1204, but reception only permitted for main PID 998
 2026-10-15T01:46:44.282243+00:00 vg-release-20261015t014459z systemd[1]: google-guest-agent.service: Got notification message from PID 1218, but reception only permitted for main PID 998
@@ -3115,7 +3115,7 @@ ff06c7248db18c600'
 2026-10-15T01:46:45.843232+00:00 vg-release-20261015t014459z kernel: loop3: detected capacity change from 0 to 8
 2026-10-15T01:46:45.851420+00:00 vg-release-20261015t014459z systemd[1]: tmp-syscheck\x2dmountpoint\x2d2705620114.mount: Deactivated successfully.
 2026-10-15T01:46:45.855665+00:00 vg-release-20261015t014459z snapd[885]: daemon.go:371: adjusting startup timeout by 45s (pessimistic estimate of 30s plus 5s per snap)
-2026-10-15T01:46:45.919182+00:00 vg-release-20261015t014459z google_guest_agent[998]: Updating keys for user serhiinikolaichuk.
+2026-10-15T01:46:45.919182+00:00 vg-release-20261015t014459z google_guest_agent[998]: Updating keys for user (an account of whoever runs the kit).
 2026-10-15T01:46:45.925815+00:00 vg-release-20261015t014459z systemd[1]: google-guest-agent.service: Got notification message from PID 1349, but reception only permitted for main PID 998
 2026-10-15T01:46:45.929319+00:00 vg-release-20261015t014459z snapd[885]: backends.go:70: AppArmor status: apparmor is enabled and all features are available (using snapd provided apparmor_parser)
 2026-10-15T01:46:45.932691+00:00 vg-release-20261015t014459z systemd[1]: google-guest-agent.service: Got notification message from PID 1350, but reception only permitted for main PID 998

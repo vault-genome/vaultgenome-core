@@ -3072,7 +3072,7 @@ ca
 2026-10-28T21:52:05.146551+00:00 vg-release-20261028t214656z snapd[879]: overlord.go:316: Acquiring state lock file
 2026-10-28T21:52:05.146692+00:00 vg-release-20261028t214656z snapd[879]: overlord.go:321: Acquired state lock file
 2026-10-28T21:52:05.184131+00:00 vg-release-20261028t214656z google_guest_agent[999]: Created google sudoers file
-2026-10-28T21:52:05.184205+00:00 vg-release-20261028t214656z google_guest_agent[999]: Creating user serhiinikolaichuk.
+2026-10-28T21:52:05.184205+00:00 vg-release-20261028t214656z google_guest_agent[999]: Creating user (an account of whoever runs the kit).
 2026-10-28T21:52:05.397669+00:00 vg-release-20261028t214656z systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
 2026-10-28T21:52:05.398888+00:00 vg-release-20261028t214656z systemd[1]: google-guest-agent.service: Got notification message from PID 1203, but reception only permitted for main PID 999
 2026-10-28T21:52:05.404748+00:00 vg-release-20261028t214656z systemd[1]: google-guest-agent.service: Got notification message from PID 1224, but reception only permitted for main PID 999
@@ -3096,7 +3096,7 @@ ca
 2026-10-28T21:52:06.588963+00:00 vg-release-20261028t214656z google_guest_agent[999]: 169.254.169.254 via 10.128.0.1 dev ens3 proto dhcp src 10.128.0.53 metric 100
 2026-10-28T21:52:06.616233+00:00 vg-release-20261028t214656z snapd[879]: backend.go:145: reloading profiles for snap-confine
 2026-10-28T21:52:06.718036+00:00 vg-release-20261028t214656z kernel: audit: type=1400 audit(1793224326.716:128): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="/usr/lib/snapd/snap-confine" pid=1273 comm="apparmor_parser"
-2026-10-28T21:52:06.822536+00:00 vg-release-20261028t214656z google_guest_agent[999]: Updating keys for user serhiinikolaichuk.
+2026-10-28T21:52:06.822536+00:00 vg-release-20261028t214656z google_guest_agent[999]: Updating keys for user (an account of whoever runs the kit).
 2026-10-28T21:52:06.828578+00:00 vg-release-20261028t214656z systemd[1]: google-guest-agent.service: Got notification message from PID 1334, but reception only permitted for main PID 999
 2026-10-28T21:52:06.829596+00:00 vg-release-20261028t214656z snapd[879]: standby.go:95: will consider standby after: 5s
 2026-10-28T21:52:06.829779+00:00 vg-release-20261028t214656z systemd[1]: Started snapd.service - Snap Daemon.

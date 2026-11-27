@@ -1,6 +1,6 @@
 {
-  "corpus": "/Users/serhiinikolaichuk/dev/vg-distribution/test/corpus/sev-snp",
-  "command": "python3 -I tools/corpus-harness/adapters/oracle.py --oracle /private/tmp/claude-501/-Users-serhiinikolaichuk-Desktop-STARTUPS/9ee42ac8-27f5-4766-b5f3-2457c982909b/scratchpad/oracle --report {report} --vcek {vcek} --chain {chain}",
+  "corpus": "~/dev/vg-distribution/test/corpus/sev-snp",
+  "command": "python3 -I tools/corpus-harness/adapters/oracle.py --oracle <scratch>/oracle --report {report} --vcek {vcek} --chain {chain}",
   "reports": 67,
   "failed": 0,
   "mutants_per_report": 8,

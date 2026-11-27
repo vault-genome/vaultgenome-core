@@ -3092,7 +3092,7 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC8RcmbrE5bJpQ3Bz7VBWm6oxl29XEPco8OIGBSLK+w
 2026-10-16T00:18:00.523554+00:00 vg-release-20261016t001614z systemd[1]: google-guest-agent.service: Got notification message from PID 1205, but reception only permitted for main PID 990
 2026-10-16T00:18:00.547377+00:00 vg-release-20261016t001614z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
 2026-10-16T00:18:00.641553+00:00 vg-release-20261016t001614z google_guest_agent[990]: Created google sudoers file
-2026-10-16T00:18:00.641809+00:00 vg-release-20261016t001614z google_guest_agent[990]: Creating user serhiinikolaichuk.
+2026-10-16T00:18:00.641809+00:00 vg-release-20261016t001614z google_guest_agent[990]: Creating user (an account of whoever runs the kit).
 2026-10-16T00:18:00.748246+00:00 vg-release-20261016t001614z systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
 2026-10-16T00:18:00.748572+00:00 vg-release-20261016t001614z systemd[1]: google-guest-agent.service: Got notification message from PID 1206, but reception only permitted for main PID 990
 2026-10-16T00:18:00.753877+00:00 vg-release-20261016t001614z systemd[1]: google-guest-agent.service: Got notification message from PID 1226, but reception only permitted for main PID 990
@@ -3118,7 +3118,7 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC8RcmbrE5bJpQ3Bz7VBWm6oxl29XEPco8OIGBSLK+w
 2026-10-16T00:18:02.491340+00:00 vg-release-20261016t001614z systemd[1]: tmp-syscheck\x2dmountpoint\x2d256573517.mount: Deactivated successfully.
 2026-10-16T00:18:02.496356+00:00 vg-release-20261016t001614z snapd[888]: daemon.go:371: adjusting startup timeout by 45s (pessimistic estimate of 30s plus 5s per snap)
 2026-10-16T00:18:02.571264+00:00 vg-release-20261016t001614z snapd[888]: backends.go:70: AppArmor status: apparmor is enabled and all features are available (using snapd provided apparmor_parser)
-2026-10-16T00:18:02.594203+00:00 vg-release-20261016t001614z google_guest_agent[990]: Updating keys for user serhiinikolaichuk.
+2026-10-16T00:18:02.594203+00:00 vg-release-20261016t001614z google_guest_agent[990]: Updating keys for user (an account of whoever runs the kit).
 2026-10-16T00:18:02.600874+00:00 vg-release-20261016t001614z systemd[1]: google-guest-agent.service: Got notification message from PID 1358, but reception only permitted for main PID 990
 2026-10-16T00:18:02.607829+00:00 vg-release-20261016t001614z systemd[1]: google-guest-agent.service: Got notification message from PID 1359, but reception only permitted for main PID 990
 2026-10-16T00:18:02.613316+00:00 vg-release-20261016t001614z systemd[1]: google-guest-agent.service: Got notification message from PID 1360, but reception only permitted for main PID 990

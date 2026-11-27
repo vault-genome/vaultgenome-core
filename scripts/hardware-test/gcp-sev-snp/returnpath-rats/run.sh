@@ -33,6 +33,9 @@ set -euo pipefail
 PROJECT="${1:?usage: run.sh <project> [zone]}"
 ZONE="${2:-us-central1-c}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# A console is kept with no account of whoever ran the kit in it
+# (redact-record.py; scripts/check-records.sh holds the tree to that).
+REDACT="$HERE/../../redact-record.py"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 BENCH_REPO="${BENCH_REPO:-$HOME/dev/attestation-bench}"
 VSRC="${VERAISON_SRC_PARENT:-$BENCH_REPO/third_party}"   # holds veraison-services/src and go-gen-ref/src
@@ -103,7 +106,7 @@ gcloud compute instances create "$ATT" --project "$PROJECT" --zone "$ZONE" \
   --scopes storage-ro --metadata "vg-bucket=$BUCKET,vg-verifier=$VER,vg-go=0" \
   --metadata-from-file "startup-script=$HERE/cvm-returnpath-rats.sh" >/dev/null
 VSERIAL="$RAW_DIR/verifier-serial-$STAMP.txt"; ASERIAL="$RAW_DIR/attester-serial-$STAMP.txt"
-serial() { gcloud compute instances get-serial-port-output "$1" --project "$PROJECT" --zone "$ZONE" > "$2" 2>/dev/null || true; }
+serial() { gcloud compute instances get-serial-port-output "$1" --project "$PROJECT" --zone "$ZONE" 2>/dev/null | python3 "$REDACT" --stream > "$2" || true; }
 # decode_block <serial file> <marker name> <out dir>: the folded base64 block the guests print, checked against its header
 decode_block() {
   python3 - "$1" "$2" "$3" <<'PY'

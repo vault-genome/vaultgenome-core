@@ -1,4 +1,4 @@
-Vault Genome v0.14.0 → AWS, stack vg-button-20261029t211714z in us-east-2; the record goes to /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/aws/records/20261029T211717Z
+Vault Genome v0.14.0 → AWS, stack vg-button-20261029t211714z in us-east-2; the record goes to ~/dev/vg-0140-tag/deploy/aws/records/20261029T211717Z
 == 1. the verification tools
   cosign: v3.1.3 (/opt/homebrew/bin/cosign);slsa-verifier: 2.7.1 (/opt/homebrew/bin/slsa-verifier)
 == 2. the release v0.14.0, verified before it runs anywhere
@@ -11,7 +11,7 @@ Vault Genome v0.14.0 → AWS, stack vg-button-20261029t211714z in us-east-2; the
 == 4. the instance
   i-0148450046e9781f2 is up at 18.188.108.40 (us-east-2c); the guest is reading the chip, installing, provisioning and proving — about five minutes
 == 5. waiting for the guest's record (up to 30 minutes)
-  the netwo[K  the netwo[K  the netwo[K  the wo[K  the wo[K  the wo[K  the wo[K  the wo[K  the gate job ove[K  the gate job ove[K[K  the guest's record: fetched over ssh from /var/lib/vaultgenome/record/20261029T211717Z, every file as its sha256sums.txt names it -> /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/aws/records/20261029T211717Z/guest
+  the netwo[K  the netwo[K  the netwo[K  the wo[K  the wo[K  the wo[K  the wo[K  the wo[K  the gate job ove[K  the gate job ove[K[K  the guest's record: fetched over ssh from /var/lib/vaultgenome/record/20261029T211717Z, every file as its sha256sums.txt names it -> ~/dev/vg-0140-tag/deploy/aws/records/20261029T211717Z/guest
 == 6. what was proven
 PROVEN — Vault Genome v0.14.0 on i-0148450046e9781f2 (stack vg-button-20261029t211714z, us-east-2c): m6a.xlarge, Amazon EC2, AMD SEV-SNP (milan) under the provider's key, a VLEK
   release      Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
@@ -25,7 +25,7 @@ PROVEN — Vault Genome v0.14.0 on i-0148450046e9781f2 (stack vg-button-20261029
   audit log    ok=true, 16 events verified under the operator's key (records/20261029T211717Z/guest/audit-public-key.pem)
   time         184.2 s on the guest from its first command to the verified audit log; the record's hashes in guest/sha256sums.txt
 
-The deployment is running. Its record: /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/aws/records/20261029T211717Z
+The deployment is running. Its record: ~/dev/vg-0140-tag/deploy/aws/records/20261029T211717Z
   on the instance  ssh -i /var/folders/3y/gqzv7lqn2xz97x45cvn_p8900000gn/T/tmp.uDsIHeALQM/key ubuntu@18.188.108.40
   look             sudo vg health · sudo vg status · sudo vg logs sagvd
   the audit log    sudo vg verify · sudo vg audit · sudo vg events 20   (the services pause for the read, about 15 s)
@@ -33,4 +33,4 @@ The deployment is running. Its record: /Users/serhiinikolaichuk/dev/vg-0140-tag/
   your own model   seal its genome with acpctl (docs/operator/09_first_deployment.md §4) into /var/lib/vaultgenome/genomes, then vg submit
   the console      aws ec2 get-console-output --region us-east-2 --instance-id i-0148450046e9781f2 --latest --output text
   a stop/start     moves the instance to another host and gives it a new public address (aws ec2 describe-instances --instance-ids i-0148450046e9781f2); the services and the sealed key files come back on their own
-  remove it        /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/aws/destroy.sh --region us-east-2 --stack vg-button-20261029t211714z
+  remove it        ~/dev/vg-0140-tag/deploy/aws/destroy.sh --region us-east-2 --stack vg-button-20261029t211714z

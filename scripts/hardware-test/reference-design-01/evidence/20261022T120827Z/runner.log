@@ -211,6 +211,6 @@ third-party audit-verify-crosscloud signature_suite=ecdsa-p384-sha384
   acp-bootstrap 0.0.0-dev (commit 1a4156827039) fips140=only module=v1.0.0 enforced=true
   acpctl 0.0.0-dev (commit 1a4156827039) fips140=only module=v1.0.0 enforced=true
 run_end=2026-10-22T12:13:40Z
-evidence: /Users/serhiinikolaichuk/dev/vaultgenome-core-compliance/scripts/hardware-test/reference-design-01/evidence/20261022T120827Z
+evidence: ~/dev/vaultgenome-core-compliance/scripts/hardware-test/reference-design-01/evidence/20261022T120827Z
 PASS: reference design 01 end to end on SEV-SNP under fips (hpke-p384-v2; signatures ecdsa-p384-sha384) on the certified module v1.0.0 with enforcement on, every party — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party (20261022T120827Z)
 cleanup: deleting vg-rd01-bank-20261022t120827z, vg-rd01-standby-20261022t120827z, the rule vg-rd01-xcc-20261022t120827z and gs://rats-probe-vg-rd01-20261022t120827z

@@ -11,7 +11,7 @@ WARNING: Some requests generated warnings:
  - Disk size: '20 GB' is larger than image size: '10 GB'. You might need to resize the root repartition manually if the operating system does not support automatic resizing. See https://cloud.google.com/compute/docs/disks/add-persistent-disk#resize_pd for details.
 
 waiting for four boots on the serial console (up to 60 min)
-serial capture: /Users/serhiinikolaichuk/.cache/vaultgenome/boot-chain/serial-20261024T160531Z.txt (f069cbe28b7b76c41c7af381389565bd5183ec8aca966083340d23f588f95d0e)
+serial capture: ~/.cache/vaultgenome/boot-chain/serial-20261024T160531Z.txt (f069cbe28b7b76c41c7af381389565bd5183ec8aca966083340d23f588f95d0e)
 decoded boot A
 decoded boot B
 decoded boot C

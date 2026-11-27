@@ -33,7 +33,7 @@
 14:29:50    ok    the gate judges the continued genome EXACT
 14:29:50    ok    the authority's audit log verifies offline
 14:29:50    ok    CONTINUED EXACT: training went on from step 160 to 240 on this chip; replay exact; 7 of 7 files those of the recipe in one go
-14:29:50 == evidence: /Users/serhiinikolaichuk/dev/vg-training-continuity/scripts/hardware-test/training-continuity/evidence/20261111T135725Z
+14:29:50 == evidence: ~/dev/vg-training-continuity/scripts/hardware-test/training-continuity/evidence/20261111T135725Z
 14:29:50 RESULT: PASS
 14:29:50 cleanup: deleting vg-tc-primary-20261111t135725z, vg-tc-standby-20261111t135725z and gs://rats-probe-vg-tc-20261111t135725z
 instances of this run left after cleanup: none at 2026-11-11T14:30:32Z

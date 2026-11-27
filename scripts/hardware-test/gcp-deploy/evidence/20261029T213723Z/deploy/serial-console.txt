@@ -3065,7 +3065,7 @@ c
 2026-10-29T21:38:58.218188+00:00 vg-button-20261029t213723z systemd[1]: google-guest-agent.service: Got notification message from PID 1231, but reception only permitted for main PID 1066
 2026-10-29T21:38:58.220481+00:00 vg-button-20261029t213723z (cron)[1233]: cron.service: Referenced but unset environment variable evaluates to an empty string: EXTRA_OPTS
 2026-10-29T21:38:58.222080+00:00 vg-button-20261029t213723z google_guest_agent[1066]: Created google sudoers file
-2026-10-29T21:38:58.222110+00:00 vg-button-20261029t213723z google_guest_agent[1066]: Creating user serhiinikolaichuk.
+2026-10-29T21:38:58.222110+00:00 vg-button-20261029t213723z google_guest_agent[1066]: Creating user (an account of whoever runs the kit).
 2026-10-29T21:38:58.226499+00:00 vg-button-20261029t213723z systemd[1]: google-guest-agent.service: Got notification message from PID 1236, but reception only permitted for main PID 1066
 2026-10-29T21:38:58.232462+00:00 vg-button-20261029t213723z systemd[1]: google-guest-agent.service: Got notification message from PID 1248, but reception only permitted for main PID 1066
 2026-10-29T21:38:58.253188+00:00 vg-button-20261029t213723z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
@@ -3082,7 +3082,7 @@ c
 2026-10-29T21:38:59.003774+00:00 vg-button-20261029t213723z systemd[1]: Starting google-shutdown-scripts.service - Google Compute Engine Shutdown Scripts...
 2026-10-29T21:38:59.050279+00:00 vg-button-20261029t213723z systemd[1]: Finished google-shutdown-scripts.service - Google Compute Engine Shutdown Scripts.
 2026-10-29T21:38:59.292055+00:00 vg-button-20261029t213723z snapd[880]: autorepair.go:320: WARNING: the system booted with an old initrd without unlocked status reporting
-2026-10-29T21:38:59.503670+00:00 vg-button-20261029t213723z google_guest_agent[1066]: Updating keys for user serhiinikolaichuk.
+2026-10-29T21:38:59.503670+00:00 vg-button-20261029t213723z google_guest_agent[1066]: Updating keys for user (an account of whoever runs the kit).
 2026-10-29T21:38:59.514911+00:00 vg-button-20261029t213723z systemd[1]: google-guest-agent.service: Got notification message from PID 1350, but reception only permitted for main PID 1066
 2026-10-29T21:38:59.524793+00:00 vg-button-20261029t213723z systemd[1]: google-guest-agent.service: Got notification message from PID 1351, but reception only permitted for main PID 1066
 2026-10-29T21:38:59.531267+00:00 vg-button-20261029t213723z systemd[1]: google-guest-agent.service: Got notification message from PID 1352, but reception only permitted for main PID 1066

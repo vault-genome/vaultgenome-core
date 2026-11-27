@@ -3081,7 +3081,7 @@ ync[917]:     e808a337ed6911ef561c27cabacabf4ea6d6e20fb70f5413b121ac251abcc10c
 2026-10-28T02:55:08.092755+00:00 vg-release-20261028t024858z systemd[1]: google-guest-agent.service: Got notification message from PID 1239, but reception only permitted for main PID 1094
 2026-10-28T02:55:08.101250+00:00 vg-release-20261028t024858z systemd[1]: google-guest-agent.service: Got notification message from PID 1240, but reception only permitted for main PID 1094
 2026-10-28T02:55:08.102096+00:00 vg-release-20261028t024858z google_guest_agent[1094]: Created google sudoers file
-2026-10-28T02:55:08.102651+00:00 vg-release-20261028t024858z google_guest_agent[1094]: Creating user serhiinikolaichuk.
+2026-10-28T02:55:08.102651+00:00 vg-release-20261028t024858z google_guest_agent[1094]: Creating user (an account of whoever runs the kit).
 2026-10-28T02:55:08.117735+00:00 vg-release-20261028t024858z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
 2026-10-28T02:55:08.156185+00:00 vg-release-20261028t024858z kernel: audit: type=1400 audit(1793156108.154:128): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="/usr/lib/snapd/snap-confine" pid=1234 comm="apparmor_parser"
 2026-10-28T02:55:08.275527+00:00 vg-release-20261028t024858z systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
@@ -3094,7 +3094,7 @@ ync[917]:     e808a337ed6911ef561c27cabacabf4ea6d6e20fb70f5413b121ac251abcc10c
 2026-10-28T02:55:08.693874+00:00 vg-release-20261028t024858z systemd[1]: Starting google-shutdown-scripts.service - Google Compute Engine Shutdown Scripts...
 2026-10-28T02:55:08.695331+00:00 vg-release-20261028t024858z systemd[1]: Finished google-shutdown-scripts.service - Google Compute Engine Shutdown Scripts.
 2026-10-28T02:55:08.904511+00:00 vg-release-20261028t024858z snapd[880]: autorepair.go:320: WARNING: the system booted with an old initrd without unlocked status reporting
-2026-10-28T02:55:09.293074+00:00 vg-release-20261028t024858z google_guest_agent[1094]: Updating keys for user serhiinikolaichuk.
+2026-10-28T02:55:09.293074+00:00 vg-release-20261028t024858z google_guest_agent[1094]: Updating keys for user (an account of whoever runs the kit).
 2026-10-28T02:55:09.301405+00:00 vg-release-20261028t024858z systemd[1]: google-guest-agent.service: Got notification message from PID 1347, but reception only permitted for main PID 1094
 2026-10-28T02:55:09.309418+00:00 vg-release-20261028t024858z systemd[1]: google-guest-agent.service: Got notification message from PID 1348, but reception only permitted for main PID 1094
 2026-10-28T02:55:09.315540+00:00 vg-release-20261028t024858z systemd[1]: google-guest-agent.service: Got notification message from PID 1349, but reception only permitted for main PID 1094

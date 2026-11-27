@@ -3066,7 +3066,7 @@ elease-20261021t132732z sbkeysync[900]:     3153b3e305575439914605d976cf6ead5a50
 2026-10-21T13:30:11.972895+00:00 vg-release-20261021t132732z systemd[1]: google-guest-agent.service: Got notification message from PID 1189, but reception only permitted for main PID 1001
 2026-10-21T13:30:12.011992+00:00 vg-release-20261021t132732z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
 2026-10-21T13:30:12.130992+00:00 vg-release-20261021t132732z google_guest_agent[1001]: Created google sudoers file
-2026-10-21T13:30:12.131064+00:00 vg-release-20261021t132732z google_guest_agent[1001]: Creating user serhiinikolaichuk.
+2026-10-21T13:30:12.131064+00:00 vg-release-20261021t132732z google_guest_agent[1001]: Creating user (an account of whoever runs the kit).
 2026-10-21T13:30:12.223963+00:00 vg-release-20261021t132732z snapd[879]: seclog.go:107: security logger enabled
 2026-10-21T13:30:12.276557+00:00 vg-release-20261021t132732z systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
 2026-10-21T13:30:12.276638+00:00 vg-release-20261021t132732z systemd[1]: google-guest-agent.service: Got notification message from PID 1190, but reception only permitted for main PID 1001
@@ -3093,7 +3093,7 @@ elease-20261021t132732z sbkeysync[900]:     3153b3e305575439914605d976cf6ead5a50
 2026-10-21T13:30:13.614725+00:00 vg-release-20261021t132732z OSConfigAgent[863]: 2026-10-21T13:30:13.6143Z OSConfigAgent Info: OSConfig Agent (version 20251028.00-0ubuntu2~24.04.0) started.
 2026-10-21T13:30:13.706370+00:00 vg-release-20261021t132732z snapd[879]: backend.go:145: reloading profiles for snap-confine
 2026-10-21T13:30:13.811644+00:00 vg-release-20261021t132732z kernel: audit: type=1400 audit(1792589413.810:128): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="/usr/lib/snapd/snap-confine" pid=1289 comm="apparmor_parser"
-2026-10-21T13:30:13.845369+00:00 vg-release-20261021t132732z google_guest_agent[1001]: Updating keys for user serhiinikolaichuk.
+2026-10-21T13:30:13.845369+00:00 vg-release-20261021t132732z google_guest_agent[1001]: Updating keys for user (an account of whoever runs the kit).
 2026-10-21T13:30:13.850665+00:00 vg-release-20261021t132732z systemd[1]: google-guest-agent.service: Got notification message from PID 1338, but reception only permitted for main PID 1001
 2026-10-21T13:30:13.856203+00:00 vg-release-20261021t132732z systemd[1]: google-guest-agent.service: Got notification message from PID 1339, but reception only permitted for main PID 1001
 2026-10-21T13:30:13.861528+00:00 vg-release-20261021t132732z systemd[1]: google-guest-agent.service: Got notification message from PID 1340, but reception only permitted for main PID 1001

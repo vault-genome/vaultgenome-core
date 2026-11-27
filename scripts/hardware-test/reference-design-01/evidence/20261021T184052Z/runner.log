@@ -179,6 +179,6 @@ third-party audit verify (cross-cloud) exit=0
 third-party audit query --request req-3c201890962908dc exit=0 events=6
 third-party lineage --session-id ses-321184b8-0000000000000001 exit=0
 run_end=2026-10-21T18:46:00Z
-evidence: /Users/serhiinikolaichuk/dev/vaultgenome-core-compliance/scripts/hardware-test/reference-design-01/evidence/20261021T184052Z
+evidence: ~/dev/vaultgenome-core-compliance/scripts/hardware-test/reference-design-01/evidence/20261021T184052Z
 PASS: reference design 01 end to end on SEV-SNP under fips (hpke-p384-v1) — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party (20261021T184052Z)
 cleanup: deleting vg-rd01-bank-20261021t184052z, vg-rd01-standby-20261021t184052z, the rule vg-rd01-xcc-20261021t184052z and gs://rats-probe-vg-rd01-20261021t184052z

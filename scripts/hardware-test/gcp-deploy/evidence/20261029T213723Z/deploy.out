@@ -1,4 +1,4 @@
-Vault Genome v0.14.0 → project rats-probe, as nikolaichuk.s.f@gmail.com; the record goes to /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/gcp/records/20261029T213724Z
+Vault Genome v0.14.0 → project rats-probe, as nikolaichuk.s.f@gmail.com; the record goes to ~/dev/vg-0140-tag/deploy/gcp/records/20261029T213724Z
 == 1. the verification tools
   cosign: v3.1.3 (/opt/homebrew/bin/cosign);slsa-verifier: 2.7.1 (/opt/homebrew/bin/slsa-verifier)
 == 2. the release v0.14.0, verified before it runs anywhere
@@ -11,7 +11,7 @@ Vault Genome v0.14.0 → project rats-probe, as nikolaichuk.s.f@gmail.com; the r
 == 4. the Confidential VM
   vg-button-20261029t213723z is up in us-central1-c; the guest is installing, provisioning and proving — about three minutes
 == 5. waiting for the guest's record (up to 25 minutes)
-  packages[K  packages[K  the release v0.14.0 from GitHub, held to the signed checksums list[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  a base model for the first genome: the tiny one the reference deployment gat[K  acpctl provision: keys, configurations, identities and pins, the key files s[K  the daemons as systemd services[K  the daemons as systemd services[K  metrics; then the audit log verified under the operator's key with both serv[K  metrics; then the audit log verified under the operator's key with both serv[K  metrics; then the audit log verified under the operator's key with both serv[K[K  the guest's record: 20051 bytes, sha256(b64)=1f295849d2a9f6a1fdb1b4c63c648f999c9c2a7f1d5e40c625a37db093f7dfb3 -> /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/gcp/records/20261029T213724Z/guest
+  packages[K  packages[K  the release v0.14.0 from GitHub, held to the signed checksums list[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  a base model for the first genome: the tiny one the reference deployment gat[K  acpctl provision: keys, configurations, identities and pins, the key files s[K  the daemons as systemd services[K  the daemons as systemd services[K  metrics; then the audit log verified under the operator's key with both serv[K  metrics; then the audit log verified under the operator's key with both serv[K  metrics; then the audit log verified under the operator's key with both serv[K[K  the guest's record: 20051 bytes, sha256(b64)=1f295849d2a9f6a1fdb1b4c63c648f999c9c2a7f1d5e40c625a37db093f7dfb3 -> ~/dev/vg-0140-tag/deploy/gcp/records/20261029T213724Z/guest
 == 6. what was proven
 PROVEN — Vault Genome v0.14.0 on vg-button-20261029t213723z (us-central1-c, project rats-probe): n2d-standard-4, AMD Milan, SEV-SNP
   release      Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
@@ -25,10 +25,10 @@ PROVEN — Vault Genome v0.14.0 on vg-button-20261029t213723z (us-central1-c, pr
   audit log    ok=true, 16 events verified under the operator's key (records/20261029T213724Z/guest/audit-public-key.pem)
   time         155.7 s on the guest from its first command to the sealed verdict; the record's hashes in guest/sha256sums.txt
 
-The deployment is running. Its record: /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/gcp/records/20261029T213724Z
+The deployment is running. Its record: ~/dev/vg-0140-tag/deploy/gcp/records/20261029T213724Z
   on the VM        gcloud compute ssh vg-button-20261029t213723z --zone us-central1-c --project rats-probe
   look             sudo vg health · sudo vg status · sudo vg logs sagvd
   the audit log    sudo vg verify · sudo vg audit · sudo vg events 20   (the services pause for the read, about 15 s)
   another job      sudo vg submit gen-0.genome gen-0.key
   your own model   seal its genome with acpctl (docs/operator/09_first_deployment.md §4) into /var/lib/vaultgenome/genomes, then vg submit
-  remove it        /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/gcp/destroy.sh --name vg-button-20261029t213723z --zone us-central1-c --project rats-probe
+  remove it        ~/dev/vg-0140-tag/deploy/gcp/destroy.sh --name vg-button-20261029t213723z --zone us-central1-c --project rats-probe

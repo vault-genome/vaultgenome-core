@@ -3074,7 +3074,7 @@ e879c6978
 2026-10-29T21:20:22.183237+00:00 vg-release-20261029t211713z snapd[882]: overlord.go:316: Acquiring state lock file
 2026-10-29T21:20:22.183378+00:00 vg-release-20261029t211713z snapd[882]: overlord.go:321: Acquired state lock file
 2026-10-29T21:20:22.330188+00:00 vg-release-20261029t211713z google_guest_agent[1003]: Created google sudoers file
-2026-10-29T21:20:22.330245+00:00 vg-release-20261029t211713z google_guest_agent[1003]: Creating user serhiinikolaichuk.
+2026-10-29T21:20:22.330245+00:00 vg-release-20261029t211713z google_guest_agent[1003]: Creating user (an account of whoever runs the kit).
 2026-10-29T21:20:22.400744+00:00 vg-release-20261029t211713z systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
 2026-10-29T21:20:22.401112+00:00 vg-release-20261029t211713z systemd[1]: google-guest-agent.service: Got notification message from PID 1209, but reception only permitted for main PID 1003
 2026-10-29T21:20:22.407705+00:00 vg-release-20261029t211713z systemd[1]: google-guest-agent.service: Got notification message from PID 1229, but reception only permitted for main PID 1003
@@ -3103,7 +3103,7 @@ e879c6978
 2026-10-29T21:20:23.754964+00:00 vg-release-20261029t211713z systemd[1]: Starting google-shutdown-scripts.service - Google Compute Engine Shutdown Scripts...
 2026-10-29T21:20:23.757254+00:00 vg-release-20261029t211713z systemd[1]: Finished google-shutdown-scripts.service - Google Compute Engine Shutdown Scripts.
 2026-10-29T21:20:23.955267+00:00 vg-release-20261029t211713z snapd[882]: autorepair.go:320: WARNING: the system booted with an old initrd without unlocked status reporting
-2026-10-29T21:20:24.391065+00:00 vg-release-20261029t211713z google_guest_agent[1003]: Updating keys for user serhiinikolaichuk.
+2026-10-29T21:20:24.391065+00:00 vg-release-20261029t211713z google_guest_agent[1003]: Updating keys for user (an account of whoever runs the kit).
 2026-10-29T21:20:24.406895+00:00 vg-release-20261029t211713z systemd[1]: google-guest-agent.service: Got notification message from PID 1346, but reception only permitted for main PID 1003
 2026-10-29T21:20:24.412375+00:00 vg-release-20261029t211713z systemd[1]: google-guest-agent.service: Got notification message from PID 1347, but reception only permitted for main PID 1003
 2026-10-29T21:20:24.419311+00:00 vg-release-20261029t211713z systemd[1]: google-guest-agent.service: Got notification message from PID 1348, but reception only permitted for main PID 1003

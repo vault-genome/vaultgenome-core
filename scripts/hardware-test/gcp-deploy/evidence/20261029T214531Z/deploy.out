@@ -1,4 +1,4 @@
-Vault Genome v0.14.0 → project rats-probe, as nikolaichuk.s.f@gmail.com; the record goes to /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/gcp/records/20261029T214532Z
+Vault Genome v0.14.0 → project rats-probe, as nikolaichuk.s.f@gmail.com; the record goes to ~/dev/vg-0140-tag/deploy/gcp/records/20261029T214532Z
 == 1. the verification tools
   cosign: v3.1.3 (/opt/homebrew/bin/cosign);slsa-verifier: 2.7.1 (/opt/homebrew/bin/slsa-verifier)
 == 2. the release v0.14.0, verified before it runs anywhere
@@ -11,7 +11,7 @@ Vault Genome v0.14.0 → project rats-probe, as nikolaichuk.s.f@gmail.com; the r
 == 4. the Confidential VM
   vg-button-20261029t214531z is up in us-central1-c; the guest is installing, then reboots once so the key files are sealed on a settled boot, then provisions and proves — about four minutes
 == 5. waiting for the guest's record (up to 25 minutes)
-  packages[K  packages[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  a base model for the first genome: the tiny one the reference deployment gat[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  acpctl provision: keys, configurations, identities and pins, the key files s[K  the first genome: a LoRA fine-tune by vg_genome, sealed by acpctl into the g[K  the gate job over the Return Path[K  emit[K[K  the guest's record: 67220 bytes, sha256(b64)=550964bd9bb0c8088ace1593ca232b0cf16c5a0ce5a6faca13ca2385015f5a46 -> /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/gcp/records/20261029T214532Z/guest
+  packages[K  packages[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  the worker runtime from the hash-pinned locks[K  a base model for the first genome: the tiny one the reference deployment gat[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  installed; rebooting once so the key files are sealed on a settled boot (the[K  acpctl provision: keys, configurations, identities and pins, the key files s[K  the first genome: a LoRA fine-tune by vg_genome, sealed by acpctl into the g[K  the gate job over the Return Path[K  emit[K[K  the guest's record: 67220 bytes, sha256(b64)=550964bd9bb0c8088ace1593ca232b0cf16c5a0ce5a6faca13ca2385015f5a46 -> ~/dev/vg-0140-tag/deploy/gcp/records/20261029T214532Z/guest
 == 6. what was proven
 PROVEN — Vault Genome v0.14.0 on vg-button-20261029t214531z (us-central1-c, project rats-probe): c3-standard-4, Intel TDX
   release      Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
@@ -25,10 +25,10 @@ PROVEN — Vault Genome v0.14.0 on vg-button-20261029t214531z (us-central1-c, pr
   audit log    ok=true, 16 events verified under the operator's key (records/20261029T214532Z/guest/audit-public-key.pem)
   time         30.3 s on the guest from its first command to the sealed verdict; the record's hashes in guest/sha256sums.txt
 
-The deployment is running. Its record: /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/gcp/records/20261029T214532Z
+The deployment is running. Its record: ~/dev/vg-0140-tag/deploy/gcp/records/20261029T214532Z
   on the VM        gcloud compute ssh vg-button-20261029t214531z --zone us-central1-c --project rats-probe
   look             sudo vg health · sudo vg status · sudo vg logs sagvd
   the audit log    sudo vg verify · sudo vg audit · sudo vg events 20   (the services pause for the read, about 15 s)
   another job      sudo vg submit gen-0.genome gen-0.key
   your own model   seal its genome with acpctl (docs/operator/09_first_deployment.md §4) into /var/lib/vaultgenome/genomes, then vg submit
-  remove it        /Users/serhiinikolaichuk/dev/vg-0140-tag/deploy/gcp/destroy.sh --name vg-button-20261029t214531z --zone us-central1-c --project rats-probe
+  remove it        ~/dev/vg-0140-tag/deploy/gcp/destroy.sh --name vg-button-20261029t214531z --zone us-central1-c --project rats-probe

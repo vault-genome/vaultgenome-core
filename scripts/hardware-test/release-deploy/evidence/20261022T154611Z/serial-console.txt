@@ -3066,7 +3066,7 @@ hutdown.
 2026-10-22T15:50:57.962435+00:00 vg-release-20261022t154611z systemd[1]: systemd-logind.service: Deactivated successfully.
 2026-10-22T15:50:57.962504+00:00 vg-release-20261022t154611z systemd[1]: Stopped systemd-logind.service - User Login Management.
 2026-10-22T15:50:57.967649+00:00 vg-release-20261022t154611z google_guest_agent[1091]: Created google sudoers file
-2026-10-22T15:50:57.967835+00:00 vg-release-20261022t154611z google_guest_agent[1091]: Creating user serhiinikolaichuk.
+2026-10-22T15:50:57.967835+00:00 vg-release-20261022t154611z google_guest_agent[1091]: Creating user (an account of whoever runs the kit).
 2026-10-22T15:50:57.970830+00:00 vg-release-20261022t154611z systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
 2026-10-22T15:50:57.977692+00:00 vg-release-20261022t154611z systemd[1]: modprobe@drm.service: Deactivated successfully.
 2026-10-22T15:50:57.977954+00:00 vg-release-20261022t154611z systemd[1]: Finished modprobe@drm.service - Load Kernel Module drm.
@@ -3091,7 +3091,7 @@ hutdown.
 2026-10-22T15:50:58.153175+00:00 vg-release-20261022t154611z systemd[1]: Started systemd-timedated.service - Time & Date Service.
 2026-10-22T15:50:58.158615+00:00 vg-release-20261022t154611z systemd[1]: google-guest-agent.service: Got notification message from PID 1296, but reception only permitted for main PID 1091
 2026-10-22T15:50:58.159883+00:00 vg-release-20261022t154611z google_guest_agent[1091]: ERROR oslogin.go:173 Error reloading service: Failed to reload-or-restart sshd.service: Unit sshd.service not found..
-2026-10-22T15:50:58.303402+00:00 vg-release-20261022t154611z google_guest_agent[1091]: Updating keys for user serhiinikolaichuk.
+2026-10-22T15:50:58.303402+00:00 vg-release-20261022t154611z google_guest_agent[1091]: Updating keys for user (an account of whoever runs the kit).
 2026-10-22T15:50:58.309010+00:00 vg-release-20261022t154611z systemd[1]: google-guest-agent.service: Got notification message from PID 1344, but reception only permitted for main PID 1091
 2026-10-22T15:50:58.315667+00:00 vg-release-20261022t154611z systemd[1]: google-guest-agent.service: Got notification message from PID 1345, but reception only permitted for main PID 1091
 2026-10-22T15:50:58.320815+00:00 vg-release-20261022t154611z systemd[1]: google-guest-agent.service: Got notification message from PID 1346, but reception only permitted for main PID 1091

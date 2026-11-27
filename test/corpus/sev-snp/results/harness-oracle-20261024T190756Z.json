@@ -1,5 +1,5 @@
 {
-  "corpus": "/Users/serhiinikolaichuk/dev/vg-record-0110/test/corpus/sev-snp",
+  "corpus": "~/dev/vg-record-0110/test/corpus/sev-snp",
   "command": "python3 -I tools/corpus-harness/adapters/oracle.py --oracle bin/oracle --report {report} --vcek {vcek} --chain {chain}",
   "reports": 66,
   "failed": 0,
