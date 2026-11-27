@@ -28,7 +28,7 @@ attestation), invariant #11 "supply chain attested".
 Before any release step runs, the following must already be true:
 
 1. The vault-gate workflow is green on the exact commit you intend to tag.
-   CI runs all 18 checks on every push to `main`; `make vault-gate` runs 14 of
+   CI runs all 20 checks on every push to `main`; `make vault-gate` runs 16 of
    them locally (see §2).
 2. The release notes draft names every doctrine change, every invariant
    change, and every dependency change since the prior tag.

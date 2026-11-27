@@ -256,8 +256,8 @@ its fleet, within which a sealed file is portable).
 > **Kit, not product.** The tree ships no verifier for this backend
 > (`VERIFIABLE-CLAIMS.md`, "What we do not claim"); the section states the
 > boundary and the properties a verifier would have to establish, and is
-> what the measurement kit under `scripts/hardware-test/intel-sgx` is checked
-> against.
+> what a measurement kit for this backend would be checked against. The tree
+> has none yet; `scripts/hardware-test/azure-sgx` measures SGX on Azure.
 
 ### Threat table
 

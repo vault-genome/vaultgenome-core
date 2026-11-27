@@ -126,8 +126,8 @@ satisfy AGPL's network-distribution clause.
 
 ## Implementation checklist
 
-- [x] SPDX header in every `.go`, `.ts`, `.tsx`, `.py` file (enforced
-      in CI by `scripts/check-license.sh`).
+- [x] SPDX header in every `.go`, `.py` and `.sh` file (enforced
+      in CI by `scripts/license_header_check.sh`, vault-gate sub-check 14).
 - [x] Top-level `LICENSE` file is AGPL-3.0-or-later. **Closed 2026-09-15**:
       the file previously carried only the short-form notice plus a scaffold
       note, which made GitHub's licence detection report `NOASSERTION`. It now

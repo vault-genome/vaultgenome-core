@@ -19,17 +19,19 @@ in the tests; where an item belongs to it, the section says so.
 | Local gate green | `make vault-gate` | Exit 0; last line `vault-gate: PASS` |
 | Integration tests | `make test-integration` | Exit 0 (builds the real `sagvd`, `acp-compute` and keygen binaries and runs them as processes) |
 | Reproducible build | `make verify-reproducible` | Ends with `reproducible-build check: PASS` |
-| All binaries built | `make build`, then `ls bin/` | `sagvd`, `acp-compute`, `acpctl`, `acp-bootstrap`, `acp-demo` present |
+| All binaries built | `make build`, then `ls bin/` | `sagvd`, `acp-compute`, `acpctl`, `acp-bootstrap`, `acp-keygen`, `vgconsole`, `acp-demo` present |
 | SBOM generable | `make sbom` | Writes `dist/sbom.spdx.json` without error |
 
-`make vault-gate` runs 14 targets: `fmt-check`, `vet`, `build`, `test`,
-`test-race`, `test-doctrine`, `lint`, `terminology`, `license-headers`, `vuln`
-(govulncheck), `secrets` (gitleaks), `coverage-thresholds`, `dep-allowlist`,
-`dep-depth`. The CI workflow `.github/workflows/vault-gate.yml` runs 18 checks;
-the four the local target omits are integration tests, osv-scanner, SBOM and
-verify-reproducible. Three of them are the separate targets in the table;
-osv-scanner runs only in CI. `lint`, `vuln`, `secrets` and `sbom` need
-golangci-lint, govulncheck, gitleaks and syft installed.
+`make vault-gate` runs 17 targets: `fmt-check`, `vet`, `build`, `build-fips`,
+`test`, `test-race`, `test-fips140-only`, `test-doctrine`, `lint`,
+`terminology`, `license-headers`, `dco`, `vuln` (govulncheck), `secrets`
+(gitleaks), `coverage-thresholds`, `dep-allowlist`, `dep-depth` — 16 of the
+20 checks the CI workflow `.github/workflows/vault-gate.yml` runs (`build` and
+`build-fips` are its check 03). The four the local target omits are
+integration tests, osv-scanner, SBOM and verify-reproducible. Three of them
+are the separate targets in the table; osv-scanner runs only in CI. `lint`,
+`vuln`, `secrets` and `sbom` need golangci-lint, govulncheck, gitleaks and
+syft installed.
 
 Any failure here blocks — a Vault that cannot produce a clean gate cannot
 responsibly handle continuity authority.

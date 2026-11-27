@@ -7,7 +7,8 @@ contribution faster and surfaces failures earlier.
 
 ## Required
 
-- **Go 1.22+** (we test on 1.22; 1.23 works)
+- **Go 1.27.4**, the version `go.mod` names and every workflow pins (an
+  older `go` with `GOTOOLCHAIN=auto` fetches it)
 - **bash** for the various shell scripts
 - **Make** for the canonical build entry points
 
@@ -15,7 +16,7 @@ contribution faster and surfaces failures earlier.
 
 | Tool                | Purpose                                               | Install                                                              |
 |---------------------|-------------------------------------------------------|-----------------------------------------------------------------------|
-| `golangci-lint`     | Static lint (gosec, errcheck, ineffassign, …)         | https://golangci-lint.run/usage/install/                              |
+| `golangci-lint`     | Static lint (errcheck, govet, ineffassign, staticcheck, unused; `.golangci.yml`) | https://golangci-lint.run/usage/install/ — v2.14.0, the version the gate pins |
 | `govulncheck`       | Upstream CVE scan against go.mod                      | `go install golang.org/x/vuln/cmd/govulncheck@latest`                |
 | `benchstat`         | Compare two `go test -bench` runs statistically       | `go install golang.org/x/perf/cmd/benchstat@latest`                  |
 | `go-mutesting`      | Mutation testing (weekly CI; on-demand local)         | `go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest` |

@@ -210,7 +210,7 @@ says what each check proves.
 
 ![Architecture overview](docs/diagrams/architecture-overview.svg)
 
-Five binaries, one flow. The nine governed stages — Recovery Request →
+Seven binaries, one flow. The nine governed stages — Recovery Request →
 Trust Admission → Trusted Session → Staged Disclosure → Delegated External
 Compute → Return Path → Validation → Release Decision → Audit — are library
 code under `internal/`, and `sagvd` drives them for every job
@@ -222,6 +222,8 @@ code under `internal/`, and `sagvd` drives them for every job
 | `acp-compute` | The worker. Dials the authority over mutual TLS, attests with its chip, restores the sealed genome's model in memory and answers the genome's own reference prompts; nothing of the genome touches its disk. |
 | `acp-bootstrap` | The destination of a cross-cloud key release. Attests, receives the key, restores the genome, proves the model works through the door, signs a receipt with its TEE. |
 | `acpctl` | The operator's CLI: seal, open and verify genomes; the sentinel that keeps a running model sealed and reports an intrusion; policies, stop lists, escrow ceremonies, audit verification. |
+| `acp-keygen` | The key material a deployment starts from: the signing seeds, the session sealing key, the Return Path's private mTLS PKI, the REST API token and the worker registry. |
+| `vgconsole` | The console: the application a person without a terminal opens on their own computer, verifying there what it shows ([ADR 0039](docs/adr/0039-the-console-a-persons-hands-verified-on-their-computer.md)). |
 | `acp-demo` | The one-command demonstration above. |
 
 A sentinel on the primary seals every new state of a running model with its
@@ -264,25 +266,25 @@ summary is [`docs/STATUS.md`](docs/STATUS.md). In short:
 | - | - |
 | [`VERIFIABLE-CLAIMS.md`](VERIFIABLE-CLAIMS.md) | Every claim, its evidence and its reproduction command; what we do not claim |
 | [`docs/CONTINUITY-DRILL.md`](docs/CONTINUITY-DRILL.md) | The failover drills, narrated, with their numbers |
-| [`docs/adr/`](docs/adr/README.md) | Twenty-three architecture decision records, from the frozen TEE interface (0001) to the sealed key files (0023) |
-| [`docs/operator/`](docs/operator/00_overview.md) | The operator guides 00–09 — from the overview to the first deployment measured against the reference — and the real-TEE runbooks |
+| [`docs/adr/`](docs/adr/README.md) | The architecture decision records, from the frozen TEE interface (0001) on, indexed with their status |
+| [`docs/operator/`](docs/operator/00_overview.md) | The operator guides 00–10 — from the overview to the first deployment measured against the reference, and the console — and the real-TEE runbooks |
 | [`docs/security/`](docs/security/threat_model.md) | The threat model and the supply chain |
 | [`docs/doctrine/`](docs/doctrine/terminology.md) | The canonical vocabulary (enforced by CI) and the CI security policy |
 | [`docs/testing/`](docs/testing/cross-hardware-determinism.md) | Cross-hardware determinism and mutation testing |
 | [`docs/compliance/`](docs/compliance/README.md), [`docs/reference-designs/`](docs/reference-designs/README.md) | The control catalogue, the sector maps and four reference designs |
 | [`docs/spec/`](docs/spec/draft-vault-genome-tap-00.md) | The TEE-Agnostic Attestation Protocol draft |
-| [`docs/reference/cli.md`](docs/reference/cli.md) | Every command and flag of the five binaries, generated from their own usage text |
+| [`docs/reference/cli.md`](docs/reference/cli.md) | Every command and flag of the seven binaries, generated from their own usage text |
 | [`docs/reference/api.md`](docs/reference/api.md) | The operator REST API for an integrator — `POST /v1/jobs`, `GET /v1/jobs/{id}`, the error envelope, the job view, how to verify what it says |
 | [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md), [`ROADMAP.md`](ROADMAP.md), [`CHANGELOG.md`](CHANGELOG.md) | Limits, what is next, what changed |
 
 ## Development
 
 ```bash
-make build              # sagvd, acp-compute, acp-bootstrap, acpctl, acp-demo
+make build              # sagvd, acp-compute, acp-bootstrap, acpctl, acp-keygen, vgconsole, acp-demo
 make test               # unit tests
 make test-race          # with the race detector
 make test-doctrine      # the eleven doctrinal invariants
-make vault-gate         # 14 of the 18 CI checks, locally
+make vault-gate         # 16 of the 20 CI checks, locally
 make test-integration && make sbom && make verify-reproducible   # three more; osv-scanner runs only in CI
 ```
 

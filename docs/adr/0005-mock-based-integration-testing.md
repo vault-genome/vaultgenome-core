@@ -158,9 +158,12 @@ Files modified:
   `decodeNitroAttestationDoc` so the AWS Nitro adapter exercises
   CBOR + COSE on every CI run. The fake-envelope path stays as a
   fast `make test` target; the CBOR path becomes the canonical
-  format test.
-- Ship the conformance harness (`pkg/teeconformance`,
-  see [ADR-0006 — pending](0006-conformance-suite-extraction.md))
-  as a public Go package so third-party TEE adapters can validate
-  themselves against our contract without copy-pasting our test
-  source.
+  format test. *Done without the dependency:* the verifier parses
+  CBOR and COSE itself ([ADR 0035](0035-the-aws-nitro-verifier-from-the-specification.md)).
+- Ship the conformance harness as a public Go package so third-party
+  TEE adapters can validate themselves against our contract without
+  copy-pasting our test source. *Done:* [`pkg/teeconformance`](../../pkg/teeconformance/README.md),
+  under Apache-2.0 ([ADR 0003](0003-agpl-commercial-dual-licensing.md),
+  amendment of 2026-10-23). The ADR this bullet once pointed to, an
+  "ADR-0006 — pending", was never written; 0006 is the cross-cloud
+  KMS-mediated restore.

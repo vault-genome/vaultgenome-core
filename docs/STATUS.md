@@ -14,12 +14,13 @@ a destination that bootstraps itself) is deferred to V2 per resolution
 R-11.
 **Doctrine invariants:** 11 of 11 CI-enforced (asserted as tests in
 `test/doctrine/`; [ADR 0004](adr/0004-doctrine-invariants-as-tests.md)).
-**CI gate:** `vault-gate` with 18 sub-checks (fmt, vet, build, unit, race,
-integration, coverage, lint, terminology, govulncheck, osv-scanner,
-gitleaks, sbom, license-headers, doctrine-tests, dep-allowlist, dep-depth,
-verify-reproducible), plus CodeQL, Semgrep, a benchmark comparison, the
-Python worker's tests and OpenSSF Scorecard.
-**Module path:** `github.com/vault-genome/vaultgenome-core`. **Go:** 1.26.
+**CI gate:** `vault-gate` with 20 checks (fmt, vet, build, unit, race,
+the `fips140=only` assessment, integration, coverage, lint, terminology,
+govulncheck, osv-scanner, gitleaks, sbom, license-headers, the DCO
+sign-off, doctrine-tests, dep-allowlist, dep-depth, verify-reproducible),
+plus CodeQL, Semgrep, a benchmark comparison, the Python worker's tests and
+OpenSSF Scorecard.
+**Module path:** `github.com/vault-genome/vaultgenome-core`. **Go:** 1.27.4.
 **Hardware measured:** AMD SEV-SNP (GCP, Azure, AWS EC2), Intel TDX (GCP), an
 NVIDIA H100 in confidential-computing mode (Azure); NVIDIA L4 and T4 and
 Intel Xeon CPUs for the determinism measurements.

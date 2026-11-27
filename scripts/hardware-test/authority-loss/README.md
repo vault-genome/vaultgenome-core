@@ -24,10 +24,10 @@ SEV-SNP Confidential VMs (`n2d-standard-4`, AMD Milan) one after the other:
   -private` made goes to the **operator's safe** (an object in the run's
   private bucket, standing in for a secrets manager or an HSM-backed
   store); then every key file is sealed in place (`sagvd seal-keys`,
-  `acp-compute seal-keys`, [ADR 0023](../../../docs/adr/0023-key-files-sealed-to-the-tee.md)).
+  `acp-compute seal-keys`, [ADR 0023](../../../docs/adr/0023-the-daemons-key-files-sealed-to-the-host.md)).
   The escrow key is made inside `sagvd`, sealed to this chip and wrapped
   to the operator's recovery key (`sagvd escrow-provision`,
-  [ADR 0016](../../../docs/adr/0016-the-escrow-key-sealed-to-the-tee.md));
+  [ADR 0016](../../../docs/adr/0016-escrow-key-sealed-to-the-release-host.md));
   the envelope goes to the safe. A fine-tunes a tiny model, seals it as
   gen-0, and runs gate jobs over the Return Path in a loop, **replicating
   its state** — the audit log, the genomes and the job store

@@ -22,13 +22,13 @@ the two maintainers.
 ## How decisions are made
 
 - **Architecture and doctrine** are decided in an Architecture Decision
-  Record under `docs/adr/` (24 so far): the question, the alternatives, the
-  decision and its consequences. An ADR is a pull request like any other,
-  reviewed by the other maintainer. Doctrinal invariants are asserted as
-  tests in `test/doctrine/`, so a change that violates one fails the gate
-  rather than waiting for a reviewer to notice.
+  Record under `docs/adr/` (indexed in its README): the question, the
+  alternatives, the decision and its consequences. An ADR is a pull
+  request like any other, reviewed by the other maintainer. Doctrinal
+  invariants are asserted as tests in `test/doctrine/`, so a change that
+  violates one fails the gate rather than waiting for a reviewer to notice.
 - **Code** merges only through a pull request that passes the gate
-  (`.github/workflows/vault-gate.yml`, 19 checks) and, on every governed
+  (`.github/workflows/vault-gate.yml`, 20 checks) and, on every governed
   path in [`.github/CODEOWNERS`](.github/CODEOWNERS), carries the review of
   both maintainers. `main` is protected: no direct pushes, signed commits
   only, required checks, conversations resolved.

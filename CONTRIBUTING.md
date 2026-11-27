@@ -30,8 +30,8 @@ guidance below is mandatory, not optional — CI enforces most of it.
   Refs: #<issue-id>
   ```
   `type` is one of: `feat`, `fix`, `docs`, `test`, `refactor`, `ci`, `chore`,
-  `perf`, `build`, `revert`. See `docs/doctrine/ci-security-policy.md` §3 for the
-  authoritative rule and CI enforcement.
+  `perf`, `build`, `revert`. No CI step checks the format; the reviewer
+  does (see "Code Review" below, item 3).
 - All commits on protected branches MUST be cryptographically signed (SSH or
   GPG). Unsigned commits are blocked at push time.
 - Every commit carries a Developer Certificate of Origin sign-off,
@@ -49,12 +49,12 @@ make test-race          # race detector
 make test-doctrine      # invariant tests
 make lint               # golangci-lint
 make terminology        # deprecated-terms check
-make license-headers    # SPDX headers on all Go files
+make license-headers    # copyright line and SPDX header on Go, Python and shell files
 make dco                # Signed-off-by on every commit in origin/main..HEAD
 make vuln               # govulncheck
 make secrets            # gitleaks
 make coverage-thresholds
-make vault-gate         # everything the CI runs
+make vault-gate         # 16 of the gate's 20 checks (ci-security-policy.md §1)
 make build DEBUG=1      # binaries with symbols and DWARF, for a debugger or profiler
 ```
 
@@ -74,8 +74,8 @@ red one will block merge unconditionally.
 - [ ] Documentation updated: `doc.go` on affected packages, `CHANGELOG.md` if
       user-visible.
 - [ ] No new dependencies, OR a new dependency has a justification file at
-      `docs/dependencies/<name>.md` AND appears on the allowlist in
-      `docs/doctrine/ci-security-policy.md` §5.
+      `docs/dependencies/<name>.md` AND appears on the allowlist,
+      `scripts/dep_allowlist.txt` (`docs/doctrine/ci-security-policy.md` §3.1).
 - [ ] Every new Go, Python or shell file starts (after a shebang, if any) with
       the copyright line of `NOTICE` and the SPDX identifier (`make license-headers`).
 - [ ] No deprecated terminology introduced.

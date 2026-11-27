@@ -3,14 +3,21 @@
 **Version:** the one pinned in `go.mod` (Dependabot keeps it current, grouped weekly, through the same gate as any change; the justification here does not depend on the patch level — a major version is a new review)
 **License:** BSD-3-Clause (the Go project)
 **Transitive depth:** 2 (x/crypto → x/net, x/sys, x/term, x/text — all Go
-project modules; none of them is linked into a binary by the one package
-used, `golang.org/x/crypto/ocsp`, which imports the standard library only)
-**Usage scope:** `internal/shared/tee/nvidia_ocsp.go` only — the OCSP
-revocation check of a confidential GPU's attestation certificate chain
-against NVIDIA's responder (ADR 0021, amended): parsing and verifying the
-responder's answers (`ocsp.ParseResponseForCert`), and, in tests, making
-answers for a synthetic chain (`ocsp.CreateResponse`). The request is
-encoded in-house, because x/crypto's `CreateRequest` writes no nonce.
+project modules; none of them is linked into a binary by the packages used,
+`golang.org/x/crypto/ocsp`, `cryptobyte` and `cryptobyte/asn1`, which import
+the standard library and each other only)
+**Usage scope:** `internal/shared/tee` only. `golang.org/x/crypto/ocsp` in
+`nvidia_ocsp.go` — the OCSP revocation check of a confidential GPU's
+attestation certificate chain against NVIDIA's responder (ADR 0021,
+amended): parsing and verifying the responder's answers
+(`ocsp.ParseResponseForCert`), and, in tests, making answers for a
+synthetic chain (`ocsp.CreateResponse`); the request is encoded in-house,
+because x/crypto's `CreateRequest` writes no nonce. The same package in
+`cache_status.go`, which reads cached answers (`ocsp.ParseResponse`) to say
+until when they hold. `golang.org/x/crypto/cryptobyte` and
+`cryptobyte/asn1` in `gce_vtpm.go`, which reads the Compute Engine
+instance-identity extension of a vTPM attestation key's certificate (zone,
+project, instance, security properties).
 
 ## Advisories against the module that do not reach this code
 

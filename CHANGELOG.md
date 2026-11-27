@@ -190,6 +190,18 @@ given release can still open.
   there; the restore's record still goes beside it. A source of this
   release that asks a destination of an earlier one classifies its answer
   by status, as before.
+- **The documents agree with the tree.** The gate is described the same
+  way everywhere — 20 checks, the 18 numbered sub-checks of `vault-gate.yml`
+  and 05b and 14a, of which `make vault-gate` runs 16 — and `make
+  vault-gate` now also builds the FIPS binaries, as the workflow's check 03
+  does. The command-line reference (`docs/reference/cli.md`) covers
+  `acp-keygen` and `vgconsole`; the README, `SECURITY.md` and the operator
+  overview name every binary; six links that led nowhere lead where they
+  meant to; the counts of ADRs, operator guides and direct dependencies no
+  longer lag the tree; `go.mod`, `CONTRIBUTING.md` and the pull request
+  template point at the allowlist and the DCO sign-off the gate checks;
+  the dependency records of testify, bbolt and x/crypto say what the
+  pinned versions pull in and where they are used.
 
 ## [0.14.0] — 2026-10-29
 

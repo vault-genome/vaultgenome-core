@@ -4,12 +4,15 @@ go 1.27.4
 
 // Dependency additions require:
 //   1. A justification file at docs/dependencies/<name>.md.
-//   2. Inclusion in the allowlist at 00_CI_Security_Policy.md §5.
+//   2. An entry in scripts/dep_allowlist.txt (docs/doctrine/ci-security-policy.md §3.1).
 //   3. PR review acknowledging both of the above.
 //
 // Current approved direct dependencies:
-//   - github.com/stretchr/testify   — test assertions (docs/dependencies/testify.md)
-//   - go.etcd.io/bbolt              — append-only audit store (docs/dependencies/bbolt.md)
+//   - github.com/beevik/etree             — XML document model under goxmldsig (docs/dependencies/etree.md)
+//   - github.com/russellhaering/goxmldsig — XML signatures of NVIDIA's RIMs (docs/dependencies/goxmldsig.md)
+//   - github.com/stretchr/testify         — test assertions (docs/dependencies/testify.md)
+//   - go.etcd.io/bbolt                    — audit log and job store (docs/dependencies/bbolt.md)
+//   - golang.org/x/crypto                 — OCSP and ASN.1 parsing (docs/dependencies/x-crypto.md)
 
 require (
 	github.com/beevik/etree v1.8.1

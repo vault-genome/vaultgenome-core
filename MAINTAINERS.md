@@ -26,7 +26,7 @@ branch, which requires review under CODEOWNERS like any other governed file.
 
 ## Decision record
 
-Architecture decisions are recorded, not remembered. Twelve ADRs under
+Architecture decisions are recorded, not remembered. The ADRs under
 [`docs/adr/`](docs/adr/) carry the reasoning, the alternatives considered and
 the accepted trade-offs; eleven doctrinal invariants are asserted as tests in
 [`test/doctrine/`](test/doctrine/) so that a change violating one fails CI
