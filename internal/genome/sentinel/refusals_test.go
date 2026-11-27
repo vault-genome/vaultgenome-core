@@ -150,6 +150,11 @@ func TestParsersRefuseWhatIsNotTheirRecord(t *testing.T) {
 	if _, err := ParseHeartbeat(append(append([]byte(nil), raw...), []byte("{}")...), pub); err == nil || !strings.Contains(err.Error(), "trailing") {
 		t.Errorf("trailing data: %v", err)
 	}
+	for _, tail := range []string{"}", "]"} {
+		if _, err := ParseHeartbeat(append(append([]byte(nil), raw...), tail...), pub); err == nil || !strings.Contains(err.Error(), "trailing") {
+			t.Errorf("%q after the heartbeat: %v", tail, err)
+		}
+	}
 	if _, err := ParseHeartbeat(bytes.Replace(raw, []byte(`"wires"`), []byte(`"wings"`), 1), pub); err == nil || !strings.Contains(err.Error(), "unknown field") {
 		t.Errorf("unknown field: %v", err)
 	}

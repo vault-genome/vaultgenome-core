@@ -303,6 +303,8 @@ func TestMalformedAnswers(t *testing.T) {
 	}{
 		"not JSON":        {[]byte("<html>"), "does not parse"},
 		"trailing data":   {[]byte(`{"Plaintext":"AAAAAAAAAAA="} {}`), "data after the answer"},
+		"a brace after":   {[]byte(`{"Plaintext":"AAAAAAAAAAA="}}`), "data after the answer"},
+		"a bracket after": {[]byte(`{"Plaintext":"AAAAAAAAAAA="}]`), "data after the answer"},
 		"too large":       {[]byte(`{"Plaintext":"` + strings.Repeat("A", maxResponseBytes) + `"}`), "more than"},
 		"bad base64 blob": {[]byte(`{"Plaintext":"%%%"}`), "does not parse"},
 	} {

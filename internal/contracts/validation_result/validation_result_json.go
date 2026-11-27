@@ -9,6 +9,7 @@ import (
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 )
 
 // UnmarshalJSON rejects unknown fields and gates SchemaVersion.
@@ -21,7 +22,7 @@ func (v *ValidationResult) UnmarshalJSON(data []byte) error {
 	if err := dec.Decode(tmp); err != nil {
 		return shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "validation_result: decode error", err)
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "validation_result: trailing content after JSON value", nil)
 	}
 	if v.SchemaVersion < SchemaVersionMin || v.SchemaVersion > SchemaVersionMax {

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/vault-genome/vaultgenome-core/internal/shared/awssigv4"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 )
 
 // The service's limits (API Reference): a ciphertext blob and a
@@ -230,7 +231,7 @@ func (c *Client) call(ctx context.Context, op string, in, out any) error {
 	if err := dec.Decode(out); err != nil {
 		return fmt.Errorf("awskms: %s: the answer does not parse: %w", op, err)
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return fmt.Errorf("awskms: %s: data after the answer", op)
 	}
 	return nil

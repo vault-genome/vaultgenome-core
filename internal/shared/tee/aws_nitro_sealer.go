@@ -39,6 +39,7 @@ import (
 	"github.com/vault-genome/vaultgenome-core/internal/shared/cms"
 	shared_crypto "github.com/vault-genome/vaultgenome-core/internal/shared/crypto"
 	shared_errors "github.com/vault-genome/vaultgenome-core/internal/shared/errors"
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 )
 
 // SealerKindAWSKMSAttested names the Nitro enclave's sealer in a sealed
@@ -183,7 +184,7 @@ func (s *AWSNitroSealer) Unseal(sealed, aad []byte) ([]byte, error) {
 	var env awsNitroSealed
 	dec := json.NewDecoder(bytes.NewReader(sealed))
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&env); err != nil || dec.More() {
+	if err := dec.Decode(&env); err != nil || !safejson.Ended(dec) {
 		return nil, shared_errors.Structural(shared_errors.CodeFieldValueInvalid, "aws-nitro sealer: not a sealed secret of this sealer", err)
 	}
 	if env.Schema != awsNitroSealedSchema {

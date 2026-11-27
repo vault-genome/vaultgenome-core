@@ -44,6 +44,18 @@ given release can still open.
   peer's detail in the compute flow's `TRUST_EVALUATED`, which held it in
   exponent form, its low bytes lost; a payload written before stays as
   it was written.
+- **The end of a document is its end** (`internal/shared/safejson`). The
+  27 readers that hold a document to its end — the contracts' own
+  decoders, a sentinel's records, a bundle's header, the restore
+  receipt, a gate job's descriptor, a request body to `sagvd`'s REST API,
+  an answer of AWS KMS, a secret the Nitro sealer sealed — asked the
+  decoder whether there was more, and a decoder says there is no more
+  before a `}` or a `]`: a document with one of them after it was read
+  as the document alone. Each now takes only the end of what it was
+  given for the end (`safejson.Ended`). A contract read through
+  `json.Unmarshal` was refused all the same, as that function checks the
+  whole input before the contract's reader sees it. Found by an
+  independent reading.
 
 ### Added
 

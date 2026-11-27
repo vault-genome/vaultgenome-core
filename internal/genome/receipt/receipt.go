@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/vault-genome/vaultgenome-core/internal/shared/safejson"
 	"github.com/vault-genome/vaultgenome-core/internal/shared/tee"
 )
 
@@ -194,7 +195,7 @@ func Parse(b []byte) (Receipt, error) {
 	if err := dec.Decode(&r); err != nil {
 		return Receipt{}, fmt.Errorf("receipt: %w", err)
 	}
-	if dec.More() {
+	if !safejson.Ended(dec) {
 		return Receipt{}, errors.New("receipt: trailing data")
 	}
 	return r, r.Validate()
