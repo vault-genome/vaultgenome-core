@@ -3091,7 +3091,7 @@ af8670d660994488fe54b1fbff2704e4288
 2026-10-24T18:59:00.204964+00:00 vg-release-20261024t185656z systemd[1]: google-guest-agent.service: Got notification message from PID 1225, but reception only permitted for main PID 1000
 2026-10-24T18:59:00.205637+00:00 vg-release-20261024t185656z google_guest_agent[1000]: ERROR oslogin.go:173 Error reloading service: Failed to reload-or-restart sshd.service: Unit sshd.service not found..
 2026-10-24T18:59:00.345381+00:00 vg-release-20261024t185656z google_guest_agent[1000]: Created google sudoers file
-2026-10-24T18:59:00.345451+00:00 vg-release-20261024t185656z google_guest_agent[1000]: Creating user serhiinikolaichuk.
+2026-10-24T18:59:00.345451+00:00 vg-release-20261024t185656z google_guest_agent[1000]: Creating user (an account of whoever runs the kit).
 2026-10-24T18:59:00.444682+00:00 vg-release-20261024t185656z snapd[879]: patch.go:64: Patching system state level 6 to sublevel 1...
 2026-10-24T18:59:00.604573+00:00 vg-release-20261024t185656z snapd[879]: patch.go:64: Patching system state level 6 to sublevel 2...
 2026-10-24T18:59:00.743996+00:00 vg-release-20261024t185656z snapd[879]: patch.go:64: Patching system state level 6 to sublevel 3...
@@ -3116,7 +3116,7 @@ af8670d660994488fe54b1fbff2704e4288
 2026-10-24T18:59:02.627095+00:00 vg-release-20261024t185656z systemd[1]: Finished google-shutdown-scripts.service - Google Compute Engine Shutdown Scripts.
 2026-10-24T18:59:02.795861+00:00 vg-release-20261024t185656z chronyd[1112]: Selected source 169.254.169.254 (metadata.google.internal)
 2026-10-24T18:59:02.810041+00:00 vg-release-20261024t185656z snapd[879]: autorepair.go:320: WARNING: the system booted with an old initrd without unlocked status reporting
-2026-10-24T18:59:02.900174+00:00 vg-release-20261024t185656z google_guest_agent[1000]: Updating keys for user serhiinikolaichuk.
+2026-10-24T18:59:02.900174+00:00 vg-release-20261024t185656z google_guest_agent[1000]: Updating keys for user (an account of whoever runs the kit).
 2026-10-24T18:59:02.914067+00:00 vg-release-20261024t185656z systemd[1]: google-guest-agent.service: Got notification message from PID 1345, but reception only permitted for main PID 1000
 2026-10-24T18:59:02.919421+00:00 vg-release-20261024t185656z systemd[1]: google-guest-agent.service: Got notification message from PID 1346, but reception only permitted for main PID 1000
 2026-10-24T18:59:02.925383+00:00 vg-release-20261024t185656z systemd[1]: google-guest-agent.service: Got notification message from PID 1347, but reception only permitted for main PID 1000

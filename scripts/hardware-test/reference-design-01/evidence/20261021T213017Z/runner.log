@@ -196,6 +196,6 @@ third-party lineage --session-id ses-9baeb5eb-0000000000000001 exit=0
   acp-bootstrap 0.0.0-dev (commit a6b33a28b026-dirty) fips140=only module=v1.0.0 enforced=true
   acpctl 0.0.0-dev (commit a6b33a28b026-dirty) fips140=only module=v1.0.0 enforced=true
 run_end=2026-10-21T21:35:17Z
-evidence: /Users/serhiinikolaichuk/dev/vaultgenome-core-compliance/scripts/hardware-test/reference-design-01/evidence/20261021T213017Z
+evidence: ~/dev/vaultgenome-core-compliance/scripts/hardware-test/reference-design-01/evidence/20261021T213017Z
 PASS: reference design 01 end to end on SEV-SNP under cnsa (hpke-mlkem1024-p384-v2) on the certified module v1.0.0 with enforcement on, every party — the job EXACT on the bank, the key released to the attested standby and the restore gated EXACT there, four refusals, both audit logs verified by the third party (20261021T213017Z)
 cleanup: deleting vg-rd01-bank-20261021t213017z, vg-rd01-standby-20261021t213017z, the rule vg-rd01-xcc-20261021t213017z and gs://rats-probe-vg-rd01-20261021t213017z

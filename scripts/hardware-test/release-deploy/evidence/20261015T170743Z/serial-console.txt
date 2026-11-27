@@ -3082,7 +3082,7 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDDIl6oU7Sr2N8AsXmPK/SrOG8UsM91C6zF9vQznRsK
 2026-10-15T17:09:39.465808+00:00 vg-release-20261015t170743z systemd[1]: google-guest-agent.service: Got notification message from PID 1200, but reception only permitted for main PID 1001
 2026-10-15T17:09:39.490134+00:00 vg-release-20261015t170743z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
 2026-10-15T17:09:39.747695+00:00 vg-release-20261015t170743z google_guest_agent[1001]: Created google sudoers file
-2026-10-15T17:09:39.747884+00:00 vg-release-20261015t170743z google_guest_agent[1001]: Creating user serhiinikolaichuk.
+2026-10-15T17:09:39.747884+00:00 vg-release-20261015t170743z google_guest_agent[1001]: Creating user (an account of whoever runs the kit).
 2026-10-15T17:09:39.878012+00:00 vg-release-20261015t170743z systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
 2026-10-15T17:09:39.878475+00:00 vg-release-20261015t170743z systemd[1]: google-guest-agent.service: Got notification message from PID 1201, but reception only permitted for main PID 1001
 2026-10-15T17:09:39.885936+00:00 vg-release-20261015t170743z systemd[1]: google-guest-agent.service: Got notification message from PID 1222, but reception only permitted for main PID 1001
@@ -3105,7 +3105,7 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDDIl6oU7Sr2N8AsXmPK/SrOG8UsM91C6zF9vQznRsK
 2026-10-15T17:09:41.335239+00:00 vg-release-20261015t170743z snapd[888]: daemon.go:277: started snapd/2.77.1 (series 16; classic) ubuntu/24.04 (amd64) linux/7.0.0-1014-gcp.
 2026-10-15T17:09:41.350604+00:00 vg-release-20261015t170743z kernel: loop3: detected capacity change from 0 to 8
 2026-10-15T17:09:41.357303+00:00 vg-release-20261015t170743z systemd[1]: tmp-syscheck\x2dmountpoint\x2d2021593882.mount: Deactivated successfully.
-2026-10-15T17:09:41.361357+00:00 vg-release-20261015t170743z google_guest_agent[1001]: Updating keys for user serhiinikolaichuk.
+2026-10-15T17:09:41.361357+00:00 vg-release-20261015t170743z google_guest_agent[1001]: Updating keys for user (an account of whoever runs the kit).
 2026-10-15T17:09:41.365335+00:00 vg-release-20261015t170743z snapd[888]: daemon.go:371: adjusting startup timeout by 45s (pessimistic estimate of 30s plus 5s per snap)
 2026-10-15T17:09:41.369184+00:00 vg-release-20261015t170743z systemd[1]: google-guest-agent.service: Got notification message from PID 1349, but reception only permitted for main PID 1001
 2026-10-15T17:09:41.377144+00:00 vg-release-20261015t170743z systemd[1]: google-guest-agent.service: Got notification message from PID 1352, but reception only permitted for main PID 1001

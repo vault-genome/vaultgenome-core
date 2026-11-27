@@ -2047,10 +2047,10 @@ ummary.timer - Generate summary of yesterday's process accounting.
 2026-10-29T21:46:35.930436+00:00 vg-button-20261029t214531z systemd[1]: google-guest-agent.service: Got notification message from PID 1216, but reception only permitted for main PID 1025
 2026-10-29T21:46:35.935982+00:00 vg-button-20261029t214531z systemd[1]: google-guest-agent.service: Got notification message from PID 1218, but reception only permitted for main PID 1025
 2026-10-29T21:46:35.939938+00:00 vg-button-20261029t214531z google_guest_agent[1025]: Created google sudoers file
-2026-10-29T21:46:35.940100+00:00 vg-button-20261029t214531z google_guest_agent[1025]: Creating user serhiinikolaichuk.
+2026-10-29T21:46:35.940100+00:00 vg-button-20261029t214531z google_guest_agent[1025]: Creating user (an account of whoever runs the kit).
 2026-10-29T21:46:35.940968+00:00 vg-button-20261029t214531z systemd[1]: google-guest-agent.service: Got notification message from PID 1219, but reception only permitted for main PID 1025
 2026-10-29T21:46:35.945824+00:00 vg-button-20261029t214531z systemd[1]: Stopping systemd-logind.service - User Login Management...
-2026-10-29T21:46:36.201582+00:00 vg-button-20261029t214531z google_guest_agent[1025]: Updating keys for user serhiinikolaichuk.
+2026-10-29T21:46:36.201582+00:00 vg-button-20261029t214531z google_guest_agent[1025]: Updating keys for user (an account of whoever runs the kit).
 2026-10-29T21:46:36.205330+00:00 vg-button-20261029t214531z systemd[1]: google-guest-agent.service: Got notification message from PID 1312, but reception only permitted for main PID 1025
          Starting [0;1;39mssh.service[0m - OpenBSD Secure Shell server...
 2026-10-29T21:46:36.211412+00:00 vg-button-20261029t214531z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
@@ -4415,7 +4415,7 @@ ton-20261029t214531z systemd[1]: vgauth.service - Authentication service for vir
 2026-10-29T21:49:19.180336+00:00 vg-button-20261029t214531z google_guest_agent[821]: Successfully scheduled job telemetryJobID
 2026-10-29T21:49:19.180359+00:00 vg-button-20261029t214531z google_guest_agent[821]: Invoking job "telemetryJobID"
 2026-10-29T21:49:19.180924+00:00 vg-button-20261029t214531z google_guest_agent[821]: Scheduler - added: [now 2026-10-29 21:49:19.180814299 +0000 UTC entry 1 next 2026-10-30 21:49:19 +0000 UTC]
-2026-10-29T21:49:19.190482+00:00 vg-button-20261029t214531z google_guest_agent[821]: Updating keys for user serhiinikolaichuk.
+2026-10-29T21:49:19.190482+00:00 vg-button-20261029t214531z google_guest_agent[821]: Updating keys for user (an account of whoever runs the kit).
 2026-10-29T21:49:19.195544+00:00 vg-button-20261029t214531z google_guest_agent[821]: Completed adding/removing routes for aliases, forwarded IP and target-instance IPs
 [[0;32m  OK  [0m] Finished [0;1;39msystemd-update-utmp-runle…e[0m - Record Runlevel Change in UTMP.
 2026-10-29T21:49:19.199825+00:00 vg-button-20261029t214531z systemd[1]: systemd-update-utmp-runlevel.service: Deactivated successfully.

@@ -26,6 +26,6 @@ sagvd ready after 1s
 20:09:39    ok    the drill: 45 steps, every one as it must be
 20:09:39    ok    after a restart the same pass and the same chip still prove the server
 20:09:39    ok    the record names neither the account nor an IAM id
-20:09:39 == evidence: /Users/serhiinikolaichuk/dev/vg-console/scripts/hardware-test/console/evidence/20261030T200418Z (      88 files)
+20:09:39 == evidence: ~/dev/vg-console/scripts/hardware-test/console/evidence/20261030T200418Z (      88 files)
 20:09:39 RESULT: PASS
 20:09:39 cleanup: terminating vg-console-20261030t200418z, removing the key pairs and the security groups

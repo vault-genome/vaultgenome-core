@@ -3083,10 +3083,10 @@ are/secureboot/updates/dbx/dbxupdate_x64.bin
 2026-10-28T16:28:48.719735+00:00 vg-button-20261028t162741z systemd[1]: google-guest-agent.service: Got notification message from PID 1231, but reception only permitted for main PID 1106
 2026-10-28T16:28:48.724313+00:00 vg-button-20261028t162741z systemd[1]: google-guest-agent.service: Got notification message from PID 1232, but reception only permitted for main PID 1106
 2026-10-28T16:28:48.728021+00:00 vg-button-20261028t162741z google_guest_agent[1106]: Created google sudoers file
-2026-10-28T16:28:48.728181+00:00 vg-button-20261028t162741z google_guest_agent[1106]: Creating user serhiinikolaichuk.
+2026-10-28T16:28:48.728181+00:00 vg-button-20261028t162741z google_guest_agent[1106]: Creating user (an account of whoever runs the kit).
 2026-10-28T16:28:48.816369+00:00 vg-button-20261028t162741z systemd[1]: Stopping systemd-logind.service - User Login Management...
 2026-10-28T16:28:48.999519+00:00 vg-button-20261028t162741z snapd[881]: snapmgr.go:1675: performing periodic snap downloads cache cleanup
-2026-10-28T16:28:48.999572+00:00 vg-button-20261028t162741z google_guest_agent[1106]: Updating keys for user serhiinikolaichuk.
+2026-10-28T16:28:48.999572+00:00 vg-button-20261028t162741z google_guest_agent[1106]: Updating keys for user (an account of whoever runs the kit).
 2026-10-28T16:28:48.999764+00:00 vg-button-20261028t162741z snapd[881]: snapmgr.go:1685: cannot clean store downloads cache: open /var/lib/snapd/cache: no such file or directory
 2026-10-28T16:28:49.004323+00:00 vg-button-20261028t162741z systemd[1]: google-guest-agent.service: Got notification message from PID 1335, but reception only permitted for main PID 1106
 2026-10-28T16:28:49.010763+00:00 vg-button-20261028t162741z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
@@ -6351,7 +6351,7 @@ are/secureboot/updates/dbx/dbxupdate_x64.bin
 2026-10-28T16:31:39.448435+00:00 vg-button-20261028t162741z systemd[1]: Starting google-startup-scripts.service - Google Compute Engine Startup Scripts...
 2026-10-28T16:31:39.456072+00:00 vg-button-20261028t162741z systemd[1]: Starting systemd-update-utmp-runlevel.service - Record Runlevel Change in UTMP...
 2026-10-28T16:31:39.462894+00:00 vg-button-20261028t162741z google_guest_agent[797]: Completed adding/removing routes for aliases, forwarded IP and target-instance IPs
-2026-10-28T16:31:39.464286+00:00 vg-button-20261028t162741z google_guest_agent[797]: Updating keys for user serhiinikolaichuk.
+2026-10-28T16:31:39.464286+00:00 vg-button-20261028t162741z google_guest_agent[797]: Updating keys for user (an account of whoever runs the kit).
 2026-10-28T16:31:39.467395+00:00 vg-button-20261028t162741z google_guest_agent[797]: Scheduling job: telemetryJobID
 2026-10-28T16:31:39.467429+00:00 vg-button-20261028t162741z google_guest_agent[797]: Scheduling job "telemetryJobID" to run at 24.000000 hr interval
 2026-10-28T16:31:39.467447+00:00 vg-button-20261028t162741z google_guest_agent[797]: Successfully scheduled job telemetryJobID

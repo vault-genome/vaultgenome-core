@@ -83,6 +83,6 @@ a7e50fd5520ab56830fdb6ec4d0fd9c1bfeec1d80ab389be94067f88657a8bd2  ./guest-second
 e1fbfb4927ac573ce800d7f1e760e429d26c8c47328e08fc8e166e2f52500e92  ./guest-second/versions.txt
 41105bf9b583aa919a32faddafa448a597beb3c2d3c54f1bb7215a8e323cc809  ./instance-eu-west-1.json
 a4deeec1531e2df3f4ecc3c7a49c74ad514224d0ec4b13ee73b4e23cda6b89e4  ./instance-us-east-2.json
-09c683094f1c801bd29378337669ba2580109bc3792359faa97e6d66eadbb76d  ./runner.log
+45f2d4386280befcdc69afee4a622057ac17bc0185db253bee2e1d64dfb11844  ./runner.log
 4e903f7dd7b14416b608243e416d5078680bef8337ef856b1e9f7f75599323a9  ./sagvd-console-first.log
 fa4aa4c87c6deeae05234cee9a4422ae037a7fe36435eeb0b19338491f243f32  ./sagvd-console-second.log

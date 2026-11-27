@@ -11,7 +11,7 @@ f348d39d8b87173f5bfb497502f011fd3815cf20926e95aeeede5a232e34ebaf  ./after-move/i
 b268c5a3a337aa65f69ab6d8de763b367f782f3d8e5e76a0c2f100aa1aa3d3ff  ./after-move/status-live.txt
 1fbeacec21717ba3aa8cfb3b151c2b4f94f4578073a9504e0c96ed7f9b018f2f  ./after-move/status.txt
 31cb5a706412e303dcbc189ae98fde3965543b7056946541ab5c23dedbf710ec  ./after-move/submit.txt
-56280269d13bdcb9386ad8daba3bfd1c81f821acb6a33dde5407abf754815d00  ./deploy.out
+de3e9f636a9cf84a0d6e6977b971829d916378029e884e00c68f2687b695629d  ./deploy.out
 b0d14f728c360e567397a971a6c6b6affbe616e9c429990e53543552311070e5  ./deploy/deployment-outputs.json
 1ec46ff0166699074660dd4ce09141505011ea9aa85023d7bee1e707c4e202e4  ./deploy/deployment.txt
 f8e6c77749aeb3af6a6be8b8c87ae771eeba8cf6d86cb344a531fe40e8b98b7e  ./deploy/guest/acp-compute-identity.json

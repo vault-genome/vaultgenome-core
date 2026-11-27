@@ -51,7 +51,7 @@ d8d8c4441a409743c6915d91f1364301945babb65a94ad04aaa8ca7618c6b3a5  ./deploy/guest
 0d94cc8530f5b748875e4ee7f59bacc6e8643653188db3be4df5001d2f8e1534  ./deploy/guest/timeline.txt
 d6f4ef0839627fb4bd449dfd96c126a94a77eee1e7b4918ddac956171226ae90  ./deploy/guest/tsm.txt
 563c2a3f5685df9b6be735d4f7699d40854a75373f057781281caae33f34733b  ./deploy/guest/versions.txt
-e0e70fdf181db157f0d13c8791d4de568a59068c7ad76878bb723612639e9c17  ./deploy/serial-console.txt
+bdece01db6579c6e6028a7d875b231eef2bc91874b9339fed8d6ce7c5de3978b  ./deploy/serial-console.txt
 002d37817fc7fe08a4bb9f54d3708c4d1017ddefb7c5b5f53bba8e12d4aecafe  ./deploy/verify/assets.sha256
 18440c30d62e31ad47a2cdd024daf5ebb7b893d3bb5bb869b350850fe4002879  ./deploy/verify/checksums.txt
 e06fbd59e5ff72cb28da406b367ee1585769aef0d5ebe45a359e8b3cc43743f1  ./deploy/verify/cosign.txt

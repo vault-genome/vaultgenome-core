@@ -34,6 +34,6 @@
      same       state/optimizer.safetensors
      same       state/rng.json
 15:03:55    measured: this machine and Compute Engine's take the recipe to the same bits, at step 160 and at step 240
-15:03:55 == evidence: /Users/serhiinikolaichuk/dev/vg-training-continuity/scripts/hardware-test/training-continuity/evidence/aws/20261111T143104Z
+15:03:55 == evidence: ~/dev/vg-training-continuity/scripts/hardware-test/training-continuity/evidence/aws/20261111T143104Z
 15:03:55 RESULT: PASS
 15:03:55 cleanup: terminating vg-tc-aws-20261111t143104z (i-04bf8f545e8b46bff), removing the key pair and the security group

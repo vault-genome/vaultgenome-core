@@ -1,6 +1,6 @@
 {
-  "corpus": "/Users/serhiinikolaichuk/dev/vg-trial-0100/test/corpus/sev-snp",
-  "command": "python3 -I tools/corpus-harness/adapters/oracle.py --oracle /Users/serhiinikolaichuk/dev/vg-trial-0100/bin/oracle --report {report} --vcek {vcek} --chain {chain}",
+  "corpus": "~/dev/vg-trial-0100/test/corpus/sev-snp",
+  "command": "python3 -I tools/corpus-harness/adapters/oracle.py --oracle ~/dev/vg-trial-0100/bin/oracle --report {report} --vcek {vcek} --chain {chain}",
   "reports": 55,
   "failed": 0,
   "mutants_per_report": 8,

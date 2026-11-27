@@ -1964,7 +1964,7 @@ evidence/attestation-validation/vault-genome-sgx-test/build/host/
 Warning: Permanently added '20.119.165.223' (ED25519) to the list of known hosts.
 
 evidence: <repo>/scripts/hardware-test/azure-sgx/terraform/vault-genome-sgx-test-evidence.tar.gz
--rw-r--r--@ 1 serhiinikolaichuk  staff   2.7M Oct 14 20:00 vault-genome-sgx-test-evidence.tar.gz
+-rw-r--r--@ 1 (owner)  staff   2.7M Oct 14 20:00 vault-genome-sgx-test-evidence.tar.gz
 
 === 11. teardown VM ===
 azurerm_resource_group.validation: Refreshing state... [id=/subscriptions/<subscription>/resourceGroups/vault-genome-sgx-test-rg]

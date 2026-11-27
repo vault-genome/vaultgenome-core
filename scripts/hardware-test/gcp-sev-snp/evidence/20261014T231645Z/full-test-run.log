@@ -1845,7 +1845,7 @@ evidence/demo1-seal.txt
 === 9. download evidence to laptop ===
 
 evidence: <repo>/scripts/hardware-test/gcp-sev-snp/terraform/vault-genome-sev-snp-test-evidence.tar.gz
--rw-r--r--@ 1 serhiinikolaichuk  staff    11K Oct 14 18:16 vault-genome-sev-snp-test-evidence.tar.gz
+-rw-r--r--@ 1 (owner)  staff    11K Oct 14 18:16 vault-genome-sev-snp-test-evidence.tar.gz
 
 === 10. teardown VM ===
 google_compute_instance.vault_genome: Refreshing state... [id=projects/rats-probe/zones/us-central1-c/instances/vault-genome-sev-snp-test]

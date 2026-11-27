@@ -3083,7 +3083,7 @@ e86537f27212e8c291d6ade3b1e9
 2026-10-15T01:29:12.171906+00:00 vg-release-20261015t012735z systemd[1]: google-guest-agent.service: Got notification message from PID 1193, but reception only permitted for main PID 998
 2026-10-15T01:29:12.195854+00:00 vg-release-20261015t012735z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
 2026-10-15T01:29:12.247353+00:00 vg-release-20261015t012735z google_guest_agent[998]: Created google sudoers file
-2026-10-15T01:29:12.247486+00:00 vg-release-20261015t012735z google_guest_agent[998]: Creating user serhiinikolaichuk.
+2026-10-15T01:29:12.247486+00:00 vg-release-20261015t012735z google_guest_agent[998]: Creating user (an account of whoever runs the kit).
 2026-10-15T01:29:12.308851+00:00 vg-release-20261015t012735z systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
 2026-10-15T01:29:12.309790+00:00 vg-release-20261015t012735z systemd[1]: google-guest-agent.service: Got notification message from PID 1194, but reception only permitted for main PID 998
 2026-10-15T01:29:12.315777+00:00 vg-release-20261015t012735z systemd[1]: google-guest-agent.service: Got notification message from PID 1215, but reception only permitted for main PID 998
@@ -3101,7 +3101,7 @@ e86537f27212e8c291d6ade3b1e9
 2026-10-15T01:29:13.760916+00:00 vg-release-20261015t012735z snapd[885]: overlord.go:316: Acquiring state lock file
 2026-10-15T01:29:13.760977+00:00 vg-release-20261015t012735z snapd[885]: overlord.go:321: Acquired state lock file
 2026-10-15T01:29:13.777151+00:00 vg-release-20261015t012735z snapd[885]: patch.go:64: Patching system state level 6 to sublevel 1...
-2026-10-15T01:29:13.781903+00:00 vg-release-20261015t012735z google_guest_agent[998]: Updating keys for user serhiinikolaichuk.
+2026-10-15T01:29:13.781903+00:00 vg-release-20261015t012735z google_guest_agent[998]: Updating keys for user (an account of whoever runs the kit).
 2026-10-15T01:29:13.782921+00:00 vg-release-20261015t012735z snapd[885]: patch.go:64: Patching system state level 6 to sublevel 2...
 2026-10-15T01:29:13.788429+00:00 vg-release-20261015t012735z snapd[885]: patch.go:64: Patching system state level 6 to sublevel 3...
 2026-10-15T01:29:13.789297+00:00 vg-release-20261015t012735z systemd[1]: google-guest-agent.service: Got notification message from PID 1336, but reception only permitted for main PID 998

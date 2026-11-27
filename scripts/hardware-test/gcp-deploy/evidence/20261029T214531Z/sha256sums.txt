@@ -10,7 +10,7 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./after-reboot
 3d6c9ba25a8a66cec1bf9ffb3c50dc6d6405bd29ba4e31b47b4a871b76fae3b1  ./after-reboot/status-live.txt
 d280658c8794d2b8e23d4b19a7a3411cd23f5401f4b22229fa1d69524f2ff46f  ./after-reboot/status.txt
 d69704e1ec42bd37dd8873a32bf0b6171ae785591ef45031edcb86db4faf5b3b  ./after-reboot/submit.txt
-8858953206bbc934b88d91fc5687c22c4712acdd6fa61f182c4a9bc77375d7a3  ./deploy.out
+0e6652bec3cf812bb15d418416a8a49dbdc9f6d0fbdeb762e42eb87a1dee91d9  ./deploy.out
 5ed5137ab0abd0f6e1cc4eccb834faec4e81cf4af89b8637008d48ecb2e1dacf  ./deploy/deployment.txt
 0b27dd978b22db10caf7924fdc1ce5fcc512afce3811e251a4ba1c8ec2ebbbc1  ./deploy/guest/acp-compute-identity.json
 123fca8fa9c3cd79fd521afb3c29293e074d16c652f693dd7c55cf27e8a37943  ./deploy/guest/acp-compute-metrics.txt
@@ -59,7 +59,7 @@ a02c129711720f648a0555f3796bf12a3ab2edbcae3b7d5a770f49157096d18b  ./deploy/guest
 bbdc8768a47ba148f44e84d37c22ff8bf7be3c705d9c8fb07d1bcb720d890fa3  ./deploy/guest/timeline.txt
 f3e6bc0e270073845e658920f3593d1fcaa2d1ee978ffd61cfd8e08ca4a52488  ./deploy/guest/tsm.txt
 71a9955b69bb09b3a8cde1e32abaf33692e0530d4c723b1d409cc4347e165aad  ./deploy/guest/versions.txt
-93c80b86e41df2cff42d57c5c278cf2efd51190012e4121f83eae0f20f3cf588  ./deploy/serial-console.txt
+afa927649191f385a64c77d8065bb18af9cb5e295a50d79bb2703549c591f212  ./deploy/serial-console.txt
 87bf10660a079340c4f71ce9ae06bc7548332481635d0bfbd47dad7ed3c2619d  ./deploy/verify/assets.sha256
 8a64407bc9f150d3dba9225c46dcd8583086afa2f991301c4cbdca3f4d807b2e  ./deploy/verify/checksums.txt
 e06fbd59e5ff72cb28da406b367ee1585769aef0d5ebe45a359e8b3cc43743f1  ./deploy/verify/cosign.txt

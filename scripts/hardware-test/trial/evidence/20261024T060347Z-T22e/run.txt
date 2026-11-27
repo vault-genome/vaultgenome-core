@@ -2,7 +2,7 @@ row T22e
 kit gcp-sev-snp/returnpath-soak rats-probe
 tag v0.10.0 84cc9b91e590f3351a8a035ae1ba78a34af74857
 tag signature: Good "git" signature for 164888036+Nikolaichuk7@users.noreply.github.com with ED25519 key SHA256:8semTUTf1WWEk/WrIjvAA09PltKOJpiH5hjo1Gmb670
-lane /Users/serhiinikolaichuk/dev/vg-trial-a (tracked tree = v0.10.0)
+lane ~/dev/vg-trial-a (tracked tree = v0.10.0)
 runner 48f140e54eb4e0f3162d13447b8b946242812aea
 go go1.27.3 on Darwin arm64
 env VG_SOAK_MINUTES=120

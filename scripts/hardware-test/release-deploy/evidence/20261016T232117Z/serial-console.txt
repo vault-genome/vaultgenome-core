@@ -3087,7 +3087,7 @@ temd[1]: systemd-pcrphase-sysinit.service - TPM2 PCR Barrier (Initialization) wa
 2026-10-16T23:23:06.037882+00:00 vg-release-20261016t232117z systemd[1]: google-guest-agent.service: Got notification message from PID 1121, but reception only permitted for main PID 933
 2026-10-16T23:23:06.072418+00:00 vg-release-20261016t232117z systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
 2026-10-16T23:23:06.171910+00:00 vg-release-20261016t232117z google_guest_agent[933]: Created google sudoers file
-2026-10-16T23:23:06.172137+00:00 vg-release-20261016t232117z google_guest_agent[933]: Creating user serhiinikolaichuk.
+2026-10-16T23:23:06.172137+00:00 vg-release-20261016t232117z google_guest_agent[933]: Creating user (an account of whoever runs the kit).
 2026-10-16T23:23:06.265921+00:00 vg-release-20261016t232117z snapd[816]: seclog.go:107: security logger enabled
 2026-10-16T23:23:06.305193+00:00 vg-release-20261016t232117z systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
 2026-10-16T23:23:06.305941+00:00 vg-release-20261016t232117z systemd[1]: google-guest-agent.service: Got notification message from PID 1122, but reception only permitted for main PID 933
@@ -3117,7 +3117,7 @@ temd[1]: systemd-pcrphase-sysinit.service - TPM2 PCR Barrier (Initialization) wa
 2026-10-16T23:23:07.952761+00:00 vg-release-20261016t232117z systemd[1]: Started snapd.service - Snap Daemon.
 2026-10-16T23:23:07.956150+00:00 vg-release-20261016t232117z systemd[1]: Starting google-shutdown-scripts.service - Google Compute Engine Shutdown Scripts...
 2026-10-16T23:23:07.960079+00:00 vg-release-20261016t232117z systemd[1]: Finished google-shutdown-scripts.service - Google Compute Engine Shutdown Scripts.
-2026-10-16T23:23:07.996961+00:00 vg-release-20261016t232117z google_guest_agent[933]: Updating keys for user serhiinikolaichuk.
+2026-10-16T23:23:07.996961+00:00 vg-release-20261016t232117z google_guest_agent[933]: Updating keys for user (an account of whoever runs the kit).
 2026-10-16T23:23:08.003955+00:00 vg-release-20261016t232117z systemd[1]: google-guest-agent.service: Got notification message from PID 1275, but reception only permitted for main PID 933
 2026-10-16T23:23:08.012727+00:00 vg-release-20261016t232117z systemd[1]: google-guest-agent.service: Got notification message from PID 1276, but reception only permitted for main PID 933
 2026-10-16T23:23:08.019647+00:00 vg-release-20261016t232117z systemd[1]: google-guest-agent.service: Got notification message from PID 1277, but reception only permitted for main PID 933
