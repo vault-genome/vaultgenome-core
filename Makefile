@@ -276,6 +276,13 @@ sbom:
 terminology:
 	bash scripts/terminology_check.sh
 
+# The records of the hardware kits name no account of the workstation a run
+# was made from (scripts/check-records.sh; the doctrine tests hold the tree to
+# it: TestRecords_TheTreeNamesNoAccountOfAWorkstation).
+.PHONY: check-records
+check-records:
+	bash scripts/check-records.sh
+
 # The formal models (ADR 0032): the models are what formal/gen.py writes, and ProVerif 2.05
 # gives the recorded verdicts. ProVerif 2.05 on PATH or in PROVERIF (built from
 # https://proverif.inria.fr/proverif2.05.tar.gz with ./build -nointeract); not part of
