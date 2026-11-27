@@ -29,6 +29,9 @@ set -euo pipefail
 PROJECT="${1:?usage: run.sh <project> [zone]}"
 ZONE="${2:-us-central1-c}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# A console is kept with no account of whoever ran the kit in it
+# (redact-record.py; scripts/check-records.sh holds the tree to that).
+REDACT="$HERE/../../redact-record.py"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOWER="$(echo "$STAMP" | tr 'A-Z' 'a-z')"
@@ -73,7 +76,7 @@ echo "waiting for four boots on the serial console (up to 60 min)"
 NEXT=0
 for _ in $(seq 1 360); do
   sleep 10
-  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" --start "$NEXT" > "$BUILD/chunk" 2> "$BUILD/chunk.err" || continue
+  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" --start "$NEXT" 2> "$BUILD/chunk.err" | python3 "$REDACT" --stream > "$BUILD/chunk" || continue
   cat "$BUILD/chunk" >> "$SERIAL"
   N="$(sed -n 's/.*--start=\([0-9][0-9]*\).*/\1/p' "$BUILD/chunk.err" | tail -1)"
   [ -n "$N" ] && NEXT="$N"

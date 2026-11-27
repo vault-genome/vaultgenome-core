@@ -43,6 +43,9 @@ case "$PROFILE" in cnsa) SIGSUITE_DEFAULT=ecdsa-p384-sha384;; *) SIGSUITE_DEFAUL
 SIGSUITE="${VG_SIGSUITE:-$SIGSUITE_DEFAULT}"
 case "$SIGSUITE" in ed25519|ecdsa-p384-sha384|ml-dsa-87) ;; *) echo "VG_SIGSUITE must be ed25519, ecdsa-p384-sha384 or ml-dsa-87; got $SIGSUITE"; exit 2;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# A console is kept with no account of whoever ran the kit in it
+# (redact-record.py; scripts/check-records.sh holds the tree to that).
+REDACT="$HERE/../../redact-record.py"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 NAME="vg-keyrelease-$(echo "$STAMP" | tr 'A-Z' 'a-z')"
@@ -97,7 +100,7 @@ mkdir -p "$RAW_DIR"
 SERIAL="$RAW_DIR/serial-$STAMP.txt"
 for _ in $(seq 1 90); do
   sleep 10
-  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" > "$SERIAL" 2>/dev/null || true
+  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" 2>/dev/null | python3 "$REDACT" --stream > "$SERIAL" || true
   grep -q "===E2E-END===" "$SERIAL" && break
 done
 grep -q "===E2E-END===" "$SERIAL" || { echo "no results after 15 minutes"; tail -40 "$SERIAL"; exit 1; }

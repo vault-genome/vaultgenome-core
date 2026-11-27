@@ -60,6 +60,9 @@ ZONES_R="${4:-us-central1-c,us-central1-a,us-central1-b,us-central1-f}"
 MACHINE=n2d-standard-8
 MACHINE_R=n2d-standard-4
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# A console is kept with no account of whoever ran the kit in it
+# (redact-record.py; scripts/check-records.sh holds the tree to that).
+REDACT="$HERE/../redact-record.py"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 FAILOVER="$ROOT/scripts/hardware-test/gcp-failover"
 TC="$ROOT/scripts/hardware-test/training-continuity"
@@ -86,7 +89,7 @@ cleanup() {
   if [ "$RESULT" != PASS ]; then  # a guest that did not finish: its console is the trace that is left
     for n in "$PRIMARY" "$STANDBY" "$AUTHORITY"; do
       z="$(zone_of "$n")"; [ -n "$z" ] || continue
-      gcloud compute instances get-serial-port-output "$n" --project "$PROJECT" --zone "$z" > "$EVIDENCE/${n%-"$LOW"}-serial-console.txt" 2>/dev/null
+      gcloud compute instances get-serial-port-output "$n" --project "$PROJECT" --zone "$z" 2>/dev/null | python3 "$REDACT" --stream > "$EVIDENCE/${n%-"$LOW"}-serial-console.txt"
       [ -s "$EVIDENCE/${n%-"$LOW"}-serial-console.txt" ] || rm -f "$EVIDENCE/${n%-"$LOW"}-serial-console.txt"
     done
   fi

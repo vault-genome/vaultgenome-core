@@ -16,6 +16,9 @@ set -euo pipefail
 PROJECT="${1:?usage: run.sh <project> [zone]}"
 ZONE="${2:-us-central1-a}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# A console is kept with no account of whoever ran the kit in it
+# (redact-record.py; scripts/check-records.sh holds the tree to that).
+REDACT="$HERE/../../redact-record.py"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOW="$(echo "$STAMP" | tr 'A-Z' 'a-z')"
@@ -56,7 +59,7 @@ mkdir -p "$RAW_DIR"
 SERIAL="$RAW_DIR/serial-$STAMP.txt"
 for i in $(seq 1 150); do
   sleep 10
-  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" > "$SERIAL" 2>/dev/null || true
+  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" 2>/dev/null | python3 "$REDACT" --stream > "$SERIAL" || true
   grep -q "===E2E-END===" "$SERIAL" && break
 done
 grep -q "===E2E-END===" "$SERIAL" || { echo "no results after 25 minutes"; tail -40 "$SERIAL"; exit 1; }

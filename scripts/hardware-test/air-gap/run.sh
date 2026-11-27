@@ -39,6 +39,9 @@ case "$TEE" in
   *) echo "VG_TEE must be sev-snp or tdx"; exit 2;;
 esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# A console is kept with no account of whoever ran the kit in it
+# (redact-record.py; scripts/check-records.sh holds the tree to that).
+REDACT="$HERE/../redact-record.py"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 RP="$ROOT/scripts/hardware-test/gcp-sev-snp/returnpath-e2e"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -114,7 +117,7 @@ SERIAL="$RAW_DIR/serial-$STAMP.txt"
 echo "waiting for the guest to fill its caches and say ===AIRGAP-READY=== (up to 15 min)"
 for _ in $(seq 1 90); do
   sleep 10
-  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" > "$SERIAL" 2>/dev/null || true
+  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" 2>/dev/null | python3 "$REDACT" --stream > "$SERIAL" || true
   grep -q "===AIRGAP-READY===" "$SERIAL" && break
 done
 grep -q "===AIRGAP-READY===" "$SERIAL" || { echo "the guest never said it was ready"; tail -40 "$SERIAL"; exit 1; }
@@ -128,7 +131,7 @@ echo "instance tags now: $(cat "$BUILD/instance-tags.txt")"
 echo "waiting for results on the serial console (up to 25 min)"
 for _ in $(seq 1 150); do
   sleep 10
-  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" > "$SERIAL" 2>/dev/null || true
+  gcloud compute instances get-serial-port-output "$NAME" --project "$PROJECT" --zone "$ZONE" 2>/dev/null | python3 "$REDACT" --stream > "$SERIAL" || true
   grep -q "===E2E-END===" "$SERIAL" && break
 done
 grep -q "===E2E-END===" "$SERIAL" || { echo "no results after 25 minutes"; tail -40 "$SERIAL"; exit 1; }

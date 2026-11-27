@@ -68,6 +68,9 @@ case "$PROFILE" in cnsa) SIGSUITE_DEFAULT=ecdsa-p384-sha384;; *) SIGSUITE_DEFAUL
 SIGSUITE="${VG_SIGSUITE:-$SIGSUITE_DEFAULT}"
 case "$SIGSUITE" in ed25519|ecdsa-p384-sha384|ml-dsa-87) ;; *) echo "VG_SIGSUITE must be ed25519, ecdsa-p384-sha384 or ml-dsa-87; got $SIGSUITE"; exit 2;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# A console is kept with no account of whoever ran the kit in it
+# (redact-record.py; scripts/check-records.sh holds the tree to that).
+REDACT="$HERE/../redact-record.py"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOW="$(echo "$STAMP" | tr 'A-Z' 'a-z')"
@@ -89,8 +92,8 @@ cleanup() {
     git -C "$ROOT" worktree prune >/dev/null 2>&1 || true; rm -rf "$BUILD"; return
   fi
   if [ "$OK" = 0 ]; then  # a guest that died before its record: its console is the only trace
-    [ "$CREATED_A" = 1 ] && gcloud compute instances get-serial-port-output "$A" --project "$PROJECT" --zone "$ZONE_A" > "$EVIDENCE/a-serial-console.txt" 2>/dev/null
-    [ "$CREATED_B" = 1 ] && gcloud compute instances get-serial-port-output "$B" --project "$PROJECT" --zone "$ZONE_B" > "$EVIDENCE/b-serial-console.txt" 2>/dev/null
+    [ "$CREATED_A" = 1 ] && gcloud compute instances get-serial-port-output "$A" --project "$PROJECT" --zone "$ZONE_A" 2>/dev/null | python3 "$REDACT" --stream > "$EVIDENCE/a-serial-console.txt"
+    [ "$CREATED_B" = 1 ] && gcloud compute instances get-serial-port-output "$B" --project "$PROJECT" --zone "$ZONE_B" 2>/dev/null | python3 "$REDACT" --stream > "$EVIDENCE/b-serial-console.txt"
   fi
   echo "cleanup: deleting $A, $B, the rule $RULE and gs://$BUCKET"
   [ "$CREATED_A" = 1 ] && gcloud compute instances delete "$A" --project "$PROJECT" --zone "$ZONE_A" --quiet >/dev/null 2>&1
