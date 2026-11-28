@@ -148,6 +148,20 @@ given release can still open.
 
 ### Fixed
 
+- **The auditor's verifier gives no tip for a log of no event, as
+  `acpctl audit verify` gives none** (ADR 0034, part three: the tool is
+  held equal to acpctl). `tools/auditor/verify_audit.py` wrote as the tip
+  what the first event would link to — zeros, or a segment's
+  `prev_tip_hex` — when no event was there to verify; acpctl's tip is the
+  hash of the last event, and a log of no event has none. A log of no
+  event is what a machine given nothing to do keeps: the reserve of a
+  custodian set in a run where no re-dealing stands for it. The
+  differential test held every genuine log on record to have an event,
+  and the two verifiers were never asked of one: it now holds a log of
+  no event under each suite, and any genuine one on record, to both —
+  whole, of no event, with no tip. On the tool before, the logs of no
+  event under Ed25519 and ECDSA P-384 differed in their tips.
+
 - **The console says a server that is gone does not answer, whatever the
   socket said.** The page chose its words by the text of the network
   error: "refused" read as "the server does not answer", but a connection

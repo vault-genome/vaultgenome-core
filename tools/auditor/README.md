@@ -21,8 +21,10 @@ for an auditor who would rather not clone the repository; the wheel is a
 release asset, signed like the binaries, and `genome-worker` CI holds the
 installed command to the file in the tree on a recorded log.
 
-Exit 0 when every event links and verifies, with the count and the tip;
-1 otherwise, naming the first event that does not. Compare the tip with
+Exit 0 when every event links and verifies, with the count and the tip
+— the hash of the last event; none for a log of no event, as `acpctl
+audit verify` gives none —; 1 otherwise, naming the first event that does
+not. Compare the tip with
 the one recorded elsewhere (the kits' `audit-verify.json`, the
 crosscloud-restore report): a tail cut off the log is invisible to any
 replay.
@@ -30,5 +32,6 @@ replay.
 `internal/audit/chain/auditor_differential_test.go` (build tag
 `differential`; `make differential`) calls this tool and `acpctl audit
 verify` on the same files — every genuine log on record, a log under each
-suite, and mutants — and requires the same verdicts, counts and tips. The
+suite and one of no event under each, and mutants — and requires the same
+verdicts, counts and tips. The
 runs on record are in `test/corpus/audit/results/`.

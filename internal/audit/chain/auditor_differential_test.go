@@ -188,6 +188,12 @@ func recordedLogs(t *testing.T) (dbs, pems []string) {
 	return dbs, pems
 }
 
+// noEventKID is the key ID both verifiers are given for a genuine log of
+// no event: a key ID is named by each event, so such a log names none,
+// and acpctl takes one all the same. Neither verifier has an event to
+// hold it to.
+const noEventKID = ids.KeyID("a-log-of-no-event")
+
 type auditorResult struct {
 	Case      string `json:"case"`
 	Suite     string `json:"suite"`
@@ -216,18 +222,34 @@ func TestDifferential_Auditor(t *testing.T) {
 	// Every genuine log on record, with the key the kit kept beside it.
 	genuine, kept := recordedLogs(t)
 	require.NotEmpty(t, genuine, "no genuine audit log on record")
+	withEvents := -1 // the first genuine log with an event: a base of the mutants
 	for i, db := range genuine {
 		bs, err := store.OpenReadOnly(db)
 		require.NoError(t, err)
 		events, err := bs.Load()
 		require.NoError(t, err)
 		require.NoError(t, bs.Close())
-		require.NotEmpty(t, events)
 		rel, _ := filepath.Rel(auditorRoot, db)
+		if len(events) == 0 {
+			// A machine given nothing to do keeps a log of no event — the
+			// authority-quorum kit's reserve in a run where no re-dealing
+			// stands: both verifiers are to find it whole, of no event and
+			// with no tip.
+			raw, err := os.ReadFile(kept[i])
+			require.NoError(t, err)
+			suite, _, err := crypto.ParsePublicKeyPEM(raw)
+			require.NoError(t, err)
+			cases = append(cases, tc{name: "genuine, no event:" + rel, db: db, pem: kept[i], kid: noEventKID, suite: suite, wantOK: true})
+			continue
+		}
+		if withEvents < 0 {
+			withEvents = len(cases)
+		}
 		suite, err := crypto.RecordSuite(events[0].Alg)
 		require.NoError(t, err)
 		cases = append(cases, tc{name: "genuine:" + rel, db: db, pem: kept[i], kid: events[0].SigningKeyID, suite: suite, wantOK: true})
 	}
+	require.GreaterOrEqual(t, withEvents, 0, "no genuine audit log on record with an event")
 	// A log under each suite, written the way the daemons write theirs.
 	for _, suite := range crypto.Suites() {
 		if _, err := keys.NewInMemoryStore(nil).GenerateSigningSuite("probe", keys.PurposeSigningAudit, suite); err != nil {
@@ -237,8 +259,19 @@ func TestDifferential_Auditor(t *testing.T) {
 		db, pem, kid := writeLog(t, dir, suite, 9)
 		cases = append(cases, tc{name: "written:" + string(suite), db: db, pem: pem, kid: kid, suite: suite, wantOK: true, unsupported: suite == crypto.SuiteMLDSA87})
 	}
+	// A log of no event under each suite, as a machine given nothing to do
+	// keeps one: whole, of no event, and with no tip, to both verifiers.
+	noEvent := filepath.Join(dir, "no-event")
+	require.NoError(t, os.MkdirAll(noEvent, 0o755))
+	for _, suite := range crypto.Suites() {
+		if _, err := keys.NewInMemoryStore(nil).GenerateSigningSuite("probe", keys.PurposeSigningAudit, suite); err != nil {
+			continue
+		}
+		db, pem, kid := writeLog(t, noEvent, suite, 0)
+		cases = append(cases, tc{name: "written, no event:" + string(suite), db: db, pem: pem, kid: kid, suite: suite, wantOK: true, unsupported: suite == crypto.SuiteMLDSA87})
+	}
 	// Mutants: a byte of an event's kind, of a signature, of a prev_hash — in a written log and in a genuine one.
-	for _, base := range []tc{cases[len(genuine)], cases[0]} {
+	for _, base := range []tc{cases[len(genuine)], cases[withEvents]} {
 		for _, m := range []struct {
 			what   string
 			needle []byte
@@ -284,6 +317,9 @@ func TestDifferential_Auditor(t *testing.T) {
 }
 
 func verdictWord(v auditorVerdict) string {
+	if v.OK && v.Tip == "" {
+		return fmt.Sprintf("ok (%d events, no tip)", v.Events)
+	}
 	if v.OK {
 		return fmt.Sprintf("ok (%d events, tip %s…)", v.Events, v.Tip[:12])
 	}

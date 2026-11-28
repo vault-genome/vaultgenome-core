@@ -389,7 +389,10 @@ def verify(audit_path, pubkey_pem, kid):
         expected_prev = h
         last_hash = h
         result["events"] = i + 1
-    result["tip"] = last_hash.hex()
+    # The tip is the hash of the last event verified, as acpctl's: a log
+    # of no event has none (what its first event would link to is in
+    # segment_start, where a segment says it).
+    result["tip"] = last_hash.hex() if result["events"] else None
     result["ok"] = True
     return result
 
@@ -405,7 +408,7 @@ def main(argv=None):
     if a.json:
         print(json.dumps(r, sort_keys=True))
     else:
-        print(("ok — %d events, tip %s, %s" % (r["events"], r["tip"], r["suite"])) if r["ok"] else ("FAIL — " + "; ".join(r["errors"])))
+        print(("ok — %d events, %s, %s" % (r["events"], ("tip " + r["tip"]) if r["tip"] else "no tip", r["suite"])) if r["ok"] else ("FAIL — " + "; ".join(r["errors"])))
     sys.exit(0 if r["ok"] else 1)
 
 
